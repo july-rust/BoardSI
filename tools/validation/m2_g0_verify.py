@@ -38,10 +38,8 @@ def main():
                  "C0_F_per_m":t["vacuum"]["C_F_per_m"],
                  "Lext_H_per_m":t["derived"]["Lext_H_per_m"],
                  "Z0_ohm":t["derived"]["Z0_ohm"],
-                 "delay_s_per_m":t["derived"]["delay_s_per_m"],
-                 "field_relative_residual":t["field"]["relative_residual"],
-                 "vacuum_relative_residual":t["vacuum"]["relative_residual"]}
-        for key,value in mapping.items():
+                 "delay_s_per_m":t["derived"]["delay_s_per_m"]}
+        # Cross-host factorization residuals are bounded, not bitwise reference fixtures.\n        # They are separately required <= 1e-9 below.\n        for key,value in mapping.items():
             reference=float(row[key])
             check(math.isfinite(value) and math.isclose(value,reference,rel_tol=2e-10,abs_tol=1e-19),
                   "reference fixture drift "+str(case)+" "+key)
