@@ -1,0 +1,192 @@
+name: Qt runtime
+on:
+  pull_request:
+    paths:
+      - 'apps/boardsi-qt-prototype/**'
+      - 'apps/boardsi-worker/**'
+      - 'crates/boardsi-ipc/**'
+      - 'crates/boardsi-numerics/**'
+      - '.github/scripts/install_qt_runtime.py'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.github/workflows/qt-runtime.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/boardsi-qt-prototype/**'
+      - 'apps/boardsi-worker/**'
+      - 'crates/boardsi-ipc/**'
+      - 'crates/boardsi-numerics/**'
+      - '.github/scripts/install_qt_runtime.py'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.github/workflows/qt-runtime.yml'
+permissions:
+  contents: read
+concurrency:
+  group: qt-runtime-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  linux-qt:
+    name: Linux x86_64 Qt 6.8.3 offscreen (provisional)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Qt build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y libgl-dev libopengl-dev libegl1 libxkbcommon-dev libvulkan-dev xvfb libxcb-cursor0 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-icccm4 libxkbcommon-x11-0 libx11-xcb1 libxcb-randr0 libxcb-shape0 libxcb-sync1 libxcb-xfixes0 libxcb-xkb1 libxcb-shm0
+      - name: Install fixed Qt SDK and CMake
+        run: |
+          python3 -m venv "$RUNNER_TEMP/qt-tools"
+          "$RUNNER_TEMP/qt-tools/bin/pip" install aqtinstall==3.3.0 cmake==3.31.6
+          "$RUNNER_TEMP/qt-tools/bin/aqt" install-qt linux desktop 6.8.3 linux_gcc_64 --archives qtbase icu -O "$RUNNER_TEMP/qt"
+          echo "$RUNNER_TEMP/qt-tools/bin" >> "$GITHUB_PATH"
+          echo "QT_PREFIX=$RUNNER_TEMP/qt/6.8.3/gcc_64" >> "$GITHUB_ENV"
+      - name: Build unchanged Rust Worker
+        run: |
+          rustup toolchain install 1.75.0 --profile minimal
+          cargo +1.75.0 build --locked -p boardsi-worker
+      - name: Build actual Widgets GUI and runtime harness
+        run: |
+          test "$RUNNER_ARCH" = X64
+          "$QT_PREFIX/bin/qmake" -query QT_VERSION
+          cmake --version
+          g++ --version
+          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-qt --parallel 2
+      - name: Run real QApplication and independent Worker
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          ulimit -c 0
+          export LD_LIBRARY_PATH="$QT_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          ctest --test-dir build-qt --output-on-failure
+      - name: Print measurement evidence
+        if: always()
+        run: |
+          if test -f build-qt/qt-runtime-results.json; then cat build-qt/qt-runtime-results.json; fi
+          if test -f build-qt/Testing/Temporary/LastTest.log; then cat build-qt/Testing/Temporary/LastTest.log; fi
+      - name: Execute xcb desktop backend with software display
+        env:
+          BOARDSI_EXPECTED_QT_ARCH: x86_64
+          BOARDSI_EXPECTED_WORKER_ARCH: x86_64
+          BOARDSI_EXPECTED_QT_PLATFORM: xcb
+        run: |
+          ulimit -c 0
+          export LD_LIBRARY_PATH="$QT_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          ldd "$QT_PREFIX/plugins/platforms/libqxcb.so" > build-qt/xcb-dependencies.txt
+          cat build-qt/xcb-dependencies.txt
+          if grep -q 'not found' build-qt/xcb-dependencies.txt; then exit 1; fi
+          cd build-qt
+          xvfb-run -a env QT_QPA_PLATFORM=xcb ./boardsi-qt-runtime-validation "$GITHUB_WORKSPACE/target/debug/boardsi-worker" "$(command -v python3)" "$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests/fault_worker.py"
+  native-qt:
+    name: Qt native ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            runner: windows-2022
+            host: windows
+            qt_arch: win64_msvc2022_64
+            target: x86_64-pc-windows-msvc
+            qt_cpu: x86_64
+            rust_cpu: x86_64
+            runner_arch: X64
+            vc_arch: x64
+            platform: windows
+            python_arch: x64
+          - name: Windows ARM64
+            runner: windows-11-arm
+            host: windows
+            qt_arch: win64_msvc2022_arm64_cross_compiled
+            target: aarch64-pc-windows-msvc
+            qt_cpu: arm64
+            rust_cpu: aarch64
+            runner_arch: ARM64
+            vc_arch: arm64
+            platform: windows
+            python_arch: x64
+          - name: macOS ARM64
+            runner: macos-14
+            host: mac
+            qt_arch: clang_64
+            target: aarch64-apple-darwin
+            qt_cpu: arm64
+            rust_cpu: aarch64
+            runner_arch: ARM64
+            platform: cocoa
+            python_arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      BOARDSI_EXPECTED_QT_ARCH: ${{ matrix.qt_cpu }}
+      BOARDSI_EXPECTED_WORKER_ARCH: ${{ matrix.rust_cpu }}
+      BOARDSI_EXPECTED_QT_PLATFORM: ${{ matrix.platform }}
+      QT_QPA_PLATFORM: ${{ matrix.platform }}
+      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          architecture: ${{ matrix.python_arch }}
+      - name: Install fixed Qt SDK
+        shell: bash
+        run: |
+          test "$RUNNER_ARCH" = '${{ matrix.runner_arch }}'
+          python -m pip install aqtinstall==3.3.0
+          python .github/scripts/install_qt_runtime.py '${{ matrix.host }}' '${{ matrix.qt_arch }}'
+      - name: Build matching Rust executable
+        shell: bash
+        run: |
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+          rustc -vV
+          cargo build --locked -p boardsi-worker
+      - name: Build Windows target with installed MSVC toolset
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsInstall = & $vswhere -latest -products '*' -property installationPath
+          if (-not $vsInstall) { throw 'MSVC installation not found' }
+          $nativeBuildScript = Join-Path $env:RUNNER_TEMP 'boardsi-build-qt.cmd'
+          $hostArg = ''
+          if ($env:QT_HOST_PREFIX) { $hostArg = "-DQT_HOST_PATH=`"$env:QT_HOST_PREFIX`"" }
+          @(
+            "@call `"$vsInstall\Common7\Tools\VsDevCmd.bat`" -arch=${{ matrix.vc_arch }} -host_arch=${{ matrix.vc_arch }}",
+            'if errorlevel 1 exit /b 1',
+            'where cl',
+            'cmake --version',
+            "cmake -S apps/boardsi-qt-prototype -B build-qt -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=`"$env:QT_PREFIX`" $hostArg -DBOARDSI_WORKER=`"$env:GITHUB_WORKSPACE/target/debug/boardsi-worker.exe`"",
+            'if errorlevel 1 exit /b 1',
+            'cmake --build build-qt --parallel 2',
+            'if errorlevel 1 exit /b 1'
+          ) | Set-Content $nativeBuildScript
+          & cmd /c $nativeBuildScript
+          if ($LASTEXITCODE -ne 0) { throw "Native Qt build failed: $LASTEXITCODE" }
+      - name: Build macOS arm64 target
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cmake --version
+          clang++ --version
+          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker"
+          cmake --build build-qt --parallel 2
+          file build-qt/boardsi-qt-runtime-validation target/debug/boardsi-worker
+      - name: Execute actual native Qt backend
+        shell: bash
+        run: |
+          ulimit -c 0 || true
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          pythonPath=$(python -c 'import sys; print(sys.executable)')
+          ./boardsi-qt-runtime-validation$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$pythonPath" "$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests/fault_worker.py"
+      - name: Print native measurement evidence
+        if: always()
+        shell: bash
+        run: |
+          if test -f build-qt/qt-runtime-results.json; then cat build-qt/qt-runtime-results.json; fi
