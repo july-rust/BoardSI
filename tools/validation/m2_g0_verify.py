@@ -39,7 +39,9 @@ def main():
                  "Lext_H_per_m":t["derived"]["Lext_H_per_m"],
                  "Z0_ohm":t["derived"]["Z0_ohm"],
                  "delay_s_per_m":t["derived"]["delay_s_per_m"]}
-        # Cross-host factorization residuals are bounded, not bitwise reference fixtures.\n        # They are separately required <= 1e-9 below.\n        for key,value in mapping.items():
+        # Cross-host factorization residuals are bounded, not bitwise references.
+        # Discrete residuals are independently required <= 1e-9 below.
+        for key,value in mapping.items():
             reference=float(row[key])
             check(math.isfinite(value) and math.isclose(value,reference,rel_tol=2e-10,abs_tol=1e-19),
                   "reference fixture drift "+str(case)+" "+key)
