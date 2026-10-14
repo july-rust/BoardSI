@@ -77,13 +77,30 @@ workflow, no artifact uploads, no `docs` required-check change. Qt SDK not insta
 | Platform | Rust actual native execution | Qt build / actual GUI |
 | --- | --- | --- |
 | Linux x86_64 local | PASS Debug + Release, 65 tests each | Not Run |
-| Linux x86_64 GitHub Actions | Pending new PR CI | Not Run |
-| Windows x64 | Not Run locally; CI configured | Not Run |
-| Windows ARM64 | Not Run locally; CI configured | Not Run |
-| macOS ARM64 | Not Run locally; CI configured | Not Run |
+| Linux x86_64 GitHub Actions | PASS Debug + Release, 65 each | Not Run |
+| Windows x64 | PASS native CI Debug + Release, 65 each | Not Run |
+| Windows ARM64 | PASS native CI Debug + Release, 65 each | Not Run |
+| macOS ARM64 | PASS native CI Debug + Release, 65 each | Not Run |
 
-CI links/status will be returned on the PR; pending/queued jobs must not be called PASS.
-Prior PR #27/#28 CI results are not reused as evidence for this code.
+Tested source commit: `6c52774116d9731be1b9e47b10fcf372d0e9e951`.
+[Four-platform CI](https://github.com/july-rust/BoardSI/actions/runs/38552339713) and
+[required docs CI](https://github.com/july-rust/BoardSI/actions/runs/38552339916) succeeded.
+All four full job logs were read: each has Debug 65 + Release 65 PASS and compiler/test
+`warning:`/`error:` counts 0. Windows/macOS compiler host, runner architecture and
+actual executable identity were verified; Worker/client native identity appears in logs.
+Checkout test-merge commit `2a18e33` was fetched and has zero file differences from
+the source commit. Prior PR #27/#28 CI results are not reused.
+
+| Native job | Compiler host / client executable | Debug / Release |
+| --- | --- | --- |
+| [Linux 115813050311](https://github.com/july-rust/BoardSI/actions/runs/38552339713/job/115813050311) | x86_64 Linux / x86_64 linux | 65 / 65 PASS |
+| [Windows x64 115813050693](https://github.com/july-rust/BoardSI/actions/runs/38552339713/job/115813050693) | x86_64-pc-windows-msvc / x86_64 windows | 65 / 65 PASS |
+| [Windows ARM64 115813050549](https://github.com/july-rust/BoardSI/actions/runs/38552339713/job/115813050549) | aarch64-pc-windows-msvc / aarch64 windows | 65 / 65 PASS |
+| [macOS ARM64 115813050528](https://github.com/july-rust/BoardSI/actions/runs/38552339713/job/115813050528) | aarch64-apple-darwin / aarch64 macos | 65 / 65 PASS |
+
+This added CI evidence changes only this report. Code/lockfile/workflow remain exactly
+the tested source. Report-only HEAD runs the existing docs check, avoiding a duplicate
+numerical run; distinguish its docs status from the source-specific runtime evidence.
 
 ## Reproduce and limits
 
