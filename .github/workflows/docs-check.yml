@@ -1,0 +1,26 @@
+name: Validate planning documents
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check specification IDs and roadmap schema
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          spec = pathlib.Path('docs/specification/BoardSI_Development_Spec_v1.0.md').read_text(encoding='utf-8')
+          plan = json.loads(pathlib.Path('docs/project-plan.json').read_text(encoding='utf-8'))
+          assert all('U%02d' % i in spec for i in range(1, 49))
+          assert all('T%02d' % i in spec for i in range(1, 55))
+          assert len(plan['milestones']) == 11
+          assert len(plan['labels']) == 21
+          assert len({x['title'] for x in plan['issues']}) == len(plan['issues'])
+          assert {x['code'] for x in plan['milestones']} == {x['phase'] for x in plan['issues']}
+          print('Planning files validated (not Rust build or SI accuracy)')
+          PY
