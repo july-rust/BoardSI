@@ -16,6 +16,8 @@ pub struct Client {
     next_request: u64,
     /// Final exit status, exposed only after stdout frames and EOF have been drained.
     pub exit: Option<ExitStatus>,
+    /// A best-effort Cancel hit a closed pipe; drain the scoped final outcome.
+    pub cancel_delivery_error: Option<String>,
     observed_exit: Option<ExitStatus>,
     reported_failure: bool,
     eof: bool,
@@ -61,6 +63,7 @@ impl Client {
             snapshot: snapshot.id(),
             next_request: 1,
             exit: None,
+            cancel_delivery_error: None,
             observed_exit: None,
             reported_failure: false,
             eof: false,
@@ -85,6 +88,10 @@ impl Client {
             .cancel_requested(Instant::now())
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         if let Err(e) = self.send(Body::Cancel) {
+            if e.kind() == io::ErrorKind::BrokenPipe {
+                self.cancel_delivery_error = Some(e.to_string());
+                return Ok(());
+            }
             self.guard.transport_failed();
             self.transport_broken = true;
             return Err(e);
@@ -170,6 +177,81 @@ mod tests {
     use super::*;
     use boardsi_ipc::State;
     #[test]
+    fn late_cancel_closed_pipe_preserves_delayed_completed_outcome() {
+        let mut command = if cfg!(windows) {
+            let mut c = Command::new("cmd");
+            c.args(["/C", "exit 0"]);
+            c
+        } else {
+            let mut c = Command::new("sh");
+            c.args(["-c", "exit 0"]);
+            c
+        };
+        let mut child = command
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .spawn()
+            .unwrap();
+        let input = child.stdin.take();
+        let status = child.wait().unwrap();
+        let snapshot = Snapshot {
+            points: 1,
+            delay_ms: 0,
+        };
+        let (tx, rx) = mpsc::sync_channel(8);
+        let now = Instant::now();
+        let mut guard = RunGuard::new("late", &snapshot, now);
+        guard
+            .accept(Message::new("late", &snapshot.id(), 1, Body::Started), now)
+            .unwrap();
+        let mut c = Client {
+            child,
+            input,
+            rx,
+            reader: None,
+            guard,
+            run: "late".into(),
+            snapshot: snapshot.id(),
+            next_request: 2,
+            exit: None,
+            observed_exit: Some(status),
+            reported_failure: false,
+            eof: false,
+            transport_broken: false,
+            cancel_delivery_error: None,
+        };
+        c.cancel().unwrap(); // Real closed pipe, not a fabricated return code.
+        assert!(c.cancel_delivery_error.is_some());
+        assert_eq!(c.guard.state, State::CancelRequested);
+        assert!(!c.transport_broken);
+        tx.send(Ok(Some(Message::new(
+            "late",
+            &snapshot.id(),
+            2,
+            Body::Result {
+                point: 0,
+                frequency_hz: 0.0,
+                s11: [0.0, 0.0],
+                s21: [1.0, 0.0],
+                synthetic: true,
+            },
+        ))))
+        .unwrap();
+        tx.send(Ok(Some(Message::new(
+            "late",
+            &snapshot.id(),
+            3,
+            Body::Completed,
+        ))))
+        .unwrap();
+        tx.send(Ok(None)).unwrap();
+        c.poll().unwrap();
+        assert_eq!(c.guard.state, State::Completed);
+        assert_eq!(c.guard.results.len(), 1);
+        assert!(c.exit.unwrap().success());
+        assert!(!c.transport_broken);
+    }
+    #[test]
     fn observed_nonzero_exit_waits_for_delayed_scoped_failure_and_eof() {
         // A real OS exit is observed before a controlled delayed protocol delivery.
         let mut command = if cfg!(windows) {
@@ -204,6 +286,7 @@ mod tests {
             snapshot: snapshot.id(),
             next_request: 1,
             exit: None,
+            cancel_delivery_error: None,
             observed_exit: Some(status),
             reported_failure: false,
             eof: false,

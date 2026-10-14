@@ -30,6 +30,7 @@ class Window : public QWidget {
     QProgressBar *progress;
     QString path, run, snapshot;
     QStringList arguments;
+    QString diagnostics;
     QByteArray buffer;
     qint64 lastRx = 0, lastHeartbeat = 0, cancelAt = -1, terminalAt = -1;
     quint64 expected = 1, request = 1;
@@ -89,7 +90,7 @@ class Window : public QWidget {
         else if (type == "Heartbeat" && state != Awaiting) { lastHeartbeat = clock.elapsed(); }
         else if (type == "CancelAcknowledged" && state == CancelRequested) { state = Acknowledged; status->setText("Cancel acknowledged; stopping calculation"); }
         else if (type == "Cancelled" && state == Acknowledged) { state = Cancelled; terminalAt = clock.elapsed(); resultCount = 0; progress->setValue(0); results->setText("Synthetic results: 0"); status->setText("Cancelled; awaiting process exit"); }
-        else if (type == "Completed" && state == Running && resultCount == points) { state = Completed; terminalAt = clock.elapsed(); status->setText("Synthetic calculation completed; awaiting process exit"); }
+        else if (type == "Completed" && (state == Running || state == CancelRequested) && resultCount == points) { state = Completed; terminalAt = clock.elapsed(); cancel->setEnabled(false); status->setText("Synthetic calculation completed; awaiting process exit"); }
         else if (type == "Failed" && b.value("code").isString() && b.value("context").isString()) {
             state = Failed; scopedFailure = true; terminalAt = clock.elapsed(); resultCount = 0; progress->setValue(0); cancel->setEnabled(false);
             results->setText("Synthetic results: 0");
@@ -154,7 +155,7 @@ public:
             if (process.state() != QProcess::NotRunning) return;
             if (!QFileInfo(path).isAbsolute() || !QFileInfo(path).isExecutable()) { error->setText("Absolute executable Worker path required"); return; }
             run = QUuid::createUuid().toString(QUuid::WithoutBraces);
-            ++generation; observations = QJsonArray{}; results->setText("Synthetic results: 0");
+            ++generation; observations = QJsonArray{}; diagnostics.clear(); results->setText("Synthetic results: 0");
             snapshot = "synthetic-rlgc-v1:points=100:delay_ms=50";
             exitSeen = false; scopedFailure = false; terminalAt = -1; state = Awaiting; expected = request = 1; resultCount = 0; buffer.clear(); cancelAt = -1;
             clock.restart(); lastRx = lastHeartbeat = 0; error->clear(); progress->setValue(0); start->setEnabled(false); force->setEnabled(false);
@@ -172,9 +173,16 @@ public:
         connect(&process, &QProcess::readyReadStandardOutput, this, [this] { pump(); });
         connect(&process, &QProcess::readyReadStandardError, this, [this] {
             // Diagnostics are drained and displayed separately from protocol output.
-            worker->setText(QString::fromUtf8(process.readAllStandardError().right(2048)).trimmed());
+            diagnostics = (diagnostics + QString::fromUtf8(process.readAllStandardError())).right(2048);
+            worker->setText(diagnostics.trimmed());
         });
         connect(&process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError code) {
+            if (code == QProcess::WriteError && cancelAt >= 0 && (state == CancelRequested || state == Completed)) {
+                // Worker may already have completed and closed stdin. Drain its
+                // scoped outcome instead of destroying a valid completed run.
+                worker->setText("Cancel not delivered; awaiting Worker outcome");
+                return;
+            }
             fail("Worker process error " + QString::number(static_cast<int>(code)));
             // Crash still has unread stdout and a forthcoming finished signal.
             // Only FailedToStart has no finished signal to await.

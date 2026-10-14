@@ -264,7 +264,8 @@ impl RunGuard {
                 && *point < self.points
                 && *frequency_hz == f64::from(*point) * 1e6 => {}
             Body::Completed
-                if self.state == State::Running && self.results.len() == self.points as usize => {}
+                if matches!(self.state, State::Running | State::CancelRequested)
+                    && self.results.len() == self.points as usize => {}
             _ => return Err("InvalidStateOrPayload"),
         }
         self.scope.accept(&m)?;
@@ -297,7 +298,11 @@ impl RunGuard {
         if self.state.terminal() {
             // Preserve the force option if a cancelled worker hangs during exit.
             // A transport failure is terminal without a valid Cancelled event.
-            return (false, false, self.state == State::Cancelled && force);
+            return (
+                false,
+                false,
+                matches!(self.state, State::Cancelled | State::Completed) && force,
+            );
         }
         (
             now.duration_since(self.last_rx) >= SILENCE_WARNING,

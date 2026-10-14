@@ -1,5 +1,9 @@
 # M0 fifth stage: actual Qt / Rust Worker execution
 
+Historical evidence for initial PR #30 commit `417f17f264dbc060d80c0e274c91596c42bb6116`.
+Later runtime/CI/race updates supersede the current-status statements here; see
+[follow-up validation](../validation/m0-qt-runtime-followup.md).
+
 Date: 2026-10-14 KST. Baseline main `78924b79ad7d7ecd1ea85d0ea85b9f444cc35141`;
 PR #29 confirmed merged. Related #3, #5, #6 remain open. Specification v1.0 unchanged.
 

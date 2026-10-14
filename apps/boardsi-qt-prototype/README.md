@@ -32,15 +32,17 @@ UI and computation. Cancel request/acknowledgement/terminal/OS exit are distinct
 Close during work kills asynchronously and waits for drained process exit.
 Failed code/context survives expected exit 1/2. Watchdog remains active after
 Completed/Cancelled until exit; Force stop is offered after the 10 s deadline.
-Strict completion-after-CancelRequested rejection is preserved and tested.
+Completed before CancelAcknowledged wins only after every result is received.
+After acknowledgement, Cancelled is required; incomplete completion remains invalid.
+A late Cancel hitting a closed pipe drains the Worker outcome before classification.
 
 CTest calls a real QApplication::exec(), drives this same Window, launches the real
-Rust Worker and separate test peers, checks 23 scenarios and posts 300 measured
+Rust Worker and separate test peers, checks 27 scenarios and posts 450 measured
 UI events. Results are written to `build-qt/qt-runtime-results.json`; failures
 return nonzero. Receipt/update measurements cover widget properties, not GPU paint.
 Offscreen diagnostics are recorded; desktop rendering is not validated.
 
-[Executed report](../../docs/validation/m0-qt-native-runtime.md) ·
-[Raw measurements](../../docs/validation/qt-runtime-linux-offscreen.json) ·
-[ADR/install](../../docs/architecture/qt-native-runtime.md) ·
+[Current follow-up report](../../docs/validation/m0-qt-runtime-followup.md) ·
+[Current raw measurements](../../docs/validation/qt-runtime-linux-followup.json) ·
+[ADR and race update](../../docs/architecture/qt-runtime-followup.md) ·
 [CI](../../.github/workflows/qt-runtime.yml).

@@ -3,6 +3,9 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QSysInfo>
+#include <QThread>
+#include <QCryptographicHash>
+#include <QImage>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -98,6 +101,12 @@ class RuntimeValidation {
         exited(w, 8000);
         check(w.state == Window::Completed && w.resultCount == 100, "Rust completion/result mismatch");
         check(w.progress->value() == 100 && w.results->text() == "Synthetic results: 100", "Progress/results display mismatch");
+        const auto expectedWorker = qEnvironmentVariable("BOARDSI_EXPECTED_WORKER_ARCH");
+        if (!expectedWorker.isEmpty()) check(w.diagnostics.contains("arch="+expectedWorker+" "), "Rust Worker executable architecture mismatch");
+        const QImage frame = w.grab().toImage();
+        check(!frame.isNull() && frame.width()>0 && frame.height()>0, "Widget raster rendering failed");
+        metrics["render_width_px"]=frame.width(); metrics["render_height_px"]=frame.height();
+        metrics["render_sha256"]=QString::fromLatin1(QCryptographicHash::hash(QByteArray(reinterpret_cast<const char *>(frame.constBits()),frame.sizeInBytes()),QCryptographicHash::Sha256).toHex());
         std::vector<qint64> hb;
         qint64 maxUpdate = 0; int resultSamples = 0, progressSamples = 0;
         for (const auto &v : w.observations) {
@@ -193,8 +202,40 @@ class RuntimeValidation {
     }
     void completionRace() {
         Window w(python,{fixture,"completion-race"}); start(w); running(w); cancel(w); exited(w);
-        check(w.state==Window::Failed && w.resultCount==0, "Existing strict completion/cancel race policy changed");
-        record("completion-after-cancel-fails-closed-existing-contract",w);
+        check(w.state==Window::Completed && w.resultCount==100, "Completed before CancelAcknowledged should win");
+        record("completion-before-cancel-ack-preserves-complete-results",w);
+        for (const auto &mode : {"completion-after-ack","completion-incomplete"}) {
+            Window invalid(python,{fixture,QString::fromLatin1(mode)});
+            start(invalid); running(invalid); cancel(invalid); exited(invalid);
+            check(invalid.state==Window::Failed && invalid.resultCount==0,"Illegal/incomplete race completion accepted");
+            record(QString::fromLatin1(mode),invalid);
+        }
+    }
+    void cpuStress() {
+        Window w(rust); start(w); running(w);
+        const int threads=qBound(2,QThread::idealThreadCount(),8);
+        std::atomic<bool> stop{false};
+        std::vector<std::thread> load;
+        for(int i=0;i<threads;++i) load.emplace_back([&,i] {
+            volatile double value=double(i+1);
+            while(!stop.load()) for(int j=0;j<2048;++j) value=std::sin(value+0.001);
+        });
+        try { probes(w,"cpu_stress_ui",150,10); }
+        catch (...) { stop.store(true); for(auto &t:load) t.join(); throw; }
+        stop.store(true); for(auto &t:load) t.join();
+        metrics["cpu_stress_threads"]=threads;
+        cancel(w); exited(w); check(w.state==Window::Cancelled,"CPU-load cancellation failed");
+        record("real-worker-with-cpu-saturated-background-load",w);
+    }
+    void closedCancel() {
+        Window w(python,{fixture,"closed-cancel"}); start(w); running(w);
+        check(until([&] { return w.diagnostics.contains("CANCEL_PIPE_CLOSED"); }),"Closed-pipe fixture not ready");
+        cancel(w); exited(w);
+        check(w.state==Window::Completed && w.resultCount==100,"Closed-pipe Cancel destroyed complete outcome");
+        // A delayed Qt write-error notification cannot rewrite terminal completion.
+        w.process.errorOccurred(QProcess::WriteError);
+        check(w.state==Window::Completed && w.resultCount==100,"Delayed write error invalidated completed run");
+        record("actual-closed-stdin-cancel-with-completed-outcome",w);
     }
 public:
     RuntimeValidation(QString r, QString p, QString f):rust(std::move(r)),python(std::move(p)),fixture(std::move(f)){}
@@ -210,9 +251,13 @@ public:
         });
         entireTick.start();
         try {
+            const auto arch=qEnvironmentVariable("BOARDSI_EXPECTED_QT_ARCH");
+            if(!arch.isEmpty()) check(QSysInfo::currentCpuArchitecture()==arch,"Qt executable architecture mismatch");
+            const auto backend=qEnvironmentVariable("BOARDSI_EXPECTED_QT_PLATFORM");
+            if(!backend.isEmpty()) check(QGuiApplication::platformName()==backend,"Native Qt platform backend mismatch");
             normal(); cancellation(); realCrash();
             for (const auto &m : {"failed1","failed2","exit7","crash","schema","duplicate","reverse","scope","snapshot","frame","json","truncated"}) fault(QString::fromLatin1(m),true);
-            fault("partial",false); burst(); completionRace();
+            fault("partial",false); burst(); completionRace(); closedCancel(); cpuStress();
             hang("unresponsive",true); hang("cancel-hang"); hang("completed-hang"); noHeartbeat(); closing();
             entireMaxGap=qMax(entireMaxGap,entireClock.elapsed()-lastTick);
             check(entireMaxGap<=1000,"Global event-loop gap exceeded 1s");

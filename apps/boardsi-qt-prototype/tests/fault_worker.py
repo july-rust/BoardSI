@@ -40,7 +40,14 @@ def emit(body, **override):
 
 emit(dict(type='Started'))
 if mode == 'crash':
-    os.kill(os.getpid(), signal.SIGABRT)
+    if os.name == 'nt':
+        import ctypes
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.GetCurrentProcess.restype = ctypes.c_void_p
+        kernel.TerminateProcess.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+        kernel.TerminateProcess(kernel.GetCurrentProcess(), 0xC0000005)
+    else:
+        os.kill(os.getpid(), signal.SIGABRT)
 if mode == 'exit7':
     sys.exit(7)
 if mode.startswith('failed'):
@@ -74,13 +81,19 @@ elif mode == 'no-heartbeat':
     for _ in range(12):
         emit(dict(type='Progress', done=0, total=100))
         time.sleep(0.5)
-elif mode in ('completed-hang', 'partial', 'burst', 'completion-race'):
+elif mode in ('completed-hang', 'partial', 'burst', 'completion-race', 'completion-after-ack', 'completion-incomplete', 'closed-cancel'):
+    if mode == 'closed-cancel':
+        os.close(0)
+        print('CANCEL_PIPE_CLOSED', file=sys.stderr, flush=True)
+        time.sleep(0.25)
     if mode == 'burst':
         for _ in range(20000):
             emit(dict(type='Heartbeat'))
-    if mode == 'completion-race':
-        read()  # Complete after client requested Cancel: existing contract rejects.
-    for point in range(100):
+    if mode.startswith('completion-'):
+        read()
+    if mode == 'completion-after-ack':
+        emit(dict(type='CancelAcknowledged'))
+    for point in range(99 if mode == 'completion-incomplete' else 100):
         emit(dict(type='Result', point=point, frequency_hz=point * 1e6,
                   s11=[0, 0], s21=[1, 0], synthetic=True))
         emit(dict(type='Progress', done=point+1, total=100))
