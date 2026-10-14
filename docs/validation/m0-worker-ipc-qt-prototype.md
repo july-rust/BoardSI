@@ -5,7 +5,7 @@ PR #28 merged verified. Related #3/#5/#6 remain partial/open. Specification v1.0
 boardsi-numerics and boardsi-model source/tests/fixtures/toolchain are preserved.
 No real PCB, company data, importer, geometry RLGC, Progressive Sweep or release.
 
-## Actual local environment and tests
+## Original source local environment and tests (65-test baseline)
 
 Ubuntu 24.04.3 Linux x86_64 container; Intel Xeon Platinum 8573C, 9 visible logical CPUs;
 visible RAM 10,451,460,096 bytes (snapshot available 9,174,577,152 bytes), no swap;
@@ -67,7 +67,7 @@ Fault modes require explicit `--fault=crash/unresponsive/no-heartbeat` CLI argum
 not part of the Start schema. Synthetic delay is an experiment, not PCB performance.
 Results are provisional counts/data, never PCB SI or physical Validated.
 
-## Native CI status
+## Original 65-test source Native CI status
 
 Existing numerical-core workflow extended for IPC/Worker/Qt source path changes;
 locked fetch followed by offline Debug/Release workspace checks. Native identity
@@ -129,3 +129,22 @@ acceptance remain Not Run**. T10/T13/T34/T39/T46/T50 and M0 overall are not comp
 Next M0 priority: on a prepared native Qt host compile/run this small prototype,
 measure ≥100 interactions, inject crash/stall/bursts and verify restart isolation;
 then choose Widgets/Quick using actual Viewer/renderer evidence before expanding UI.
+
+## Follow-up: preserve delayed scoped failures before OS-exit classification
+
+A later PR review found that OS exit 1/2 could be observed before the reader enqueued
+the Worker Failed(code,context) frame. The client now caches observed OS exit, drains
+ordered stdout frames through EOF, and only then exposes the final exit status. A
+scoped Failed followed by normal exit 1/2 remains a reported Worker failure; crash,
+missing completion and protocol corruption remain transport failures.
+
+New deterministic regression uses a real exit-2 child process and deliberately delays
+Started/Failed/EOF queue delivery until after OS exit observation. It verifies no early
+transport invalidation, complete code/context delivery and correct final Failed/exit 2.
+Existing actual Worker malformed-request/failure, crash, kill and cancellation tests
+remain. Local Rust 1.75 Linux Debug and Release now each PASS **66 tests** (previous
+65 plus one race regression), fmt/clippy -D warnings PASS, warning/error counts 0.
+
+The preceding 65-test native results are historical baseline evidence, not proof for
+this changed Rust client. New HEAD native CI status must be confirmed separately.
+Qt build/actual execution and latency remain Not Run; no dependencies changed.

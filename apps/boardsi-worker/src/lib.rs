@@ -14,7 +14,10 @@ pub struct Client {
     run: String,
     snapshot: String,
     next_request: u64,
+    /// Final exit status, exposed only after stdout frames and EOF have been drained.
     pub exit: Option<ExitStatus>,
+    observed_exit: Option<ExitStatus>,
+    reported_failure: bool,
     eof: bool,
     transport_broken: bool,
 }
@@ -58,6 +61,8 @@ impl Client {
             snapshot: snapshot.id(),
             next_request: 1,
             exit: None,
+            observed_exit: None,
+            reported_failure: false,
             eof: false,
             transport_broken: false,
         };
@@ -100,6 +105,7 @@ impl Client {
                         self.transport_broken = true;
                         return Err(io::Error::new(io::ErrorKind::InvalidData, code));
                     }
+                    self.reported_failure |= matches!(m.body, Body::Failed { .. });
                     events.push(m);
                 }
                 Ok(Ok(None)) | Err(TryRecvError::Disconnected) => {
@@ -114,13 +120,24 @@ impl Client {
                 Err(TryRecvError::Empty) => break,
             }
         }
-        if self.exit.is_none() {
-            self.exit = self.child.try_wait()?;
+        if self.observed_exit.is_none() {
+            self.observed_exit = self.child.try_wait()?;
         }
-        if let Some(status) = self.exit {
-            if !status.success() || (self.eof && !self.guard.state.terminal()) {
-                self.guard.transport_failed();
-                self.transport_broken = true;
+        // OS exit may precede the reader enqueueing its final scoped Failed frame.
+        // Do not invalidate/discard queued protocol data until the reader reaches EOF.
+        if self.eof {
+            if let Some(status) = self.observed_exit {
+                let expected_failure = self.reported_failure
+                    && self.guard.state == boardsi_ipc::State::Failed
+                    && matches!(status.code(), Some(1 | 2));
+                if (!status.success() && !expected_failure)
+                    || (status.success() && self.reported_failure)
+                    || !self.guard.state.terminal()
+                {
+                    self.guard.transport_failed();
+                    self.transport_broken = true;
+                }
+                self.exit = Some(status);
             }
         }
         Ok(events)
@@ -145,5 +162,83 @@ impl Drop for Client {
         if let Some(reader) = self.reader.take() {
             let _ = reader.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardsi_ipc::State;
+    #[test]
+    fn observed_nonzero_exit_waits_for_delayed_scoped_failure_and_eof() {
+        // A real OS exit is observed before a controlled delayed protocol delivery.
+        let mut command = if cfg!(windows) {
+            let mut c = Command::new("cmd");
+            c.args(["/C", "exit 2"]);
+            c
+        } else {
+            let mut c = Command::new("sh");
+            c.args(["-c", "exit 2"]);
+            c
+        };
+        let mut child = command
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let status = child.wait().unwrap();
+        assert_eq!(status.code(), Some(2));
+        let snapshot = Snapshot {
+            points: 1,
+            delay_ms: 0,
+        };
+        let (tx, rx) = mpsc::sync_channel(8);
+        let mut c = Client {
+            child,
+            input: None,
+            rx,
+            reader: None,
+            guard: RunGuard::new("run", &snapshot, Instant::now()),
+            run: "run".into(),
+            snapshot: snapshot.id(),
+            next_request: 1,
+            exit: None,
+            observed_exit: Some(status),
+            reported_failure: false,
+            eof: false,
+            transport_broken: false,
+        };
+        assert!(c.poll().unwrap().is_empty());
+        assert!(c.exit.is_none());
+        assert!(!c.transport_broken);
+        tx.send(Ok(Some(Message::new(
+            "run",
+            &snapshot.id(),
+            1,
+            Body::Started,
+        ))))
+        .unwrap();
+        c.poll().unwrap();
+        assert_eq!(c.guard.state, State::Running);
+        assert!(c.exit.is_none());
+        let failed = Message::new(
+            "run",
+            &snapshot.id(),
+            2,
+            Body::Failed {
+                code: "DelayedFailure".into(),
+                context: "must survive OS exit observation".into(),
+            },
+        );
+        tx.send(Ok(Some(failed.clone()))).unwrap();
+        tx.send(Ok(None)).unwrap();
+        assert_eq!(c.poll().unwrap(), vec![failed]);
+        assert_eq!(c.exit.unwrap().code(), Some(2));
+        assert_eq!(c.guard.state, State::Failed);
+        assert!(
+            !c.transport_broken,
+            "scoped expected failure is not transport corruption"
+        );
     }
 }

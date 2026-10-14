@@ -77,6 +77,9 @@ also discards temporary results in this minimal prototype (persistent confirmed 
 are outside scope). Completion racing Cancel is conservatively rejected if the client
 already requested cancellation; future protocol can explicitly settle this race.
 A received Completed event is provisional execution evidence until exit 0 is observed.
+The independent client caches OS exit but exposes final `exit` only after stdout
+frames/EOF are drained. A scoped Failed followed by exit 1/2 is reported failure,
+not transport corruption; this preserves code/context when OS exit precedes reader delivery.
 
 Heartbeat scheduler: 1 s, independent of point production. Clients distinguish ≥5 s
 since any **accepted** message and ≥5 s since last Heartbeat. Progress cannot hide a
