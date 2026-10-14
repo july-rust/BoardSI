@@ -216,7 +216,9 @@ class RuntimeValidation {
         }
     }
     void cpuStress() {
-        Window w(rust); start(w); running(w);
+        // Long synthetic calculation ensures CPU-contended CI cannot finish the
+        // worker before the cancel-under-load assertion is exercised.
+        Window w(rust); w.delayMs = 500; start(w); running(w);
         const int threads=qBound(2,QThread::idealThreadCount(),8);
         std::atomic<bool> stop{false};
         std::vector<std::thread> load;

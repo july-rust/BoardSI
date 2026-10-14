@@ -34,7 +34,7 @@ class Window : public QWidget {
     QByteArray buffer;
     qint64 lastRx = 0, lastHeartbeat = 0, cancelAt = -1, terminalAt = -1;
     quint64 expected = 1, request = 1;
-    int points = 100, resultCount = 0;
+    int points = 100, resultCount = 0, delayMs = 50;
     int incompleteReads = 0;
     enum State { Idle, Awaiting, Running, CancelRequested, Acknowledged, Completed, Cancelled, Failed } state = Idle;
     bool closing = false, pumping = false, exitSeen = false, scopedFailure = false;
@@ -166,14 +166,14 @@ public:
             if (!QFileInfo(path).isAbsolute() || !QFileInfo(path).isExecutable()) { error->setText("Absolute executable Worker path required"); return; }
             run = QUuid::createUuid().toString(QUuid::WithoutBraces);
             ++generation; observations = QJsonArray{}; diagnostics.clear(); incompleteReads = 0; results->setText("Synthetic results: 0");
-            snapshot = "synthetic-rlgc-v1:points=100:delay_ms=50";
+            snapshot = QString("synthetic-rlgc-v1:points=%1:delay_ms=%2").arg(points).arg(delayMs);
             exitSeen = false; scopedFailure = false; terminalAt = -1; state = Awaiting; expected = request = 1; resultCount = 0; buffer.clear(); cancelAt = -1;
             clock.restart(); lastRx = lastHeartbeat = 0; error->clear(); progress->setValue(0); start->setEnabled(false); force->setEnabled(false);
             status->setText("Starting Worker"); process.start(path, arguments);
         });
         connect(&process, &QProcess::started, this, [this] {
             worker->setText("Worker running");
-            send({{"type", "Start"}, {"snapshot", QJsonObject{{"points", points}, {"delay_ms", 50}}}});
+            send({{"type", "Start"}, {"snapshot", QJsonObject{{"points", points}, {"delay_ms", delayMs}}}});
         });
         connect(cancel, &QPushButton::clicked, this, [this] {
             if (state != Running) return;
