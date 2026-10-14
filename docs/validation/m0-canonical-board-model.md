@@ -68,9 +68,9 @@ GitHub compare에서 source commit 대비 파일 차이 0개를 확인했다. PR
 
 Native logs: `MODEL_NATIVE_EXECUTION arch=x86_64 os=windows f64_bits=64` 또는
 `MODEL_NATIVE_EXECUTION arch=aarch64 os=windows/macos f64_bits=64`를 확인했다.
-4 jobとも compiler/build/test `warning:` / `error:` 0件.
-この追記は検証報告書だけの変更であり、上記 source commit とコード/fixture/Workflowは
-同一である.報告追記後のHEADに対する自動CIは上記source固有の完了証拠と区別する.
+4개 job 모두 컴파일·빌드·시험 로그의 `warning:` / `error:`는 0건이다.
+이 추가 기록은 검증 보고서만 변경하며, 위 source commit과 코드/fixture/Workflow는
+동일하다. 보고서 변경 후 HEAD의 자동 CI는 위 source에 대한 완료 증거와 구분한다.
 
 ## Not Run / 미구현
 
