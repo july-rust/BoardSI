@@ -4,6 +4,7 @@ This script checks existing independent reference data and declared numerical
 acceptance. It is NOT a second independent PDE field solver.
 """
 import csv
+import hashlib
 import json
 import math
 import sys
@@ -64,23 +65,51 @@ def main():
     c0plate=EPS0*W/H
     lplate=MU0*H/W
     check(math.isclose(lplate,MU0*EPS0/c0plate,rel_tol=1e-14),"PH03 dimensions")
-    check(math.isclose(cplate/c0plate,ER,rel_tol=1e-14),"PH03 dielectric ratio")
-    # Analytic matched PH01 reference uses independent identity for lossless uniform line.
-    delay=at(.0012,48)["delay_s_per_m"]
-    angle=2*math.pi*1e9*.01*delay
-    s21=complex(math.cos(angle),-math.sin(angle))
-    check(abs(abs(s21)-1.0)<=1e-12,"PH01 passivity anchor")
+    check(math.isclose(cplate/c0plate,ER,rel_tol=1e-14),"PH03 diel    # Pre-registered source digest: verify exact oracle bytes before declaring G0.
+    reference_py=Path(__file__).with_name("m2_fvm_reference.py")
+    digest_file=Path(__file__).with_name("m2_g0_source.sha256")
+    expected_digest=digest_file.read_text(encoding="utf-8").split()[0]
+    actual_digest=hashlib.sha256(reference_py.read_bytes()).hexdigest()
+    check(expected_digest=="c5e05fed106cc78e22150b0c90a828951a439940bb1a8dc8843bd5eb73786929","source hash manifest drift")
+    check(actual_digest==expected_digest,"independent field source SHA-256 mismatch")
+
+    # PH-01: FIXED 50-ohm reference, so this coupon is mismatched (nonzero S11).
+    # Cross-check independently derived ABCD and multiple-reflection formulas.
+    model=at(.0012,48)
+    z0=model["Z0_ohm"]
+    delay=model["delay_s_per_m"]
+    theta=2*math.pi*1e9*.01*delay
+    a=math.cos(theta)
+    b=1j*z0*math.sin(theta)
+    c=1j*math.sin(theta)/z0
+    denom=2*a+b/50.0+50.0*c
+    s11=(b/50.0-50.0*c)/denom
+    s21=2.0/denom
+    rho=(z0-50.0)/(z0+50.0)
+    e=complex(math.cos(theta),-math.sin(theta))
+    reflection=rho*(1-e*e)/(1-rho*rho*e*e)
+    transmission=(1-rho*rho)*e/(1-rho*rho*e*e)
+    check(abs(s11-reflection)<=1e-12 and abs(s21-transmission)<=1e-12,
+          "independent PH01 ABCD/multiple-reflection disagreement")
+    check(abs(s11-complex(0.01651839692653288,0.048232430752762685))<=1e-11 and
+          abs(s21-complex(0.9448265269029662,-0.3235793708615182))<=1e-11,
+          "frozen PH01 50-ohm mismatch reference drift")
+    check(abs(abs(s11)**2+abs(s21)**2-1.0)<=1e-12,
+          "PH01 passive lossless scattering")
     print(json.dumps({"result":"G0_RESTRICTED_COUPON_READY",
+                      "source_sha256":actual_digest,
                       "mesh_percent":mesh,
                       "box_percent":boundary,
                       "PH03_edge_free_plate":{"C_F_per_m":cplate,
                                                "C0_F_per_m":c0plate,
                                                "Lext_H_per_m":lplate},
-                      "PH01_matched":{"frequency_Hz":1e9,
-                                      "length_m":.01,
-                                      "S11":[0,0],
-                                      "S21":[s21.real,s21.imag]}},indent=2))
+                      "PH01_mismatched_50ohm":{"frequency_Hz":1e9,
+                                               "length_m":.01,
+                                               "reference_ohm":50.0,
+                                               "S11":[s11.real,s11.imag],
+                                               "S21":[s21.real,s21.imag]}},indent=2))
     print("Physical PCB/real-loss validation remains UNSUPPORTED.")
+UNSUPPORTED.")
 
 if __name__=="__main__":
     main()
