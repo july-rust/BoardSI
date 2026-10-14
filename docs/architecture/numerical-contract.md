@@ -27,8 +27,11 @@ This crate neither defines nor replaces the Canonical Board Model.
 
 Let z=R+j*omega*L, y=G+j*omega*C. Passive first-quadrant square roots sz=sqrt(z),
 sy=sqrt(y) select Zc=sz/sy and gamma=sz*sy. This avoids first multiplying z*y or
-z/y. Compute alpha using Im(z*y)/(2*beta) to avoid subtracting nearly equal
-root products when losses are very small. For R=G=0 explicitly use
+z/y. Compute alpha as
+`0.5*(R*(Im(y)/beta)+G*(Im(z)/beta))` to avoid subtracting nearly equal
+root products and to avoid underflow of R*Im(y) or G*Im(z). Divide before
+multiplying. When beta has rounded to zero at a positive AC frequency, retain
+the directly computed positive real root instead of dividing by zero. For R=G=0 explicitly use
 Zc=sqrt(L)/sqrt(C), beta=omega*sqrt(L)*sqrt(C), alpha=0, including DC.
 
 Define q=Zc/Zref, rho=(q-1)/(q+1), t=exp(-gamma*length), u=1-t^2,

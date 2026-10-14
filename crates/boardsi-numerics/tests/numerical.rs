@@ -223,3 +223,42 @@ fn high_mismatch_long_phase_resonance_rejected() {
     // Zc/Zref=1e6 and beta*l~50000*pi: finite but numerically sensitive.
     assert!(matches!(l.at(1e9), Err(Error::NumericalInstability(_))));
 }
+
+#[test]
+fn tiny_distortionless_parameters_preserve_finite_attenuation() {
+    // Exact distortionless anchor: Zc=1, gamma=R+j*omega*L.
+    // R*omega*C underflows although alpha*length=1 is representable.
+    let l = UniformLine {
+        rlgc: Rlgc {
+            r_ohm_per_m: 1e-120,
+            l_h_per_m: 1e-120,
+            g_s_per_m: 1e-120,
+            c_f_per_m: 1e-120,
+        },
+        length_m: 1e120,
+        reference_ohm: 1.0,
+    };
+    let x = l.at(1e-101).unwrap();
+    close(x.s[1][0], Complex::new((-1.0_f64).exp(), 0.0), 1e-12);
+    assert!((x.gamma_per_m.unwrap().re / 1e-120 - 1.0).abs() < 1e-12);
+}
+
+#[test]
+fn near_resistive_ac_with_unresolvable_phase_is_finite() {
+    let l = UniformLine {
+        rlgc: Rlgc {
+            r_ohm_per_m: 1.0,
+            l_h_per_m: 1e-120,
+            g_s_per_m: 1.0,
+            c_f_per_m: 1e-120,
+        },
+        length_m: 1.0,
+        reference_ohm: 1.0,
+    };
+    // omega*L and omega*C round to zero at this positive frequency.
+    // The exactly matched limiting resistive solution is exp(-1).
+    let x = l.at(1e-250).unwrap();
+    close(x.s[1][0], Complex::new((-1.0_f64).exp(), 0.0), 1e-12);
+    assert_eq!(x.gamma_per_m.unwrap(), Complex::new(1.0, 0.0));
+    assert!(matches!(l.at(0.0), Err(Error::Unsupported(_))));
+}

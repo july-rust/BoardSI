@@ -42,7 +42,9 @@ to the PR/checks page and is not assumed from local success.
 | Largest singular value, elementwise false-pass counterexample | PASS |
 | Per-frequency success/error isolation | PASS |
 | Sensitive long mismatched resonance is explicitly rejected | PASS |
-| Debug and optimized builds | PASS, 9 tests each; 0 failures |
+| Tiny RLGC intermediate underflow preserves finite attenuation | PASS, regression reproduced FAIL before fix |
+| Near-resistive positive AC with phase below f64 resolution | PASS; exact f=0 remains Unsupported |
+| Debug and optimized builds | PASS, 11 tests each; 0 failures |
 | Format / Clippy with -D warnings | PASS, no compiler/Clippy warnings |
 | Actual PCB/RLGC extraction/EM/measurement comparison | Not Run |
 | Windows x64, Windows ARM64, macOS arm64 native runs | Not Run |
@@ -93,3 +95,22 @@ Next decisions (maximum three):
    Canonical Model; ODB++ remains only one importer (#4).
 3. Choose independently validated geometry-to-RLGC/DC extensions and reference
    datasets before enlarging supported model scope (#16).
+
+## Follow-up numerical review (2026-10-14 KST)
+
+A confirmed intermediate-underflow bug was reproduced before the fix. With
+R=G=1e-120, L=C=1e-120 in their respective SI per-length units, length=1e120 m,
+f=1e-101 Hz, Zref=1 Ω, the exact distortionless response has Zc=1 Ω,
+alpha*length=1 and S21 approximately exp(-1)=0.36787944117144233.
+The old alpha formula formed R*Im(y)+G*Im(z) first; it rounded to zero and
+incorrectly returned S21 approximately 1. This synthetic case tests numerical
+scale handling, not a physically realistic PCB.
+
+Reordering the alpha formula to divide each imaginary term by beta before
+multiplying its real partner preserves finite attenuation. If beta has rounded
+to zero for positive, near-resistive AC, the positive direct real root is
+retained, avoiding a 0/0 calculation. Lossy exact DC remains Unsupported.
+Two independent distortionless analytic regressions were added. Final local
+debug/release suites contain 11 tests; all PASS, with unchanged 72-case ABCD
+maximum error and no Clippy warnings. Remote CI for the updated commit must
+be read from the current PR checks; prior-commit success is not reused.

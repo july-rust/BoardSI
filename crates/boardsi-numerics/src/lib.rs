@@ -181,8 +181,13 @@ impl UniformLine {
             let sz = z.passive_sqrt();
             let sy = y.passive_sqrt();
             let mut gamma = sz * sy;
-            // Positive alpha from Im(gamma^2)=2*alpha*beta avoids loss cancellation.
-            gamma.re = (z.re * y.im + z.im * y.re) / (2.0 * gamma.im);
+            // Im(gamma^2)=2*alpha*beta avoids loss cancellation. Divide before
+            // multiplying: z.re*y.im may underflow although alpha is finite.
+            if gamma.im > 0.0 {
+                gamma.re = 0.5 * (z.re * (y.im / gamma.im) + y.re * (z.im / gamma.im));
+            }
+            // If beta rounded to zero, retain the direct positive real root;
+            // dividing by beta would fabricate NaN for near-resistive AC.
             (sz / sy, gamma)
         };
         if !zc.is_finite() || !gamma.is_finite() || zc.re <= 0.0 || gamma.re < 0.0 || gamma.im < 0.0
