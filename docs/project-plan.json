@@ -164,6 +164,11 @@
       "name": "needs-validation",
       "color": "ededed",
       "description": "needs-validation"
+    },
+    {
+      "name": "area:docs",
+      "color": "0075ca",
+      "description": "area:docs"
     }
   ],
   "issues": [
@@ -254,7 +259,8 @@
       "tests": "T03,T16,T21,T51",
       "area": "import",
       "type": "type:feature",
-      "priority": "priority:ODB++ only as source adapter; step/instance, feature polarity, stackup, nets and padstacks."
+      "priority": "priority:P1",
+      "summary": "ODB++ is a source adapter only. Import step/instance, feature polarity, padstacks, copper, layer mapping, nets and substrate geometry with explicit supported revisions and cross-format tests."
     },
     {
       "phase": "M1",
