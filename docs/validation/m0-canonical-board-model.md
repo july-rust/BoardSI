@@ -52,14 +52,25 @@ model 28 = Rational unit test 1 + 합성 통합시험 27. 자동시험 코드가
 기존 fmt/clippy 및 Linux/Windows x64/Windows ARM64/macOS ARM64 workspace debug/release
 시험이 두 crate를 함께 검사한다. 별도 중복 Workflow/수동 dispatch/산출물 업로드는 없다.
 
-새 코드의 실제 Native 결과는 PR 생성 후 같은 source commit의 run/job log를 확인한다.
-아래는 아직 새 코드의 CI가 실행되기 전 상태이며, PR #27의 성공 이력을 재사용하지 않는다.
+검증한 source commit: `2e8879e60bc8c8e65a641fa1aa776ae64c85edbb`.
+[새 코드의 4-platform CI run 38532062413](https://github.com/july-rust/BoardSI/actions/runs/38532062413),
+[planning CI run 38532062432](https://github.com/july-rust/BoardSI/actions/runs/38532062432): 모두 completed/success.
+각 job의 실제 전체 로그를 읽어 debug/release 결과와 compiler/executable identity를 확인했다.
+checkout은 PR test-merge commit `8dea78b92056faf0a7f61f4490786504794811f2`이며,
+GitHub compare에서 source commit 대비 파일 차이 0개를 확인했다. PR #27 결과를 재사용하지 않았다.
 
-| 목표 플랫폼 | 현재 실제 실행 결과 |
-| --- | --- |
-| Windows x64 (windows-2022) | Not Run — PR CI 결과 확인 전 |
-| Windows ARM64 (windows-11-arm) | Not Run — PR CI 결과 확인 전 |
-| macOS Apple Silicon ARM64 (macos-14) | Not Run — PR CI 결과 확인 전 |
+| 목표 플랫폼 | Compiler host / 실제 executable | Debug | Release | 로그 job ID |
+| --- | --- | --- | --- | --- |
+| Windows x64 | x86_64-pc-windows-msvc / x86_64, windows | model 28 + numerics 15 PASS | model 28 + numerics 15 PASS | [115746026075](https://github.com/july-rust/BoardSI/actions/runs/38532062413/job/115746026075) |
+| Windows ARM64 | aarch64-pc-windows-msvc / aarch64, windows | model 28 + numerics 15 PASS | model 28 + numerics 15 PASS | [115746025843](https://github.com/july-rust/BoardSI/actions/runs/38532062413/job/115746025843) |
+| macOS Apple Silicon ARM64 | aarch64-apple-darwin / aarch64, macos | model 28 + numerics 15 PASS | model 28 + numerics 15 PASS | [115746026015](https://github.com/july-rust/BoardSI/actions/runs/38532062413/job/115746026015) |
+| Linux x86_64 | CI fmt/clippy/workspace debug/release | model 28 + numerics 15 PASS | model 28 + numerics 15 PASS | [115746025695](https://github.com/july-rust/BoardSI/actions/runs/38532062413/job/115746025695) |
+
+Native logs: `MODEL_NATIVE_EXECUTION arch=x86_64 os=windows f64_bits=64` 또는
+`MODEL_NATIVE_EXECUTION arch=aarch64 os=windows/macos f64_bits=64`를 확인했다.
+4 jobとも compiler/build/test `warning:` / `error:` 0件.
+この追記は検証報告書だけの変更であり、上記 source commit とコード/fixture/Workflowは
+同一である.報告追記後のHEADに対する自動CIは上記source固有の完了証拠と区別する.
 
 ## Not Run / 미구현
 
