@@ -28,6 +28,7 @@ jobs:
       - name: Run the independent field oracle and holdout checker
         run: |
           python -V
+          python -m py_compile tools/validation/m2_fvm_reference.py tools/validation/m2_g0_verify.py
           sha256sum -c tools/validation/m2_g0_source.sha256
           /usr/bin/time -v python tools/validation/m2_fvm_reference.py --suite holdout --output g0-reproduction.json
           python tools/validation/m2_g0_verify.py tools/validation/m2_g0_holdout.csv g0-reproduction.json
