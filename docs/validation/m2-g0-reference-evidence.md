@@ -29,8 +29,8 @@ FVM discrete relative residuals for material and vacuum range from 7.48e-16 to 2
 ## 2. Independent mathematical anchors
 
 - **PH-03 (edge-free plate, not a physical microstrip):** C=4.515635787588e-11 F/m; C0=1.32812817282e-11 F/m; Lext=8.377580408467e-7 H/m, from exactly declared w/h/er and eps0/mu0.
-- **PH-01 (the FROZEN 50-ohm mismatched near/far ports):** f=1 GHz, length=0.01 m, Z0≈58.59765467 ohms from the B=1.2 mm, n=48 field reference, exp(+jωt). Expected **S11=S22≈0.01651839692653288+j0.048232430752762685** and **S21=S12≈0.9448265269029662−j0.3235793708615182**. Independently derived ABCD and multiple-reflection formulas must agree within 1e-12 with the 50-ohm basis and satisfy lossless power conservation; S11 is **NOT ZERO** for this declared reference. The distinct explicitly *matched-to-Z0* auxiliary identity S11=0, S21≈0.94728874331−j0.32038108059 is not the fixed 50-ohm case.
-- PH-03/PH-01 currently have generated reference anchors, **not** independently executed BoardSI Rust PH PASS.
+- **PH-02 (the FROZEN 50-ohm mismatched near/far ports):** f=1 GHz, length=0.01 m, Z0≈58.59765467 ohms from the B=1.2 mm, n=48 field reference, exp(+jωt). Expected **S11=S22≈0.01651839692653288+j0.048232430752762685** and **S21=S12≈0.9448265269029662−j0.3235793708615182**. Independently derived ABCD and multiple-reflection formulas must agree within 1e-12 with the 50-ohm basis and satisfy lossless power conservation; S11 is **NOT ZERO** for this declared reference. **PH-01** is the separate matched-to-Z0 analytic fixture: S11=0 and S21≈0.94728874331−j0.32038108059. Its Zref≈58.59765 Ω is explicitly not the frozen 50-Ω basis used in PH-02.
+- PH-01/PH-02/PH-03 have independently generated mathematical anchors; full PH sweep and BoardSI product Rust physical qualification are **not** established here.
 
 ## 3. Runtime and environment (single observed holdout run)
 
@@ -46,7 +46,8 @@ FVM discrete relative residuals for material and vacuum range from 7.48e-16 to 2
 
 | Test | Evidence so far | Status for BoardSI Rust FEM |
 | --- | --- | --- |
-| PH-01 | Frozen 50-ohm mismatched mathematical complex S11/S21 reference from independent ABCD and multiple-reflection identities | **Not Run** against Rust FEM in this G0 source snapshot |
+| PH-01 | Matched-to-Z0 mathematical S11=0, S21 traveling-wave/ABCD reference | **Not Run** against Rust FEM in this G0 source snapshot |
+| PH-02 | Frozen 50-ohm mismatch, complex S11/S21 ABCD and multiple-reflection reference | **Not Run** against Rust FEM in this G0 source snapshot |
 | PH-03 | Independent mathematical edge-free plate reference generated | **Not Run** against Rust FEM |
 | PH-04 | FVM electrostatic bounded-box reference and numerical results | **Not Run** against Rust FEM |
 | PH-17 | Independent FVM mesh refinement and preregistered threshold met | **Not Run** for Rust FEM |
