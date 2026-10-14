@@ -23,6 +23,8 @@ Stdout is parsed as framed JSON; stderr is separate. QProcess signals, bounded p
 batches and QTimer handle work; no blocking wait or solver operation runs on the UI.
 Close while active requests kill and waits **asynchronously** for process finished.
 Cancel request, acknowledgement, cancellation event and process exit are distinct.
+Scoped Worker Failed(code,context) is retained across expected normal exit 1/2;
+lifecycle warning/force-stop monitoring continues after a terminal event until OS exit.
 The 5 s timer warning and 10 s Force stop enablement are source logic only until measured.
 
 Next prepared-host validation must compile with warnings as errors and run a real

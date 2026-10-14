@@ -98,8 +98,10 @@ the source commit. Prior PR #27/#28 CI results are not reused.
 | [Windows ARM64 115813050549](https://github.com/july-rust/BoardSI/actions/runs/38552339713/job/115813050549) | aarch64-pc-windows-msvc / aarch64 windows | 65 / 65 PASS |
 | [macOS ARM64 115813050528](https://github.com/july-rust/BoardSI/actions/runs/38552339713/job/115813050528) | aarch64-apple-darwin / aarch64 macos | 65 / 65 PASS |
 
-This added CI evidence changes only this report. Code/lockfile/workflow remain exactly
-the tested source. GitHub pull_request path filters consider the full PR diff, so a report-only update
+The CI evidence update changed only this report. Rust code/lockfile/workflow remain exactly
+the tested source. A later Qt-only source correction preserves scoped Failed errors
+on expected exit 1/2 and keeps lifecycle watchdog/force option active until OS exit;
+these two GitHub review findings are addressed by source inspection only, **Not Run**. GitHub pull_request path filters consider the full PR diff, so a report-only update
 can also retrigger this same numerical workflow. This is not a second workflow or
 artifact upload; distinguish HEAD CI status from the completed source-specific evidence.
 

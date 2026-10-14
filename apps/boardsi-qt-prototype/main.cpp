@@ -28,15 +28,16 @@ class Window : public QWidget {
     QProgressBar *progress;
     QString path, run, snapshot;
     QByteArray buffer;
-    qint64 lastRx = 0, lastHeartbeat = 0, cancelAt = -1;
+    qint64 lastRx = 0, lastHeartbeat = 0, cancelAt = -1, terminalAt = -1;
     quint64 expected = 1, request = 1;
     int points = 100, resultCount = 0;
     enum State { Idle, Awaiting, Running, CancelRequested, Acknowledged, Completed, Cancelled, Failed } state = Idle;
-    bool closing = false, pumping = false, exitSeen = false;
+    bool closing = false, pumping = false, exitSeen = false, scopedFailure = false;
     int exitCode = 0;
     QProcess::ExitStatus exitKind = QProcess::NormalExit;
     void finishExit() {
-        if (exitCode != 0 || exitKind != QProcess::NormalExit || !terminal() || !buffer.isEmpty()) fail("Worker abnormal exit or incomplete IPC");
+        const bool expectedFailureExit = scopedFailure && state == Failed && (exitCode == 1 || exitCode == 2);
+        if (exitKind != QProcess::NormalExit || (scopedFailure ? !expectedFailureExit : exitCode != 0) || !terminal() || !buffer.isEmpty()) fail("Worker abnormal exit or incomplete IPC");
         worker->setText(QString("Worker exited: code=%1 status=%2").arg(exitCode).arg(static_cast<int>(exitKind)));
         start->setEnabled(true); cancel->setEnabled(false); force->setEnabled(false); if (closing) close();
     }
@@ -47,7 +48,9 @@ class Window : public QWidget {
     }
     bool terminal() const { return state == Completed || state == Cancelled || state == Failed; }
     void fail(const QString &code) {
-        state = Failed; resultCount = 0; progress->setValue(0); error->setText(code);
+        state = Failed; resultCount = 0; progress->setValue(0);
+        error->setText(scopedFailure ? error->text() + " | " + code : code);
+        scopedFailure = false; terminalAt = clock.elapsed();
         status->setText("Failed; provisional results discarded"); cancel->setEnabled(false);
         process.kill(); // Nonblocking; finished reports actual exit separately.
     }
@@ -77,9 +80,13 @@ class Window : public QWidget {
         if (type == "Started" && state == Awaiting) { state = Running; cancel->setEnabled(true); status->setText("Running synthetic RLGC (not PCB SI)"); }
         else if (type == "Heartbeat" && state != Awaiting) { lastHeartbeat = clock.elapsed(); }
         else if (type == "CancelAcknowledged" && state == CancelRequested) { state = Acknowledged; status->setText("Cancel acknowledged; stopping calculation"); }
-        else if (type == "Cancelled" && state == Acknowledged) { state = Cancelled; resultCount = 0; progress->setValue(0); status->setText("Cancelled; awaiting process exit"); }
-        else if (type == "Completed" && state == Running && resultCount == points) { state = Completed; status->setText("Synthetic calculation completed; awaiting process exit"); }
-        else if (type == "Failed" && b.value("code").isString() && b.value("context").isString()) { fail(b.value("code").toString() + ": " + b.value("context").toString()); }
+        else if (type == "Cancelled" && state == Acknowledged) { state = Cancelled; terminalAt = clock.elapsed(); resultCount = 0; progress->setValue(0); status->setText("Cancelled; awaiting process exit"); }
+        else if (type == "Completed" && state == Running && resultCount == points) { state = Completed; terminalAt = clock.elapsed(); status->setText("Synthetic calculation completed; awaiting process exit"); }
+        else if (type == "Failed" && b.value("code").isString() && b.value("context").isString()) {
+            state = Failed; scopedFailure = true; terminalAt = clock.elapsed(); resultCount = 0; progress->setValue(0); cancel->setEnabled(false);
+            error->setText(b.value("code").toString() + ": " + b.value("context").toString());
+            status->setText("Worker reported failure; awaiting process exit");
+        }
         else if (type == "Progress" && state != Awaiting && integer(b.value("done"), resultCount) && integer(b.value("total"), points)) { progress->setValue(resultCount); }
         else if (type == "Result" && state != Awaiting && resultCount < points && integer(b.value("point"), resultCount) &&
                  integer(b.value("frequency_hz"), resultCount * 1e6) && b.value("synthetic").isBool() && b.value("synthetic").toBool()) {
@@ -94,7 +101,7 @@ class Window : public QWidget {
     }
     void pump() {
         if (pumping) return;
-        if (state == Failed) { process.readAllStandardOutput(); buffer.clear(); if (exitSeen) finishExit(); return; }
+        if (state == Failed && !scopedFailure) { process.readAllStandardOutput(); buffer.clear(); if (exitSeen) finishExit(); return; }
         pumping = true;
         // Bound work per callback so queued UI events can run between bursts.
         buffer += process.read(65540);
@@ -108,7 +115,7 @@ class Window : public QWidget {
         }
         pumping = false;
         if (buffer.size() > 131080) { fail("IPC buffer limit"); return; }
-        if (state != Failed && (process.bytesAvailable() > 0 || (buffer.size() >= 4 && buffer.size() >= static_cast<qsizetype>(qFromBigEndian<quint32>(buffer.constData())) + 4)))
+        if ((state != Failed || scopedFailure) && (process.bytesAvailable() > 0 || (buffer.size() >= 4 && buffer.size() >= static_cast<qsizetype>(qFromBigEndian<quint32>(buffer.constData())) + 4)))
             QTimer::singleShot(0, this, [this] { pump(); });
         else if (exitSeen) finishExit();
     }
@@ -131,7 +138,7 @@ public:
             if (!QFileInfo(path).isAbsolute() || !QFileInfo(path).isExecutable()) { error->setText("Absolute executable Worker path required"); return; }
             run = QUuid::createUuid().toString(QUuid::WithoutBraces);
             snapshot = "synthetic-rlgc-v1:points=100:delay_ms=50";
-            exitSeen = false; state = Awaiting; expected = request = 1; resultCount = 0; buffer.clear(); cancelAt = -1;
+            exitSeen = false; scopedFailure = false; terminalAt = -1; state = Awaiting; expected = request = 1; resultCount = 0; buffer.clear(); cancelAt = -1;
             clock.restart(); lastRx = lastHeartbeat = 0; error->clear(); progress->setValue(0); start->setEnabled(false); force->setEnabled(false);
             status->setText("Starting Worker"); process.start(path, QStringList{});
         });
@@ -158,11 +165,12 @@ public:
         });
         monitor.setInterval(100);
         connect(&monitor, &QTimer::timeout, this, [this] {
-            if (state == Idle || terminal()) return;
+            if (state == Idle || process.state() == QProcess::NotRunning) return;
             const qint64 now = clock.elapsed();
-            if (now - lastRx >= 5000 || now - lastHeartbeat >= 5000) error->setText("Warning: no traffic or heartbeat for 5 s");
-            if (now - lastRx < 5000 && now - lastHeartbeat < 5000 && error->text().startsWith("Warning:")) error->clear();
-            force->setEnabled(cancelAt >= 0 && now - cancelAt >= 10000);
+            if (now - lastRx >= 5000 || now - lastHeartbeat >= 5000) worker->setText("Warning: no traffic or heartbeat for 5 s; process still running");
+            if (now - lastRx < 5000 && now - lastHeartbeat < 5000 && worker->text().startsWith("Warning:")) worker->setText("Worker running");
+            const qint64 stopAt = cancelAt >= 0 ? cancelAt : terminalAt;
+            force->setEnabled(stopAt >= 0 && now - stopAt >= 10000);
         }); monitor.start(); resize(440, 300);
     }
 };
