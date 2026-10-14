@@ -57,10 +57,10 @@ by its own runs; installing a workflow is not native-runtime PASS.
 | Environment | Current follow-up status |
 | --- | --- |
 | Linux local offscreen | PASS, measured above |
-| Linux CI offscreen + xcb/Xvfb | Pending actual new-head CI |
-| Windows x64 windows backend | Pending actual new-head CI |
-| Windows ARM64 windows backend | Pending actual new-head CI |
-| macOS ARM64 cocoa backend | Pending actual new-head CI |
+| Linux CI offscreen + xcb/Xvfb | PASS on source 838203bdd286296c3b93ce06091c21af3206045d |
+| Windows x64 windows backend | PASS on same source |
+| Windows ARM64 windows backend | PASS on same source |
+| macOS ARM64 cocoa backend | PASS on same source |
 
 Qt checks remain provisional, not mandatory branch protection checks. Existing
 Rust native CI and docs checks remain active. Issues #3/#5/#6 remain open because
@@ -95,5 +95,55 @@ explanation to verify on the next run, not a fabricated macOS PASS.
 
 Additional actual closed-pipe tests exercise both asynchronous stdin failure and
 synchronous Qt closeWriteChannel failure. A late Cancel cannot overwrite complete
-results in either case. Final source now has 28 scenarios and 450 probes; current
-new-head native results must be read from its Actions run before updating status.
+results in either case. Final source now has 28 scenarios and 450 probes; final native results are recorded below after reading every job log.
+
+## Confirmed final native execution
+
+**Verified code commit: `838203bdd286296c3b93ce06091c21af3206045d`.**
+[Qt workflow](https://github.com/july-rust/BoardSI/actions/runs/38564422752),
+[Rust workflow](https://github.com/july-rust/BoardSI/actions/runs/38564422789),
+[required docs](https://github.com/july-rust/BoardSI/actions/runs/38564422733)
+all completed/success. All four Qt job logs and four Rust job logs were read.
+The raw evidence includes both Linux backends, yielding five executions.
+[Raw current-code CI evidence](qt-runtime-ci-evidence.json).
+
+Each execution passed 28 scenarios and 450 UI probes. Linux offscreen has 265
+assertions; each explicit native-backend execution has 268, including expected
+Qt architecture, Rust Worker architecture and platform backend checks. All
+observed real partial reads were nonzero (16–17 in CI). Every native job rendered
+and hashed a Widgets frame. These checks prove real Qt execution, not Rust-only
+or compile-only substitution. No thresholds were relaxed; no test was disabled.
+
+All values below are milliseconds; p95 uses 150 samples per normal/burst/CPU group.
+
+| Execution | Result | Normal p95 | Burst p95 | CPU-load p95 | Whole-test max timer gap |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Linux x86_64 Offscreen | PASS | 0.032 | 3.156 | 0.283 | 36 |
+| Linux x86_64 XCB/Xvfb | PASS | 0.020 | 3.739 | 0.021 | 33 |
+| Windows x64 windows | PASS | 0.089 | 0.496 | 0.113 | 161 |
+| macOS ARM64 cocoa | PASS | 0.207 | 8.681 | 2.130 | 675 |
+| Windows ARM64 windows | PASS | 0.101 | 0.191 | 0.106 | 318 |
+
+Runtime heartbeat gaps across the five CI executions were 994–1,021 ms;
+Force stop delays were 10,015–10,091 ms. All p95 values were ≤8.681 ms,
+well below 200 ms. Largest whole-test timer dispatch gap was 675 ms, below 1 s.
+Each Rust native job passed Debug 69 + Release 69 (138 total); compiler warnings 0.
+All Qt C++ builds used warnings-as-errors and produced compiler warnings 0.
+Expected offscreen/intentional-fault diagnostics are not described as absent.
+
+| Native build | Qt | CMake | C++ compiler |
+| --- | --- | --- | --- |
+| Linux x86_64 | 6.8.3 | 3.31.6 | GCC 13.3.0 |
+| Windows x64 | 6.8.3 | 3.31.6 | MSVC 19.44.35229.0 |
+| Windows ARM64 | 6.8.3 | 4.4.4 | MSVC 19.51.36260.0 |
+| macOS ARM64 | 6.8.3 | 4.4.3 | AppleClang 15.0.0.15000309 |
+
+The Windows ARM vendor SDK was built for MSVC 2022; the actual current runner
+uses the recorded newer compiler. Prototype API/link/native runtime succeeded;
+this is empirical subset validation, not a blanket final-product toolchain claim.
+Rust remains 1.75.0 on every platform. Product SDK/toolchain decisions stay separate.
+
+Any later commit that only records these results/README updates must be checked
+for byte-identical runtime/build/test sources relative to the verified code commit.
+Do not misattribute this run to a different later code change. PR #30 remains
+unmerged and Issues #3/#5/#6 remain partial for overall product/M0 scope.

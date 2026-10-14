@@ -1,7 +1,9 @@
 # Qt Widgets M0 Worker prototype
 
 Actual Linux x86_64 build and QApplication/Rust Worker execution: **PASS, Qt 6.8.3 offscreen**.
-Windows x64/ARM64 and macOS ARM64 Qt runtime: **Not Run**.
+Windows x64/ARM64 windows backend and macOS ARM64 cocoa backend: **PASS**.
+Linux xcb/Xvfb software desktop: **PASS**. Verified code commit:
+`838203bdd286296c3b93ce06091c21af3206045d`; see the current report for scope.
 This is a synthetic RLGC prototype, not PCB SI or full M0 acceptance.
 
 ## Build and test
