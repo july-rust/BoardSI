@@ -65,7 +65,8 @@ def main():
     c0plate=EPS0*W/H
     lplate=MU0*H/W
     check(math.isclose(lplate,MU0*EPS0/c0plate,rel_tol=1e-14),"PH03 dimensions")
-    check(math.isclose(cplate/c0plate,ER,rel_tol=1e-14),"PH03 diel    # Pre-registered source digest: verify exact oracle bytes before declaring G0.
+    check(math.isclose(cplate/c0plate,ER,rel_tol=1e-14),"PH03 dielectric ratio")
+    # Pre-registered source digest: verify exact oracle bytes before declaring G0.
     reference_py=Path(__file__).with_name("m2_fvm_reference.py")
     digest_file=Path(__file__).with_name("m2_g0_source.sha256")
     expected_digest=digest_file.read_text(encoding="utf-8").split()[0]
