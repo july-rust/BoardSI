@@ -1,0 +1,31 @@
+name: M2 synthetic G0 reference
+on:
+  pull_request:
+    paths:
+      - 'tools/validation/m2_fvm_reference.py'
+      - 'tools/validation/m2_g0_verify.py'
+      - 'tools/validation/m2_g0_holdout.csv'
+      - 'docs/validation/m2-g0-**'
+      - '.github/workflows/m2-g0-reference.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: m2-g0-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  independent-fvm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install fixed public scientific reference dependencies
+        run: python -m pip install numpy==2.3.5 scipy==1.17.0
+      - name: Run the independent field oracle and holdout checker
+        run: |
+          python -V
+          /usr/bin/time -v python tools/validation/m2_fvm_reference.py --suite holdout --output g0-reproduction.json
+          python tools/validation/m2_g0_verify.py tools/validation/m2_g0_holdout.csv g0-reproduction.json
