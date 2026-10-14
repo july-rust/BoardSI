@@ -94,3 +94,30 @@ for case in boundary_cases:
 output = Path('crates/boardsi-numerics/tests/fixtures/abcd_boundary_reference.csv')
 output.write_text('\n'.join(rows)+'\n', encoding='utf-8')
 print(f'{len(boundary_cases)} exact-input boundary ABCD cases written at {mp.mp.dps} decimal digits')
+
+# Review regressions: exact binary64 inputs, including reciprocal scales.
+overflow_cases = [
+    ('0','1e200','0','1e-200','1e-220','1e210','1e200'),
+    ('1e-100','1e-200','1e-100','1e-200','1e-110','1e308','1'),
+    ('0','1e-200','0','1e200','1e-220','1e210','1e-200'),
+    ('0','1e-200','0','1e-200','1e-110','1e308','1'),
+    ('0','5e-324','0','5e-324','1e307','1','1'),
+]
+rows = ['# exact binary64 input ABCD oracle; columns identical to abcd_reference.csv']
+for case in overflow_cases:
+    r, l, g, c, length, f, ref = [mp.mpf(float(x)) for x in case]
+    z = r+mp.j*2*mp.pi*f*l
+    y = g+mp.j*2*mp.pi*f*c
+    gamma = mp.sqrt(z*y)
+    zc = mp.sqrt(z/y)
+    a = mp.cosh(gamma*length)
+    b = zc*mp.sinh(gamma*length)
+    cc = mp.sinh(gamma*length)/zc
+    den = 2*a+b/ref+cc*ref
+    s11 = (b/ref-cc*ref)/den
+    s21 = 2/den
+    values = [mp.re(s11),mp.im(s11),mp.re(s21),mp.im(s21),mp.re(zc),mp.im(zc),mp.re(gamma),mp.im(gamma)]
+    rows.append(','.join(case)+','+','.join(mp.nstr(x,45) for x in values))
+output = Path('crates/boardsi-numerics/tests/fixtures/abcd_overflow_reference.csv')
+output.write_text('\n'.join(rows)+'\n', encoding='utf-8')
+print(f'{len(overflow_cases)} exact-input overflow ABCD cases written at {mp.mp.dps} decimal digits')

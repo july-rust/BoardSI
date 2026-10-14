@@ -320,3 +320,85 @@ fn independent_boundary_abcd_fixtures() {
     assert_eq!(count, 103);
     println!("boundary ABCD cases={count}, max_complex_S_absolute_error={max_error:.16e}, max_passivity_residual={max_passivity:.16e}");
 }
+fn verify_overflow_abcd_regressions(lossless: bool) {
+    let mut count = 0;
+    let mut max_error: f64 = 0.0;
+    let mut max_passivity: f64 = 0.0;
+    for row in include_str!("fixtures/abcd_overflow_reference.csv")
+        .lines()
+        .filter(|r| !r.starts_with('#'))
+    {
+        let v: Vec<f64> = row.split(',').map(|s| s.parse().unwrap()).collect();
+        if (v[0] == 0.0 && v[2] == 0.0) != lossless {
+            continue;
+        }
+        let l = UniformLine {
+            rlgc: Rlgc {
+                r_ohm_per_m: v[0],
+                l_h_per_m: v[1],
+                g_s_per_m: v[2],
+                c_f_per_m: v[3],
+            },
+            length_m: v[4],
+            reference_ohm: v[6],
+        };
+        let x = l.at(v[5]).unwrap_or_else(|e| panic!("overflow {row}: {e}"));
+        assert_eq!(x.model_status, ModelStatus::Approximate);
+        for (i, matrix_row) in x.s.iter().enumerate() {
+            for (j, actual) in matrix_row.iter().enumerate() {
+                let k = if i == j { 7 } else { 9 };
+                let expected = Complex::new(v[k], v[k + 1]);
+                max_error = max_error.max((*actual - expected).abs());
+                close(*actual, expected, 1e-6);
+            }
+        }
+        assert!(
+            (x.zc_ohm.unwrap() - Complex::new(v[11], v[12])).abs()
+                / Complex::new(v[11], v[12]).abs()
+                < 1e-12
+        );
+        assert!(
+            (x.gamma_per_m.unwrap() - Complex::new(v[13], v[14])).abs()
+                / Complex::new(v[13], v[14]).abs()
+                < 1e-12
+        );
+        if v[13] * v[4] >= 100.0 {
+            let expected = Complex::new(v[9], v[10]);
+            assert!(x.s[1][0].abs() > 0.0);
+            assert!((x.s[1][0] - expected).abs() / expected.abs() < 1e-9);
+        }
+        let sigma = (x.s[0][0] + x.s[1][0])
+            .abs()
+            .max((x.s[0][0] - x.s[1][0]).abs());
+        assert!((max_singular_value(x.s) - sigma).abs() < 1e-12);
+        assert!(sigma <= 1.0 + 1e-6 && x.reciprocity_residual == 0.0);
+        max_passivity = max_passivity
+            .max((sigma - 1.0).max(0.0))
+            .max(x.passivity_residual);
+        count += 1;
+    }
+    assert_eq!(count, if lossless { 4 } else { 1 });
+    println!("overflow lossless={lossless} ABCD cases={count}, max_complex_S_absolute_error={max_error:.16e}, max_passivity_residual={max_passivity:.16e}");
+}
+
+#[test]
+fn lossless_overflow_abcd_regressions() {
+    verify_overflow_abcd_regressions(true);
+}
+#[test]
+fn lossy_overflow_abcd_regressions() {
+    verify_overflow_abcd_regressions(false);
+}
+
+#[test]
+fn genuinely_unrepresentable_propagation_is_rejected() {
+    let mut l = line();
+    l.rlgc.l_h_per_m = 1e200;
+    l.rlgc.c_f_per_m = 1e200;
+    l.reference_ohm = 1.0;
+    l.length_m = 1e-220;
+    assert!(matches!(l.at(1e210), Err(Error::NumericalInstability(_))));
+    l.rlgc.r_ohm_per_m = 1e-100;
+    l.rlgc.g_s_per_m = 1e-100;
+    assert!(matches!(l.at(1e308), Err(Error::Unsupported(_))));
+}

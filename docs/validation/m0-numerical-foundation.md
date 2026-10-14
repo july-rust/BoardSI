@@ -136,3 +136,71 @@ sampled passivity residual is 2.220446049250313e-16; reciprocity remains zero.
 These results expand sampled evidence, not a mathematical proof of the entire
 numerical envelope or physical applicability. Physical PCB validation remains Not Run; the subsequent
 [native execution report](m0-native-platforms.md) records the three target platforms. Source license/toolchain/product gates remain open.
+
+## M0 second review: intermediate overflow stabilization (2026-10-14 KST)
+
+This section supersedes the earlier current-suite counts above. Review baseline:
+`92cf817cddebf406c058701683239a25bdfba37f`, PR #27, same feature branch.
+Specification v1.0, convention exp(+j*omega*t), exp(-gamma*l), port order,
+reference definitions, numerical envelope and model applicability are unchanged.
+
+### Reproduced findings and minimal correction
+
+| Case (SI per-length units) | Baseline executed result | Correct finite reference | Fixed result |
+| --- | --- | --- | --- |
+| A: R=G=0, L=1e200, C=1e-200, f=1e210 Hz, length=1e-220 m, Zref=1e200 ohm | NumericalInstability: nonfinite/invalid propagation constants | Zc approximately 1e200 ohm, gamma approximately j*6.283185307179586e210 /m, gamma*l approximately j*6.283185307179586e-10 | PASS |
+| B: R=G=1e-100, L=C=1e-200, f=1e308 Hz, length=1e-110 m, Zref=1 ohm | Unsupported: series/shunt magnitude outside numerical envelope | Zc=1 ohm, gamma approximately 1e-100+j*6.283185307179586e108 /m, gamma*l approximately 1e-210+j*0.06283185307179586 | PASS |
+
+Both failures were executed with the original core and the new regression tests
+before restoring the fix: 0 PASS / 2 FAIL (expected negative control). They are
+synthetic scale tests, not realistic PCB material/frequency assumptions.
+
+Replace only the lossless beta and lossy omega*L/omega*C products with a private
+binary mantissa/exponent product helper. It never materializes an overflowing
+omega or a large intermediate product. Subnormal factors are normalized using
+an exact power of two; final overflow/underflow still follows binary64 range.
+No whole-core refactoring, frequency cap, special-case input recognition or
+runtime dependency was added. Genuinely unrepresentable propagation remains an
+explicit NumericalInstability; lossy magnitude outside the existing envelope
+remains Unsupported, even if a very short length would give finite S.
+
+### Independent verification and current results
+
+The independent Python mpmath 1.2.1 ABCD oracle uses exact binary64 inputs at
+80 decimal digits, serialized at 45 significant digits. Repeating the five new
+points at 160 digits produced byte-identical serialized references. Original
+72-point and 103-point fixtures are byte-identical to baseline (hashes above).
+New fixture SHA-256:
+`e42f2421f049a1a3c36349a3faf05206710baf0ab76d1b4ecc97a152cf5280f1`.
+
+Five new points cover A, B, reciprocal L/C scaling, lossless overflowing omega,
+and a subnormal L/C case. Two separate regression tests verify lossless and
+lossy ABCD points; a third added test checks genuinely unsupported overflow.
+All four complex S entries, Zc/gamma, passivity, reciprocity and Approximate
+status are checked. The subnormal gamma comparison uses a binary64-rounded
+reference: it does not promise high relative precision below the normal range.
+
+Executed local environment: Linux x86_64, official rustc/cargo 1.75.0,
+Python 3.12.14, mpmath 1.2.1. Debug and release metrics agree:
+
+| Evidence | Current executed result |
+| --- | --- |
+| Existing tests preserved + new tests | 12 + 3 = 15 PASS per build; 0 FAIL, 0 ignored |
+| Independent ABCD points | 175 preserved + 5 new = 180 PASS |
+| Original 72-point maximum complex S absolute error | 3.6686042322476870e-12, unchanged |
+| Original 103-point maximum / overall 180-point maximum | 4.0953603625310199e-10, unchanged, target <=1e-6 |
+| New lossless points (4) maximum complex S absolute error | 1.3991213168443443e-17 |
+| New lossy point (B) maximum complex S absolute error | 0 at binary64 reference resolution |
+| Maximum sampled passivity / reciprocity residual | 2.2204460492503131e-16 / 0 |
+| Required impedance / phase-delay relative error | 0 / 2.2204460492503131e-16 |
+| cargo fmt --check / clippy -D warnings | PASS / PASS |
+| Current-source four-platform GitHub CI | Pending at code commit; see PR #27 checks and latest native report section |
+| Physical PCB/EM/measurement, full-envelope proof, all-band causality | Not Run |
+
+No additional confirmed numerical bug was found in this scoped review.
+Supported-scope limits and the conservative sensitivity guard above remain.
+An unrepresentable gamma cannot be returned by this API even if gamma*length
+could be finite. True subnormal rounding/underflow and near-zero relative
+accuracy are still binary64 limitations. Successful results stay Approximate.
+The code is ready for final user review after current-source CI passes; no merge
+is performed and no roadmap Issues/Milestones/Ruleset are changed.

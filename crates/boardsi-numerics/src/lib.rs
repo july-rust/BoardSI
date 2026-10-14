@@ -77,6 +77,41 @@ impl Div for Complex {
 const ONE: Complex = Complex::new(1.0, 0.0);
 const ZERO: Complex = Complex::new(0.0, 0.0);
 
+// Multiply finite nonnegative factors without overflowing/underflowing an
+// intermediate product. Binary exponent scaling is exact; only mantissa
+// products and the final binary64 result round. Used only after input validation.
+fn scaled_product(factors: &[f64]) -> f64 {
+    let mut mantissa = 1.0;
+    let mut exponent = 0_i32;
+    for &factor in factors {
+        if factor == 0.0 {
+            return 0.0;
+        }
+        let (normal, adjustment) = if factor < f64::MIN_POSITIVE {
+            (factor * 2.0_f64.powi(54), -54)
+        } else {
+            (factor, 0)
+        };
+        let bits = normal.to_bits();
+        exponent += ((bits >> 52) & 0x7ff) as i32 - 1023 + adjustment;
+        mantissa *= f64::from_bits((bits & ((1_u64 << 52) - 1)) | (1023_u64 << 52));
+        if mantissa >= 2.0 {
+            mantissa *= 0.5;
+            exponent += 1;
+        }
+    }
+    if exponent > 1023 {
+        f64::INFINITY
+    } else if exponent < -1075 {
+        0.0
+    } else if exponent < -1022 {
+        // Scale into subnormal units first, allowing correct final underflow.
+        (mantissa * 2.0_f64.powi(exponent + 1074)) * f64::from_bits(1)
+    } else {
+        mantissa * 2.0_f64.powi(exponent)
+    }
+}
+
 /// Per-unit-length scalar circuit values, not Maxwell matrices.
 #[derive(Clone, Copy, Debug)]
 pub struct Rlgc {
@@ -162,15 +197,20 @@ impl UniformLine {
         if frequency_hz == 0.0 && !lossless {
             return Err(Error::Unsupported("lossy DC model not implemented"));
         }
-        let omega = TAU * frequency_hz;
         let (zc, gamma) = if lossless {
             // Explicit DC limit; sqrt(L)/sqrt(C) avoids L/C overflow.
             let zc = Complex::new(p.l_h_per_m.sqrt() / p.c_f_per_m.sqrt(), 0.0);
-            let beta = (omega * p.l_h_per_m.sqrt()) * p.c_f_per_m.sqrt();
+            let beta = scaled_product(&[TAU, frequency_hz, p.l_h_per_m.sqrt(), p.c_f_per_m.sqrt()]);
             (zc, Complex::new(0.0, beta))
         } else {
-            let z = Complex::new(p.r_ohm_per_m, omega * p.l_h_per_m);
-            let y = Complex::new(p.g_s_per_m, omega * p.c_f_per_m);
+            let z = Complex::new(
+                p.r_ohm_per_m,
+                scaled_product(&[TAU, frequency_hz, p.l_h_per_m]),
+            );
+            let y = Complex::new(
+                p.g_s_per_m,
+                scaled_product(&[TAU, frequency_hz, p.c_f_per_m]),
+            );
             for v in [z.abs(), y.abs()] {
                 if !v.is_finite() || !(1e-120..=1e120).contains(&v) {
                     return Err(Error::Unsupported(

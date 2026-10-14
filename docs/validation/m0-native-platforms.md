@@ -79,3 +79,13 @@ This changes the native numerical execution status from Not Run to PASS only.
 Physical PCB/EM/measurement comparison, Qt/GUI/IPC, deployment/install and
 all-band causality remain Not Run. Uniform externally supplied RLGC results
 remain physically Approximate. Toolchain selection remains provisional.
+
+## M0 second-review source: current CI evidence
+
+The historical 12-test/175-point runs above are not evidence for the overflow
+fix. The second-review suite now has 15 tests and 180 independent ABCD points,
+with unchanged native CI configuration. Local Linux Debug/Release, format and
+Clippy pass; current-source Windows x64, Windows ARM64 and macOS ARM64 remain
+Pending until their job results and logs are inspected. Read current PR #27
+checks: https://github.com/july-rust/BoardSI/pull/27/checks .
+Physical PCB validation remains Not Run; results remain Approximate.
