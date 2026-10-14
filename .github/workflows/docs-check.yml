@@ -19,7 +19,7 @@ jobs:
           assert all('U%02d' % i in spec for i in range(1, 49))
           assert all('T%02d' % i in spec for i in range(1, 55))
           assert len(plan['milestones']) == 11
-          assert len(plan['labels']) == 21
+          assert len(plan['labels']) == 22
           assert len({x['title'] for x in plan['issues']}) == len(plan['issues'])
           assert {x['code'] for x in plan['milestones']} == {x['phase'] for x in plan['issues']}
           assert all(x['priority'] in ('priority:P0','priority:P1','priority:P2') for x in plan['issues'])

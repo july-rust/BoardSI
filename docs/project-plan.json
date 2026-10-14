@@ -164,6 +164,11 @@
       "name": "needs-validation",
       "color": "ededed",
       "description": "needs-validation"
+    },
+    {
+      "name": "area:docs",
+      "color": "0075ca",
+      "description": "area:docs"
     }
   ],
   "issues": [
