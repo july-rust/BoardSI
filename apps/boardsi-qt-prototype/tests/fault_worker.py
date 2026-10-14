@@ -83,11 +83,14 @@ elif mode == 'no-heartbeat':
     for _ in range(12):
         emit(dict(type='Progress', done=0, total=100))
         time.sleep(0.5)
-elif mode in ('completed-hang', 'partial', 'burst', 'completion-race', 'completion-after-ack', 'completion-incomplete', 'closed-cancel'):
-    if mode == 'closed-cancel':
+elif mode in ('completed-hang', 'partial', 'burst', 'completion-race', 'completion-after-ack', 'completion-incomplete', 'closed-cancel', 'closed-cancel-failed'):
+    if mode in ('closed-cancel', 'closed-cancel-failed'):
         os.close(0)
         print('CANCEL_PIPE_CLOSED', file=sys.stderr, flush=True)
         time.sleep(0.25)
+        if mode == 'closed-cancel-failed':
+            emit(dict(type='Failed', code='FixtureFailure', context='preserved context'))
+            sys.exit(2)
     if mode == 'burst':
         for _ in range(20000):
             emit(dict(type='Heartbeat'))

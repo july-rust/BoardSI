@@ -69,8 +69,10 @@ class Window : public QWidget {
         const QByteArray json = QJsonDocument(envelope).toJson(QJsonDocument::Compact);
         QByteArray frame(4, '\0'); qToBigEndian<quint32>(static_cast<quint32>(json.size()), frame.data()); frame += json;
         if (process.write(frame) != frame.size()) {
-            if (body.value("type").toString() == "Cancel" && state == CancelRequested) {
-                worker->setText("Cancel not delivered; awaiting Worker outcome");
+            if (body.value("type").toString() == "Cancel" && cancelAt >= 0 &&
+                (state == CancelRequested || state == Completed || (state == Failed && scopedFailure))) {
+                if (!exitSeen && process.state() != QProcess::NotRunning && state == CancelRequested)
+                    worker->setText("Cancel not delivered; awaiting Worker outcome");
                 return false;
             }
             fail("IPC WriteError"); return false;
@@ -185,10 +187,12 @@ public:
             worker->setText(diagnostics.trimmed());
         });
         connect(&process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError code) {
-            if (code == QProcess::WriteError && cancelAt >= 0 && (state == CancelRequested || state == Completed)) {
-                // Worker may already have completed and closed stdin. Drain its
-                // scoped outcome instead of destroying a valid completed run.
-                worker->setText("Cancel not delivered; awaiting Worker outcome");
+            if (code == QProcess::WriteError && cancelAt >= 0 &&
+                (state == CancelRequested || state == Completed || (state == Failed && scopedFailure))) {
+                // A queued Cancel write may fail after Completed or scoped Failed.
+                // Do not overwrite the final OS exit status or actionable failure.
+                if (!exitSeen && process.state() != QProcess::NotRunning && state == CancelRequested)
+                    worker->setText("Cancel not delivered; awaiting Worker outcome");
                 return;
             }
             fail("Worker process error " + QString::number(static_cast<int>(code)));

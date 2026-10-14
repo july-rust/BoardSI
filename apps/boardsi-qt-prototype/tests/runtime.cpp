@@ -233,15 +233,36 @@ class RuntimeValidation {
     }
     void closedCancel() {
         for (const bool closeQtChannel : {false,true}) {
-        Window w(python,{fixture,"closed-cancel"}); start(w); running(w);
+        for (const bool failWorker : {false,true}) {
+        Window w(python,{fixture,failWorker ? "closed-cancel-failed" : "closed-cancel"}); start(w); running(w);
         check(until([&] { return w.diagnostics.contains("CANCEL_PIPE_CLOSED"); }),"Closed-pipe fixture not ready");
         if (closeQtChannel) w.process.closeWriteChannel();
         cancel(w); exited(w);
-        check(w.state==Window::Completed && w.resultCount==100,"Closed-pipe Cancel destroyed complete outcome");
-        // A delayed Qt write-error notification cannot rewrite terminal completion.
+        const QString finalWorkerLabel = w.worker->text();
+        if (failWorker) {
+            check(w.state==Window::Failed && w.exitCode==2 && w.scopedFailure,
+                  "Closed-pipe scoped Failed not retained");
+            check(w.error->text()=="FixtureFailure: preserved context",
+                  "Closed-pipe failure code/context corrupted");
+        } else {
+            check(w.state==Window::Completed && w.resultCount==100,
+                  "Closed-pipe Cancel destroyed complete outcome");
+        }
+        // Queued Qt write errors arriving after OS exit must not change the
+        // status label, invalidate Completed or erase scoped Failed details.
         w.process.errorOccurred(QProcess::WriteError);
-        check(w.state==Window::Completed && w.resultCount==100,"Delayed write error invalidated completed run");
-        record(closeQtChannel ? "closed-qt-write-channel-preserves-completed-outcome" : "actual-closed-stdin-cancel-with-completed-outcome",w);
+        check(w.worker->text()==finalWorkerLabel && finalWorkerLabel.startsWith("Worker exited:"),
+              "Late Cancel write error overwrote observed OS exit status");
+        if (failWorker)
+            check(w.state==Window::Failed && w.scopedFailure &&
+                  w.error->text()=="FixtureFailure: preserved context",
+                  "Late Cancel write error erased actionable scoped failure");
+        else
+            check(w.state==Window::Completed && w.resultCount==100,
+                  "Delayed write error invalidated completed run");
+        record(failWorker ? (closeQtChannel ? "closed-qt-write-channel-preserves-scoped-failure" : "closed-stdin-preserves-scoped-failure")
+                          : (closeQtChannel ? "closed-qt-write-channel-preserves-completed-outcome" : "actual-closed-stdin-cancel-with-completed-outcome"),w);
+        }
         }
     }
 public:
