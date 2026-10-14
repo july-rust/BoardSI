@@ -110,7 +110,6 @@ def main():
                                                "S11":[s11.real,s11.imag],
                                                "S21":[s21.real,s21.imag]}},indent=2))
     print("Physical PCB/real-loss validation remains UNSUPPORTED.")
-UNSUPPORTED.")
 
 if __name__=="__main__":
     main()
