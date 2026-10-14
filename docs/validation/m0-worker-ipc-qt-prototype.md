@@ -99,8 +99,9 @@ the source commit. Prior PR #27/#28 CI results are not reused.
 | [macOS ARM64 115813050528](https://github.com/july-rust/BoardSI/actions/runs/38552339713/job/115813050528) | aarch64-apple-darwin / aarch64 macos | 65 / 65 PASS |
 
 This added CI evidence changes only this report. Code/lockfile/workflow remain exactly
-the tested source. Report-only HEAD runs the existing docs check, avoiding a duplicate
-numerical run; distinguish its docs status from the source-specific runtime evidence.
+the tested source. GitHub pull_request path filters consider the full PR diff, so a report-only update
+can also retrigger this same numerical workflow. This is not a second workflow or
+artifact upload; distinguish HEAD CI status from the completed source-specific evidence.
 
 ## Reproduce and limits
 
