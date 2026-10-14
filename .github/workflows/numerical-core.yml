@@ -38,3 +38,55 @@ jobs:
         run: |
           cargo test --workspace --locked --offline -- --nocapture
           cargo test --workspace --release --locked --offline -- --nocapture
+  native:
+    name: Native ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            runner: windows-2022
+            target: x86_64-pc-windows-msvc
+            runner_arch: X64
+            executable_arch: x86_64
+            executable_os: windows
+          - name: Windows ARM64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            runner_arch: ARM64
+            executable_arch: aarch64
+            executable_os: windows
+          - name: macOS ARM64
+            runner: macos-14
+            target: aarch64-apple-darwin
+            runner_arch: ARM64
+            executable_arch: aarch64
+            executable_os: macos
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+      RUSTFLAGS: -D warnings
+      BOARDSI_EXPECTED_HOST: ${{ matrix.target }}
+      BOARDSI_EXPECTED_RUNNER_ARCH: ${{ matrix.runner_arch }}
+      BOARDSI_EXPECTED_EXECUTABLE_ARCH: ${{ matrix.executable_arch }}
+      BOARDSI_EXPECTED_EXECUTABLE_OS: ${{ matrix.executable_os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install the matching native Rust host
+        run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+      - name: Verify runner, compiler and actual executable identity
+        run: |
+          test "$RUNNER_ARCH" = "$BOARDSI_EXPECTED_RUNNER_ARCH"
+          compiler_host=$(rustc -vV | sed -n 's/^host: //p' | tr -d '\r')
+          test "$compiler_host" = "$BOARDSI_EXPECTED_HOST"
+          rustc -vV
+          cargo --version
+          cargo run --locked --offline -p boardsi-numerics --example verify_native_host -- "$BOARDSI_EXPECTED_EXECUTABLE_ARCH" "$BOARDSI_EXPECTED_EXECUTABLE_OS"
+      - name: Run native debug and release accuracy tests
+        run: |
+          cargo test --workspace --locked --offline -- --nocapture
+          cargo test --workspace --release --locked --offline -- --nocapture
