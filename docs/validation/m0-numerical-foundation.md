@@ -194,7 +194,7 @@ Python 3.12.14, mpmath 1.2.1. Debug and release metrics agree:
 | Maximum sampled passivity / reciprocity residual | 2.2204460492503131e-16 / 0 |
 | Required impedance / phase-delay relative error | 0 / 2.2204460492503131e-16 |
 | cargo fmt --check / clippy -D warnings | PASS / PASS |
-| Current-source four-platform GitHub CI | Pending at code commit; see PR #27 checks and latest native report section |
+| Current-source four-platform GitHub CI | PASS: Linux, Windows x64, Windows ARM64, macOS ARM64; logs inspected |
 | Physical PCB/EM/measurement, full-envelope proof, all-band causality | Not Run |
 
 No additional confirmed numerical bug was found in this scoped review.
@@ -204,3 +204,17 @@ could be finite. True subnormal rounding/underflow and near-zero relative
 accuracy are still binary64 limitations. Successful results stay Approximate.
 The code is ready for final user review after current-source CI passes; no merge
 is performed and no roadmap Issues/Milestones/Ruleset are changed.
+
+### Executed second-review CI
+
+Source commit: `bfb1bb1fd302cb5f5de082d972c3e13fcae2e761`.
+[Four-platform numerical run](https://github.com/july-rust/BoardSI/actions/runs/38528390111)
+and [planning documents](https://github.com/july-rust/BoardSI/actions/runs/38528390186)
+both completed successfully. All four job logs show 15 PASS / 0 FAIL in both
+Debug and Release; all 180 ABCD points passed with the same maximum S error
+4.0953603625310199e-10. Each new lossless set had maximum 1.3991213168443443e-17;
+case B had 0 at binary64 resolution. Native executable/compiler identity checks
+passed. See [native report](m0-native-platforms.md) for individual log links.
+This follow-up changes reports only; tested source and fixtures are unchanged.
+PR #27 is ready for final user merge review, subject to repository approval gates.
+It remains unmerged; numerical PASS does not establish physical Validated status.

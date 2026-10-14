@@ -80,12 +80,30 @@ Physical PCB/EM/measurement comparison, Qt/GUI/IPC, deployment/install and
 all-band causality remain Not Run. Uniform externally supplied RLGC results
 remain physically Approximate. Toolchain selection remains provisional.
 
-## M0 second-review source: current CI evidence
+## M0 second-review source: executed CI evidence
 
-The historical 12-test/175-point runs above are not evidence for the overflow
-fix. The second-review suite now has 15 tests and 180 independent ABCD points,
-with unchanged native CI configuration. Local Linux Debug/Release, format and
-Clippy pass; current-source Windows x64, Windows ARM64 and macOS ARM64 remain
-Pending until their job results and logs are inspected. Read current PR #27
-checks: https://github.com/july-rust/BoardSI/pull/27/checks .
+Historical 12-test/175-point runs above are separate from this overflow fix.
+Current tested source: `bfb1bb1fd302cb5f5de082d972c3e13fcae2e761`.
+[Four-platform run](https://github.com/july-rust/BoardSI/actions/runs/38528390111)
+completed successfully; each job's actual logs were inspected.
+
+| Platform | Actual native ARCH / OS | Debug / Release | ABCD points | Maximum complex S absolute error | Job log |
+| --- | --- | --- | --- | --- | --- |
+| Linux | x86_64 / linux | 15 PASS / 15 PASS | 180 PASS | 4.0953603625310199e-10 | [Linux](https://github.com/july-rust/BoardSI/actions/runs/38528390111/job/115734101163) |
+| Windows x64 | x86_64 / windows | 15 PASS / 15 PASS | 180 PASS | 4.0953603625310199e-10 | [Windows x64](https://github.com/july-rust/BoardSI/actions/runs/38528390111/job/115734100792) |
+| Windows ARM64 | aarch64 / windows | 15 PASS / 15 PASS | 180 PASS | 4.0953603625310199e-10 | [Windows ARM64](https://github.com/july-rust/BoardSI/actions/runs/38528390111/job/115734101079) |
+| macOS ARM64 | aarch64 / macos | 15 PASS / 15 PASS | 180 PASS | 4.0953603625310199e-10 | [macOS ARM64](https://github.com/july-rust/BoardSI/actions/runs/38528390111/job/115734101417) |
+
+0 FAIL / 0 ignored in each build. The existing Linux format/Clippy checks pass;
+all three native compiler/executable identity gates and -D warnings builds pass.
+All platforms show new four-point lossless maximum 1.3991213168443443e-17 and
+new lossy case B error 0 at binary64 resolution. Original 72/103-point maximum
+errors remain 3.6686042322476870e-12 / 4.0953603625310199e-10. Maximum sampled
+passivity residual is 2.2204460492503131e-16; reciprocity is 0. This is reference
+accuracy agreement, not bitwise pairwise equality of every computed result.
+[Planning-document CI](https://github.com/july-rust/BoardSI/actions/runs/38528390186)
+also passed. Native CI configuration remains unchanged. This evidence-persistence
+commit changes reports only, with identical numerical source and fixtures.
+No manual rerun is requested. GitHub may automatically check the report-only PR
+update; its status is separate from the completed source-specific run above.
 Physical PCB validation remains Not Run; results remain Approximate.
