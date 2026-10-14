@@ -1,3 +1,3 @@
 [workspace]
-members = ["crates/boardsi-numerics"]
+members = ["crates/boardsi-numerics", "crates/boardsi-model"]
 resolver = "2"

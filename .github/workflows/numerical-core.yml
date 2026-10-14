@@ -6,6 +6,7 @@ on:
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - 'crates/boardsi-numerics/**'
+      - 'crates/boardsi-model/**'
       - '.github/workflows/numerical-core.yml'
   push:
     branches: [main]
@@ -14,6 +15,7 @@ on:
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - 'crates/boardsi-numerics/**'
+      - 'crates/boardsi-model/**'
       - '.github/workflows/numerical-core.yml'
 permissions:
   contents: read
@@ -34,7 +36,7 @@ jobs:
         run: |
           cargo fmt --all -- --check
           cargo clippy --workspace --all-targets --locked --offline -- -D warnings
-      - name: Reproduce numerical benchmarks
+      - name: Reproduce numerical and model integrity tests
         run: |
           cargo test --workspace --locked --offline -- --nocapture
           cargo test --workspace --release --locked --offline -- --nocapture
@@ -86,7 +88,8 @@ jobs:
           rustc -vV
           cargo --version
           cargo run --locked --offline -p boardsi-numerics --example verify_native_host -- "$BOARDSI_EXPECTED_EXECUTABLE_ARCH" "$BOARDSI_EXPECTED_EXECUTABLE_OS"
-      - name: Run native debug and release accuracy tests
+          cargo run --locked --offline -p boardsi-model --example verify_model_native_host -- "$BOARDSI_EXPECTED_EXECUTABLE_ARCH" "$BOARDSI_EXPECTED_EXECUTABLE_OS"
+      - name: Run native debug and release accuracy and model tests
         run: |
           cargo test --workspace --locked --offline -- --nocapture
           cargo test --workspace --release --locked --offline -- --nocapture
