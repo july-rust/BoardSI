@@ -1,7 +1,7 @@
 # M2 G0 evidence — independent synthetic grounded-box field reference
 
 **Evidence date:** 2026-10-15 KST. **Main baseline:** 65c397d99b2ebf8dc3e55dcdb0ef6e168be32342 (merged PR #31).  
-**Decision:** Independently exercised **synthetic PEC-box reference** passes the pre-registered FVM mesh/domain criteria on one Linux x64 environment. The Rust FEM and physical PCB validity are NOT thereby verified. Final readiness of the *portable reference suite* also requires this PR's focused CI PASS.
+**Decision:** Independently exercised **synthetic PEC-box reference** passes the pre-registered FVM mesh/domain criteria on one Linux x64 environment. The Rust FEM and physical PCB validity are NOT thereby verified. The *portable reference suite* independently reproduced in GitHub Actions: **PASS** ([focused CI run 38653297996](https://github.com/july-rust/BoardSI/actions/runs/38653297996)); the G0 reference is **READY ONLY for this restricted synthetic PEC-box coupon**, not for physical open-air or real PCB.
 
 Sources: [frozen acceptance protocol](m2-g0-acceptance-protocol.md), [independent FVM implementation](../../tools/validation/m2_fvm_reference.py), [committed unrounded holdout table](../../tools/validation/m2_g0_holdout.csv), [independent-result checker](../../tools/validation/m2_g0_verify.py). Both synthetic inputs and newly authored implementation are redistributable. SciPy uses BSD-3-Clause. FVM is NOT FEniCSx/Ansys; do not misrepresent reference independence as commercial field validation.
 
