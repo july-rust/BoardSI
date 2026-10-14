@@ -287,15 +287,22 @@ impl RunGuard {
         }
         Ok(())
     }
+    /// Liveness and force-stop hints while the OS process has not yet exited.
+    /// Receiving Cancelled is not proof that the worker actually terminated.
+    /// Callers stop presenting these hints once they observe and reap OS exit.
     pub fn warnings(&self, now: Instant) -> (bool, bool, bool) {
+        let force = self
+            .cancel_at
+            .is_some_and(|t| now.duration_since(t) >= FORCE_OPTION);
         if self.state.terminal() {
-            return (false, false, false);
+            // Preserve the force option if a cancelled worker hangs during exit.
+            // A transport failure is terminal without a valid Cancelled event.
+            return (false, false, self.state == State::Cancelled && force);
         }
         (
             now.duration_since(self.last_rx) >= SILENCE_WARNING,
             now.duration_since(self.last_heartbeat) >= SILENCE_WARNING,
-            self.cancel_at
-                .is_some_and(|t| now.duration_since(t) >= FORCE_OPTION),
+            force,
         )
     }
     /// Transport failure/abnormal exit invalidates even a received Completed event.

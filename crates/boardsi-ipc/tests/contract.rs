@@ -211,6 +211,32 @@ fn warning_clock_and_force_option_exact_boundaries() {
     );
 }
 #[test]
+fn cancelled_terminal_keeps_force_option_until_os_exit() {
+    // Scoped Cancelled is a protocol event, not proof that the child has exited.
+    // Clients must still be able to force-stop a worker stuck during shutdown.
+    let now = Instant::now();
+    let mut g = RunGuard::new("session-a/run-1", &snapshot(), now);
+    g.accept(msg(1, Body::Started), now).unwrap();
+    g.cancel_requested(now).unwrap();
+    g.accept(msg(2, Body::CancelAcknowledged), now).unwrap();
+    g.accept(msg(3, Body::Cancelled), now).unwrap();
+    assert_eq!(g.state, State::Cancelled);
+    assert_eq!(
+        g.warnings(now + Duration::from_millis(9999)),
+        (false, false, false)
+    );
+    assert_eq!(
+        g.warnings(now + Duration::from_secs(10)),
+        (false, false, true)
+    );
+    // An actual transport failure is not a protocol-level Cancelled status.
+    g.transport_failed();
+    assert_eq!(
+        g.warnings(now + Duration::from_secs(20)),
+        (false, false, false)
+    );
+}
+#[test]
 fn completed_then_abnormal_exit_invalidates_results() {
     let now = Instant::now();
     let mut g = RunGuard::new("session-a/run-1", &snapshot(), now);
