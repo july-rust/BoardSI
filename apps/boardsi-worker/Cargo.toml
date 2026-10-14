@@ -1,0 +1,9 @@
+[package]
+name = "boardsi-worker"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+publish = false
+[dependencies]
+boardsi-ipc = { path = "../../crates/boardsi-ipc" }
+boardsi-numerics = { path = "../../crates/boardsi-numerics" }
