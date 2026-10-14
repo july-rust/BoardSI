@@ -9,7 +9,7 @@
 
 Do **not** rename gates to make progress appear faster:
 - **G0** is source-locked independent ideal PEC coupon reference (within its *finite grounded-box* scope); now incorporated in main.
-- **G1** is the independent initial ideal microstrip physical prototype; the [#34 Rust FEM report](../validation/m2-g1-lossless-fem-evidence.md) confirms one constrained coupon and partial PH cases. It **does not** certify a real copper/PCB geometry.
+- **G1** is the independent initial ideal microstrip physical prototype; the [#34 Rust FEM report](https://github.com/july-rust/BoardSI/blob/feature/m2-lossless-fem-prototype/docs/validation/m2-g1-lossless-fem-evidence.md) confirms one constrained coupon and partial PH cases. It **does not** certify a real copper/PCB geometry.
 - **G2** in the merged PH plan is *additional single-ended geometry qualification*, namely PH-05/06/07/08 stripline, multilayer, mask, finite ground; **not** Canonical Model integration.
 - **G3** loss physics; **G4** coupled/multiconductor; **G5** **Canonical Board Model → geometry/Port → solver → Worker/Qt/output integration**. This document is a **G5 interface preflight** that may be reviewed while G2–G4 remain pending. It does not authorize bypassing gates or feeding lossy real-board paths into an ideal prototype.
 
