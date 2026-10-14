@@ -1,8 +1,8 @@
 # BoardSI M2 G1 — isolated lossless 2D P1 FEM prototype evidence
 
 **Date:** 2026-10-15 KST. **Status:** Working, numerically cross-checked **restricted experimental prototype**; not integrated into the product and NOT physically validated for real PCB.  
-**Feature PR:** [#34](https://github.com/july-rust/BoardSI/pull/34) (DRAFT, stacked on G0 [#33](https://github.com/july-rust/BoardSI/pull/33)). **Measured tested source commit:** 7b858f3cdbcacb6765e6f6e5ee0a0c18a97f1fe3.  
-**Final recorded CI for that source:** [M2 isolated lossless FEM run 38653846512](https://github.com/july-rust/BoardSI/actions/runs/38653846512) **PASS** (Rust 1.75 build, 5 Rust tests, Clippy -D warnings, independent Python ABCD comparison). Document-only later commits do not alter those physical execution results.
+**Feature PR:** [#34](https://github.com/july-rust/BoardSI/pull/34), rebased cleanly onto merged G0 main [#33](https://github.com/july-rust/BoardSI/pull/33) commit `ec5fa4b048c0c00d8588dfd90f2c35e1107e220b`. **CI-tested source commit:** `a2a35b2f998413f4dfe33215f9a8755d0c34e2f9` (subsequent changes to this file are evidence-only).  
+**Final cross-check run:** [M2 isolated lossless FEM run 38656159358](https://github.com/july-rust/BoardSI/actions/runs/38656159358) **PASS**: 5 Rust prototype tests, Clippy `-D warnings`, independently computed n=32 C/C0 via **fresh locked SciPy FVM** (source SHA256 checked), separate complex ABCD S, one unchanged M0 Rust workspace `cargo test --workspace --locked --offline` regression. [Documentation check 38656159338](https://github.com/july-rust/BoardSI/actions/runs/38656159338) **PASS**. Not a Qt GUI/IPC runtime rerun.
 
 ## 1. Source and exact accepted scope
 
@@ -10,6 +10,7 @@
 - Compute dielectric C, identical-geometry vacuum C0, exterior idealized inductance Lext = mu0*epsilon0/C0, characteristic Z0=sqrt(Lext/C), and per-metre delay sqrt(Lext*C). **No internal conductor inductance**. No assumption of real copper R=0 or real dielectric G=0: model **refuses** a non-PEC/non-lossless request.
 - Optional analytic **lossless mathematical** 2-port S at +jωt, equal positive real port reference, one uniform straight idealized section; independent Python ABCD/complex-S validation. Neither full-wave propagation nor physical frequency applicability is certified.
 - Code: [isolated Rust prototype](../../prototypes/m2-lossless-fem/), [independent Python S check](../../tools/validation/m2_s2_analytic_check.py). G0 [pre-registered acceptance](m2-g0-acceptance-protocol.md), [Python FVM reference](../../tools/validation/m2_fvm_reference.py), and [unrounded oracle data](../../tools/validation/m2_g0_holdout.csv).
+- **G1 independence hardening:** [m2_g1_field_check.py](../../tools/validation/m2_g1_field_check.py) computes **new actual n=32 FVM solves** for dielectric and vacuum each CI run, confirms its FVM SHA-256 and previously frozen independent n=32 values, then compares observed Rust C/C0 with the preregistered 2% limit. This removes dependence on Rust tests' hardcoded constants alone.
 - No other structures/ports/materials have passed. Not a production PCB model; copper resistance, dielectric attenuation, multilayer stacks, physical open-space boundaries, via/pad, reference switching, bends, differential and 3D effects remain Unsupported.
 
 ## 2. Independent results and pre-registered thresholds
@@ -18,8 +19,8 @@ Specimen (entirely synthetic): width 0.3 mm, conductor thickness 0.05 mm, dielec
 
 | Property | Observed Rust FEM | Independent FVM | Difference | Pre-registered G1 limit |
 | --- | ---: | ---: | ---: | ---: |
-| C | 8.9251239079867028e-11 F/m | 8.842386680772379e-11 F/m | **0.935689%** | <=2.0% |
-| C0 | 3.6708540153695572e-11 F/m | 3.654801591437518e-11 F/m | **0.439215%** | <=2.0% |
+| C | 8.9251239079867028e-11 F/m | 8.842386680772379e-11 F/m | **0.935689%** (fresh FVM CI recomputation confirmed) | <=2.0% |
+| C0 | 3.6708540153695572e-11 F/m | 3.654801591437518e-11 F/m | **0.439215%** (fresh FVM CI recomputation confirmed) | <=2.0% |
 | Lext | 3.0310386939834007e-7 H/m | derived independently from FVM C0 | diagnostic comparison only | no separate universal field tolerance |
 | Z0 | 58.27584952131 ohm | FVM 58.67628954408 ohm | diagnostic comparison only | no universal physical field tolerance |
 | delay | 5.201191778208533e-9 s/m | FVM derived | diagnostic comparison only | no universal physical field tolerance |
@@ -35,7 +36,7 @@ C **0.333827%**, C0 **1.168449%**, Lext **1.154954%**, Z0 **0.744687%**, delay *
 
 ## 3. Measured resource evidence
 
-Single GitHub Actions Ubuntu 24.04 Linux x64 run, Rust 1.75.0 release optimized build, **n=32, B=1.2 mm**, two field solves (material and vacuum). Environment logs pinned by [CI run 38653846512](https://github.com/july-rust/BoardSI/actions/runs/38653846512).
+Single GitHub Actions Ubuntu 24.04 Linux x64 run, Rust 1.75.0 release optimized build, **n=32, B=1.2 mm**, two field solves (material and vacuum). Environment logs pinned by [CI run 38656159358](https://github.com/july-rust/BoardSI/actions/runs/38656159358).
 
 | Metric | Observed result |
 | --- | ---: |
@@ -43,9 +44,9 @@ Single GitHub Actions Ubuntu 24.04 Linux x64 run, Rust 1.75.0 release optimized 
 | P1 triangular elements | **147,456** |
 | Assembled nonzero sparse entries | **362,296** |
 | PCG iterations material/vacuum | **846 / 878** |
-| Solver wall time material / vacuum | **0.546285 / 0.534045 s** |
+| Solver wall time material / vacuum | **measured per-run; see updated CI log (values vary with runner load)** |
 | External /usr/bin/time executable wall | **1.08 s** |
-| Peak process resident memory | **50,240 KiB** |
+| Peak process resident memory | **50,432 KiB** |
 
 Results are process-/runner-specific. Do not compare resource data directly with the FVM n=48 experiment as if workload and method were identical. No other OS/CPU native FEM benchmark executed. No new workers/UI runtime operations executed.
 
@@ -53,7 +54,8 @@ Results are process-/runner-specific. Do not compare resource data directly with
 
 | PH ID | Actually executed evidence | Honest scope |
 | --- | --- | --- |
-| PH-01 | Ideal S complex ABCD comparison and mathematical energy/passivity tests | **Partial PASS** for one ideal mathematical case; full PH frequency/length/port sweep Not Run |
+| PH-01 | Rust matched-to-Z0 S11=0 and unit-magnitude S21 mathematical test, G0 matched analytic oracle | **Partial PASS**, full lengths/frequencies sweep Not Run |
+| PH-02 | Rust 50-ohm mismatched S plus independent Python complex ABCD for both directions and passivity | **Partial PASS**, unequal reference impedances Unsupported |
 | PH-03 | Independent edge-free parallel plate analytical values from G0; no exact edge-free Rust FEM boundary coupon | **Not Run** for FEM exact plate anchor |
 | PH-04 | One synthetic grounded-box microstrip vs separate FVM C/C0 | **Partial PASS**; width/height/thickness/Dk parameter sweep Not Run |
 | PH-17 | n=16→32 uniform FEM self-mesh and n32 FVM comparison | **Partial PASS**; corner adaptive and order study Not Run |
@@ -61,7 +63,7 @@ Results are process-/runner-specific. Do not compare resource data directly with
 | PH-19 | Positive C/C0, energy-charge equality, true residual, analytic lossless S unitarity/reciprocity | **Partial PASS**; general matrix eigenvalues/ill-conditioning not studied |
 | PH-20 | Deterministic rejection of nonfinite/negative dielectric, lossless not specified, non-PEC conductor, broken reference, nonuniformity and copper/box collision | **Partial PASS**; comprehensive invalid combinations Not Run |
 
-Five Rust tests were executed (3 unit + 2 integration), no failed tests, Clippy with -D warnings **PASS**, plus separate Python S benchmark **PASS**. The existing M0 boardsi-numerics, boardsi-model, boardsi-ipc, Worker and Qt were not modified or rerun. Full product T-tests remain Not Run; Issue #16 remains Open. Do not set ModelStatus::Validated for any real-board result or claim a 30 GHz validated physical frequency band.
+Five Rust tests were executed (3 unit + 2 integration), no failed tests, Clippy with -D warnings **PASS**, fresh independent FVM numerical comparison **PASS**, plus separate Python S benchmark **PASS**. The unchanged existing M0 Rust workspace tests were also executed on the revised base and **PASS** (test group counts 1+11+1+27+15+2+12 = **69**; each group 0 failures; auxiliary 0-test groups excluded). M0 boardsi-numerics/model/ipc/Worker and Qt **source was not modified**; Qt GUI native runtime was deliberately **Not Run**. Full product T-tests remain Not Run; Issue #16 remains Open. Do not set ModelStatus::Validated for any real-board result or claim a 30 GHz validated physical frequency band.
 
 ## 5. Reproduction
 
@@ -73,4 +75,4 @@ Run from repository checkout with Rust 1.75.0 and no external Rust dependencies:
 - Analytic comparison: save the last command's standard output JSON and run python tools/validation/m2_s2_analytic_check.py output.json
 - Separate FVM oracle: follow [G0 execution instructions](m2-g0-acceptance-protocol.md). Product Rust code intentionally does not import SciPy.
 
-Keep PR #34 draft, stacked until G0 PR #33 is independently reviewed. Neither PR is auto-merged. Future M2 G2/G3 loss-related models require entirely separate field evidence and independently approved conditions.
+**Scoped G1 technical judgment:** the isolated synthetic PEC/lossless grounded-box FEM prototype and its preregistered numerical checks are suitable for review as a **restricted research prototype**; this is **not full physical G1/real-board Validated**. G0 PR #33 was squash merged, and PR #34 now targets the current main with exactly G1-only changed files. PR #34 is not merged without further review/approval. **G2 per independent validation plan means more single-ended structures (PH-05..08), not Canonical Model integration**; integration belongs to G5. An adapter feasibility/design-only study may precede G2/G5 without connecting this restricted prototype to live PCB data.
