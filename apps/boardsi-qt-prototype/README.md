@@ -1,37 +1,46 @@
 # Qt Widgets M0 Worker prototype
 
-**Build and actual execution: Not Run in the implementation environment.**
-No Qt SDK, qmake, pkg-config Qt6Widgets or CMake was available. No installer/large SDK
-was added. This is reviewable C++17 source, not evidence of GUI responsiveness.
-Only Qt Core/Gui/Widgets are requested; no QML, Charts, network or Rust FFI.
+Actual Linux x86_64 build and QApplication/Rust Worker execution: **PASS, Qt 6.8.3 offscreen**.
+Windows x64/ARM64 and macOS ARM64 Qt runtime: **Not Run**.
+This is a synthetic RLGC prototype, not PCB SI or full M0 acceptance.
 
-In a prepared Qt 6.5+ development environment (Qt 6.8 is an ADR candidate):
+## Build and test
+
+Qt 6.8.3 gcc_64 SDK with qtbase and ICU, CMake 3.31.6 and C++17 are the measured
+configuration. Existing Qt 6.5 minimum remains unchanged. Core/Gui/Widgets only;
+no QML/Charts/FFI or Qt Test dependency. See the pinned Linux workflow and ADR.
 
 ```sh
 cargo build --locked -p boardsi-worker
-cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_PREFIX_PATH=/absolute/qt/prefix
-cmake --build build-qt
-# Use the actual built executable path; Windows multi-config builds may use Debug/.
+cmake -S apps/boardsi-qt-prototype -B build-qt \
+  -DCMAKE_PREFIX_PATH=/absolute/qt/prefix \
+  -DBOARDSI_WORKER=/absolute/path/to/target/debug/boardsi-worker
+cmake --build build-qt --parallel 2
+QT_QPA_PLATFORM=offscreen ctest --test-dir build-qt --output-on-failure
+# Run the actual GUI on a prepared desktop:
 ./build-qt/boardsi-qt-prototype /absolute/path/to/target/debug/boardsi-worker
 ```
 
-The Worker path must be absolute; pass `.exe` on Windows. Start requests 100 synthetic
-uniform lossless RLGC points with a 50 ms per-point test delay. The GUI displays only
-execution status/counts; these are not actual PCB results. Each Start creates a UUID,
-resets receive buffers/cursors and uses the immutable synthetic snapshot identity.
-Stdout is parsed as framed JSON; stderr is separate. QProcess signals, bounded parse
-batches and QTimer handle work; no blocking wait or solver operation runs on the UI.
-Close while active requests kill and waits **asynchronously** for process finished.
-Cancel request, acknowledgement, cancellation event and process exit are distinct.
-Scoped Worker Failed(code,context) is retained across expected normal exit 1/2;
-lifecycle warning/force-stop monitoring continues after a terminal event until OS exit.
-The 5 s timer warning and 10 s Force stop enablement are source logic only until measured.
+If needed, include the SDK ICU/Qt library directory in LD_LIBRARY_PATH on Linux.
+BUILD_TESTING=ON requires Python3 for the test-only fault peer and an absolute
+BOARDSI_WORKER path. Use `-DBUILD_TESTING=OFF` to compile only the GUI.
+Windows multi-config executable locations and `.exe` need matching paths.
 
-Next prepared-host validation must compile with warnings as errors and run a real
-QApplication event loop, record OS/CPU/RAM/Qt/compiler/display backend, and measure
-at least 100 queued button/interaction responses during work. Record p95/max UI delay,
-request-to-ack, heartbeat gap, result-to-display latency, actual warning/force enablement,
-crash/close/restart and partial/malformed/burst-message cases. Desktop Pan/Zoom/tab
-coverage and CPU-saturated workload are separate from this button-only prototype.
-Qt Widgets versus Quick and public packaging remain Pending. Do not mark T34/T50 PASS
-from Rust tests or source inspection.
+The actual Window starts QProcess from the Start button; UUID/immutable snapshot,
+framed JSON, sequence/scope checking, bounded parse callbacks and QTimer separate
+UI and computation. Cancel request/acknowledgement/terminal/OS exit are distinct.
+Close during work kills asynchronously and waits for drained process exit.
+Failed code/context survives expected exit 1/2. Watchdog remains active after
+Completed/Cancelled until exit; Force stop is offered after the 10 s deadline.
+Strict completion-after-CancelRequested rejection is preserved and tested.
+
+CTest calls a real QApplication::exec(), drives this same Window, launches the real
+Rust Worker and separate test peers, checks 23 scenarios and posts 300 measured
+UI events. Results are written to `build-qt/qt-runtime-results.json`; failures
+return nonzero. Receipt/update measurements cover widget properties, not GPU paint.
+Offscreen diagnostics are recorded; desktop rendering is not validated.
+
+[Executed report](../../docs/validation/m0-qt-native-runtime.md) ·
+[Raw measurements](../../docs/validation/qt-runtime-linux-offscreen.json) ·
+[ADR/install](../../docs/architecture/qt-native-runtime.md) ·
+[CI](../../.github/workflows/qt-runtime.yml).

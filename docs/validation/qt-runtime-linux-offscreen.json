@@ -1,0 +1,200 @@
+{
+    "assertions": 221,
+    "cases": [
+        {
+            "error": "",
+            "exit_code": 0,
+            "exit_status": 0,
+            "name": "real-rust-normal",
+            "pass": true
+        },
+        {
+            "error": "",
+            "exit_code": 0,
+            "exit_status": 0,
+            "name": "real-rust-5-rapid-start-cancel-restarts",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 6,
+            "exit_status": 1,
+            "name": "real-rust-crash",
+            "pass": true
+        },
+        {
+            "error": "FixtureFailure: preserved context",
+            "exit_code": 1,
+            "exit_status": 0,
+            "name": "failed1",
+            "pass": true
+        },
+        {
+            "error": "FixtureFailure: preserved context",
+            "exit_code": 2,
+            "exit_status": 0,
+            "name": "failed2",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 7,
+            "exit_status": 0,
+            "name": "exit7",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 6,
+            "exit_status": 1,
+            "name": "crash",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 9,
+            "exit_status": 1,
+            "name": "schema",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 9,
+            "exit_status": 1,
+            "name": "duplicate",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 9,
+            "exit_status": 1,
+            "name": "reverse",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 9,
+            "exit_status": 1,
+            "name": "scope",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 9,
+            "exit_status": 1,
+            "name": "snapshot",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 9,
+            "exit_status": 1,
+            "name": "frame",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 9,
+            "exit_status": 1,
+            "name": "json",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 0,
+            "exit_status": 0,
+            "name": "truncated",
+            "pass": true
+        },
+        {
+            "error": "",
+            "exit_code": 0,
+            "exit_status": 0,
+            "name": "partial",
+            "pass": true
+        },
+        {
+            "error": "",
+            "exit_code": 0,
+            "exit_status": 0,
+            "name": "20000-heartbeats-plus-200-result-progress-frames",
+            "pass": true
+        },
+        {
+            "error": "IPC invalid frame, scope, sequence or state",
+            "exit_code": 0,
+            "exit_status": 0,
+            "name": "completion-after-cancel-fails-closed-existing-contract",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 9,
+            "exit_status": 1,
+            "name": "unresponsive",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 9,
+            "exit_status": 1,
+            "name": "cancel-hang",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 9,
+            "exit_status": 1,
+            "name": "completed-hang",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 9,
+            "exit_status": 1,
+            "name": "heartbeat-missing-with-progress-traffic",
+            "pass": true
+        },
+        {
+            "error": "Worker abnormal exit or incomplete IPC",
+            "exit_code": 9,
+            "exit_status": 1,
+            "name": "close-active-worker",
+            "pass": true
+        }
+    ],
+    "cpu_arch": "x86_64",
+    "metrics": {
+        "burst_ui_count": 150,
+        "burst_ui_max_ms": 31.482025,
+        "burst_ui_p95_ms": 4.330421,
+        "burst_ui_timer_max_gap_ms": 32,
+        "cancel-hang_force_delay_ms": 10070,
+        "cancel-hang_warning_ms": 5092,
+        "cancel_ack_max_ms": 5,
+        "cancel_display_max_ms": 0,
+        "cancel_exit_max_ms": 10,
+        "completed-hang_force_delay_ms": 10041,
+        "completed-hang_warning_ms": 5097,
+        "entire_test_elapsed_ms": 47269,
+        "entire_test_timer_max_gap_ms": 99,
+        "heartbeat_max_gap_ms": 1002,
+        "heartbeat_min_gap_ms": 1001,
+        "heartbeat_samples": 6,
+        "missing_heartbeat_warning_ms": 5096,
+        "normal_ui_count": 150,
+        "normal_ui_max_ms": 1.149393,
+        "normal_ui_p95_ms": 0.089527,
+        "normal_ui_timer_max_gap_ms": 11,
+        "progress_samples": 100,
+        "receive_to_widget_update_max_ms": 1,
+        "result_samples": 100,
+        "start_display_max_ms": 0,
+        "unresponsive_force_delay_ms": 10073,
+        "unresponsive_warning_ms": 5076
+    },
+    "os": "Ubuntu 24.04.3 LTS",
+    "pass": true,
+    "platform": "offscreen",
+    "qt": "6.8.3"
+}

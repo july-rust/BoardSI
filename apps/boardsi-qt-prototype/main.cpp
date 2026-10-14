@@ -1,6 +1,7 @@
 // M0 source prototype: independent Worker, asynchronous signals only.
 #include <QApplication>
 #include <QCloseEvent>
+#include <QDebug>
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -20,13 +21,15 @@
 #include <cmath>
 
 class Window : public QWidget {
+    friend class RuntimeValidation;
     QProcess process;
     QTimer monitor;
     QElapsedTimer clock;
     QPushButton *start, *cancel, *force;
-    QLabel *status, *worker, *error;
+    QLabel *status, *worker, *error, *results;
     QProgressBar *progress;
     QString path, run, snapshot;
+    QStringList arguments;
     QByteArray buffer;
     qint64 lastRx = 0, lastHeartbeat = 0, cancelAt = -1, terminalAt = -1;
     quint64 expected = 1, request = 1;
@@ -35,6 +38,9 @@ class Window : public QWidget {
     bool closing = false, pumping = false, exitSeen = false, scopedFailure = false;
     int exitCode = 0;
     QProcess::ExitStatus exitKind = QProcess::NormalExit;
+    quint64 generation = 0;
+    // Instrumentation timestamps are host-side receipt/update times, not GPU paint.
+    QJsonArray observations;
     void finishExit() {
         const bool expectedFailureExit = scopedFailure && state == Failed && (exitCode == 1 || exitCode == 2);
         if (exitKind != QProcess::NormalExit || (scopedFailure ? !expectedFailureExit : exitCode != 0) || !terminal() || !buffer.isEmpty()) fail("Worker abnormal exit or incomplete IPC");
@@ -49,6 +55,7 @@ class Window : public QWidget {
     bool terminal() const { return state == Completed || state == Cancelled || state == Failed; }
     void fail(const QString &code) {
         state = Failed; resultCount = 0; progress->setValue(0);
+        results->setText("Synthetic results: 0");
         error->setText(scopedFailure ? error->text() + " | " + code : code);
         scopedFailure = false; terminalAt = clock.elapsed();
         status->setText("Failed; provisional results discarded"); cancel->setEnabled(false);
@@ -66,6 +73,7 @@ class Window : public QWidget {
         return v.isDouble() && v.toDouble() == expectedValue;
     }
     bool accept(const QJsonObject &m) {
+        const auto receivedAt = clock.elapsed();
         if (!keys(m, {"version", "run_id", "snapshot_id", "seq", "kind", "body"}) || terminal() || !integer(m.value("version"), 1) || m.value("run_id").toString() != run ||
             m.value("snapshot_id").toString() != snapshot || !integer(m.value("seq"), static_cast<double>(expected)) ||
             !m.value("body").isObject()) return false;
@@ -80,10 +88,11 @@ class Window : public QWidget {
         if (type == "Started" && state == Awaiting) { state = Running; cancel->setEnabled(true); status->setText("Running synthetic RLGC (not PCB SI)"); }
         else if (type == "Heartbeat" && state != Awaiting) { lastHeartbeat = clock.elapsed(); }
         else if (type == "CancelAcknowledged" && state == CancelRequested) { state = Acknowledged; status->setText("Cancel acknowledged; stopping calculation"); }
-        else if (type == "Cancelled" && state == Acknowledged) { state = Cancelled; terminalAt = clock.elapsed(); resultCount = 0; progress->setValue(0); status->setText("Cancelled; awaiting process exit"); }
+        else if (type == "Cancelled" && state == Acknowledged) { state = Cancelled; terminalAt = clock.elapsed(); resultCount = 0; progress->setValue(0); results->setText("Synthetic results: 0"); status->setText("Cancelled; awaiting process exit"); }
         else if (type == "Completed" && state == Running && resultCount == points) { state = Completed; terminalAt = clock.elapsed(); status->setText("Synthetic calculation completed; awaiting process exit"); }
         else if (type == "Failed" && b.value("code").isString() && b.value("context").isString()) {
             state = Failed; scopedFailure = true; terminalAt = clock.elapsed(); resultCount = 0; progress->setValue(0); cancel->setEnabled(false);
+            results->setText("Synthetic results: 0");
             error->setText(b.value("code").toString() + ": " + b.value("context").toString());
             status->setText("Worker reported failure; awaiting process exit");
         }
@@ -96,7 +105,9 @@ class Window : public QWidget {
                 for (const auto &v : values) if (!v.isDouble() || !std::isfinite(v.toDouble())) return false;
             }
             ++resultCount; // Only a count is retained; there is no Validated flag.
+            results->setText(QString("Synthetic results: %1").arg(resultCount));
         } else return false;
+        if (observations.size() < 4096) observations.append(QJsonObject{{"type", type}, {"received_ms", receivedAt}, {"updated_ms", clock.elapsed()}});
         ++expected; lastRx = clock.elapsed(); return true;
     }
     void pump() {
@@ -104,7 +115,8 @@ class Window : public QWidget {
         if (state == Failed && !scopedFailure) { process.readAllStandardOutput(); buffer.clear(); if (exitSeen) finishExit(); return; }
         pumping = true;
         // Bound work per callback so queued UI events can run between bursts.
-        buffer += process.read(65540);
+        // Apply backpressure instead of growing the application buffer during bursts.
+        buffer += process.read(qMin<qint64>(65540, 131080 - buffer.size()));
         for (int batch = 0; batch < 8 && buffer.size() >= 4; ++batch) {
             const auto size = qFromBigEndian<quint32>(buffer.constData());
             if (size == 0 || size > 65536) { fail("IPC FrameSize"); break; }
@@ -116,7 +128,10 @@ class Window : public QWidget {
         pumping = false;
         if (buffer.size() > 131080) { fail("IPC buffer limit"); return; }
         if ((state != Failed || scopedFailure) && (process.bytesAvailable() > 0 || (buffer.size() >= 4 && buffer.size() >= static_cast<qsizetype>(qFromBigEndian<quint32>(buffer.constData())) + 4)))
-            QTimer::singleShot(0, this, [this] { pump(); });
+        {
+            const auto token = generation;
+            QTimer::singleShot(0, this, [this, token] { if (token == generation) pump(); });
+        }
         else if (exitSeen) finishExit();
     }
 protected:
@@ -125,22 +140,25 @@ protected:
         else event->accept();
     }
 public:
-    explicit Window(QString executable) : path(std::move(executable)) {
+    explicit Window(QString executable, QStringList args = {}) : path(std::move(executable)), arguments(std::move(args)) {
         auto *layout = new QVBoxLayout(this);
         start = new QPushButton("Start", this); cancel = new QPushButton("Cancel", this); force = new QPushButton("Force stop", this);
         status = new QLabel("M0 synthetic Worker prototype", this); worker = new QLabel("Worker not started", this); error = new QLabel(this); progress = new QProgressBar(this);
+        results = new QLabel("Synthetic results: 0", this);
         progress->setRange(0, points); cancel->setEnabled(false); force->setEnabled(false);
         layout->addWidget(start); layout->addWidget(cancel); layout->addWidget(force); layout->addWidget(status); layout->addWidget(progress); layout->addWidget(worker); layout->addWidget(error);
+        layout->addWidget(results);
         process.setProcessChannelMode(QProcess::SeparateChannels);
         process.setReadChannel(QProcess::StandardOutput);
         connect(start, &QPushButton::clicked, this, [this] {
             if (process.state() != QProcess::NotRunning) return;
             if (!QFileInfo(path).isAbsolute() || !QFileInfo(path).isExecutable()) { error->setText("Absolute executable Worker path required"); return; }
             run = QUuid::createUuid().toString(QUuid::WithoutBraces);
+            ++generation; observations = QJsonArray{}; results->setText("Synthetic results: 0");
             snapshot = "synthetic-rlgc-v1:points=100:delay_ms=50";
             exitSeen = false; scopedFailure = false; terminalAt = -1; state = Awaiting; expected = request = 1; resultCount = 0; buffer.clear(); cancelAt = -1;
             clock.restart(); lastRx = lastHeartbeat = 0; error->clear(); progress->setValue(0); start->setEnabled(false); force->setEnabled(false);
-            status->setText("Starting Worker"); process.start(path, QStringList{});
+            status->setText("Starting Worker"); process.start(path, arguments);
         });
         connect(&process, &QProcess::started, this, [this] {
             worker->setText("Worker running");
@@ -158,7 +176,9 @@ public:
         });
         connect(&process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError code) {
             fail("Worker process error " + QString::number(static_cast<int>(code)));
-            if (process.state() == QProcess::NotRunning) { start->setEnabled(true); if (closing) close(); }
+            // Crash still has unread stdout and a forthcoming finished signal.
+            // Only FailedToStart has no finished signal to await.
+            if (code == QProcess::FailedToStart) { start->setEnabled(true); cancel->setEnabled(false); force->setEnabled(false); if (closing) close(); }
         });
         connect(&process, &QProcess::finished, this, [this](int code, QProcess::ExitStatus exitStatus) {
             exitSeen = true; exitCode = code; exitKind = exitStatus; pump();
@@ -174,8 +194,10 @@ public:
         }); monitor.start(); resize(440, 300);
     }
 };
+#ifndef BOARDSI_RUNTIME_TEST
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     if (argc != 2) { qCritical("usage: boardsi-qt-prototype ABSOLUTE_WORKER_PATH"); return 2; }
     Window window(QString::fromLocal8Bit(argv[1])); window.show(); return app.exec();
 }
+#endif

@@ -1,0 +1,66 @@
+name: Qt runtime
+on:
+  pull_request:
+    paths:
+      - 'apps/boardsi-qt-prototype/**'
+      - 'apps/boardsi-worker/**'
+      - 'crates/boardsi-ipc/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.github/workflows/qt-runtime.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/boardsi-qt-prototype/**'
+      - 'apps/boardsi-worker/**'
+      - 'crates/boardsi-ipc/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.github/workflows/qt-runtime.yml'
+permissions:
+  contents: read
+concurrency:
+  group: qt-runtime-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  linux-qt:
+    name: Linux x86_64 Qt 6.8.3 offscreen (provisional)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Qt build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y libgl-dev libopengl-dev libxkbcommon-dev libvulkan-dev
+      - name: Install fixed Qt SDK and CMake
+        run: |
+          python3 -m venv "$RUNNER_TEMP/qt-tools"
+          "$RUNNER_TEMP/qt-tools/bin/pip" install aqtinstall==3.3.0 cmake==3.31.6
+          "$RUNNER_TEMP/qt-tools/bin/aqt" install-qt linux desktop 6.8.3 linux_gcc_64 --archives qtbase icu -O "$RUNNER_TEMP/qt"
+          echo "$RUNNER_TEMP/qt-tools/bin" >> "$GITHUB_PATH"
+          echo "QT_PREFIX=$RUNNER_TEMP/qt/6.8.3/gcc_64" >> "$GITHUB_ENV"
+      - name: Build unchanged Rust Worker
+        run: |
+          rustup toolchain install 1.75.0 --profile minimal
+          cargo +1.75.0 build --locked -p boardsi-worker
+      - name: Build actual Widgets GUI and runtime harness
+        run: |
+          test "$RUNNER_ARCH" = X64
+          "$QT_PREFIX/bin/qmake" -query QT_VERSION
+          cmake --version
+          g++ --version
+          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-qt --parallel 2
+      - name: Run real QApplication and independent Worker
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          ulimit -c 0
+          export LD_LIBRARY_PATH="$QT_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          ctest --test-dir build-qt --output-on-failure
+      - name: Print measurement evidence
+        if: always()
+        run: |
+          if test -f build-qt/qt-runtime-results.json; then cat build-qt/qt-runtime-results.json; fi
+          if test -f build-qt/Testing/Temporary/LastTest.log; then cat build-qt/Testing/Temporary/LastTest.log; fi
