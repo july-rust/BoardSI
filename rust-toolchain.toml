@@ -1,0 +1,5 @@
+# Provisional numerical-only M0 baseline, not the final Qt/product toolchain.
+[toolchain]
+channel = "1.75.0"
+profile = "minimal"
+components = ["rustfmt", "clippy"]

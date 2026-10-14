@@ -1,0 +1,40 @@
+name: Numerical core
+on:
+  pull_request:
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'crates/boardsi-numerics/**'
+      - '.github/workflows/numerical-core.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'crates/boardsi-numerics/**'
+      - '.github/workflows/numerical-core.yml'
+permissions:
+  contents: read
+concurrency:
+  group: numerical-core-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  numerical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install provisional M0 numerical toolchain
+        run: |
+          rustup toolchain install 1.75.0 --profile minimal --component rustfmt --component clippy
+          rustup override set 1.75.0
+      - name: Format and warnings
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --locked --offline -- -D warnings
+      - name: Reproduce numerical benchmarks
+        run: |
+          cargo test --workspace --locked --offline -- --nocapture
+          cargo test --workspace --release --locked --offline -- --nocapture
