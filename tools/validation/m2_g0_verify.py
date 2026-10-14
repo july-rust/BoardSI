@@ -74,8 +74,9 @@ def main():
     check(expected_digest=="c5e05fed106cc78e22150b0c90a828951a439940bb1a8dc8843bd5eb73786929","source hash manifest drift")
     check(actual_digest==expected_digest,"independent field source SHA-256 mismatch")
 
-    # PH-01: FIXED 50-ohm reference, so this coupon is mismatched (nonzero S11).
-    # Cross-check independently derived ABCD and multiple-reflection formulas.
+    # PH-01: matched uniform ideal line, Zref=Z0 for this fixture.
+    # PH-02: the separately frozen 50-ohm *mismatched* port contract.
+    # Keep case identities distinct as in the PR #31 physical verification matrix.
     model=at(.0012,48)
     z0=model["Z0_ohm"]
     delay=model["delay_s_per_m"]
@@ -83,20 +84,30 @@ def main():
     a=math.cos(theta)
     b=1j*z0*math.sin(theta)
     c=1j*math.sin(theta)/z0
+    matched_denom=2*a+b/z0+z0*c
+    matched_s11=(b/z0-z0*c)/matched_denom
+    matched_s21=2.0/matched_denom
+    matched_direct=complex(math.cos(theta),-math.sin(theta))
+    check(abs(matched_s11)<=1e-12 and
+          abs(matched_s21-matched_direct)<=1e-12 and
+          abs(abs(matched_s21)**2-1.0)<=1e-12,
+          "PH01 matched analytic ABCD / traveling-wave mismatch")
+
+    # PH-02: 50-ohm mismatch; ABCD and *independent* multiple-reflection.
     denom=2*a+b/50.0+50.0*c
     s11=(b/50.0-50.0*c)/denom
     s21=2.0/denom
     rho=(z0-50.0)/(z0+50.0)
-    e=complex(math.cos(theta),-math.sin(theta))
+    e=matched_direct
     reflection=rho*(1-e*e)/(1-rho*rho*e*e)
     transmission=(1-rho*rho)*e/(1-rho*rho*e*e)
     check(abs(s11-reflection)<=1e-12 and abs(s21-transmission)<=1e-12,
-          "independent PH01 ABCD/multiple-reflection disagreement")
+          "PH02 independent ABCD/multiple-reflection disagreement")
     check(abs(s11-complex(0.01651839692653288,0.048232430752762685))<=1e-11 and
           abs(s21-complex(0.9448265269029662,-0.3235793708615182))<=1e-11,
-          "frozen PH01 50-ohm mismatch reference drift")
+          "frozen PH02 50-ohm mismatch reference drift")
     check(abs(abs(s11)**2+abs(s21)**2-1.0)<=1e-12,
-          "PH01 passive lossless scattering")
+          "PH02 passive lossless scattering")
     print(json.dumps({"result":"G0_RESTRICTED_COUPON_READY",
                       "source_sha256":actual_digest,
                       "mesh_percent":mesh,
@@ -104,7 +115,12 @@ def main():
                       "PH03_edge_free_plate":{"C_F_per_m":cplate,
                                                "C0_F_per_m":c0plate,
                                                "Lext_H_per_m":lplate},
-                      "PH01_mismatched_50ohm":{"frequency_Hz":1e9,
+                      "PH01_matched_to_Z0":{"frequency_Hz":1e9,
+                                              "length_m":.01,
+                                              "reference_ohm":z0,
+                                              "S11":[matched_s11.real,matched_s11.imag],
+                                              "S21":[matched_s21.real,matched_s21.imag]},
+                      "PH02_mismatched_50ohm":{"frequency_Hz":1e9,
                                                "length_m":.01,
                                                "reference_ohm":50.0,
                                                "S11":[s11.real,s11.imag],
