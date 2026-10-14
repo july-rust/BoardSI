@@ -1,0 +1,410 @@
+{
+  "schema_version": 1,
+  "specification": "docs/specification/BoardSI_Development_Spec_v1.0.md",
+  "project_name": "BoardSI Development",
+  "milestones": [
+    {
+      "code": "M0",
+      "title": "M0 — Architecture and feasibility",
+      "description": "BoardSI spec v1.0, stage M0: Architecture and feasibility. Validation gate required; no assumed schedule."
+    },
+    {
+      "code": "M1",
+      "title": "M1 — PADS ASC and ODB++ import / artwork",
+      "description": "BoardSI spec v1.0, stage M1: PADS ASC and ODB++ import / artwork. Validation gate required; no assumed schedule."
+    },
+    {
+      "code": "M1a",
+      "title": "M1a — PCB and Substrate geometry",
+      "description": "BoardSI spec v1.0, stage M1a: PCB and Substrate geometry. Validation gate required; no assumed schedule."
+    },
+    {
+      "code": "M1b",
+      "title": "M1b — Ports and validation",
+      "description": "BoardSI spec v1.0, stage M1b: Ports and validation. Validation gate required; no assumed schedule."
+    },
+    {
+      "code": "M2",
+      "title": "M2 — RLGC and direct S-parameter MVP",
+      "description": "BoardSI spec v1.0, stage M2: RLGC and direct S-parameter MVP. Validation gate required; no assumed schedule."
+    },
+    {
+      "code": "M2a",
+      "title": "M2a — Progressive sweep and convergence",
+      "description": "BoardSI spec v1.0, stage M2a: Progressive sweep and convergence. Validation gate required; no assumed schedule."
+    },
+    {
+      "code": "M2b",
+      "title": "M2b — Worker, cache and crash recovery",
+      "description": "BoardSI spec v1.0, stage M2b: Worker, cache and crash recovery. Validation gate required; no assumed schedule."
+    },
+    {
+      "code": "M2c",
+      "title": "M2c — Validated substrate via/pad models",
+      "description": "BoardSI spec v1.0, stage M2c: Validated substrate via/pad models. Validation gate required; no assumed schedule."
+    },
+    {
+      "code": "M3",
+      "title": "M3 — IPC-2581, KiCad and Gerber import",
+      "description": "BoardSI spec v1.0, stage M3: IPC-2581, KiCad and Gerber import. Validation gate required; no assumed schedule."
+    },
+    {
+      "code": "M4",
+      "title": "M4 — Additional CAD format support",
+      "description": "BoardSI spec v1.0, stage M4: Additional CAD format support. Validation gate required; no assumed schedule."
+    },
+    {
+      "code": "M5",
+      "title": "M5 — Further optimization and extensions",
+      "description": "BoardSI spec v1.0, stage M5: Further optimization and extensions. Validation gate required; no assumed schedule."
+    }
+  ],
+  "labels": [
+    {
+      "name": "type:feature",
+      "color": "1f6feb",
+      "description": "type:feature"
+    },
+    {
+      "name": "type:bug",
+      "color": "d73a4a",
+      "description": "type:bug"
+    },
+    {
+      "name": "type:test",
+      "color": "0e8a16",
+      "description": "type:test"
+    },
+    {
+      "name": "type:docs",
+      "color": "0075ca",
+      "description": "type:docs"
+    },
+    {
+      "name": "type:research",
+      "color": "5319e7",
+      "description": "type:research"
+    },
+    {
+      "name": "type:decision",
+      "color": "8250df",
+      "description": "type:decision"
+    },
+    {
+      "name": "area:import",
+      "color": "fbca04",
+      "description": "area:import"
+    },
+    {
+      "name": "area:model",
+      "color": "c2e0c6",
+      "description": "area:model"
+    },
+    {
+      "name": "area:ui",
+      "color": "f9d0c4",
+      "description": "area:ui"
+    },
+    {
+      "name": "area:solver",
+      "color": "bfe5bf",
+      "description": "area:solver"
+    },
+    {
+      "name": "area:sweep",
+      "color": "d4c5f9",
+      "description": "area:sweep"
+    },
+    {
+      "name": "area:cache",
+      "color": "c5def5",
+      "description": "area:cache"
+    },
+    {
+      "name": "area:port",
+      "color": "fef2c0",
+      "description": "area:port"
+    },
+    {
+      "name": "area:ci",
+      "color": "ededed",
+      "description": "area:ci"
+    },
+    {
+      "name": "area:security",
+      "color": "b60205",
+      "description": "area:security"
+    },
+    {
+      "name": "area:substrate",
+      "color": "e4e669",
+      "description": "area:substrate"
+    },
+    {
+      "name": "priority:P0",
+      "color": "b60205",
+      "description": "priority:P0"
+    },
+    {
+      "name": "priority:P1",
+      "color": "d93f0b",
+      "description": "priority:P1"
+    },
+    {
+      "name": "priority:P2",
+      "color": "fbca04",
+      "description": "priority:P2"
+    },
+    {
+      "name": "blocked",
+      "color": "d4c5f9",
+      "description": "blocked"
+    },
+    {
+      "name": "needs-validation",
+      "color": "ededed",
+      "description": "needs-validation"
+    }
+  ],
+  "issues": [
+    {
+      "phase": "M0",
+      "title": "[M0] Freeze specification and U/T traceability",
+      "requirements": "U01-U48",
+      "tests": "T01-T54",
+      "area": "docs",
+      "type": "type:docs",
+      "priority": "priority:P0",
+      "summary": "Version v1.0 is the user-reviewed requirements baseline; keep software versions separate; map every requirement to tests."
+    },
+    {
+      "phase": "M0",
+      "title": "[M0] Decide Rust/Qt binding, toolchain and IPC schema",
+      "requirements": "U02,U03,U23,U44",
+      "tests": "T13,T39,T46",
+      "area": "ci",
+      "type": "type:decision",
+      "priority": "priority:P0",
+      "summary": "Evaluate Qt Widgets/Quick and Rust bindings on each target CPU/OS, using an IPC prototype."
+    },
+    {
+      "phase": "M0",
+      "title": "[M0] Design format-neutral Canonical Board Model",
+      "requirements": "U31,U32,U39,U48",
+      "tests": "T21,T51",
+      "area": "model",
+      "type": "type:feature",
+      "priority": "priority:P0",
+      "summary": "Common layers, real copper, vias, pads, geometry IDs, transform, connectivity and source provenance. ODB++ is not the core format."
+    },
+    {
+      "phase": "M0",
+      "title": "[M0] Prototype non-blocking worker and run snapshot",
+      "requirements": "U22,U23,U44",
+      "tests": "T10,T34,T46,T50",
+      "area": "cache",
+      "type": "type:research",
+      "priority": "priority:P0",
+      "summary": "Independent solver process, asynchronous messages, heartbeat, cancellation, late response and crash isolation."
+    },
+    {
+      "phase": "M0",
+      "title": "[M0] Establish three native platform toolchain probes",
+      "requirements": "U03,U04,U14",
+      "tests": "T13,T39",
+      "area": "ci",
+      "type": "type:test",
+      "priority": "priority:P0",
+      "summary": "Windows x64/ARM64 and macOS Apple Silicon build and runtime proof; record versions and constraints."
+    },
+    {
+      "phase": "M0",
+      "title": "[M0] Qualify public test fixtures, security and baseline PC",
+      "requirements": "U05,U15,U47",
+      "tests": "T14,T15,T49",
+      "area": "security",
+      "type": "type:research",
+      "priority": "priority:P0",
+      "summary": "Only synthetic or redistributable data; approved samples and hashes, no company artwork or derived private results."
+    },
+    {
+      "phase": "M1",
+      "title": "[M1] Detect formats and summarize G/N/P/S/R/M readiness",
+      "requirements": "U38-U40,U48",
+      "tests": "T17,T20,T22",
+      "area": "import",
+      "type": "type:feature",
+      "priority": "priority:P1",
+      "summary": "Content signature and revision, incomplete inputs, normalized geometry provenance, safe archive/parse budgets."
+    },
+    {
+      "phase": "M1",
+      "title": "[M1] Implement PADS Layout ASCII importer",
+      "requirements": "U06,U07,U31",
+      "tests": "T01,T02,T03,T16",
+      "area": "import",
+      "type": "type:feature",
+      "priority": "priority:P1",
+      "summary": "Trace/via/pad/net/layer parsing, correct coordinates and sample-based revision/coverage tests."
+    },
+    {
+      "phase": "M1",
+      "title": "[M1] Implement ODB++ Design importer",
+      "requirements": "U07,U31,U32,U48",
+      "tests": "T03,T16,T21,T51",
+      "area": "import",
+      "type": "type:feature",
+      "priority": "priority:ODB++ only as source adapter; step/instance, feature polarity, stackup, nets and padstacks."
+    },
+    {
+      "phase": "M1",
+      "title": "[M1] Implement asynchronous 2D artwork/net/layer viewer",
+      "requirements": "U08,U22,U31",
+      "tests": "T03,T34",
+      "area": "ui",
+      "type": "type:feature",
+      "priority": "priority:P1",
+      "summary": "Render shared canonical geometry; pan/zoom and select nets while import and solver remain cancelable."
+    },
+    {
+      "phase": "M1",
+      "title": "[M1] Implement Stackup, materials and reference editing",
+      "requirements": "U09,U10,U39",
+      "tests": "T02,T04,T24,T52",
+      "area": "ui",
+      "type": "type:feature",
+      "priority": "priority:P1",
+      "summary": "No silent FR4 substitution; material provenance, layer order and scenario geometry invalidation."
+    },
+    {
+      "phase": "M1a",
+      "title": "[M1a] Model PCB and substrate vias/pads/anti-pads",
+      "requirements": "U26-U30,U48",
+      "tests": "T36,T37,T38,T51",
+      "area": "substrate",
+      "type": "type:feature",
+      "priority": "priority:P1",
+      "summary": "Pad-to-Pad geometry with die-side and land-side references; exclude bumps, copper pillars, solder balls and bond wires."
+    },
+    {
+      "phase": "M1b",
+      "title": "[M1b] Implement auto/manual Single and Differential ports",
+      "requirements": "U11,U34-U37",
+      "tests": "T23,T25,T27,T28",
+      "area": "port",
+      "type": "type:feature",
+      "priority": "priority:P1",
+      "summary": "Single 2-Port and differential physical 4-Port with explicit P/N, source/load, terminal plane and reference."
+    },
+    {
+      "phase": "M1b",
+      "title": "[M1b] Implement P001-P012 strict validation errors",
+      "requirements": "U34-U37",
+      "tests": "T23,T24,T26,T27",
+      "area": "port",
+      "type": "type:test",
+      "priority": "priority:P1",
+      "summary": "Error prevents Run; reimport, reference cutout, pair reversal, branch and termination validation."
+    },
+    {
+      "phase": "M2",
+      "title": "[M2] Develop validated RLGC and transmission-line core",
+      "requirements": "U01,U02,U30",
+      "tests": "T06,T07,T43,T52",
+      "area": "solver",
+      "type": "type:feature",
+      "priority": "priority:P1",
+      "summary": "Uniform microstrip/stripline and coupled lines, numerical stability, model applicability and independent calculation."
+    },
+    {
+      "phase": "M2",
+      "title": "[M2] Implement direct sweep, DC and Touchstone export",
+      "requirements": "U12,U35,U41,U42",
+      "tests": "T05,T09,T12,T28,T42,T44",
+      "area": "solver",
+      "type": "type:feature",
+      "priority": "priority:P1",
+      "summary": "DC handling, full complex S matrix, mixed-mode port mapping, complete and independent Touchstone roundtrip."
+    },
+    {
+      "phase": "M2a",
+      "title": "[M2a] Implement Progressive Sweep and Region convergence",
+      "requirements": "U17-U21,U41,U46",
+      "tests": "T29,T30,T31,T41,T48,T53",
+      "area": "sweep",
+      "type": "type:feature",
+      "priority": "priority:P1",
+      "summary": "Midpoints computed directly, previously solved points reused, independent Group×Region status and off-grid verification."
+    },
+    {
+      "phase": "M2a",
+      "title": "[M2a] Implement live graphs, model and limit statuses",
+      "requirements": "U19,U20,U43",
+      "tests": "T34,T45,T50",
+      "area": "ui",
+      "type": "type:feature",
+      "priority": "priority:P1",
+      "summary": "Keep run, convergence, model, provenance, limit axes distinct; no premature global PASS."
+    },
+    {
+      "phase": "M2b",
+      "title": "[M2b] Implement RAM/SSD cache and crash-safe snapshots",
+      "requirements": "U18,U24,U44-U46",
+      "tests": "T32,T33,T35,T47,T48,T54",
+      "area": "cache",
+      "type": "type:feature",
+      "priority": "priority:P1",
+      "summary": "Separate physical result cache from convergence state; schema, atomic chunks, checksum and resume."
+    },
+    {
+      "phase": "M2b",
+      "title": "[M2b] Stress-test GUI, cancel, heartbeat and SSD failure",
+      "requirements": "U04,U22,U23,U47",
+      "tests": "T10,T34,T35,T46,T50,T54",
+      "area": "ci",
+      "type": "type:test",
+      "priority": "priority:P1",
+      "summary": "Measure specified UX latency, cancel, IPC failures, memory and disk exhaustion, persistent restart."
+    },
+    {
+      "phase": "M2c",
+      "title": "[M2c] Independently validate substrate discontinuities",
+      "requirements": "U27-U30",
+      "tests": "T36,T37,T38",
+      "area": "substrate",
+      "type": "type:research",
+      "priority": "priority:P2",
+      "summary": "Only measured/EM-validated via/pad models get Validated classification; unsupported otherwise."
+    },
+    {
+      "phase": "M3",
+      "title": "[M3] Add IPC-2581, KiCad and Gerber input adapters",
+      "requirements": "U07,U33,U38,U40",
+      "tests": "T16,T18,T19,T20",
+      "area": "import",
+      "type": "type:feature",
+      "priority": "priority:P2",
+      "summary": "Adapter support matrices, associated Drill/IPC-D-356 and layer mapping; Gerber-only cannot guarantee a solver-ready netlist."
+    },
+    {
+      "phase": "M4",
+      "title": "[M4] Evaluate Altium, Allegro, EAGLE and EasyEDA paths",
+      "requirements": "U07,U33,U38",
+      "tests": "T16,T17,T20",
+      "area": "import",
+      "type": "type:research",
+      "priority": "priority:P2",
+      "summary": "Distinguish direct, offline converted, geometry preview and unsupported for each revision."
+    },
+    {
+      "phase": "M5",
+      "title": "[M5] Optimize performance and future model coverage",
+      "requirements": "U04,U13,U47",
+      "tests": "T11,T39,T40",
+      "area": "solver",
+      "type": "type:research",
+      "priority": "priority:P2",
+      "summary": "Future optional GPU and validated models after measured precision and speed comparisons."
+    }
+  ]
+}

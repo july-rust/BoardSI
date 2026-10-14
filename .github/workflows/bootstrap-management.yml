@@ -1,0 +1,22 @@
+name: Bootstrap GitHub Milestones and Labels
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/bootstrap-management.yml
+      - .github/scripts/bootstrap_github.py
+      - docs/project-plan.json
+permissions:
+  contents: read
+  issues: write
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Milestones, Labels and issue mappings
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python3 .github/scripts/bootstrap_github.py

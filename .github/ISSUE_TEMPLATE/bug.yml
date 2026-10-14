@@ -1,0 +1,22 @@
+name: Bug report
+description: Public or synthetic reproducer only
+title: "[Bug] "
+body:
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps (no proprietary CAD files)
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
