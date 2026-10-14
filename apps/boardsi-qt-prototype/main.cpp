@@ -35,6 +35,7 @@ class Window : public QWidget {
     qint64 lastRx = 0, lastHeartbeat = 0, cancelAt = -1, terminalAt = -1;
     quint64 expected = 1, request = 1;
     int points = 100, resultCount = 0;
+    int incompleteReads = 0;
     enum State { Idle, Awaiting, Running, CancelRequested, Acknowledged, Completed, Cancelled, Failed } state = Idle;
     bool closing = false, pumping = false, exitSeen = false, scopedFailure = false;
     int exitCode = 0;
@@ -67,7 +68,13 @@ class Window : public QWidget {
                              {"seq", static_cast<double>(request++)}, {"kind", "request"}, {"body", body}};
         const QByteArray json = QJsonDocument(envelope).toJson(QJsonDocument::Compact);
         QByteArray frame(4, '\0'); qToBigEndian<quint32>(static_cast<quint32>(json.size()), frame.data()); frame += json;
-        if (process.write(frame) != frame.size()) { fail("IPC WriteError"); return false; }
+        if (process.write(frame) != frame.size()) {
+            if (body.value("type").toString() == "Cancel" && state == CancelRequested) {
+                worker->setText("Cancel not delivered; awaiting Worker outcome");
+                return false;
+            }
+            fail("IPC WriteError"); return false;
+        }
         return true;
     }
     static bool integer(const QJsonValue &v, double expectedValue) {
@@ -118,10 +125,11 @@ class Window : public QWidget {
         // Bound work per callback so queued UI events can run between bursts.
         // Apply backpressure instead of growing the application buffer during bursts.
         buffer += process.read(qMin<qint64>(65540, 131080 - buffer.size()));
+        if (!buffer.isEmpty() && buffer.size() < 4) ++incompleteReads;
         for (int batch = 0; batch < 8 && buffer.size() >= 4; ++batch) {
             const auto size = qFromBigEndian<quint32>(buffer.constData());
             if (size == 0 || size > 65536) { fail("IPC FrameSize"); break; }
-            if (buffer.size() < static_cast<qsizetype>(size) + 4) break;
+            if (buffer.size() < static_cast<qsizetype>(size) + 4) { ++incompleteReads; break; }
             const QByteArray json = buffer.mid(4, size); buffer.remove(0, static_cast<qsizetype>(size) + 4);
             QJsonParseError parse; const auto doc = QJsonDocument::fromJson(json, &parse);
             if (parse.error != QJsonParseError::NoError || !doc.isObject() || !accept(doc.object())) { fail("IPC invalid frame, scope, sequence or state"); break; }
@@ -155,7 +163,7 @@ public:
             if (process.state() != QProcess::NotRunning) return;
             if (!QFileInfo(path).isAbsolute() || !QFileInfo(path).isExecutable()) { error->setText("Absolute executable Worker path required"); return; }
             run = QUuid::createUuid().toString(QUuid::WithoutBraces);
-            ++generation; observations = QJsonArray{}; diagnostics.clear(); results->setText("Synthetic results: 0");
+            ++generation; observations = QJsonArray{}; diagnostics.clear(); incompleteReads = 0; results->setText("Synthetic results: 0");
             snapshot = "synthetic-rlgc-v1:points=100:delay_ms=50";
             exitSeen = false; scopedFailure = false; terminalAt = -1; state = Awaiting; expected = request = 1; resultCount = 0; buffer.clear(); cancelAt = -1;
             clock.restart(); lastRx = lastHeartbeat = 0; error->clear(); progress->setValue(0); start->setEnabled(false); force->setEnabled(false);

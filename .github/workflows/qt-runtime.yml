@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install Qt build prerequisites
-        run: sudo apt-get update && sudo apt-get install -y libgl-dev libopengl-dev libegl1 libxkbcommon-dev libvulkan-dev xvfb libxcb-cursor0 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-icccm4 libxkbcommon-x11-0
+        run: sudo apt-get update && sudo apt-get install -y libgl-dev libopengl-dev libegl1 libxkbcommon-dev libvulkan-dev xvfb libxcb-cursor0 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-icccm4 libxkbcommon-x11-0 libx11-xcb1 libxcb-randr0 libxcb-shape0 libxcb-sync1 libxcb-xfixes0 libxcb-xkb1 libxcb-shm0
       - name: Install fixed Qt SDK and CMake
         run: |
           python3 -m venv "$RUNNER_TEMP/qt-tools"
@@ -72,6 +72,9 @@ jobs:
         run: |
           ulimit -c 0
           export LD_LIBRARY_PATH="$QT_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          ldd "$QT_PREFIX/plugins/platforms/libqxcb.so" > build-qt/xcb-dependencies.txt
+          cat build-qt/xcb-dependencies.txt
+          if grep -q 'not found' build-qt/xcb-dependencies.txt; then exit 1; fi
           cd build-qt
           xvfb-run -a env QT_QPA_PLATFORM=xcb ./boardsi-qt-runtime-validation "$GITHUB_WORKSPACE/target/debug/boardsi-worker" "$(command -v python3)" "$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests/fault_worker.py"
   native-qt:

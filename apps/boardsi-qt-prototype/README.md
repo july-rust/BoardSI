@@ -37,7 +37,7 @@ After acknowledgement, Cancelled is required; incomplete completion remains inva
 A late Cancel hitting a closed pipe drains the Worker outcome before classification.
 
 CTest calls a real QApplication::exec(), drives this same Window, launches the real
-Rust Worker and separate test peers, checks 27 scenarios and posts 450 measured
+Rust Worker and separate test peers, checks 28 scenarios and posts 450 measured
 UI events. Results are written to `build-qt/qt-runtime-results.json`; failures
 return nonzero. Receipt/update measurements cover widget properties, not GPU paint.
 Offscreen diagnostics are recorded; desktop rendering is not validated.

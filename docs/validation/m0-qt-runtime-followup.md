@@ -22,20 +22,20 @@ Baseline specification v1.0, numerical core/model/Worker calculation unchanged.
 
 Same Linux x86_64 container / Qt 6.8.3 / GCC 13.3.0 C++17 / CMake 3.31.6 /
 Rust 1.75.0 as the initial report. Actual QApplication::exec plus independent
-Rust Worker: **27 scenarios / 255 assertions PASS**, **49,332 ms**. Native-job
+Rust Worker: **28 scenarios / 265 assertions PASS**, **43,722 ms**. Native-job
 architecture/backend assertions add checks when their expected environment is set.
 Raw local [JSON](qt-runtime-linux-followup.json) is independent of CI results.
 
 | Measurement | Final local value | Samples |
 | --- | --- | --- |
-| Normal UI p95 / maximum | 0.101 / 0.489 ms | 150 |
-| Burst UI p95 / maximum | 4.479 / 6.749 ms | 150 |
-| CPU-stress UI p95 / maximum | 0.026 / 0.228 ms | 150, 8 busy threads |
-| Whole-test event-loop timer maximum gap | 37 ms | 49,332 ms test duration |
-| Cancel acknowledgement / drained exit maximum | 4 / 10 ms | 5 real Rust runs |
-| Heartbeat gap minimum / maximum | 1,001 / 1,005 ms | 6 samples |
-| Receipt-to-widget result/progress update maximum | 2 ms | 100 + 100 |
-| Force stop after Cancel / terminal | 10,044–10,089 ms | 3 hanging-process cases |
+| Normal UI p95 / maximum | 0.048 / 0.428 ms | 150 |
+| Burst UI p95 / maximum | 4.213 / 32.161 ms | 150 |
+| CPU-stress UI p95 / maximum | 0.023 / 0.074 ms | 150, 8 busy threads |
+| Whole-test event-loop timer maximum gap | 186 ms | 43,722 ms test duration |
+| Cancel acknowledgement / drained exit maximum | 4 / 12 ms | 5 real Rust runs |
+| Heartbeat gap minimum / maximum | 1,002 / 1,004 ms | 6 samples |
+| Receipt-to-widget result/progress update maximum | 1 ms | 100 + 100 |
+| Force stop after Cancel / terminal | 10,041–10,091 ms | 3 hanging-process cases |
 | Widgets raster frame | 440×300 pixels, non-null | SHA-256 in raw JSON |
 
 All 450 UI events pass p95 ≤200 ms/max ≤1 s; the whole-test timer has no >1 s gap.
@@ -74,3 +74,26 @@ Those components are not implemented and adding them is outside M0 fifth-stage
 scope. CPU-load simulation and native Qt backends do not fabricate that evidence.
 Next product stage needs the implemented Viewer/Solver plus prepared physical
 Windows/macOS/Linux hosts; do not label complete T34/T39/T50 or M0 from these tests.
+
+## Native-matrix first attempt and bounded-fixture follow-up
+
+On source `1adc650635a534c2d70b4da53847acf89ad49b8c`, [Qt matrix run](https://github.com/july-rust/BoardSI/actions/runs/38563345101)
+confirmed Windows x64 and Windows ARM64 native backend PASS (27 scenarios each),
+and Linux offscreen PASS. [Rust native matrix](https://github.com/july-rust/BoardSI/actions/runs/38563345143)
+and [docs](https://github.com/july-rust/BoardSI/actions/runs/38563345061) succeeded.
+These are previous-source results, not a predeclared current-head PASS.
+
+Linux xcb failed plugin loading: added explicit X11/xcb dependencies and a full
+ldd preflight that fails if any dependency remains unresolved. macOS actual cocoa
+built and ran normal/cancel/crash/framing tests, then hit the 10 s partial-fixture
+exit timeout while its Python child was still alive. The fixture used 600 sleeps
+across 200 frames; periodic/early/terminal fragmentation now bounds artificial
+sleep accumulation without raising UI/OS-exit deadlines or disabling coverage.
+A Qt incomplete-read counter must prove actual partial receipt, not merely that
+the peer intended to fragment output. This diagnosis is a test-driver timing
+explanation to verify on the next run, not a fabricated macOS PASS.
+
+Additional actual closed-pipe tests exercise both asynchronous stdin failure and
+synchronous Qt closeWriteChannel failure. A late Cancel cannot overwrite complete
+results in either case. Final source now has 28 scenarios and 450 probes; current
+new-head native results must be read from its Actions run before updating status.

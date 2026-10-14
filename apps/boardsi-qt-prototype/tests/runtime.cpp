@@ -155,6 +155,10 @@ class RuntimeValidation {
         if (mode=="exit7") check(w.exitCode==7 && w.exitKind==QProcess::NormalExit, "Nonzero normal exit misclassified");
         if (mode=="crash") check(w.exitKind==QProcess::CrashExit && w.isVisible(), "Crash not isolated");
         if (!failure) check(w.resultCount==100 && w.progress->value()==100, "Fragmented messages lost");
+        if (mode=="partial") {
+            check(w.incompleteReads>0,"No actual partial Qt receipt observed");
+            metrics["partial_read_observations"]=w.incompleteReads;
+        }
         record(mode, w);
     }
     void hang(const QString &mode, bool real = false) {
@@ -228,14 +232,17 @@ class RuntimeValidation {
         record("real-worker-with-cpu-saturated-background-load",w);
     }
     void closedCancel() {
+        for (const bool closeQtChannel : {false,true}) {
         Window w(python,{fixture,"closed-cancel"}); start(w); running(w);
         check(until([&] { return w.diagnostics.contains("CANCEL_PIPE_CLOSED"); }),"Closed-pipe fixture not ready");
+        if (closeQtChannel) w.process.closeWriteChannel();
         cancel(w); exited(w);
         check(w.state==Window::Completed && w.resultCount==100,"Closed-pipe Cancel destroyed complete outcome");
         // A delayed Qt write-error notification cannot rewrite terminal completion.
         w.process.errorOccurred(QProcess::WriteError);
         check(w.state==Window::Completed && w.resultCount==100,"Delayed write error invalidated completed run");
-        record("actual-closed-stdin-cancel-with-completed-outcome",w);
+        record(closeQtChannel ? "closed-qt-write-channel-preserves-completed-outcome" : "actual-closed-stdin-cancel-with-completed-outcome",w);
+        }
     }
 public:
     RuntimeValidation(QString r, QString p, QString f):rust(std::move(r)),python(std::move(p)),fixture(std::move(f)){}

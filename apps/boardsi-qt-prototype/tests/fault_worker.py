@@ -28,7 +28,9 @@ def emit(body, **override):
     msg.update(override)
     raw = json.dumps(msg, separators=(',', ':')).encode()
     frame = struct.pack('>I', len(raw)) + raw
-    if mode == 'partial':
+    # Split early, periodic and terminal frames. Avoid imposing 600 sleep calls
+    # on a platform whose background-process sleep can be heavily coalesced.
+    if mode == 'partial' and (seq <= 4 or seq % 31 == 0 or body['type'] == 'Completed'):
         for cut in (frame[:2], frame[2:9], frame[9:]):
             sys.stdout.buffer.write(cut)
             sys.stdout.buffer.flush()
