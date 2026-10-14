@@ -7,11 +7,11 @@ PR #27 remains unmerged; specification and the final product toolchain are uncha
 
 ## Selected verification configuration
 
-| Platform | GitHub standard runner | Rust host | Initial execution status |
+| Platform | GitHub standard runner | Rust host | Executed status (debug / release) |
 | --- | --- | --- | --- |
-| Windows x64 | windows-2022 | x86_64-pc-windows-msvc | Not Run until job completion |
-| Windows ARM64 | windows-11-arm | aarch64-pc-windows-msvc | Not Run until job completion |
-| macOS ARM64 | macos-14 | aarch64-apple-darwin | Not Run until job completion |
+| Windows x64 | windows-2022 | x86_64-pc-windows-msvc | PASS: 12 / 12 tests |
+| Windows ARM64 | windows-11-arm | aarch64-pc-windows-msvc | PASS: 12 / 12 tests |
+| macOS ARM64 | macos-14 | aarch64-apple-darwin | PASS: 12 / 12 tests |
 
 Rust 1.75.0 remains the provisional numerical baseline so platform differences
 are compared with the same compiler version and source/fixtures. It is not a
@@ -33,7 +33,9 @@ passivity and reciprocity residual <=1e-6, and the existing tighter analytic
 and relative tiny-S21 checks. RUSTFLAGS=-D warnings rejects compilation warnings.
 The existing Linux format/Clippy/accuracy job and planning-document CI are kept.
 
-No build artifacts are uploaded, no cache added, no binaries released. Logs
+The actual source/test commit executed was
+`a3db3b7b2f996eb5c420a76b5fdff4fcaf584566`; subsequent report-only changes do
+not alter numerical code or fixtures. No build artifacts are uploaded, no cache added, no binaries released. Logs
 record compiler/host, executed architecture, test counts and numerical metrics.
 A matching native execution plus reference accuracy is the gate; cross-compiling
 success alone cannot mark a platform PASS. This is common-reference validation,
@@ -51,3 +53,29 @@ not a pairwise comparison of every floating-point result across platforms.
 These sources justify runner/toolchain configuration only. BoardSI execution
 results must come from the CI jobs for the actual committed source, never from
 the existence of a platform in official documentation.
+
+## Executed evidence
+
+All jobs completed successfully on the same source commit and pinned Rust 1.75.0.
+The following evidence is from actual job logs, not a cross-compilation claim:
+
+| Platform | Executed ARCH / OS | Maximum complex S error (175 points) | Job log |
+| --- | --- | --- | --- |
+| Windows x64 | x86_64 / windows | 4.09536036253102e-10 | [native job](https://github.com/july-rust/BoardSI/actions/runs/38525574356/job/115725013571) |
+| Windows ARM64 | aarch64 / windows | 4.09536036253102e-10 | [native job](https://github.com/july-rust/BoardSI/actions/runs/38525574356/job/115725013576) |
+| macOS ARM64 | aarch64 / macos | 4.09536036253102e-10 | [native job](https://github.com/july-rust/BoardSI/actions/runs/38525574356/job/115725013495) |
+
+Each native job recorded the matching rustc host, a successful NATIVE_EXECUTION
+identity check, and two `12 passed; 0 failed` results (debug and release).
+Maximum sampled passivity residual across the native jobs was
+2.220446049250313e-16; reciprocity residual was 0. The 72-point baseline maximum
+was 3.668604232247687e-12 and the 103-point boundary maximum was
+4.09536036253102e-10 on each platform. Linux format/Clippy/debug/release and
+[planning-document CI](https://github.com/july-rust/BoardSI/actions/runs/38525574568)
+also passed. Native builds ran with RUSTFLAGS=-D warnings.
+
+[Full source-specific run](https://github.com/july-rust/BoardSI/actions/runs/38525574356).
+This changes the native numerical execution status from Not Run to PASS only.
+Physical PCB/EM/measurement comparison, Qt/GUI/IPC, deployment/install and
+all-band causality remain Not Run. Uniform externally supplied RLGC results
+remain physically Approximate. Toolchain selection remains provisional.

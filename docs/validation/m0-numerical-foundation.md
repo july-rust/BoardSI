@@ -47,7 +47,7 @@ to the PR/checks page and is not assumed from local success.
 | Debug and optimized builds | PASS, 12 tests each; 0 failures |
 | Format / Clippy with -D warnings | PASS, no compiler/Clippy warnings |
 | Actual PCB/RLGC extraction/EM/measurement comparison | Not Run |
-| Windows x64, Windows ARM64, macOS arm64 native runs | Not Run |
+| Windows x64, Windows ARM64, macOS arm64 native runs | PASS; see [native execution report](m0-native-platforms.md) |
 | Whole-envelope proof of accuracy or all-band causality | Not Run |
 
 Metrics identical in executed debug/release builds:
@@ -134,5 +134,5 @@ suites contain 12 passing tests. Overall maximum S error is 4.09536036253102e-10
 the original 72-point baseline maximum remains 3.668604232247687e-12. Maximum
 sampled passivity residual is 2.220446049250313e-16; reciprocity remains zero.
 These results expand sampled evidence, not a mathematical proof of the entire
-numerical envelope or physical applicability. Third-platform and physical PCB
-validation remain Not Run. Source license/toolchain/product gates remain open.
+numerical envelope or physical applicability. Physical PCB validation remains Not Run; the subsequent
+[native execution report](m0-native-platforms.md) records the three target platforms. Source license/toolchain/product gates remain open.
