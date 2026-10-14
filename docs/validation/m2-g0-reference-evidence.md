@@ -29,7 +29,7 @@ FVM discrete relative residuals for material and vacuum range from 7.48e-16 to 2
 ## 2. Independent mathematical anchors
 
 - **PH-03 (edge-free plate, not a physical microstrip):** C=4.515635787588e-11 F/m; C0=1.32812817282e-11 F/m; Lext=8.377580408467e-7 H/m, from exactly declared w/h/er and eps0/mu0.
-- **PH-01 (ideal matched line using B=1.2 mm, n=48 C/C0):** f=1 GHz, length=0.01 m, reference matched to ideal Z0; S11=0+j0, S21≈0.94728874331−j0.32038108059, |S21|=1, assuming exp(+jωt). This **matched** case uses ideal Z0≈58.59765 ohms; **it is not** the separate 50-ohm mismatched case specified for a later independent full complex S comparison. The fixture's 50-ohm basis is reserved for future mismatch checks, not silently substituted for a matched port.
+- **PH-01 (the FROZEN 50-ohm mismatched near/far ports):** f=1 GHz, length=0.01 m, Z0≈58.59765467 ohms from the B=1.2 mm, n=48 field reference, exp(+jωt). Expected **S11=S22≈0.01651839692653288+j0.048232430752762685** and **S21=S12≈0.9448265269029662−j0.3235793708615182**. Independently derived ABCD and multiple-reflection formulas must agree within 1e-12 with the 50-ohm basis and satisfy lossless power conservation; S11 is **NOT ZERO** for this declared reference. The distinct explicitly *matched-to-Z0* auxiliary identity S11=0, S21≈0.94728874331−j0.32038108059 is not the fixed 50-ohm case.
 - PH-03/PH-01 currently have generated reference anchors, **not** independently executed BoardSI Rust PH PASS.
 
 ## 3. Runtime and environment (single observed holdout run)
@@ -38,6 +38,7 @@ FVM discrete relative residuals for material and vacuum range from 7.48e-16 to 2
 - Six material/vacuum pairs of field solves: **7.615 s observed total wall time** (Python process including mesh assembly and SciPy calls).
 - Peak process resident RAM from Linux resource.getrusage(RUSAGE_SELF).ru_maxrss: **474,328 KiB** (measured, includes interpreter/SciPy; not equivalent to process-isolated solver-only RAM).
 - Maximum unknowns: 165,024 (B=1.2 mm, n=48); actual residuals and solver timestamps are in observed output and committed fixture columns. No guaranteed low-resource production budget established.
+- Frozen independent oracle source digest (SHA-256): **c5e05fed106cc78e22150b0c90a828951a439940bb1a8dc8843bd5eb73786929**. Its value is committed in [m2_g0_source.sha256](../../tools/validation/m2_g0_source.sha256); the focused CI runs sha256sum -c and the verifier recomputes the hash before G0 readiness. This is separate from variable run-output digests.
 - Local experimental full JSON SHA-256: **82a8cc3c10bc04b116f279b11de20d22b5b32d96afee65a0ba51a373dd4ffc4a**; that hash refers to one **environment/timing-dependent local observation file**, not the deterministic committed CSV or future CI reproduction. The committed CSV and Git commit are the stable fixture references.
 - Reproduce within the versioned PR branch: install Python 3.13, NumPy 2.3.5 and SciPy 1.17.0; run python tools/validation/m2_fvm_reference.py --suite holdout --output g0-reproduction.json, then python tools/validation/m2_g0_verify.py tools/validation/m2_g0_holdout.csv g0-reproduction.json. The focused workflow prints /usr/bin/time -v peak memory.
 
@@ -45,7 +46,7 @@ FVM discrete relative residuals for material and vacuum range from 7.48e-16 to 2
 
 | Test | Evidence so far | Status for BoardSI Rust FEM |
 | --- | --- | --- |
-| PH-01 | Independent mathematical matched-line reference generated | **Not Run** against Rust FEM |
+| PH-01 | Frozen 50-ohm mismatched mathematical complex S11/S21 reference from independent ABCD and multiple-reflection identities | **Not Run** against Rust FEM in this G0 source snapshot |
 | PH-03 | Independent mathematical edge-free plate reference generated | **Not Run** against Rust FEM |
 | PH-04 | FVM electrostatic bounded-box reference and numerical results | **Not Run** against Rust FEM |
 | PH-17 | Independent FVM mesh refinement and preregistered threshold met | **Not Run** for Rust FEM |
