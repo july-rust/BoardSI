@@ -1,0 +1,43 @@
+name: M2 isolated lossless FEM prototype
+on:
+  pull_request:
+    paths:
+      - 'prototypes/m2-lossless-fem/**'
+      - 'tools/validation/m2_s2_analytic_check.py'
+      - 'tools/validation/m2_g1_field_check.py'
+      - '.github/workflows/m2-lossless-fem.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: m2-fem-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  rust-fem:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install matching isolated Rust test toolchain
+        run: rustup toolchain install 1.75.0 --profile minimal --component clippy
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install fixed independent reference dependencies
+        run: python -m pip install numpy==2.3.5 scipy==1.17.0
+      - name: Compile and execute isolated physical prototype tests
+        run: |
+          cargo +1.75.0 test --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release -- --nocapture
+          cargo +1.75.0 clippy --manifest-path prototypes/m2-lossless-fem/Cargo.toml --all-targets -- -D warnings
+      - name: Measure independent PEC coupon FEM executable
+        run: |
+          cargo +1.75.0 build --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release
+          set -o pipefail
+          /usr/bin/time -v prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem 32 0.0012 | tee m2-fem-n32.json
+          python -m py_compile tools/validation/m2_g1_field_check.py tools/validation/m2_s2_analytic_check.py
+          python tools/validation/m2_s2_analytic_check.py m2-fem-n32.json
+          python tools/validation/m2_g1_field_check.py m2-fem-n32.json
+      - name: Recheck existing M0 Rust workspace without Qt GUI rebuild
+        run: |
+          cargo +1.75.0 fetch --locked
+          cargo +1.75.0 test --workspace --locked --offline
