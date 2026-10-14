@@ -46,3 +46,51 @@ for case in cases:
 output = Path('crates/boardsi-numerics/tests/fixtures/abcd_reference.csv')
 output.write_text('\n'.join(rows)+'\n', encoding='utf-8')
 print(f'{len(cases)} synthetic ABCD reference cases written at {mp.mp.dps} decimal digits')
+
+# Supplemental boundary oracle uses the exact binary64 inputs read by Rust.
+# This separates f64 input rounding from errors in the numerical algorithm.
+boundary_cases = []
+def binary_case(values):
+    return tuple(repr(float(x)) for x in values)
+
+# Mismatch and phase accumulation, including either side of a half-wave.
+for q in ['1e-6', '1e-3', '1', '1e3', '1e6']:
+    for phase in [mp.mpf('0.001'), mp.pi/2, mp.pi*(1-mp.mpf('1e-8')),
+                  mp.pi, mp.pi*(1+mp.mpf('1e-8')), mp.mpf('1000.3'),
+                  mp.mpf('100000.3'), mp.mpf('999999')]:
+        length = phase/(2*mp.pi*mp.mpf('1e9')*mp.sqrt(mp.mpf('2.5e-7')*mp.mpf('1e-10')))
+        boundary_cases.append(binary_case(['0','2.5e-7','0','1e-10',length,'1e9',50/mp.mpf(q)]))
+
+# Unequal R/L and G/C, large finite attenuation, mismatched references.
+for f in ['1', '1e6', '1e9']:
+    z = mp.mpf('8')+mp.j*2*mp.pi*mp.mpf(f)*mp.mpf('2.5e-7')
+    y = mp.mpf('0.002')+mp.j*2*mp.pi*mp.mpf(f)*mp.mpf('1e-10')
+    for attenuation in ['0.001', '1', '100', '600', '699']:
+        length = mp.mpf(attenuation)/mp.re(mp.sqrt(z*y))
+        for ref in ['25','50','100']:
+            boundary_cases.append(binary_case(['8','2.5e-7','0.002','1e-10',length,f,ref]))
+
+# One loss term zero: differing square-root quadrants toward the DC limit.
+for r, g in [('1','0'), ('0','0.001'), ('8','0.002')]:
+    for f in ['1e-3','1','1e9']:
+        for ref in ['25','75']:
+            boundary_cases.append(binary_case([r,'2.5e-7',g,'1e-10','0.1',f,ref]))
+
+rows = ['# exact binary64 input ABCD oracle; columns identical to abcd_reference.csv']
+for case in boundary_cases:
+    r, l, g, c, length, f, ref = [mp.mpf(float(x)) for x in case]
+    z = r+mp.j*2*mp.pi*f*l
+    y = g+mp.j*2*mp.pi*f*c
+    gamma = mp.sqrt(z*y)
+    zc = mp.sqrt(z/y)
+    a = mp.cosh(gamma*length)
+    b = zc*mp.sinh(gamma*length)
+    cc = mp.sinh(gamma*length)/zc
+    den = 2*a+b/ref+cc*ref
+    s11 = (b/ref-cc*ref)/den
+    s21 = 2/den
+    values = [mp.re(s11),mp.im(s11),mp.re(s21),mp.im(s21),mp.re(zc),mp.im(zc),mp.re(gamma),mp.im(gamma)]
+    rows.append(','.join(case)+','+','.join(mp.nstr(x,45) for x in values))
+output = Path('crates/boardsi-numerics/tests/fixtures/abcd_boundary_reference.csv')
+output.write_text('\n'.join(rows)+'\n', encoding='utf-8')
+print(f'{len(boundary_cases)} exact-input boundary ABCD cases written at {mp.mp.dps} decimal digits')

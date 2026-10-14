@@ -102,9 +102,15 @@ checks provide additional independent sign/delay/attenuation anchors.
 `tools/validation/generate_reference.py` uses independent Python mpmath at
 80 decimal digits, serializes 45-digit ABCD values, and never calls the Rust
 code. Ordinary cargo test uses the committed CSV without Python or networking.
-The 72 fixed synthetic cases span mismatched/matched/lossless/lossy lines,
+The 72 baseline fixed synthetic cases span mismatched/matched/lossless/lossy lines,
 1 Hz..30 GHz, extremely short lines, high attenuation, and non-50 Ω reference.
-They are evidence at those points, not a proof across the entire envelope.
+An additional 103 fixed cases cover mismatch/phase/resonance boundaries,
+large unmatched loss, and R-only/G-only loss limits. Their high-precision ABCD
+references use exact binary64 inputs (not approximate decimal representations),
+separating input conversion from arithmetic error. Very small S21 values also
+have relative checks, not only the absolute 1e-6 criterion. All 175 cases must
+return a response before comparison; rejected cases are not counted as accuracy
+PASS. These are evidence at those points, not a proof across the entire envelope.
 
 No third-party Rust dependencies; Rust standard library/toolchain licenses:
 https://www.rust-lang.org/policies/licenses . Generator-only mpmath 1.2.1 is BSD

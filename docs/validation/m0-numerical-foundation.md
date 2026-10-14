@@ -34,7 +34,7 @@ to the PR/checks page and is not assumed from local success.
 | --- | --- |
 | Required lossless 50 Ω, 100 mm, 1 GHz half-wave, delay | PASS |
 | Lossless DC, lossy DC Unsupported, zero-length identity | PASS |
-| Independent mismatched/lossy ABCD oracle | PASS, 72 cases |
+| Independent mismatched/lossy ABCD oracle | PASS, 175 cases (72 baseline + 103 boundary) |
 | Lossy attenuation/negative transmission phase, reciprocity | PASS |
 | Negative/nonfinite input fields, zero L/C/Zref | PASS |
 | Long/high-loss, extreme impedance/magnitude, overflow guards | PASS |
@@ -44,7 +44,7 @@ to the PR/checks page and is not assumed from local success.
 | Sensitive long mismatched resonance is explicitly rejected | PASS |
 | Tiny RLGC intermediate underflow preserves finite attenuation | PASS, regression reproduced FAIL before fix |
 | Near-resistive positive AC with phase below f64 resolution | PASS; exact f=0 remains Unsupported |
-| Debug and optimized builds | PASS, 11 tests each; 0 failures |
+| Debug and optimized builds | PASS, 12 tests each; 0 failures |
 | Format / Clippy with -D warnings | PASS, no compiler/Clippy warnings |
 | Actual PCB/RLGC extraction/EM/measurement comparison | Not Run |
 | Windows x64, Windows ARM64, macOS arm64 native runs | Not Run |
@@ -52,24 +52,27 @@ to the PR/checks page and is not assumed from local success.
 
 Metrics identical in executed debug/release builds:
 
-- Maximum complex S absolute error over 72 ABCD cases: **3.668604232247687e-12**
+- Maximum complex S absolute error over 175 ABCD cases: **4.09536036253102e-10**
   (target <=1e-6). All four matrix entries compared.
 - Required lossless impedance relative error: **0** at f64 resolution.
 - Required lossless phase-delay relative error: **2.220446049250313e-16**
   (both target <=0.001, i.e. 0.1%). Expected delay 0.5 ns and impedance 50 Ω.
-- Maximum sampled passivity residual: **0** at f64 resolution;
+- Maximum sampled passivity residual: **2.220446049250313e-16**;
   maximum sampled reciprocity residual: **0** (target <=1e-6).
   Independent normal-matrix check uses max(|S11+S21|,|S11-S21|);
   production uses eigenvalue of S^H*S, not elementwise bounds.
 
 The CSV is generated with 80-decimal-digit Python ABCD/cosh/sinh calculations,
-serialized at 45 significant digits, then parsed to f64 by cargo test. Production
+serialized at 45 significant digits, then parsed to f64 by cargo test. The 103
+boundary cases calculate their references from the exact binary64 input values
+read by Rust; the original 72 decimal-input baseline remains unchanged. Production
 uses bounded negative exponential/scattering, separate roots, and cancellation
 avoidance. Additional half-wave and distortionless checks anchor phase, delay,
 impedance and attenuation independently. See the self-contained telegrapher /
 power-wave derivation in [the contract](../architecture/numerical-contract.md)
 and [the generator](../../tools/validation/generate_reference.py).
 CSV SHA-256: b8a8ae1322cd0187b184c8fb15f2b373871e03e431feb81f4b9820750d0f79e4.
+Boundary CSV SHA-256: 67ebaa3a208b0d1610cd0baafa018149cfd0b5ea87ad4f1f77bc0d1dda2f797c.
 All fixtures are synthetic equations; no company PCB, Stackup or Touchstone data.
 
 ## Limitations and next decisions
@@ -84,7 +87,7 @@ All fixtures are synthetic equations; no company PCB, Stackup or Touchstone data
   sensitivity guards may reject additional points. The sensitivity estimate
   is conservative, not a formal forward-error bound. Tiny components can
   underflow; arbitrary near-zero relative accuracy is not promised.
-- 72 samples establish those numerical comparisons, not accuracy everywhere
+- 175 samples establish those numerical comparisons, not accuracy everywhere
   in the envelope or a material/geometry/frequency applicability certificate.
 - The custom scalar complex helper is limited to this bounded calculation;
   it is not a substitute for a future reviewed matrix algebra backend.
@@ -110,7 +113,26 @@ Reordering the alpha formula to divide each imaginary term by beta before
 multiplying its real partner preserves finite attenuation. If beta has rounded
 to zero for positive, near-resistive AC, the positive direct real root is
 retained, avoiding a 0/0 calculation. Lossy exact DC remains Unsupported.
-Two independent distortionless analytic regressions were added. Final local
-debug/release suites contain 11 tests; all PASS, with unchanged 72-case ABCD
+Two independent distortionless analytic regressions were added. At that review,
+local debug/release suites contained 11 tests; all PASS, with unchanged 72-case ABCD
 maximum error and no Clippy warnings. Remote CI for the updated commit must
 be read from the current PR checks; prior-commit success is not reused.
+
+## Boundary verification expansion (2026-10-14 KST)
+
+Add 103 independent ABCD fixed reference cases using exact binary64 inputs:
+40 combinations of impedance ratio and electrical length (including both sides
+of a half-wave and phase near 1e6 rad), 45 combinations of unequal R/L and G/C,
+attenuation up to alpha*length=699 and mismatched references, and 18 combinations
+with R or G zero approaching the DC limit. All 103 points return successful
+responses and pass comparisons; no rejected point is silently counted as an
+accuracy PASS. High attenuation also has a relative S21 check <=1e-9, preventing
+an underflow-to-zero result from passing on absolute tolerance alone.
+
+No numerical core change was needed for these cases. The current debug/release
+suites contain 12 passing tests. Overall maximum S error is 4.09536036253102e-10;
+the original 72-point baseline maximum remains 3.668604232247687e-12. Maximum
+sampled passivity residual is 2.220446049250313e-16; reciprocity remains zero.
+These results expand sampled evidence, not a mathematical proof of the entire
+numerical envelope or physical applicability. Third-platform and physical PCB
+validation remain Not Run. Source license/toolchain/product gates remain open.
