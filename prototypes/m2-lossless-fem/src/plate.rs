@@ -88,9 +88,14 @@ pub struct PlateResults {
 
 fn plate_grid(c: &PlateCoupon) -> Result<Grid, String> {
     let lengths = [
-        c.width_m, c.height_m, c.epsilon_r, c.mu_r,
-        c.bottom_electrode_z_m, c.top_electrode_z_m,
-        c.bottom_v, c.top_v,
+        c.width_m,
+        c.height_m,
+        c.epsilon_r,
+        c.mu_r,
+        c.bottom_electrode_z_m,
+        c.top_electrode_z_m,
+        c.bottom_v,
+        c.top_v,
     ];
     if lengths.iter().any(|v| !v.is_finite()) {
         return Err("nonfinite plate dimension, material or electrode".into());
@@ -98,19 +103,23 @@ fn plate_grid(c: &PlateCoupon) -> Result<Grid, String> {
     if c.width_m <= 0.0 || c.height_m <= 0.0 || c.epsilon_r < 1.0 {
         return Err("invalid plate dimensions or epsilon_r (< 1 unsupported)".into());
     }
-    if c.mu_r != 1.0 || c.material != MaterialModel::HomogeneousLossless
-        || !c.ideal_pec || !c.longitudinally_uniform
+    if c.mu_r != 1.0
+        || c.material != MaterialModel::HomogeneousLossless
+        || !c.ideal_pec
+        || !c.longitudinally_uniform
     {
-        return Err("unsupported plate material, permeability, PEC or longitudinal topology".into());
+        return Err(
+            "unsupported plate material, permeability, PEC or longitudinal topology".into(),
+        );
     }
-    if c.left != SideBoundary::HomogeneousNeumann
-        || c.right != SideBoundary::HomogeneousNeumann
-    {
+    if c.left != SideBoundary::HomogeneousNeumann || c.right != SideBoundary::HomogeneousNeumann {
         return Err("PH-03 requires homogeneous Neumann on BOTH side boundaries".into());
     }
-    if c.bottom_electrode_z_m != 0.0 || c.top_electrode_z_m != c.height_m
+    if c.bottom_electrode_z_m != 0.0
+        || c.top_electrode_z_m != c.height_m
         || c.top_electrode_z_m <= c.bottom_electrode_z_m
-        || c.bottom_v != 0.0 || c.top_v != 1.0
+        || c.bottom_v != 0.0
+        || c.top_v != 1.0
     {
         return Err("PH-03 requires separate full-width 0-V bottom and 1-V top electrodes".into());
     }
@@ -123,7 +132,9 @@ fn plate_grid(c: &PlateCoupon) -> Result<Grid, String> {
         return Err("nonfinite or underflow plate mesh spacing".into());
     }
     let ratio = c.width_m / dx;
-    if !ratio.is_finite() || ratio < 2.0 || ratio >= MAX_NODES as f64
+    if !ratio.is_finite()
+        || ratio < 2.0
+        || ratio >= MAX_NODES as f64
         || (ratio - ratio.round()).abs() > 1e-8
     {
         return Err("nonconforming or oversized plate width/mesh ratio".into());
@@ -160,8 +171,14 @@ fn plate_grid(c: &PlateCoupon) -> Result<Grid, String> {
     Ok(Grid {
         // Grid's legacy box_m field is an x-origin offset in xy(): x=-box_m+i*dx.
         // Set zero for the PH-03 contractual coordinate x in [0,width_m].
-        nx, nz, dx, box_m: 0.0,
-        dirichlet, signal, mapping, dof,
+        nx,
+        nz,
+        dx,
+        box_m: 0.0,
+        dirichlet,
+        signal,
+        mapping,
+        dof,
     })
 }
 
@@ -184,39 +201,52 @@ fn solve_plate_field(c: &PlateCoupon, grid: &Grid, er: f64) -> Result<PlateField
                 max_electrode_error_v = max_electrode_error_v.max((p - exact).abs());
             }
         }
-        max_horizontal_potential_span_v =
-            max_horizontal_potential_span_v.max(row_max - row_min);
+        max_horizontal_potential_span_v = max_horizontal_potential_span_v.max(row_max - row_min);
     }
     let mut element_fields_v_per_m = Vec::with_capacity(evidence.triangles);
     let mut max_ex_relative: f64 = 0.0;
     let mut max_ez_relative: f64 = 0.0;
     let ideal_field = 1.0 / c.height_m;
-    for_each_triangle(|tri, _| {
-        let (x0, z0) = xy(tri[0], grid);
-        let (x1, z1) = xy(tri[1], grid);
-        let (x2, z2) = xy(tri[2], grid);
-        let twice_area = (x1 - x0) * (z2 - z0) - (x2 - x0) * (z1 - z0);
-        let p0 = potentials[tri[0]];
-        let p1 = potentials[tri[1]];
-        let p2 = potentials[tri[2]];
-        let ex = -(p0 * (z1 - z2) + p1 * (z2 - z0) + p2 * (z0 - z1))
-            / twice_area;
-        let ez = -(p0 * (x2 - x1) + p1 * (x0 - x2) + p2 * (x1 - x0))
-            / twice_area;
-        max_ex_relative = max_ex_relative.max((ex / ideal_field).abs());
-        max_ez_relative = max_ez_relative.max((ez / ideal_field + 1.0).abs());
-        element_fields_v_per_m.push([ex, ez]);
-    }, grid, c.height_m, er);
+    for_each_triangle(
+        |tri, _| {
+            let (x0, z0) = xy(tri[0], grid);
+            let (x1, z1) = xy(tri[1], grid);
+            let (x2, z2) = xy(tri[2], grid);
+            let twice_area = (x1 - x0) * (z2 - z0) - (x2 - x0) * (z1 - z0);
+            let p0 = potentials[tri[0]];
+            let p1 = potentials[tri[1]];
+            let p2 = potentials[tri[2]];
+            let ex = -(p0 * (z1 - z2) + p1 * (z2 - z0) + p2 * (z0 - z1)) / twice_area;
+            let ez = -(p0 * (x2 - x1) + p1 * (x0 - x2) + p2 * (x1 - x0)) / twice_area;
+            max_ex_relative = max_ex_relative.max((ex / ideal_field).abs());
+            max_ez_relative = max_ez_relative.max((ez / ideal_field + 1.0).abs());
+            element_fields_v_per_m.push([ex, ez]);
+        },
+        grid,
+        c.height_m,
+        er,
+    );
     if [
-        max_potential_error_v, max_horizontal_potential_span_v,
-        max_electrode_error_v, max_ex_relative, max_ez_relative,
-    ].iter().any(|v| !v.is_finite()) {
+        max_potential_error_v,
+        max_horizontal_potential_span_v,
+        max_electrode_error_v,
+        max_ex_relative,
+        max_ez_relative,
+    ]
+    .iter()
+    .any(|v| !v.is_finite())
+    {
         return Err("nonfinite plate field diagnostic".into());
     }
     Ok(PlateField {
-        evidence, nodal_potentials_v: potentials, element_fields_v_per_m,
-        max_potential_error_v, max_horizontal_potential_span_v,
-        max_electrode_error_v, max_ex_relative, max_ez_relative,
+        evidence,
+        nodal_potentials_v: potentials,
+        element_fields_v_per_m,
+        max_potential_error_v,
+        max_horizontal_potential_span_v,
+        max_electrode_error_v,
+        max_ex_relative,
+        max_ez_relative,
     })
 }
 
@@ -226,9 +256,7 @@ pub fn extract_plate(c: &PlateCoupon) -> Result<PlateResults, String> {
     let vacuum = solve_plate_field(c, &grid, 1.0)?;
     let cap = dielectric.evidence.c_f_per_m;
     let cap0 = vacuum.evidence.c_f_per_m;
-    if cap < cap0 * (1.0 - 1e-9)
-        || cap > cap0 * c.epsilon_r * (1.0 + 1e-9)
-    {
+    if cap < cap0 * (1.0 - 1e-9) || cap > cap0 * c.epsilon_r * (1.0 + 1e-9) {
         return Err("plate capacitance violates dielectric bounds".into());
     }
     let lext = MU0 * EPS0 / cap0;
@@ -238,10 +266,16 @@ pub fn extract_plate(c: &PlateCoupon) -> Result<PlateResults, String> {
         return Err("nonfinite derived plate transmission-line quantities".into());
     }
     Ok(PlateResults {
-        c_f_per_m: cap, c0_f_per_m: cap0, lext_h_per_m: lext,
-        z0_ohm: z0, delay_s_per_m: delay,
-        nx: grid.nx, nz: grid.nz, dx_m: grid.dx,
-        dielectric, vacuum,
+        c_f_per_m: cap,
+        c0_f_per_m: cap0,
+        lext_h_per_m: lext,
+        z0_ohm: z0,
+        delay_s_per_m: delay,
+        nx: grid.nx,
+        nz: grid.nz,
+        dx_m: grid.dx,
+        dielectric,
+        vacuum,
         physical_status: "PrototypeOnly_IdealNeumannPlate_NotRealPCBValidated",
     })
 }
@@ -268,8 +302,10 @@ mod tests {
                 assert!(field.evidence.residual <= 1e-8);
                 assert!(field.evidence.charge_energy_relative_difference <= 1e-6);
                 assert_eq!(field.element_fields_v_per_m.len(), field.evidence.triangles);
-                assert_eq!(field.nodal_potentials_v.len(),
-                    (result.nx + 1) * (result.nz + 1));
+                assert_eq!(
+                    field.nodal_potentials_v.len(),
+                    (result.nx + 1) * (result.nz + 1)
+                );
                 assert_eq!(field.nodal_potentials_v[0], 0.0);
                 assert_eq!(field.nodal_potentials_v[result.nx], 0.0);
                 assert_eq!(field.nodal_potentials_v[result.nz * (result.nx + 1)], 1.0);
@@ -286,32 +322,84 @@ mod tests {
     fn ph03_reject_unsupported_or_malformed_without_panic() {
         let mut cases = Vec::new();
         let base = PlateCoupon::ph03(8);
-        let mut bad = base; bad.left = SideBoundary::GroundedDirichlet; cases.push(bad);
-        let mut bad = base; bad.right = SideBoundary::GroundedDirichlet; cases.push(bad);
-        let mut bad = base; bad.material = MaterialModel::Layered; cases.push(bad);
-        let mut bad = base; bad.material = MaterialModel::Lossy; cases.push(bad);
-        let mut bad = base; bad.ideal_pec = false; cases.push(bad);
-        let mut bad = base; bad.longitudinally_uniform = false; cases.push(bad);
-        let mut bad = base; bad.mu_r = 1.1; cases.push(bad);
-        let mut bad = base; bad.top_electrode_z_m = 0.0001; cases.push(bad);
-        let mut bad = base; bad.bottom_electrode_z_m = 0.0001; cases.push(bad);
-        let mut bad = base; bad.top_electrode_z_m = 0.0; cases.push(bad);
-        let mut bad = base; bad.top_v = 0.0; cases.push(bad);
-        let mut bad = base; bad.width_m = -0.0003; cases.push(bad);
-        let mut bad = base; bad.width_m = 0.0; cases.push(bad);
-        let mut bad = base; bad.height_m = -0.0002; cases.push(bad);
-        let mut bad = base; bad.height_m = 0.0; cases.push(bad);
-        let mut bad = base; bad.epsilon_r = 0.0; cases.push(bad);
-        let mut bad = base; bad.epsilon_r = f64::NAN; cases.push(bad);
-        let mut bad = base; bad.mu_r = f64::INFINITY; cases.push(bad);
-        let mut bad = base; bad.width_m = f64::INFINITY; cases.push(bad);
-        let mut bad = base; bad.height_m = f64::NAN; cases.push(bad);
-        let mut bad = base; bad.width_m = 1e300; cases.push(bad);
-        let mut bad = base; bad.height_m = 1e-320; cases.push(bad);
-        let mut bad = base; bad.width_m = 0.00031; cases.push(bad);
-        let mut bad = base; bad.cells_per_height = 0; cases.push(bad);
-        let mut bad = base; bad.cells_per_height = usize::MAX; cases.push(bad);
-        let mut bad = base; bad.cells_per_height = 2048; cases.push(bad);
+        let mut bad = base;
+        bad.left = SideBoundary::GroundedDirichlet;
+        cases.push(bad);
+        let mut bad = base;
+        bad.right = SideBoundary::GroundedDirichlet;
+        cases.push(bad);
+        let mut bad = base;
+        bad.material = MaterialModel::Layered;
+        cases.push(bad);
+        let mut bad = base;
+        bad.material = MaterialModel::Lossy;
+        cases.push(bad);
+        let mut bad = base;
+        bad.ideal_pec = false;
+        cases.push(bad);
+        let mut bad = base;
+        bad.longitudinally_uniform = false;
+        cases.push(bad);
+        let mut bad = base;
+        bad.mu_r = 1.1;
+        cases.push(bad);
+        let mut bad = base;
+        bad.top_electrode_z_m = 0.0001;
+        cases.push(bad);
+        let mut bad = base;
+        bad.bottom_electrode_z_m = 0.0001;
+        cases.push(bad);
+        let mut bad = base;
+        bad.top_electrode_z_m = 0.0;
+        cases.push(bad);
+        let mut bad = base;
+        bad.top_v = 0.0;
+        cases.push(bad);
+        let mut bad = base;
+        bad.width_m = -0.0003;
+        cases.push(bad);
+        let mut bad = base;
+        bad.width_m = 0.0;
+        cases.push(bad);
+        let mut bad = base;
+        bad.height_m = -0.0002;
+        cases.push(bad);
+        let mut bad = base;
+        bad.height_m = 0.0;
+        cases.push(bad);
+        let mut bad = base;
+        bad.epsilon_r = 0.0;
+        cases.push(bad);
+        let mut bad = base;
+        bad.epsilon_r = f64::NAN;
+        cases.push(bad);
+        let mut bad = base;
+        bad.mu_r = f64::INFINITY;
+        cases.push(bad);
+        let mut bad = base;
+        bad.width_m = f64::INFINITY;
+        cases.push(bad);
+        let mut bad = base;
+        bad.height_m = f64::NAN;
+        cases.push(bad);
+        let mut bad = base;
+        bad.width_m = 1e300;
+        cases.push(bad);
+        let mut bad = base;
+        bad.height_m = 1e-320;
+        cases.push(bad);
+        let mut bad = base;
+        bad.width_m = 0.00031;
+        cases.push(bad);
+        let mut bad = base;
+        bad.cells_per_height = 0;
+        cases.push(bad);
+        let mut bad = base;
+        bad.cells_per_height = usize::MAX;
+        cases.push(bad);
+        let mut bad = base;
+        bad.cells_per_height = 2048;
+        cases.push(bad);
         for (i, c) in cases.into_iter().enumerate() {
             let res = std::panic::catch_unwind(|| extract_plate(&c));
             assert!(res.is_ok(), "negative test {i}: panic");

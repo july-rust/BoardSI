@@ -1,6 +1,6 @@
 # PH-07 multilayer microstrip FEM and actual field evidence
 
-**Date:** 2026-10-15 KST. [Draft PR #40](https://github.com/july-rust/BoardSI/pull/40). The [PH-07 acceptance contract](m2-g2-ph07-acceptance-contract.md) was frozen **before solver implementation** at commit `c11440a1`. Measured results from actual [initial CI run 38674095933](https://github.com/july-rust/BoardSI/actions/runs/38674095933). Verify latest PR HEAD separately before claiming final approval/merge.
+**Date:** 2026-10-15 KST. [Merged PR #40](https://github.com/july-rust/BoardSI/pull/40). The [PH-07 acceptance contract](m2-g2-ph07-acceptance-contract.md) was frozen **before solver implementation** at commit `c11440a1`. Measured results from actual [initial CI run 38674095933](https://github.com/july-rust/BoardSI/actions/runs/38674095933). Final PR HEAD `875f314aad0841300cfb1544e181a02e3ccb03de` passed [CI 38674727369](https://github.com/july-rust/BoardSI/actions/runs/38674727369), merged into `main@c6dce055bfe7fc3a22b169b159c5dadaab0da3c8`.
 
 ## Method
 
@@ -23,12 +23,16 @@ Physical trends independently confirmed: A→B and C→D mask ON increases C/εe
 
 | Criterion | Initial CI result |
 | --- | --- |
-| PH-07 numerical, independent FVM comparison, charge/energy, symmetry, mask/layer sweeps, n32/64/128 mesh and side/top boundary convergence | **PASS 740 / FAIL 0** |
+| PH-07 numerical, independent FVM comparison, charge/energy, symmetry, mask/layer sweeps, n32/64/128 mesh and side/top boundary convergence | **PASS 740 / FAIL 0** numerical checks; 8 primary C/C0 comparisons and 8 derived Z0/delay comparisons, not 740 independent physics targets |
 | Rust unit tests, strict Clippy (-D warnings), M0 Rust workspace | **PASS** |
 | Negative unsupported/invalid CLI inputs | **PASS 13 cases** |
 | Existing PH-05 81 and PH-06 201+57 independent checks, G0/G1/PH-03 regression | **PASS in associated workflows** |
 | Representative PH07-A n128 Rust CLI wall and RSS | **0.74 s, 34,344 kB** (Ubuntu runner; not platform guarantee) |
-| Final HEAD pinned source SHA and sampled Ex/Ez field data | **Not Run in initial CI** — mandatory final CI follow-up |
+| Final HEAD pinned source SHA and sampled Ex/Ez field data | **PASS at final PR #40 HEAD** — emitted samples were diagnostic; enforced cross-method Ex/Ez comparisons added by #41 |
 | Real PCB or 30 GHz frequency accuracy, finite-conductivity/magnetic losses, PH-08/G3/G4/G5 | **Not Run / Unsupported** |
 
-Actual per-case charges, solver residuals, iteration/DOF/triangle/NNZ, full masks/layers, CPU/RSS and FVM differences are stored in workflow `ph07-numerical-evidence` artifact. Failure in final HEAD gate blocks merging. Issue #16 remains Open. No overall M2 completion asserted.
+Actual per-case charges, solver residuals, iteration/DOF/triangle/NNZ, full masks/layers, CPU/RSS and FVM differences are stored in workflow `ph07-numerical-evidence` artifact. PR #40 is merged; audit changes require their own final HEAD CI. Issue #16 remains Open. No overall M2 completion asserted.
+
+## Post-merge audit qualification
+
+The initial self-test did not execute its advertised analytic plate oracle. The original FVM reused Rust geometry metadata without independently asserting it, and in-process `ru_maxrss` was a cumulative high-water mark. These are validation gaps, not demonstrated failures of the tabulated FEM results. [Issue #41 audit evidence](m2-validation-audit-hardening.md) documents their correction, exact input/mutation tests, field comparison scope, region energy and native-platform execution. Original numerical tolerances and the preregistered contract are unchanged.

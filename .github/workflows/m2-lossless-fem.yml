@@ -1,17 +1,8 @@
 name: M2 isolated lossless FEM prototype
 on:
   pull_request:
-    paths:
-      - 'prototypes/m2-lossless-fem/**'
-      - 'tools/validation/m2_s2_analytic_check.py'
-      - 'tools/validation/m2_g1_field_check.py'
-      - 'tools/validation/m2_ph03_plate_check.py'
-      - 'tools/validation/m2_ph05_stripline_reference.py'
-      - 'docs/validation/m2-g2-ph05-acceptance-contract.md'
-      - 'docs/validation/m2-ph03-parallel-plate-acceptance-contract.md'
-      - 'tools/validation/m2_fvm_reference.py'
-      - 'tools/validation/m2_g0_source.sha256'
-      - '.github/workflows/m2-lossless-fem.yml'
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read

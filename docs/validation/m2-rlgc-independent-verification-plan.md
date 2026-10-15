@@ -98,7 +98,7 @@ Use **SI units only**. Each record MUST specify:
 
 **G1 PH-03 completion gate (2026-10-15 KST).** The mathematical Neumann-sidewall plate passed frozen [PH-03 acceptance](m2-ph03-parallel-plate-acceptance-contract.md) on [Actions 38663357466](https://github.com/july-rust/BoardSI/actions/runs/38663357466). This is an idealized G1 supplement, NOT real-PCB extraction, finite-width fringe, real losses or 30 GHz validation. Official order: **G0 → G1 limited prototype → G1 PH-03 completion → G2 PH-05 symmetric stripline → PH-06 restricted homogeneous/two-region asymmetric PASS → PH-07 multilayer/mask → PH-08 reference-topology controls**. G5 Canonical integration is later; PR #35 is G5 design preflight and remains separate.
 
-**G2 (other single ended geometries).** PH-05/06 limited validated coupons; PH-07/08 pending and material/boundary validity controls. Finite-ground but longitudinally uniform segments may be supported after their own benchmarks; plane cutouts remain unsupported.
+**G2 (other single ended geometries).** PH-05/06 limited validated coupons; PH-07 restricted synthetic coupon PASS; PH-08 pending and material/boundary validity controls. Finite-ground but longitudinally uniform segments may be supported after their own benchmarks; plane cutouts remain unsupported.
 
 **G3 (lossy physics).** Implement and separately validate PH-12/13/14/15 and any optional PH-16. Declare supported f intervals, DC handling and material dispersion; test R,L_int,G not silently zero. Numerical scalar mapping baseline remains independent.
 
@@ -112,7 +112,7 @@ Use **SI units only**. Each record MUST specify:
 
 Benchmark at minimum n=1/n=2 field excitations across mesh sizes and F points; report compilation/release/debug, executable host architecture, wall clock, peak RSS, maximum matrix condition, solver residual, mesh DOF, C/C0 assemblies and reuse count. State physical data band/uncertainty in addition to CPU metrics. Use explicit memory pressure/timeout failure receipts; no silently undersampled sparse matrix/mesh. User's low-resource ambition is a **design goal**, not a demonstrated performance result. Reuse the already validated Worker control plane where appropriate.
 
-## 8. Completion ledger for sixth documentation-only task
+## 8. Historical completion ledger for sixth documentation-only task (not current repository status)
 
 | Deliverable | Status |
 | --- | --- |
@@ -127,4 +127,6 @@ Benchmark at minimum n=1/n=2 field excitations across mesh sizes and F points; r
 
 ## PH-07 executed evidence — 2026-10-15 KST
 
-PR [#40](https://github.com/july-rust/BoardSI/pull/40) first froze acceptance at `c11440a1`, then implemented conforming 2D material P1 FEM and independent cell-centred harmonic-flux SciPy direct FVM. Initial [Actions 38674095933](https://github.com/july-rust/BoardSI/actions/runs/38674095933) reports **740/740 gate PASS**, n128 four-C relative errors 0.928%, 0.463%, 0.977%, 0.505%, PH-06/PH-05 and Rust workspace regressions successful. See dedicated evidence docs. This does not assert final PR HEAD CI/merge without separately checking. Loss, real-PCB, PH-08/3D/full-wave and 30 GHz remain Not Run.
+PR [#40](https://github.com/july-rust/BoardSI/pull/40) first froze acceptance at `c11440a1`, then implemented conforming 2D material P1 FEM and independent cell-centred harmonic-flux SciPy direct FVM. Initial [Actions 38674095933](https://github.com/july-rust/BoardSI/actions/runs/38674095933) reports **740/740 numerical checks PASS**, n128 four-C relative errors 0.928%, 0.463%, 0.977%, 0.505%, PH-06/PH-05 and Rust workspace regressions successful. See dedicated evidence docs. Final PR #40 HEAD `875f314aad0841300cfb1544e181a02e3ccb03de` passed [CI 38674727369](https://github.com/july-rust/BoardSI/actions/runs/38674727369), then merged at `c6dce055`. The checks include 8 C/C0 cross-method and 8 derived Z0/delay comparisons, not 740 independent physical targets. Loss, real-PCB, PH-08/3D/full-wave and 30 GHz remain Not Run.
+
+Post-PH07 [validation audit #41](m2-validation-audit-hardening.md) adds enforced independent inputs, mutation and analytic self-tests, field/energy identities, isolated memory and platform CI without changing any preregistered acceptance tolerance.

@@ -1,0 +1,70 @@
+name: M2 native FEM regression
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fem-native:
+    name: FEM Native ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: Linux x64, runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu, arch: X64, executable_arch: x86_64, os: linux}
+          - {name: Windows x64, runner: windows-2022, target: x86_64-pc-windows-msvc, arch: X64, executable_arch: x86_64, os: windows}
+          - {name: Windows ARM64, runner: windows-11-arm, target: aarch64-pc-windows-msvc, arch: ARM64, executable_arch: aarch64, os: windows}
+          - {name: macOS ARM64, runner: macos-14, target: aarch64-apple-darwin, arch: ARM64, executable_arch: aarch64, os: macos}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install native toolchain
+        run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component rustfmt --component clippy
+      - name: Check native runner, compiler and executing FEM binary
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ARCH" = "${{ matrix.arch }}"
+          test "$(rustc -vV | sed -n 's/^host: //p' | tr -d '\r')" = "${{ matrix.target }}"
+          rustc -vV | tee native-toolchain.txt
+          cargo --version | tee -a native-toolchain.txt
+          cargo run --manifest-path prototypes/m2-lossless-fem/Cargo.toml --example verify_fem_native --release --locked -- "${{ matrix.executable_arch }}" "${{ matrix.os }}" | tee native-fem.txt
+      - name: Format, strict warnings and actual debug/release tests
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path prototypes/m2-lossless-fem/Cargo.toml --all -- --check
+          cargo clippy --manifest-path prototypes/m2-lossless-fem/Cargo.toml --all-targets --locked -- -D warnings
+          cargo test --manifest-path prototypes/m2-lossless-fem/Cargo.toml --locked -- --nocapture
+          cargo test --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release --locked -- --nocapture
+      - name: Execute native CLI coupons and independent analytic gate
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release --locked
+          bin=prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem
+          for n in 8 16 32; do
+            "$bin" plate "$n" > "native-ph03-n$n.json"
+          done
+          "$bin" stripline 64 0.0012 > native-ph05.json
+          "$bin" asymmetric 64 0.0012 > native-ph06.json
+          for c in A B C D; do
+            "$bin" microstrip "$c" 128 0.0012 0.0008 > "native-ph07-$c.json"
+          done
+          python tools/validation/m2_ph03_plate_check.py native-ph03-n8.json native-ph03-n16.json native-ph03-n32.json
+          python tools/validation/m2_native_result_check.py --root .
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fem-native-${{ matrix.target }}
+          path: |
+            native-*.txt
+            native-*.json
+          if-no-files-found: error
+          retention-days: 14

@@ -4,10 +4,10 @@
 
 use std::time::Instant;
 
-pub mod plate;
-pub mod stripline;
 pub mod asymmetric_stripline;
 pub mod multilayer_microstrip;
+pub mod plate;
+pub mod stripline;
 
 pub const EPS0: f64 = 8.854_187_818_8e-12; // F/m
 pub const MU0: f64 = 1.256_637_061_27e-6; // H/m
@@ -106,13 +106,22 @@ fn on_grid(value: f64, step: f64) -> bool {
 
 fn make_grid(c: &IdealCoupon) -> Result<Grid, String> {
     let values = [
-        c.width_m, c.thickness_m, c.dielectric_height_m, c.epsilon_r, c.box_m,
+        c.width_m,
+        c.thickness_m,
+        c.dielectric_height_m,
+        c.epsilon_r,
+        c.box_m,
     ];
     if values.iter().any(|v| !v.is_finite() || *v <= 0.0) {
         return Err("nonfinite, absent, zero or negative geometry/dielectric".into());
     }
-    if !c.pec_signal || !c.pec_reference || !c.explicitly_lossless ||
-       !c.nonmagnetic || !c.continuous_reference || !c.longitudinally_uniform {
+    if !c.pec_signal
+        || !c.pec_reference
+        || !c.explicitly_lossless
+        || !c.nonmagnetic
+        || !c.continuous_reference
+        || !c.longitudinally_uniform
+    {
         return Err("unsupported: requires explicit PEC, lossless, nonmagnetic, continuous reference and uniform cross section".into());
     }
     if c.epsilon_r < 1.0 {
@@ -135,22 +144,31 @@ fn make_grid(c: &IdealCoupon) -> Result<Grid, String> {
     // float casts, and (usize::MAX + 1) would overflow before a memory guard.
     // Any valid grid with <= 240_000 nodes has both axes below 240_000.
     const MAX_NODES: usize = 240_000;
-    if !nx_ratio.is_finite() || !nz_ratio.is_finite() ||
-       nx_ratio < 1.0 || nz_ratio < 1.0 ||
-       nx_ratio >= MAX_NODES as f64 || nz_ratio >= MAX_NODES as f64 {
+    if !nx_ratio.is_finite()
+        || !nz_ratio.is_finite()
+        || nx_ratio < 1.0
+        || nz_ratio < 1.0
+        || nx_ratio >= MAX_NODES as f64
+        || nz_ratio >= MAX_NODES as f64
+    {
         return Err("nonfinite or oversized mesh dimensions".into());
     }
-    if !on_grid(c.width_m / 2.0, dx) ||
-       !on_grid(c.thickness_m, dx) ||
-       !on_grid(c.box_m, dx) ||
-       !on_grid(wide_box, dx) {
-        return Err("nonconforming conductor/material/box grid: reject rather than silently snap".into());
+    if !on_grid(c.width_m / 2.0, dx)
+        || !on_grid(c.thickness_m, dx)
+        || !on_grid(c.box_m, dx)
+        || !on_grid(wide_box, dx)
+    {
+        return Err(
+            "nonconforming conductor/material/box grid: reject rather than silently snap".into(),
+        );
     }
     let nx = nx_ratio.round() as usize;
     let nz = nz_ratio.round() as usize;
     let columns = nx.checked_add(1).ok_or("mesh column count overflow")?;
     let rows = nz.checked_add(1).ok_or("mesh row count overflow")?;
-    let count = columns.checked_mul(rows).ok_or("mesh node count overflow")?;
+    let count = columns
+        .checked_mul(rows)
+        .ok_or("mesh node count overflow")?;
     if count > MAX_NODES {
         return Err("mesh exceeds explicit prototype memory guard".into());
     }
@@ -163,9 +181,9 @@ fn make_grid(c: &IdealCoupon) -> Result<Grid, String> {
             let id = j * (nx + 1) + i;
             let x = -c.box_m + i as f64 * dx;
             let z = j as f64 * dx;
-            let metal = x.abs() <= c.width_m / 2.0 + dx * 1e-8 &&
-                z >= c.dielectric_height_m - dx * 1e-8 &&
-                z <= c.dielectric_height_m + c.thickness_m + dx * 1e-8;
+            let metal = x.abs() <= c.width_m / 2.0 + dx * 1e-8
+                && z >= c.dielectric_height_m - dx * 1e-8
+                && z <= c.dielectric_height_m + c.thickness_m + dx * 1e-8;
             let wall = i == 0 || i == nx || j == 0 || j == nz;
             if metal && wall {
                 return Err("signal shorts reference/exterior".into());
@@ -184,7 +202,16 @@ fn make_grid(c: &IdealCoupon) -> Result<Grid, String> {
     if dof == 0 || !signal.iter().any(|v| *v) {
         return Err("missing signal or no independent degrees of freedom".into());
     }
-    Ok(Grid { nx, nz, dx, box_m: c.box_m, dirichlet, signal, mapping, dof })
+    Ok(Grid {
+        nx,
+        nz,
+        dx,
+        box_m: c.box_m,
+        dirichlet,
+        signal,
+        mapping,
+        dof,
+    })
 }
 
 fn xy(id: usize, grid: &Grid) -> (f64, f64) {
@@ -210,7 +237,12 @@ fn stiffness(tri: [usize; 3], grid: &Grid, er: f64) -> [[f64; 3]; 3] {
     k
 }
 
-fn for_each_triangle(mut action: impl FnMut([usize; 3], f64), grid: &Grid, dielectric_height_m: f64, er: f64) {
+fn for_each_triangle(
+    mut action: impl FnMut([usize; 3], f64),
+    grid: &Grid,
+    dielectric_height_m: f64,
+    er: f64,
+) {
     for j in 0..grid.nz {
         let relative = if ((j as f64) + 0.5) * grid.dx < dielectric_height_m {
             er
@@ -298,13 +330,16 @@ fn conjugate_gradient(a: &Csr, b: &[f64]) -> Result<(Vec<f64>, usize, f64), Stri
     }
     let relative = dot(&ap, &ap).sqrt() / bnorm;
     if !relative.is_finite() || relative > 1e-8 {
-        return Err(format!("FEM failed true-residual tolerance: {relative:.6e}"));
+        return Err(format!(
+            "FEM failed true-residual tolerance: {relative:.6e}"
+        ));
     }
     Ok((x, iterations, relative))
 }
 
 fn solve_field(c: &IdealCoupon, grid: &Grid, dielectric_er: f64) -> Result<FieldEvidence, String> {
-    solve_field_with_potential(c.dielectric_height_m, grid, dielectric_er).map(|(evidence, _)| evidence)
+    solve_field_with_potential(c.dielectric_height_m, grid, dielectric_er)
+        .map(|(evidence, _)| evidence)
 }
 
 // Shared FE assembly, sparse CSR and CG solve. The separately constructed
@@ -315,7 +350,11 @@ fn solve_field_with_potential(
     dielectric_er: f64,
 ) -> Result<(FieldEvidence, Vec<f64>), String> {
     solve_field_with_material_potential(grid, |z| {
-        if z < dielectric_height_m { dielectric_er } else { 1.0 }
+        if z < dielectric_height_m {
+            dielectric_er
+        } else {
+            1.0
+        }
     })
 }
 
@@ -358,7 +397,9 @@ fn for_each_cell_material_triangle(
     for j in 0..grid.nz {
         for i in 0..grid.nx {
             let er = er_at_cell(i, j);
-            if er == 0.0 { continue; } // PH-07 PEC-only cell: no dielectric triangles
+            if er == 0.0 {
+                continue;
+            } // PH-07 PEC-only cell: no dielectric triangles
             let bl = j * (grid.nx + 1) + i;
             let br = bl + 1;
             let tl = bl + grid.nx + 1;
@@ -377,24 +418,28 @@ fn solve_field_with_cell_material_potential(
     let mut rows = vec![Vec::<(usize, f64)>::new(); grid.dof];
     let mut rhs = vec![0.0; grid.dof];
     let mut triangles = 0_usize;
-    for_each_cell_material_triangle(|tri, er| {
-        triangles += 1;
-        let k = stiffness(tri, grid, er);
-        for (i, ni) in tri.iter().enumerate() {
-            let ri = grid.mapping[*ni];
-            if ri == usize::MAX {
-                continue;
-            }
-            for (j, nj) in tri.iter().enumerate() {
-                let cj = grid.mapping[*nj];
-                if cj == usize::MAX {
-                    rhs[ri] -= k[i][j] * grid.dirichlet[*nj].unwrap_or(0.0);
-                } else {
-                    rows[ri].push((cj, k[i][j]));
+    for_each_cell_material_triangle(
+        |tri, er| {
+            triangles += 1;
+            let k = stiffness(tri, grid, er);
+            for (i, ni) in tri.iter().enumerate() {
+                let ri = grid.mapping[*ni];
+                if ri == usize::MAX {
+                    continue;
+                }
+                for (j, nj) in tri.iter().enumerate() {
+                    let cj = grid.mapping[*nj];
+                    if cj == usize::MAX {
+                        rhs[ri] -= k[i][j] * grid.dirichlet[*nj].unwrap_or(0.0);
+                    } else {
+                        rows[ri].push((cj, k[i][j]));
+                    }
                 }
             }
-        }
-    }, grid, &er_at_cell);
+        },
+        grid,
+        &er_at_cell,
+    );
 
     let mut offsets = Vec::with_capacity(grid.dof + 1);
     let mut columns = Vec::new();
@@ -424,7 +469,12 @@ fn solve_field_with_cell_material_potential(
     if diag.iter().any(|v| !v.is_finite() || *v <= 0.0) {
         return Err("invalid nonpositive FEM diagonal".into());
     }
-    let matrix = Csr { offsets, columns, values, diag };
+    let matrix = Csr {
+        offsets,
+        columns,
+        values,
+        diag,
+    };
     let (unknown, iterations, residual) = conjugate_gradient(&matrix, &rhs)?;
     let mut full = vec![0.0; grid.dirichlet.len()];
     for (i, value) in full.iter_mut().enumerate() {
@@ -439,19 +489,23 @@ fn solve_field_with_cell_material_potential(
     // SAME FEM stiffness (not a separate external field oracle).
     let mut energy = 0.0;
     let mut signal_reaction = 0.0;
-    for_each_cell_material_triangle(|tri, er| {
-        let k = stiffness(tri, grid, er);
-        for i in 0..3 {
-            let mut row_reaction = 0.0;
-            for j in 0..3 {
-                row_reaction += k[i][j] * full[tri[j]];
+    for_each_cell_material_triangle(
+        |tri, er| {
+            let k = stiffness(tri, grid, er);
+            for i in 0..3 {
+                let mut row_reaction = 0.0;
+                for j in 0..3 {
+                    row_reaction += k[i][j] * full[tri[j]];
+                }
+                energy += full[tri[i]] * row_reaction;
+                if grid.signal[tri[i]] {
+                    signal_reaction += row_reaction;
+                }
             }
-            energy += full[tri[i]] * row_reaction;
-            if grid.signal[tri[i]] {
-                signal_reaction += row_reaction;
-            }
-        }
-    }, grid, &er_at_cell);
+        },
+        grid,
+        &er_at_cell,
+    );
     let c_energy = EPS0 * energy;
     let c_charge = EPS0 * signal_reaction;
     if !c_energy.is_finite() || !c_charge.is_finite() || c_energy <= 0.0 || c_charge <= 0.0 {
@@ -459,19 +513,24 @@ fn solve_field_with_cell_material_potential(
     }
     let difference = (c_charge / c_energy - 1.0).abs();
     if difference > 1e-6 {
-        return Err(format!("field energy and charge disagree: {difference:.3e}"));
+        return Err(format!(
+            "field energy and charge disagree: {difference:.3e}"
+        ));
     }
-    Ok((FieldEvidence {
-        c_f_per_m: c_energy,
-        c_from_conductor_charge_f_per_m: c_charge,
-        charge_energy_relative_difference: difference,
-        residual,
-        iterations,
-        dof: grid.dof,
-        triangles,
-        matrix_nnz: matrix.values.len(),
-        elapsed_s: start.elapsed().as_secs_f64(),
-    }, full))
+    Ok((
+        FieldEvidence {
+            c_f_per_m: c_energy,
+            c_from_conductor_charge_f_per_m: c_charge,
+            charge_energy_relative_difference: difference,
+            residual,
+            iterations,
+            dof: grid.dof,
+            triangles,
+            matrix_nnz: matrix.values.len(),
+            elapsed_s: start.elapsed().as_secs_f64(),
+        },
+        full,
+    ))
 }
 
 pub fn extract_ideal(c: &IdealCoupon) -> Result<Extracted, String> {
@@ -480,8 +539,7 @@ pub fn extract_ideal(c: &IdealCoupon) -> Result<Extracted, String> {
     let vacuum = solve_field(c, &grid, 1.0)?;
     let cap = dielectric.c_f_per_m;
     let cap0 = vacuum.c_f_per_m;
-    if cap < cap0 * (1.0 - 1e-9) ||
-       cap > cap0 * c.epsilon_r * (1.0 + 1e-9) {
+    if cap < cap0 * (1.0 - 1e-9) || cap > cap0 * c.epsilon_r * (1.0 + 1e-9) {
         return Err("capacitance violates passive ideal dielectric bounds".into());
     }
     let lext = MU0 * EPS0 / cap0;
@@ -503,11 +561,19 @@ pub fn extract_ideal(c: &IdealCoupon) -> Result<Extracted, String> {
     })
 }
 
-pub fn analytic_ideal_s2(result: &Extracted, length_m: f64, frequency_hz: f64,
-                         reference_ohm: f64) -> Result<LosslessS2, String> {
-    if !length_m.is_finite() || !frequency_hz.is_finite() ||
-       !reference_ohm.is_finite() || length_m < 0.0 || frequency_hz < 0.0 ||
-       reference_ohm <= 0.0 {
+pub fn analytic_ideal_s2(
+    result: &Extracted,
+    length_m: f64,
+    frequency_hz: f64,
+    reference_ohm: f64,
+) -> Result<LosslessS2, String> {
+    if !length_m.is_finite()
+        || !frequency_hz.is_finite()
+        || !reference_ohm.is_finite()
+        || length_m < 0.0
+        || frequency_hz < 0.0
+        || reference_ohm <= 0.0
+    {
         return Err("invalid length, frequency or real port impedance".into());
     }
     // Equal real physical 2-port references. This is *ideal* transmission-line
@@ -521,10 +587,21 @@ pub fn analytic_ideal_s2(result: &Extracted, length_m: f64, frequency_hz: f64,
     if !norm.is_finite() || norm <= 0.0 {
         return Err("invalid scattering normalization".into());
     }
-    let s21 = ComplexValue { re: 2.0 * dr / norm, im: -2.0 * di / norm };
+    let s21 = ComplexValue {
+        re: 2.0 * dr / norm,
+        im: -2.0 * di / norm,
+    };
     let nd = (ratio - 1.0 / ratio) * sine;
-    let s11 = ComplexValue { re: nd * di / norm, im: nd * dr / norm };
-    Ok(LosslessS2 { s11, s12: s21, s21, s22: s11 })
+    let s11 = ComplexValue {
+        re: nd * di / norm,
+        im: nd * dr / norm,
+    };
+    Ok(LosslessS2 {
+        s11,
+        s12: s21,
+        s21,
+        s22: s11,
+    })
 }
 
 #[cfg(test)]
@@ -549,8 +626,10 @@ mod tests {
         let magnitude = matched.s21.re.powi(2) + matched.s21.im.powi(2);
         assert!((magnitude - 1.0).abs() < 1e-12);
         let mismatch = analytic_ideal_s2(&out, 0.01, 1e9, 50.0).unwrap();
-        let unitary = mismatch.s11.re.powi(2) + mismatch.s11.im.powi(2)
-            + mismatch.s21.re.powi(2) + mismatch.s21.im.powi(2);
+        let unitary = mismatch.s11.re.powi(2)
+            + mismatch.s11.im.powi(2)
+            + mismatch.s21.re.powi(2)
+            + mismatch.s21.im.powi(2);
         assert!((unitary - 1.0).abs() < 1e-10);
         assert_eq!(mismatch.s12.re, mismatch.s21.re);
         assert_eq!(mismatch.s22.im, mismatch.s11.im);
@@ -595,8 +674,9 @@ mod tests {
             match name {
                 "negative width" => specimen.width_m = value,
                 "zero thickness" => specimen.thickness_m = value,
-                "nan dielectric height" | "underflow mesh spacing" =>
-                    specimen.dielectric_height_m = value,
+                "nan dielectric height" | "underflow mesh spacing" => {
+                    specimen.dielectric_height_m = value
+                }
                 _ => specimen.epsilon_r = value,
             }
             cases.push((name, specimen));
@@ -634,5 +714,50 @@ mod tests {
         invalid = good;
         invalid.box_m = 0.0002;
         assert!(extract_ideal(&invalid).is_err());
+    }
+}
+
+#[cfg(test)]
+mod audit_tests {
+    use super::*;
+    #[test]
+    fn p1_element_matches_exact_unit_right_triangle_and_constant_nullspace() {
+        let grid = Grid {
+            nx: 1,
+            nz: 1,
+            dx: 1.0,
+            box_m: 0.0,
+            dirichlet: vec![],
+            signal: vec![],
+            mapping: vec![],
+            dof: 0,
+        };
+        let k = stiffness([0, 1, 3], &grid, 2.0);
+        let exact = [[1.0, -1.0, 0.0], [-1.0, 2.0, -1.0], [0.0, -1.0, 1.0]];
+        for i in 0..3 {
+            assert!(k[i].iter().sum::<f64>().abs() < 1e-14);
+            for j in 0..3 {
+                assert_eq!(k[i][j], exact[i][j]);
+                assert_eq!(k[i][j], k[j][i]);
+            }
+        }
+    }
+    #[test]
+    fn csr_matvec_and_cg_true_residual_match_exact_two_by_two_system() {
+        let matrix = Csr {
+            offsets: vec![0, 2, 4],
+            columns: vec![0, 1, 0, 1],
+            values: vec![4.0, 1.0, 1.0, 3.0],
+            diag: vec![4.0, 3.0],
+        };
+        let mut out = vec![0.0; 2];
+        matrix.matvec(&[1.0, 2.0], &mut out);
+        assert_eq!(out, vec![6.0, 7.0]);
+        let (solution, _, residual) = conjugate_gradient(&matrix, &[6.0, 7.0]).unwrap();
+        assert!((solution[0] - 1.0).abs() < 1e-12);
+        assert!((solution[1] - 2.0).abs() < 1e-12);
+        assert!(residual < 1e-12);
+        assert!(conjugate_gradient(&matrix, &[f64::NAN, 1.0]).is_err());
+        assert!(conjugate_gradient(&matrix, &[0.0, 0.0]).is_err());
     }
 }

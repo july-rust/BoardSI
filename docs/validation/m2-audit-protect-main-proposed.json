@@ -1,0 +1,111 @@
+{
+  "name": "Protect main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "~DEFAULT_BRANCH"
+      ],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [],
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "required_signatures"
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true,
+        "allowed_merge_methods": [
+          "squash"
+        ]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": true,
+        "required_status_checks": [
+          {
+            "context": "docs",
+            "integration_id": 15368
+          },
+          {
+            "context": "numerical",
+            "integration_id": 15368
+          },
+          {
+            "context": "rust-fem",
+            "integration_id": 15368
+          },
+          {
+            "context": "ph06-field-oracle",
+            "integration_id": 15368
+          },
+          {
+            "context": "ph07-independent-field",
+            "integration_id": 15368
+          },
+          {
+            "context": "FEM Native Linux x64",
+            "integration_id": 15368
+          },
+          {
+            "context": "FEM Native Windows x64",
+            "integration_id": 15368
+          },
+          {
+            "context": "FEM Native Windows ARM64",
+            "integration_id": 15368
+          },
+          {
+            "context": "FEM Native macOS ARM64",
+            "integration_id": 15368
+          },
+          {
+            "context": "Native Windows x64",
+            "integration_id": 15368
+          },
+          {
+            "context": "Native Windows ARM64",
+            "integration_id": 15368
+          },
+          {
+            "context": "Native macOS ARM64",
+            "integration_id": 15368
+          },
+          {
+            "context": "Linux x86_64 Qt 6.8.3 offscreen (provisional)",
+            "integration_id": 15368
+          },
+          {
+            "context": "Qt native Windows x64",
+            "integration_id": 15368
+          },
+          {
+            "context": "Qt native Windows ARM64",
+            "integration_id": 15368
+          },
+          {
+            "context": "Qt native macOS ARM64",
+            "integration_id": 15368
+          }
+        ]
+      }
+    }
+  ]
+}

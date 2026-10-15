@@ -1,17 +1,8 @@
 name: M2 PH-06 asymmetric stripline FEM independent FVM
 on:
   pull_request:
-    paths:
-      - 'prototypes/m2-lossless-fem/**'
-      - 'tools/validation/m2_ph06_asymmetric_stripline_reference.py'
-      - 'tools/validation/m2_ph06_invariant_sweeps.py'
-      - 'docs/validation/m2-g2-ph06-acceptance-contract.md'
-      - 'docs/validation/m2-g2-ph06-independent-reference.md'
-      - 'docs/validation/m2-g2-ph06-fem-evidence.md'
-      - 'docs/validation/m2-rlgc-independent-verification-plan.md'
-      - 'docs/validation/README.md'
-      - 'docs/development-history.md'
-      - '.github/workflows/m2-ph06-asymmetric.yml'
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read

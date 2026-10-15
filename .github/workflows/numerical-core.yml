@@ -1,28 +1,9 @@
 name: Numerical core
 on:
   pull_request:
-    paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'crates/boardsi-numerics/**'
-      - 'crates/boardsi-model/**'
-      - 'crates/boardsi-ipc/**'
-      - 'apps/boardsi-worker/**'
-      - 'apps/boardsi-qt-prototype/**'
-      - '.github/workflows/numerical-core.yml'
   push:
     branches: [main]
-    paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'crates/boardsi-numerics/**'
-      - 'crates/boardsi-model/**'
-      - 'crates/boardsi-ipc/**'
-      - 'apps/boardsi-worker/**'
-      - 'apps/boardsi-qt-prototype/**'
-      - '.github/workflows/numerical-core.yml'
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -48,6 +29,13 @@ jobs:
         run: |
           cargo test --workspace --locked --offline -- --nocapture
           cargo test --workspace --release --locked --offline -- --nocapture
+          python tools/validation/m0_worker_stress.py --output worker-stress.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: worker-stress-linux
+          path: worker-stress*.json
+          if-no-files-found: error
   native:
     name: Native ${{ matrix.name }}
     strategy:
@@ -103,3 +91,12 @@ jobs:
         run: |
           cargo test --workspace --locked --offline -- --nocapture
           cargo test --workspace --release --locked --offline -- --nocapture
+          python tools/validation/m0_worker_stress.py --output worker-stress.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: worker-stress-${{ matrix.target }}
+          path: |
+            worker-stress*.json
+            worker-stress-failure-*.log
+          if-no-files-found: error

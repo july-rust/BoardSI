@@ -1,14 +1,8 @@
 name: M2 PH-07 multilayer masked microstrip independent FVM
 on:
   pull_request:
-    paths:
-      - 'prototypes/m2-lossless-fem/**'
-      - 'tools/validation/m2_ph07_multilayer_microstrip_reference.py'
-      - 'docs/validation/m2-g2-ph07-*.md'
-      - 'docs/validation/README.md'
-      - 'docs/validation/m2-rlgc-independent-verification-plan.md'
-      - 'docs/development-history.md'
-      - '.github/workflows/m2-ph07-multilayer.yml'
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -35,12 +29,16 @@ jobs:
           python -m py_compile tools/validation/m2_ph07_multilayer_microstrip_reference.py
           PYTHONPATH=tools/validation python - <<'PY'
           import hashlib,json,pathlib
-          from m2_ph07_multilayer_microstrip_reference import FIXTURE
+          from m2_ph07_multilayer_microstrip_reference import FIXTURE, digest
+          from m2_ph07_inputs import expected_cases
           source=hashlib.sha256(pathlib.Path("tools/validation/m2_ph07_multilayer_microstrip_reference.py").read_bytes()).hexdigest()
           fixture=hashlib.sha256(json.dumps(FIXTURE,sort_keys=True,separators=(",",":")).encode()).hexdigest()
-          assert source=="7e896050de8a0c220ee3c6132c49d452bb02fe4a338feb571c8bd75a5a1afd9a", "PH-07 source hash mismatch"
+          assert source=="94c675dc78e9ec309793d83c0b64b89258eea00f35792dbd76cc09d935d9c7af", "PH07 audited reference source changed"
+          # Audit adds executable checks; hashes are recorded in evidence.
+          # Fixture and independent manifest remain pinned below.
           assert fixture=="e85f99cba980cb9eb3eea0db436ca6d3a8a6b2026f5c1fcdfe7fa2e3f2b35489", "PH-07 fixture hash mismatch"
-          print("PH07 pinned source/fixture SHA-256 PASS",source,fixture)
+          assert digest(expected_cases())=="70dd9ba0b8adda9bbc62694510dd0af3cb8c251e4996888348e23c8378abf9ce", "PH07 input manifest changed"
+          print("PH07 source SHA-256 and pinned fixtures PASS",source,fixture)
           PY
           python tools/validation/m2_ph07_multilayer_microstrip_reference.py --self-test
       - name: Generate independent numerical evidence, boundary and parameter sweeps
@@ -70,7 +68,8 @@ jobs:
           "$bin" microstrip C 64 0.0012 0.0008 0 1 4.0 4.0 > ph07-layer-high.json
           "$bin" microstrip C 64 0.0012 0.0008 0 1 4.0 3.4 > ph07-layer-swapped.json
           "$bin" microstrip C 64 0.0012 0.0008 0 1 1.0 1.0 > ph07-vacuum.json
-          # This Python FVM code never reads FEM physics values as its own reference input.
+          python tools/validation/test_m2_ph07_audit.py .
+          # Validate contract inputs first, then solve each coupon in an isolated process.
           python tools/validation/m2_ph07_multilayer_microstrip_reference.py \
             --fem ph07-*.json --output ph07-independent-evidence.json
           python - <<'PY'
@@ -127,4 +126,4 @@ jobs:
             ph07-*.resources.txt
             ph07-invalid.*
           retention-days: 14
-          if-no-files-found: warn
+          if-no-files-found: error
