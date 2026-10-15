@@ -119,7 +119,7 @@ def fvm(inp, vacuum=False):
             diag = 0.0
             for di, dj in ((-1, 0), (1, 0), (0, -1), (0, 1)):
                 ii, jj = i + di, j + dj
-                if ii < 0 or ii >= nx or jj >= nz:
+                if ii < 0 or ii >= nx or jj < 0 or jj >= nz:
                     if jj < 0:
                         # Bottom continuous GND: Dirichlet on boundary face.
                         conductance = 2.0 * ep
