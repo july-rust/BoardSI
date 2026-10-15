@@ -49,7 +49,7 @@ fn main() -> ExitCode {
                     r#""field_ground_top_C":{:.16e},"field_ground_bottom_C":{:.16e},"vacuum_ground_top_C":{:.16e},"vacuum_ground_bottom_C":{:.16e},"#,
                     r#""field_charge_balance_rel":{:.16e},"vacuum_charge_balance_rel":{:.16e},"field_x_sym_err_V":{:.16e},"vacuum_x_sym_err_V":{:.16e},"#,
                     r#""field_z_sym_err_V":{:.16e},"field_pec_err_V":{:.16e},"vacuum_pec_err_V":{:.16e},"field_fringe_Ex_V_per_m":{:.16e},"field_pec_field_V_per_m":{:.16e},"#,
-                    r#""field_iterations":{},"vacuum_iterations":{},"field_wall_s":{:.9},"vacuum_wall_s":{:.9},"status":"{}"}}"
+                    r#""field_iterations":{},"vacuum_iterations":{},"field_wall_s":{:.9},"vacuum_wall_s":{:.9},"status":"{}"}}"#
                 ),
                 n,c.half_span_m,c.width_m,c.thickness_m,c.ground_separation_m,c.center_z_m,
                 c.lower_gap_m(),c.upper_gap_m(),c.epsilon_bottom,c.epsilon_top,interface,
