@@ -6,6 +6,7 @@ use std::time::Instant;
 
 pub mod plate;
 pub mod stripline;
+pub mod asymmetric_stripline;
 
 pub const EPS0: f64 = 8.854_187_818_8e-12; // F/m
 pub const MU0: f64 = 1.256_637_061_27e-6; // H/m
@@ -312,10 +313,40 @@ fn solve_field_with_potential(
     grid: &Grid,
     dielectric_er: f64,
 ) -> Result<(FieldEvidence, Vec<f64>), String> {
+    solve_field_with_material_potential(grid, |z| {
+        if z < dielectric_height_m { dielectric_er } else { 1.0 }
+    })
+}
+
+// PH-06 uses a separate layer-permittivity function while sharing precisely
+// the PH-05/G1 P1-CSR-CG assembly and conductor-reaction calculation.
+// Material boundaries must be prevalidated as mesh-conforming by each geometry.
+fn for_each_material_triangle(
+    mut action: impl FnMut([usize; 3], f64),
+    grid: &Grid,
+    er_at_z: impl Fn(f64) -> f64,
+) {
+    for j in 0..grid.nz {
+        let er = er_at_z((j as f64 + 0.5) * grid.dx);
+        for i in 0..grid.nx {
+            let bl = j * (grid.nx + 1) + i;
+            let br = bl + 1;
+            let tl = bl + grid.nx + 1;
+            let tr = tl + 1;
+            action([bl, br, tr], er);
+            action([bl, tr, tl], er);
+        }
+    }
+}
+
+fn solve_field_with_material_potential(
+    grid: &Grid,
+    er_at_z: impl Fn(f64) -> f64,
+) -> Result<(FieldEvidence, Vec<f64>), String> {
     let start = Instant::now();
     let mut rows = vec![Vec::<(usize, f64)>::new(); grid.dof];
     let mut rhs = vec![0.0; grid.dof];
-    for_each_triangle(|tri, er| {
+    for_each_material_triangle(|tri, er| {
         let k = stiffness(tri, grid, er);
         for (i, ni) in tri.iter().enumerate() {
             let ri = grid.mapping[*ni];
@@ -331,7 +362,7 @@ fn solve_field_with_potential(
                 }
             }
         }
-    }, grid, dielectric_height_m, dielectric_er);
+    }, grid, &er_at_z);
 
     let mut offsets = Vec::with_capacity(grid.dof + 1);
     let mut columns = Vec::new();
@@ -376,7 +407,7 @@ fn solve_field_with_potential(
     // SAME FEM stiffness (not a separate external field oracle).
     let mut energy = 0.0;
     let mut signal_reaction = 0.0;
-    for_each_triangle(|tri, er| {
+    for_each_material_triangle(|tri, er| {
         let k = stiffness(tri, grid, er);
         for i in 0..3 {
             let mut row_reaction = 0.0;
@@ -388,7 +419,7 @@ fn solve_field_with_potential(
                 signal_reaction += row_reaction;
             }
         }
-    }, grid, dielectric_height_m, dielectric_er);
+    }, grid, &er_at_z);
     let c_energy = EPS0 * energy;
     let c_charge = EPS0 * signal_reaction;
     if !c_energy.is_finite() || !c_charge.is_finite() || c_energy <= 0.0 || c_charge <= 0.0 {
