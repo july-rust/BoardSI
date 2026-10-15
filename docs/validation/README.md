@@ -17,3 +17,11 @@ PH-03 is a numerical mathematical anchor only; no real PCB or 30 GHz physical qu
 - [FEM PH-05 limited acceptance and regression report](m2-g2-ph05-fem-evidence.md)
 
 The PH-05 class-F **limited synthetic PEC/lossless** coupon passed 81 independent acceptance checks in [CI 38666133102](https://github.com/july-rust/BoardSI/actions/runs/38666133102). It does NOT validate actual PCB loss/roughness, 30 GHz, discontinuities or overall M2.
+
+## M2 G2 PH-06 asymmetric and two-region PEC stripline (2026-10-15)
+
+- [PH-06 immutable acceptance contract](m2-g2-ph06-acceptance-contract.md) — preregistered SHA `15da48ef3753e361d009decd03dbd4516dfd9868`.
+- [Independent cell-centred FVM, material interface, source/fixture SHA-256](m2-g2-ph06-independent-reference.md).
+- [Measured FEM/FVM comparisons, independent upper/lower ground charge, mesh/geometry/material sweeps](m2-g2-ph06-fem-evidence.md).
+
+PH-06 limited synthetic lossless 2D field acceptance recorded 201 numerical and 57 invariant PASS gates in [CI 38669970099](https://github.com/july-rust/BoardSI/actions/runs/38669970099). This **does not** validate a real PCB, 30 GHz, multilayer microstrip, loss or full M2. The existing PH-05 and PH-03 tests remain mandatory.
