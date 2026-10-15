@@ -178,6 +178,13 @@ mod tests {
     use boardsi_ipc::State;
     #[test]
     fn late_cancel_closed_pipe_preserves_delayed_completed_outcome() {
+        late_cancel_after_exit(true);
+    }
+    #[test]
+    fn late_cancel_after_os_exit_preserves_delayed_completed_outcome() {
+        late_cancel_after_exit(false);
+    }
+    fn late_cancel_after_exit(close_local_input: bool) {
         let mut command = if cfg!(windows) {
             let mut c = Command::new("cmd");
             c.args(["/C", "exit 0"]);
@@ -220,8 +227,18 @@ mod tests {
             transport_broken: false,
             cancel_delivery_error: None,
         };
-        c.cancel().unwrap(); // Real closed pipe, not a fabricated return code.
-        assert!(c.cancel_delivery_error.is_some());
+        if close_local_input {
+            // Deterministically exercise send's real BrokenPipe path. Merely
+            // waiting for ONE process does not prove every pipe reader closed:
+            // concurrent spawn can transiently inherit handles before exec.
+            drop(c.input.take());
+        }
+        c.cancel().unwrap();
+        if close_local_input {
+            assert!(c.cancel_delivery_error.is_some());
+        }
+        // OS-pipe write may succeed or report BrokenPipe after child exit.
+        // Both outcomes must preserve delayed scoped Completed and EOF.
         assert_eq!(c.guard.state, State::CancelRequested);
         assert!(!c.transport_broken);
         tx.send(Ok(Some(Message::new(

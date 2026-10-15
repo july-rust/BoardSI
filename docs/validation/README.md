@@ -31,6 +31,10 @@ PH-06 limited synthetic lossless 2D field acceptance recorded 201 numerical and 
 - [Pre-registered PH-07 acceptance contract](m2-g2-ph07-acceptance-contract.md) (first commit `c11440a1`)
 - [Independent Python FVM reference and SHA-256](m2-g2-ph07-independent-reference.md)
 - [Rust FEM actual calculation/mesh/boundary/charge evidence](m2-g2-ph07-fem-evidence.md)
-- [PR #40](https://github.com/july-rust/BoardSI/pull/40), initial [PH-07 CI run 38674095933](https://github.com/july-rust/BoardSI/actions/runs/38674095933): 740 independent gates PASS, 0 FAIL.
+- [PR #40](https://github.com/july-rust/BoardSI/pull/40), initial [PH-07 CI run 38674095933](https://github.com/july-rust/BoardSI/actions/runs/38674095933): 740 numerical checks PASS (8 C/C0 cross-method comparisons plus 8 derived Z0/delay comparisons), 0 FAIL.
 
-Only restricted synthetic ideal PEC/quasi-TEM electrostatic class F is supported, with explicit rectangular mask/top/side and layered substrate. Final HEAD CI must pass before merge; real PCB, 30 GHz full-wave and R/G loss models remain Not Run.
+Only restricted synthetic ideal PEC/quasi-TEM electrostatic class F is supported, with explicit rectangular mask/top/side and layered substrate. PR #40 merged at `c6dce055`; final HEAD `875f314a`, [CI 38674727369](https://github.com/july-rust/BoardSI/actions/runs/38674727369) PASS; real PCB, 30 GHz full-wave and R/G loss models remain Not Run.
+
+## M2 validation audit hardening (#41)
+
+[Executed audit, check taxonomy, native platform ledger and administrative limits](m2-validation-audit-hardening.md). Frozen acceptance contracts remain unchanged.

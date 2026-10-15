@@ -34,3 +34,6 @@ __pycache__/
 /logs/local/
 *.boardsi-cache
 *.boardsi-project
+
+# Isolated FEM crate uses a separate workspace/target directory.
+/prototypes/m2-lossless-fem/target/

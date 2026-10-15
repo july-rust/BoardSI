@@ -1,13 +1,8 @@
 name: M2 synthetic G0 reference
 on:
   pull_request:
-    paths:
-      - 'tools/validation/m2_fvm_reference.py'
-      - 'tools/validation/m2_g0_verify.py'
-      - 'tools/validation/m2_g0_holdout.csv'
-      - 'tools/validation/m2_g0_source.sha256'
-      - 'docs/validation/m2-g0-**'
-      - '.github/workflows/m2-g0-reference.yml'
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read

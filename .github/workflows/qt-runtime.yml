@@ -1,28 +1,9 @@
 name: Qt runtime
 on:
   pull_request:
-    paths:
-      - 'apps/boardsi-qt-prototype/**'
-      - 'apps/boardsi-worker/**'
-      - 'crates/boardsi-ipc/**'
-      - 'crates/boardsi-numerics/**'
-      - '.github/scripts/install_qt_runtime.py'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - '.github/workflows/qt-runtime.yml'
   push:
     branches: [main]
-    paths:
-      - 'apps/boardsi-qt-prototype/**'
-      - 'apps/boardsi-worker/**'
-      - 'crates/boardsi-ipc/**'
-      - 'crates/boardsi-numerics/**'
-      - '.github/scripts/install_qt_runtime.py'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - '.github/workflows/qt-runtime.yml'
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:

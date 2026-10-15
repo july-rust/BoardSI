@@ -2,7 +2,9 @@
 
 **Lightweight PCB & BGA Substrate Signal Integrity Analysis**
 
-**Status: initial planning / architecture validation (M0). This repository does not yet contain a working solver or verified format support.**
+**Status: M0 architecture/runtime prototypes and restricted M2 lossless 2D FEM research coupons (PH-03/05/06/07) are implemented. A product PCB Solver and verified PCB-format import are not implemented.**
+
+PH-07 was merged in [PR #40](https://github.com/july-rust/BoardSI/pull/40), `main@c6dce055`. Synthetic numerical verification does not establish measured-PCB or 30 GHz accuracy. See the [validation audit](docs/validation/m2-validation-audit-hardening.md) for independent checks, platform execution evidence and remaining administrative work.
 
 BoardSI is planned as an offline-first Qt desktop UI plus Rust signal-integrity calculation core. Inputs will be handled by **separate format importers** (initial priority: PADS Layout ASCII and ODB++Design), normalized to a **format-neutral Canonical Board Model**. The viewer, port validator and solver use this same model. ODB++ is **not** BoardSI's native/internal format.
 
