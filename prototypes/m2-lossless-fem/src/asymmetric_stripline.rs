@@ -363,9 +363,9 @@ mod tests {
         let mut c=base;c.cells_per_height=usize::MAX;cases.push(c);
         let mut c=base;c.signal_v=0.9;cases.push(c);
         let mut c=base;c.ground_v=1.0;cases.push(c);
-        let mut c=base;c.thickness_m=-0.00005;cases.push(c);
+        let mut c=base;c.thickness_m = -0.00005;cases.push(c);
         let mut c=base;c.ground_separation_m=0.0;cases.push(c);
-        let mut c=base;c.epsilon_bottom=-1.0;cases.push(c);
+        let mut c=base;c.epsilon_bottom = -1.0;cases.push(c);
         let mut c=base;c.width_m=f64::NAN;cases.push(c);
         let mut c=base;c.right=StriplineSide::GroundedDirichlet;cases.push(c);
         let mut c=base;c.ground_ideal_pec=false;cases.push(c);
