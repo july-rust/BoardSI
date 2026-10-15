@@ -91,7 +91,7 @@ fn main() -> ExitCode {
                 regions,o.physical_status);
                 ExitCode::SUCCESS
             }
-            Err(e)=>{eprintln!("unsupported or numerical failure: {e}");ExitCode::FAILURE;}
+            Err(e)=>{eprintln!("unsupported or numerical failure: {e}");ExitCode::FAILURE}
         };
     }
 
