@@ -112,6 +112,8 @@ pub struct MicrostripField {
     pub max_x_reflection_error_v: f64,
     pub max_pec_potential_error_v: f64,
     pub max_fringe_ex_v_per_m: f64,
+    pub max_abs_ez_v_per_m: f64,
+    pub sampled_fields: Vec<[f64; 6]>,
     pub max_pec_interior_field_v_per_m: f64,
     // The summands are contributions to C at a 1 V electrode excitation,
     // NOT independent per-layer line capacitances or charges.
@@ -241,6 +243,8 @@ fn field(grid: &Grid, c: &MicrostripCoupon, vacuum: bool)
     }
     let mut ground_reaction = 0.0;
     let mut fringe: f64 = 0.0;
+    let mut max_abs_ez: f64 = 0.0;
+    let mut samples = Vec::<[f64; 6]>::new();
     let mut pec_field: f64 = 0.0;
     let mut region_c = vec![0.0; c.layers.len() + 2];
     for j in 0..grid.nz {
@@ -253,7 +257,7 @@ fn field(grid: &Grid, c: &MicrostripCoupon, vacuum: bool)
             let br = bl+1;
             let tl = bl+cols;
             let tr = tl+1;
-            for tri in [[bl,br,tr],[bl,tr,tl]] {
+            for (triangle_index, tri) in [[bl,br,tr],[bl,tr,tl]].into_iter().enumerate() {
                 let (x0,z0)=xy(tri[0],grid);
                 let (x1,z1)=xy(tri[1],grid);
                 let (x2,z2)=xy(tri[2],grid);
@@ -261,6 +265,14 @@ fn field(grid: &Grid, c: &MicrostripCoupon, vacuum: bool)
                 let v=[phi[tri[0]],phi[tri[1]],phi[tri[2]]];
                 let ex=-(v[0]*(z1-z2)+v[1]*(z2-z0)+v[2]*(z0-z1))/det;
                 let ez=-(v[0]*(x2-x1)+v[1]*(x0-x2)+v[2]*(x1-x0))/det;
+                max_abs_ez=max_abs_ez.max(ez.abs());
+                // Actual element centroids and piecewise-constant P1 fields,
+                // sparsely sampled for reproducible 2D field-map diagnostics.
+                if triangle_index==0 && i%(grid.nx/8).max(1)==0 &&
+                    j%(grid.nz/8).max(1)==0 {
+                    samples.push([(x0+x1+x2)/3.0,(z0+z1+z2)/3.0,
+                        (v[0]+v[1]+v[2])/3.0,ex,ez,region as f64]);
+                }
                 if x.abs()>c.width_m/2.0 &&
                     z>c.substrate_height_m()/2.0 &&
                     z<c.substrate_height_m()+c.copper_thickness_m*2.0 {
@@ -281,7 +293,7 @@ fn field(grid: &Grid, c: &MicrostripCoupon, vacuum: bool)
     let q_signal=evidence.c_from_conductor_charge_f_per_m;
     let q_ground=EPS0*ground_reaction;
     let balance=((q_signal+q_ground)/q_signal).abs();
-    if ![x_error,pec_error,fringe,pec_field,balance,q_ground]
+    if ![x_error,pec_error,fringe,max_abs_ez,pec_field,balance,q_ground]
         .iter().all(|v|v.is_finite()) {
         return Err("PH-07 nonfinite field or charge".into());
     }
@@ -289,6 +301,7 @@ fn field(grid: &Grid, c: &MicrostripCoupon, vacuum: bool)
         evidence, signal_charge_c_per_m:q_signal,ground_charge_c_per_m:q_ground,
         charge_balance_relative:balance,max_x_reflection_error_v:x_error,
         max_pec_potential_error_v:pec_error,max_fringe_ex_v_per_m:fringe,
+        max_abs_ez_v_per_m:max_abs_ez,sampled_fields:samples,
         max_pec_interior_field_v_per_m:pec_field,
         region_energy_capacitance_f_per_m:region_c,
     })

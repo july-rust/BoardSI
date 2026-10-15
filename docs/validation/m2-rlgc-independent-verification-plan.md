@@ -1,6 +1,6 @@
 # M2 physical RLGC — independent reference and validation plan
 
-**Plan status: PH-03 mathematical coupon PASS, PH-05 limited synthetic class-F PASS, PH-06 limited homogeneous/two-region synthetic class-F PASS; PH-07 onward and real-PCB/full-wave/loss cases remain Not Run.**  
+**Plan status: PH-03 mathematical coupon PASS, PH-05 limited synthetic class-F PASS, PH-06 limited homogeneous/two-region synthetic class-F PASS; PH-08 onward and real-PCB/full-wave/loss cases remain Not Run; PH-07 restricted synthetic class-F PASS.**  
 **Created:** 2026-10-14 KST; **source baseline:** `main@35285a47a72beabb4885a8e17f35867e6c20bac0` (merged PR #30).  
 **Companion ADR:** [m2-rlgc-physical-model-adr.md](../architecture/m2-rlgc-physical-model-adr.md).  
 **Immutable product specification:** [BoardSI v1.0](../specification/BoardSI_Development_Spec_v1.0.md), particularly §§6, 8, 8.2, 13, 13.1, 14, 15. Issues #7/#16/#17.
@@ -25,7 +25,7 @@ Existing evidence: [numerical report](m0-numerical-foundation.md) has 180 indepe
 | PH-04 | Single microstrip w/h/t/εr sweep including thin/thick copper | F: independent 2D FEM/qualified extractor + Q formulas | C,C0,L_ext,Z0, delay, edge charge, field/boundary convergence | **Not Run** |
 | PH-05 | Symmetric stripline w/t/h/εr sweep | F+Q | C,C0,L, impedance and field symmetry | **PASS (limited ideal PEC/lossless homogeneous coupon, independent cell-centred FVM + P1 FEM)** — [G2 PH-05 evidence](m2-g2-ph05-fem-evidence.md); no full-wave/real PCB validity |
 | PH-06 | Asymmetric stripline unequal upper/lower gaps and optional exactly two horizontal homogeneous dielectric regions | F + M + S | C,C0,Lext from C0, Z0, delay, per-ground free charge, mesh/sidewall convergence, reflection and no forced z symmetry | **PASS (restricted synthetic lossless 2D PEC/quasi-TEM homogeneous/two-region)** — [frozen contract](m2-g2-ph06-acceptance-contract.md), [independent FVM](m2-g2-ph06-independent-reference.md), [FEM evidence](m2-g2-ph06-fem-evidence.md); no actual board, AC magnetic, full-wave or 30 GHz evidence |
-| PH-07 | Multilayer microstrip with air and explicit solder mask on/off | F | ε distribution, C change, field-energy fractions, exact mask inclusion | **Not Run** |
+| PH-07 | Multilayer microstrip with air and explicit rectangular solder mask on/off | F + S | ε(x,z), C/C0/Z0/delay, mask/layer effects, mesh and top/side Neumann truncation | **PASS (restricted synthetic ideal PEC lossless)** — [frozen contract](m2-g2-ph07-acceptance-contract.md), [independent FVM](m2-g2-ph07-independent-reference.md), [measured FEM](m2-g2-ph07-fem-evidence.md); no real board, loss or 30 GHz validation |
 | PH-08 | Finite copper thickness, trapezoid/surface shape and finite-width but longitudinally uniform reference plane | F | Cross-section sensitivity and topology; do not assume infinite reference | **Not Run** |
 | PH-09 | Coupled microstrip P,N and gap/mask/ε variation | F + M 4-port | Full Maxwell C/C0 and L matrices; even/odd impedance for *symmetric* case, near/far coupling | **Not Run** |
 | PH-10 | Symmetric coupled stripline with joint reference | F + M | Full matrix, modes and coupler directional S; no inferred mutual entries | **Not Run** |
@@ -124,3 +124,7 @@ Benchmark at minimum n=1/n=2 field excitations across mesh sizes and F points; r
 | Physical geometry→RLGC Validated claim | **None** |
 | Qt/IPC code or existing v1.0 specification changes | **None** |
 | PR merge, issue closure, new Actions jobs | **None requested** |
+
+## PH-07 executed evidence — 2026-10-15 KST
+
+PR [#40](https://github.com/july-rust/BoardSI/pull/40) first froze acceptance at `c11440a1`, then implemented conforming 2D material P1 FEM and independent cell-centred harmonic-flux SciPy direct FVM. Initial [Actions 38674095933](https://github.com/july-rust/BoardSI/actions/runs/38674095933) reports **740/740 gate PASS**, n128 four-C relative errors 0.928%, 0.463%, 0.977%, 0.505%, PH-06/PH-05 and Rust workspace regressions successful. See dedicated evidence docs. This does not assert final PR HEAD CI/merge without separately checking. Loss, real-PCB, PH-08/3D/full-wave and 30 GHz remain Not Run.

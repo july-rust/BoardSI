@@ -63,6 +63,10 @@ fn main() -> ExitCode {
                 )).unwrap_or_else(||"null".to_string());
                 let regions=d.region_energy_capacitance_f_per_m.iter()
                     .map(|e|format!("{e:.16e}")).collect::<Vec<_>>().join(",");
+                let samples=d.sampled_fields.iter().map(|s|format!(
+                    "[{:.9e},{:.9e},{:.9e},{:.9e},{:.9e},{:.0}]",
+                    s[0],s[1],s[2],s[3],s[4],s[5]
+                )).collect::<Vec<_>>().join(",");
                 println!(concat!(
                     r#"{{"model":"PH07_IdealMultilayerMicrostrip","case":"{}","n":{},"B_m":{:.16e},"H_m":{:.16e},"#,
                     r#""width_m":{:.16e},"copper_thickness_m":{:.16e},"air_epsilon_r":{:.16e},"layers":[{}],"mask":{},"#,
@@ -75,7 +79,7 @@ fn main() -> ExitCode {
                     r#""field_energy_charge_rel":{:.16e},"vacuum_energy_charge_rel":{:.16e},"#,
                     r#""field_x_sym_err_V":{:.16e},"vacuum_x_sym_err_V":{:.16e},"field_pec_err_V":{:.16e},"vacuum_pec_err_V":{:.16e},"#,
                     r#""field_fringe_Ex_V_per_m":{:.16e},"vacuum_fringe_Ex_V_per_m":{:.16e},"#,
-                    r#""field_pec_field_V_per_m":{:.16e},"region_energy_C_contributions_F_per_m":[{}],"status":"{}"}}"#
+                    r#""field_pec_field_V_per_m":{:.16e},"field_max_Ez_V_per_m":{:.16e},"region_energy_C_contributions_F_per_m":[{}],"sampled_fields":[{}],"status":"{}"}}"#
                 ),
                 name,n,c.half_span_m,c.top_m,c.width_m,c.copper_thickness_m,c.air_epsilon_r,layers,mask,
                 o.c_f_per_m,o.c0_f_per_m,o.lext_h_per_m,o.z0_ohm,o.delay_s_per_m,o.epsilon_effective,
@@ -88,7 +92,7 @@ fn main() -> ExitCode {
                 d.max_x_reflection_error_v,v.max_x_reflection_error_v,
                 d.max_pec_potential_error_v,v.max_pec_potential_error_v,
                 d.max_fringe_ex_v_per_m,v.max_fringe_ex_v_per_m,d.max_pec_interior_field_v_per_m,
-                regions,o.physical_status);
+                d.max_abs_ez_v_per_m,regions,samples,o.physical_status);
                 ExitCode::SUCCESS
             }
             Err(e)=>{eprintln!("unsupported or numerical failure: {e}");ExitCode::FAILURE}
