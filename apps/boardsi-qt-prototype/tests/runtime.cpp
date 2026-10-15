@@ -338,11 +338,17 @@ public:
             inPhase("closing", [&] { closing(); });
             phase="global-gate";
             observeGap(entireClock.elapsed());
-            check(entireMaxGap<=1000,"Global event-loop gap exceeded 1s");
         } catch (const std::exception &e) { report["failure"]=QString::fromUtf8(e.what()); code=1; }
         entireTick.stop();
-        phase="report";
+        phase="final-measurement";
         observeGap(entireClock.elapsed());
+        // The final observation MUST precede the acceptance check. Otherwise
+        // a pause between the earlier check and this sample could report PASS
+        // with a measured gap >1000 ms (independent review P2).
+        if (code==0) {
+            try { check(entireMaxGap<=1000,"Global event-loop gap exceeded 1s"); }
+            catch (const std::exception &e) { report["failure"]=QString::fromUtf8(e.what()); code=1; }
+        }
         metrics["entire_test_timer_max_gap_ms"]=entireMaxGap;
         metrics["entire_test_elapsed_ms"]=entireClock.elapsed();
         metrics["global_max_gap_end_ms"]=worstGapAtMs;
