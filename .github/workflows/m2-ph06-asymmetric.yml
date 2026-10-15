@@ -1,0 +1,90 @@
+name: M2 PH-06 asymmetric stripline FEM independent FVM
+on:
+  pull_request:
+    paths:
+      - 'prototypes/m2-lossless-fem/**'
+      - 'tools/validation/m2_ph06_asymmetric_stripline_reference.py'
+      - 'docs/validation/m2-g2-ph06-acceptance-contract.md'
+      - '.github/workflows/m2-ph06-asymmetric.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ph06-field-oracle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Rust stable pinned version
+        run: rustup toolchain install 1.75.0 --profile minimal --component clippy
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install independent FVM dependencies
+        run: python -m pip install numpy==2.3.5 scipy==1.17.0
+      - name: PH-06 Rust tests and strict Clippy (including existing PH-03/PH-05 tests)
+        run: |
+          cargo +1.75.0 test --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release
+          cargo +1.75.0 clippy --manifest-path prototypes/m2-lossless-fem/Cargo.toml --all-targets -- -D warnings
+          cargo +1.75.0 build --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release
+      - name: PH-06 independent two-material FVM validation and CPU/RSS measurements
+        run: |
+          set -euo pipefail
+          bin="prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem"
+          python -m py_compile tools/validation/m2_ph06_asymmetric_stripline_reference.py
+          python tools/validation/m2_ph06_asymmetric_stripline_reference.py --self-test
+          for model in A B; do
+            for n in 32 64 128; do
+              if test "$model" = A; then
+                /usr/bin/time -v -o "ph06-A-n$n-B12.resources.txt" "$bin" asymmetric "$n" 0.0012 > "ph06-A-n$n-B12.json"
+              else
+                /usr/bin/time -v -o "ph06-B-n$n-B12.resources.txt" "$bin" asymmetric "$n" 0.0012 0.00030 3.4 4.0 0.00035 > "ph06-B-n$n-B12.json"
+              fi
+            done
+            for code in 16 24; do
+              if test "$code" = 16; then metres=0.0016; else metres=0.0024; fi
+              if test "$model" = A; then
+                /usr/bin/time -v -o "ph06-A-n64-B$code.resources.txt" "$bin" asymmetric 64 "$metres" > "ph06-A-n64-B$code.json"
+              else
+                /usr/bin/time -v -o "ph06-B-n64-B$code.resources.txt" "$bin" asymmetric 64 "$metres" 0.00030 3.4 4.0 0.00035 > "ph06-B-n64-B$code.json"
+              fi
+            done
+          done
+          python tools/validation/m2_ph06_asymmetric_stripline_reference.py \
+            --fem ph06-A-n32-B12.json ph06-A-n64-B12.json ph06-A-n128-B12.json \
+                  ph06-A-n64-B16.json ph06-A-n64-B24.json \
+                  ph06-B-n32-B12.json ph06-B-n64-B12.json ph06-B-n128-B12.json \
+                  ph06-B-n64-B16.json ph06-B-n64-B24.json \
+            --output ph06-independent-fvm-evidence.json
+          for file in ph06-*.json; do
+            echo "PH06_CASE $file"
+            if test "$file" = ph06-independent-fvm-evidence.json; then
+              python -c 'import json; d=json.load(open("ph06-independent-fvm-evidence.json")); print("PH06",d["status"],"gates",len(d["checks"]),"FAIL",d["failed_gates"],"source",d["source_sha256"],"fixture",d["fixture_sha256"])'
+            else
+              cat "$file"
+              resources="$(basename "$file" .json).resources.txt"
+              echo "PH06_RESOURCES $resources"
+              grep -E 'User time|System time|Elapsed|Maximum resident set size' "$resources"
+            fi
+          done
+          if "$bin" asymmetric 32 1e300 > ph06-invalid-out.txt 2> ph06-invalid-err.txt; then
+            echo "FAIL: PH-06 accepted an oversized mesh"
+            exit 1
+          fi
+          grep -q 'unsupported or numerical failure:' ph06-invalid-err.txt
+          if grep -qi 'panicked' ph06-invalid-err.txt; then
+            echo "FAIL: PH-06 panicked on an oversized mesh"
+            exit 1
+          fi
+          test ! -s ph06-invalid-out.txt
+      - name: Upload PH-06 independently generated numerical evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ph06-numerical-evidence
+          path: |
+            ph06-*.json
+            ph06-*.resources.txt
+            ph06-invalid-*.txt
+          retention-days: 14
+          if-no-files-found: warn
