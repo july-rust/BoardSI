@@ -120,16 +120,33 @@ fn make_grid(c: &IdealCoupon) -> Result<Grid, String> {
         return Err("copper overlaps or exceeds grounded outer domain".into());
     }
     let dx = c.dielectric_height_m / c.cells_per_height as f64;
+    if !dx.is_finite() || dx <= 0.0 {
+        return Err("mesh spacing is nonfinite or underflows to zero".into());
+    }
+    let wide_box = 2.0 * c.box_m;
+    let nx_ratio = wide_box / dx;
+    let nz_ratio = c.box_m / dx;
+    // Bound BEFORE float-to-integer conversion: Rust saturates out-of-range
+    // float casts, and (usize::MAX + 1) would overflow before a memory guard.
+    // Any valid grid with <= 240_000 nodes has both axes below 240_000.
+    const MAX_NODES: usize = 240_000;
+    if !nx_ratio.is_finite() || !nz_ratio.is_finite() ||
+       nx_ratio < 1.0 || nz_ratio < 1.0 ||
+       nx_ratio >= MAX_NODES as f64 || nz_ratio >= MAX_NODES as f64 {
+        return Err("nonfinite or oversized mesh dimensions".into());
+    }
     if !on_grid(c.width_m / 2.0, dx) ||
        !on_grid(c.thickness_m, dx) ||
        !on_grid(c.box_m, dx) ||
-       !on_grid(2.0 * c.box_m, dx) {
+       !on_grid(wide_box, dx) {
         return Err("nonconforming conductor/material/box grid: reject rather than silently snap".into());
     }
-    let nx = (2.0 * c.box_m / dx).round() as usize;
-    let nz = (c.box_m / dx).round() as usize;
-    let count = (nx + 1).checked_mul(nz + 1).ok_or("mesh size overflow")?;
-    if count > 240_000 {
+    let nx = nx_ratio.round() as usize;
+    let nz = nz_ratio.round() as usize;
+    let columns = nx.checked_add(1).ok_or("mesh column count overflow")?;
+    let rows = nz.checked_add(1).ok_or("mesh row count overflow")?;
+    let count = columns.checked_mul(rows).ok_or("mesh node count overflow")?;
+    if count > MAX_NODES {
         return Err("mesh exceeds explicit prototype memory guard".into());
     }
     let mut dirichlet = vec![None; count];
@@ -461,6 +478,60 @@ mod tests {
         assert!((unitary - 1.0).abs() < 1e-10);
         assert_eq!(mismatch.s12.re, mismatch.s21.re);
         assert_eq!(mismatch.s22.im, mismatch.s11.im);
+    }
+
+    #[test]
+    fn ph20_mesh_extremes_reject_without_panicking() {
+        let valid = IdealCoupon::synthetic(8, 0.0012);
+        let mut cases: Vec<(&str, IdealCoupon)> = Vec::new();
+        for (name, value) in [
+            ("huge finite box", 1e300),
+            ("max finite box", f64::MAX),
+            ("infinite box", f64::INFINITY),
+            ("nan box", f64::NAN),
+            ("negative box", -0.0012),
+            ("zero box", 0.0),
+            ("excessive finite mesh", 1.2),
+            ("nonconforming finite mesh", 0.00121),
+        ] {
+            let mut specimen = valid;
+            specimen.box_m = value;
+            cases.push((name, specimen));
+        }
+        for (name, count) in [
+            ("zero subdivisions", 0),
+            ("too few subdivisions", 3),
+            ("unsupported subdivision count", 5),
+            ("excessive subdivisions", usize::MAX),
+        ] {
+            let mut specimen = valid;
+            specimen.cells_per_height = count;
+            cases.push((name, specimen));
+        }
+        for (name, value) in [
+            ("negative width", -0.0003),
+            ("zero thickness", 0.0),
+            ("nan dielectric height", f64::NAN),
+            ("infinite dielectric", f64::INFINITY),
+            ("underflow mesh spacing", 1e-320),
+        ] {
+            let mut specimen = valid;
+            match name {
+                "negative width" => specimen.width_m = value,
+                "zero thickness" => specimen.thickness_m = value,
+                "nan dielectric height" | "underflow mesh spacing" =>
+                    specimen.dielectric_height_m = value,
+                _ => specimen.epsilon_r = value,
+            }
+            cases.push((name, specimen));
+        }
+        for (name, specimen) in cases {
+            let attempted = std::panic::catch_unwind(|| extract_ideal(&specimen));
+            assert!(attempted.is_ok(), "{name}: input triggered panic");
+            let error = attempted.unwrap();
+            assert!(error.is_err(), "{name}: invalid input was accepted");
+            assert!(!error.unwrap_err().is_empty(), "{name}: missing diagnostic");
+        }
     }
 
     #[test]
