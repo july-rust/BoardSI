@@ -63,7 +63,21 @@ private:
         metrics["start_display_max_ms"] = qMax(metrics.value("start_display_max_ms").toInt(), int(t.elapsed()));
     }
     void running(Window &w) {
-        check(until([&] { return w.state == Window::Running; }), "Started not received");
+        const bool received=until([&] { return w.state == Window::Running; });
+        if (!received) {
+            // Diagnostic only: preserve the original timeout and FAIL condition.
+            metrics["worker_start_timeout_details"] = QJsonObject{
+                {"qprocess_state", int(w.process.state())},
+                {"qprocess_error", int(w.process.error())},
+                {"qprocess_error_text", w.process.errorString()},
+                {"worker_state", int(w.state)},
+                {"exit_seen", w.exitSeen},
+                {"stderr_diagnostics", w.diagnostics},
+                {"widget_error", w.error->text()},
+                {"buffered_stdout_bytes", int(w.process.bytesAvailable())},
+                {"partial_frame_bytes", int(w.buffer.size())}};
+        }
+        check(received, "Started not received");
     }
     void exited(Window &w, int timeout = 3000) {
         check(until([&] { return w.exitSeen && w.start->isEnabled(); }, timeout), "OS exit not drained/reaped");
@@ -374,7 +388,12 @@ public:
             inPhase("closing", [&] { closing(); });
             phase="global-gate";
             observeGap(entireClock.elapsed());
-        } catch (const std::exception &e) { report["failure"]=QString::fromUtf8(e.what()); code=1; }
+        } catch (const std::exception &e) {
+            report["failure"]=QString::fromUtf8(e.what());
+            report["failure_phase"]=phase;
+            metrics["failure_at_elapsed_ms"]=entireClock.elapsed();
+            code=1;
+        }
         entireTick.stop();
         phase="final-measurement";
         observeGap(entireClock.elapsed());
