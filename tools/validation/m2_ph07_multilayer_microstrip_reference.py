@@ -220,6 +220,7 @@ def run(files, destination):
     source_sha = hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()
     cases = {}
     checks = []
+    computed = {}  # identical physical geometry: reuse expensive FVM direct solves
 
     def check(name, passed, details):
         checks.append(dict(name=name, status="PASS" if passed else "FAIL",
@@ -233,7 +234,10 @@ def run(files, destination):
                 "width_m","copper_thickness_m","air_epsilon_r","layers","mask")}
         if data["model"] != "PH07_IdealMultilayerMicrostrip":
             raise ValueError(f"unexpected model in {file}")
-        result = solve_coupon(inp)
+        cache_key = digest(inp)
+        if cache_key not in computed:
+            computed[cache_key] = solve_coupon(inp)
+        result = computed[cache_key]
         name = pathlib.Path(file).stem
         cases[name] = {
             "physical_input":inp, "input_sha256":digest(inp),
