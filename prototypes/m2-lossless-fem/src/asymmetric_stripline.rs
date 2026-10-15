@@ -361,6 +361,19 @@ mod tests {
         let mut c=base;c.left=StriplineSide::GroundedDirichlet;cases.push(c);
         let mut c=base;c.half_span_m=1e300;cases.push(c);
         let mut c=base;c.cells_per_height=usize::MAX;cases.push(c);
+        let mut c=base;c.signal_v=0.9;cases.push(c);
+        let mut c=base;c.ground_v=1.0;cases.push(c);
+        let mut c=base;c.thickness_m=-0.00005;cases.push(c);
+        let mut c=base;c.ground_separation_m=0.0;cases.push(c);
+        let mut c=base;c.epsilon_bottom=-1.0;cases.push(c);
+        let mut c=base;c.width_m=f64::NAN;cases.push(c);
+        let mut c=base;c.right=StriplineSide::GroundedDirichlet;cases.push(c);
+        let mut c=base;c.ground_ideal_pec=false;cases.push(c);
+        let mut c=base;c.continuous_ground_planes=false;cases.push(c);
+        let mut c=base;c.longitudinally_uniform=false;cases.push(c);
+        let mut c=base;c.half_span_m=0.0001;cases.push(c);
+        let mut c=base;c.center_z_m=0.000301;cases.push(c);
+        let mut c=base;c.cells_per_height=0;cases.push(c);
         for (i,c) in cases.into_iter().enumerate() {
             let r=std::panic::catch_unwind(||extract_asymmetric(&c));
             assert!(r.is_ok(),"negative case {i} panicked");
