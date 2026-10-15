@@ -30,12 +30,22 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             };
+            // PH-01 uses an explicit matched-to-Z0 basis; the existing 50-ohm
+            // PH-02 JSON keys remain unchanged and are never reclassified.
+            let matched = match analytic_ideal_s2(&o, 0.01, 1e9, o.z0_ohm) {
+                Ok(s) => s,
+                Err(error) => {
+                    eprintln!("matched scattering math: {error}");
+                    return ExitCode::FAILURE;
+                }
+            };
             println!(
-                "{{\"status\":\"{}\",\"n\":{},\"box_m\":{:.12e},                 \"C_F_per_m\":{:.16e},\"C0_F_per_m\":{:.16e},                 \"Lext_H_per_m\":{:.16e},\"Z0_ohm\":{:.12e},                 \"delay_s_per_m\":{:.16e},\"epsilon_effective\":{:.12e},                 \"S11_re\":{:.12e},\"S11_im\":{:.12e},                 \"S21_re\":{:.12e},\"S21_im\":{:.12e},                 \"dof\":{},\"triangles\":{},\"nnz\":{},                 \"field_iterations\":{},\"vacuum_iterations\":{},                 \"field_residual\":{:.8e},\"vacuum_residual\":{:.8e},                 \"charge_energy_rel\":{:.8e},                 \"field_wall_s\":{:.6},\"vacuum_wall_s\":{:.6}}}",
+                "{{\"status\":\"{}\",\"n\":{},\"box_m\":{:.12e},                 \"C_F_per_m\":{:.16e},\"C0_F_per_m\":{:.16e},                 \"Lext_H_per_m\":{:.16e},\"Z0_ohm\":{:.12e},                 \"delay_s_per_m\":{:.16e},\"epsilon_effective\":{:.12e},                 \"S11_re\":{:.12e},\"S11_im\":{:.12e},                 \"S21_re\":{:.12e},\"S21_im\":{:.12e},                 \"S11_matched_re\":{:.12e},\"S11_matched_im\":{:.12e},                 \"S21_matched_re\":{:.12e},\"S21_matched_im\":{:.12e},                 \"dof\":{},\"triangles\":{},\"nnz\":{},                 \"field_iterations\":{},\"vacuum_iterations\":{},                 \"field_residual\":{:.8e},\"vacuum_residual\":{:.8e},                 \"charge_energy_rel\":{:.8e},                 \"field_wall_s\":{:.6},\"vacuum_wall_s\":{:.6}}}",
                 o.physical_status, n, box_m,
                 o.c_f_per_m, o.c0_f_per_m, o.lext_h_per_m,
                 o.z0_ohm, o.delay_s_per_m, o.epsilon_effective,
                 s.s11.re, s.s11.im, s.s21.re, s.s21.im,
+                matched.s11.re, matched.s11.im, matched.s21.re, matched.s21.im,
                 o.dielectric.dof, o.dielectric.triangles, o.dielectric.matrix_nnz,
                 o.dielectric.iterations, o.vacuum.iterations,
                 o.dielectric.residual, o.vacuum.residual,
