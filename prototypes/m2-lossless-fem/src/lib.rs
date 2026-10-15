@@ -358,6 +358,7 @@ fn for_each_cell_material_triangle(
     for j in 0..grid.nz {
         for i in 0..grid.nx {
             let er = er_at_cell(i, j);
+            if er == 0.0 { continue; } // PH-07 PEC-only cell: no dielectric triangles
             let bl = j * (grid.nx + 1) + i;
             let br = bl + 1;
             let tl = bl + grid.nx + 1;
@@ -375,7 +376,9 @@ fn solve_field_with_cell_material_potential(
     let start = Instant::now();
     let mut rows = vec![Vec::<(usize, f64)>::new(); grid.dof];
     let mut rhs = vec![0.0; grid.dof];
+    let mut triangles = 0_usize;
     for_each_cell_material_triangle(|tri, er| {
+        triangles += 1;
         let k = stiffness(tri, grid, er);
         for (i, ni) in tri.iter().enumerate() {
             let ri = grid.mapping[*ni];
@@ -465,7 +468,7 @@ fn solve_field_with_cell_material_potential(
         residual,
         iterations,
         dof: grid.dof,
-        triangles: 2 * grid.nx * grid.nz,
+        triangles,
         matrix_nnz: matrix.values.len(),
         elapsed_s: start.elapsed().as_secs_f64(),
     }, full))
