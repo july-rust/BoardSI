@@ -5,6 +5,7 @@
 use std::time::Instant;
 
 pub mod plate;
+pub mod stripline;
 
 pub const EPS0: f64 = 8.854_187_818_8e-12; // F/m
 pub const MU0: f64 = 1.256_637_061_27e-6; // H/m
