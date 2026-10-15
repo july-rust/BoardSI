@@ -25,3 +25,12 @@ The PH-05 class-F **limited synthetic PEC/lossless** coupon passed 81 independen
 - [Measured FEM/FVM comparisons, independent upper/lower ground charge, mesh/geometry/material sweeps](m2-g2-ph06-fem-evidence.md).
 
 PH-06 limited synthetic lossless 2D field acceptance recorded 201 numerical and 57 invariant PASS gates in [CI 38669970099](https://github.com/july-rust/BoardSI/actions/runs/38669970099). This **does not** validate a real PCB, 30 GHz, multilayer microstrip, loss or full M2. The existing PH-05 and PH-03 tests remain mandatory.
+
+## M2 G2 PH-07 multilayer microstrip with mask — 2026-10-15
+
+- [Pre-registered PH-07 acceptance contract](m2-g2-ph07-acceptance-contract.md) (first commit `c11440a1`)
+- [Independent Python FVM reference and SHA-256](m2-g2-ph07-independent-reference.md)
+- [Rust FEM actual calculation/mesh/boundary/charge evidence](m2-g2-ph07-fem-evidence.md)
+- [PR #40](https://github.com/july-rust/BoardSI/pull/40), initial [PH-07 CI run 38674095933](https://github.com/july-rust/BoardSI/actions/runs/38674095933): 740 independent gates PASS, 0 FAIL.
+
+Only restricted synthetic ideal PEC/quasi-TEM electrostatic class F is supported, with explicit rectangular mask/top/side and layered substrate. Final HEAD CI must pass before merge; real PCB, 30 GHz full-wave and R/G loss models remain Not Run.
