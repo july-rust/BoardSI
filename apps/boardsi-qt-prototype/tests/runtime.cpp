@@ -31,7 +31,7 @@ public:
     void setAppBootstrap(qint64 constructorMs, qint64 loopEntryMs, qint64 firstDispatchMs) {
         appBootstrap = QJsonObject{{"qapplication_constructor_ms", constructorMs},
                                    {"app_exec_entry_ms", loopEntryMs},
-                                   {"first_event_dispatch_ms", firstDispatchMs}};
+                                   {"test_single_shot_callback_ms", firstDispatchMs}};
     }
 private:
     using Steady = std::chrono::steady_clock;

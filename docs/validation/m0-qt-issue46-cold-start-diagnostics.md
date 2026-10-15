@@ -29,7 +29,7 @@ The two phase-tagged macOS diagnostic runs (662 ms and 843 ms) locate the **larg
 
 `apps/boardsi-qt-prototype/tests/runtime.cpp` now reports two *diagnostic-only* objects:
 
-1. `app_bootstrap_ms`: duration to create `QApplication`, elapsed time to enter `app.exec()`, and first dispatch of the `singleShot(0)` test callback. This interval is **not** silently added to or removed from the established global acceptance interval.
+1. `app_bootstrap_ms`: duration to create `QApplication`, elapsed time to enter `app.exec()`, and the delivery time of the `singleShot(0)` test callback. Qt does not guarantee that this zero-timer callback is the first event processed. This interval is **not** silently added to or removed from the established global acceptance interval.
 2. `first_window_startup_milestones_ms`: timestamps on an elapsed clock started with `RuntimeValidation::run()`. Includes global timer armed, first native Window constructor begin/end, `show()` begin/end, Start click begin/end, native `QProcess::started` signal, Worker Running state observed and first global timer callback.
 
 All timing points use monotonic `QElapsedTimer`; callback and startup marker instrumentation consist of a small number of clock reads and JSON field writes. The diagnostic presence alone does not establish negligible perturbation; compare repeated runs before drawing performance conclusions. This is a **test harness change only** and adds no busy waiting, synchronously blocking Worker read, new retry, skipped test, or threshold change.
@@ -43,3 +43,7 @@ Do not mislabel this as another global >1000 ms failure, do not infer the origin
 ## Next decision gate
 
 Run the final PR head on native macOS arm64 and Windows x64/arm64 plus Linux xcb. Examine startup order and `show_end - show_begin` versus `first_global_timer_callback - global_timer_armed`. If the >1000 ms outlier cannot be reproduced, report **intermittent root cause unconfirmed** and keep #46 open; do not characterize an instrumented PASS as a fix. Compare process/OS scheduling only when matching logs can isolate it. Verify all 17 required checks, exact PR HEAD, review thread resolution and signed squash merge before merging any diagnostic PR. Keep #41 open, #35 draft/unmerged and PH-08 excluded.
+
+## Independent review correction
+
+Codex review on PR #49 identified a concrete P2 diagnostic-label defect: Qt does not promise that a `QTimer::singleShot(0)` callback is the first event dispatched by the application event loop. The bootstrapping key is therefore named `test_single_shot_callback_ms` rather than `first_event_dispatch_ms`. It measures only the time the test callback itself begins; no claim about earlier dispatched platform events is made. The code/timer acceptance and runtime behavior are unchanged.
