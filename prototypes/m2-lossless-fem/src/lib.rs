@@ -7,6 +7,7 @@ use std::time::Instant;
 pub mod plate;
 pub mod stripline;
 pub mod asymmetric_stripline;
+pub mod multilayer_microstrip;
 
 pub const EPS0: f64 = 8.854_187_818_8e-12; // F/m
 pub const MU0: f64 = 1.256_637_061_27e-6; // H/m
@@ -343,10 +344,38 @@ fn solve_field_with_material_potential(
     grid: &Grid,
     er_at_z: impl Fn(f64) -> f64,
 ) -> Result<(FieldEvidence, Vec<f64>), String> {
+    solve_field_with_cell_material_potential(grid, |_, j| er_at_z((j as f64 + 0.5) * grid.dx))
+}
+
+// PH-07: one epsilon per geometry-conforming rectangular cell; each P1 triangle
+// in that cell inherits the same region ID. Existing z-only entrypoints are
+// forwarded without changing their discretization or legacy public API.
+fn for_each_cell_material_triangle(
+    mut action: impl FnMut([usize; 3], f64),
+    grid: &Grid,
+    er_at_cell: &impl Fn(usize, usize) -> f64,
+) {
+    for j in 0..grid.nz {
+        for i in 0..grid.nx {
+            let er = er_at_cell(i, j);
+            let bl = j * (grid.nx + 1) + i;
+            let br = bl + 1;
+            let tl = bl + grid.nx + 1;
+            let tr = tl + 1;
+            action([bl, br, tr], er);
+            action([bl, tr, tl], er);
+        }
+    }
+}
+
+fn solve_field_with_cell_material_potential(
+    grid: &Grid,
+    er_at_cell: impl Fn(usize, usize) -> f64,
+) -> Result<(FieldEvidence, Vec<f64>), String> {
     let start = Instant::now();
     let mut rows = vec![Vec::<(usize, f64)>::new(); grid.dof];
     let mut rhs = vec![0.0; grid.dof];
-    for_each_material_triangle(|tri, er| {
+    for_each_cell_material_triangle(|tri, er| {
         let k = stiffness(tri, grid, er);
         for (i, ni) in tri.iter().enumerate() {
             let ri = grid.mapping[*ni];
@@ -362,7 +391,7 @@ fn solve_field_with_material_potential(
                 }
             }
         }
-    }, grid, &er_at_z);
+    }, grid, &er_at_cell);
 
     let mut offsets = Vec::with_capacity(grid.dof + 1);
     let mut columns = Vec::new();
@@ -407,7 +436,7 @@ fn solve_field_with_material_potential(
     // SAME FEM stiffness (not a separate external field oracle).
     let mut energy = 0.0;
     let mut signal_reaction = 0.0;
-    for_each_material_triangle(|tri, er| {
+    for_each_cell_material_triangle(|tri, er| {
         let k = stiffness(tri, grid, er);
         for i in 0..3 {
             let mut row_reaction = 0.0;
@@ -419,7 +448,7 @@ fn solve_field_with_material_potential(
                 signal_reaction += row_reaction;
             }
         }
-    }, grid, &er_at_z);
+    }, grid, &er_at_cell);
     let c_energy = EPS0 * energy;
     let c_charge = EPS0 * signal_reaction;
     if !c_energy.is_finite() || !c_charge.is_finite() || c_energy <= 0.0 || c_charge <= 0.0 {
