@@ -5,6 +5,8 @@ on:
       - 'prototypes/m2-lossless-fem/**'
       - 'tools/validation/m2_s2_analytic_check.py'
       - 'tools/validation/m2_g1_field_check.py'
+      - 'tools/validation/m2_ph03_plate_check.py'
+      - 'docs/validation/m2-ph03-parallel-plate-acceptance-contract.md'
       - 'tools/validation/m2_fvm_reference.py'
       - 'tools/validation/m2_g0_source.sha256'
       - '.github/workflows/m2-lossless-fem.yml'
@@ -52,6 +54,29 @@ jobs:
           fi
           test ! -s m2-invalid-stdout.txt
           python tools/validation/m2_g1_field_check.py m2-fem-n32.json
+      - name: Execute exact PH-03 insulated-sidewall FEM and frozen independent math gate
+        run: |
+          set -euo pipefail
+          python -m py_compile tools/validation/m2_ph03_plate_check.py
+          python tools/validation/m2_ph03_plate_check.py --self-test
+          for n in 8 16 32; do
+            /usr/bin/time -v -o "ph03-n${n}-resources.txt" \
+              prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem plate "$n" | tee "ph03-n${n}.json"
+            echo "PH-03 n=$n resource measurement:"
+            cat "ph03-n${n}-resources.txt"
+          done
+          python tools/validation/m2_ph03_plate_check.py ph03-n8.json ph03-n16.json ph03-n32.json
+          # CLI negative control must not report successful computation or panic.
+          if prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem plate 0 > ph03-invalid-out.txt 2> ph03-invalid-err.txt; then
+            echo "FAIL: invalid PH-03 mesh accepted"
+            exit 1
+          fi
+          grep -q "unsupported or numerical failure:" ph03-invalid-err.txt
+          if grep -qi "panicked" ph03-invalid-err.txt; then
+            echo "FAIL: PH-03 invalid CLI input panicked"
+            exit 1
+          fi
+          test ! -s ph03-invalid-out.txt
       - name: Recheck existing M0 Rust workspace without Qt GUI rebuild
         run: |
           cargo +1.75.0 fetch --locked

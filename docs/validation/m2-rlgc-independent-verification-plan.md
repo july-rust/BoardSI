@@ -21,7 +21,7 @@ Existing evidence: [numerical report](m0-numerical-foundation.md) has 180 indepe
 | --- | --- | --- | --- | --- |
 | PH-01 | Analytic uniform lossless matched transmission line, varied l/f/Zref | M: telegrapher analytic and independent ABCD | S11/S21 phase, Zc, delay; specification T06/S mathematical target | **Not Run** (physical-plan case) |
 | PH-02 | Uniform lossless mismatch, two real port references and arbitrary l | M; independently derived S | All complex S entries, power, reference conventions; initial product unequal refs must be Unsupported | **Not Run** |
-| PH-03 | Homogeneous parallel plate / idealized stripline (analytic geometry) | M+F analytic electrostatic/field energy | C per length, L_ext from C0, energy and unit consistency; guard idealized edge-free limits | **Not Run** |
+| PH-03 | Homogeneous insulated-sidewall parallel plate (top/bottom PEC; side Neumann 0, no physical fringing) | M exact potential/field math; Rust P1 FEM checked against M (NOT external F) | C, C0, Lext, Z0, delay, nodal phi, element E, charge/energy, residual, mesh and negative controls | **PASS (mathematical coupon only)** — [G1 PH-03 addendum](m2-g1-lossless-fem-evidence.md) |
 | PH-04 | Single microstrip w/h/t/εr sweep including thin/thick copper | F: independent 2D FEM/qualified extractor + Q formulas | C,C0,L_ext,Z0, delay, edge charge, field/boundary convergence | **Not Run** |
 | PH-05 | Symmetric stripline w/t/h/εr sweep | F+Q | C,C0,L, impedance and field symmetry | **Not Run** |
 | PH-06 | Asymmetric stripline unequal upper/lower gaps/ε | F | C,C0,L, propagation and convergence, no forced symmetry | **Not Run** |
@@ -95,6 +95,8 @@ Use **SI units only**. Each record MUST specify:
 **Gate G0 (pre-implementation).** Freeze lossless scalar geometry input/ports, chosen independent F reference, explicit PEC/lossless metadata, external rights, definition of mesh/domain convergence, and PH-01/03/04 expected-reference generation. All currently PENDING; do not stamp Ready/Validated.
 
 **G1 (microstrip electrostatics).** One straight single microstrip C/C0 and L_ext implemented; execute PH-01,03,04,17,18,19,20 (safety negative controls). Evidence tied to commit and hash. Release only specifically qualified ideal uniform coupon scope; no real lossy-board full-path results.
+
+**G1 PH-03 completion gate (2026-10-15 KST).** The mathematical Neumann-sidewall plate passed frozen [PH-03 acceptance](m2-ph03-parallel-plate-acceptance-contract.md) on [Actions 38663357466](https://github.com/july-rust/BoardSI/actions/runs/38663357466). This is an idealized G1 supplement, NOT real-PCB extraction, finite-width fringe, real losses or 30 GHz validation. Official order: **G0 → G1 limited prototype → G1 PH-03 completion → G2 PH-05 symmetric stripline → PH-06 asymmetric → PH-07 multilayer/mask → PH-08 reference-topology controls**. G5 Canonical integration is later; PR #35 is G5 design preflight and remains separate.
 
 **G2 (other single ended geometries).** PH-05/06/07/08 and material/boundary validity controls. Finite-ground but longitudinally uniform segments may be supported after their own benchmarks; plane cutouts remain unsupported.
 

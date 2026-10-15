@@ -111,3 +111,58 @@ The independent Python complex-ABCD comparator now enforces the **pre-registered
 **G1 approval boundary:** approve only the numerically compared, artificial one-conductor PEC/lossless finite-grounded-box research prototype. PH-01/02/04/17/18/19/20 are **partial scoped proofs**, not completed general PH certifications. PH-03 exact FEM plate test remains **Not Run**. Real copper and dielectric losses, dispersive dielectric, reference cutouts, via/pad/3D discontinuities, open-space microstrip, differential lines, and any 30 GHz physical-band correctness remain **Unsupported/Not Run**; no actual real PCB was analyzed.
 
 **Following gate recommendations (do not implement in this PR):** G2 should first freeze new independent coupons for PH-05 symmetric stripline, PH-06 asymmetric stripline, PH-07 multilayer/mask microstrip, then PH-08 finite copper/reference topology; use independent field calculations, energy and boundary convergence on each before declaring a supported geometry. G3 models R/G/internal L; G4 multiconductor and mixed-mode; G5 the Canonical→Solver/Worker adapter. [PR #35](https://github.com/july-rust/BoardSI/pull/35) is *G5 adapter design preflight only*, not G2 implementation or proof.
+
+
+---
+
+## PH-03 G1 completion addendum — 2026-10-15 KST, PR #37
+
+**This later addendum supersedes ONLY the historical PH-03 `Not Run` entries above.** Original #34 restricted grounded-PEC-box G1 evidence and earlier PH-01/02/04/17/18/19/20 results are preserved; no general physical validity is inferred. The PH-03 model has **top PEC 1 V, bottom PEC 0 V and natural homogeneous-Neumann left/right sides**, unlike the original finite grounded-box microstrip. Mathematically it is a rectangular insulated-sidewall plate, *not* a physical finite-width copper geometry with fringing.
+
+### Preregistered contract and independent evidence
+
+- Contract committed **first**, before FEM implementation or PH-03 runs: [PH-03 acceptance contract](m2-ph03-parallel-plate-acceptance-contract.md), commit `0769ede0e40861d6b587b910f85b2d9d18073276`. All G0/G1 tolerances unchanged.
+- Independent class-M mathematical comparator [m2_ph03_plate_check.py](../../tools/validation/m2_ph03_plate_check.py) computes directly from G0 constants `eps0=8.8541878188e-12 F/m`, `mu0=1.25663706127e-6 H/m`, `w=0.0003 m`, `h=0.0002 m`, `eps_r=3.4`; it does **not** import FEM source, stiffness, or calculated reference outputs.
+- Baseline *code-head* Actions [38663357466](https://github.com/july-rust/BoardSI/actions/runs/38663357466) on `2ac349c2e47f9c2271efb4f620bd8e8be9c50194`: **PASS** in Ubuntu 24.04 / Rust 1.75.0 release, strict Clippy `-D warnings`, existing synthetic microstrip FVM/S checks, PH-03 n8/16/32 independent analytical comparator and negative CLI, plus the unchanged M0 Rust workspace (69 tests). Corresponding [documentation CI 38663357473](https://github.com/july-rust/BoardSI/actions/runs/38663357473) **PASS**. Later final-head CI must also be checked before merger.
+- G0 analytical reference: `C=4.515635787588e-11 F/m`; `C0=1.32812817282e-11 F/m`; `Lext=8.377580408467e-7 H/m`; `Z0=136.20713227098116 ohm`; `delay=6.1506180100757495e-9 s/m`. Voltage `phi=z/h`, `Ex=0`, `Ez=-5000 V/m`.
+
+### Raw FEM observations from executable (no fitted factors)
+
+| n | C (F/m) | C0 (F/m) | Lext (H/m) | Z0 (ohm) | Delay (s/m) |
+|---|---:|---:|---:|---:|---:|
+| 8 | 4.5156357875879966e-11 | 1.3281281728200012e-11 | 8.3775804084666607e-7 | 136.20713227098119 | 6.1506180100757454e-9 |
+| 16 | 4.5156357875879966e-11 | 1.3281281728199972e-11 | 8.3775804084666861e-7 | 136.20713227098139 | 6.1506180100757545e-9 |
+| 32 | 4.5156357875880470e-11 | 1.3281281728200182e-11 | 8.3775804084665537e-7 | 136.20713227097954 | 6.1506180100757404e-9 |
+
+The **n32 relative errors** against independently generated, full-precision mathematical values were: `C 1.04e-14`, `C0 1.35e-14`, `Lext 1.35e-14`, `Z0 1.19e-14`, `delay 1.33e-15` (dimensionless, minor last-bit changes depend on decimal serialization). Every value is vastly below the frozen **0.001 (0.1%)** requirement, with C/C0 below the additional 1e-6 relative diagnostic. For mesh changes n8→16 and n16→32, respectively: maximum over the five derived parameters `3.11e-15` and `1.58e-14`, both below `1e-6`.
+
+### Field, charge and resource evidence
+
+| n | DOF | Nodes | Triangles | CSR nnz | FEM dielectric/vacuum solve wall time (s) | Peak process RSS (MB, decimal) |
+|---|---:|---:|---:|---:|---:|---:|
+| 8 | 91 | 117 | 192 | 415 | 0.000095809 / 0.000049222 | 2.67 |
+| 16 | 375 | 425 | 768 | 1795 | 0.000283642 / 0.000227556 | 2.78 |
+| 32 | 1519 | 1617 | 3072 | 7435 | 0.001462580 / 0.001136430 | 3.44 |
+
+Times are `Instant` wall times per field solve, not a separately measured CPU-time benchmark. GNU `time -v` recorded process CPU user/system time as 0.00 s at its displayed resolution for each of these very small cases, so precise CPU time is **not determined**. Process RSS values are from peak `ru_maxrss` in KiB (2604/2712/3364 KiB) converted to decimal MB; not peak solver heap alone.
+
+At n32: largest nodal potential error `5.882e-13 V`; x-row spread `1.093e-12 V`; PEC potential error `0 V`; worst normalized Ex error `3.153e-11`, worst normalized Ez error `3.445e-11` (both dielectric/vacuum included). Both fields' true linear residuals `4.618e-12` and `5.164e-12`; largest n32 energy/charge relative discrepancy `4.230e-14`. Charge-derived C and C0 independently meet the fixed 0.1% mathematical reference limit. Energy and reaction charge are two **diagnostics of the same FEM discretization**, not separate independent mathematical or physical field solvers.
+
+Negative input cases in Rust include wrong/coincident electrode positions or voltages, grounded sidewalls, layered/lossy materials, nonunit permeability, non-PEC topology, nonfinite/negative/zero/nonconforming dimensions, NaN/Infinity, and oversized or overflowing mesh; deliberate catch-unwind checks show errors rather than panic. Additional release-CLI invalid-mesh negative check PASS.
+
+### Final scope / gate status after the code-head test
+
+| Gate / test | Observed conclusion |
+|---|---|
+| PH-03-A potential | **PASS** — mathematical rectangle only |
+| PH-03-B element E | **PASS** — homogeneous ideal medium only |
+| PH-03-C C/C0, Lext, Z0, delay | **PASS** — exact analytical anchor |
+| PH-03-D energy/charge/residual | **PASS** — discrete diagnostics |
+| PH-03-E n8→16→32 | **PASS** — expected exactly affine field |
+| PH-03-F negative controls | **PASS** |
+| Original G1 S/microstrip/PEC-box + Clippy + M0 Rust regressions | **PASS** on referenced Actions |
+| PH-05..08 G2 stripline/additional geometries | **Not Run**, no code implemented |
+| Real copper R/G, dielectric dispersion, 30 GHz band, differential, via/pad, 3D, measured PCB accuracy | **Unsupported/Not Run** |
+| Qt GUI/Worker runtime newly exercised by this PH-03 run | **Not Run** (no interface changes; existing Rust M0 tests run) |
+
+**No physical product-level `Validated` status is justified.** PR #35 remains an untouched G5 design Draft, Issue #16 remains Open. Required development order is **G0 → G1 limited prototype → PH-03 completion → G2 PH-05 symmetric stripline → PH-06 asymmetric → PH-07 multilayer/mask → PH-08 topology controls**. Each later stage needs its own preregistered independent references and reviewed tolerance.
