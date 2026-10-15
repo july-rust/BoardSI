@@ -274,27 +274,83 @@ public:
                            {"os", QSysInfo::prettyProductName()}, {"cpu_arch", QSysInfo::currentCpuArchitecture()}};
         int code=0;
         QElapsedTimer entireClock; entireClock.start();
-        qint64 lastTick=0, entireMaxGap=0;
+        qint64 lastTick=0, entireMaxGap=0, worstGapAtMs=0;
+        QString phase="initialization", lastTickPhase="initialization";
+        QString worstGapFromPhase="initialization", worstGapToPhase="initialization";
+        QJsonObject phaseMaxGaps, phaseDurations;
+        QJsonArray longGaps;
+        // A global timer measures callback-delivery gaps, not their cause.
+        // Capture the previous and current harness phase to make rare CI
+        // outliers diagnosable without changing the original 1000 ms gate.
+        auto observeGap = [&](qint64 now) {
+            const qint64 gap=now-lastTick;
+            if (gap>phaseMaxGaps.value(phase).toInteger())
+                phaseMaxGaps[phase]=gap;
+            if (gap>entireMaxGap) {
+                entireMaxGap=gap;
+                worstGapAtMs=now;
+                worstGapFromPhase=lastTickPhase;
+                worstGapToPhase=phase;
+            }
+            // Diagnostic only: 250 ms is NOT a new acceptance threshold.
+            if (gap>250 && longGaps.size()<32)
+                longGaps.append(QJsonObject{{"gap_ms",gap}, {"start_ms",lastTick},
+                                            {"end_ms",now}, {"from_phase",lastTickPhase},
+                                            {"to_phase",phase}});
+            lastTick=now;
+            lastTickPhase=phase;
+        };
         QTimer entireTick; entireTick.setInterval(10);
-        QObject::connect(&entireTick,&QTimer::timeout,[&] {
-            const auto now=entireClock.elapsed(); entireMaxGap=qMax(entireMaxGap,now-lastTick); lastTick=now;
-        });
+        QObject::connect(&entireTick,&QTimer::timeout,[&] { observeGap(entireClock.elapsed()); });
         entireTick.start();
+        auto inPhase = [&](const QString &name, const std::function<void()> &operation) {
+            phase=name;
+            const qint64 started=entireClock.elapsed();
+            try { operation(); }
+            catch (...) {
+                phaseDurations[name]=entireClock.elapsed()-started;
+                throw;
+            }
+            phaseDurations[name]=entireClock.elapsed()-started;
+        };
         try {
+            phase="preflight";
             const auto arch=qEnvironmentVariable("BOARDSI_EXPECTED_QT_ARCH");
             if(!arch.isEmpty()) check(QSysInfo::currentCpuArchitecture()==arch,"Qt executable architecture mismatch");
             const auto backend=qEnvironmentVariable("BOARDSI_EXPECTED_QT_PLATFORM");
             if(!backend.isEmpty()) check(QGuiApplication::platformName()==backend,"Native Qt platform backend mismatch");
-            normal(); cancellation(); realCrash();
-            for (const auto &m : {"failed1","failed2","exit7","crash","schema","duplicate","reverse","scope","snapshot","frame","json","truncated"}) fault(QString::fromLatin1(m),true);
-            fault("partial",false); burst(); completionRace(); closedCancel(); cpuStress();
-            hang("unresponsive",true); hang("cancel-hang"); hang("completed-hang"); noHeartbeat(); closing();
-            entireMaxGap=qMax(entireMaxGap,entireClock.elapsed()-lastTick);
+            inPhase("normal", [&] { normal(); });
+            inPhase("cancellation", [&] { cancellation(); });
+            inPhase("real-crash", [&] { realCrash(); });
+            for (const auto &m : {"failed1","failed2","exit7","crash","schema","duplicate","reverse","scope","snapshot","frame","json","truncated"}) {
+                const auto mode=QString::fromLatin1(m);
+                inPhase("fault-"+mode, [&] { fault(mode,true); });
+            }
+            inPhase("partial", [&] { fault("partial",false); });
+            inPhase("burst", [&] { burst(); });
+            inPhase("completion-race", [&] { completionRace(); });
+            inPhase("closed-cancel", [&] { closedCancel(); });
+            inPhase("cpu-stress", [&] { cpuStress(); });
+            inPhase("unresponsive", [&] { hang("unresponsive",true); });
+            inPhase("cancel-hang", [&] { hang("cancel-hang"); });
+            inPhase("completed-hang", [&] { hang("completed-hang"); });
+            inPhase("no-heartbeat", [&] { noHeartbeat(); });
+            inPhase("closing", [&] { closing(); });
+            phase="global-gate";
+            observeGap(entireClock.elapsed());
             check(entireMaxGap<=1000,"Global event-loop gap exceeded 1s");
         } catch (const std::exception &e) { report["failure"]=QString::fromUtf8(e.what()); code=1; }
         entireTick.stop();
+        phase="report";
+        observeGap(entireClock.elapsed());
         metrics["entire_test_timer_max_gap_ms"]=entireMaxGap;
         metrics["entire_test_elapsed_ms"]=entireClock.elapsed();
+        metrics["global_max_gap_end_ms"]=worstGapAtMs;
+        metrics["global_max_gap_from_phase"]=worstGapFromPhase;
+        metrics["global_max_gap_to_phase"]=worstGapToPhase;
+        metrics["phase_timer_max_gap_ms"]=phaseMaxGaps;
+        metrics["phase_elapsed_ms"]=phaseDurations;
+        metrics["long_timer_gaps_over_250_ms"]=longGaps;
         report["pass"]=code==0; report["assertions"]=assertions; report["cases"]=cases; report["metrics"]=metrics;
         const auto bytes=QJsonDocument(report).toJson(QJsonDocument::Indented);
         QFile out("qt-runtime-results.json");
