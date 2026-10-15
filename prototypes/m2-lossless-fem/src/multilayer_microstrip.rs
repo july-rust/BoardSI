@@ -356,7 +356,7 @@ mod tests {
         let base=MicrostripCoupon::ph07('D',32,0.0012,0.0008).unwrap();
         let mut cases=Vec::new();
         let mut c=base.clone();c.width_m=0.0;cases.push(c);
-        let mut c=base.clone();c.copper_thickness_m=-1.0;cases.push(c);
+        let mut c=base.clone();c.copper_thickness_m = -1.0;cases.push(c);
         let mut c=base.clone();c.air_epsilon_r=0.0;cases.push(c);
         let mut c=base.clone();c.half_span_m=f64::NAN;cases.push(c);
         let mut c=base.clone();c.top_m=0.00025;cases.push(c);
