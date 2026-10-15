@@ -19,3 +19,10 @@ The connected GitHub service does not offer a direct Projects creation action. U
 - All work on focused branches; merge only after tests and written evidence.
 - No real company PCB/stackup/netlist/Touchstone data in repository, PRs, Issues, CI or artifacts.
 - Native compilation and actual runtime acceptance are distinct; the docs-only CI intentionally checks neither.
+
+## M2 G0 / G1 change history — 2026-10-15 KST
+
+- [#33](https://github.com/july-rust/BoardSI/pull/33) G0 independent synthetic PEC-grounded-box FVM oracle and frozen mathematical/numerical gates were squash merged at `main@ec5fa4b048c0c00d8588dfd90f2c35e1107e220b`.
+- [#34](https://github.com/july-rust/BoardSI/pull/34) G1 isolates a triangular Rust FEM prototype and an independent SciPy FVM / Python ABCD comparator. Final review hardened Mesh dimension overflow and enforced the frozen `1e-12` *complex* S tolerance, distinguishing matched PH-01 from mismatched 50-ohm PH-02. [G1 evidence and exact status ledger](validation/m2-g1-lossless-fem-evidence.md) records partial scoped PASS, Not Run, raw observed numbers, and an initial M0 Worker regression failure requiring clean subsequent CI before merge.
+- All actual PCB lossy RLGC, DC, multiconductor, open-boundary/frequency qualification, full product T-tests, and the PH-03 exact FEM plate remain outside the accepted G1 scope. Issue [#16](https://github.com/july-rust/BoardSI/issues/16) stays **Open**.
+- Subsequent order is **G2** PH-05..08 other Single-ended geometries; **G3** copper/dielectric losses; **G4** differential/multiconductor; **G5** Canonical Board Model→Solver integration. [#35](https://github.com/july-rust/BoardSI/pull/35) is a draft **G5 architecture preflight**, not proof that G2 or G5 is implemented.
