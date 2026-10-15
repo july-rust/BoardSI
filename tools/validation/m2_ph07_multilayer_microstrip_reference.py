@@ -16,6 +16,7 @@ import pathlib
 import resource
 import subprocess
 import platform
+import os
 from m2_ph07_inputs import expected_cases, validate_input
 import sys
 import time
@@ -387,6 +388,26 @@ def validate_properties(data, inp, result, check, name):
     check(f"{name}:FEM:sampled_field_integrity",True,comparison)
 
 
+def host_info():
+    cpu=platform.processor()
+    if sys.platform.startswith("linux"):
+        for line in pathlib.Path("/proc/cpuinfo").read_text().splitlines():
+            if line.startswith("model name"):
+                cpu=line.split(":",1)[1].strip()
+                break
+    info=dict(platform=platform.platform(),python=sys.version,cpu=cpu,
+              machine=platform.machine(),logical_cpu_count=os.cpu_count(),
+              numpy=np.__version__)
+    import scipy
+    info["scipy"]=scipy.__version__
+    if hasattr(os,"sysconf"):
+        info["os_reported_ram_bytes"]=os.sysconf("SC_PHYS_PAGES")*os.sysconf("SC_PAGE_SIZE")
+    cgroup=pathlib.Path("/sys/fs/cgroup/memory.max")
+    if cgroup.exists():
+        info["cgroup_memory_max"]=cgroup.read_text().strip()
+    return info
+
+
 def run(files, destination):
     source_sha = hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()
     cases = {}
@@ -533,8 +554,7 @@ def run(files, destination):
                       other_internal_convergence_property_checks=len(checks)-len(cross)-
                           sum(":sampled_phi_Ex_Ez" in c["name"] for c in checks)),
         "primary_max_rel_error":max(c["details"] for c in independent),
-        "host":dict(platform=platform.platform(),python=sys.version,
-                    cpu=platform.processor(),machine=platform.machine()),
+        "host":host_info(),
         "scope":"synthetic PEC electrostatic coupon, not real PCB or AC/magnetic/fullwave"
     }
     pathlib.Path(destination).write_text(json.dumps(evidence,indent=2,allow_nan=False)+"\n")

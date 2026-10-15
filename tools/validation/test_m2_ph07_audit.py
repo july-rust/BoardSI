@@ -46,6 +46,44 @@ class InputMutation(unittest.TestCase):
                 count+=1
         print(f'PH07 input mutation rejections PASS: {count}; original cases: {len(expected_cases())}')
 
+    def test_real_checker_exit_on_geometry_mutations(self):
+        import subprocess
+        import tempfile
+        from m2_ph07_multilayer_microstrip_reference import run
+        from unittest.mock import patch
+        script=str(pathlib.Path(__file__).with_name('m2_ph07_multilayer_microstrip_reference.py').resolve())
+        with tempfile.TemporaryDirectory() as temp:
+            dest=pathlib.Path(temp)
+            for name in expected_cases():
+                (dest/(name+'.json')).write_text((self.root/(name+'.json')).read_text())
+            files=[str(dest/(n+'.json')) for n in expected_cases()]
+            for name,path in [('ph07-A-n32',('width_m',)),
+                              ('ph07-C-n64',('layers',0,'height_m')),
+                              ('ph07-D-n128',('mask','epsilon_r')),
+                              ('ph07-B-B16',('top_boundary',))]:
+                target=dest/(name+'.json')
+                original=target.read_text()
+                data=json.loads(original)
+                node=data
+                for key in path[:-1]:
+                    node=node[key]
+                value=node[path[-1]]
+                node[path[-1]]=value*1.01 if isinstance(value,(int,float)) else 'Dirichlet'
+                target.write_text(json.dumps(data))
+                proc=subprocess.run([sys.executable,script,'--fem',*files,
+                                     '--output',str(dest/'evidence.json')],capture_output=True,text=True)
+                self.assertNotEqual(proc.returncode,0)
+                self.assertIn('PH07 independent FVM FAILED',proc.stderr)
+                self.assertNotIn('PH07_CASE',proc.stdout)
+                self.assertFalse((dest/'evidence.json').exists())
+                target.write_text(original)
+            with patch('m2_ph07_multilayer_microstrip_reference.solve_isolated') as solve:
+                for invalid in (files[:-1],files+[files[0]]):
+                    with self.assertRaises(ValueError):
+                        run(invalid,str(dest/'evidence.json'))
+                solve.assert_not_called()
+        print('PH07 whole-checker CLI mutations PASS: 4; missing/duplicate case sets rejected')
+
     def test_missing_and_unknown(self):
         d=json.loads((self.root/'ph07-A-n32.json').read_text())
         del d['top_boundary']

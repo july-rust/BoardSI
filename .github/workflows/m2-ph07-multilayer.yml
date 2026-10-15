@@ -33,7 +33,7 @@ jobs:
           from m2_ph07_inputs import expected_cases
           source=hashlib.sha256(pathlib.Path("tools/validation/m2_ph07_multilayer_microstrip_reference.py").read_bytes()).hexdigest()
           fixture=hashlib.sha256(json.dumps(FIXTURE,sort_keys=True,separators=(",",":")).encode()).hexdigest()
-          assert source=="94c675dc78e9ec309793d83c0b64b89258eea00f35792dbd76cc09d935d9c7af", "PH07 audited reference source changed"
+          assert source=="de8d1efb8c92a741255ea0baa0422b3f63f22df7c5411f7ce0071d5f83938d89", "PH07 audited reference source changed"
           # Audit adds executable checks; hashes are recorded in evidence.
           # Fixture and independent manifest remain pinned below.
           assert fixture=="e85f99cba980cb9eb3eea0db436ca6d3a8a6b2026f5c1fcdfe7fa2e3f2b35489", "PH-07 fixture hash mismatch"
