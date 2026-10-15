@@ -25,6 +25,7 @@ class RuntimeValidation {
     void startupMark(const char *name) {
         startupMilestones[QString::fromLatin1(name)] = startupClock.elapsed();
     }
+public:
     // Timings before RuntimeValidation::run() are diagnostics only; the
     // pre-existing global 1000 ms gate still begins inside run().
     void setAppBootstrap(qint64 constructorMs, qint64 loopEntryMs, qint64 firstDispatchMs) {
@@ -32,6 +33,7 @@ class RuntimeValidation {
                                    {"app_exec_entry_ms", loopEntryMs},
                                    {"first_event_dispatch_ms", firstDispatchMs}};
     }
+private:
     using Steady = std::chrono::steady_clock;
     void check(bool ok, const char *message) {
         ++assertions;
