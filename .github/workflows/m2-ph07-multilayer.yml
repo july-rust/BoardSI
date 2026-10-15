@@ -1,0 +1,121 @@
+name: M2 PH-07 multilayer masked microstrip independent FVM
+on:
+  pull_request:
+    paths:
+      - 'prototypes/m2-lossless-fem/**'
+      - 'tools/validation/m2_ph07_multilayer_microstrip_reference.py'
+      - 'docs/validation/m2-g2-ph07-*.md'
+      - 'docs/validation/README.md'
+      - 'docs/validation/m2-rlgc-independent-verification-plan.md'
+      - 'docs/development-history.md'
+      - '.github/workflows/m2-ph07-multilayer.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ph07-independent-field:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install pinned Rust and Python
+        run: rustup toolchain install 1.75.0 --profile minimal --component clippy
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install independent FVM dependencies
+        run: python -m pip install numpy==2.3.5 scipy==1.17.0
+      - name: Rust FEM unit tests, strict Clippy, release build and M0 workspace
+        run: |
+          set -euo pipefail
+          cargo +1.75.0 test --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release
+          cargo +1.75.0 clippy --manifest-path prototypes/m2-lossless-fem/Cargo.toml --all-targets -- -D warnings
+          cargo +1.75.0 build --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release
+          cargo +1.75.0 test --workspace
+          python -m py_compile tools/validation/m2_ph07_multilayer_microstrip_reference.py
+          python tools/validation/m2_ph07_multilayer_microstrip_reference.py --self-test
+      - name: Generate independent numerical evidence, boundary and parameter sweeps
+        run: |
+          set -euo pipefail
+          bin="prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem"
+          for case in A B C D; do
+            for n in 32 64 128; do
+              /usr/bin/time -v -o "ph07-$case-n$n.resources.txt" "$bin" microstrip "$case" "$n" 0.0012 0.0008 > "ph07-$case-n$n.json"
+            done
+            cp "ph07-$case-n64.json" "ph07-$case-B12.json"
+            cp "ph07-$case-n64.json" "ph07-$case-H08.json"
+            for spec in "B16 0.0016" "B24 0.0024"; do
+              set -- $spec
+              /usr/bin/time -v -o "ph07-$case-$1.resources.txt" "$bin" microstrip "$case" 64 "$2" 0.0008 > "ph07-$case-$1.json"
+            done
+            # Fixed dz=0.0125 mm, only computational top domain changes.
+            /usr/bin/time -v -o "ph07-$case-H12.resources.txt" "$bin" microstrip "$case" 96 0.0012 0.0012 > "ph07-$case-H12.json"
+            /usr/bin/time -v -o "ph07-$case-H16.resources.txt" "$bin" microstrip "$case" 128 0.0012 0.0016 > "ph07-$case-H16.json"
+          done
+          # All parameters supplied as (mask_t,mask_er,lower_er,upper_er).
+          "$bin" microstrip C 64 0.0012 0.0008 0 1 3.4 3.4 > ph07-equal.json
+          "$bin" microstrip D 64 0.0012 0.0008 0.0000125 3.3 3.4 4.0 > ph07-mask-t12.json
+          "$bin" microstrip D 64 0.0012 0.0008 0.0000500 3.3 3.4 4.0 > ph07-mask-t50.json
+          "$bin" microstrip D 64 0.0012 0.0008 0.0000250 1.0 3.4 4.0 > ph07-mask-er1.json
+          "$bin" microstrip D 64 0.0012 0.0008 0.0000250 4.0 3.4 4.0 > ph07-mask-er4.json
+          "$bin" microstrip C 64 0.0012 0.0008 0 1 4.0 4.0 > ph07-layer-high.json
+          "$bin" microstrip C 64 0.0012 0.0008 0 1 4.0 3.4 > ph07-layer-swapped.json
+          "$bin" microstrip C 64 0.0012 0.0008 0 1 1.0 1.0 > ph07-vacuum.json
+          # This Python FVM code never reads FEM physics values as its own reference input.
+          python tools/validation/m2_ph07_multilayer_microstrip_reference.py \
+            --fem ph07-*.json --output ph07-independent-evidence.json
+          python - <<'PY'
+          import json
+          d=json.load(open("ph07-independent-evidence.json"))
+          print("PH07 final",d["status"],"gates",d["gate_count"],"failed",d["failed_gates"])
+          print("PH07 independent SHA-256 source:",d["source_sha256"])
+          print("PH07 fixture SHA-256:",d["fixture_sha256"])
+          if d["status"]!="PASS": raise SystemExit(1)
+          PY
+          echo "PH07 sample resource measurements:"
+          grep -E 'User time|System time|Elapsed|Maximum resident set size' ph07-A-n128.resources.txt
+      - name: PH-07 negative CLI rejection must be nonzero without panic
+        run: |
+          set -euo pipefail
+          bin="prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem"
+          declare -a invalid=(
+            "X 32 0.0012 0.0008"
+            "A 0 0.0012 0.0008"
+            "A 32 0 0.0008"
+            "A 32 1e300 0.0008"
+            "A 32 0.0012 0.00025"
+            "D 32 0.0012 0.0008 -0.000025 3.3 3.4 4.0"
+            "D 32 0.0012 0.0008 0.000021 3.3 3.4 4.0"
+            "D 32 0.0012 0.0008 0.000025 0 3.4 4.0"
+            "C 32 0.0012 0.0008 0 1 0 4.0"
+            "C 32 0.0012 0.0008 0 1 NaN 4.0"
+            "A 32 0.0012 0.0008 0.000025 3.3 3.4 3.4"
+            "A 32 0.0012 0.0008 0 1 3.4 4.0"
+            "D 128 1e50 0.0008"
+          )
+          count=0
+          for s in "${invalid[@]}"; do
+            if "$bin" microstrip $s > ph07-invalid.stdout 2> ph07-invalid.stderr; then
+              echo "PH07 NEGATIVE FAIL: accepted $s"
+              exit 1
+            fi
+            if grep -qi "panicked" ph07-invalid.stderr; then
+              echo "PH07 NEGATIVE FAIL: panic $s"
+              exit 1
+            fi
+            test ! -s ph07-invalid.stdout
+            test -s ph07-invalid.stderr
+            count=$((count+1))
+          done
+          echo "PH07 negative cases PASS: $count"
+      - name: Upload PH-07 numerical evidence and resource data even on failed gate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ph07-numerical-evidence
+          path: |
+            ph07-*.json
+            ph07-*.resources.txt
+            ph07-invalid.*
+          retention-days: 14
+          if-no-files-found: warn
