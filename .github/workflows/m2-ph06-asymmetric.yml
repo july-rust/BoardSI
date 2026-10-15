@@ -6,6 +6,11 @@ on:
       - 'tools/validation/m2_ph06_asymmetric_stripline_reference.py'
       - 'tools/validation/m2_ph06_invariant_sweeps.py'
       - 'docs/validation/m2-g2-ph06-acceptance-contract.md'
+      - 'docs/validation/m2-g2-ph06-independent-reference.md'
+      - 'docs/validation/m2-g2-ph06-fem-evidence.md'
+      - 'docs/validation/m2-rlgc-independent-verification-plan.md'
+      - 'docs/validation/README.md'
+      - 'docs/development-history.md'
       - '.github/workflows/m2-ph06-asymmetric.yml'
   workflow_dispatch:
 permissions:
@@ -33,6 +38,8 @@ jobs:
           set -euo pipefail
           bin="prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem"
           python -m py_compile tools/validation/m2_ph06_asymmetric_stripline_reference.py
+          # Validate pinned independent oracle + canonical fixture hashes before running numerical gates.
+          PYTHONPATH=tools/validation python -c 'import hashlib,json,pathlib; from m2_ph06_asymmetric_stripline_reference import FIXTURE; src=pathlib.Path("tools/validation/m2_ph06_asymmetric_stripline_reference.py").read_bytes(); assert hashlib.sha256(src).hexdigest()=="25996b9315f5aaf547a16cb6685429821a3144696b6abd9418c0190f5f890011", "PH-06 independent FVM source changed"; assert hashlib.sha256(json.dumps(FIXTURE,sort_keys=True,separators=(",",":")).encode()).hexdigest()=="01653c029ab80170b7ba95d049b1ff6849fbe5d25c1a07a4f2535553746b482f", "PH-06 fixture changed"; print("PH-06 pinned independent source and fixture SHA-256 PASS")'
           python tools/validation/m2_ph06_asymmetric_stripline_reference.py --self-test
           for model in A B; do
             for n in 32 64 128; do
