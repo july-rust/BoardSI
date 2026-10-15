@@ -1,6 +1,6 @@
 # M2 physical RLGC — independent reference and validation plan
 
-**Plan status: PH-03 mathematical coupon PASS and PH-05 limited synthetic class-F PASS; other NEW physical field/PCB cases remain Not Run.**  
+**Plan status: PH-03 mathematical coupon PASS, PH-05 limited synthetic class-F PASS, PH-06 limited homogeneous/two-region synthetic class-F PASS; PH-07 onward and real-PCB/full-wave/loss cases remain Not Run.**  
 **Created:** 2026-10-14 KST; **source baseline:** `main@35285a47a72beabb4885a8e17f35867e6c20bac0` (merged PR #30).  
 **Companion ADR:** [m2-rlgc-physical-model-adr.md](../architecture/m2-rlgc-physical-model-adr.md).  
 **Immutable product specification:** [BoardSI v1.0](../specification/BoardSI_Development_Spec_v1.0.md), particularly §§6, 8, 8.2, 13, 13.1, 14, 15. Issues #7/#16/#17.
@@ -15,7 +15,7 @@
 
 Existing evidence: [numerical report](m0-numerical-foundation.md) has 180 independent fixed scalar RLGC→S mathematical cases; [native report](m0-native-platforms.md) records numerical native results. These remain historical **M-class numerical PASS only**, not newly executed physical tests and **not** a substitute for F/X. Existing Qt/Worker evidence remains separate.
 
-## 2. Proposed matrix — update PH-03 and restricted PH-05 only
+## 2. Independent reference matrix — PH-03, PH-05 and restricted PH-06 evidence
 
 | ID | Coupon and varied parameters | Independent oracle class | Measured quantities / primary acceptance question | Status |
 | --- | --- | --- | --- | --- |
@@ -24,7 +24,7 @@ Existing evidence: [numerical report](m0-numerical-foundation.md) has 180 indepe
 | PH-03 | Homogeneous insulated-sidewall parallel plate (top/bottom PEC; side Neumann 0, no physical fringing) | M exact potential/field math; Rust P1 FEM checked against M (NOT external F) | C, C0, Lext, Z0, delay, nodal phi, element E, charge/energy, residual, mesh and negative controls | **PASS (mathematical coupon only)** — [G1 PH-03 addendum](m2-g1-lossless-fem-evidence.md) |
 | PH-04 | Single microstrip w/h/t/εr sweep including thin/thick copper | F: independent 2D FEM/qualified extractor + Q formulas | C,C0,L_ext,Z0, delay, edge charge, field/boundary convergence | **Not Run** |
 | PH-05 | Symmetric stripline w/t/h/εr sweep | F+Q | C,C0,L, impedance and field symmetry | **PASS (limited ideal PEC/lossless homogeneous coupon, independent cell-centred FVM + P1 FEM)** — [G2 PH-05 evidence](m2-g2-ph05-fem-evidence.md); no full-wave/real PCB validity |
-| PH-06 | Asymmetric stripline unequal upper/lower gaps/ε | F | C,C0,L, propagation and convergence, no forced symmetry | **Not Run** |
+| PH-06 | Asymmetric stripline unequal upper/lower gaps and optional exactly two horizontal homogeneous dielectric regions | F + M + S | C,C0,Lext from C0, Z0, delay, per-ground free charge, mesh/sidewall convergence, reflection and no forced z symmetry | **PASS (restricted synthetic lossless 2D PEC/quasi-TEM homogeneous/two-region)** — [frozen contract](m2-g2-ph06-acceptance-contract.md), [independent FVM](m2-g2-ph06-independent-reference.md), [FEM evidence](m2-g2-ph06-fem-evidence.md); no actual board, AC magnetic, full-wave or 30 GHz evidence |
 | PH-07 | Multilayer microstrip with air and explicit solder mask on/off | F | ε distribution, C change, field-energy fractions, exact mask inclusion | **Not Run** |
 | PH-08 | Finite copper thickness, trapezoid/surface shape and finite-width but longitudinally uniform reference plane | F | Cross-section sensitivity and topology; do not assume infinite reference | **Not Run** |
 | PH-09 | Coupled microstrip P,N and gap/mask/ε variation | F + M 4-port | Full Maxwell C/C0 and L matrices; even/odd impedance for *symmetric* case, near/far coupling | **Not Run** |
@@ -96,9 +96,9 @@ Use **SI units only**. Each record MUST specify:
 
 **G1 (microstrip electrostatics).** One straight single microstrip C/C0 and L_ext implemented; execute PH-01,03,04,17,18,19,20 (safety negative controls). Evidence tied to commit and hash. Release only specifically qualified ideal uniform coupon scope; no real lossy-board full-path results.
 
-**G1 PH-03 completion gate (2026-10-15 KST).** The mathematical Neumann-sidewall plate passed frozen [PH-03 acceptance](m2-ph03-parallel-plate-acceptance-contract.md) on [Actions 38663357466](https://github.com/july-rust/BoardSI/actions/runs/38663357466). This is an idealized G1 supplement, NOT real-PCB extraction, finite-width fringe, real losses or 30 GHz validation. Official order: **G0 → G1 limited prototype → G1 PH-03 completion → G2 PH-05 symmetric stripline → PH-06 asymmetric → PH-07 multilayer/mask → PH-08 reference-topology controls**. G5 Canonical integration is later; PR #35 is G5 design preflight and remains separate.
+**G1 PH-03 completion gate (2026-10-15 KST).** The mathematical Neumann-sidewall plate passed frozen [PH-03 acceptance](m2-ph03-parallel-plate-acceptance-contract.md) on [Actions 38663357466](https://github.com/july-rust/BoardSI/actions/runs/38663357466). This is an idealized G1 supplement, NOT real-PCB extraction, finite-width fringe, real losses or 30 GHz validation. Official order: **G0 → G1 limited prototype → G1 PH-03 completion → G2 PH-05 symmetric stripline → PH-06 restricted homogeneous/two-region asymmetric PASS → PH-07 multilayer/mask → PH-08 reference-topology controls**. G5 Canonical integration is later; PR #35 is G5 design preflight and remains separate.
 
-**G2 (other single ended geometries).** PH-05/06/07/08 and material/boundary validity controls. Finite-ground but longitudinally uniform segments may be supported after their own benchmarks; plane cutouts remain unsupported.
+**G2 (other single ended geometries).** PH-05/06 limited validated coupons; PH-07/08 pending and material/boundary validity controls. Finite-ground but longitudinally uniform segments may be supported after their own benchmarks; plane cutouts remain unsupported.
 
 **G3 (lossy physics).** Implement and separately validate PH-12/13/14/15 and any optional PH-16. Declare supported f intervals, DC handling and material dispersion; test R,L_int,G not silently zero. Numerical scalar mapping baseline remains independent.
 
