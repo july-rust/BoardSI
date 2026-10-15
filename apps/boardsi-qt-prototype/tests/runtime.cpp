@@ -315,7 +315,6 @@ public:
         // outliers diagnosable without changing the original 1000 ms gate.
         auto observeGap = [&](qint64 now) {
             const qint64 gap=now-lastTick;
-            if (lastTick==0) startupMark("first_global_timer_callback");
             if (gap>phaseMaxGaps.value(phase).toInteger())
                 phaseMaxGaps[phase]=gap;
             if (gap>entireMaxGap) {
@@ -333,7 +332,10 @@ public:
             lastTickPhase=phase;
         };
         QTimer entireTick; entireTick.setInterval(10);
-        QObject::connect(&entireTick,&QTimer::timeout,[&] { observeGap(entireClock.elapsed()); });
+        QObject::connect(&entireTick,&QTimer::timeout,[&] {
+            if (lastTick==0) startupMark("first_global_timer_callback");
+            observeGap(entireClock.elapsed());
+        });
         entireTick.start();
         startupMark("global_timer_armed");
         auto inPhase = [&](const QString &name, const std::function<void()> &operation) {
@@ -409,10 +411,11 @@ int main(int argc,char **argv) {
     app.setQuitOnLastWindowClosed(false);
     if(argc!=4) return 2;
     RuntimeValidation test(QString::fromLocal8Bit(argv[1]),QString::fromLocal8Bit(argv[2]),QString::fromLocal8Bit(argv[3]));
-    const qint64 loopEntryMs=appClock.elapsed();
+    qint64 loopEntryMs=0;
     QTimer::singleShot(0,&app,[&] {
         test.setAppBootstrap(ctorMs,loopEntryMs,appClock.elapsed());
         app.exit(test.run());
     });
+    loopEntryMs=appClock.elapsed();
     return app.exec();
 }
