@@ -35,7 +35,20 @@ jobs:
           set -o pipefail
           /usr/bin/time -v prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem 32 0.0012 | tee m2-fem-n32.json
           python -m py_compile tools/validation/m2_g1_field_check.py tools/validation/m2_s2_analytic_check.py
+          python tools/validation/m2_s2_analytic_check.py --self-test
           python tools/validation/m2_s2_analytic_check.py m2-fem-n32.json
+          # PH-20: a huge but finite box must return a diagnosed error, not
+          # succeed or panic in optimized/release arithmetic.
+          if prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem 32 1e300 > m2-invalid-stdout.txt 2> m2-invalid-stderr.txt; then
+            echo "FAIL: enormous mesh was accepted"
+            exit 1
+          fi
+          grep -q "unsupported or numerical failure:" m2-invalid-stderr.txt
+          if grep -qi "panicked" m2-invalid-stderr.txt; then
+            echo "FAIL: enormous mesh caused Rust panic"
+            exit 1
+          fi
+          test ! -s m2-invalid-stdout.txt
           python tools/validation/m2_g1_field_check.py m2-fem-n32.json
       - name: Recheck existing M0 Rust workspace without Qt GUI rebuild
         run: |
