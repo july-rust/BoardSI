@@ -76,3 +76,38 @@ Run from repository checkout with Rust 1.75.0 and no external Rust dependencies:
 - Separate FVM oracle: follow [G0 execution instructions](m2-g0-acceptance-protocol.md). Product Rust code intentionally does not import SciPy.
 
 **Scoped G1 technical judgment:** the isolated synthetic PEC/lossless grounded-box FEM prototype and its preregistered numerical checks are suitable for review as a **restricted research prototype**; this is **not full physical G1/real-board Validated**. G0 PR #33 was squash merged, and PR #34 now targets the current main with exactly G1-only changed files. PR #34 is not merged without further review/approval. **G2 per independent validation plan means more single-ended structures (PH-05..08), not Canonical Model integration**; integration belongs to G5. An adapter feasibility/design-only study may precede G2/G5 without connecting this restricted prototype to live PCB data.
+
+## 6. Final review hardening (2026-10-15 KST)
+
+**Review changes relative to baseline `main@ec5fa4b0`:** Codex findings on [PR #34](https://github.com/july-rust/BoardSI/pull/34) were addressed by bounding finite mesh ratios **before** converting to `usize`, checking zero/underflowed grid spacing, and applying `checked_add` / `checked_mul` to node counts. Added PH-20 invalid-input tests include `box_m=1e300`, maximum finite, infinity/NaN, negative/zero, oversized and nonconforming domains, mesh subdivisions including `usize::MAX`, and invalid width, thickness, dielectric height and permittivity. The release CLI also checks that `32 1e300` exits unsuccessfully with a diagnosis and **without a panic**.
+
+The independent Python complex-ABCD comparator now enforces the **pre-registered absolute `1e-12`** threshold for all checked PH-01 and PH-02 complex S components, phase (PH-01), reciprocity/symmetry and power conservation, with deliberate `>1e-12` perturbation negative controls. The CLI explicitly emits **PH-01 matched-to-extracted-Z0** witnesses and retains the original **PH-02 50-ohm** witnesses, so the two physical port-reference bases cannot be confused. No frozen FVM, G0 or other G1 acceptance threshold was relaxed.
+
+[Initial corrective CI run 38658516551](https://github.com/july-rust/BoardSI/actions/runs/38658516551) on code commit `4b4c30af2938635bfe21581c68a513d04da9fe8f` produced the following **executed** results:
+
+| Evidence on this code commit | Observed | Gate | Result |
+| --- | --- | --- | --- |
+| Rust G1 tests | 4 unit + 2 integration | zero failures | **PASS** |
+| Strict Rust Clippy | `--all-targets -- -D warnings` | no warnings | **PASS** |
+| PH-20 oversized release `box_m=1e300` | explicit failure, no panic, no JSON output | reject | **PASS** |
+| Frozen complex S threshold self-check | `1e-12` accepted, larger perturbations rejected | frozen `1e-12` | **PASS** |
+| PH-01 matched S11 / S21 complex error | 0 / 4.32916e-14 | each <=1e-12 | **PASS** (scoped) |
+| PH-01 complex reciprocity / power error | 4.32916e-14 / 7.99361e-14 | each <=1e-12 | **PASS** (scoped) |
+| PH-02 50-ohm S11 / S21 complex error | 1.10546e-14 / 3.00397e-14 | each <=1e-12 | **PASS** (scoped) |
+| PH-02 complex reciprocity / power error | 3.00397e-14 / 7.32747e-15 | each <=1e-12 | **PASS** (scoped) |
+| Fresh independently recomputed source-locked SciPy FVM, C / C0 | 0.935689% / 0.439215% | each <=2% | **PASS** (scoped) |
+| FEM n16 to n32, C / C0 | 0.575816% / 0.328017% | each <=1.5% | **PASS** (scoped) |
+| PH-18 PEC-box n12 sensitivity maximum | 1.168449% | <=2% | **PASS** (scoped) |
+| True FEM residual material / vacuum | 9.58489e-12 / 9.49959e-12 | <=1e-8 | **PASS** (scoped) |
+| Charge-energy relative discrepancy | 5.00711e-14 | <=1e-6 | **PASS** (scoped) |
+| Existing M0 Rust workspace (69 tests) on initial corrective run | 1 Worker cancel-delivery assertion failed | all PASS needed to merge | **FAIL on initial run; investigate/recheck** |
+| Qt native GUI/Worker execution | not executed | separate existing evidence | **Not Run** |
+| PH-03 exact edge-free parallel plate in Rust FEM | incompatible with current finite grounded-box microstrip geometry | separate appropriate coupon required | **Not Run** |
+
+**CPU and memory on this corrective CI run:** Rust FEM n32 = 72,712 DOF, 147,456 triangles, 362,296 matrix nonzeros, material/vacuum PCG iterations 846/878, executable wall **0.91 s**, peak RSS **50,532 KiB**, individual field solver wall 0.455206 s / 0.451324 s. Measurements are for one Linux runner and do not imply target-platform performance.
+
+**Existing M0 intermittent failure disclosure:** the initial corrective workflow's only failure was `apps/boardsi-worker/src/lib.rs:224`, where a completed shell child did not produce the test's expected `cancel_delivery_error` after a late cancel. No M0 source or interface was changed by G1; this result must not be hidden or represented as PASS. A subsequent passing M0 regression and green CI on the final head are mandatory before PR #34 merge. See the PR's check runs and final review comment for the latest verdict.
+
+**G1 approval boundary:** approve only the numerically compared, artificial one-conductor PEC/lossless finite-grounded-box research prototype. PH-01/02/04/17/18/19/20 are **partial scoped proofs**, not completed general PH certifications. PH-03 exact FEM plate test remains **Not Run**. Real copper and dielectric losses, dispersive dielectric, reference cutouts, via/pad/3D discontinuities, open-space microstrip, differential lines, and any 30 GHz physical-band correctness remain **Unsupported/Not Run**; no actual real PCB was analyzed.
+
+**Following gate recommendations (do not implement in this PR):** G2 should first freeze new independent coupons for PH-05 symmetric stripline, PH-06 asymmetric stripline, PH-07 multilayer/mask microstrip, then PH-08 finite copper/reference topology; use independent field calculations, energy and boundary convergence on each before declaring a supported geometry. G3 models R/G/internal L; G4 multiconductor and mixed-mode; G5 the Canonical→Solver/Worker adapter. [PR #35](https://github.com/july-rust/BoardSI/pull/35) is *G5 adapter design preflight only*, not G2 implementation or proof.
