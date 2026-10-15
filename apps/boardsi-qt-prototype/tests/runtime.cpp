@@ -18,7 +18,20 @@ class RuntimeValidation {
     QString rust, python, fixture;
     QJsonArray cases;
     QJsonObject metrics;
+    QJsonObject startupMilestones;
+    QJsonObject appBootstrap;
+    QElapsedTimer startupClock;
     int assertions = 0;
+    void startupMark(const char *name) {
+        startupMilestones[QString::fromLatin1(name)] = startupClock.elapsed();
+    }
+    // Timings before RuntimeValidation::run() are diagnostics only; the
+    // pre-existing global 1000 ms gate still begins inside run().
+    void setAppBootstrap(qint64 constructorMs, qint64 loopEntryMs, qint64 firstDispatchMs) {
+        appBootstrap = QJsonObject{{"qapplication_constructor_ms", constructorMs},
+                                   {"app_exec_entry_ms", loopEntryMs},
+                                   {"first_event_dispatch_ms", firstDispatchMs}};
+    }
     using Steady = std::chrono::steady_clock;
     void check(bool ok, const char *message) {
         ++assertions;
@@ -36,9 +49,14 @@ class RuntimeValidation {
         if (!predicate()) loop.exec();
         return predicate();
     }
-    void start(Window &w) {
+    void start(Window &w, bool traceFirstWindow = false) {
+        if (traceFirstWindow) startupMark("window_show_begin");
         w.show();
-        QElapsedTimer t; t.start(); w.start->click();
+        if (traceFirstWindow) startupMark("window_show_end");
+        QElapsedTimer t; t.start();
+        if (traceFirstWindow) startupMark("start_click_begin");
+        w.start->click();
+        if (traceFirstWindow) startupMark("start_click_end");
         check(w.status->text() == "Starting Worker", "Start display missing");
         metrics["start_display_max_ms"] = qMax(metrics.value("start_display_max_ms").toInt(), int(t.elapsed()));
     }
@@ -96,7 +114,16 @@ class RuntimeValidation {
         check(w.isVisible(), "GUI did not survive probes");
     }
     void normal() {
-        Window w(rust); start(w); running(w);
+        startupMark("window_construction_begin");
+        Window w(rust);
+        startupMark("window_construction_end");
+        QObject::connect(&w.process, &QProcess::started, &w, [this] {
+            startupMark("qprocess_started_signal");
+        });
+        start(w, true);
+        startupMark("worker_running_wait_begin");
+        running(w);
+        startupMark("worker_running_observed");
         probes(w, "normal_ui", 150, 10);
         exited(w, 8000);
         check(w.state == Window::Completed && w.resultCount == 100, "Rust completion/result mismatch");
@@ -274,6 +301,8 @@ public:
                            {"os", QSysInfo::prettyProductName()}, {"cpu_arch", QSysInfo::currentCpuArchitecture()}};
         int code=0;
         QElapsedTimer entireClock; entireClock.start();
+        startupClock.start();
+        startupMark("run_begin");
         qint64 lastTick=0, entireMaxGap=0, worstGapAtMs=0;
         QString phase="initialization", lastTickPhase="initialization";
         QString worstGapFromPhase="initialization", worstGapToPhase="initialization";
@@ -284,6 +313,7 @@ public:
         // outliers diagnosable without changing the original 1000 ms gate.
         auto observeGap = [&](qint64 now) {
             const qint64 gap=now-lastTick;
+            if (lastTick==0) startupMark("first_global_timer_callback");
             if (gap>phaseMaxGaps.value(phase).toInteger())
                 phaseMaxGaps[phase]=gap;
             if (gap>entireMaxGap) {
@@ -303,6 +333,7 @@ public:
         QTimer entireTick; entireTick.setInterval(10);
         QObject::connect(&entireTick,&QTimer::timeout,[&] { observeGap(entireClock.elapsed()); });
         entireTick.start();
+        startupMark("global_timer_armed");
         auto inPhase = [&](const QString &name, const std::function<void()> &operation) {
             phase=name;
             const qint64 started=entireClock.elapsed();
@@ -319,6 +350,7 @@ public:
             if(!arch.isEmpty()) check(QSysInfo::currentCpuArchitecture()==arch,"Qt executable architecture mismatch");
             const auto backend=qEnvironmentVariable("BOARDSI_EXPECTED_QT_PLATFORM");
             if(!backend.isEmpty()) check(QGuiApplication::platformName()==backend,"Native Qt platform backend mismatch");
+            startupMark("preflight_completed");
             inPhase("normal", [&] { normal(); });
             inPhase("cancellation", [&] { cancellation(); });
             inPhase("real-crash", [&] { realCrash(); });
@@ -349,6 +381,8 @@ public:
             try { check(entireMaxGap<=1000,"Global event-loop gap exceeded 1s"); }
             catch (const std::exception &e) { report["failure"]=QString::fromUtf8(e.what()); code=1; }
         }
+        metrics["app_bootstrap_ms"]=appBootstrap;
+        metrics["first_window_startup_milestones_ms"]=startupMilestones;
         metrics["entire_test_timer_max_gap_ms"]=entireMaxGap;
         metrics["entire_test_elapsed_ms"]=entireClock.elapsed();
         metrics["global_max_gap_end_ms"]=worstGapAtMs;
@@ -367,10 +401,16 @@ public:
 };
 
 int main(int argc,char **argv) {
+    QElapsedTimer appClock; appClock.start();
     QApplication app(argc,argv);
+    const qint64 ctorMs=appClock.elapsed();
     app.setQuitOnLastWindowClosed(false);
     if(argc!=4) return 2;
     RuntimeValidation test(QString::fromLocal8Bit(argv[1]),QString::fromLocal8Bit(argv[2]),QString::fromLocal8Bit(argv[3]));
-    QTimer::singleShot(0,&app,[&] { app.exit(test.run()); });
+    const qint64 loopEntryMs=appClock.elapsed();
+    QTimer::singleShot(0,&app,[&] {
+        test.setAppBootstrap(ctorMs,loopEntryMs,appClock.elapsed());
+        app.exit(test.run());
+    });
     return app.exec();
 }
