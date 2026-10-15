@@ -5,6 +5,8 @@ on:
       - 'prototypes/m2-lossless-fem/**'
       - 'tools/validation/m2_s2_analytic_check.py'
       - 'tools/validation/m2_g1_field_check.py'
+      - 'tools/validation/m2_fvm_reference.py'
+      - 'tools/validation/m2_g0_source.sha256'
       - '.github/workflows/m2-lossless-fem.yml'
   workflow_dispatch:
 permissions:
