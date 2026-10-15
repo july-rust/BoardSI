@@ -6,6 +6,8 @@ on:
       - 'tools/validation/m2_s2_analytic_check.py'
       - 'tools/validation/m2_g1_field_check.py'
       - 'tools/validation/m2_ph03_plate_check.py'
+      - 'tools/validation/m2_ph05_stripline_reference.py'
+      - 'docs/validation/m2-g2-ph05-acceptance-contract.md'
       - 'docs/validation/m2-ph03-parallel-plate-acceptance-contract.md'
       - 'tools/validation/m2_fvm_reference.py'
       - 'tools/validation/m2_g0_source.sha256'
@@ -77,6 +79,56 @@ jobs:
             exit 1
           fi
           test ! -s ph03-invalid-out.txt
+      - name: PH-05 independent symmetric stripline FEM and FVM acceptance gate
+        run: |
+          set -euo pipefail
+          bin="prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem"
+          python -m py_compile tools/validation/m2_ph05_stripline_reference.py
+          python tools/validation/m2_ph05_stripline_reference.py --self-test
+          for n in 32 64 128; do
+            /usr/bin/time -v -o "ph05-n$n-B12.resources.txt" \
+              "$bin" stripline "$n" 0.0012 > "ph05-n$n-B12.json"
+          done
+          for code in 16 24; do
+            if test "$code" = 16; then metres=0.0016; else metres=0.0024; fi
+            /usr/bin/time -v -o "ph05-n64-B$code.resources.txt" \
+              "$bin" stripline 64 "$metres" > "ph05-n64-B$code.json"
+          done
+          python tools/validation/m2_ph05_stripline_reference.py \
+            --fem ph05-n32-B12.json ph05-n64-B12.json ph05-n128-B12.json \
+                  ph05-n64-B16.json ph05-n64-B24.json \
+            --output ph05-independent-fvm-evidence.json
+          # Surface each FEM value and Linux-specific CPU/RSS observations in
+          # readable CI logs as well as the downloadable immutable artifact.
+          for file in ph05-n32-B12.json ph05-n64-B12.json ph05-n128-B12.json ph05-n64-B16.json ph05-n64-B24.json; do
+            echo "PH05_FEM_JSON $file:"
+            cat "$file"
+            echo
+            resources="$(basename "$file" .json).resources.txt"
+            echo "PH05_CPU_RSS $resources:"
+            grep -E 'User time|System time|Elapsed|Maximum resident set size' "$resources"
+          done
+          if "$bin" stripline 32 1e300 > ph05-invalid-out.txt 2> ph05-invalid-err.txt; then
+            echo "FAIL: PH-05 pathological mesh accepted"
+            exit 1
+          fi
+          grep -q 'unsupported or numerical failure:' ph05-invalid-err.txt
+          if grep -qi 'panicked' ph05-invalid-err.txt; then
+            echo "FAIL: PH-05 panic on pathological mesh"
+            exit 1
+          fi
+          test ! -s ph05-invalid-out.txt
+      - name: Upload PH-05 numerical evidence and resource metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ph05-numerical-evidence
+          path: |
+            ph05-*.json
+            ph05-*.resources.txt
+            ph05-invalid-*.txt
+          if-no-files-found: warn
+          retention-days: 14
       - name: Recheck existing M0 Rust workspace without Qt GUI rebuild
         run: |
           cargo +1.75.0 fetch --locked

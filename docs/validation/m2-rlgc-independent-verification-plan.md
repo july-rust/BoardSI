@@ -1,6 +1,6 @@
 # M2 physical RLGC — independent reference and validation plan
 
-**Plan status: NOT RUN for every NEW physical field/PCB verification case.**  
+**Plan status: PH-03 mathematical coupon PASS and PH-05 limited synthetic class-F PASS; other NEW physical field/PCB cases remain Not Run.**  
 **Created:** 2026-10-14 KST; **source baseline:** `main@35285a47a72beabb4885a8e17f35867e6c20bac0` (merged PR #30).  
 **Companion ADR:** [m2-rlgc-physical-model-adr.md](../architecture/m2-rlgc-physical-model-adr.md).  
 **Immutable product specification:** [BoardSI v1.0](../specification/BoardSI_Development_Spec_v1.0.md), particularly §§6, 8, 8.2, 13, 13.1, 14, 15. Issues #7/#16/#17.
@@ -15,7 +15,7 @@
 
 Existing evidence: [numerical report](m0-numerical-foundation.md) has 180 independent fixed scalar RLGC→S mathematical cases; [native report](m0-native-platforms.md) records numerical native results. These remain historical **M-class numerical PASS only**, not newly executed physical tests and **not** a substitute for F/X. Existing Qt/Worker evidence remains separate.
 
-## 2. Proposed matrix — all new experiments Not Run
+## 2. Proposed matrix — update PH-03 and restricted PH-05 only
 
 | ID | Coupon and varied parameters | Independent oracle class | Measured quantities / primary acceptance question | Status |
 | --- | --- | --- | --- | --- |
@@ -23,7 +23,7 @@ Existing evidence: [numerical report](m0-numerical-foundation.md) has 180 indepe
 | PH-02 | Uniform lossless mismatch, two real port references and arbitrary l | M; independently derived S | All complex S entries, power, reference conventions; initial product unequal refs must be Unsupported | **Not Run** |
 | PH-03 | Homogeneous insulated-sidewall parallel plate (top/bottom PEC; side Neumann 0, no physical fringing) | M exact potential/field math; Rust P1 FEM checked against M (NOT external F) | C, C0, Lext, Z0, delay, nodal phi, element E, charge/energy, residual, mesh and negative controls | **PASS (mathematical coupon only)** — [G1 PH-03 addendum](m2-g1-lossless-fem-evidence.md) |
 | PH-04 | Single microstrip w/h/t/εr sweep including thin/thick copper | F: independent 2D FEM/qualified extractor + Q formulas | C,C0,L_ext,Z0, delay, edge charge, field/boundary convergence | **Not Run** |
-| PH-05 | Symmetric stripline w/t/h/εr sweep | F+Q | C,C0,L, impedance and field symmetry | **Not Run** |
+| PH-05 | Symmetric stripline w/t/h/εr sweep | F+Q | C,C0,L, impedance and field symmetry | **PASS (limited ideal PEC/lossless homogeneous coupon, independent cell-centred FVM + P1 FEM)** — [G2 PH-05 evidence](m2-g2-ph05-fem-evidence.md); no full-wave/real PCB validity |
 | PH-06 | Asymmetric stripline unequal upper/lower gaps/ε | F | C,C0,L, propagation and convergence, no forced symmetry | **Not Run** |
 | PH-07 | Multilayer microstrip with air and explicit solder mask on/off | F | ε distribution, C change, field-energy fractions, exact mask inclusion | **Not Run** |
 | PH-08 | Finite copper thickness, trapezoid/surface shape and finite-width but longitudinally uniform reference plane | F | Cross-section sensitivity and topology; do not assume infinite reference | **Not Run** |
