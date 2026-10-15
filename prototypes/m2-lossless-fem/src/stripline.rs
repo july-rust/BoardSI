@@ -382,7 +382,7 @@ mod tests {
         let mut c=base; c.signal_v=0.9; cases.push(c);
         let mut c=base; c.ground_v=1.0; cases.push(c);
         let mut c=base; c.width_m=0.0; cases.push(c);
-        let mut c=base; c.width_m=-1.0; cases.push(c);
+        let mut c=base; c.width_m = -1.0; cases.push(c);
         let mut c=base; c.thickness_m=0.0; cases.push(c);
         let mut c=base; c.half_span_m=0.00010; cases.push(c);
         let mut c=base; c.half_span_m=0.00121; cases.push(c);
