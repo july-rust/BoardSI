@@ -4,6 +4,7 @@ on:
     paths:
       - 'prototypes/m2-lossless-fem/**'
       - 'tools/validation/m2_ph06_asymmetric_stripline_reference.py'
+      - 'tools/validation/m2_ph06_invariant_sweeps.py'
       - 'docs/validation/m2-g2-ph06-acceptance-contract.md'
       - '.github/workflows/m2-ph06-asymmetric.yml'
   workflow_dispatch:
@@ -77,6 +78,33 @@ jobs:
             exit 1
           fi
           test ! -s ph06-invalid-out.txt
+      - name: PH-06 geometry/dielectric sweeps and reflected PH-05 recovery
+        run: |
+          set -euo pipefail
+          bin="prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem"
+          python -m py_compile tools/validation/m2_ph06_invariant_sweeps.py
+          "$bin" stripline 32 0.0012 > ph06-ph05-recovery.json
+          "$bin" asymmetric 32 0.0012 0.0004 3.4 3.4 none > ph06-symmetric.json
+          "$bin" asymmetric 32 0.0012 > ph06-asymmetric_a.json
+          "$bin" asymmetric 32 0.0012 0.00035 3.4 3.4 none > ph06-offset_035.json
+          "$bin" asymmetric 32 0.0012 0.0005 3.4 3.4 none > ph06-mirror_a.json
+          "$bin" asymmetric 32 0.0012 0.0003 3.4 4.0 0.00035 > ph06-two_region_b.json
+          "$bin" asymmetric 32 0.0012 0.0005 4.0 3.4 0.00045 > ph06-mirror_b.json
+          "$bin" asymmetric 32 0.0012 0.0003 3.4 3.4 0.00035 > ph06-equal_interface.json
+          "$bin" asymmetric 32 0.0012 0.0003 4.0 3.4 0.00035 > ph06-swapped_dielectric.json
+          "$bin" asymmetric 32 0.0012 0.0003 1.0 1.0 none > ph06-vacuum.json
+          python tools/validation/m2_ph06_invariant_sweeps.py \
+            --ph05 ph06-ph05-recovery.json \
+            --case symmetric=ph06-symmetric.json \
+            --case asymmetric_a=ph06-asymmetric_a.json \
+            --case offset_035=ph06-offset_035.json \
+            --case mirror_a=ph06-mirror_a.json \
+            --case two_region_b=ph06-two_region_b.json \
+            --case mirror_b=ph06-mirror_b.json \
+            --case equal_interface=ph06-equal_interface.json \
+            --case swapped_dielectric=ph06-swapped_dielectric.json \
+            --case vacuum=ph06-vacuum.json \
+            --output ph06-invariant-sweep-evidence.json
       - name: Upload PH-06 independently generated numerical evidence
         if: always()
         uses: actions/upload-artifact@v4
