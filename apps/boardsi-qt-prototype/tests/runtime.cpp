@@ -28,10 +28,10 @@ class RuntimeValidation {
 public:
     // Timings before RuntimeValidation::run() are diagnostics only; the
     // pre-existing global 1000 ms gate still begins inside run().
-    void setAppBootstrap(qint64 constructorMs, qint64 loopEntryMs, qint64 firstDispatchMs) {
+    void setAppBootstrap(qint64 constructorMs, qint64 loopEntryMs, qint64 testCallbackMs) {
         appBootstrap = QJsonObject{{"qapplication_constructor_ms", constructorMs},
                                    {"app_exec_entry_ms", loopEntryMs},
-                                   {"test_single_shot_callback_ms", firstDispatchMs}};
+                                   {"test_single_shot_callback_ms", testCallbackMs}};
     }
 private:
     using Steady = std::chrono::steady_clock;
