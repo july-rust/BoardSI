@@ -158,7 +158,9 @@ fn plate_grid(c: &PlateCoupon) -> Result<Grid, String> {
         return Err("no plate FEM degrees of freedom".into());
     }
     Ok(Grid {
-        nx, nz, dx, box_m: c.width_m / 2.0,
+        // Grid's legacy box_m field is an x-origin offset in xy(): x=-box_m+i*dx.
+        // Set zero for the PH-03 contractual coordinate x in [0,width_m].
+        nx, nz, dx, box_m: 0.0,
         dirichlet, signal, mapping, dof,
     })
 }
@@ -251,6 +253,9 @@ mod tests {
     #[test]
     fn ph03_affine_field_and_distinct_boundary_corner_priority() {
         for n in [8, 16, 32] {
+            let grid = plate_grid(&PlateCoupon::ph03(n)).unwrap();
+            assert_eq!(xy(0, &grid).0, 0.0);
+            assert!((xy(grid.nx, &grid).0 - 0.0003).abs() < 1e-17);
             let result = extract_plate(&PlateCoupon::ph03(n)).unwrap();
             assert_eq!(result.nx, 3 * n / 2);
             assert_eq!(result.nz, n);
