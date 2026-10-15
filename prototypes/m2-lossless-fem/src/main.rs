@@ -45,7 +45,7 @@ fn main() -> ExitCode {
                 let d=&o.dielectric;
                 let v=&o.vacuum;
                 println!(concat!(
-                    "{\"model\":\"PH05_IdealSymmetricStripline\",",
+                    "{{\"model\":\"PH05_IdealSymmetricStripline\",",
                     "\"n\":{},\"B_m\":{:.12e},\"w_m\":{:.12e},\"t_m\":{:.12e},",
                     "\"b_m\":{:.12e},\"epsilon_r\":{:.12e},",
                     "\"C_F_per_m\":{:.16e},\"C0_F_per_m\":{:.16e},",
@@ -65,7 +65,7 @@ fn main() -> ExitCode {
                     "\"field_pec_field_V_per_m\":{:.12e},",
                     "\"field_iterations\":{},\"vacuum_iterations\":{},",
                     "\"field_wall_s\":{:.9},\"vacuum_wall_s\":{:.9},",
-                    "\"status\":\"{}\"}"
+                    "\"status\":\"{}\"}}"
                 ),
                 n, coupon.half_span_m, coupon.width_m, coupon.thickness_m,
                 coupon.ground_separation_m, coupon.epsilon_r,
