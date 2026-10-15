@@ -4,6 +4,8 @@
 
 use std::time::Instant;
 
+pub mod plate;
+
 pub const EPS0: f64 = 8.854_187_818_8e-12; // F/m
 pub const MU0: f64 = 1.256_637_061_27e-6; // H/m
 
@@ -205,9 +207,9 @@ fn stiffness(tri: [usize; 3], grid: &Grid, er: f64) -> [[f64; 3]; 3] {
     k
 }
 
-fn for_each_triangle(mut action: impl FnMut([usize; 3], f64), grid: &Grid, c: &IdealCoupon, er: f64) {
+fn for_each_triangle(mut action: impl FnMut([usize; 3], f64), grid: &Grid, dielectric_height_m: f64, er: f64) {
     for j in 0..grid.nz {
-        let relative = if ((j as f64) + 0.5) * grid.dx < c.dielectric_height_m {
+        let relative = if ((j as f64) + 0.5) * grid.dx < dielectric_height_m {
             er
         } else {
             1.0
@@ -299,6 +301,16 @@ fn conjugate_gradient(a: &Csr, b: &[f64]) -> Result<(Vec<f64>, usize, f64), Stri
 }
 
 fn solve_field(c: &IdealCoupon, grid: &Grid, dielectric_er: f64) -> Result<FieldEvidence, String> {
+    solve_field_with_potential(c.dielectric_height_m, grid, dielectric_er).map(|(evidence, _)| evidence)
+}
+
+// Shared FE assembly, sparse CSR and CG solve. The separately constructed
+// PH-03 grid is passed here without altering the microstrip grid conditions.
+fn solve_field_with_potential(
+    dielectric_height_m: f64,
+    grid: &Grid,
+    dielectric_er: f64,
+) -> Result<(FieldEvidence, Vec<f64>), String> {
     let start = Instant::now();
     let mut rows = vec![Vec::<(usize, f64)>::new(); grid.dof];
     let mut rhs = vec![0.0; grid.dof];
@@ -318,7 +330,7 @@ fn solve_field(c: &IdealCoupon, grid: &Grid, dielectric_er: f64) -> Result<Field
                 }
             }
         }
-    }, grid, c, dielectric_er);
+    }, grid, dielectric_height_m, dielectric_er);
 
     let mut offsets = Vec::with_capacity(grid.dof + 1);
     let mut columns = Vec::new();
@@ -375,7 +387,7 @@ fn solve_field(c: &IdealCoupon, grid: &Grid, dielectric_er: f64) -> Result<Field
                 signal_reaction += row_reaction;
             }
         }
-    }, grid, c, dielectric_er);
+    }, grid, dielectric_height_m, dielectric_er);
     let c_energy = EPS0 * energy;
     let c_charge = EPS0 * signal_reaction;
     if !c_energy.is_finite() || !c_charge.is_finite() || c_energy <= 0.0 || c_charge <= 0.0 {
@@ -385,7 +397,7 @@ fn solve_field(c: &IdealCoupon, grid: &Grid, dielectric_er: f64) -> Result<Field
     if difference > 1e-6 {
         return Err(format!("field energy and charge disagree: {difference:.3e}"));
     }
-    Ok(FieldEvidence {
+    Ok((FieldEvidence {
         c_f_per_m: c_energy,
         c_from_conductor_charge_f_per_m: c_charge,
         charge_energy_relative_difference: difference,
@@ -395,7 +407,7 @@ fn solve_field(c: &IdealCoupon, grid: &Grid, dielectric_er: f64) -> Result<Field
         triangles: 2 * grid.nx * grid.nz,
         matrix_nnz: matrix.values.len(),
         elapsed_s: start.elapsed().as_secs_f64(),
-    })
+    }, full))
 }
 
 pub fn extract_ideal(c: &IdealCoupon) -> Result<Extracted, String> {
