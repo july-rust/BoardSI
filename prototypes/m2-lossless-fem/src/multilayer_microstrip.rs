@@ -316,6 +316,45 @@ fn build_grid(c: &MicrostripCoupon) -> Result<Grid, String> {
     })
 }
 
+// Diagnostic only: PEC triangles remain EXCLUDED from the dielectric solve.
+// Visit the prescribed conductor nodes separately so a corrupted nonconstant
+// conductor potential cannot be hidden by the dielectric-region filter.
+fn measure_pec_field(grid: &Grid, phi: &[f64]) -> Result<f64, String> {
+    let cols = grid.nx + 1;
+    let mut measured = 0_usize;
+    let mut maximum: f64 = 0.0;
+    for j in 0..grid.nz {
+        for i in 0..grid.nx {
+            let bl = j * cols + i;
+            let br = bl + 1;
+            let tl = bl + cols;
+            let tr = tl + 1;
+            for tri in [[bl, br, tr], [bl, tr, tl]] {
+                if !tri.iter().all(|&id| grid.signal[id]) {
+                    continue;
+                }
+                let (x0, z0) = xy(tri[0], grid);
+                let (x1, z1) = xy(tri[1], grid);
+                let (x2, z2) = xy(tri[2], grid);
+                let det = (x1 - x0) * (z2 - z0) - (x2 - x0) * (z1 - z0);
+                let v = [phi[tri[0]], phi[tri[1]], phi[tri[2]]];
+                let ex = -(v[0] * (z1 - z2) + v[1] * (z2 - z0) + v[2] * (z0 - z1)) / det;
+                let ez = -(v[0] * (x2 - x1) + v[1] * (x0 - x2) + v[2] * (x1 - x0)) / det;
+                let magnitude = ex.hypot(ez);
+                if !magnitude.is_finite() {
+                    return Err("PH-07 nonfinite measured PEC field".into());
+                }
+                maximum = maximum.max(magnitude);
+                measured += 1;
+            }
+        }
+    }
+    if measured == 0 {
+        return Err("PH-07 no PEC triangles measured".into());
+    }
+    Ok(maximum)
+}
+
 fn field(grid: &Grid, c: &MicrostripCoupon, vacuum: bool) -> Result<MicrostripField, String> {
     let er_at_cell = |i: usize, j: usize| {
         let x = -c.half_span_m + (i as f64 + 0.5) * grid.dx;
@@ -339,7 +378,7 @@ fn field(grid: &Grid, c: &MicrostripCoupon, vacuum: bool) -> Result<MicrostripFi
     let mut fringe: f64 = 0.0;
     let mut max_abs_ez: f64 = 0.0;
     let mut samples = Vec::<[f64; 6]>::new();
-    let mut pec_field: f64 = 0.0;
+    let pec_field = measure_pec_field(grid, &phi)?;
     let mut region_c = vec![0.0; c.layers.len() + 2];
     for j in 0..grid.nz {
         for i in 0..grid.nx {
@@ -382,9 +421,6 @@ fn field(grid: &Grid, c: &MicrostripCoupon, vacuum: bool) -> Result<MicrostripFi
                     && z < c.substrate_height_m() + c.copper_thickness_m * 2.0
                 {
                     fringe = fringe.max(ex.abs());
-                }
-                if tri.iter().all(|&id| grid.signal[id]) {
-                    pec_field = pec_field.max(ex.hypot(ez));
                 }
                 let k = stiffness(tri, grid, er);
                 for a in 0..3 {
@@ -469,6 +505,39 @@ pub fn extract_microstrip(c: &MicrostripCoupon) -> Result<MicrostripResults, Str
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn ph07_pec_diagnostic_detects_mutated_potential_and_missing_measurement() {
+        let c = MicrostripCoupon::ph07('D', 32, 0.0012, 0.0008).unwrap();
+        let mut g = build_grid(&c).unwrap();
+        let cols = g.nx + 1;
+        let mut phi: Vec<f64> = g
+            .signal
+            .iter()
+            .map(|&metal| if metal { 1.0 } else { 0.0 })
+            .collect();
+        let normal = measure_pec_field(&g, &phi).unwrap();
+        assert!(normal <= 1e-6);
+        let interior = (cols + 1..g.signal.len() - cols - 1)
+            .find(|&id| {
+                g.signal[id]
+                    && g.signal[id - 1]
+                    && g.signal[id + 1]
+                    && g.signal[id - cols]
+                    && g.signal[id + cols]
+            })
+            .unwrap();
+        phi[interior] += 0.001;
+        let mutated = measure_pec_field(&g, &phi).unwrap();
+        assert!(mutated > 1.0, "nonconstant PEC field must be detected");
+        println!(
+            "PH07_PEC_DIAGNOSTIC normal={normal:.16e} mutated={mutated:.16e} V/m (1 mV mutation)"
+        );
+        phi[interior] = f64::NAN;
+        assert!(measure_pec_field(&g, &phi).is_err());
+        phi[interior] = 1.0;
+        g.signal.fill(false);
+        assert!(measure_pec_field(&g, &phi).is_err());
+    }
     #[test]
     fn ph07_pec_exclusion_and_natural_boundary_topology() {
         let c = MicrostripCoupon::ph07('D', 32, 0.0012, 0.0008).unwrap();
