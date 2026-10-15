@@ -1,9 +1,99 @@
+use boardsi_m2_lossless_fem::stripline::{extract_stripline, StriplineCoupon};
 use boardsi_m2_lossless_fem::{analytic_ideal_s2, extract_ideal, IdealCoupon};
 use boardsi_m2_lossless_fem::plate::{extract_plate, PlateCoupon};
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
+
+    // PH-05 is strictly opt-in. Neither the microstrip nor PH-03 CLI is modified.
+    // args: stripline <n> <half-span-metres> [width_m thickness_m ground_gap_m epsilon_r]
+    if args.len() > 1 && args[1] == "stripline" {
+        if args.len() != 4 && args.len() != 8 {
+            eprintln!("usage: boardsi-m2-lossless-fem stripline <n> <B_m> [w_m t_m b_m epsilon_r]");
+            return ExitCode::FAILURE;
+        }
+        let n: usize = match args[2].parse() {
+            Ok(v) => v, Err(_) => {
+                eprintln!("invalid PH-05 integer subdivision");
+                return ExitCode::FAILURE;
+            }
+        };
+        let span: f64 = match args[3].parse() {
+            Ok(v) => v, Err(_) => {
+                eprintln!("invalid PH-05 lateral half-span");
+                return ExitCode::FAILURE;
+            }
+        };
+        let mut coupon = StriplineCoupon::ph05(n, span);
+        if args.len() == 8 {
+            let custom: Vec<f64> = match args[4..8].iter()
+                .map(|v| v.parse::<f64>()).collect::<Result<Vec<_>,_>>() {
+                Ok(v) => v, Err(_) => {
+                    eprintln!("invalid PH-05 geometry/material float");
+                    return ExitCode::FAILURE;
+                }
+            };
+            coupon.width_m=custom[0];
+            coupon.thickness_m=custom[1];
+            coupon.ground_separation_m=custom[2];
+            coupon.center_z_m=custom[2]/2.0;
+            coupon.epsilon_r=custom[3];
+        }
+        return match extract_stripline(&coupon) {
+            Ok(o) => {
+                let d=&o.dielectric;
+                let v=&o.vacuum;
+                println!(concat!(
+                    "{\"model\":\"PH05_IdealSymmetricStripline\",",
+                    "\"n\":{},\"B_m\":{:.12e},\"w_m\":{:.12e},\"t_m\":{:.12e},",
+                    "\"b_m\":{:.12e},\"epsilon_r\":{:.12e},",
+                    "\"C_F_per_m\":{:.16e},\"C0_F_per_m\":{:.16e},",
+                    "\"Lext_H_per_m\":{:.16e},\"Z0_ohm\":{:.16e},",
+                    "\"delay_s_per_m\":{:.16e},\"epsilon_effective\":{:.12e},",
+                    "\"nx\":{},\"nz\":{},\"nodes\":{},\"dof\":{},\"triangles\":{},",
+                    "\"nnz\":{},\"field_residual\":{:.12e},\"vacuum_residual\":{:.12e},",
+                    "\"field_charge_C\":{:.16e},\"vacuum_charge_C\":{:.16e},",
+                    "\"field_energy_charge_rel\":{:.12e},\"vacuum_energy_charge_rel\":{:.12e},",
+                    "\"field_ground_top_C\":{:.16e},\"field_ground_bottom_C\":{:.16e},",
+                    "\"field_charge_balance_rel\":{:.12e},",
+                    "\"vacuum_charge_balance_rel\":{:.12e},",
+                    "\"field_ground_asym_rel\":{:.12e},\"vacuum_ground_asym_rel\":{:.12e},",
+                    "\"field_z_sym_err_V\":{:.12e},\"field_x_sym_err_V\":{:.12e},",
+                    "\"vacuum_z_sym_err_V\":{:.12e},\"vacuum_x_sym_err_V\":{:.12e},",
+                    "\"field_fringe_Ex_V_per_m\":{:.12e},",
+                    "\"field_pec_field_V_per_m\":{:.12e},",
+                    "\"field_iterations\":{},\"vacuum_iterations\":{},",
+                    "\"field_wall_s\":{:.9},\"vacuum_wall_s\":{:.9},",
+                    "\"status\":\"{}\"}"
+                ),
+                n, coupon.half_span_m, coupon.width_m, coupon.thickness_m,
+                coupon.ground_separation_m, coupon.epsilon_r,
+                o.c_f_per_m, o.c0_f_per_m, o.lext_h_per_m, o.z0_ohm,
+                o.delay_s_per_m, o.epsilon_effective,
+                o.nx,o.nz,(o.nx+1)*(o.nz+1),d.evidence.dof,
+                d.evidence.triangles,d.evidence.matrix_nnz,
+                d.evidence.residual,v.evidence.residual,
+                d.signal_charge_c_per_m,v.signal_charge_c_per_m,
+                d.evidence.charge_energy_relative_difference,
+                v.evidence.charge_energy_relative_difference,
+                d.upper_ground_charge_c_per_m,d.lower_ground_charge_c_per_m,
+                d.charge_balance_relative,v.charge_balance_relative,
+                d.ground_asymmetry_relative,v.ground_asymmetry_relative,
+                d.max_z_reflection_error_v,d.max_x_reflection_error_v,
+                v.max_z_reflection_error_v,v.max_x_reflection_error_v,
+                d.max_fringe_ex_v_per_m,d.max_pec_interior_field_v_per_m,
+                d.evidence.iterations,v.evidence.iterations,
+                d.evidence.elapsed_s,v.evidence.elapsed_s,o.physical_status);
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("unsupported or numerical failure: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
+
     // New PH-03 mode is opt-in. The original <n> <box_m> microstrip CLI
     // remains byte-for-byte the same, including original JSON output.
     if args.len() == 3 && args[1] == "plate" {
