@@ -210,6 +210,7 @@ def original_report(archive):
                 compare_rows(run["mms"],baseline["mms"]))
     unchanged=(run["mms"]==baseline["mms"])
     if not unchanged:errs.append("instrumentation_changed_original_mms")
+    if run["stats"]["errors"]:errs.append("instrumentation_diagnostic_incomplete")
     if not check_historical_gate(run["mms"]):errs.append("Stage 4 FAIL changed")
     invocations=run["stats"]["recovery_calls"]
     count=len(run["stats"]["operators"])
@@ -237,14 +238,19 @@ def main():
     a=p.parse_args()
     try:
         o=original_report(a.archive) if a.archive else synthetic_report()
-        rc=0 if o["status"] in ("SYNTHETIC_ONLY","ORIGINAL_RECOVERY_EXECUTED_UNCLASSIFIED") else 2
+        rc=0 if o["status"] == "SYNTHETIC_ONLY" else 2
     except (ValueError,OSError,RuntimeError,KeyError,zipfile.BadZipFile,subprocess.TimeoutExpired) as exc:
         o={"status":"NOT VERIFIED","error":str(exc),
            "historical_gate_q":"FAIL","certified_float_bound":"BOUND_NOT_CERTIFIED"}
         rc=2
     o["tool_sha256"]=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    # Private source/probe metadata must never leak into shared console logs.
+    console=o if not a.archive else {key:o.get(key) for key in
+        ("status","original_mms_replayed","recovery_invocations",
+         "operators_captured","historical_gate_q","certified_float_bound")}
     raw=json.dumps(o,allow_nan=False,indent=2)+"\n"
+    console_raw=json.dumps(console,allow_nan=False,indent=2)+"\n"
     if a.output_json:a.output_json.write_text(raw,encoding="utf-8")
-    print(raw)
+    print(console_raw)
     return rc
 if __name__=="__main__":raise SystemExit(main())
