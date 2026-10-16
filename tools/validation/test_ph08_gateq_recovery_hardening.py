@@ -26,7 +26,7 @@ class HardeningTests(unittest.TestCase):
     def judge(self, observed=None, **changes):
         args = dict(matrix_role="design", source_digest=self.digest,
                     expected_source_digest=self.digest, same_problem=True,
-                    gradient_map=self.D, tolerance=1e-8,
+                    gradient_map=self.D, tolerance=1e-8, coefficient_tolerance=1e-8,
                     tolerance_preregistered=True, scope=SCOPE_SYNTHETIC)
         args.update(changes)
         return verdict(self.c if observed is None else observed,
@@ -72,15 +72,11 @@ class HardeningTests(unittest.TestCase):
                 v=self.c.copy();v[1]=bad
                 self.assertEqual(self.judge(v)["status"], "FAIL")
 
-    def test_constant_only_shift_is_unobservable_in_gradient(self):
+    def test_constant_coefficient_mutation_fails_despite_invariant_gradient(self):
         v=self.c.copy();v[0]+=1.0
-        self.assertEqual(self.judge(v)["status"], "VERIFIED")
-        # Intentionally undetectable by gradient-only comparison:
-        # coefficient fidelity requires a separate check and acceptance rule.
+        self.assertEqual(self.judge(v)["status"], "FAIL")
 
     def test_missing_sample_cannot_pass_diagnostics(self):
-        with self.assertRaises(ValueError):
-            rational_operator(self.A[:-1],self.y,role="design")
         # A removed row and corresponding y can still be a valid LS problem;
         # its semantic/provenance fingerprint must therefore block verdict.
         altered=self.A[:-1]
@@ -106,8 +102,8 @@ class HardeningTests(unittest.TestCase):
         normal=rational_operator(H,rhs,role="normal_equation")
         exact_normal=np.linalg.solve(H,rhs)
         self.assertLess(max(abs(float(normal[i])-exact_normal[i]) for i in range(6)),1e-10)
-        self.assertNotEqual(rational_operator(H,rhs,role="normal_equation"),
-                            rational_operator(H,rhs,role="design"))
+        self.assertEqual(rational_operator(H,rhs,role="normal_equation"),
+                           rational_operator(H,rhs,role="design"))
         d=observed_diagnostics(self.A,self.y,self.c,role="design",method="lstsq")
         n=observed_diagnostics(H,rhs,exact_normal,role="normal_equation",method="solve")
         self.assertIsNotNone(d["condition_design_2"])
@@ -172,7 +168,7 @@ class HardeningTests(unittest.TestCase):
         )["certified_float_bound"],"BOUND_NOT_CERTIFIED")
 
     def test_original_cannot_pass_without_bound(self):
-        self.assertEqual(self.judge(scope=SCOPE_OPERATOR)["status"],"NOT VERIFIED")
+        self.assertEqual(self.judge(scope=SCOPE_OPERATOR,float_bound_certified=True)["status"],"NOT VERIFIED")
 
 if __name__=="__main__":
     unittest.main()
