@@ -189,7 +189,8 @@ def observed_diagnostics(a, b, coefficients, *, role, method, weights=None):
 
 def verdict(observed, reference, *, matrix_role=None, source_digest=None,
             expected_source_digest=None, same_problem=False,
-            gradient_map=None, tolerance=None, tolerance_preregistered=False,
+            gradient_map=None, tolerance=None, coefficient_tolerance=None,
+            tolerance_preregistered=False,
             float_bound_certified=False, scope=SCOPE_SYNTHETIC):
     """Do not promote a passing comparison to HMM physical qualification.
 
@@ -224,8 +225,11 @@ def verdict(observed, reference, *, matrix_role=None, source_digest=None,
                 any(t not in "0123456789abcdef" for t in source_digest)):
             result["reason"] = "source attestation absent/mismatch"
             return result
-        if (tolerance is None or not tolerance_preregistered or
-                not math.isfinite(float(tolerance)) or float(tolerance) < 0):
+        if (tolerance is None or coefficient_tolerance is None or
+                not tolerance_preregistered or
+                not math.isfinite(float(tolerance)) or float(tolerance) < 0 or
+                not math.isfinite(float(coefficient_tolerance)) or
+                float(coefficient_tolerance) < 0):
             result["reason"] = "pre-registered sensitivity tolerance absent"
             return result
         g_delta = D @ (x - y)
@@ -234,21 +238,21 @@ def verdict(observed, reference, *, matrix_role=None, source_digest=None,
             result["reason"] = "nonfinite recovered gradient difference"
             return result
         diff = float(np.max(np.abs(g_delta)))
+        coeff_diff = float(np.max(np.abs(x-y)))
         result["gradient_difference_inf_observed"] = diff
-        if diff > float(tolerance):
+        result["coefficient_difference_inf_observed"] = coeff_diff
+        if diff > float(tolerance) or coeff_diff > float(coefficient_tolerance):
             result["status"] = "FAIL"
             result["reason"] = "gradient mismatch outside pre-registered tolerance"
             return result
-        if scope != SCOPE_SYNTHETIC and not float_bound_certified:
-            result["reason"] = "original operator floating error bound not certified"
+        if scope != SCOPE_SYNTHETIC:
+            result["reason"] = "public synthetic judge cannot independently certify original HMM"
             return result
         if scope not in (SCOPE_SYNTHETIC, SCOPE_OPERATOR):
             result["reason"] = "unsupported scope"
             return result
         result["status"] = "VERIFIED"
         result["reason"] = "comparison verified within explicitly limited scope"
-        if float_bound_certified:
-            result["certified_float_bound"] = "CALLER_CLAIM_NOT_INDEPENDENTLY_AUDITED"
         return result
     except (ValueError, TypeError, OverflowError):
         result["reason"] = "invalid verification input"
