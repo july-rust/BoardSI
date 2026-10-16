@@ -98,8 +98,10 @@ if isinstance(descriptor,(staticmethod,classmethod)):
 else:
     original=descriptor
 active=[False]
-stats={"recovery_calls":0,"solver_calls":0,"operators":[],"errors":[],
-       "operator_role":"UNCLASSIFIED","aliases_and_custom_solver":"NOT VERIFIED"}
+stats={"recovery_calls":0,"solver_calls":0,"qualifying_solver_calls":0,
+       "nonqualifying_solver_calls":0,"operators":[],"errors":[],
+       "operator_role":"UNCLASSIFIED","aliases_and_custom_solver":"NOT VERIFIED",
+       "scipy_instrumentation":"NOT INSTALLED"}
 if mode=="instrumented":
     def recovery(*args,**kwargs):
         stats["recovery_calls"]+=1
@@ -113,25 +115,33 @@ if mode=="instrumented":
             out=fn(A,b,*args,**kw)
             if active[0]:
                 stats["solver_calls"]+=1
-                if len(stats["operators"])<24:
-                    old=active[0];active[0]=False
-                    try:
-                        a=np.asarray(A);v=np.asarray(b)
-                        coeff=out[0] if kind.endswith("lstsq") else out
-                        c=np.asarray(coeff)
-                        record={"solver_entrypoint":kind,
-                                "matrix_shape":list(a.shape),
-                                "rhs_shape":list(v.shape),
-                                "solution_shape":list(c.shape),
-                                "operator_role":"UNCLASSIFIED",
-                                "sampling_semantics":"NOT VERIFIED",
-                                "float_bound":"BOUND_NOT_CERTIFIED"}
-                        if (a.ndim==2 and a.shape[1]==6 and v.ndim==1 and
-                            c.shape==(6,) and np.isfinite(a).all() and
-                            np.isfinite(v).all() and np.isfinite(c).all()):
-                            # An observed 'solve' means a DIRECT algebraic system.
-                            # It does NOT establish that the matrix is a normal
-                            # equation, or identify the original polynomial basis.
+                old=active[0];active[0]=False
+                try:
+                    a=np.asarray(A);v=np.asarray(b)
+                    coeff=out[0] if kind.endswith("lstsq") else out
+                    c=np.asarray(coeff)
+                    eligible=(a.ndim==2 and a.shape[1]==6 and
+                        a.shape[0]>=6 and v.ndim==1 and
+                        v.shape==(a.shape[0],) and c.shape==(6,) and
+                        np.isfinite(a).all() and np.isfinite(v).all()
+                        and np.isfinite(c).all() and
+                        (not kind.endswith("solve") or a.shape==(6,6)))
+                    if not eligible:
+                        stats["nonqualifying_solver_calls"]+=1
+                    else:
+                        stats["qualifying_solver_calls"]+=1
+                        # Cap applies to QUALIFYING operator records, never
+                        # incidental 2x2 solves or unrelated function calls.
+                        if len(stats["operators"])<24:
+                            record={"solver_entrypoint":kind,
+                                    "matrix_shape":list(a.shape),
+                                    "rhs_shape":list(v.shape),
+                                    "solution_shape":list(c.shape),
+                                    "operator_role":"UNCLASSIFIED",
+                                    "sampling_semantics":"NOT VERIFIED",
+                                    "float_bound":"BOUND_NOT_CERTIFIED"}
+                            # An observed 'solve' is a direct algebraic solve;
+                            # its physical role cannot be deduced from shape.
                             from ph08_gateq_recovery_hardening import observed_diagnostics
                             role="linear_system" if kind.endswith("solve") else "design"
                             try:
@@ -141,10 +151,10 @@ if mode=="instrumented":
                                 record["algebraic_role_hypothesis"]=role
                             except (ValueError,TypeError,np.linalg.LinAlgError):
                                 stats["errors"].append("ALGEBRAIC_PROBE_NOT_VERIFIED")
-                        stats["operators"].append(record)
-                    except Exception:
-                        stats["errors"].append("PROBE_NOT_VERIFIED")
-                    finally:active[0]=old
+                            stats["operators"].append(record)
+                except Exception:
+                    stats["errors"].append("PROBE_NOT_VERIFIED")
+                finally:active[0]=old
             return out
         return patched
     np.linalg.lstsq=wrap(np.linalg.lstsq,"numpy_lstsq")
@@ -153,8 +163,10 @@ if mode=="instrumented":
         import scipy.linalg as sc
         sc.lstsq=wrap(sc.lstsq,"scipy_lstsq")
         sc.solve=wrap(sc.solve,"scipy_solve")
+        stats["scipy_instrumentation"]="INSTALLED"
     except ImportError:
-        stats["errors"].append("SCIPY_NOT_INSTALLED")
+        # SciPy is optional. Its absence is NOT a failure of NumPy-only HMM.
+        stats["scipy_instrumentation"]="NOT INSTALLED"
 stage4=importlib.import_module("m2_ph08_stage4_qualification")
 out=stage4.mms_suite()
 functions={}
@@ -214,8 +226,9 @@ def original_report(archive):
     if not check_historical_gate(run["mms"]):errs.append("Stage 4 FAIL changed")
     invocations=run["stats"]["recovery_calls"]
     count=len(run["stats"]["operators"])
+    qualifying=run["stats"]["qualifying_solver_calls"]
     status=("NOT VERIFIED" if errs else
-            "ORIGINAL_RECOVERY_NOT_CAPTURED" if not invocations or not count else
+            "ORIGINAL_RECOVERY_NOT_CAPTURED" if not invocations or not qualifying or not count else
             "ORIGINAL_RECOVERY_EXECUTED_UNCLASSIFIED")
     return {"status":status,"instrumentation_output_identical":unchanged,
             "original_mms_replayed":len(run["mms"].get("rows",[])),
@@ -223,6 +236,8 @@ def original_report(archive):
             "archive_sha256":digest,"source_function_metadata":run["functions"],
             "recovery_invocations":invocations,
             "operators_captured":count,
+            "qualifying_solver_calls":qualifying,
+            "nonqualifying_solver_calls":run["stats"]["nonqualifying_solver_calls"],
             "operator_diagnostics":run["stats"]["operators"],
             "instrument_errors":run["stats"]["errors"],
             "reconstruction_gradient":"NOT VERIFIED",
