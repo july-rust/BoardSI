@@ -56,7 +56,7 @@ jobs:
               additions.append({'path':path,'contents':base64.b64encode(raw).decode('ascii')})
           query='mutation($input: CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url}ref{name}}}'
           payload={'query':query,'variables':{'input':{
-              'branch':{'repositoryNameWithOwner':repo,'refName':'refs/heads/'+dst},
+              'branch':{'repositoryNameWithOwner':repo,'branchName':dst},
               'message':{'headline':'test(m2): PH-08 synthetic diagnostics and evidence audit (#50 replacement)','body':'Verified GitHub-generated commit. Independent synthetic tests only; original HMM Gate Q remains FAIL and AC-P1 pending.'},
               'fileChanges':{'additions':additions},
               'expectedHeadOid':target_head
