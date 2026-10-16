@@ -133,10 +133,7 @@ also contain nonconstant terms, which must be evaluated separately.
 
 ## GitHub CI and exact-head reporting
 
-The **optional** existing `m2-ph08-gateq-independent.yml` was extended
-to discover `test_ph08_gateq_*.py`, pin Python 3.13, NumPy 2.3.5,
-SciPy 1.17.0, mpmath 1.3.0, report PR HEAD separately from checked-out
-merge SHA, and prohibit private evidence ZIPs. It does not alter the 17
+The existing optional `m2-ph08-gateq-independent.yml` is preserved for signed publication. `test_ph08_gateq_independent.py` now imports the hardening and synthetic-instrumentation suites; the existing workflow discovers these tests without a workflow-file edit. It pins Python 3.13, NumPy 2.3.5 and mpmath 1.3.0, and records PR HEAD vs checkout SHA. SciPy instrumentation is optional and original-SciPy execution remains NOT RUN. It does not alter the 17
 Strict required contexts. Full execution results, any fixes and signed PR
 HEAD are verified only from matching GitHub Actions run evidence. Earlier
 PR #56 30/30 synthetic PASS is historical, not proof of these new tests.
