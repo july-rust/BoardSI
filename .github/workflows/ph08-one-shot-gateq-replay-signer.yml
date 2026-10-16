@@ -1,0 +1,68 @@
+name: PH08 original Gate Q replay signer (one-shot)
+on:
+  push:
+    branches: [ops/m2-ph08-gateq-replay-signer-20261016]
+permissions:
+  contents: write
+jobs:
+  git-signed-replay:
+    if: github.repository == 'july-rust/BoardSI' && github.ref == 'refs/heads/ops/m2-ph08-gateq-replay-signer-20261016'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Validate and publish original Gate Q helper as Verified commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64, json, os, pathlib, subprocess, sys, tempfile, urllib.parse, urllib.request
+          repo='july-rust/BoardSI'
+          base='cc73e46de7372a00fd60f2b93b8d005871d3ef5a'
+          src='316151d5ea93a36893b8b34e1e345b80b41422f7'
+          target='test/m2-ph08-gateq-original-replay-20261016'
+          blobs={
+            'tools/validation/ph08_stage4_gateq_replay.py':'0133629c47889346e4a50e8cd5b8b4bd5f1cdcd4',
+            'tools/validation/test_ph08_stage4_gateq_replay.py':'92d9b87d2e86cbebd05dc635afb72713a02152e8',
+            'docs/validation/m2-g2-ph08-stage4-original-gateq-reexecution.md':'8f906cdf536862e695518267153ca7bc927b66ff',
+            '.github/workflows/m2-ph08-stage4-gateq-replay.yml':'735b9e966d806860cc66e119c333e73020f3345b'
+          }
+          token=os.environ['GH_TOKEN']
+          baseurl='https://api.github.com/repos/'+repo
+          def call(url,data=None):
+              payload=json.dumps(data,separators=(',',':')).encode() if data is not None else None
+              req=urllib.request.Request(url,data=payload,method='POST' if payload else 'GET',headers={
+                'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json',
+                'Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(req,timeout=60) as f:return json.load(f)
+          assert call(baseurl+'/git/ref/heads/'+target)['object']['sha']==base,'target HEAD changed'
+          source_files={}
+          for name,sha in blobs.items():
+              f=call(baseurl+'/contents/'+urllib.parse.quote(name,safe='/')+'?ref='+src)
+              assert f['sha']==sha and f['encoding']=='base64',name
+              source_files[name]=base64.b64decode(f['content'])
+          with tempfile.TemporaryDirectory() as td:
+              root=pathlib.Path(td)
+              for name in list(blobs)[:2]:
+                  (root/pathlib.Path(name).name).write_bytes(source_files[name])
+              external=call(baseurl+'/contents/tools/validation/ph08_evidence_audit.py?ref='+base)
+              (root/'ph08_evidence_audit.py').write_bytes(base64.b64decode(external['content']))
+              direct=subprocess.run([sys.executable,str(root/'test_ph08_stage4_gateq_replay.py')],cwd=root,text=True,capture_output=True)
+              discovery=subprocess.run([sys.executable,'-m','unittest','discover','-s',str(root),'-p','test_ph08_stage4_gateq_replay.py','-v'],cwd=root,text=True,capture_output=True)
+              assert direct.returncode==0 and discovery.returncode==0,(direct.stderr[-1200:],discovery.stderr[-1200:])
+              assert 'Ran 8 tests' in direct.stderr and 'Ran 8 tests' in discovery.stderr,'not all tests ran'
+              print('GITHUB_SIGNER_UNIT_TESTS_DIRECT_AND_DISCOVERY_8_8_PASS')
+          files=[{'path':p,'contents':base64.b64encode(d).decode()} for p,d in source_files.items()]
+          query='mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url}}}'
+          result=call('https://api.github.com/graphql',{'query':query,'variables':{'input':{
+            'branch':{'repositoryNameWithOwner':repo,'branchName':target},
+            'message':{'headline':'test(m2): reproduce original PH-08 Stage 4 Gate Q FAIL',
+                       'body':'Pin Stage 4 original private archive provenance. Replay 36 MMS cases from verified source snapshots and preserve historical FAIL. Include 8 synthetic regression tests and optional GitHub CI. Gate Q FAIL; AC-P1 PENDING.'},
+            'fileChanges':{'additions':files},'expectedHeadOid':base}}})
+          assert not result.get('errors'),result.get('errors')
+          print('SIGNED_COMMIT',result['data']['createCommitOnBranch']['commit']['oid'])
+          
+          PY
