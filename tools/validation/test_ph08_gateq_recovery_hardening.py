@@ -143,7 +143,7 @@ class HardeningTests(unittest.TestCase):
         # y+delta is rounded in this direct numerical check; exact transfer
         # instead treats separately rounded baseline y and rounded delta.
         self.assertEqual(len(out["gradient_error"]),2)
-        self.assertGreater(float(out["gradient_error_inf_bound_exact"]),0.)
+        self.assertGreater(__import__("fractions").Fraction(out["gradient_error_inf_bound_exact"]),0)
         T,_=gradient_transfer(self.A,self.D)
         expected=[sum(row[k]*__import__("fractions").Fraction.from_float(perturb[k])
                       for k in range(len(perturb))) for row in T]
