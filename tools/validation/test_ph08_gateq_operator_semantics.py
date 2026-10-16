@@ -19,7 +19,13 @@ class OriginalLayoutSyntheticTests(unittest.TestCase):
         self.A,self.vals,self.D=recovery_matrices(self.ids,self.c,self.y,self.mat,
                                                      4,self.o,self.f,self.s,self.p)
         self.coef=np.linalg.lstsq(self.A,self.vals,rcond=None)[0]
-        self.digest=sample_digest(self.ids,self.A,self.vals,self.D)
+        self.digest=self.fingerprint(self.A,self.vals,self.D)
+
+    def fingerprint(self,A,y,D,**extra):
+        k=dict(centers=self.c,face_nodes=self.f,origin=self.o,scale=self.s,
+               point=self.p,materials=self.mat,target=4)
+        k.update(extra)
+        return sample_digest(self.ids,A,y,D,**k)
 
     def judge(self,**kw):
         q=dict(ids=self.ids,centers=self.c,values=self.y,materials=self.mat,
@@ -68,7 +74,9 @@ class OriginalLayoutSyntheticTests(unittest.TestCase):
 
     def test_face_extent_and_material_mutation_is_fail(self):
         f=self.f.copy();f[0,0]-=.11
-        self.assertEqual(self.judge(face_nodes=f)["status"],"FAIL")
+        # Moving a non-extremal face can preserve A and D, but must
+        # invalidate the externally pinned *full geometry* identity.
+        self.assertEqual(self.judge(face_nodes=f)["status"],"NOT VERIFIED")
         mat=self.mat.copy();mat[0]="air"
         self.assertEqual(self.judge(materials=mat)["status"],"FAIL")
 
@@ -92,9 +100,9 @@ class OriginalLayoutSyntheticTests(unittest.TestCase):
 
     def test_fingerprint_uses_sample_order_potentials_and_gradient(self):
         swapped=self.A.copy();swapped[[0,1]]=swapped[[1,0]]
-        self.assertNotEqual(sample_digest(self.ids,swapped,self.vals,self.D),self.digest)
-        self.assertNotEqual(sample_digest(self.ids,self.A,self.vals+.01,self.D),self.digest)
-        self.assertNotEqual(sample_digest(self.ids,self.A,self.vals,self.D*2),self.digest)
+        self.assertNotEqual(self.fingerprint(swapped,self.vals,self.D),self.digest)
+        self.assertNotEqual(self.fingerprint(self.A,self.vals+.01,self.D),self.digest)
+        self.assertNotEqual(self.fingerprint(self.A,self.vals,self.D*2),self.digest)
 
 
 if __name__=="__main__":unittest.main()
