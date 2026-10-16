@@ -6,6 +6,7 @@ independent attestation. Six columns alone prove no physical matrix role.
 """
 from __future__ import annotations
 import hashlib
+import json
 import struct
 import numpy as np
 
@@ -51,7 +52,7 @@ def recovery_matrices(ids, centers, values, materials, target, origin, face_node
     return A,y,D
 
 
-def sample_digest(ids,A,y,D):
+def sample_digest(ids,A,y,D,*,centers,face_nodes,origin,scale,point,materials,target):
     """Internal fingerprint only; external pin and original source audit required."""
     a=arr(A); b=arr(y); d=arr(D,(2,6))
     if a.shape!=(len(ids),6) or b.shape!=(len(ids),):
@@ -62,7 +63,18 @@ def sample_digest(ids,A,y,D):
         if isinstance(i,bool) or not isinstance(i,int) or i<0:
             raise ValueError("bad cell id")
         h.update(struct.pack("<Q",i))
-    for z in (a,b,d): h.update(np.ascontiguousarray(z,dtype="<f8").tobytes())
+    if not isinstance(materials,(list,tuple)) or not isinstance(target,int) or target not in ids:
+        raise ValueError("invalid stencil identity")
+    # Geometry must be pinned even when a changed face is not an extremum:
+    # the fitted A and D can stay identical while original provenance changes.
+    for z in (a,b,d,arr(centers,(len(ids),2)),arr(face_nodes),
+              arr(origin,(2,)),arr(scale,(2,)),arr(point,(2,))):
+        h.update(struct.pack("<Q",z.ndim))
+        for dim in z.shape: h.update(struct.pack("<Q",dim))
+        h.update(np.ascontiguousarray(z,dtype="<f8").tobytes())
+    h.update(struct.pack("<Q",target))
+    h.update(json.dumps(materials,ensure_ascii=True,allow_nan=False,
+                        separators=(",",":")).encode("ascii"))
     return h.hexdigest()
 
 
@@ -82,7 +94,9 @@ def judge_capture(ids,centers,values,materials,target,origin,face_nodes,scale,
             or not np.array_equal(cd,D) or weights is not None):
             out.update(status="FAIL",reason="operator/gradient/weight mismatch")
             return out
-        if (not source_attested or expected_digest!=sample_digest(ids,A,y,D)
+        if (not source_attested or expected_digest!=sample_digest(ids,A,y,D,centers=centers,
+                face_nodes=face_nodes,origin=origin,scale=scale,point=point,
+                materials=materials,target=target)
             or solver_entrypoint!="numpy.linalg.lstsq"):
             out["reason"]="source/provenance/runtime solver not independently attested"
             return out
