@@ -103,8 +103,23 @@ def source_records(manifest: object) -> tuple[list[tuple[str, str | None]] | Non
     if len(keys) != 1:
         return None, "no unique recognized sources/source_files/source key"
     obj = manifest[keys[0]]
+    if isinstance(obj, dict):
+        # Stage 4 evidence: {"sources": {"basename.py": "<sha256>", ...}}
+        # Resolve ONLY to the immutable evidence/source_snapshot directory,
+        # never to similarly named exploratory/regression files in the ZIP.
+        if not obj:
+            return None, "empty source_snapshot mapping"
+        records = []
+        for basename, digest in obj.items():
+            if (not isinstance(basename, str) or clean_path(basename) is None or
+                    "/" in basename):
+                return None, "source_snapshot mapping key must be a safe basename"
+            if not isinstance(digest, str) or not HEX64.fullmatch(digest):
+                return None, "source_snapshot mapping digest must be SHA-256"
+            records.append(("evidence/source_snapshot/" + basename, digest.lower()))
+        return records, "recognized Stage 4 source_snapshot mapping"
     if not isinstance(obj, list):
-        return None, f"manifest {keys[0]} is not a list"
+        return None, f"manifest {keys[0]} must be a list or recognized source map"
     records = []
     for i, record in enumerate(obj):
         if isinstance(record, str):
