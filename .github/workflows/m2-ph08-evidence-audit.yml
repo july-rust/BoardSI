@@ -1,0 +1,38 @@
+name: M2 PH-08 synthetic evidence preflight
+on:
+  pull_request:
+    paths:
+      - "tools/validation/ph08_evidence_audit.py"
+      - "tools/validation/test_ph08_evidence_audit.py"
+      - "tools/validation/boardsi_ph08_stage5c_independent_patchcheck.py"
+      - "tools/validation/boardsi_ph08_stage5d_gateq_diagnostic.py"
+      - ".github/workflows/m2-ph08-evidence-audit.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ph08-evidence-preflight:
+    name: ph08-evidence-preflight (optional, synthetic only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Run fail-closed ZIP audit unit tests
+        run: python -m unittest discover -s tools/validation -p "test_ph08_evidence_audit.py" -v
+      - name: Run independent nine-site synthetic diagnostics
+        run: |
+          python -m pip install numpy==2.3.5
+          python tools/validation/boardsi_ph08_stage5c_independent_patchcheck.py
+          python tools/validation/boardsi_ph08_stage5d_gateq_diagnostic.py
+      - name: Save reproducible diagnostic JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ph08-synthetic-diagnostics
+          path: |
+            tools/validation/boardsi_ph08_stage5c_independent_patchcheck.json
+            tools/validation/boardsi_ph08_stage5d_gateq_diagnostic.json
+          if-no-files-found: warn
