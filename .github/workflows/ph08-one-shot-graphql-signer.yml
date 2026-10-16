@@ -1,0 +1,71 @@
+name: PH08 signing bootstrap (temporary, scoped)
+on:
+  push:
+    branches:
+      - test/m2-ph08-signing-bootstrap-20261016
+permissions:
+  contents: write
+jobs:
+  publish-signed:
+    if: github.repository == 'july-rust/BoardSI' && github.ref == 'refs/heads/test/m2-ph08-signing-bootstrap-20261016'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Create one GitHub-signed commit from fixed, audited source
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64, json, os, urllib.parse, urllib.request
+          repo='july-rust/BoardSI'
+          src='2f3df6f7967a0264274439f1bd7aaec2fdef4ca7'
+          baseline='f9d1e860bed2856049e0faac6e9861e7ee0ae160'
+          dst='test/m2-ph08-evidence-audit-signed-20261016'
+          paths=(
+              '.github/workflows/m2-ph08-evidence-audit.yml',
+              'docs/validation/m2-g2-ph08-stage5c-chat-evidence.md',
+              'docs/validation/m2-g2-ph08-stage5c-q-protocol-proposal.md',
+              'docs/validation/m2-g2-ph08-stage5d-evidence.md',
+              'docs/validation/m2-g2-ph08-stage5d-gateq-protocol-notes.md',
+              'docs/validation/m2-g2-ph08-stage5e-audit-evidence.md',
+              'docs/validation/m2-g2-ph08-stage5f-github-transfer.md',
+              'tools/validation/boardsi_ph08_stage5c_independent_patchcheck.py',
+              'tools/validation/boardsi_ph08_stage5d_gateq_diagnostic.py',
+              'tools/validation/ph08_evidence_audit.py',
+              'tools/validation/test_ph08_evidence_audit.py',
+          )
+          token=os.environ['GH_TOKEN']
+          def request(url, payload=None):
+              data=None if payload is None else json.dumps(payload,separators=(',',':')).encode('utf-8')
+              req=urllib.request.Request(url,data=data,headers={'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'},method='GET' if data is None else 'POST')
+              with urllib.request.urlopen(req,timeout=45) as f:
+                  return json.load(f)
+          api='https://api.github.com/repos/'+repo
+          source_head=request(api+'/git/ref/heads/test/m2-ph08-evidence-audit-20261016')['object']['sha']
+          target_head=request(api+'/git/ref/heads/'+dst)['object']['sha']
+          assert source_head==src, ('source moved',source_head)
+          assert target_head==baseline, ('target moved',target_head)
+          additions=[]
+          for path in paths:
+              url=api+'/contents/'+urllib.parse.quote(path,safe='/')+'?ref='+src
+              obj=request(url)
+              assert obj['type']=='file' and obj['encoding']=='base64', path
+              raw=base64.b64decode(obj['content'])
+              assert raw and len(raw)<300000, path
+              additions.append({'path':path,'contents':base64.b64encode(raw).decode('ascii')})
+          query='mutation($input: CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url}ref{name}}}'
+          payload={'query':query,'variables':{'input':{
+              'branch':{'repositoryNameWithOwner':repo,'refName':'refs/heads/'+dst},
+              'message':{'headline':'test(m2): PH-08 synthetic diagnostics and evidence audit (#50 replacement)','body':'Verified GitHub-generated commit. Independent synthetic tests only; original HMM Gate Q remains FAIL and AC-P1 pending.'},
+              'fileChanges':{'additions':additions},
+              'expectedHeadOid':target_head
+          }}}
+          response=request('https://api.github.com/graphql',payload)
+          if response.get('errors'):
+              raise RuntimeError('GraphQL mutation failed: '+str(response['errors']))
+          result=response['data']['createCommitOnBranch']['commit']
+          print('SIGNED_GRAPHQL_COMMIT_OID',result['oid'])
+          print('SIGNED_GRAPHQL_COMMIT_URL',result['url'])
+          print('TRANSFERRED_NEW_FILES',len(paths))
+          PY
