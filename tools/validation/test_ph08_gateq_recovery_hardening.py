@@ -173,7 +173,7 @@ class HardeningTests(unittest.TestCase):
 
 class SyntheticInstrumentationTests(unittest.TestCase):
     """Dry-run PRIVATE_SCRIPT on OPEN synthetic stand-in modules, not original HMM."""
-    def execute(self, aliased=False):
+    def execute(self, aliased=False, incidental_solves=0):
         import json
         from pathlib import Path
         import subprocess
@@ -195,6 +195,8 @@ class SyntheticInstrumentationTests(unittest.TestCase):
                 "        A=np.array([[1.,float(i),float(j),i*i,i*j,j*j]\n"
                 "             for i in (-1,0,1) for j in (-1,0,1)])\n"
                 "        b=A@np.array([1.,2.,3.,4.,5.,6.])\n"
+                f"        for _ in range({incidental_solves}):\n"
+                "            np.linalg.solve(np.eye(2),np.ones(2))\n"
                 f"        return {call}\n",
                 encoding="utf-8")
             (root/"m2_ph08_stage4_qualification.py").write_text(
@@ -228,7 +230,25 @@ class SyntheticInstrumentationTests(unittest.TestCase):
         self.assertEqual(stats["recovery_calls"],1)
         self.assertEqual(stats["solver_calls"],0)
         self.assertEqual(stats["operators"],[])
+        self.assertEqual(stats["qualifying_solver_calls"],0)
         self.assertEqual(stats["aliases_and_custom_solver"],"NOT VERIFIED")
+
+    def test_many_incidental_solves_do_not_fill_24_record_cap(self):
+        stats=self.execute(aliased=False,incidental_solves=30)
+        self.assertEqual(stats["solver_calls"],31)
+        self.assertEqual(stats["nonqualifying_solver_calls"],30)
+        self.assertEqual(stats["qualifying_solver_calls"],1)
+        self.assertEqual(len(stats["operators"]),1)
+        self.assertNotIn("SCIPY_NOT_INSTALLED",stats["errors"])
+
+    def test_incidental_solve_does_not_mask_uncaptured_alias(self):
+        stats=self.execute(aliased=True,incidental_solves=30)
+        self.assertEqual(stats["recovery_calls"],1)
+        self.assertEqual(stats["solver_calls"],30)
+        self.assertEqual(stats["nonqualifying_solver_calls"],30)
+        self.assertEqual(stats["qualifying_solver_calls"],0)
+        self.assertEqual(stats["operators"],[])
+
 
 if __name__=="__main__":
     unittest.main()
