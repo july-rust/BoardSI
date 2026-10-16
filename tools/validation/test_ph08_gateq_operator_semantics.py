@@ -98,6 +98,18 @@ class OriginalLayoutSyntheticTests(unittest.TestCase):
         self.assertGreater(o["observed_coefficients_error_inf"],.49)
         self.assertEqual(o["rust_fem"],"NO-GO")
 
+    def test_exact_rational_sub_ulp_difference_not_hidden(self):
+        from ph08_gateq_recovery_hardening import rational_operator
+        exact=rational_operator(self.A,self.vals,role="design")
+        rounded=np.array([float(x) for x in exact],dtype=np.float64)
+        out=self.judge(observed_coefficients=rounded)
+        self.assertEqual(out["status"],"NOT VERIFIED")
+        self.assertGreater(out["observed_coefficients_error_inf"],0.)
+
+    def test_oversized_cell_id_fails_closed(self):
+        ids=self.ids[:-1]+[2**64]
+        self.assertEqual(self.judge(ids=ids)["status"],"FAIL")
+
     def test_fingerprint_uses_sample_order_potentials_and_gradient(self):
         swapped=self.A.copy();swapped[[0,1]]=swapped[[1,0]]
         self.assertNotEqual(self.fingerprint(swapped,self.vals,self.D),self.digest)
