@@ -81,6 +81,20 @@ def parse_sum_lines(content: bytes) -> tuple[dict[str, str], list[str]]:
     return recorded, errors
 
 
+def reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict:
+    """Fail closed if a JSON object repeats a key at any nesting depth."""
+    obj = {}
+    for key, value in pairs:
+        if key in obj:
+            raise ValueError(f"duplicate JSON object key: {key}")
+        obj[key] = value
+    return obj
+
+
+def load_unique_json(raw: bytes) -> object:
+    return json.loads(raw, object_pairs_hook=reject_duplicate_json_keys)
+
+
 def source_records(manifest: object) -> tuple[list[tuple[str, str | None]] | None, str]:
     """Recognize only explicit source inventory schemas; never guess keys."""
     if not isinstance(manifest, dict):
@@ -203,7 +217,7 @@ def inspect(path: Path, expected_sha256: str | None = None,
                     return out
                 out["format"] = "Chat-only Stage 5C/5D bundle (not original HMM)"
                 try:
-                    data = json.loads(z.read(members[name]))
+                    data = load_unique_json(z.read(members[name]))
                 except (ValueError, UnicodeDecodeError):
                     fail.append("invalid Chat-only manifest JSON")
                     out["result"] = "FAIL"
@@ -281,7 +295,7 @@ def inspect(path: Path, expected_sha256: str | None = None,
                 not_verified.append("evidence/manifest.json absent from expected SHA256SUMS-root layout")
             else:
                 try:
-                    manifest = json.loads(z.read(members[manifest_names[0]]))
+                    manifest = load_unique_json(z.read(members[manifest_names[0]]))
                 except (ValueError, UnicodeDecodeError):
                     fail.append("invalid JSON in evidence/manifest.json")
                 else:

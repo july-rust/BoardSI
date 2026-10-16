@@ -117,7 +117,7 @@ class ArchiveAudit(unittest.TestCase):
         self.assertEqual(inspect(self.path,expected_sha256=digest(self.path.read_bytes()))["result"],"FAIL")
 
 
-if __name__ == '__main__': unittest.main(verbosity=2)
+
 
 # Additional explicit Chat-only stage 5C/5D manifest checks.  The archival
 # integrity PASS does not imply any PH-08 physics or original HMM Gate-Q PASS.
@@ -179,3 +179,43 @@ class SymlinkGuard(unittest.TestCase):
             r=inspect(path,expected_sha256=digest(path.read_bytes()))
             self.assertEqual(r["result"],"FAIL")
             self.assertTrue(any("symlink" in f for f in r["failures"]))
+
+
+
+class DuplicateManifestKeys(unittest.TestCase):
+    def test_chat_only_manifest_rejects_duplicate_digest_key(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "chat.zip"
+            body = b"synthetic"
+            sha = digest(body)
+            name = "boardsi-ph08-stage5d-manifest.json"
+            raw = ('{"files_sha256":{"sample.txt":"' + sha +
+                   '","sample.txt":"' + sha + '"}}').encode()
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("sample.txt", body)
+                z.writestr(name, raw)
+            r = inspect(path, expected_sha256=digest(path.read_bytes()))
+            self.assertEqual(r["result"], "FAIL")
+            self.assertTrue(any("manifest JSON" in v for v in r["failures"]))
+
+    def test_original_manifest_rejects_duplicate_nested_source_field(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "original.zip"
+            body = b"synthetic"
+            source_digest = digest(body)
+            raw = ('{"sources":[{"path":"src/check.py","path":"src/check.py",'
+                   '"sha256":"' + source_digest + '"}]}').encode()
+            contents = {"src/check.py": body, "evidence/manifest.json": raw}
+            sums = ''.join(f'{digest(v)}  {k}\n' for k, v in contents.items()).encode()
+            with zipfile.ZipFile(path, "w") as z:
+                for name, b in contents.items():
+                    z.writestr(name, b)
+                z.writestr("SHA256SUMS", sums)
+            r = inspect(path, expected_sha256=digest(path.read_bytes()),
+                        expected_entries=2, expected_sources=1)
+            self.assertEqual(r["result"], "FAIL")
+            self.assertTrue(any("invalid JSON" in v for v in r["failures"]))
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
