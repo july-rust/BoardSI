@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import struct
+from fractions import Fraction
 import numpy as np
 
 
@@ -25,7 +26,7 @@ def recovery_matrices(ids, centers, values, materials, target, origin, face_node
     and source code. No face-value observations and no implicit weights.
     """
     if (not isinstance(ids,(list,tuple)) or len(ids)<6 or
-        any(isinstance(i,bool) or not isinstance(i,int) or i<0 for i in ids)
+        any(isinstance(i,bool) or not isinstance(i,int) or i<0 or i>2**64-1 for i in ids)
         or list(ids)!=sorted(set(ids)) or target not in ids):
         raise ValueError("missing/duplicate/unordered cell IDs")
     n=len(ids)
@@ -60,7 +61,7 @@ def sample_digest(ids,A,y,D,*,centers,face_nodes,origin,scale,point,materials,ta
     h=hashlib.sha256(b"PH08-DECLARED-SYNTHETIC-SAMPLE-V1\0")
     h.update(struct.pack("<Q",len(ids)))
     for i in ids:
-        if isinstance(i,bool) or not isinstance(i,int) or i<0:
+        if isinstance(i,bool) or not isinstance(i,int) or i<0 or i>2**64-1:
             raise ValueError("bad cell id")
         h.update(struct.pack("<Q",i))
     if not isinstance(materials,(list,tuple)) or not isinstance(target,int) or target not in ids:
@@ -104,12 +105,12 @@ def judge_capture(ids,centers,values,materials,target,origin,face_nodes,scale,
         exact=rational_operator(A,y,role="design")
         T,K=gradient_transfer(A,D)
         out.update(
-            observed_coefficients_error_inf=max(abs(float(v)-float(r))
-                                            for v,r in zip(c,exact)),
+            observed_coefficients_error_inf=max(
+                float(abs(Fraction.from_float(float(v))-ref)) for v,ref in zip(c,exact)),
             exact_linear_transfer_norm_inf=float(K),
             constant_shift_null=all(sum(row)==0 for row in T),
             reason="original physical tolerance/certified floating bound unavailable")
         return out
-    except (ValueError,TypeError,OverflowError,IndexError,np.linalg.LinAlgError):
+    except (ValueError,TypeError,OverflowError,IndexError,struct.error,np.linalg.LinAlgError):
         out.update(status="FAIL",reason="invalid recovery capture")
         return out
