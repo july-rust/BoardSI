@@ -217,5 +217,54 @@ class DuplicateManifestKeys(unittest.TestCase):
             self.assertTrue(any("invalid JSON" in v for v in r["failures"]))
 
 
+
+
+class Stage4SourceSnapshotMap(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / "stage4-map.zip"
+
+    def make(self, mapping=None, source=b"original synthetic", raw_manifest=None):
+        digest_source = digest(source)
+        if mapping is None:
+            mapping = {"ref.py": digest_source}
+        manifest = raw_manifest or json.dumps({"sources": mapping}).encode()
+        files = {"evidence/source_snapshot/ref.py": source, "evidence/manifest.json": manifest}
+        sums = "".join(f"{digest(v)}  {name}\n" for name,v in files.items()).encode()
+        with zipfile.ZipFile(self.path, "w") as z:
+            for name, value in files.items():
+                z.writestr(name, value)
+            z.writestr("SHA256SUMS", sums)
+        return inspect(self.path, expected_sha256=digest(self.path.read_bytes()),
+                       expected_entries=2, expected_sources=1)
+
+    def test_valid_source_map(self):
+        r = self.make()
+        self.assertEqual(r["result"], "PASS")
+        self.assertEqual((r["checksum_verified"], r["source_hash_verified"]), (2, 1))
+
+    def test_source_map_digest_tamper(self):
+        r = self.make({"ref.py": "0" * 64})
+        self.assertEqual(r["result"], "FAIL")
+        self.assertTrue(any("source inventory sha256 mismatch" in x for x in r["failures"]))
+
+    def test_source_map_unsafe_key(self):
+        r = self.make({"../ref.py": "0" * 64})
+        self.assertEqual(r["result"], "NOT_VERIFIED")
+        self.assertTrue(any("safe basename" in x for x in r["not_verified"]))
+
+    def test_source_map_unknown_digest_format(self):
+        r = self.make({"ref.py": 17})
+        self.assertEqual(r["result"], "NOT_VERIFIED")
+
+    def test_duplicate_source_map_json_key(self):
+        expected = digest(b"original synthetic")
+        raw = ('{"sources":{"ref.py":"' + expected + '","ref.py":"' + expected + '"}}').encode()
+        r = self.make(raw_manifest=raw)
+        self.assertEqual(r["result"], "FAIL")
+        self.assertTrue(any("invalid JSON" in x for x in r["failures"]))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
