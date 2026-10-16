@@ -84,54 +84,100 @@ def synthetic_report():
             "certified_float_bound":"BOUND_NOT_CERTIFIED"}
 
 PRIVATE_SCRIPT=r"""
-import importlib,inspect,json,sys
+import importlib,inspect,json,sys,hashlib
 import numpy as np
+mode=sys.argv[3]
+if mode not in ("baseline","instrumented"):raise ValueError("unsupported probe mode")
 sys.path.insert(0,sys.argv[2]);sys.path.insert(0,sys.argv[1])
-from ph08_gateq_hmm_bridge import diagnose
 hmm=importlib.import_module("m2_ph08_hmm_reference")
 module=importlib.import_module("m2_ph08_stage3")
 cls=module.Recovery
-original=cls.polynomial
-active=[False]
-stats={"recovery_calls":0,"matrices":[],"errors":[]}
-def recovery(*args,**kwargs):
-    stats["recovery_calls"]+=1
-    old=active[0];active[0]=True
-    try:return original(*args,**kwargs)
-    finally:active[0]=old
 descriptor=inspect.getattr_static(cls,"polynomial")
-cls.polynomial=(staticmethod(recovery) if isinstance(descriptor,staticmethod)
-    else classmethod(recovery) if isinstance(descriptor,classmethod) else recovery)
-def wrap(fn,kind):
-    def patched(A,b,*args,**kw):
-        out=fn(A,b,*args,**kw)
-        if active[0] and len(stats["matrices"])<24:
-            active[0]=False
-            try:
-                coeff=out[0] if kind.endswith("lstsq") else out
-                a=np.asarray(A);v=np.asarray(b)
-                if a.ndim==2 and a.shape[1]==6 and v.ndim==1:
-                    result=diagnose(a,v,coeff);result["solver"]=kind
-                    stats["matrices"].append(result)
-            except Exception as err:
-                stats["errors"].append(type(err).__name__)
-            finally:active[0]=True
-        return out
-    return patched
-np.linalg.lstsq=wrap(np.linalg.lstsq,"numpy_lstsq")
-np.linalg.solve=wrap(np.linalg.solve,"numpy_solve")
-try:
-    import scipy.linalg as sc
-    sc.lstsq=wrap(sc.lstsq,"scipy_lstsq")
-    sc.solve=wrap(sc.solve,"scipy_solve")
-except ImportError: pass
+if isinstance(descriptor,(staticmethod,classmethod)):
+    original=descriptor.__func__
+else:
+    original=descriptor
+active=[False]
+stats={"recovery_calls":0,"solver_calls":0,"qualifying_solver_calls":0,
+       "nonqualifying_solver_calls":0,"operators":[],"errors":[],
+       "operator_role":"UNCLASSIFIED","aliases_and_custom_solver":"NOT VERIFIED",
+       "scipy_instrumentation":"NOT INSTALLED"}
+if mode=="instrumented":
+    def recovery(*args,**kwargs):
+        stats["recovery_calls"]+=1
+        old=active[0];active[0]=True
+        try:return original(*args,**kwargs)
+        finally:active[0]=old
+    cls.polynomial=(staticmethod(recovery) if isinstance(descriptor,staticmethod)
+        else classmethod(recovery) if isinstance(descriptor,classmethod) else recovery)
+    def wrap(fn,kind):
+        def patched(A,b,*args,**kw):
+            out=fn(A,b,*args,**kw)
+            if active[0]:
+                stats["solver_calls"]+=1
+                old=active[0];active[0]=False
+                try:
+                    a=np.asarray(A);v=np.asarray(b)
+                    coeff=out[0] if kind.endswith("lstsq") else out
+                    c=np.asarray(coeff)
+                    eligible=(a.ndim==2 and a.shape[1]==6 and
+                        a.shape[0]>=6 and v.ndim==1 and
+                        v.shape==(a.shape[0],) and c.shape==(6,) and
+                        np.isfinite(a).all() and np.isfinite(v).all()
+                        and np.isfinite(c).all() and
+                        (not kind.endswith("solve") or a.shape==(6,6)))
+                    if not eligible:
+                        stats["nonqualifying_solver_calls"]+=1
+                    else:
+                        stats["qualifying_solver_calls"]+=1
+                        # Cap applies to QUALIFYING operator records, never
+                        # incidental 2x2 solves or unrelated function calls.
+                        if len(stats["operators"])<24:
+                            record={"solver_entrypoint":kind,
+                                    "matrix_shape":list(a.shape),
+                                    "rhs_shape":list(v.shape),
+                                    "solution_shape":list(c.shape),
+                                    "operator_role":"UNCLASSIFIED",
+                                    "sampling_semantics":"NOT VERIFIED",
+                                    "float_bound":"BOUND_NOT_CERTIFIED"}
+                            # An observed 'solve' is a direct algebraic solve;
+                            # its physical role cannot be deduced from shape.
+                            from ph08_gateq_recovery_hardening import observed_diagnostics
+                            role="linear_system" if kind.endswith("solve") else "design"
+                            try:
+                                d=observed_diagnostics(a,v,c,role=role,
+                                    method="solve" if kind.endswith("solve") else "lstsq")
+                                record["algebraic_diagnostics"]=d
+                                record["algebraic_role_hypothesis"]=role
+                            except (ValueError,TypeError,np.linalg.LinAlgError):
+                                stats["errors"].append("ALGEBRAIC_PROBE_NOT_VERIFIED")
+                            stats["operators"].append(record)
+                except Exception:
+                    stats["errors"].append("PROBE_NOT_VERIFIED")
+                finally:active[0]=old
+            return out
+        return patched
+    np.linalg.lstsq=wrap(np.linalg.lstsq,"numpy_lstsq")
+    np.linalg.solve=wrap(np.linalg.solve,"numpy_solve")
+    try:
+        import scipy.linalg as sc
+        sc.lstsq=wrap(sc.lstsq,"scipy_lstsq")
+        sc.solve=wrap(sc.solve,"scipy_solve")
+        stats["scipy_instrumentation"]="INSTALLED"
+    except ImportError:
+        # SciPy is optional. Its absence is NOT a failure of NumPy-only HMM.
+        stats["scipy_instrumentation"]="NOT INSTALLED"
 stage4=importlib.import_module("m2_ph08_stage4_qualification")
 out=stage4.mms_suite()
 functions={}
-for label,fn in [("solve",hmm.solve),("Recovery.polynomial",original),("mms_suite",stage4.mms_suite)]:
-    functions[label]={"module":inspect.getmodule(fn).__name__,
-                      "line":inspect.getsourcelines(fn)[1],
-                      "signature":str(inspect.signature(fn))}
+for label,fn in [("solve",hmm.solve),("Recovery.polynomial",original),
+                 ("mms_suite",stage4.mms_suite)]:
+    try:
+        functions[label]={"module":inspect.getmodule(fn).__name__,
+                          "line":inspect.getsourcelines(fn)[1],
+                          "signature":str(inspect.signature(fn))}
+    except (OSError,TypeError,AttributeError):
+        functions[label]={"source_location":"NOT VERIFIED"}
 print(json.dumps({"mms":out,"functions":functions,"stats":stats},allow_nan=False))
 """
 
@@ -160,20 +206,39 @@ def original_report(archive):
                     raise ValueError("snapshot hash mismatch")
                 (root/name).write_bytes(raw)
             env=os.environ.copy();env.pop("PYTHONPATH",None)
-            process=subprocess.run([sys.executable,"-c",PRIVATE_SCRIPT,str(root),str(Path(__file__).resolve().parent)],
-                cwd=root,env=env,capture_output=True,text=True,timeout=300,check=False)
-            if process.returncode:
-                raise RuntimeError("private instrumented HMM failed: "+process.stderr[-1000:])
-            run=json.loads(process.stdout)
+            results={}
+            for mode in ("baseline","instrumented"):
+                process=subprocess.run([sys.executable,"-c",PRIVATE_SCRIPT,str(root),
+                    str(Path(__file__).resolve().parent),mode],cwd=root,env=env,
+                    capture_output=True,text=True,timeout=300,check=False)
+                if process.returncode:
+                    # Never expose original private source/paths in stderr.
+                    raise RuntimeError("private HMM execution failed [stderr redacted]")
+                results[mode]=json.loads(process.stdout)
+            baseline=results["baseline"]
+            run=results["instrumented"]
     errs=compare_rows(run["mms"],prior)
+    errs.extend("baseline_vs_instrumented: "+str(e) for e in
+                compare_rows(run["mms"],baseline["mms"]))
+    unchanged=(run["mms"]==baseline["mms"])
+    if not unchanged:errs.append("instrumentation_changed_original_mms")
+    if run["stats"]["errors"]:errs.append("instrumentation_diagnostic_incomplete")
     if not check_historical_gate(run["mms"]):errs.append("Stage 4 FAIL changed")
-    return {"status":("ORIGINAL_OPERANDS_SAMPLED_UNQUALIFIED" if run["stats"]["matrices"] and not errs else "NOT VERIFIED"),
+    invocations=run["stats"]["recovery_calls"]
+    count=len(run["stats"]["operators"])
+    qualifying=run["stats"]["qualifying_solver_calls"]
+    status=("NOT VERIFIED" if errs else
+            "ORIGINAL_RECOVERY_NOT_CAPTURED" if not invocations or not qualifying or not count else
+            "ORIGINAL_RECOVERY_EXECUTED_UNCLASSIFIED")
+    return {"status":status,"instrumentation_output_identical":unchanged,
             "original_mms_replayed":len(run["mms"].get("rows",[])),
             "historical_replay_mismatches":errs,
             "archive_sha256":digest,"source_function_metadata":run["functions"],
-            "recovery_invocations":run["stats"]["recovery_calls"],
-            "operators_captured":len(run["stats"]["matrices"]),
-            "operator_diagnostics":run["stats"]["matrices"],
+            "recovery_invocations":invocations,
+            "operators_captured":count,
+            "qualifying_solver_calls":qualifying,
+            "nonqualifying_solver_calls":run["stats"]["nonqualifying_solver_calls"],
+            "operator_diagnostics":run["stats"]["operators"],
             "instrument_errors":run["stats"]["errors"],
             "reconstruction_gradient":"NOT VERIFIED",
             "input_sampling_semantics":"NOT VERIFIED",
@@ -188,14 +253,19 @@ def main():
     a=p.parse_args()
     try:
         o=original_report(a.archive) if a.archive else synthetic_report()
-        rc=0 if o["status"] in ("SYNTHETIC_ONLY","ORIGINAL_OPERANDS_SAMPLED_UNQUALIFIED") else 2
+        rc=0 if o["status"] == "SYNTHETIC_ONLY" else 2
     except (ValueError,OSError,RuntimeError,KeyError,zipfile.BadZipFile,subprocess.TimeoutExpired) as exc:
         o={"status":"NOT VERIFIED","error":str(exc),
            "historical_gate_q":"FAIL","certified_float_bound":"BOUND_NOT_CERTIFIED"}
         rc=2
     o["tool_sha256"]=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    # Private source/probe metadata must never leak into shared console logs.
+    console=o if not a.archive else {key:o.get(key) for key in
+        ("status","original_mms_replayed","recovery_invocations",
+         "operators_captured","historical_gate_q","certified_float_bound")}
     raw=json.dumps(o,allow_nan=False,indent=2)+"\n"
+    console_raw=json.dumps(console,allow_nan=False,indent=2)+"\n"
     if a.output_json:a.output_json.write_text(raw,encoding="utf-8")
-    print(raw)
+    print(console_raw)
     return rc
 if __name__=="__main__":raise SystemExit(main())

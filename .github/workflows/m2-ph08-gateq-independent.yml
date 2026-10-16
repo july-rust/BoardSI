@@ -3,6 +3,11 @@ on:
   pull_request:
     paths:
       - "tools/validation/ph08_gateq_independent.py"
+      - "tools/validation/ph08_gateq_hmm_bridge.py"
+      - "tools/validation/test_ph08_gateq_hmm_bridge.py"
+      - "tools/validation/ph08_gateq_recovery_hardening.py"
+      - "tools/validation/test_ph08_gateq_recovery_hardening.py"
+      - "docs/validation/m2-g2-ph08-recovery-hardening-evidence.md"
       - "tools/validation/test_ph08_gateq_independent.py"
       - "docs/validation/m2-g2-ph08-gateq-independent-proposed.md"
       - "docs/validation/m2-g2-ph08-gateq-independent-ci-evidence.md"
