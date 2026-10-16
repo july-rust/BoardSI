@@ -170,5 +170,65 @@ class HardeningTests(unittest.TestCase):
     def test_original_cannot_pass_without_bound(self):
         self.assertEqual(self.judge(scope=SCOPE_OPERATOR,float_bound_certified=True)["status"],"NOT VERIFIED")
 
+
+class SyntheticInstrumentationTests(unittest.TestCase):
+    """Dry-run PRIVATE_SCRIPT on OPEN synthetic stand-in modules, not original HMM."""
+    def execute(self, aliased=False):
+        import json
+        from pathlib import Path
+        import subprocess
+        import sys
+        import tempfile
+        from ph08_gateq_hmm_bridge import PRIVATE_SCRIPT
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            (root/"m2_ph08_hmm_reference.py").write_text(
+                "def solve():\n    return 'synthetic'\n",encoding="utf-8")
+            origin=("from numpy.linalg import lstsq as alias\n" if aliased else
+                    "import numpy as np\n")
+            call=("alias(A,b,rcond=None)[0]" if aliased else
+                  "np.linalg.lstsq(A,b,rcond=None)[0]")
+            (root/"m2_ph08_stage3.py").write_text(
+                origin+
+                "class Recovery:\n    @staticmethod\n    def polynomial():\n"
+                "        import numpy as np\n"
+                "        A=np.array([[1.,float(i),float(j),i*i,i*j,j*j]\n"
+                "             for i in (-1,0,1) for j in (-1,0,1)])\n"
+                "        b=A@np.array([1.,2.,3.,4.,5.,6.])\n"
+                f"        return {call}\n",
+                encoding="utf-8")
+            (root/"m2_ph08_stage4_qualification.py").write_text(
+                "from m2_ph08_stage3 import Recovery\n"
+                "def mms_suite():\n"
+                "    return {'rows':[{'test':'synthetic',"
+                " 'coeff':[float(x) for x in Recovery.polynomial()]}]}\n",
+                encoding="utf-8")
+            outputs={}
+            for mode in ("baseline","instrumented"):
+                proc=subprocess.run(
+                    [sys.executable,"-c",PRIVATE_SCRIPT,str(root),
+                     str(Path(__file__).resolve().parent),mode],
+                    cwd=root,text=True,capture_output=True,timeout=30,check=False)
+                self.assertEqual(proc.returncode,0,msg=proc.stderr)
+                outputs[mode]=json.loads(proc.stdout)
+            self.assertEqual(outputs["baseline"]["mms"],
+                             outputs["instrumented"]["mms"])
+            return outputs["instrumented"]["stats"]
+
+    def test_actual_synthetic_solver_capture_is_unclassified(self):
+        stats=self.execute(aliased=False)
+        self.assertEqual(stats["recovery_calls"],1)
+        self.assertEqual(stats["solver_calls"],1)
+        self.assertEqual(len(stats["operators"]),1)
+        self.assertEqual(stats["operators"][0]["operator_role"],"UNCLASSIFIED")
+        self.assertEqual(stats["operators"][0]["algebraic_role_hypothesis"],"design")
+
+    def test_preimported_solver_alias_is_not_falsely_claimed(self):
+        stats=self.execute(aliased=True)
+        self.assertEqual(stats["recovery_calls"],1)
+        self.assertEqual(stats["solver_calls"],0)
+        self.assertEqual(stats["operators"],[])
+        self.assertEqual(stats["aliases_and_custom_solver"],"NOT VERIFIED")
+
 if __name__=="__main__":
     unittest.main()
