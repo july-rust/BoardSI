@@ -1,0 +1,28 @@
+name: PH-08 original Stage 4 replay helper unit tests
+on:
+  pull_request:
+    paths:
+      - "tools/validation/ph08_stage4_gateq_replay.py"
+      - "tools/validation/test_ph08_stage4_gateq_replay.py"
+      - ".github/workflows/m2-ph08-stage4-gateq-replay.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ph08-stage4-replay-unit:
+    name: ph08-stage4-replay-unit (synthetic only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Run negative and positive synthetic regression gates
+        run: |
+          python -m unittest discover -s tools/validation -p "test_ph08_stage4_gateq_replay.py" -v
+          python tools/validation/test_ph08_stage4_gateq_replay.py
+      - name: Reject untracked private original evidence
+        run: |
+          test ! -e boardsi-ph08-stage4-qualification.zip
+          test ! -e boardsi-ph08-stage5b-evidence.zip
