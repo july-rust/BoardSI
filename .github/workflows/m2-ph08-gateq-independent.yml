@@ -1,0 +1,44 @@
+name: PH-08 Gate Q independent polynomial oracle (synthetic only)
+on:
+  pull_request:
+    paths:
+      - "tools/validation/ph08_gateq_independent.py"
+      - "tools/validation/test_ph08_gateq_independent.py"
+      - "docs/validation/m2-g2-ph08-gateq-independent-proposed.md"
+      - ".github/workflows/m2-ph08-gateq-independent.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ph08-gateq-independent:
+    name: ph08-gateq-independent (optional, synthetic only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install pinned independent numerical packages
+        run: python -m pip install numpy==2.3.5 mpmath==1.3.0
+      - name: Synthetic exact, high precision and mutation-negative tests
+        run: python -m unittest discover -s tools/validation -p "test_ph08_gateq_independent.py" -v
+      - name: Write reproducible JSON, source and dependency checksums
+        run: |
+          mkdir -p ph08-gateq-artifacts
+          python tools/validation/ph08_gateq_independent.py --output-json ph08-gateq-artifacts/gateq-independent-synthetic.json > /dev/null
+          sha256sum tools/validation/ph08_gateq_independent.py tools/validation/test_ph08_gateq_independent.py docs/validation/m2-g2-ph08-gateq-independent-proposed.md > ph08-gateq-artifacts/SHA256SUMS
+          python -m pip freeze > ph08-gateq-artifacts/pip-freeze.txt
+          printf 'commit=%s\n' "$GITHUB_SHA" > ph08-gateq-artifacts/github-context.txt
+          printf 'historical_stage4_gate_q=FAIL\nAC_P1=PENDING\nStage5B=NOT_RUN\n' >> ph08-gateq-artifacts/github-context.txt
+      - name: Reject inclusion of original private evidence
+        run: |
+          test ! -e boardsi-ph08-stage4-qualification.zip
+          test ! -e boardsi-ph08-stage5b-evidence.zip
+      - name: Archive synthetic diagnostics only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ph08-gateq-independent-synthetic
+          path: ph08-gateq-artifacts/
+          if-no-files-found: warn
