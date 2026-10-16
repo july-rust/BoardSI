@@ -5,6 +5,7 @@ on:
       - "tools/validation/ph08_gateq_independent.py"
       - "tools/validation/test_ph08_gateq_independent.py"
       - "docs/validation/m2-g2-ph08-gateq-independent-proposed.md"
+      - "docs/validation/m2-g2-ph08-gateq-independent-ci-evidence.md"
       - ".github/workflows/m2-ph08-gateq-independent.yml"
   workflow_dispatch:
 permissions:
@@ -27,9 +28,10 @@ jobs:
         run: |
           mkdir -p ph08-gateq-artifacts
           python tools/validation/ph08_gateq_independent.py --output-json ph08-gateq-artifacts/gateq-independent-synthetic.json > /dev/null
-          sha256sum tools/validation/ph08_gateq_independent.py tools/validation/test_ph08_gateq_independent.py docs/validation/m2-g2-ph08-gateq-independent-proposed.md > ph08-gateq-artifacts/SHA256SUMS
+          sha256sum tools/validation/ph08_gateq_independent.py tools/validation/test_ph08_gateq_independent.py docs/validation/m2-g2-ph08-gateq-independent-proposed.md docs/validation/m2-g2-ph08-gateq-independent-ci-evidence.md > ph08-gateq-artifacts/SHA256SUMS
           python -m pip freeze > ph08-gateq-artifacts/pip-freeze.txt
-          printf 'commit=%s\n' "$GITHUB_SHA" > ph08-gateq-artifacts/github-context.txt
+          printf 'pr_head=%s\n' "${{ github.event.pull_request.head.sha || github.sha }}" > ph08-gateq-artifacts/github-context.txt
+          printf 'checkout_test_sha=%s\n' "$GITHUB_SHA" >> ph08-gateq-artifacts/github-context.txt
           printf 'historical_stage4_gate_q=FAIL\nAC_P1=PENDING\nStage5B=NOT_RUN\n' >> ph08-gateq-artifacts/github-context.txt
       - name: Reject inclusion of original private evidence
         run: |
