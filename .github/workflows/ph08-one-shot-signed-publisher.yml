@@ -1,0 +1,50 @@
+name: One-time PH08 signed CI integration
+on:
+  push:
+    branches: [ops/ph08-hmm-bridge-signer-20261016]
+permissions:
+  contents: write
+jobs:
+  append:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Add bridge tests to existing optional CI using GitHub-signed GraphQL commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import os,json,urllib.request,base64
+          repo='july-rust/BoardSI';token=os.environ['GH_TOKEN']
+          def req(url,data=None):
+              payload=json.dumps(data).encode() if data else None
+              r=urllib.request.Request(url,payload,headers={'Authorization':'Bearer '+token,
+                 'Accept':'application/vnd.github+json','Content-Type':'application/json'},
+                 method='POST' if data else 'GET')
+              with urllib.request.urlopen(r,timeout=60) as f:return json.load(f)
+          f=req('https://api.github.com/repos/'+repo+'/contents/tools/validation/test_ph08_gateq_independent.py?ref=main')
+          raw=base64.b64decode(f['content']).decode('utf-8')
+          marker='if __name__ == "__main__":'
+          assert raw.count(marker)==1
+          addition='from test_ph08_gateq_hmm_bridge import Tests as OriginalHMMBridgeSyntheticTests\n\n'
+          assert addition.strip() not in raw
+          updated=raw.replace(marker,addition+marker)
+          input={
+           'branch':{'repositoryNameWithOwner':repo,'branchName':'feature/ph08-gateq-hmm-oracle-bridge'},
+           'message':{'headline':'test(m2): execute HMM bridge synthetic controls in existing optional Gate Q CI'},
+           'expectedHeadOid':'0d76b1df9bb960377f06ae95dc602be3f9d22c19',
+           'fileChanges':{'additions':[{'path':'tools/validation/test_ph08_gateq_independent.py',
+                                        'contents':base64.b64encode(updated.encode()).decode()}]}}
+          q='mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url}}}'
+          p=req('https://api.github.com/graphql',{'query':q,'variables':{'input':input}})
+          assert not p.get('errors'),p.get('errors')
+          print('SIGNED_CI_INTEGRATION_HEAD='+p['data']['createCommitOnBranch']['commit']['oid'])
+          cleanup={
+           'branch':{'repositoryNameWithOwner':repo,'branchName':'ops/ph08-hmm-bridge-signer-20261016'},
+           'message':{'headline':'chore: clean CI integration one-time workflow'},
+           'expectedHeadOid':os.environ['GITHUB_SHA'],
+           'fileChanges':{'deletions':[{'path':'.github/workflows/ph08-one-shot-signed-publisher.yml'}]}}
+          out=req('https://api.github.com/graphql',{'query':q,'variables':{'input':cleanup}})
+          assert not out.get('errors'),out.get('errors')
+          print('ONE_TIME_WORKFLOW_REMOVED='+out['data']['createCommitOnBranch']['commit']['oid'])
+          PY
