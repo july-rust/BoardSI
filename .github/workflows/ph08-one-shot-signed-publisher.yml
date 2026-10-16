@@ -29,7 +29,7 @@ jobs:
           sha=post({'branch':{'repositoryNameWithOwner':'july-rust/BoardSI','branchName':'feature/ph08-gateq-hmm-oracle-bridge'},
                     'message':{'headline':'test(m2): original HMM recovery probe and independent rational operator diagnostics'},
                     'expectedHeadOid':'8e79b7e0502348af628cfa3a7e08915a577e773d',
-                    'fileChanges':{'additions':files}})
+                    'fileChanges':{'additions':files[:3]}})
           print('VERIFIED_FEATURE_SHA='+sha)
           done=post({'branch':{'repositoryNameWithOwner':'july-rust/BoardSI','branchName':'ops/ph08-hmm-bridge-signer-20261016'},
                      'message':{'headline':'chore: remove one-off PH08 publishing workflow'},
