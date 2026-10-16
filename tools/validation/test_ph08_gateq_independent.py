@@ -148,5 +148,7 @@ class PolynomialOracleTests(unittest.TestCase):
             self.assertTrue(math.isfinite(row["condition_2_float64"]))
 
 
+from test_ph08_gateq_hmm_bridge import Tests as OriginalHMMBridgeSyntheticTests
+
 if __name__ == "__main__":
     unittest.main()
