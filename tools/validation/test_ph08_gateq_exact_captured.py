@@ -225,8 +225,9 @@ class CapturedBoundAndTRTests(unittest.TestCase):
     def test_pinned_synthetic_fixture_T_never_certifies_original(self):
         result = judge_tr_registered("synthetic_uniform_quadratic_T",
                                      reductions=[2.0, 2.1])
-        self.assertEqual(result["status"], "PASS")
-        self.assertEqual(result["rate_check_status"], "PASS")
+        self.assertEqual(result["status"], "NOT VERIFIED")
+        self.assertEqual(result["rate_check_status"], "NOT VERIFIED")
+        self.assertIn("not bound", result["reason"])
         self.assertEqual(result["certification_status"], "NOT VERIFIED")
         self.assertEqual(result["physical_gate_q"], "FAIL")
         self.assertEqual(result["historical_gate_q"], "FAIL")
@@ -270,6 +271,18 @@ class CapturedBoundAndTRTests(unittest.TestCase):
                 self.assertEqual(result["status"], "FAIL")
                 self.assertEqual(result["physical_gate_q"], "FAIL")
 
+    def test_registered_T_rejects_foreign_or_unbound_reductions(self):
+        # A registered name alone cannot tie caller numbers to its dataset.
+        for unbound in ([2.0, 2.1],
+                        [0.953506146487913, 0.45916314091601546],
+                        [float("nan"), 2.0]):
+            with self.subTest(reductions=unbound):
+                result = judge_tr_registered("synthetic_uniform_quadratic_T",
+                                             reductions=unbound)
+                self.assertEqual(result["status"], "NOT VERIFIED")
+                self.assertEqual(result["rate_check_status"], "NOT VERIFIED")
+                self.assertEqual(result["physical_gate_q"], "FAIL")
+
     def test_pinned_R_all_self_declarations_never_pass(self):
         claimed = {k: True for k in (
             "original_operator_verified", "exact_reference_verified",
@@ -288,7 +301,8 @@ class CapturedBoundAndTRTests(unittest.TestCase):
         result = judge_tr_registered("synthetic_uniform_quadratic_T",
                                      reductions=[0.953506146487913, 0.45916314091601546])
         self.assertEqual(result["regime"], "T")
-        self.assertEqual(result["rate_check_status"], "FAIL")
+        self.assertEqual(result["rate_check_status"], "NOT VERIFIED")
+        self.assertEqual(result["status"], "NOT VERIFIED")
         self.assertEqual(result["historical_gate_q"], "FAIL")
 
 
