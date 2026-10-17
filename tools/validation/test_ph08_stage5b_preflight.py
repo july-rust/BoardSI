@@ -10,6 +10,9 @@ import tempfile
 import unittest
 import warnings
 import zipfile
+from unittest import mock
+
+from ph08_evidence_audit import inspect
 
 from ph08_stage5b_preflight import preflight, STAGE5B_SHA256
 
@@ -18,7 +21,7 @@ def sha(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def nested_fixture(*, bad_source=False) -> bytes:
+def nested_fixture(*, bad_source=False, extra_snapshot=False) -> bytes:
     src = b"# artificial sample only\n"
     manifest = json.dumps({"sources": {"source.py": sha(src)}}).encode()
     items = {
@@ -26,6 +29,8 @@ def nested_fixture(*, bad_source=False) -> bytes:
             b"tampered" if bad_source else src,
         "boardsi-ph08-stage4-qualification/evidence/manifest.json": manifest,
     }
+    if extra_snapshot:
+        items["boardsi-ph08-stage4-qualification/evidence/source_snapshot/unlisted.py"] = b"extra signed but unregistered"
     sums = "".join(
         f"{sha(value)}  {name.rsplit('boardsi-ph08-stage4-qualification/',1)[1]}\n"
         for name, value in items.items()
@@ -66,6 +71,10 @@ def make_fixture(path: Path, *, corrupt_checksum=False, uncovered_source=False,
         inside[f"stage5b/source_snapshot/sample_{i:02d}.py"] = b"# synthetic source\n"
     for i in range(22):
         inside[f"stage5b/aux/filler_{i:02d}.txt"] = str(i).encode()
+    if zipbomb:
+        # Generate the high-ratio payload BEFORE checksumming; checksum tests
+        # cannot cause this compression-ratio negative control to pass.
+        inside["stage5b/aux/filler_00.txt"] = b"x" * (2 * 1024 * 1024)
     checks = dict(inside)
     if uncovered_source:
         removed = "stage5b/source_snapshot/sample_00.py"
@@ -82,8 +91,6 @@ def make_fixture(path: Path, *, corrupt_checksum=False, uncovered_source=False,
     contents = {**inside, **inputs}
     if bad_member:
         contents[bad_member] = b"malicious"
-    if zipbomb:
-        contents["stage5b/aux/filler_00.txt"] = b"x" * (2 * 1024 * 1024)
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as z:
         for name, value in contents.items():
             z.writestr(name, value)
@@ -166,8 +173,19 @@ class Stage5BPreflight(unittest.TestCase):
                       self.run_fixture(symlink=True)["failure_codes"])
 
     def test_large_compression_ratio_rejected(self):
-        self.assertIn("OUTER_ARCHIVE_AUDIT_FAILED",
-                      self.run_fixture(zipbomb=True)["failure_codes"])
+        h5, h4 = make_fixture(self.path, zipbomb=True)
+        # Under artificially relaxed ratio policy, everything is
+        # checksum-consistent; only the compression-ratio gate can reject.
+        loose = inspect(self.path, expected_sha256=h5,
+                        expected_entries=36, max_ratio=1e9,
+                        require_coverage=False)
+        self.assertEqual(loose["checksum_verified"], 36)
+        self.assertNotEqual(loose["result"], "FAIL")
+        strict = preflight(self.path, expected_sha256=h5,
+                           nested_sha256=h4, expected_entries=36,
+                           expected_sources=13, nested_entries=2,
+                           nested_sources=1)
+        self.assertIn("OUTER_ARCHIVE_AUDIT_FAILED", strict["failure_codes"])
 
     def test_invalid_qualification_json(self):
         self.assertIn("QUALIFICATION_JSON_INVALID",
@@ -190,6 +208,29 @@ class Stage5BPreflight(unittest.TestCase):
                       expected_entries=36, expected_sources=13,
                       nested_entries=2, nested_sources=1)
         self.assertIn("NESTED_STAGE4_AUDIT_FAILED", r["failure_codes"])
+
+    def test_stage4_extra_checksummed_source_requires_manifest_listing(self):
+        altered = nested_fixture(extra_snapshot=True)
+        h5, h4 = make_fixture(self.path, stage4=altered)
+        r = preflight(self.path, expected_sha256=h5, nested_sha256=h4,
+                      expected_entries=36, expected_sources=13,
+                      nested_entries=3, nested_sources=1)
+        self.assertIn("NESTED_STAGE4_SOURCE_INVENTORY_INCOMPLETE",
+                      r["failure_codes"])
+
+    def test_mutated_caller_path_does_not_replace_authenticated_snapshot(self):
+        h5, h4 = make_fixture(self.path)
+        from ph08_stage5b_preflight import _preflight_stable_snapshot
+        def swap_original_and_check_snapshot(snapshot, **kw):
+            self.path.write_bytes(b"malicious concurrent replacement")
+            return _preflight_stable_snapshot(snapshot, **kw)
+        with mock.patch("ph08_stage5b_preflight._preflight_stable_snapshot",
+                        side_effect=swap_original_and_check_snapshot):
+            r = preflight(self.path, expected_sha256=h5, nested_sha256=h4,
+                          expected_entries=36, expected_sources=13,
+                          nested_entries=2, nested_sources=1)
+        self.assertEqual(r["status"], "PASS_INTEGRITY_ONLY_NO_REPLAY")
+        self.assertNotEqual(self.path.read_bytes(), b"")
 
     def test_expected_source_count_change_rejected(self):
         h5, h4 = make_fixture(self.path)
