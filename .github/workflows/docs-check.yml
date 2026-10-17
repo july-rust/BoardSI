@@ -10,6 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Reject known private PH-08 archives in every tracked checkout
+        shell: bash
+        run: |
+          python3 tools/validation/ph08_private_archive_guard.py
+          python3 -m unittest discover -s tools/validation -p 'test_ph08_private_archive_guard.py' -v
       - name: Check specification IDs and roadmap schema
         run: |
           python3 - <<'PY'

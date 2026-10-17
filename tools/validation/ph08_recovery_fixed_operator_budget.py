@@ -9,6 +9,7 @@ physical coordinates, floating point solver, or whole-space error.
 from __future__ import annotations
 
 from fractions import Fraction
+from itertools import islice
 from ph08_gateq_exact_captured import (
     MAX_CAPTURE_ROWS, binary64, inverse, mul, norm_inf, qstr,
 )
@@ -26,14 +27,22 @@ def _reference(value: object) -> Q:
     return value
 
 
-def _vector(values, size: int, convert):
+def _bounded(values, limit: int):
+    """Read no more than limit+1 items even from a one-shot/infinite iterable."""
     try:
-        values = list(values)
-        if len(values) != size:
-            raise ValueError("wrong vector length")
-        return [[convert(v)] for v in values]
+        result = list(islice(iter(values), limit + 1))
     except (TypeError, OverflowError) as ex:
-        raise ValueError("invalid vector") from ex
+        raise ValueError("invalid iterable") from ex
+    if len(result) > limit:
+        raise ValueError("input exceeds bounded diagnostic size")
+    return result
+
+
+def _vector(values, size: int, convert):
+    vals = _bounded(values, size)
+    if len(vals) != size:
+        raise ValueError("wrong vector length")
+    return [[convert(v)] for v in vals]
 
 
 def _norm_vector(values) -> Q:
@@ -61,17 +70,25 @@ def analyze_fixed_recovery(A, D, y_numeric, y_reference,
     faithful to the original PDE/operator. The triangle inequality is likewise
     fixed-input-only. Accept only rational manufactured reference data.
     """
-    try:
-        rows = [list(row) for row in A]
-        design = [[binary64(v) for v in row] for row in rows]
-        grad_rows = [[binary64(v) for v in row] for row in D]
-    except (TypeError, OverflowError) as ex:
-        raise ValueError("invalid matrix") from ex
-    n = len(design)
-    if not 6 <= n <= MAX_CAPTURE_ROWS or any(len(row) != 6 for row in design):
+    raw_rows = _bounded(A, MAX_CAPTURE_ROWS)
+    if len(raw_rows) < 6:
         raise ValueError("invalid six-term design matrix")
-    if len(grad_rows) != 2 or any(len(row) != 6 for row in grad_rows):
+    raw_grad = _bounded(D, 2)
+    if len(raw_grad) != 2:
         raise ValueError("invalid physical gradient evaluation matrix")
+    design = []
+    for row in raw_rows:
+        fields = _bounded(row, 6)
+        if len(fields) != 6:
+            raise ValueError("invalid six-term design matrix")
+        design.append([binary64(v) for v in fields])
+    grad_rows = []
+    for row in raw_grad:
+        fields = _bounded(row, 6)
+        if len(fields) != 6:
+            raise ValueError("invalid physical gradient evaluation matrix")
+        grad_rows.append([binary64(v) for v in fields])
+    n = len(design)
 
     yn = _vector(y_numeric, n, binary64)
     yr = _vector(y_reference, n, _reference)

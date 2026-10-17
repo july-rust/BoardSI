@@ -5,6 +5,9 @@ on:
       - "tools/validation/ph08_recovery_fixed_operator_budget.py"
       - "tools/validation/test_ph08_recovery_fixed_operator_budget.py"
       - "tools/validation/ph08_gateq_exact_captured.py"
+      - "tools/validation/ph08_private_archive_guard.py"
+      - "tools/validation/test_ph08_private_archive_guard.py"
+      - ".github/workflows/docs-check.yml"
       - "docs/validation/m2-g2-ph08-fixed-operator-error-budget.md"
       - ".github/workflows/m2-ph08-fixed-operator-budget.yml"
   workflow_dispatch:
@@ -36,10 +39,8 @@ jobs:
           printf 'head_sha=%s\n' "${{ github.event.pull_request.head.sha || github.sha }}" >> ph08-fixed-operator-evidence/context.txt
           printf 'test_scope=PUBLIC_SYNTHETIC_ONLY\noriginal_hmm=NOT_RUN\nphysical_gate_q=FAIL\nAC_P1=PENDING\ncontract=NOT_FROZEN\nrust_fem=NO_GO\nGate_M=NOT_VERIFIED\nphysical_bound=BOUND_NOT_CERTIFIED\n' >> ph08-fixed-operator-evidence/context.txt
           python --version >> ph08-fixed-operator-evidence/context.txt
-      - name: Assert private ZIP not in public checkout
-        run: |
-          test ! -e boardsi-ph08-stage4-qualification.zip
-          test ! -e boardsi-ph08-stage5b-evidence.zip
+      - name: Guard known original archives in all tracked paths
+        run: python3 tools/validation/ph08_private_archive_guard.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

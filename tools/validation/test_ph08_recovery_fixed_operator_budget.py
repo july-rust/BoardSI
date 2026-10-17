@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Public synthetic tests only; NOT an original-HMM or physical certification."""
 import unittest
+from itertools import repeat
 from fractions import Fraction as Q
 
 from ph08_recovery_fixed_operator_budget import analyze_fixed_recovery
@@ -115,6 +116,24 @@ class FixedOperatorTests(unittest.TestCase):
         y[0] = Q(2**4100)
         with self.assertRaises(ValueError):
             run_case(yr=y)
+
+    def test_infinite_matrix_iterable_bounded(self):
+        with self.assertRaisesRegex(ValueError, "bounded"):
+            run_case(a=repeat([1., 0., 0., 0., 0., 0.]))
+
+    def test_infinite_matrix_row_iterable_bounded(self):
+        a, _, _, _, _ = fixture()
+        a[0] = repeat(1.)
+        with self.assertRaisesRegex(ValueError, "bounded"):
+            run_case(a=a)
+
+    def test_infinite_numeric_input_bounded(self):
+        with self.assertRaisesRegex(ValueError, "bounded"):
+            run_case(yn=repeat(1.))
+
+    def test_infinite_gradient_rows_bounded(self):
+        with self.assertRaisesRegex(ValueError, "bounded"):
+            run_case(d=repeat([0., 1., 0., 0., 0., 0.]))
 
     def test_no_physical_acceptance_from_tight_triangle(self):
         r = run_case()
