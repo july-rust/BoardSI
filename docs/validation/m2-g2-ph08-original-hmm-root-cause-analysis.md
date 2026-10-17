@@ -102,6 +102,15 @@ Cases include:
 - rank defects, nonfinite input, non-Fraction references, resource caps;
 - explicit prohibition of physical certification from these tests.
 
+Resource hardening: the public diagnostic limits total exact input bit
+complexity to 4096 across captured and reference matrices/vectors BEFORE
+forming/inverting rational normal equations; oversized result fractions
+are rejected before decimal serialization. The MAX_CAPTURE_ROWS=128 cap
+is only an independent shape ceiling, not guaranteed admission under
+the aggregate bit budget. Distinct-denominator adversarial cases are
+negative-tested. This is a conservative resource guard, not a formal
+worst-case execution-time proof.
+
 No synthetic negative control is claimed to have executed through the
 original private HMM solver.
 
