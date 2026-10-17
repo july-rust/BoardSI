@@ -1,0 +1,61 @@
+name: One-shot PH-08 fixed-operator P1 P2 fixes signed v2
+on:
+  push:
+    branches: [ops/ph08-fixed-operator-signer-20261017]
+    paths: [".github/workflows/ph08-fixed-operator-signed-v2.yml"]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: d0922ab69bbd7735b1d8a7b4b44d73f0c12ea894
+          persist-credentials: false
+      - name: Publish reviewed source fixes as GitHub Verified
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os,json,base64,pathlib,subprocess,urllib.request
+          source="d0922ab69bbd7735b1d8a7b4b44d73f0c12ea894"
+          expected_tree="da66ae768238be0333df81a063d8f69175daf4c3"
+          previous="af9cc7d898bd4f56fd15706b1e2c94ef1d944e18"
+          paths=[
+            "tools/validation/ph08_recovery_fixed_operator_budget.py",
+            "tools/validation/test_ph08_recovery_fixed_operator_budget.py",
+            "docs/validation/m2-g2-ph08-fixed-operator-error-budget.md",
+            ".github/workflows/m2-ph08-fixed-operator-budget.yml",
+            "tools/validation/ph08_private_archive_guard.py",
+            "tools/validation/test_ph08_private_archive_guard.py",
+            ".github/workflows/docs-check.yml",
+          ]
+          actual=subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()
+          tree=subprocess.check_output(["git","rev-parse","HEAD^{tree}"],text=True).strip()
+          if actual!=source or tree!=expected_tree:
+              raise SystemExit("PINNED_CHECKOUT_MISMATCH")
+          additions=[]
+          for name in paths:
+              p=pathlib.Path(name)
+              if not p.is_file() or p.is_symlink(): raise SystemExit("INVALID_SOURCE")
+              additions.append({"path":name,"contents":base64.b64encode(p.read_bytes()).decode()})
+          query="mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}"
+          payload={"query":query,"variables":{"input":{
+            "branch":{"repositoryNameWithOwner":"july-rust/BoardSI",
+                      "branchName":"publish/ph08-fixed-operator-verified-20261017"},
+            "expectedHeadOid":previous,
+            "message":{"headline":"fix(ph08): protect tracked archives and bound all diagnostic iterables"},
+            "fileChanges":{"additions":additions}}}}
+          req=urllib.request.Request("https://api.github.com/graphql",method="POST",
+            data=json.dumps(payload).encode(),
+            headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],
+                    "Accept":"application/vnd.github+json",
+                    "Content-Type":"application/json"})
+          with urllib.request.urlopen(req,timeout=40) as response:
+              result=json.load(response)
+          if result.get("errors") or not result.get("data",{}).get("createCommitOnBranch"):
+              raise SystemExit("GITHUB_VERIFIED_PUBLISH_REFUSED")
+          print("SIGNED_SHA="+result["data"]["createCommitOnBranch"]["commit"]["oid"])
+          PY
