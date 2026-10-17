@@ -1,0 +1,58 @@
+name: One-time PH-08 Gate Q Codex P2 signed fixes
+on:
+  push:
+    branches: ["ops/ph08-tr-signer-20261017"]
+    paths: [".github/workflows/ph08-tr-signer-once.yml"]
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: github.repository == 'july-rust/BoardSI' && github.ref == 'refs/heads/ops/ph08-tr-signer-20261017'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Byte-check Codex corrections and publish GitHub-Verified commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64,hashlib,json,os,urllib.request
+          repo="july-rust/BoardSI"
+          source="c8498650700558a99dc0bfa684f7da43e8a559f9"
+          expected="dc778d03158d3ca356b8171ac04f5d54c8ea7939"
+          branch="feature/ph08-gateq-tr-verified-publish"
+          paths={
+            "tools/validation/ph08_gateq_exact_captured.py":"0036bc164dcfde519719613fcd13494c820d939c",
+            "tools/validation/test_ph08_gateq_exact_captured.py":"8777a170cbfec485736b05fb24e32e34a52b0bf5",
+            "docs/validation/m2-g2-ph08-gateq-tr-exact-captured-proposed.md":"502c601bb1aa5f4edecc6c338dde82978a1cf976",
+          }
+          headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],
+                   "Accept":"application/vnd.github+json",
+                   "X-GitHub-Api-Version":"2022-11-28",
+                   "User-Agent":"boardsi-ph08-codex-p2-publisher"}
+          def api(url, body=None):
+            req=urllib.request.Request(url,data=body,headers=headers)
+            with urllib.request.urlopen(req,timeout=45) as resp:
+              return json.loads(resp.read())
+          if api("https://api.github.com/repos/"+repo+"/branches/"+branch)["commit"]["sha"]!=expected:
+            raise RuntimeError("signed source head moved")
+          additions=[]
+          for path,digest in paths.items():
+            obj=api("https://api.github.com/repos/"+repo+"/contents/"+path+"?ref="+source)
+            raw=base64.b64decode(obj["content"])
+            check=hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
+            if obj.get("sha")!=digest or check!=digest: raise RuntimeError("blob changed: "+path)
+            additions.append({"path":path,"contents":base64.b64encode(raw).decode()})
+            print("checked_git_blob="+path+" "+digest)
+          mutation="""mutation($input:CreateCommitOnBranchInput!){
+            createCommitOnBranch(input:$input){commit{oid url}}
+          }"""
+          inp={"branch":{"repositoryNameWithOwner":repo,"branchName":branch},
+               "message":{"headline":"fix(ph08): bind T outcomes to independently attested datasets before registration"},
+               "fileChanges":{"additions":additions},"expectedHeadOid":expected}
+          response=api("https://api.github.com/graphql",
+                       json.dumps({"query":mutation,"variables":{"input":inp}}).encode())
+          if "errors" in response: raise RuntimeError(repr(response["errors"]))
+          print("signed_commit_sha="+response["data"]["createCommitOnBranch"]["commit"]["oid"])
+          print("signed_commit_url="+response["data"]["createCommitOnBranch"]["commit"]["url"])
+          PY
