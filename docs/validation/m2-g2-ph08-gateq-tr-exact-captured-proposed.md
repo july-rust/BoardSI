@@ -112,3 +112,28 @@ No private original archive/geometry is to be included.
 **Stage 5B:** file integrity is only an integrity observation. Physical
 solver replay, independent convergence and whole-space field acceptance are
 NOT RUN/NOT VERIFIED. Historical Stage 4 Gate Q FAIL remains immutable.
+
+
+### Independent review P2: evidence-to-case binding (fixed)
+
+The first signed-head Codex independent review found that a caller could
+submit reductions from *another* dataset under a registered synthetic T case
+name. Merely checking a policy's `dataset_id` string does **not** authenticate
+the origin of submitted reductions. **Fail-closed correction:** the prospective
+`judge_tr_registered` interface now refuses every T submission with
+`status=NOT VERIFIED`, `rate_check_status=NOT VERIFIED` until a distinct,
+independently hashed and signed original-dataset/reduction provenance
+attestation is designed and pinned **before** evaluation. Names, caller
+assertions and matching policy-file hashes never supply that binding.
+A new negative regression exercises a claimed positive pair, historical
+original-HMM failing pair masquerading as the synthetic case, and a NaN.
+The legacy `judge_tr` may compute synthetic raw rate diagnostics (scoped
+`rate_check_status`) but does not establish independent registered
+provenance or physical certification. Do not promote its raw `status=PASS`
+into a registered or physical PASS.
+
+A future genuine registered T measurement must separately bind dataset
+identity, specific result bytes, pre-evaluation commit/timestamp, generator
+identity and signed verifier evidence. Do **not** fabricate a synthetic digest,
+approve previously observed Stage 4 results retrospectively, or relax the
+physical gate for convenience.
