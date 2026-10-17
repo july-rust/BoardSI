@@ -3,11 +3,13 @@ import json
 import tempfile
 from pathlib import Path
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from unittest import mock
 import resource
 
 from ph08_stage5b_original_replay import (
-    compare_qualification, fail, replay, STAGE5B_SHA256, _approved_runtime, _limits, _kill_replay_group, require_qualification_object
+    compare_qualification, fail, replay, STAGE5B_SHA256, _approved_runtime, _limits, _kill_replay_group, require_qualification_object, _approved_child_runtime, main
 )
 
 
@@ -173,6 +175,62 @@ class ReplayGuard(unittest.TestCase):
     def test_object_qualification_json_admitted_for_deeper_validation(self):
         record = synthetic_record()
         self.assertIs(require_qualification_object(record), record)
+
+    def test_child_runtime_actual_import_versions_required(self):
+        with tempfile.TemporaryDirectory() as d:
+            folder = Path(d)
+            fake_env = {"PYTHONNOUSERSITE": "1"}
+            def fake_run(*args, **kwargs):
+                self.assertEqual(kwargs["env"], fake_env)
+                self.assertEqual(kwargs["cwd"], folder)
+                self.assertEqual(args[0][3], str(folder))
+                kwargs["stdout"].write(
+                    b'{"python":"3.13.5","numpy":"2.3.5","scipy":"1.17.0"}'
+                )
+                kwargs["stdout"].flush()
+                child = mock.Mock(pid=123)
+                child.wait.return_value = 0
+                return child
+            with mock.patch("ph08_stage5b_original_replay.subprocess.Popen",
+                            side_effect=fake_run):
+                with mock.patch("ph08_stage5b_original_replay._kill_replay_group"):
+                    ok, observed = _approved_child_runtime(fake_env, folder, folder)
+        self.assertTrue(ok)
+        self.assertEqual(observed["numpy"], "2.3.5")
+
+    def test_child_runtime_mismatch_rejected_after_sanitization(self):
+        with tempfile.TemporaryDirectory() as d:
+            folder = Path(d)
+            def fake_run(*args, **kwargs):
+                kwargs["stdout"].write(
+                    b'{"python":"3.13.5","numpy":"1.20.0","scipy":"1.17.0"}'
+                )
+                kwargs["stdout"].flush()
+                child = mock.Mock(pid=321)
+                child.wait.return_value = 0
+                return child
+            with mock.patch("ph08_stage5b_original_replay.subprocess.Popen",
+                            side_effect=fake_run):
+                with mock.patch("ph08_stage5b_original_replay._kill_replay_group"):
+                    ok, observed = _approved_child_runtime({}, folder, folder)
+        self.assertFalse(ok)
+        self.assertEqual(observed["numpy"], "1.20.0")
+
+    def test_private_report_write_failure_has_no_path_leak(self):
+        with tempfile.TemporaryDirectory() as d:
+            secret_path = Path(d) / "private-operator-output"
+            secret_path.mkdir()
+            with mock.patch("ph08_stage5b_original_replay.replay",
+                            return_value=fail("ARCHIVE_UNAVAILABLE")):
+                buf = StringIO()
+                with redirect_stdout(buf):
+                    status = main(["/private/never-uploaded.zip",
+                                   "--sanitized-json", str(secret_path)])
+            self.assertEqual(status, 2)
+            text = buf.getvalue()
+            self.assertIn("SANITIZED_REPORT_WRITE_FAILED", text)
+            self.assertNotIn(str(secret_path), text)
+            self.assertNotIn("/private/", text)
 
     def test_historical_sha_pin_unchanged(self):
         self.assertEqual(STAGE5B_SHA256,
