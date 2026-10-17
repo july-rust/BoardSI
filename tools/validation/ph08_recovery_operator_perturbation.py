@@ -12,6 +12,26 @@ from ph08_gateq_exact_captured import (
     MAX_CAPTURE_ROWS, binary64, inverse, mul, norm_inf, qstr,
 )
 
+# Synthetic-only exact arithmetic must reject hostile aggregate rational growth.
+# The 128-row shape ceiling is not a promise that any bit complexity is accepted.
+MAX_INPUT_BITS_TOTAL = 4096
+MAX_RESULT_BITS = 12000
+
+def _guard_complexity(*matrices):
+    total = 0
+    for matrix in matrices:
+        for row in matrix:
+            for value in row:
+                bits = max(value.numerator.bit_length(), value.denominator.bit_length())
+                total += bits
+                if total > MAX_INPUT_BITS_TOTAL:
+                    raise ValueError("aggregate exact input complexity budget exceeded")
+
+def _safe_qstr(value):
+    if max(value.numerator.bit_length(), value.denominator.bit_length()) > MAX_RESULT_BITS:
+        raise ValueError("exact result exceeds bounded serialization complexity")
+    return qstr(value)
+
 def _bounded(data, maximum):
     try:
         values = list(islice(iter(data), maximum + 1))
@@ -78,6 +98,7 @@ def analyze_two_operator_budget(
     gp = _vector(reference_gradient, 2, _rational)
     go = _vector(observed_gradient, 2, binary64)
     cr = _vector(reference_quadratic_coefficients, 6, _rational)
+    _guard_complexity(a, d, ar, dr, yn, yr, gp, go, cr)
     tc = _transfer(a, d)
     tr = _transfer(ar, dr)
     dt = _difference_matrix(tc, tr)
@@ -116,23 +137,23 @@ def analyze_two_operator_budget(
             mul(ar, cr) == yr and mul(dr, cr) == gp
         ),
         "both_constant_shift_null_exact": const_null,
-        "captured_transfer_norm_inf_exact": qstr(norm_inf(tc)),
-        "operator_difference_norm_inf_exact": qstr(norm_inf(dt)),
-        "arithmetic_error_inf_exact": qstr(_vnorm(arithmetic)),
-        "sample_error_inf_exact": qstr(_vnorm(sample)),
-        "operator_perturbation_error_inf_exact": qstr(_vnorm(operator)),
-        "reference_polynomial_defect_inf_exact": qstr(_vnorm(reference_defect)),
-        "observed_total_error_inf_exact": qstr(_vnorm(observed)),
-        "sample_upper_bound_exact": qstr(sample_bound),
-        "operator_upper_bound_exact": qstr(operator_bound),
+        "captured_transfer_norm_inf_exact": _safe_qstr(norm_inf(tc)),
+        "operator_difference_norm_inf_exact": _safe_qstr(norm_inf(dt)),
+        "arithmetic_error_inf_exact": _safe_qstr(_vnorm(arithmetic)),
+        "sample_error_inf_exact": _safe_qstr(_vnorm(sample)),
+        "operator_perturbation_error_inf_exact": _safe_qstr(_vnorm(operator)),
+        "reference_polynomial_defect_inf_exact": _safe_qstr(_vnorm(reference_defect)),
+        "observed_total_error_inf_exact": _safe_qstr(_vnorm(observed)),
+        "sample_upper_bound_exact": _safe_qstr(sample_bound),
+        "operator_upper_bound_exact": _safe_qstr(operator_bound),
         "centered_operator_upper_bound_exact": (
-            qstr(centered_bound) if centered_bound is not None else None
+            _safe_qstr(centered_bound) if centered_bound is not None else None
         ),
-        "triangle_upper_bound_exact": qstr(total_bound),
-        "arithmetic_components_exact": [qstr(v[0]) for v in arithmetic],
-        "sample_components_exact": [qstr(v[0]) for v in sample],
-        "operator_components_exact": [qstr(v[0]) for v in operator],
-        "reference_defect_components_exact": [qstr(v[0]) for v in reference_defect],
+        "triangle_upper_bound_exact": _safe_qstr(total_bound),
+        "arithmetic_components_exact": [_safe_qstr(v[0]) for v in arithmetic],
+        "sample_components_exact": [_safe_qstr(v[0]) for v in sample],
+        "operator_components_exact": [_safe_qstr(v[0]) for v in operator],
+        "reference_defect_components_exact": [_safe_qstr(v[0]) for v in reference_defect],
         "reference_provenance": "CALLER_SUPPLIED_NOT_INDEPENDENTLY_AUTHENTICATED",
         "actual_original_A_D_assembly": "NOT_VERIFIED",
         "original_HMM_uniform_h2_over_6_theorem": "NOT_DERIVED",
