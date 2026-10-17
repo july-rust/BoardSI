@@ -3,9 +3,11 @@ import json
 import tempfile
 from pathlib import Path
 import unittest
+from unittest import mock
+import resource
 
 from ph08_stage5b_original_replay import (
-    compare_qualification, fail, replay, STAGE5B_SHA256
+    compare_qualification, fail, replay, STAGE5B_SHA256, _approved_runtime, _limits, _kill_replay_group
 )
 
 
@@ -94,6 +96,55 @@ class ReplayGuard(unittest.TestCase):
             self.assertEqual(result["archived_gate_q"],"FAIL")
             self.assertEqual(result["physical_error_bound"],"BOUND_NOT_CERTIFIED")
             self.assertEqual(result["contract"],"NOT_FROZEN")
+
+    def test_runtime_wrong_package_versions_not_approved(self):
+        with mock.patch("ph08_stage5b_original_replay.importlib.metadata.version",
+                        side_effect=lambda p: "9.9.9"):
+            ok, observed = _approved_runtime()
+        self.assertFalse(ok)
+        self.assertEqual(observed["numpy"], "9.9.9")
+
+    def test_runtime_missing_package_not_approved(self):
+        from importlib.metadata import PackageNotFoundError
+        with mock.patch("ph08_stage5b_original_replay.importlib.metadata.version",
+                        side_effect=PackageNotFoundError("numpy")):
+            ok, observed = _approved_runtime()
+        self.assertFalse(ok)
+        self.assertEqual(observed["numpy"], "NOT_INSTALLED")
+
+    def test_resource_caps_never_exceed_inherited_hard_limits(self):
+        hard_caps = {resource.RLIMIT_CPU: 30,
+                     resource.RLIMIT_AS: 1024 * 1024 * 1024,
+                     resource.RLIMIT_FSIZE: 1024}
+        with mock.patch("ph08_stage5b_original_replay.resource.getrlimit",
+                        side_effect=lambda kind: (hard_caps[kind], hard_caps[kind])):
+            with mock.patch("ph08_stage5b_original_replay.resource.setrlimit") as setter:
+                _limits()
+        self.assertEqual(setter.call_count, 3)
+        for call in setter.call_args_list:
+            kind, pair = call.args
+            self.assertEqual(pair, (hard_caps[kind], hard_caps[kind]))
+
+    def test_process_group_cleanup_calls_kill(self):
+        with mock.patch("ph08_stage5b_original_replay.os.killpg") as kill:
+            _kill_replay_group(12345)
+        kill.assert_called_once()
+
+    def test_process_group_already_dead_is_safe(self):
+        with mock.patch("ph08_stage5b_original_replay.os.killpg",
+                        side_effect=ProcessLookupError):
+            _kill_replay_group(12345)
+
+    def test_archive_mismatch_avoids_source_execution(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d)/"synthetic.zip"
+            p.write_bytes(b"nonprivate")
+            with mock.patch("ph08_stage5b_original_replay.subprocess.Popen") as run:
+                with mock.patch("ph08_stage5b_original_replay._approved_runtime",
+                                return_value=(True, {})):
+                    result = replay(p)
+            self.assertEqual(result["reason_code"], "ORIGINAL_ARCHIVE_SHA256_MISMATCH")
+            run.assert_not_called()
 
     def test_historical_sha_pin_unchanged(self):
         self.assertEqual(STAGE5B_SHA256,
