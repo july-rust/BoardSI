@@ -38,12 +38,13 @@ These do not certify original-source or mesh identity, upstream coordinates/asse
 - .github/workflows/m2-ph08-fixed-operator-budget.yml:
   separate OPTIONAL public-only tests, never a protected-required status.
   No private original archive is uploaded or executed.
-- tools/validation/ph08_private_archive_guard.py plus six synthetic guard
+- tools/validation/ph08_private_archive_guard.py plus eight synthetic guard
   tests run in the EXISTING mandatory docs check on EVERY pull request and
   main push. This detects the two known original ZIP basenames at any tracked
-  path and exact known SHA-256 bytes even when renamed. It does NOT prevent
-  all forms of private data leakage (e.g. recompressed or extracted copies)
-  and must not be advertised as comprehensive DLP.
+  path and exact known SHA-256 bytes of stage-0 Git blob objects even when
+  renamed or when checkout attributes transform worktree content. It does
+  NOT prevent all forms of private data leakage (e.g. recompressed or
+  extracted copies or external Gitlink contents), and is NOT general DLP.
 
 Resource safety: bounded ingestion consumes no more than MAX_CAPTURE_ROWS+1
 matrix rows or seven entries per six-column row; vector and D iterables

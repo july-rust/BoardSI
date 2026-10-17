@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Always-on public checkout guard for two SHA-pinned PRIVATE PH-08 archives.
+"""Required-CI guard for known SHA-pinned original PRIVATE PH-08 ZIP objects.
 
-Detects known exact raw ZIP bytes even if renamed or placed in a subdirectory;
-also rejects the two known original basenames anywhere among tracked files.
-This is NOT comprehensive DLP against recompression, obfuscation or extracted
-sources. Run it as part of the EXISTING required docs job on every PR/push.
+Checks stage-0 Git INDEX blobs, not filter-modified checkout files. This
+detects exact SHA-256 bytes under any Git path and known private basenames
+in any tracked directory. Not comprehensive DLP against transformed, embedded,
+unpacked or recompressed private material. No private ZIP data is in tests.
 """
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path, PurePosixPath
 import subprocess
 import sys
@@ -21,64 +22,88 @@ PRIVATE_DIGESTS = frozenset({
     "6ade7f1e42db9b52f6243929183f1004a04f3f07950f37c903f592e60c05cda9",
     "f4431dc1a13e356675bb0d8baf6d4f2be4bb7a93f46008ab4547c6b5beaacd36",
 })
+OID_PATTERN = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 
 
-def tracked_paths(root: Path) -> list[str]:
-    result = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "--cached", "--full-name", "-z"],
+def tracked_index(root: Path) -> list[tuple[str, str, str]]:
+    p = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--stage", "--full-name", "-z"],
         check=True, capture_output=True, timeout=30,
     )
-    return [p.decode("utf-8", errors="surrogateescape")
-            for p in result.stdout.split(b"\0") if p]
+    records = []
+    for raw in p.stdout.split(b"\0"):
+        if not raw:
+            continue
+        try:
+            prefix, raw_path = raw.split(b"\t", 1)
+            mode, oid, stage = prefix.decode("ascii").split(" ")
+            rel = raw_path.decode("utf-8", "surrogateescape")
+        except (ValueError, UnicodeDecodeError) as e:
+            raise ValueError("invalid Git index record") from e
+        if (stage != "0" or mode not in ("100644", "100755", "120000", "160000")
+                or not OID_PATTERN.fullmatch(oid) or not rel):
+            raise ValueError("unsupported Git index record")
+        records.append((rel, mode, oid))
+    return records
 
 
-def _digest(path: Path) -> str:
+def _git_blob_digest(root: Path, oid: str) -> str:
+    # Explicitly read the immutable Git object; checkout filters/.gitattributes
+    # can otherwise change bytes before a worktree path is hashed.
+    p = subprocess.Popen(
+        ["git", "-C", str(root), "cat-file", "blob", oid],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    )
     h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+    try:
+        assert p.stdout is not None
+        for chunk in iter(lambda: p.stdout.read(1024 * 1024), b""):
             h.update(chunk)
-    return h.hexdigest()
+        if p.wait(timeout=20) != 0:
+            raise ValueError("Git blob could not be verified")
+        return h.hexdigest()
+    finally:
+        if p.poll() is None:
+            p.kill()
+            p.wait(timeout=5)
+        if p.stdout:
+            p.stdout.close()
 
 
-def scan(root: Path, paths: list[str], digests=PRIVATE_DIGESTS):
-    """Return counts only; do not echo paths potentially containing secrets."""
+def scan(root: Path, records, digests=PRIVATE_DIGESTS):
+    """Fail closed on index gaps; never echo secret filenames/contents."""
     checked = 0
     forbidden = 0
-    for rel in paths:
-        # Git tracked names are the authority, including nested and renamed
-        # paths; hashes also catch exact protected ZIP contents under any name.
+    for rel, mode, oid in records:
         if PurePosixPath(rel).name.lower() in PRIVATE_NAMES:
             forbidden += 1
             continue
-        p = root / rel
-        if p.is_symlink():
-            # Do not follow tracked links outside the checkout.
+        # Gitlink is a referenced external COMMIT, not an in-tree blob.
+        # Do not treat it as a scanned file or make DLP claims for its content.
+        if mode == "160000":
             continue
-        if not p.is_file():
-            # Missing checkout files must not silently pass.
-            forbidden += 1
-            continue
+        if mode not in ("100644", "100755", "120000") or not OID_PATTERN.fullmatch(oid):
+            raise ValueError("invalid index blob metadata")
         checked += 1
-        if _digest(p) in digests:
+        if _git_blob_digest(root, oid) in digests:
             forbidden += 1
-    return {"tracked_files_hashed": checked,
-            "forbidden_or_missing_files": forbidden}
+    return {"tracked_git_blobs_hashed": checked,
+            "forbidden_known_private_objects": forbidden}
 
 
 def main():
     root = Path(__file__).resolve().parents[2]
     try:
-        report = scan(root, tracked_paths(root))
+        report = scan(root, tracked_index(root))
     except (OSError, subprocess.SubprocessError, ValueError):
-        print("PH08_PRIVATE_CHECKOUT_GUARD_NOT_VERIFIED", file=sys.stderr)
+        print("PH08_PRIVATE_GIT_OBJECT_CHECK_NOT_VERIFIED", file=sys.stderr)
         return 2
-    if report["forbidden_or_missing_files"]:
-        print("PH08_PRIVATE_ARCHIVE_OR_MISSING_TRACKED_FILE_DETECTED",
-              file=sys.stderr)
+    if report["forbidden_known_private_objects"]:
+        print("PH08_KNOWN_PRIVATE_ARCHIVE_GIT_OBJECT_DETECTED", file=sys.stderr)
         return 1
-    print("PH08_KNOWN_ORIGINAL_ZIP_CHECK_PASS "
-          f"tracked_regular_files={report['tracked_files_hashed']} "
-          "scope=known_names_and_exact_raw_digests_only")
+    print("PH08_KNOWN_PRIVATE_GIT_BLOB_CHECK_PASS "
+          f"tracked_blobs={report['tracked_git_blobs_hashed']} "
+          "scope=known_names_and_exact_stage0_object_digests_only")
     return 0
 
 
