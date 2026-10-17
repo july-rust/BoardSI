@@ -234,6 +234,14 @@ def judge_tr_registered(case, reductions=None, r_inputs=None, policy_path=None):
             raise ValueError("unregistered policy case")
         if not isinstance(entry["dataset_id"], str) or not entry["dataset_id"].startswith("synthetic-only:"):
             raise ValueError("original evidence cannot be evaluated under synthetic policy")
+        # P2 hardening: a case name and a caller-provided reduction pair do
+        # not attest that those numbers were derived from its dataset. There
+        # is deliberately no trusted, independently SHA-pinned *reduction
+        # evidence* input in this proposed policy version. Reject any such
+        # submission before rate evaluation, including apparent passes.
+        if entry["regime"] == "T":
+            return dict(base, regime="T", status="NOT VERIFIED",
+                        reason="T observations not bound to authenticated dataset and reduction evidence")
         result = judge_tr(config, REGISTERED_SYNTHETIC_POLICY_SHA256, case,
                           reductions=reductions, r_inputs=r_inputs)
         result.update(registration_status=base["registration_status"],
