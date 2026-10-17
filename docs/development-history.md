@@ -21,3 +21,9 @@ This is a phase-scoped engineering record, not an assertion of overall M2 comple
 ## Post-PH07 audit (#41)
 
 See [audit evidence and limitations](validation/m2-validation-audit-hardening.md): independently frozen JSON input checks, mutation rejections, analytic plate/FVM and sampled-field checks, isolated RSS, all-PR/main CI, native FEM matrix, and deterministic late-cancel test expectations. No PH-08 or G5 implementation; PR #35 remains separate. Administrative ruleset changes must be recorded independently from code completion.
+
+## PH-08 Stage 4 / Stage 5B evidence (2026-10-16–17 KST)
+
+- PRs #52–#60 merged public-only audit, original Stage 4 selected replay evidence, independent captured-binary64 rational diagnostics, synthetic QR crosschecks and fail-closed proposed T/R policy. PR #60 protected Squash Merge at `main@8ed2e37e0bec01204c70fdeff0c7ba5723e8adca` (Verified; 17/17 post-merge required CI PASS); its separate final PR-head Gate Q suite recorded 100/100 **synthetic** checks PASS. The final source review fixed unauthenticated dataset/reduction binding by deliberately returning NOT VERIFIED.
+- Original Stage 4 HMM `mms_suite()` replay: 36/36 archived rows reproduced but historical Gate Q gradient reduction FAIL (0.953506, 0.459163; criterion 1.8). Stage 5B earlier private integrity inspection reported 36/36 checksums, 13 source snapshots, nested Stage 4 338/338 and 20/20. **Stage 5B original physics rerun remains NOT RUN.** [Stage 5B trust-chain preflight](validation/m2-g2-ph08-stage5b-original-replay-evidence.md) is integrity tooling only; do not equate archive, independent polynomial oracle, or CI PASS to field certification.
+- PH-08 AC-P1 PENDING / Contract NOT FROZEN / Rust FEM NO-GO / floating and physical error BOUND_NOT_CERTIFIED / Gate M NOT VERIFIED. Issue #51 remains OPEN; Qt intermittent timing Issue #46 is independent.

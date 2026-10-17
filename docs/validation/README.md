@@ -38,3 +38,12 @@ Only restricted synthetic ideal PEC/quasi-TEM electrostatic class F is supported
 ## M2 validation audit hardening (#41)
 
 [Executed audit, check taxonomy, native platform ledger and administrative limits](m2-validation-audit-hardening.md). Frozen acceptance contracts remain unchanged.
+
+## PH-08 Stage 4 / Stage 5B (historical FAIL; no physical approval)
+
+- [Original Stage 4 36-row HMM FAIL reproduction](m2-g2-ph08-stage4-original-gateq-reexecution.md): 36/36 rows reproduced, historical uniform quadratic gradient ratios below 1.8, FAIL unchanged.
+- [Original Stage 4 Recovery operator selected-case audit](m2-g2-ph08-original-recovery-operator-evidence.md): selected captured binary64 matrices and exact rational algebra, not physical forward-error certification.
+- [Gate Q captured binary64 T/R proposals](m2-g2-ph08-gateq-tr-exact-captured-proposed.md): proposed synthetic-only registry; original dataset/reduction proof and prospective policy NOT VERIFIED.
+- [Stage 5B archive preflight / original replay boundary](m2-g2-ph08-stage5b-original-replay-evidence.md): previous private archive digest record, GitHub public synthetic integrity tests only. **Original Stage 5B privately re-executed after initial preflight: historical FAIL reproduced with 12/12 rows and 1761/1761 deterministic numerical scalars; public CI remains synthetic only.**
+
+Stage 5B archived and newly reproduced Gate Q remain FAIL; AC-P1 PENDING, PH-08 contract NOT FROZEN, Rust FEM NO-GO, Gate M NOT VERIFIED, physical bound BOUND_NOT_CERTIFIED. Synthetic GitHub CI does not change these statuses.

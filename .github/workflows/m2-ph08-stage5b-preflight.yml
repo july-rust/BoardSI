@@ -1,0 +1,49 @@
+name: PH-08 Stage 5B private ZIP preflight (synthetic only)
+on:
+  pull_request:
+    paths:
+      - "tools/validation/ph08_stage5b_preflight.py"
+      - "tools/validation/test_ph08_stage5b_preflight.py"
+      - "tools/validation/ph08_evidence_audit.py"
+      - "docs/validation/m2-g2-ph08-stage5b-original-replay-evidence.md"
+      - ".github/workflows/m2-ph08-stage5b-preflight.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ph08-stage5b-preflight:
+    name: ph08-stage5b-preflight (optional, synthetic only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Audit Python syntax
+        run: python -m py_compile tools/validation/ph08_stage5b_preflight.py tools/validation/test_ph08_stage5b_preflight.py
+      - name: Stage 5B synthetic-only integrity and adversarial tests
+        run: |
+          mkdir -p ph08-stage5b-public-evidence
+          set -o pipefail
+          python -m unittest discover -s tools/validation -p 'test_ph08_stage5b_preflight.py' -v 2>&1 | tee ph08-stage5b-public-evidence/synthetic-tests.log
+      - name: Public source and run provenance
+        if: always()
+        run: |
+          mkdir -p ph08-stage5b-public-evidence
+          sha256sum tools/validation/ph08_stage5b_preflight.py tools/validation/test_ph08_stage5b_preflight.py tools/validation/ph08_evidence_audit.py > ph08-stage5b-public-evidence/SHA256SUMS
+          printf 'actual_checkout_sha=%s\n' "$(git rev-parse HEAD)" > ph08-stage5b-public-evidence/context.txt
+          printf 'pr_head=%s\n' "${{ github.event.pull_request.head.sha || github.sha }}" >> ph08-stage5b-public-evidence/context.txt
+          printf 'original_stage5b_replay=NOT_RUN\nphysical_gate_q=FAIL\nAC_P1=PENDING\nph08_contract=NOT_FROZEN\nrust_fem=NO_GO\n' >> ph08-stage5b-public-evidence/context.txt
+          python --version >> ph08-stage5b-public-evidence/context.txt
+      - name: Refuse private archive in public checkout
+        run: |
+          test ! -e boardsi-ph08-stage4-qualification.zip
+          test ! -e boardsi-ph08-stage5b-evidence.zip
+      - name: Archive public synthetic diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ph08-stage5b-public-synthetic-evidence
+          path: ph08-stage5b-public-evidence/
+          if-no-files-found: warn
