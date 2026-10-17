@@ -1,0 +1,49 @@
+name: PH-08 fixed-operator exact identity (synthetic only)
+on:
+  pull_request:
+    paths:
+      - "tools/validation/ph08_recovery_fixed_operator_budget.py"
+      - "tools/validation/test_ph08_recovery_fixed_operator_budget.py"
+      - "tools/validation/ph08_gateq_exact_captured.py"
+      - "tools/validation/ph08_private_archive_guard.py"
+      - "tools/validation/test_ph08_private_archive_guard.py"
+      - ".github/workflows/docs-check.yml"
+      - "docs/validation/m2-g2-ph08-fixed-operator-error-budget.md"
+      - ".github/workflows/m2-ph08-fixed-operator-budget.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ph08-fixed-operator-synthetic:
+    name: ph08-fixed-operator (optional, synthetic only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Execute independent fixed-operator synthetic regression
+        shell: bash
+        run: |
+          mkdir -p ph08-fixed-operator-evidence
+          set -o pipefail
+          python -m unittest discover -s tools/validation -p 'test_ph08_recovery_fixed_operator_budget.py' -v 2>&1 | tee ph08-fixed-operator-evidence/tests.log
+      - name: Save sanitized reproducibility provenance
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p ph08-fixed-operator-evidence
+          sha256sum tools/validation/ph08_recovery_fixed_operator_budget.py tools/validation/test_ph08_recovery_fixed_operator_budget.py tools/validation/ph08_gateq_exact_captured.py > ph08-fixed-operator-evidence/SHA256SUMS
+          printf 'checkout_sha=%s\n' "$(git rev-parse HEAD)" > ph08-fixed-operator-evidence/context.txt
+          printf 'head_sha=%s\n' "${{ github.event.pull_request.head.sha || github.sha }}" >> ph08-fixed-operator-evidence/context.txt
+          printf 'test_scope=PUBLIC_SYNTHETIC_ONLY\noriginal_hmm=NOT_RUN\nphysical_gate_q=FAIL\nAC_P1=PENDING\ncontract=NOT_FROZEN\nrust_fem=NO_GO\nGate_M=NOT_VERIFIED\nphysical_bound=BOUND_NOT_CERTIFIED\n' >> ph08-fixed-operator-evidence/context.txt
+          python --version >> ph08-fixed-operator-evidence/context.txt
+      - name: Guard known original archives in all tracked paths
+        run: python3 tools/validation/ph08_private_archive_guard.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ph08-fixed-operator-public-evidence
+          path: ph08-fixed-operator-evidence/
+          if-no-files-found: warn
