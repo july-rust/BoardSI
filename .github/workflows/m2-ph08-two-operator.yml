@@ -4,6 +4,7 @@ on:
     paths:
       - "tools/validation/ph08_recovery_operator_perturbation.py"
       - "tools/validation/test_ph08_recovery_operator_perturbation.py"
+      - "tools/validation/ph08_gateq_exact_captured.py"
       - "docs/validation/m2-g2-ph08-original-hmm-root-cause-analysis.md"
       - ".github/workflows/m2-ph08-two-operator.yml"
   workflow_dispatch:
