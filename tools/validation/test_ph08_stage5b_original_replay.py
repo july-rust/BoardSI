@@ -116,6 +116,20 @@ class ReplayGuard(unittest.TestCase):
         self.assertFalse(ok)
         self.assertEqual(observed["numpy"], "NOT_INSTALLED")
 
+    def test_unreadable_package_metadata_returns_unapproved_runtime(self):
+        for error in (UnicodeDecodeError("utf-8", b"\\xff", 0, 1, "invalid"),
+                      PermissionError("metadata unavailable"),
+                      ValueError("malformed version metadata")):
+            with self.subTest(kind=type(error).__name__):
+                with mock.patch(
+                    "ph08_stage5b_original_replay.importlib.metadata.version",
+                    side_effect=error
+                ):
+                    ok, runtime = _approved_runtime()
+                self.assertFalse(ok)
+                self.assertEqual(runtime["numpy"], "METADATA_NOT_VERIFIED")
+                self.assertEqual(runtime["scipy"], "METADATA_NOT_VERIFIED")
+
     def test_resource_caps_never_exceed_inherited_hard_limits(self):
         hard_caps = {resource.RLIMIT_CPU: 30,
                      resource.RLIMIT_AS: 1024 * 1024 * 1024,
