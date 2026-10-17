@@ -1,0 +1,49 @@
+name: One-shot signed Stage 5B child runtime and report I/O
+on:
+  push:
+    branches: [ops/ph08-stage5b-replay-sign-20261017]
+    paths: [".github/workflows/ph08-stage5b-replay-signed-v6.yml"]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 6b0e42f91c6c69dd4ae06f65f46bcc1845d802c1
+          persist-credentials: false
+      - name: Publish source correction via GitHub Verified commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os,json,base64,pathlib,subprocess,urllib.request
+          source="6b0e42f91c6c69dd4ae06f65f46bcc1845d802c1"; previous="9b076e090062b970dd4cce8a1010c4d1f58cf059"
+          paths=["tools/validation/ph08_stage5b_original_replay.py",
+                 "tools/validation/test_ph08_stage5b_original_replay.py",
+                 "docs/validation/m2-g2-ph08-stage5b-private-replay-runbook.md"]
+          assert subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()==source
+          additions=[]
+          for name in paths:
+              p=pathlib.Path(name)
+              if not p.is_file() or p.is_symlink(): raise SystemExit("INVALID_SOURCE")
+              additions.append({"path":name,"contents":base64.b64encode(p.read_bytes()).decode()})
+          q="mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}"
+          payload={"query":q,"variables":{"input":{
+              "branch":{"repositoryNameWithOwner":"july-rust/BoardSI",
+                        "branchName":"publish/ph08-stage5b-replay-verified-20261017"},
+              "expectedHeadOid":previous,
+              "message":{"headline":"fix(ph08): attest child import runtime and sanitize report errors"},
+              "fileChanges":{"additions":additions}}}}
+          req=urllib.request.Request("https://api.github.com/graphql",method="POST",
+              data=json.dumps(payload).encode(),
+              headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],
+                       "Accept":"application/vnd.github+json",
+                       "Content-Type":"application/json"})
+          with urllib.request.urlopen(req,timeout=35) as response: ans=json.load(response)
+          if ans.get("errors") or not ans.get("data",{}).get("createCommitOnBranch"):
+              raise SystemExit("GITHUB_VERIFIED_PUBLISH_REFUSED")
+          print("SIGNED_SHA="+ans["data"]["createCommitOnBranch"]["commit"]["oid"])
+          PY
