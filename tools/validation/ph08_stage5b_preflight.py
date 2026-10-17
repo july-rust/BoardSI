@@ -24,6 +24,7 @@ SUMS = "stage5b/SHA256SUMS"
 QUALIFICATION = "stage5b/qualification.json"
 NESTED_STAGE4 = "inputs/boardsi-ph08-stage4-qualification.zip"
 MAX_OUTER_UNCOMPRESSED = 128 * 1024 * 1024
+MAX_OUTER_ARCHIVE_COMPRESSED = 16 * 1024 * 1024
 MAX_NESTED_COMPRESSED = 8 * 1024 * 1024
 MAX_QUALIFICATION = 4 * 1024 * 1024
 
@@ -70,7 +71,7 @@ def _external_only_expected(paths: list[str]) -> bool:
     return len(inputs) == 3 and len(stage4) == 1
 
 
-def preflight(
+def _preflight_stable_snapshot(
     path: Path,
     *,
     expected_sha256: str = STAGE5B_SHA256,
@@ -162,6 +163,34 @@ def preflight(
                         nested_audit["checksum_verified"] != nested_entries or
                         nested_audit["source_hash_verified"] != nested_sources):
                     return _fail(report, "NESTED_STAGE4_AUDIT_FAILED")
+            # Even a checksummed extra .py under source_snapshot is not
+            # source-attested if omitted from the authoritative manifest.
+            with zipfile.ZipFile(stage4_file) as inner:
+                manifest_path = (
+                    "boardsi-ph08-stage4-qualification/evidence/manifest.json"
+                )
+                snap_prefix = (
+                    "boardsi-ph08-stage4-qualification/evidence/source_snapshot/"
+                )
+                manifest = load_unique_json(inner.read(manifest_path))
+                registered = manifest.get("sources") if isinstance(manifest, dict) else None
+                if (not isinstance(registered, dict) or
+                        len(registered) != nested_sources or
+                        any(not isinstance(name, str) or
+                            clean_path(name) is None or "/" in name
+                            for name in registered)):
+                    return _fail(report, "NESTED_STAGE4_MANIFEST_UNRECOGNIZED")
+                actual_snapshots = {
+                    name for name in inner.namelist()
+                    if name.startswith(snap_prefix) and not name.endswith("/")
+                }
+                recorded_snapshots = {
+                    snap_prefix + name for name in registered
+                }
+                if actual_snapshots != recorded_snapshots:
+                    return _fail(
+                        report, "NESTED_STAGE4_SOURCE_INVENTORY_INCOMPLETE"
+                    )
             report["nested_stage4_integrity"] = "PASS_INTEGRITY_ONLY"
             report["nested_checksums_verified"] = nested_entries
             report["nested_sources_verified"] = nested_sources
@@ -170,6 +199,56 @@ def preflight(
 
     report["status"] = "PASS_INTEGRITY_ONLY_NO_REPLAY"
     return report
+
+
+
+def preflight(
+    path: Path,
+    *,
+    expected_sha256: str = STAGE5B_SHA256,
+    nested_sha256: str = STAGE4_SHA256,
+    expected_entries: int = 36,
+    expected_sources: int = 13,
+    nested_entries: int = 338,
+    nested_sources: int = 20,
+) -> dict:
+    """Audit a private authenticated copy; never reopen the mutable source.
+
+    The stable snapshot is necessary: a mutable path or a re-targeted symlink
+    otherwise permits a second ZIP open to analyze unpinned bytes (TOCTOU).
+    The private snapshot has a bound on copied bytes and is destroyed on exit.
+    """
+    report = _status(scope="ORIGINAL_SHA_PIN" if expected_sha256 == STAGE5B_SHA256
+                     else "SYNTHETIC_TEST_EXPECTATIONS")
+    if not path.is_file():
+        return _fail(report, "ARCHIVE_UNAVAILABLE")
+    if (len(expected_sha256) != 64 or
+            any(ch not in "0123456789abcdef" for ch in expected_sha256.lower())):
+        return _fail(report, "INVALID_EXPECTED_DIGEST")
+    try:
+        with tempfile.TemporaryDirectory(prefix="ph08-authenticated-snapshot-") as tmp:
+            snapshot = Path(tmp) / "staged-private-archive.zip"
+            copied = 0
+            h = hashlib.sha256()
+            with path.open("rb") as source, snapshot.open("xb") as dest:
+                while block := source.read(1024 * 1024):
+                    copied += len(block)
+                    if copied > MAX_OUTER_ARCHIVE_COMPRESSED:
+                        return _fail(report, "ARCHIVE_COMPRESSED_SIZE_LIMIT")
+                    h.update(block)
+                    dest.write(block)
+            if h.hexdigest() != expected_sha256.lower():
+                return _fail(report, "EXTERNAL_SHA256_MISMATCH")
+            return _preflight_stable_snapshot(
+                snapshot, expected_sha256=expected_sha256,
+                nested_sha256=nested_sha256,
+                expected_entries=expected_entries,
+                expected_sources=expected_sources,
+                nested_entries=nested_entries,
+                nested_sources=nested_sources,
+            )
+    except (OSError, RuntimeError, ValueError):
+        return _fail(report, "PRIVATE_SNAPSHOT_FAILED")
 
 
 def main(argv=None) -> int:
