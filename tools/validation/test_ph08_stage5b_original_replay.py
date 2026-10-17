@@ -86,7 +86,11 @@ class ReplayGuard(unittest.TestCase):
     def test_synthetic_archive_never_admitted_as_original(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/"synthetic.zip";p.write_bytes(b"synthetic")
-            result=replay(p)
+            # Isolate the SHA admission control from the separately tested
+            # private-only numerical-package version admission gate.
+            with mock.patch("ph08_stage5b_original_replay._approved_runtime",
+                            return_value=(True, {"python": "test-pinned"})):
+                result=replay(p)
         self.assertEqual(result["reason_code"],"ORIGINAL_ARCHIVE_SHA256_MISMATCH")
 
     def test_failure_records_never_claim_pass(self):
