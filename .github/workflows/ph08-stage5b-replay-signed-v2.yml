@@ -1,0 +1,52 @@
+name: One-shot verified Stage 5B replay review fixes
+on:
+  push:
+    branches: [ops/ph08-stage5b-replay-sign-20261017]
+    paths: [".github/workflows/ph08-stage5b-replay-signed-v2.yml"]
+permissions:
+  contents: write
+jobs:
+  signed-fix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 939063e7053c76df934b9f604f6e66761421c790
+          persist-credentials: false
+      - name: Signed source corrections only
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os,json,urllib.request,pathlib,subprocess,base64
+          SOURCE="939063e7053c76df934b9f604f6e66761421c790"
+          BASE="47e3f07e1c1a867eab4bae4d67d933d30e2d3a1f"
+          paths=["tools/validation/ph08_stage5b_original_replay.py",
+                 "tools/validation/test_ph08_stage5b_original_replay.py",
+                 "docs/validation/m2-g2-ph08-stage5b-private-replay-runbook.md"]
+          if subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()!=SOURCE:
+              raise SystemExit("source SHA mismatch")
+          additions=[]
+          for name in paths:
+              p=pathlib.Path(name)
+              if not p.is_file() or p.is_symlink():raise SystemExit("unsafe source file")
+              additions.append({"path":name,"contents":base64.b64encode(p.read_bytes()).decode()})
+          q="mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url}}}"
+          payload={"query":q,"variables":{"input":{
+             "branch":{"repositoryNameWithOwner":"july-rust/BoardSI",
+                       "branchName":"publish/ph08-stage5b-replay-verified-20261017"},
+             "expectedHeadOid":BASE,
+             "message":{"headline":"fix(ph08): keep private replay bounded and SHA-authenticated"},
+             "fileChanges":{"additions":additions}}}}
+          req=urllib.request.Request("https://api.github.com/graphql",
+             data=json.dumps(payload).encode(),method="POST",
+             headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],
+                      "Accept":"application/vnd.github+json",
+                      "Content-Type":"application/json"})
+          with urllib.request.urlopen(req,timeout=35) as response:
+              data=json.load(response)
+          if data.get("errors") or not data.get("data",{}).get("createCommitOnBranch"):
+              raise SystemExit("GitHub Verified publication rejected")
+          print("SIGNED_FIX_SHA="+data["data"]["createCommitOnBranch"]["commit"]["oid"])
+          PY
