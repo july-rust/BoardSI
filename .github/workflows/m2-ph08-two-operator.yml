@@ -1,0 +1,44 @@
+name: PH-08 two-operator exact perturbation (public synthetic)
+on:
+  pull_request:
+    paths:
+      - "tools/validation/ph08_recovery_operator_perturbation.py"
+      - "tools/validation/test_ph08_recovery_operator_perturbation.py"
+      - "docs/validation/m2-g2-ph08-original-hmm-root-cause-analysis.md"
+      - ".github/workflows/m2-ph08-two-operator.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ph08-two-operator-synthetic:
+    name: ph08 two-operator exact arithmetic (optional synthetic)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Run exact independent synthetic tests
+        shell: bash
+        run: |
+          mkdir -p ph08-two-operator-evidence
+          set -o pipefail
+          python -m unittest discover -s tools/validation -p 'test_ph08_recovery_operator_perturbation.py' -v 2>&1 | tee ph08-two-operator-evidence/tests.log
+      - name: Guard known private objects
+        run: python3 tools/validation/ph08_private_archive_guard.py
+      - name: Record scope and SHA
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p ph08-two-operator-evidence
+          printf 'checkout_sha=%s\n' "$(git rev-parse HEAD)" > ph08-two-operator-evidence/context.txt
+          printf 'github_sha=%s\n' "$GITHUB_SHA" >> ph08-two-operator-evidence/context.txt
+          printf 'scope=PUBLIC_SYNTHETIC_ONLY\noriginal_hmm=NOT_RUN\nhistorical_gate_q=FAIL\nphysical_bound=BOUND_NOT_CERTIFIED\ncontract=NOT_FROZEN\nrust_fem=NO_GO\n' >> ph08-two-operator-evidence/context.txt
+          sha256sum tools/validation/ph08_recovery_operator_perturbation.py tools/validation/test_ph08_recovery_operator_perturbation.py > ph08-two-operator-evidence/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ph08-two-operator-public-synthetic
+          path: ph08-two-operator-evidence/
+          retention-days: 14
