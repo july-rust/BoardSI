@@ -1,0 +1,52 @@
+name: PH-08 one-shot verified publication
+on:
+  push:
+    branches:
+      - research/ph08-operator-perturbation-proof
+    paths:
+      - ".github/workflows/ph08-one-shot-publish.yml"
+permissions:
+  contents: write
+jobs:
+  verified-publish:
+    if: github.repository == 'july-rust/BoardSI'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Verify controlled source and synthetic tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 52dbdcb909cc3987d9fff498d0e2c9b8c63d0d09 HEAD
+          python -m unittest discover -s tools/validation -p 'test_ph08_recovery_operator_perturbation.py' -v
+          python tools/validation/ph08_private_archive_guard.py
+      - name: Publish only allowlisted public sources using GitHub-signed Contents API
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo=july-rust/BoardSI
+          target=feature/ph08-two-operator-verified
+          base=dea2e58d03685f42c4d96c635637cf755474426a
+          actual=$(gh api "repos/$repo/git/ref/heads/$target" --jq '.object.sha')
+          test "$actual" = "$base" || { echo "Target branch moved: fail closed"; exit 1; }
+          for file in             tools/validation/ph08_recovery_operator_perturbation.py             tools/validation/test_ph08_recovery_operator_perturbation.py             docs/validation/m2-g2-ph08-original-hmm-root-cause-analysis.md             .github/workflows/m2-ph08-two-operator.yml
+          do
+            expected=$(git hash-object "$file")
+            encoded=$(base64 -w0 "$file")
+            response=$(gh api -X PUT "repos/$repo/contents/$file"               -f "branch=$target"               -f "message=test(ph08): verified publish $file"               -f "content=$encoded")
+            actual_blob=$(printf '%s' "$response" | jq -r '.content.sha')
+            signed_commit=$(printf '%s' "$response" | jq -r '.commit.sha')
+            test "$expected" = "$actual_blob" || { echo "Published content mismatch"; exit 1; }
+            verified=$(gh api "repos/$repo/git/commits/$signed_commit" --jq '.verification.verified')
+            test "$verified" = true || { echo "Commit was not GitHub Verified"; exit 1; }
+            echo "GitHub Verified source: $file"
+          done
+          echo "Clean signed feature branch created with exactly four allowlisted files."
