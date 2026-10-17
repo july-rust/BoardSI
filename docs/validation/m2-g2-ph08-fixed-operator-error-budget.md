@@ -38,6 +38,16 @@ These do not certify original-source or mesh identity, upstream coordinates/asse
 - .github/workflows/m2-ph08-fixed-operator-budget.yml:
   separate OPTIONAL public-only tests, never a protected-required status.
   No private original archive is uploaded or executed.
+- tools/validation/ph08_private_archive_guard.py plus six synthetic guard
+  tests run in the EXISTING mandatory docs check on EVERY pull request and
+  main push. This detects the two known original ZIP basenames at any tracked
+  path and exact known SHA-256 bytes even when renamed. It does NOT prevent
+  all forms of private data leakage (e.g. recompressed or extracted copies)
+  and must not be advertised as comprehensive DLP.
+
+Resource safety: bounded ingestion consumes no more than MAX_CAPTURE_ROWS+1
+matrix rows or seven entries per six-column row; vector and D iterables
+are bounded before materialization. Infinite iterables fail closed.
 
 An input named a reference is not itself evidence of independent provenance:
 Fraction types do NOT authenticate original HMM samples, mesh, generator or
