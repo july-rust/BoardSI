@@ -4,6 +4,8 @@ on:
     paths:
       - "tools/validation/ph08_stage5b_preflight.py"
       - "tools/validation/test_ph08_stage5b_preflight.py"
+      - "tools/validation/ph08_stage5b_original_replay.py"
+      - "tools/validation/test_ph08_stage5b_original_replay.py"
       - "tools/validation/ph08_evidence_audit.py"
       - "docs/validation/m2-g2-ph08-stage5b-original-replay-evidence.md"
       - ".github/workflows/m2-ph08-stage5b-preflight.yml"
@@ -21,20 +23,21 @@ jobs:
         with:
           python-version: "3.13"
       - name: Audit Python syntax
-        run: python -m py_compile tools/validation/ph08_stage5b_preflight.py tools/validation/test_ph08_stage5b_preflight.py
+        run: python -m py_compile tools/validation/ph08_stage5b_preflight.py tools/validation/test_ph08_stage5b_preflight.py tools/validation/ph08_stage5b_original_replay.py tools/validation/test_ph08_stage5b_original_replay.py
       - name: Stage 5B synthetic-only integrity and adversarial tests
         run: |
           mkdir -p ph08-stage5b-public-evidence
           set -o pipefail
           python -m unittest discover -s tools/validation -p 'test_ph08_stage5b_preflight.py' -v 2>&1 | tee ph08-stage5b-public-evidence/synthetic-tests.log
+          python -m unittest discover -s tools/validation -p 'test_ph08_stage5b_original_replay.py' -v 2>&1 | tee ph08-stage5b-public-evidence/synthetic-replay-tests.log
       - name: Public source and run provenance
         if: always()
         run: |
           mkdir -p ph08-stage5b-public-evidence
-          sha256sum tools/validation/ph08_stage5b_preflight.py tools/validation/test_ph08_stage5b_preflight.py tools/validation/ph08_evidence_audit.py > ph08-stage5b-public-evidence/SHA256SUMS
+          sha256sum tools/validation/ph08_stage5b_preflight.py tools/validation/test_ph08_stage5b_preflight.py tools/validation/ph08_stage5b_original_replay.py tools/validation/test_ph08_stage5b_original_replay.py tools/validation/ph08_evidence_audit.py > ph08-stage5b-public-evidence/SHA256SUMS
           printf 'actual_checkout_sha=%s\n' "$(git rev-parse HEAD)" > ph08-stage5b-public-evidence/context.txt
           printf 'pr_head=%s\n' "${{ github.event.pull_request.head.sha || github.sha }}" >> ph08-stage5b-public-evidence/context.txt
-          printf 'original_stage5b_replay=NOT_RUN\nphysical_gate_q=FAIL\nAC_P1=PENDING\nph08_contract=NOT_FROZEN\nrust_fem=NO_GO\n' >> ph08-stage5b-public-evidence/context.txt
+          printf 'original_stage5b_replay=NOT_RUN_IN_PUBLIC_CI\nphysical_gate_q=FAIL\nAC_P1=PENDING\nph08_contract=NOT_FROZEN\nrust_fem=NO_GO\n' >> ph08-stage5b-public-evidence/context.txt
           python --version >> ph08-stage5b-public-evidence/context.txt
       - name: Refuse private archive in public checkout
         run: |
