@@ -3,6 +3,7 @@
 import unittest
 from fractions import Fraction as Q
 from itertools import repeat
+from pathlib import Path
 from ph08_recovery_operator_perturbation import analyze_two_operator_budget
 
 def fixture():
@@ -150,6 +151,23 @@ class TwoOperatorBudgetTests(unittest.TestCase):
                         dict(captured_A=[repeat(1.)]+a[1:])):
             with self.subTest(keys=list(changed)), self.assertRaises(ValueError):
                 run(**changed)
+
+    def test_distinct_large_denominators_hit_aggregate_budget(self):
+        ac, _, ar, _, yr, _, _ = fixture()
+        aa = [r[:] for r in ac] * 2
+        refs = [r[:] for r in ar] * 2
+        for i, row in enumerate(refs):
+            row[0] = Q(1, 2**(512+i))
+        y2 = yr + yr
+        with self.assertRaisesRegex(ValueError, "aggregate exact input"):
+            run(captured_A=aa, reference_A=refs,
+                numeric_samples=[float(v) for v in y2],
+                reference_samples=y2)
+
+    def test_optional_workflow_tracks_shared_exact_helper(self):
+        workflow = (Path(__file__).resolve().parents[2] /
+                    ".github/workflows/m2-ph08-two-operator.yml").read_text()
+        self.assertIn('"tools/validation/ph08_gateq_exact_captured.py"', workflow)
 
     def test_explicit_no_original_physics_certification(self):
         r = run()
