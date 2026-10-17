@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -165,7 +166,7 @@ def _preflight_stable_snapshot(
                     return _fail(report, "NESTED_STAGE4_AUDIT_FAILED")
             # Even a checksummed extra .py under source_snapshot is not
             # source-attested if omitted from the authoritative manifest.
-            with zipfile.ZipFile(stage4_file) as inner:
+            with zipfile.ZipFile(io.BytesIO(nested_bytes)) as inner:
                 manifest_path = (
                     "boardsi-ph08-stage4-qualification/evidence/manifest.json"
                 )
