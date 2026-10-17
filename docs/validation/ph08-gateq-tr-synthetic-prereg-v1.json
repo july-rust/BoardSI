@@ -1,0 +1,19 @@
+{
+  "schema": "boardsi.ph08.gateq.synthetic-prereg.v1",
+  "version": 1,
+  "evaluation_scope": "SYNTHETIC_ONLY_NO_ORIGINAL_HMM_CERTIFICATION",
+  "policy_status": "PROPOSED_NOT_FROZEN",
+  "t_min_reduction": 1.8,
+  "cases": {
+    "synthetic_uniform_quadratic_T": {
+      "regime": "T",
+      "dataset_id": "synthetic-only:uniform-quadratic:v1",
+      "selection_basis": "prospective-synthetic-fixture"
+    },
+    "synthetic_roundoff_R": {
+      "regime": "R",
+      "dataset_id": "synthetic-only:roundoff-demo:v1",
+      "selection_basis": "prospective-synthetic-fixture"
+    }
+  }
+}
