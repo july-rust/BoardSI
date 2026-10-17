@@ -152,6 +152,7 @@ from test_ph08_gateq_hmm_bridge import Tests as OriginalHMMBridgeSyntheticTests
 from test_ph08_gateq_recovery_hardening import HardeningTests as RecoveryHardeningSyntheticTests
 from test_ph08_gateq_recovery_hardening import SyntheticInstrumentationTests as RecoveryInstrumentationSyntheticTests
 from test_ph08_gateq_operator_semantics import OriginalLayoutSyntheticTests
+from test_ph08_gateq_exact_captured import CapturedBoundAndTRTests
 
 if __name__ == "__main__":
     unittest.main()
