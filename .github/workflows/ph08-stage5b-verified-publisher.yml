@@ -1,0 +1,68 @@
+name: One-shot PH-08 Stage 5B signed publisher
+on:
+  push:
+    branches:
+      - ops/ph08-stage5b-signing-20261017
+    paths:
+      - .github/workflows/ph08-stage5b-verified-publisher.yml
+permissions:
+  contents: write
+jobs:
+  signed-source:
+    name: PH-08 Stage 5B signed source (one-shot)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 707e0d5a30afdd4ab04a8a1be228862f1ab9dd33
+          persist-credentials: false
+      - name: Verify exact unmodified public source and publish GitHub-signed commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import base64, json, os, pathlib, subprocess, urllib.request
+          SRC = "707e0d5a30afdd4ab04a8a1be228862f1ab9dd33"
+          BASE = "8ed2e37e0bec01204c70fdeff0c7ba5723e8adca"
+          paths = [
+              ".github/workflows/m2-ph08-stage5b-preflight.yml",
+              "tools/validation/ph08_stage5b_preflight.py",
+              "tools/validation/test_ph08_stage5b_preflight.py",
+              "docs/validation/m2-g2-ph08-stage5b-original-replay-evidence.md",
+              "docs/validation/README.md",
+              "docs/development-history.md",
+          ]
+          head = subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()
+          if head != SRC:
+              raise SystemExit("REJECT: wrong source HEAD")
+          additions = []
+          for name in paths:
+              p = pathlib.Path(name)
+              if not p.is_file() or p.is_symlink():
+                  raise SystemExit("REJECT: non-file or symlink")
+              additions.append({"path":name,"contents":base64.b64encode(p.read_bytes()).decode("ascii")})
+          query = """mutation($input: CreateCommitOnBranchInput!) {
+              createCommitOnBranch(input: $input) { commit { oid url } }
+          }"""
+          args = {"input":{
+              "branch":{"repositoryNameWithOwner":"july-rust/BoardSI",
+                        "branchName":"publish/ph08-stage5b-verified-20261017"},
+              "message":{"headline":"test(ph08): Stage 5B integrity preflight and fail-closed trust chain"},
+              "fileChanges":{"additions":additions},
+              "expectedHeadOid":BASE}}
+          body = json.dumps({"query":query,"variables":args},separators=(",",":")).encode()
+          req = urllib.request.Request(
+              "https://api.github.com/graphql", data=body, method="POST",
+              headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],
+                       "Accept":"application/vnd.github+json",
+                       "Content-Type":"application/json",
+                       "X-GitHub-Api-Version":"2022-11-28"})
+          with urllib.request.urlopen(req,timeout=35) as response:
+              ans = json.load(response)
+          if ans.get("errors") or not ans.get("data",{}).get("createCommitOnBranch"):
+              raise SystemExit("GraphQL publication refused; inspect permissions and expected branch SHA")
+          print("SIGNED_PUBLICATION_COMMIT=" + ans["data"]["createCommitOnBranch"]["commit"]["oid"])
+          print("SOURCE_HEAD="+SRC)
+          print("EXACT_FILE_COUNT="+str(len(paths)))
+          PY
