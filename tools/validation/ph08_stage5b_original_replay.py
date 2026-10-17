@@ -161,6 +161,47 @@ def _kill_replay_group(pid: int):
 
 
 
+
+def _approved_child_runtime(env: dict, source_dir: Path, cwd: Path) -> tuple[bool, dict]:
+    """Probe REAL imports under the same cwd, sys.path and cleaned environment.
+
+    Checking parent metadata is insufficient: PYTHONPATH and user site are
+    deliberately removed for the original HMM subprocess.
+    """
+    script = (
+        "import json,sys; sys.path.insert(0,sys.argv[1]); "
+        "import numpy,scipy; "
+        "print(json.dumps({'python':'.'.join(map(str,sys.version_info[:3])),"
+        "'numpy':numpy.__version__,'scipy':scipy.__version__}))"
+    )
+    stdout_path = cwd / "private-version-probe.log"
+    child = None
+    with stdout_path.open("xb") as stdout:
+        try:
+            child = subprocess.Popen(
+                [sys.executable, "-c", script, str(source_dir)],
+                cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+                stdout=stdout, stderr=subprocess.DEVNULL,
+                preexec_fn=_limits, start_new_session=True,
+            )
+            try:
+                exit_code = child.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                return False, {}
+        finally:
+            if child is not None:
+                _kill_replay_group(child.pid)
+                child.wait(timeout=10)
+    if exit_code != 0 or stdout_path.stat().st_size > 2048:
+        return False, {}
+    found = load_unique_json(stdout_path.read_bytes())
+    if (not isinstance(found, dict) or set(found) != {"python", "numpy", "scipy"} or
+            any(not isinstance(v, str) for v in found.values())):
+        return False, {}
+    return (found["python"].startswith("3.13.") and
+            found["numpy"] == "2.3.5" and found["scipy"] == "1.17.0"), found
+
+
 def replay(path: Path) -> dict:
     out = fail("UNINITIALIZED")
     if os.name != "posix":
@@ -229,6 +270,9 @@ def replay(path: Path) -> dict:
             for key in ("OPENBLAS_NUM_THREADS","OMP_NUM_THREADS",
                         "MKL_NUM_THREADS","NUMEXPR_NUM_THREADS"):
                 env[key] = "1"
+            child_ok, child_runtime = _approved_child_runtime(env, source_dir, dst_root)
+            if not child_ok:
+                return fail("CHILD_RUNTIME_VERSION_UNAPPROVED")
             # Both streams go to bounded PRIVATE files; never return raw logs.
             with (root / "private-stdout.log").open("wb") as stdout, (
                     root / "private-stderr.log").open("wb") as stderr:
@@ -270,7 +314,7 @@ def replay(path: Path) -> dict:
             return {
                 "status": "REPRODUCED_HISTORICAL_GATE_Q_FAIL",
                 "stage5b_archive_integrity": "MATCH",
-                "approved_runtime": runtime,
+                "approved_runtime": child_runtime,
                 "stage4_nested_sha256": STAGE4_SHA256,
                 "source_sha256_verified": 13,
                 "mms_rows": EXPECTED_ROWS,
@@ -297,7 +341,12 @@ def main(argv=None):
     result = replay(args.private_archive)
     data = json.dumps(result, sort_keys=True, allow_nan=False, indent=2) + "\n"
     if args.sanitized_json:
-        args.sanitized_json.write_text(data, encoding="utf-8")
+        try:
+            args.sanitized_json.write_text(data, encoding="utf-8")
+        except (OSError, ValueError, UnicodeError):
+            safe = fail("SANITIZED_REPORT_WRITE_FAILED")
+            print(json.dumps(safe, sort_keys=True, allow_nan=False, indent=2))
+            return 2
     print(data)
     return 0 if result["status"] == "REPRODUCED_HISTORICAL_GATE_Q_FAIL" else 2
 
