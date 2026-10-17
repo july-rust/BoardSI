@@ -7,7 +7,7 @@ from unittest import mock
 import resource
 
 from ph08_stage5b_original_replay import (
-    compare_qualification, fail, replay, STAGE5B_SHA256, _approved_runtime, _limits, _kill_replay_group
+    compare_qualification, fail, replay, STAGE5B_SHA256, _approved_runtime, _limits, _kill_replay_group, require_qualification_object
 )
 
 
@@ -149,6 +149,16 @@ class ReplayGuard(unittest.TestCase):
                     result = replay(p)
             self.assertEqual(result["reason_code"], "ORIGINAL_ARCHIVE_SHA256_MISMATCH")
             run.assert_not_called()
+
+    def test_nonobject_generated_json_fails_closed(self):
+        for value in ([], [1], 2, 0.5, "valid JSON", None, True):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    require_qualification_object(value)
+
+    def test_object_qualification_json_admitted_for_deeper_validation(self):
+        record = synthetic_record()
+        self.assertIs(require_qualification_object(record), record)
 
     def test_historical_sha_pin_unchanged(self):
         self.assertEqual(STAGE5B_SHA256,

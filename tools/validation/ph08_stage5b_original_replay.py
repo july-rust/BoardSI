@@ -51,6 +51,13 @@ def fail(code: str) -> dict:
     }
 
 
+def require_qualification_object(value: object) -> dict:
+    """Fail closed on syntactically valid but non-object generated JSON."""
+    if not isinstance(value, dict):
+        raise ValueError("qualification JSON root must be an object")
+    return value
+
+
 def compare_qualification(recorded: object, actual: object) -> dict:
     """Exact deterministic comparison with ONLY known timing fields excluded.
 
@@ -246,7 +253,7 @@ def replay(path: Path) -> dict:
                 return fail("ORIGINAL_EXIT_OR_OUTPUT_MISMATCH")
             if generated.stat().st_size > MAX_JSON_BYTES:
                 return fail("GENERATED_JSON_TOO_LARGE")
-            actual = load_unique_json(generated.read_bytes())
+            actual = require_qualification_object(load_unique_json(generated.read_bytes()))
             result = compare_qualification(saved, actual)
             if (result["numeric_scalars_compared"] != EXPECTED_NUMERIC or
                     result["timing_scalars_excluded"] != EXPECTED_TIMINGS or
