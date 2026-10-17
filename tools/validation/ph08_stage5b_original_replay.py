@@ -132,6 +132,10 @@ def _approved_runtime() -> tuple[bool, dict]:
             runtime[package] = importlib.metadata.version(package)
         except importlib.metadata.PackageNotFoundError:
             runtime[package] = "NOT_INSTALLED"
+        except Exception:
+            # Broken/unreadable installed distribution metadata is untrusted
+            # environment input. Never leak a traceback or approve runtime.
+            runtime[package] = "METADATA_NOT_VERIFIED"
     approved = (sys.version_info[:2] == (3, 13) and
                 runtime["numpy"] == "2.3.5" and
                 runtime["scipy"] == "1.17.0")
