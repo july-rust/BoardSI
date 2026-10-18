@@ -359,7 +359,9 @@ def extract_ledger(source):
             if (len(cells)!=7 or m.group(1) in u_map or cells[3]!="DEFINED"
                 or cells[4] not in ("NOT_VERIFIED", "PARTIAL") or cells[5]!="NOT_RUN"):
                 raise ValueError("invalid / duplicate U ledger row: "+line)
-            if cells[4] == "PARTIAL" and (not cells[6] or "see #" not in cells[6].lower()):
+            if not cells[6].strip():
+                raise ValueError("U ledger row has empty evidence scope: " + line)
+            if cells[4] == "PARTIAL" and "see #" not in cells[6].lower():
                 raise ValueError("PARTIAL U row lacks linked evidence: " + line)
             u_map[m.group(1)] = set(expand_ids(cells[2], "T"))
             u_phases[m.group(1)] = cells[1]
@@ -371,7 +373,9 @@ def extract_ledger(source):
             cells = split_markdown_cells(line)
             if len(cells)!=5 or m.group(1) in t_map or cells[3] not in ("NOT_RUN","PARTIAL"):
                 raise ValueError("invalid / duplicate T ledger row: "+line)
-            if cells[3] == "PARTIAL" and (not cells[4] or "see #" not in cells[4].lower()):
+            if not cells[4].strip():
+                raise ValueError("T ledger row has empty evidence scope: " + line)
+            if cells[3] == "PARTIAL" and "see #" not in cells[4].lower():
                 raise ValueError("PARTIAL T row lacks linked evidence: " + line)
             t_map[m.group(1)] = set(expand_ids(cells[2], "U"))
             t_phases[m.group(1)] = cells[1].split("; ")
@@ -743,5 +747,23 @@ if __name__=="__main__":
         "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |",
         broken_span + "\n| 요구 ID | 본문 | 주요 시험 | 완료 단계 |", 1
     ), ledger)
+
+    # Even NOT_VERIFIED/NOT_RUN rows must disclose evidence *scope*.
+    for target, replacement in (
+        ("| U01 | M2 | T06,T07,T43,T44 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |",
+         "| U01 | M2 | T06,T07,T43,T44 | DEFINED | NOT_VERIFIED | NOT_RUN |  |"),
+        ("| T01 |", "| T01 |"),
+    ):
+        if target.startswith("| U01"):
+            if target not in ledger:
+                raise AssertionError("missing U01 evidence regression source")
+            must_reject(specification, ledger.replace(target, replacement, 1))
+        else:
+            row = next((line for line in ledger.splitlines() if line.startswith("| T01 |")), None)
+            if row is None:
+                raise AssertionError("missing T01 evidence regression source")
+            cells = split_markdown_cells(row)
+            cells[4] = ""
+            must_reject(specification, ledger.replace(row, "| " + " | ".join(cells) + " |", 1))
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
