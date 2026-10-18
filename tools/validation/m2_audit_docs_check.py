@@ -78,10 +78,16 @@ def validate_offline_static_svg(svg_bytes):
                 if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.-]*', value) or value in ids:
                     raise ValueError('invalid or duplicate SVG id')
                 ids.add(value)
+            if '\\' in value:
+                raise ValueError('CSS escape / backslash forbidden in static SVG attributes')
             if key in ('fill', 'stroke') and value.startswith('url('):
                 # Only same-document gradients, verified in second pass.
                 if not LOCAL_GRADIENT.fullmatch(value):
                     raise ValueError('non-local SVG paint reference')
+            elif key in ('fill', 'stroke', 'stop-color'):
+                # Explicit paint grammar rejects CSS escapes, functions and URLs.
+                if not re.fullmatch(r'#[0-9a-fA-F]{3,8}|none', value):
+                    raise ValueError('unsupported static paint value')
             elif SCHEME.search(value):
                 raise ValueError('URI/CSS directive is forbidden')
     for element in root.iter():
@@ -136,12 +142,13 @@ for bad in (
     b'<rect xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://example.invalid/a" />',
     b'<animate attributeName="opacity" values="0;1" />',
     b'<rect fill="url(&#104;ttps://example.invalid/x)" />',
+    br'<rect fill="u\72 l(\68\74\74\70\73\3a\2f\2f example.invalid\2f x)" />',
     b'<?xml-stylesheet type="text/css" href="https://example.invalid/a.css"?>',
 ):
     _must_reject(svg_start + bad + svg_end)
 _must_reject(b'<?xml-stylesheet type="text/css" href="https://example.invalid/a.css"?>' + svg_start + svg_end)
 _must_reject(b'<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///private">]>' + svg_start + svg_end)
-print('B DESIGN_APPROVED static SVG safety PASS: immutable owner-approved SHA-256, local-gradient allowlist and 14 attack mutations; packaging NOT VERIFIED')
+print('B DESIGN_APPROVED static SVG safety PASS: immutable owner-approved SHA-256, local-gradient allowlist and 15 attack mutations; packaging NOT VERIFIED')
 
 # Historical nested-archive checksum inventories must never be conflated.
 stage5d = Path('docs/validation/m2-g2-ph08-stage5d-evidence.md').read_text(encoding='utf-8')
