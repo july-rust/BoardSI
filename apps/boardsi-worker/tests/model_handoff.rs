@@ -184,7 +184,13 @@ fn assumed_material_is_not_accepted_as_verified() {
     let mut board = model();
     board.materials[0].conductivity_s_per_m = Property::Assumed {
         value: 5e7,
-        rationale: "unverified test guess".into(),
+        source: PropertySource {
+            document: "unverified synthetic estimate".into(),
+            revision: "v1".into(),
+            method: "assumption".into(),
+            reference_frequency_hz: Some(1e9),
+            temperature_c: Some(25.0),
+        },
     };
     assert!(board.validate().issues.iter().any(|issue| {
         issue.severity == Severity::Assumption
