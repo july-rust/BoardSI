@@ -52,6 +52,10 @@ def visible_markdown_lines(section):
     fence_character = None
     fence_length = 0
     for original_line in section.splitlines():
+        # Four-space / tab indentation renders code, not table definitions.
+        if original_line.startswith("    ") or original_line.startswith("\t"):
+            yield ""
+            continue
         text = original_line
         unindented = text.lstrip(" ")
         indent = len(text) - len(unindented)
@@ -94,6 +98,9 @@ def visible_markdown_lines(section):
 
 def validate_definition_tables(source):
     """Require an actual contiguous Markdown definition table, not just ID text."""
+    # Parse comments/fences across the ENTIRE document first. An HTML comment
+    # starting before a section heading must not make its hidden table count.
+    visible_source = "\n".join(visible_markdown_lines(source))
     ranges = (
         ("U", 48, "## 2 요구사항 추적표", "## 3 ",
          ["ID", "요구사항", "상태", "근거"]),
@@ -101,10 +108,10 @@ def validate_definition_tables(source):
          ["Test ID", "주요 검증", "통과 조건"]),
     )
     for prefix, maximum, begin, end, header in ranges:
-        if begin not in source or end not in source.split(begin, 1)[1]:
-            raise ValueError("specification definition section missing: " + prefix)
-        section = source.split(begin, 1)[1].split(end, 1)[0]
-        visible = list(visible_markdown_lines(section))
+        if begin not in visible_source or end not in visible_source.split(begin, 1)[1]:
+            raise ValueError("visible specification definition section missing: " + prefix)
+        section = visible_source.split(begin, 1)[1].split(end, 1)[0]
+        visible = section.splitlines()
         found, table_count = set(), 0
         for position, line in enumerate(visible):
             if split_markdown_cells(line.strip()) != header:
@@ -300,6 +307,33 @@ if __name__=="__main__":
     if escaped_pipe == specification:
         raise AssertionError("escaped pipe fixture missing")
     validate(escaped_pipe, ledger)
+    # Four-space indentation converts the entire table to rendered code.
+    for header, delim, prefix in (
+        ("| Test ID | 주요 검증 | 통과 조건 |", "| --- | --- | --- |", "T"),
+        ("| ID | 요구사항 | 상태 | 근거 |", "| --- | --- | --- | --- |", "U"),
+    ):
+        begin = specification.find(header)
+        if begin == -1:
+            raise AssertionError(prefix + " indented table fixture missing")
+        rows = specification[begin:].splitlines()
+        table_rows = []
+        for line in rows:
+            if not table_rows or line.startswith("|"):
+                table_rows.append(line)
+            else:
+                break
+        if len(table_rows) < 3:
+            raise AssertionError("missing table rows")
+        block = "\n".join(table_rows)
+        indented_block = "\n".join("    " + line for line in table_rows)
+        must_reject(specification.replace(block, indented_block, 1), ledger)
+    # Starting an HTML comment before the section heading hides the table.
+    marker_t = "## 13 인수시험 및 독립 교차 검증"
+    closing_t = "### 13.1 정량 인수 목표와 측정 조건"
+    hidden_test_section = specification.replace(marker_t, "<!--\n" + marker_t, 1)
+    hidden_test_section = hidden_test_section.replace(closing_t, "-->\n" + closing_t, 1)
+    must_reject(hidden_test_section, ledger)
+
 
 
 
