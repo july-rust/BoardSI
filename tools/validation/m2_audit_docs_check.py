@@ -22,7 +22,7 @@ PRE_PH08_STATUS = {
     'docs/development-history.md': ('Stage 5B original HMM privately re-executed', '1761/1761', 'Gate Q FAIL', 'BOUND_NOT_CERTIFIED'),
     'docs/architecture/README.md': ('Qt Widgets', 'Gate Q', 'BOUND_NOT_CERTIFIED'),
     'docs/audits/2026-10-18-pre-ph08-project-audit.md': ('Stage 5B', 'FAIL', '17/17', 'Draft PR #35'),
-    'docs/branding/boardsi-icon-decision.md': ('option B', 'SOURCE_ASSET_MISSING', 'RECONSTRUCTION_ONLY'),
+    'docs/branding/boardsi-icon-decision.md': ('icon B', 'DESIGN_APPROVED', 'ORIGINAL_PNG_BYTE_IDENTITY_NOT_VERIFIED', 'RELEASE_PACKAGING_NOT_VERIFIED'),
     'assets/branding/boardsi-option-b-reconstruction.svg': ('RECONSTRUCTION_ONLY', '<svg', '</svg>'),
 }
 for audit_path, phrases in PRE_PH08_STATUS.items():
@@ -32,13 +32,97 @@ for audit_path, phrases in PRE_PH08_STATUS.items():
 assert 'Stage 5B original physics rerun remains NOT RUN' not in Path('docs/development-history.md').read_text(encoding='utf-8'), 'Old original Stage5B replay status'
 print('Pre-PH08 docs and option-B provenance consistency PASS, not original HMM certification')
 
-# Validate the reference SVG is local-only well-formed XML; not visual/pixel equality.
+# Fail-closed static SVG allowlist: XML well-formedness alone is NOT a security check.
+# Deliberately narrow to the approved artwork's actual static SVG vocabulary.
+import re
 import xml.etree.ElementTree as ET
-icon_root = ET.parse('assets/branding/boardsi-option-b-reconstruction.svg').getroot()
-assert icon_root.tag == '{http://www.w3.org/2000/svg}svg'
-for icon_element in icon_root.iter():
-    assert not any(attr.endswith('href') for attr in icon_element.attrib), 'No linked icon artwork allowed'
-print('B concept SVG syntactically valid, local-only; original selection pixels NOT VERIFIED')
+
+SVG_NS = '{http://www.w3.org/2000/svg}'
+STATIC_TAGS = {'svg', 'defs', 'linearGradient', 'stop', 'rect', 'g', 'path', 'circle'}
+STATIC_ATTRIBUTES = {
+    'width', 'height', 'viewBox', 'role', 'aria-label', 'id',
+    'x1', 'x2', 'y1', 'y2', 'offset', 'stop-color', 'stop-opacity',
+    'x', 'y', 'rx', 'd', 'cx', 'cy', 'r', 'fill',
+    'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'opacity',
+}
+LOCAL_GRADIENT = re.compile(r'url\(#([A-Za-z_][A-Za-z0-9_.-]*)\)\Z')
+SCHEME = re.compile(r'(?i)(?:https?:|file:|data:|javascript:|vbscript:|@import|\\\\|//|url\s*\()')
+
+def validate_offline_static_svg(svg_bytes):
+    if len(svg_bytes) > 256 * 1024:
+        raise ValueError('SVG too large')
+    if re.search(br'(?i)<!DOCTYPE|<!ENTITY', svg_bytes):
+        raise ValueError('DTD and entities forbidden')
+    root = ET.fromstring(svg_bytes)
+    if root.tag != SVG_NS + 'svg':
+        raise ValueError('not an SVG document')
+    ids = set()
+    for element in root.iter():
+        if not isinstance(element.tag, str) or not element.tag.startswith(SVG_NS):
+            raise ValueError('foreign namespace / non-element node')
+        tag = element.tag[len(SVG_NS):]
+        if tag not in STATIC_TAGS:
+            raise ValueError('active or unsupported SVG element: ' + tag)
+        for key, value in element.attrib.items():
+            # Namespaced attributes (xlink:href, xml:base) and CSS 'style' are
+            # never allowed, even if the address is encoded as XML entities.
+            if key not in STATIC_ATTRIBUTES:
+                raise ValueError('unsafe SVG attribute: ' + key)
+            if key == 'id':
+                if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.-]*', value) or value in ids:
+                    raise ValueError('invalid or duplicate SVG id')
+                ids.add(value)
+            if key in ('fill', 'stroke') and value.startswith('url('):
+                # Only same-document gradients, verified in second pass.
+                if not LOCAL_GRADIENT.fullmatch(value):
+                    raise ValueError('non-local SVG paint reference')
+            elif SCHEME.search(value):
+                raise ValueError('URI/CSS directive is forbidden')
+    for element in root.iter():
+        for key in ('fill', 'stroke'):
+            value = element.attrib.get(key, '')
+            match = LOCAL_GRADIENT.fullmatch(value)
+            if match and match.group(1) not in ids:
+                raise ValueError('dangling SVG local reference')
+    # Only gradients may be paint references (not references to script/other IDs).
+    gradients = {e.attrib.get('id') for e in root.iter()
+                 if e.tag == SVG_NS + 'linearGradient'}
+    for element in root.iter():
+        for key in ('fill', 'stroke'):
+            match = LOCAL_GRADIENT.fullmatch(element.attrib.get(key, ''))
+            if match and match.group(1) not in gradients:
+                raise ValueError('non-gradient SVG paint reference')
+    return root
+
+ICON_PATH = 'assets/branding/boardsi-option-b-reconstruction.svg'
+original_svg = Path(ICON_PATH).read_bytes()
+validate_offline_static_svg(original_svg)
+# Execute mutation tests in the same required docs job; one error is enough
+# to fail CI rather than giving false assurances of offline/static safety.
+def _must_reject(fragment):
+    try:
+        validate_offline_static_svg(fragment)
+    except (ValueError, ET.ParseError):
+        return
+    raise AssertionError('Unsafe SVG accepted: ' + fragment[:180].decode('utf-8', 'replace'))
+svg_start = b'<svg xmlns="http://www.w3.org/2000/svg">'
+svg_end = b'</svg>'
+for bad in (
+    b'<script>alert(1)</script>',
+    b'<foreignObject><div xmlns="http://www.w3.org/1999/xhtml">x</div></foreignObject>',
+    b'<style>@import url(https://example.invalid/bad.css)</style>',
+    b'<rect style="fill:url(https://example.invalid/x)" />',
+    b'<rect fill="url(https://example.invalid/image.svg)" />',
+    b'<rect fill="url(#unknown)" />',
+    b'<rect onclick="alert(1)" />',
+    b'<image href="https://example.invalid/image.svg" />',
+    b'<rect xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://example.invalid/a" />',
+    b'<animate attributeName="opacity" values="0;1" />',
+    b'<rect fill="url(&#104;ttps://example.invalid/x)" />',
+):
+    _must_reject(svg_start + bad + svg_end)
+_must_reject(b'<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///private">]>' + svg_start + svg_end)
+print('B DESIGN_APPROVED static SVG safety PASS: whitelist, local-gradient references, 12 attack mutations; packaging NOT VERIFIED')
 
 # Historical nested-archive checksum inventories must never be conflated.
 stage5d = Path('docs/validation/m2-g2-ph08-stage5d-evidence.md').read_text(encoding='utf-8')
