@@ -91,7 +91,7 @@ def visible_markdown_lines(source):
     fence_character = None
     fence_length = 0
     html_open = re.compile(
-        r"^ {0,3}(?:</?[A-Za-z][A-Za-z0-9-]*(?:\s+[^<>]*)?\s*/?>|<![A-Za-z\[]|<\?)",
+        r"^ {0,3}(?:</?[A-Za-z][A-Za-z0-9-]*(?=[\s>/]|$)|<![A-Za-z\[]|<\?)",
         re.IGNORECASE,
     )
     for original_line in source.splitlines():
@@ -269,8 +269,8 @@ def extract_mapping(source):
         section, ["요구 ID", "본문", "주요 시험", "완료 단계"], "U"
     ):
         if not re.match(r"\|\s*U\d{2}", line):
-            continue
-        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            raise ValueError("non-U crosswalk row: " + line)
+        cells = split_markdown_cells(line)
         if len(cells) != 4:
             raise ValueError("bad section 18.2 row width")
         tests = expand_ids(cells[2], "T")
@@ -309,16 +309,20 @@ def extract_ledger(source):
     u_map, t_map, u_phases, t_phases = {}, {}, {}, {}
     for line in table_u:
         m = re.match(r"^\|\s*(U\d{2})\s*\|",line)
+        if not m:
+            raise ValueError("unknown/malformed U ledger row: " + line)
         if m:
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            cells = split_markdown_cells(line)
             if len(cells)!=7 or m.group(1) in u_map or cells[3]!="DEFINED" or cells[5]!="NOT_RUN":
                 raise ValueError("invalid / duplicate U ledger row: "+line)
             u_map[m.group(1)] = set(expand_ids(cells[2], "T"))
             u_phases[m.group(1)] = cells[1]
     for line in table_t:
         m = re.match(r"^\|\s*(T\d{2})\s*\|",line)
+        if not m:
+            raise ValueError("unknown/malformed T ledger row: " + line)
         if m:
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            cells = split_markdown_cells(line)
             if len(cells)!=5 or m.group(1) in t_map or cells[3] not in ("NOT_RUN","PARTIAL"):
                 raise ValueError("invalid / duplicate T ledger row: "+line)
             t_map[m.group(1)] = set(expand_ids(cells[2], "U"))
@@ -541,5 +545,35 @@ if __name__=="__main__":
         if block not in ledger:
             raise AssertionError("ledger table delimiter fixture missing")
         must_reject(specification, ledger.replace(block, header, 1))
+
+    # CommonMark type-6 HTML blocks start on '<div' even without a '>'.
+    for doc, row in (
+        (specification, "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |"),
+        (ledger, "| Requirement ID | Phase from v1.0 18.2 | Linked test IDs"),
+    ):
+        if row not in doc:
+            raise AssertionError("raw HTML partial opener fixture missing")
+        changed = doc.replace(row, "<div\n" + row, 1)
+        if doc is specification:
+            must_reject(changed, ledger)
+        else:
+            must_reject(specification, changed)
+    # Extra visible ledger IDs are not silently discarded.
+    must_reject(specification, ledger.replace(
+        "| U48 |", "| U100 | M0 | T13 | DEFINED | NOT_VERIFIED | NOT_RUN | Unknown |\n| U48 |", 1))
+    must_reject(specification, ledger.replace(
+        "| T54 |", "| T100 | M0 | U01 | NOT_RUN | Unknown |\n| T54 |", 1))
+    # Escaped Markdown pipes in prose are legal data, not new cells.
+    escaped_u = ledger.replace(
+        "See specification v1.0; no ID-specific full test evidence",
+        r"See \| specification v1.0; no ID-specific full test evidence", 1)
+    if escaped_u == ledger:
+        raise AssertionError("escaped ledger fixture missing")
+    validate(specification, escaped_u)
+    escaped_crosswalk = specification.replace(
+        "| U01 | 8,10,11 |", r"| U01 | 8 \| 10,11 |", 1)
+    if escaped_crosswalk == specification:
+        raise AssertionError("escaped crosswalk fixture missing")
+    validate(escaped_crosswalk, ledger)
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
