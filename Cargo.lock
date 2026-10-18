@@ -23,6 +23,7 @@ name = "boardsi-worker"
 version = "0.1.0"
 dependencies = [
  "boardsi-ipc",
+ "boardsi-model",
  "boardsi-numerics",
 ]
 
