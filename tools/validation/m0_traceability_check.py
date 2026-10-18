@@ -75,8 +75,9 @@ def mask_inline_code_for_comment_scan(line):
             if next_open == -1:
                 break
             next_end = next_open + len(delimiter)
-            if (not is_escaped(next_open) and
-                (next_open == 0 or line[next_open - 1] != chr(96)) and
+            # GFM backslash escapes are NOT processed inside code spans:
+            # a backtick preceded by "\" can still close an active span.
+            if ((next_open == 0 or line[next_open - 1] != chr(96)) and
                 (next_end == len(line) or line[next_end] != chr(96))):
                 closing = next_end
                 break
@@ -734,5 +735,13 @@ if __name__=="__main__":
         must_reject(specification, ledger.replace(
             "| Requirement ID | Phase from v1.0 18.2 | Linked test IDs",
             "prefix <" + tag + ">\n\n| Requirement ID | Phase from v1.0 18.2 | Linked test IDs", 1))
+
+    # Within an active code span backslashes do not escape closing ticks.
+    # Here the <template> becomes visible raw HTML, not protected code.
+    broken_span = chr(96) + "x" + chr(92) + chr(96) + "<template>" + chr(96)
+    must_reject(specification.replace(
+        "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |",
+        broken_span + "\n| 요구 ID | 본문 | 주요 시험 | 완료 단계 |", 1
+    ), ledger)
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
