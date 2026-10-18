@@ -348,12 +348,13 @@ KNOWN_M0_EVIDENCE_ISSUES = {2, 3, 4, 5, 6, 7, 46, 78}
 
 
 def has_known_m0_evidence(value):
-    # Only a real GitHub-style issue autolink token counts, not inline code
-    # or backslash-escaped literal '#'. The registry is validated off-line.
+    # Normative M0 ledger evidence deliberately permits only explicit bare
+    # GitHub issue autolinks of the form "see #N". A fragment in an arbitrary
+    # URL, escaped hash or inline code is NOT a resolvable BoardSI Issue link.
     visible = mask_inline_code_for_comment_scan(value)
     return any(
         int(number) in KNOWN_M0_EVIDENCE_ISSUES
-        for number in re.findall(r"(?<![\w\x5c`])#([1-9][0-9]*)(?!\w)", visible)
+        for number in re.findall(r"(?i)(?<!\w)see\s+#([1-9][0-9]*)(?!\w)", visible)
     )
 
 
@@ -812,6 +813,15 @@ if __name__=="__main__":
 
     # Literal issue tokens are not resolvable evidence links.
     for fake in (chr(96) + "#3" + chr(96), chr(92) + "#3"):
+        must_reject(specification, ledger.replace(
+            "M0 restricted prototype; see #3/#4/#5/#6",
+            "M0 restricted prototype; see " + fake, 1))
+        must_reject(specification, ledger.replace(
+            "M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified",
+            "M0 native Qt/Worker prototype only; see " + fake, 1))
+
+    # Arbitrary URL fragments are not BoardSI Issue evidence autolinks.
+    for fake in ("https://example.invalid/#3", "https://example.invalid/path?issue=#3"):
         must_reject(specification, ledger.replace(
             "M0 restricted prototype; see #3/#4/#5/#6",
             "M0 restricted prototype; see " + fake, 1))
