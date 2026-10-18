@@ -21,6 +21,33 @@ def expand_ids(text, prefix):
         results += [f"{prefix}{n:02d}" for n in range(first, last + 1)]
     return results
 
+def validate_definition_tables(source):
+    # The crosswalk/ledger is invalid if the actual source definitions vanish.
+    ranges = (
+        ("U", 48, "## 2 요구사항 추적표", "## 3 "),
+        ("T", 54, "## 13 인수시험 및 독립 교차 검증", "### 13.1 "),
+    )
+    for prefix, maximum, begin, end in ranges:
+        if begin not in source or end not in source.split(begin, 1)[1]:
+            raise ValueError("specification definition section missing: " + prefix)
+        section = source.split(begin, 1)[1].split(end, 1)[0]
+        found = set()
+        for line in section.splitlines():
+            match = re.match(rf"^\|\s*({prefix}\d{{2}})\s*\|", line)
+            if not match:
+                continue
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            expected_columns = 4 if prefix == "U" else 3
+            if len(cells) != expected_columns or any(not c for c in cells):
+                raise ValueError("malformed definition for " + match.group(1))
+            item = match.group(1)
+            if item in found:
+                raise ValueError("duplicate " + prefix + " definition: " + item)
+            found.add(item)
+        expected = {f"{prefix}{i:02d}" for i in range(1, maximum + 1)}
+        if found != expected:
+            raise ValueError(f"{prefix} definition mismatch: missing={sorted(expected-found)}, extra={sorted(found-expected)}")
+
 def extract_mapping(source):
     if "### 18.2 요구사항과 시험 연결" not in source or "### 18.3" not in source:
         raise ValueError("specification crosswalk section missing")
@@ -73,6 +100,7 @@ def extract_ledger(source):
     return u_map, t_map, u_phases, t_phases
 
 def validate(spec_text, ledger_text):
+    validate_definition_tables(spec_text)
     u_map, source_u_phases, source_t_phases = extract_mapping(spec_text)
     ledger_u, ledger_t, ledger_u_phases, ledger_t_phases = extract_ledger(ledger_text)
     if set(ledger_u)!=set(u_map):
@@ -111,4 +139,11 @@ if __name__=="__main__":
     must_reject(specification,ledger.replace("| U01 |","| U99 |"))
     must_reject(specification,ledger.replace("| U01 | M2 |", "| U01 | WRONG_PHASE |"))
     must_reject(specification,ledger.replace("| T44 | M2 |", "| T44 | WRONG_PHASE |"))
+    missing_t44_definition = re.sub(r'(?m)^\| T44 \|[^\n]*\n', '', specification)
+    missing_u31_definition = re.sub(r'(?m)^\| U31 \|[^\n]*\n', '', specification)
+    if missing_t44_definition == specification or missing_u31_definition == specification:
+        raise AssertionError("expected definition fixture not found")
+    must_reject(missing_t44_definition, ledger)
+    must_reject(missing_u31_definition, ledger)
+
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
