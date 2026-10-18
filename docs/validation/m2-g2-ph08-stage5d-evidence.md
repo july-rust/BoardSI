@@ -8,7 +8,7 @@
 - 이 작업에서 GitHub Connector로 직접 재조회한 `main`은 `f9d1e860bed2856049e0faac6e9861e7ee0ae160`, `docs/m2-g2-ph08-contract` 브랜치 HEAD도 같은 SHA다. 파일 브랜치의 PH-08 Contract 동결을 뜻하지 않는다.
 - 관련 Issue #16, #41, #46은 열린 상태이며, Draft PR #35가 열린 상태라는 이전 확인 내용 중 #35의 open 상태도 이 작업에서 재조회했다. GitHub 커넥터 `fetch_commit` 응답으로 현재 commit의 **Verified 서명 여부는 검증할 수 없었다**. Ruleset 25046595 원시 JSON과 17개 CI의 현재 성공 여부는 **Not Run**이다.
 - Stage 5C ZIP `boardsi-ph08-stage5c-chat-evidence.zip`는 직접 열어 ZIP CRC 검사 PASS. ZIP SHA-256: `67069f3614f4c82297751bf47f501e26a62bc963deb780c0ab93969fdc37aaa5`. 이는 이번 신작 합성 시험의 선행 산출물이지 BoardSI 원본 HMM 소스가 아니다.
-- 필수 Stage 5B 원본 `boardsi-ph08-stage5b-evidence.zip`과 Stage 4 `boardsi-ph08-stage4-qualification.zip` 실제 바이트는 현 실행 컨테이너에 없었고 Project/Library 검색에서도 확보되지 않았다. Stage 5B 원시 338개 hash 및 source 20개, 원본 HMM gradient 세 해상도 재집계 **Not Run**. Stage 4 ZIP의 알려진 SHA-256 `6ade7f1e42db9b52f6243929183f1004a04f3f07950f37c903f592e60c05cda9`는 **이전 보고서에 기록된 값**이며 이번에 재확인한 hash가 아니다.
+- 필수 Stage 5B 원본 `boardsi-ph08-stage5b-evidence.zip`과 Stage 4 `boardsi-ph08-stage4-qualification.zip` 실제 바이트는 현 실행 컨테이너에 없었고 Project/Library 검색에서도 확보되지 않았다. 이 Stage 5D 작업 당시 Stage 5B 외부 ZIP 자체의 36개 checksum 및 13개 source snapshot, 중첩된 Stage 4의 338개 checksum 및 20개 source snapshot 재검증과 원본 HMM gradient 세 해상도 재집계는 모두 **Not Run**이었다. Stage 4 ZIP의 알려진 SHA-256 `6ade7f1e42db9b52f6243929183f1004a04f3f07950f37c903f592e60c05cda9`는 **이전 보고서에 기록된 값**이며 이번에 재확인한 hash가 아니다.
 - 개발 사양서 `docs/specification/BoardSI_Development_Spec_v1.0.md`는 GitHub에서 직접 읽었다. §14의 재현 가능한 수치 검증 및 독립 오차 근거 원칙을 유지한다.
 
 ## 2. 새 합성 시험 (원본 BoardSI HMM 미사용)
@@ -68,3 +68,7 @@ Condition number는 **이 합성 Vandermonde-type 행렬의 진단치**이며 �
 1. [BoardSI GitHub](https://github.com/july-rust/BoardSI), 직접 조회 main SHA `f9d1e860bed2856049e0faac6e9861e7ee0ae160` 및 저장소 개발 사양서.
 2. 사용자가 이전에 제공한 `m2-g2-ph08-stage4-evidence.md` 원문 및 Stage 5C 실행 기록(위 ZIP과 SHA-256).
 3. 본 단계 `boardsi_ph08_stage5d_gateq_diagnostic.py`, 원시 JSON 및 run summary(첨부 ZIP의 manifest로 byte-by-byte 검증 가능).
+
+## 2026-10-18 감사 주석 (원래 Stage 5D 결과를 변경하지 않음)
+
+이 문서의 **Not Run**은 **Stage 5D 당시 해당 실행 환경**에서의 접근/재실행 상태다. 그 이후 2026-10-17에 승인된 별도 비공개 환경에서 원본 **Stage 5B HMM**을 재실행했고, 원래 Gate Q **FAIL**이 12/12 MMS 행 및 1761/1761 결정적 수치 필드 일치로 재현되었다. 공개 GitHub CI에서는 원본을 실행하지 않았다. Stage 5B 자체의 내부 감사 범위는 **36/36 checksum, 13 source snapshot**이며, Stage 5B ZIP 내부에 포함된 별도 **Stage 4 ZIP**의 범위가 **338/338 checksum, 20/20 source snapshot**이다. 과거 Stage 5D의 독립 합성 시험 결과와 원본 물리 Gate Q FAIL은 변경되지 않았다. [후속 원본 재실행 근거](m2-g2-ph08-stage5b-original-replay-evidence.md).

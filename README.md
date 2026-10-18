@@ -10,7 +10,7 @@ BoardSI is planned as an offline-first Qt desktop UI plus Rust signal-integrity 
 
 Planned features: PCB / BGA substrate pad-to-pad analysis; geometry, stackup, reference/port mapping; validated transmission-line RLGC and S-parameters; independent direct and progressive sweep; live curves; Touchstone export; asynchronous workers and recoverable RAM/SSD cache. Full-board 3D Full-wave EM and unvalidated discontinuity models are **out of the initial scope**. Bumps, Cu pillars, solder balls and wirebonds are excluded from substrate pad-to-pad simulation.
 
-**Supported targets (not yet verified):** Windows x64, Windows ARM64, macOS Apple Silicon ARM64.
+**Target platforms:** Windows x64, Windows ARM64, macOS Apple Silicon ARM64. Native numerical, Worker/Qt and limited FEM **prototype tests** have passed GitHub Actions; the full product, installers, real-board workflow and distributed binaries remain **NOT VERIFIED**.
 
 ## Documents
 
@@ -19,6 +19,8 @@ Planned features: PCB / BGA substrate pad-to-pad analysis; geometry, stackup, re
 - [Roadmap metadata](docs/project-plan.json)
 - [Architecture decisions](docs/architecture/README.md)
 - [Validation policy](docs/validation/README.md)
+- [Pre-PH08 complete-project baseline audit](docs/audits/2026-10-18-pre-ph08-project-audit.md)
+- [Official icon B selection and source status](docs/branding/boardsi-icon-decision.md)
 
 ## Security and licensing
 
@@ -27,3 +29,7 @@ Do **not** commit proprietary PCB artwork, CAD exports, stackup/net data, confid
 No software license has been selected pending Qt/parser/dependency/IP review. Public visibility does **not** grant open-source reuse rights.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+
+## Original PH-08 Gate Q evidence (2026-10-18)
+
+Stage 4 HMM Gate Q **FAIL** remains unchanged. An **authorized private** Stage 5B original HMM replay reproduced its archived **FAIL** (12/12 rows, 1761/1761 deterministic scalars identical); public CI is *synthetic-only*. AC-P1 PENDING; T/R PROPOSED_NOT_FROZEN; PH-08 contract NOT_FROZEN; Rust FEM NO_GO; Gate M NOT_VERIFIED; physical error BOUND_NOT_CERTIFIED. See [original replay evidence](docs/validation/m2-g2-ph08-stage5b-original-replay-evidence.md), [Issue #51](https://github.com/july-rust/BoardSI/issues/51). Owner explicitly **approved the existing option B SVG as the visual design master** (2026-10-18); original earlier PNG byte identity and final platform icon packaging remain **NOT VERIFIED**. Do not alter or substitute the SVG.
