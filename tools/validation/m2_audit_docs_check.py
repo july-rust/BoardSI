@@ -39,3 +39,10 @@ assert icon_root.tag == '{http://www.w3.org/2000/svg}svg'
 for icon_element in icon_root.iter():
     assert not any(attr.endswith('href') for attr in icon_element.attrib), 'No linked icon artwork allowed'
 print('B concept SVG syntactically valid, local-only; original selection pixels NOT VERIFIED')
+
+# Historical nested-archive checksum inventories must never be conflated.
+stage5d = Path('docs/validation/m2-g2-ph08-stage5d-evidence.md').read_text(encoding='utf-8')
+assert 'Stage 5B 원시 338개 hash 및 source 20개' not in stage5d, 'Stage 4 inventory misattributed to Stage 5B'
+for marker in ('Stage 5B 외부 ZIP 자체의 36개 checksum', 'Stage 4의 338개 checksum', 'Stage 5B HMM', 'Gate Q **FAIL**'):
+    assert marker in stage5d, 'Stage 5D time-scope/inventory drift: ' + marker
+print('Historical Stage5B 36/13 versus nested Stage4 338/20 evidence classification PASS')

@@ -47,3 +47,7 @@ Remediation must not modify frozen contracts, FEM/core numerical calculations, s
 ### Additional source recovery after baseline
 
 The earlier 2026-10-14 1536×1024 `BoardSI 아이콘 디자인 제안 보드.png` was **visually recovered** from user's personal Library (A–E proposals plus B-1 small icon). Its raw byte materialization was rejected by the available Files service, so it could not be committed bit-identically; a different vector version is **not** accepted as the original. The B-specific white circuit border/vias and smooth blue wave were used only to improve the explicitly provisional reconstructed SVG. Original SHA-256, font/creator provenance and final portable icon files are **NOT VERIFIED**.
+
+### Additional P2 historical evidence correction
+
+[Stage 5D historical synthetic report](../validation/m2-g2-ph08-stage5d-evidence.md) incorrectly described the **338 checksum / 20 source** nested Stage 4 inventory as though it belonged to Stage **5B**. Correct classification: Stage 5B outer archive **36 checksum / 13 source**, nested Stage 4 archive **338 checksum / 20 source**. The original Stage5D *session-local* `Not Run` was valid at that historical date and remains a valid historical statement; the later separate private Stage5B original replay reproduced **FAIL** on 2026-10-17. No historical test outcomes or acceptance criteria were altered.
