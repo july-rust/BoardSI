@@ -398,7 +398,7 @@ def has_row_specific_partial_evidence(identifier, value):
     visible = mask_inline_code_for_comment_scan(value)
     references = {
         int(number) for number in
-        re.findall(r"(?i)(?<!\\w)see\\s+#([1-9][0-9]*)(?!\\w)", visible)
+        re.findall(r"(?i)(?<!\w)see\s+#([1-9][0-9]*)(?!\w)", visible)
     }
     return references and references == PARTIAL_EVIDENCE_BY_ID.get(identifier)
 
