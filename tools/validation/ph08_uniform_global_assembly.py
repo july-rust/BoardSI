@@ -158,6 +158,7 @@ def analyze_global_synthetic(n: int, *, mutation: str = "none") -> dict:
         "cell_count": n*n, "interior_face_count": 2*n*(n-1),
         "exact_ideal_discrete_residual_inf": qstr(_maxabs(ideal_res)),
         "exact_captured_solution_residual_inf": qstr(residual_norm),
+        "exact_captured_solution_residual_0_exact": qstr(exact_numeric_res[0]),
         "captured_solution_component_0_exact": qstr(captured[0]),
         "ideal_candidate_solves_assembled_system": not any(ideal_res),
         "float64_global_solve_gradient_rms_observed": grad_rms,
