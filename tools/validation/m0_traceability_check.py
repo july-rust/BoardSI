@@ -162,7 +162,7 @@ def visible_markdown_lines(source):
         # Normative definition tables cannot occur inside raw HTML blocks.
         # A literal example inside a code fence/comment is already excluded.
         if html_open.match(text) or re.search(
-            r"(?i)</?(?:style|script|textarea|pre)(?=[\s>/]|$)",
+            r"(?i)</?[A-Za-z][A-Za-z0-9_-]*(?=[\s>/]|$)",
             mask_inline_code_for_comment_scan(text),
         ):
             raise ValueError("raw HTML block is unsupported in normative specification")
@@ -721,5 +721,18 @@ if __name__=="__main__":
         raise AssertionError("ledger blockquote boundary fixture missing")
     must_reject(specification, ledger.replace(
         ledger_header, "> prefix\n" + ledger_header, 1))
+
+    # Any real inline raw HTML tag could make normative table invisible.
+    # This specification's table sections intentionally permit no raw HTML.
+    for tag in ("template", "noscript", "div", "svg", "iframe"):
+        for target in (
+            "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |",
+            "| ID | 요구사항 | 상태 | 근거 |",
+        ):
+            must_reject(specification.replace(
+                target, "prefix <" + tag + ">\n\n" + target, 1), ledger)
+        must_reject(specification, ledger.replace(
+            "| Requirement ID | Phase from v1.0 18.2 | Linked test IDs",
+            "prefix <" + tag + ">\n\n| Requirement ID | Phase from v1.0 18.2 | Linked test IDs", 1))
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
