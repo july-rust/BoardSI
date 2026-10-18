@@ -145,6 +145,15 @@ def visible_markdown_lines(source):
                     in_comment = True
                     index = start + 4
         text = "".join(visible)
+        # HTML comment removal must NOT invent normative GFM block structure.
+        # A line whose original first token is an HTML comment cannot become
+        # an ATX heading, table row or table delimiter just by stripping it.
+        visible_first = text.lstrip(" ")
+        original_first = original_line.lstrip(" ")
+        is_heading = lambda value: re.match(r"^#{1,6}(?:[ \t]|$)", value) is not None
+        if ((visible_first.startswith("|") and not original_first.startswith("|"))
+            or (is_heading(visible_first) and not is_heading(original_first))):
+            raise ValueError("HTML comment synthesized Markdown block marker")
         # CommonMark expands mixed whitespace at four-column tab stops.
         if text.expandtabs(4).startswith("    "):
             yield ""
@@ -933,6 +942,27 @@ if __name__=="__main__":
         must_reject(specification, ledger.replace(
             "M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified",
             "M0 native Qt/Worker prototype only; " + fake, 1))
+
+    # Source-level block markers are normative: comments cannot synthesize
+    # a table header/delimiter, a definition row or section heading.
+    for marker in (
+        "### 18.2 요구사항과 시험 연결",
+        "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |",
+        "| U01 | 8,10,11 | T06,T07,T43,T44 | M2 |",
+    ):
+        if marker not in specification:
+            raise AssertionError("comment-block regression source missing: " + marker)
+        must_reject(specification.replace(
+            marker, "<!-- -->" + marker, 1), ledger)
+    for marker in (
+        "## U01–U48, full coverage (48/48)",
+        "| Requirement ID | Phase from v1.0 18.2 | Linked test IDs",
+        "| U01 | M2 | T06,T07,T43,T44 | DEFINED | NOT_VERIFIED | NOT_RUN |",
+    ):
+        if marker not in ledger:
+            raise AssertionError("comment-ledger regression source missing: " + marker)
+        must_reject(specification, ledger.replace(
+            marker, "<!-- -->" + marker, 1))
 
     # A backtick hidden by a removable HTML comment still makes the
     # ORIGINAL backtick-fence info string invalid in GFM. The old parser
