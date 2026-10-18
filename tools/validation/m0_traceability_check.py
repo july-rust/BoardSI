@@ -21,63 +21,135 @@ def expand_ids(text, prefix):
         results += [f"{prefix}{n:02d}" for n in range(first, last + 1)]
     return results
 
-def validate_definition_tables(source):
-    """Read every row in each bounded source table, including valid Markdown variants.
+def split_markdown_cells(line):
+    """Split actual Markdown columns; escaped bars remain within text cells."""
+    cells, buffer = [], []
+    index = 0
+    while index < len(line):
+        character = line[index]
+        if character == "\\" and index + 1 < len(line):
+            buffer.append(character)
+            buffer.append(line[index + 1])
+            index += 2
+            continue
+        if character == "|":
+            cells.append("".join(buffer).strip())
+            buffer = []
+        else:
+            buffer.append(character)
+        index += 1
+    cells.append("".join(buffer).strip())
+    if cells and cells[0] == "":
+        cells.pop(0)
+    if cells and cells[-1] == "":
+        cells.pop()
+    return cells
 
-    Do not filter only U/T-prefixed raw cells: malformed or formatted IDs
-    would otherwise disappear, yielding a false complete-coverage PASS.
-    """
+
+def visible_markdown_lines(section):
+    """Strip HTML comments and fenced code, including multi-line regions."""
+    in_comment = False
+    fence_character = None
+    fence_length = 0
+    for original_line in section.splitlines():
+        text = original_line
+        unindented = text.lstrip(" ")
+        indent = len(text) - len(unindented)
+        if indent <= 3 and unindented:
+            character = unindented[0]
+            if character in (chr(96), "~"):
+                count = len(unindented) - len(unindented.lstrip(character))
+                if count >= 3:
+                    if fence_character is None:
+                        fence_character, fence_length = character, count
+                        continue
+                    if character == fence_character and count >= fence_length and not unindented[count:].strip():
+                        fence_character, fence_length = None, 0
+                        continue
+        if fence_character is not None:
+            continue
+        visible = []
+        index = 0
+        while index < len(text):
+            if in_comment:
+                end = text.find("-->", index)
+                if end == -1:
+                    index = len(text)
+                else:
+                    in_comment = False
+                    index = end + 3
+            else:
+                start = text.find("<!--", index)
+                if start == -1:
+                    visible.append(text[index:])
+                    index = len(text)
+                else:
+                    visible.append(text[index:start])
+                    in_comment = True
+                    index = start + 4
+        yield "".join(visible)
+    if in_comment or fence_character is not None:
+        raise ValueError("unclosed HTML comment or code fence in definition section")
+
+
+def validate_definition_tables(source):
+    """Require an actual contiguous Markdown definition table, not just ID text."""
     ranges = (
-        ("U", 48, "## 2 요구사항 추적표", "## 3 "),
-        ("T", 54, "## 13 인수시험 및 독립 교차 검증", "### 13.1 "),
+        ("U", 48, "## 2 요구사항 추적표", "## 3 ",
+         ["ID", "요구사항", "상태", "근거"]),
+        ("T", 54, "## 13 인수시험 및 독립 교차 검증", "### 13.1 ",
+         ["Test ID", "주요 검증", "통과 조건"]),
     )
-    for prefix, maximum, begin, end in ranges:
+    for prefix, maximum, begin, end, header in ranges:
         if begin not in source or end not in source.split(begin, 1)[1]:
             raise ValueError("specification definition section missing: " + prefix)
         section = source.split(begin, 1)[1].split(end, 1)[0]
-        found = set()
-        expected_cols = 4 if prefix == "U" else 3
-        header_columns = ["ID", "요구사항", "상태", "근거"] if prefix == "U" else ["Test ID", "주요 검증", "통과 조건"]
-        header_count = 0
-        for line in section.splitlines():
-            raw = line.strip()
-            if "|" not in raw:
+        visible = list(visible_markdown_lines(section))
+        found, table_count = set(), 0
+        for position, line in enumerate(visible):
+            if split_markdown_cells(line.strip()) != header:
                 continue
-            cells = [c.strip() for c in raw.split("|")]
-            if cells and cells[0] == "":
-                cells.pop(0)
-            if cells and cells[-1] == "":
-                cells.pop()
-            if len(cells) != expected_cols:
-                raise ValueError(f"malformed {prefix} definition table row: {line}")
-            if cells == header_columns:
-                header_count += 1
-                continue
-            if all(re.fullmatch(r":?-{3,}:?", c or "") for c in cells):
-                continue
-            item = cells[0].strip()
-            while len(item) >= 2 and (
-                (item.startswith("**") and item.endswith("**"))
-                or (item.startswith("__") and item.endswith("__"))
+            table_count += 1
+            if position + 1 >= len(visible):
+                raise ValueError("missing Markdown delimiter after " + prefix + " header")
+            delim = split_markdown_cells(visible[position + 1].strip())
+            if len(delim) != len(header) or not all(
+                re.fullmatch(r":?-{3,}:?", c) for c in delim
             ):
-                item = item[2:-2].strip()
-            while len(item) >= 2 and item[0] == item[-1] and item[0] in ("*", "_", chr(96)):
-                item = item[1:-1].strip()
-            if not re.fullmatch(rf"{prefix}\d{{2}}", item):
-                raise ValueError(f"invalid {prefix} definition row ID: {cells[0]!r}")
-            if any(not c for c in cells[1:]):
-                raise ValueError("missing definition content: " + item)
-            if item in found:
-                raise ValueError("duplicate " + prefix + " definition: " + item)
-            found.add(item)
-        if header_count != 1:
-            raise ValueError(f"expected exactly one {prefix} definition header; found {header_count}")
+                raise ValueError("missing/invalid Markdown table delimiter: " + prefix)
+            row_number = position + 2
+            while row_number < len(visible):
+                row = visible[row_number].strip()
+                if not row or "|" not in row:
+                    break
+                cells = split_markdown_cells(row)
+                if len(cells) != len(header):
+                    raise ValueError("malformed definition table row: " + row)
+                item = cells[0].strip()
+                while len(item) >= 2 and (
+                    (item.startswith("**") and item.endswith("**"))
+                    or (item.startswith("__") and item.endswith("__"))
+                ):
+                    item = item[2:-2].strip()
+                while len(item) >= 2 and item[0] == item[-1] and item[0] in ("*", "_", chr(96)):
+                    item = item[1:-1].strip()
+                if not re.fullmatch(rf"{prefix}\d{{2}}", item):
+                    raise ValueError("invalid definition ID: " + cells[0])
+                if any(not c for c in cells[1:]):
+                    raise ValueError("missing definition content: " + item)
+                if item in found:
+                    raise ValueError("duplicate definition ID: " + item)
+                found.add(item)
+                row_number += 1
+        if table_count != 1:
+            raise ValueError(f"{prefix} Markdown definition table header count: {table_count}")
         expected = {f"{prefix}{i:02d}" for i in range(1, maximum + 1)}
         if found != expected:
             raise ValueError(
                 f"{prefix} definition mismatch: missing={sorted(expected-found)}, "
                 f"extra={sorted(found-expected)}"
             )
+
 
 def extract_mapping(source):
     if "### 18.2 요구사항과 시험 연결" not in source or "### 18.3" not in source:
@@ -202,6 +274,33 @@ if __name__=="__main__":
     if openerless_header == specification:
         raise AssertionError("T header fixture missing")
     validate(openerless_header, ledger)
+    # IDs in code fences/comments are not part of the rendered definition table.
+    row_t54 = re.search(r"(?m)^\| T54 \|[^\n]*$", specification)
+    if not row_t54:
+        raise AssertionError("T54 test fixture not found")
+    t54 = row_t54.group(0)
+    commented_t54 = specification.replace(t54, "<!-- " + t54 + " -->", 1)
+    fenced_t54 = specification.replace(t54, chr(96) * 3 + "\n" + t54 + "\n" + chr(96) * 3, 1)
+    must_reject(commented_t54, ledger)
+    must_reject(fenced_t54, ledger)
+    for old, new in (
+        ("| Test ID | 주요 검증 | 통과 조건 |\n| --- | --- | --- |",
+         "| Test ID | 주요 검증 | 통과 조건 |"),
+        ("| ID | 요구사항 | 상태 | 근거 |\n| --- | --- | --- | --- |",
+         "| ID | 요구사항 | 상태 | 근거 |"),
+    ):
+        if old not in specification:
+            raise AssertionError("definition header/delimiter fixture missing")
+        must_reject(specification.replace(old, new, 1), ledger)
+    escaped_pipe = specification.replace(
+        "| T44 | 불균등 격자·부분 Export·한글 Net |",
+        r"| T44 | 불균등 격자 \| 부분 Export·한글 Net |",
+        1,
+    )
+    if escaped_pipe == specification:
+        raise AssertionError("escaped pipe fixture missing")
+    validate(escaped_pipe, ledger)
+
 
 
 
