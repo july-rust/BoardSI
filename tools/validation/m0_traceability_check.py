@@ -46,28 +46,55 @@ def split_markdown_cells(line):
     return cells
 
 
-def visible_markdown_lines(section):
-    """Strip HTML comments and fenced code, including multi-line regions."""
+def visible_markdown_lines(source):
+    """Return visible text; reject raw HTML containers in this controlled spec.
+
+    Parse fences and comments across the entire source before section slicing.
+    Our normative definition tables deliberately use ordinary Markdown, not
+    raw-HTML container elements; fail closed on unsupported markup.
+    """
     in_comment = False
-    in_pre = False
     fence_character = None
     fence_length = 0
-    for original_line in section.splitlines():
-        # CommonMark tab stops are 4 columns, so "  \t" may also be code.
-        normalized = original_line.expandtabs(4)
-        if normalized.startswith("    "):
+    html_open = re.compile(
+        r"^ {0,3}<(?:pre|script|style|textarea)(?:\s[^>]*?)?>",
+        re.IGNORECASE,
+    )
+    for original_line in source.splitlines():
+        # A fenced block owns all its content, even HTML-looking tokens.
+        if fence_character is not None:
+            line = original_line.lstrip(" ")
+            indent = len(original_line) - len(line)
+            if indent <= 3 and line.startswith(fence_character):
+                length = len(line) - len(line.lstrip(fence_character))
+                if length >= fence_length and not line[length:].strip():
+                    fence_character, fence_length = None, 0
             yield ""
             continue
-        text = original_line
-        if in_pre:
-            if re.search(r"(?i)</pre\s*>", text):
-                in_pre = False
-            yield ""
-            continue
-        if re.search(r"(?i)<pre(?:\s[^>]*)?>", text):
-            # Raw HTML pre blocks cannot supply rendered Markdown table rows.
-            if not re.search(r"(?i)</pre\s*>", text):
-                in_pre = True
+
+        # Remove real HTML comments before interpreting Markdown/HTML syntax.
+        visible = []
+        index = 0
+        while index < len(original_line):
+            if in_comment:
+                end = original_line.find("-->", index)
+                if end == -1:
+                    index = len(original_line)
+                else:
+                    in_comment = False
+                    index = end + 3
+            else:
+                start = original_line.find("<!--", index)
+                if start == -1:
+                    visible.append(original_line[index:])
+                    index = len(original_line)
+                else:
+                    visible.append(original_line[index:start])
+                    in_comment = True
+                    index = start + 4
+        text = "".join(visible)
+        # CommonMark expands mixed whitespace at four-column tab stops.
+        if text.expandtabs(4).startswith("    "):
             yield ""
             continue
         unindented = text.lstrip(" ")
@@ -75,38 +102,19 @@ def visible_markdown_lines(section):
         if indent <= 3 and unindented:
             character = unindented[0]
             if character in (chr(96), "~"):
-                count = len(unindented) - len(unindented.lstrip(character))
-                if count >= 3:
-                    if fence_character is None:
-                        fence_character, fence_length = character, count
-                        continue
-                    if character == fence_character and count >= fence_length and not unindented[count:].strip():
-                        fence_character, fence_length = None, 0
-                        continue
-        if fence_character is not None:
-            continue
-        visible = []
-        index = 0
-        while index < len(text):
-            if in_comment:
-                end = text.find("-->", index)
-                if end == -1:
-                    index = len(text)
-                else:
-                    in_comment = False
-                    index = end + 3
-            else:
-                start = text.find("<!--", index)
-                if start == -1:
-                    visible.append(text[index:])
-                    index = len(text)
-                else:
-                    visible.append(text[index:start])
-                    in_comment = True
-                    index = start + 4
-        yield "".join(visible)
-    if in_comment or in_pre or fence_character is not None:
-        raise ValueError("unclosed HTML block/comment or code fence in definition section")
+                length = len(unindented) - len(unindented.lstrip(character))
+                if length >= 3:
+                    fence_character, fence_length = character, length
+                    yield ""
+                    continue
+
+        # Raw HTML block content would not render as a Markdown table.
+        # A literal example inside a code fence/comment is already excluded.
+        if html_open.match(text):
+            raise ValueError("unsupported raw HTML container in specification")
+        yield text
+    if in_comment or fence_character is not None:
+        raise ValueError("unclosed HTML comment or code fence in specification")
 
 
 def validate_definition_tables(source):
@@ -372,5 +380,29 @@ if __name__=="__main__":
 
 
 
+
+    # All four CommonMark raw HTML containers must be rejected.
+    for tag in ("pre", "script", "style", "textarea"):
+        html_wrapped = specification.replace(
+            "## 13 인수시험 및 독립 교차 검증",
+            "<" + tag + ">\n## 13 인수시험 및 독립 교차 검증",
+            1,
+        ).replace(
+            "### 13.1 정량 인수 목표와 측정 조건",
+            "</" + tag + ">\n### 13.1 정량 인수 목표와 측정 조건",
+            1,
+        )
+        must_reject(html_wrapped, ledger)
+    # HTML-looking literals in fences, comments and inline code are harmless.
+    for literal in (
+        "&#96;&#96;&#96;\n<pre>\n&#96;&#96;&#96;",
+        "<!-- <pre> -->",
+        "&#96;<pre>&#96;",
+    ):
+        # Build backticks without encoding ambiguity in this test source.
+        literal = literal.replace("&#96;", chr(96))
+        validate(specification.replace(
+            "## 13 인수시험 및 독립 교차 검증",
+            literal + "\n## 13 인수시험 및 독립 교차 검증", 1), ledger)
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
