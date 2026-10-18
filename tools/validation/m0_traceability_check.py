@@ -607,7 +607,8 @@ if __name__=="__main__":
         "| U01 | 8,10,11 |", r"| U01 | 8 \| 10,11 |", 1)
     if escaped_crosswalk == specification:
         raise AssertionError("escaped crosswalk fixture missing")
-    validate(escaped_crosswalk, ledger)
+    # Body refs are strictly numbered headings; an escaped pipe is NOT a section ref.
+    must_reject(escaped_crosswalk, ledger)
 
     # Raw HTML style container tokens may occur in inline prose before a table.
     for name, doc, token in (
