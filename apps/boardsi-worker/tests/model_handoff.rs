@@ -3,7 +3,12 @@
 use boardsi_ipc::{Body, Snapshot, State};
 use boardsi_model::*;
 use boardsi_worker::model_handoff::ModelBoundSyntheticClient;
-use std::{path::Path, sync::Arc, thread, time::{Duration, Instant}};
+use std::{
+    path::Path,
+    sync::Arc,
+    thread,
+    time::{Duration, Instant},
+};
 
 fn source() -> SourceId {
     Arc::new(SourceIdentity {
@@ -55,7 +60,10 @@ fn model() -> BoardModel {
         dk: confirmed(4.0),
         df: confirmed(0.0),
         conductivity_s_per_m: confirmed(5e7),
-        valid_band: confirmed(FrequencyRange { min_hz: 0.0, max_hz: 30e9 }),
+        valid_band: confirmed(FrequencyRange {
+            min_hz: 0.0,
+            max_hz: 30e9,
+        }),
     });
     board.stackup.layers.push(Layer {
         meta: metadata(&source, ObjectKind::Layer, "L0"),
@@ -77,7 +85,10 @@ fn worker() -> &'static Path {
     Path::new(env!("CARGO_BIN_EXE_boardsi-worker"))
 }
 fn snapshot() -> Snapshot {
-    Snapshot { points: 5, delay_ms: 2 }
+    Snapshot {
+        points: 5,
+        delay_ms: 2,
+    }
 }
 #[test]
 fn structural_model_gates_real_synthetic_worker_process() {
@@ -85,16 +96,19 @@ fn structural_model_gates_real_synthetic_worker_process() {
     let report = board.validate();
     assert!(!report.has_errors());
     assert!(!report.has_missing());
-    let mut bounded = ModelBoundSyntheticClient::spawn(
-        worker(), "model-handoff/run-1", &board, snapshot()
-    ).unwrap();
+    let mut bounded =
+        ModelBoundSyntheticClient::spawn(worker(), "model-handoff/run-1", &board, snapshot())
+            .unwrap();
     assert!(std::ptr::eq(bounded.model, &board));
     let deadline = Instant::now() + Duration::from_secs(8);
     let mut synthetic_count = 0;
     loop {
         for msg in bounded.client.poll().unwrap() {
             if let Body::Result { synthetic, .. } = msg.body {
-                assert!(synthetic, "synthetic Worker must never impersonate physical SI");
+                assert!(
+                    synthetic,
+                    "synthetic Worker must never impersonate physical SI"
+                );
                 synthetic_count += 1;
             }
         }
@@ -113,21 +127,27 @@ fn structural_model_gates_real_synthetic_worker_process() {
 fn malformed_model_is_rejected_before_worker_spawn() {
     let mut board = model();
     board.nets.push(board.nets[0].clone()); // duplicate ObjectId
-    let err = ModelBoundSyntheticClient::spawn(
-        worker(), "model-handoff/invalid", &board, snapshot()
-    ).err().expect("must reject duplicate model ID");
+    let err =
+        ModelBoundSyntheticClient::spawn(worker(), "model-handoff/invalid", &board, snapshot())
+            .err()
+            .expect("must reject duplicate model ID");
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
 }
 #[test]
 fn missing_properties_and_non_synthetic_sources_fail_closed() {
     let mut board = model();
     board.stackup.layers[0].material = None;
-    assert!(ModelBoundSyntheticClient::spawn(worker(), "invalid/missing", &board, snapshot()).is_err());
+    assert!(
+        ModelBoundSyntheticClient::spawn(worker(), "invalid/missing", &board, snapshot()).is_err()
+    );
     let mut board = model();
     let mut identity = (*board.sources[0].id).clone();
     identity.format = SourceFormat::PadsAsc;
     board.sources[0].id = Arc::new(identity);
-    assert!(ModelBoundSyntheticClient::spawn(worker(), "invalid/provenance", &board, snapshot()).is_err());
+    assert!(
+        ModelBoundSyntheticClient::spawn(worker(), "invalid/provenance", &board, snapshot())
+            .is_err()
+    );
 }
 #[test]
 fn empty_board_and_invalid_snapshot_fail_closed() {
@@ -135,6 +155,13 @@ fn empty_board_and_invalid_snapshot_fail_closed() {
     assert!(ModelBoundSyntheticClient::spawn(worker(), "empty", &board, snapshot()).is_err());
     let board = model();
     assert!(ModelBoundSyntheticClient::spawn(
-        worker(), "invalid-snapshot", &board, Snapshot { points: 0, delay_ms: 0 }
-    ).is_err());
+        worker(),
+        "invalid-snapshot",
+        &board,
+        Snapshot {
+            points: 0,
+            delay_ms: 0
+        }
+    )
+    .is_err());
 }
