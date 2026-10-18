@@ -6,4 +6,5 @@ rust-version = "1.75"
 publish = false
 [dependencies]
 boardsi-ipc = { path = "../../crates/boardsi-ipc" }
+boardsi-model = { path = "../../crates/boardsi-model" }
 boardsi-numerics = { path = "../../crates/boardsi-numerics" }

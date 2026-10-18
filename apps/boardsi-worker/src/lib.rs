@@ -1,4 +1,5 @@
 //! Independent non-GUI test client. Call poll from a scheduler; no computation here.
+pub mod model_handoff;
 use boardsi_ipc::{read_message, write_message, Body, Message, RunGuard, Snapshot};
 use std::io;
 use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
