@@ -348,6 +348,10 @@ KNOWN_M0_EVIDENCE_ISSUES = {2, 3, 4, 5, 6, 7, 46, 78}
 
 
 def has_known_m0_evidence(value):
+    # The audited M0 ledger uses bare GitHub issue tokens, not Markdown
+    # link labels/destinations. An explicit link could target another host.
+    if "[" in value or "]" in value:
+        return False
     # Normative M0 ledger evidence deliberately permits only explicit bare
     # GitHub issue autolinks of the form "see #N". A fragment in an arbitrary
     # URL, escaped hash or inline code is NOT a resolvable BoardSI Issue link.
@@ -828,5 +832,15 @@ if __name__=="__main__":
         must_reject(specification, ledger.replace(
             "M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified",
             "M0 native Qt/Worker prototype only; see " + fake, 1))
+
+    # Explicit Markdown links can display a valid issue label while
+    # navigating to a foreign destination; do not count their labels.
+    for fake in ("[see #3](https://example.invalid)", "[see #3][external]"):
+        must_reject(specification, ledger.replace(
+            "M0 restricted prototype; see #3/#4/#5/#6",
+            "M0 restricted prototype; " + fake, 1))
+        must_reject(specification, ledger.replace(
+            "M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified",
+            "M0 native Qt/Worker prototype only; " + fake, 1))
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
