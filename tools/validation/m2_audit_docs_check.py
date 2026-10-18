@@ -51,7 +51,13 @@ SCHEME = re.compile(r'(?i)(?:https?:|file:|data:|javascript:|vbscript:|@import|\
 def validate_offline_static_svg(svg_bytes):
     if len(svg_bytes) > 256 * 1024:
         raise ValueError('SVG too large')
-    if re.search(br'(?i)<!DOCTYPE|<!ENTITY', svg_bytes):
+    # Interpret only UTF-8. ElementTree drops stylesheet processing
+    # instructions but SVG renderers can load them; reject before parsing.
+    raw = svg_bytes.decode('utf-8', errors='strict')
+    without_declaration = re.sub(r'\A\s*<\?xml\s+[^?]*\?>', '', raw, count=1, flags=re.I)
+    if '<?' in without_declaration:
+        raise ValueError('XML processing instructions forbidden')
+    if re.search(r'(?i)<!DOCTYPE|<!ENTITY', raw):
         raise ValueError('DTD and entities forbidden')
     root = ET.fromstring(svg_bytes)
     if root.tag != SVG_NS + 'svg':
@@ -102,7 +108,7 @@ validate_offline_static_svg(original_svg)
 def _must_reject(fragment):
     try:
         validate_offline_static_svg(fragment)
-    except (ValueError, ET.ParseError):
+    except (ValueError, ET.ParseError, UnicodeDecodeError):
         return
     raise AssertionError('Unsafe SVG accepted: ' + fragment[:180].decode('utf-8', 'replace'))
 svg_start = b'<svg xmlns="http://www.w3.org/2000/svg">'
@@ -119,10 +125,12 @@ for bad in (
     b'<rect xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://example.invalid/a" />',
     b'<animate attributeName="opacity" values="0;1" />',
     b'<rect fill="url(&#104;ttps://example.invalid/x)" />',
+    b'<?xml-stylesheet type="text/css" href="https://example.invalid/a.css"?>',
 ):
     _must_reject(svg_start + bad + svg_end)
+_must_reject(b'<?xml-stylesheet type="text/css" href="https://example.invalid/a.css"?>' + svg_start + svg_end)
 _must_reject(b'<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///private">]>' + svg_start + svg_end)
-print('B DESIGN_APPROVED static SVG safety PASS: whitelist, local-gradient references, 12 attack mutations; packaging NOT VERIFIED')
+print('B DESIGN_APPROVED static SVG safety PASS: whitelist, local-gradient references, 14 attack mutations; packaging NOT VERIFIED')
 
 # Historical nested-archive checksum inventories must never be conflated.
 stage5d = Path('docs/validation/m2-g2-ph08-stage5d-evidence.md').read_text(encoding='utf-8')
