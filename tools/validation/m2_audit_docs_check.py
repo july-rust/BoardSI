@@ -101,8 +101,19 @@ def validate_offline_static_svg(svg_bytes):
     return root
 
 ICON_PATH = 'assets/branding/boardsi-option-b-reconstruction.svg'
+# Exact owner-approved design master; changing even static geometry or colors
+# requires explicit fresh owner approval and checksum review, not silent drift.
+APPROVED_B_SVG_SHA256 = '92ac87c323f49dcb3a15e88057d03357b39c9f5d1d8d8b4e1b1702b96b486406'
 original_svg = Path(ICON_PATH).read_bytes()
+assert hashlib.sha256(original_svg).hexdigest() == APPROVED_B_SVG_SHA256, (
+    'Owner-approved SVG bytes changed without a documented new approval'
+)
 validate_offline_static_svg(original_svg)
+tampered_svg = original_svg.replace(b'width="1024"', b'width="1025"', 1)
+assert tampered_svg != original_svg, 'SVG tamper regression fixture missing'
+assert hashlib.sha256(tampered_svg).hexdigest() != APPROVED_B_SVG_SHA256, (
+    'SVG visual change should not match approved SHA-256'
+)
 # Execute mutation tests in the same required docs job; one error is enough
 # to fail CI rather than giving false assurances of offline/static safety.
 def _must_reject(fragment):
@@ -130,7 +141,7 @@ for bad in (
     _must_reject(svg_start + bad + svg_end)
 _must_reject(b'<?xml-stylesheet type="text/css" href="https://example.invalid/a.css"?>' + svg_start + svg_end)
 _must_reject(b'<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///private">]>' + svg_start + svg_end)
-print('B DESIGN_APPROVED static SVG safety PASS: whitelist, local-gradient references, 14 attack mutations; packaging NOT VERIFIED')
+print('B DESIGN_APPROVED static SVG safety PASS: immutable owner-approved SHA-256, local-gradient allowlist and 14 attack mutations; packaging NOT VERIFIED')
 
 # Historical nested-archive checksum inventories must never be conflated.
 stage5d = Path('docs/validation/m2-g2-ph08-stage5d-evidence.md').read_text(encoding='utf-8')
