@@ -220,6 +220,44 @@ def validate_definition_tables(source):
             )
 
 
+def rendered_table_rows(section, header, prefix):
+    """Require one contiguous, rendered Markdown table of the expected shape."""
+    lines = section.splitlines()
+    headers = [
+        i for i, line in enumerate(lines)
+        if split_markdown_cells(line.strip()) == header
+    ]
+    if len(headers) != 1:
+        raise ValueError("missing/duplicate rendered " + prefix + " table header")
+    start = headers[0]
+    if start + 1 >= len(lines):
+        raise ValueError("missing " + prefix + " table delimiter")
+    delimiter = split_markdown_cells(lines[start + 1].strip())
+    if len(delimiter) != len(header) or not all(
+        re.fullmatch(r":?-{3,}:?", cell) for cell in delimiter
+    ):
+        raise ValueError("invalid " + prefix + " Markdown table delimiter")
+    rows = []
+    pos = start + 2
+    while pos < len(lines):
+        line = lines[pos].strip()
+        if not line or not line.startswith("|"):
+            break
+        cells = split_markdown_cells(line)
+        if len(cells) != len(header):
+            raise ValueError("invalid " + prefix + " table row width")
+        rows.append(line)
+        pos += 1
+    if not rows:
+        raise ValueError("empty " + prefix + " rendered table")
+    # Fail closed on detached ID rows that are not part of this table.
+    for i, line in enumerate(lines):
+        if i < start + 2 or i >= pos:
+            if re.match(r"^\s*\|\s*" + prefix + r"\d", line):
+                raise ValueError("detached " + prefix + " ID row outside table")
+    return rows
+
+
 def extract_mapping(source):
     # Rendered, not raw, crosswalk rows define the public specification.
     source = "\n".join(visible_markdown_lines(source))
@@ -227,7 +265,9 @@ def extract_mapping(source):
         raise ValueError("specification crosswalk section missing")
     section = source.split("### 18.2 요구사항과 시험 연결", 1)[1].split("### 18.3", 1)[0]
     mapping, u_phases, t_phases = {}, {}, {}
-    for line in section.splitlines():
+    for line in rendered_table_rows(
+        section, ["요구 ID", "본문", "주요 시험", "완료 단계"], "U"
+    ):
         if not re.match(r"\|\s*U\d{2}", line):
             continue
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
@@ -256,8 +296,18 @@ def extract_ledger(source):
     source = "\n".join(visible_markdown_lines(source))
     table_u = source.split("## U01–U48, full coverage (48/48)",1)[1].split("## T01–T54",1)[0]
     table_t = source.split("## T01–T54, full coverage (54/54)",1)[1].split("## Scope",1)[0]
+    table_u = rendered_table_rows(
+        table_u, ["Requirement ID", "Phase from v1.0 18.2",
+                  "Linked test IDs", "Definition", "Implementation",
+                  "Full acceptance", "Evidence scope"], "U"
+    )
+    table_t = rendered_table_rows(
+        table_t, ["Test ID", "Related stage(s)",
+                  "Linked requirement IDs (coarse)", "Complete acceptance result",
+                  "Evidence"], "T"
+    )
     u_map, t_map, u_phases, t_phases = {}, {}, {}, {}
-    for line in table_u.splitlines():
+    for line in table_u:
         m = re.match(r"^\|\s*(U\d{2})\s*\|",line)
         if m:
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -265,7 +315,7 @@ def extract_ledger(source):
                 raise ValueError("invalid / duplicate U ledger row: "+line)
             u_map[m.group(1)] = set(expand_ids(cells[2], "T"))
             u_phases[m.group(1)] = cells[1]
-    for line in table_t.splitlines():
+    for line in table_t:
         m = re.match(r"^\|\s*(T\d{2})\s*\|",line)
         if m:
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -473,5 +523,23 @@ if __name__=="__main__":
             must_reject(specification, ledger.replace(
                 row, opening + row + closing, 1
             ))
+
+    # A pipe-separated list without a Markdown delimiter is NOT a table.
+    spec_delimiter = "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |\n| --- | --- | --- | --- |"
+    if spec_delimiter not in specification:
+        raise AssertionError("crosswalk table fixture missing")
+    must_reject(specification.replace(
+        spec_delimiter, "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |", 1
+    ), ledger)
+    for header, delimiter in (
+        ("| Requirement ID | Phase from v1.0 18.2 | Linked test IDs | Definition | Implementation | Full acceptance | Evidence scope |",
+         "| --- | --- | --- | --- | --- | --- | --- |"),
+        ("| Test ID | Related stage(s) | Linked requirement IDs (coarse) | Complete acceptance result | Evidence |",
+         "| --- | --- | --- | --- | --- |"),
+    ):
+        block = header + "\n" + delimiter
+        if block not in ledger:
+            raise AssertionError("ledger table delimiter fixture missing")
+        must_reject(specification, ledger.replace(block, header, 1))
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
