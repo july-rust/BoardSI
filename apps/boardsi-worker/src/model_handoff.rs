@@ -5,13 +5,13 @@
 //! cryptographically bind the model or transfer copper/net topology to Worker.
 //! Keep the validated model immutably borrowed for the lifetime of this client.
 use crate::Client;
-use boardsi_ipc::Snapshot;
-use boardsi_model::{BoardModel, SourceFormat};
+use boardsi_ipc::{Message, Snapshot, State};
+use boardsi_model::{BoardModel, Severity, SourceFormat};
 use std::{io, path::Path};
 
 pub struct ModelBoundSyntheticClient<'a> {
-    pub client: Client,
-    pub model: &'a BoardModel,
+    client: Client,
+    model: &'a BoardModel,
 }
 
 impl<'a> ModelBoundSyntheticClient<'a> {
@@ -36,10 +36,43 @@ impl<'a> ModelBoundSyntheticClient<'a> {
             return Err(invalid("UnsupportedOrEmptySyntheticModel"));
         }
         let report = model.validate();
-        if report.has_errors() || report.has_missing() {
+        if report.has_errors()
+            || report.has_missing()
+            || report.issues.iter().any(|issue| issue.severity == Severity::Assumption)
+        {
             return Err(invalid("ModelValidationFailed"));
         }
         let client = Client::spawn(path, None, run_id, snapshot)?;
         Ok(Self { client, model })
     }
+    /// Read-only reference preserving the validated model lifetime.
+    pub fn model(&self) -> &BoardModel {
+        self.model
+    }
+
+    /// Bounded nonblocking reception; never exposes the owned Client.
+    pub fn poll(&mut self) -> io::Result<Vec<Message>> {
+        self.client.poll()
+    }
+
+    pub fn cancel(&mut self) -> io::Result<()> {
+        self.client.cancel()
+    }
+
+    pub fn force_kill(&mut self) -> io::Result<()> {
+        self.client.force_kill()
+    }
+
+    pub fn state(&self) -> State {
+        self.client.guard.state
+    }
+
+    pub fn result_count(&self) -> usize {
+        self.client.guard.results.len()
+    }
+
+    pub fn exit_success(&self) -> Option<bool> {
+        self.client.exit.as_ref().map(|status| status.success())
+    }
+
 }
