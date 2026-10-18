@@ -1,6 +1,15 @@
 """Self-contained positive/negative tests; private Stage 4 archive not in CI."""
 import unittest
-from ph08_stage4_gateq_replay import compare_rows, check_historical_gate
+import io
+import json
+import tempfile
+from contextlib import redirect_stdout
+from pathlib import Path
+from unittest.mock import patch
+from ph08_stage4_gateq_replay import (
+    compare_rows, check_historical_gate, ReplayNotVerified,
+    _approved_parent_runtime, _read_original_once, fail, main,
+)
 
 
 def reference():
@@ -50,6 +59,68 @@ class ArchivedFailReplay(unittest.TestCase):
     def test_row_id_mutation_rejected(self):
         x=reference(); x['rows'][0]['grid']='skew'
         self.assertTrue(compare_rows(x,reference()))
+
+
+    def test_private_archive_invalid_digest_fail_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bad_zip = Path(tmp) / 'private-company-path.zip'
+            bad_zip.write_bytes(b'public controlled invalid archive')
+            with self.assertRaises(ReplayNotVerified) as caught:
+                _read_original_once(bad_zip)
+            self.assertEqual(caught.exception.code, 'ORIGINAL_ARCHIVE_SHA256_MISMATCH')
+
+    def test_private_archive_oversize_fail_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            large_zip = Path(tmp) / 'large.zip'
+            large_zip.write_bytes(b'x' * (8 * 1024 * 1024 + 1))
+            with self.assertRaises(ReplayNotVerified) as caught:
+                _read_original_once(large_zip)
+            self.assertEqual(caught.exception.code, 'ARCHIVE_SIZE_LIMIT')
+
+    def test_runtime_mismatch_fails_closed(self):
+        with patch('ph08_stage4_gateq_replay.importlib.metadata.version',
+                   return_value='unapproved'):
+            self.assertFalse(_approved_parent_runtime())
+
+    def test_public_sanitizer_never_includes_private_exception(self):
+        secret = '/approved/private/company/raw-HMM-source / secret matrix 1234'
+        out = io.StringIO()
+        with patch('ph08_stage4_gateq_replay.rerun',
+                   side_effect=RuntimeError(secret)), redirect_stdout(out):
+            exit_code = main([secret])
+        self.assertEqual(exit_code, 2)
+        report = json.loads(out.getvalue())
+        self.assertEqual(report['reason_code'], 'PRIVATE_REPLAY_INTERNAL_ERROR')
+        self.assertNotIn(secret, out.getvalue())
+        self.assertNotIn('matrix', out.getvalue())
+        self.assertEqual(report['original_gate_q'], 'FAIL')
+        self.assertEqual(report['physical_error_bound'], 'BOUND_NOT_CERTIFIED')
+
+    def test_explicit_reason_code_is_only_reported(self):
+        out = io.StringIO()
+        with patch('ph08_stage4_gateq_replay.rerun',
+                   side_effect=ReplayNotVerified('CHILD_RUNTIME_VERSION_UNAPPROVED')
+                   ), redirect_stdout(out):
+            self.assertEqual(main(['/approved/private.zip']), 2)
+        report = json.loads(out.getvalue())
+        self.assertEqual(report['reason_code'], 'CHILD_RUNTIME_VERSION_UNAPPROVED')
+        self.assertNotIn('/approved/private.zip', out.getvalue())
+
+    def test_unwritable_report_path_sanitized(self):
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch('ph08_stage4_gateq_replay.rerun',
+                       return_value={'status': 'REPRODUCED_HISTORICAL_FAIL',
+                                     'original_gate_q': 'FAIL'}), redirect_stdout(out):
+                self.assertEqual(main(['/approved/private.zip', '--output-json', tmp]), 2)
+        report = json.loads(out.getvalue())
+        self.assertEqual(report['reason_code'], 'SANITIZED_REPORT_WRITE_FAILED')
+
+    def test_success_does_not_promote_to_physical_acceptance(self):
+        report = fail('MISSING_OR_UNREADABLE_PRIVATE_ARCHIVE')
+        self.assertEqual(report['rust_fem'], 'NO_GO')
+        self.assertEqual(report['Gate_M'], 'NOT_VERIFIED')
+        self.assertEqual(report['contract'], 'NOT_FROZEN')
 
 
 if __name__ == '__main__':
