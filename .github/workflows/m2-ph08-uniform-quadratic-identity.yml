@@ -1,0 +1,44 @@
+name: PH-08 uniform quadratic exact identity (public synthetic)
+on:
+  pull_request:
+    paths:
+      - "tools/validation/ph08_uniform_quadratic_identity.py"
+      - "tools/validation/test_ph08_uniform_quadratic_identity.py"
+      - "docs/validation/m2-g2-ph08-uniform-quadratic-identity.md"
+      - "tools/validation/ph08_private_archive_guard.py"
+      - ".github/workflows/m2-ph08-uniform-quadratic-identity.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ph08-uniform-quadratic:
+    name: ph08 exact square identity (optional synthetic)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Execute exact rational equations and negative controls
+        shell: bash
+        run: |
+          mkdir -p ph08-identity-evidence
+          set -o pipefail
+          python -m unittest discover -s tools/validation -p 'test_ph08_uniform_quadratic_identity.py' -v 2>&1 | tee ph08-identity-evidence/tests.log
+      - name: Guard known private archives
+        run: python3 tools/validation/ph08_private_archive_guard.py
+      - name: Record immutable scope and source
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p ph08-identity-evidence
+          printf 'checkout_sha=%s\n' "$(git rev-parse HEAD)" > ph08-identity-evidence/context.txt
+          printf 'scope=PUBLIC_SYNTHETIC_EXACT_UNIFORM_ONLY\noriginal_zip=NOT_RUN\nhistorical_gate_q=FAIL\ncontract=NOT_FROZEN\nrust_fem=NO_GO\nphysical_bound=BOUND_NOT_CERTIFIED\n' >> ph08-identity-evidence/context.txt
+          sha256sum tools/validation/ph08_uniform_quadratic_identity.py tools/validation/test_ph08_uniform_quadratic_identity.py > ph08-identity-evidence/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ph08-uniform-quadratic-public-synthetic
+          path: ph08-identity-evidence/
+          retention-days: 14
