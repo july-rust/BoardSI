@@ -1,0 +1,62 @@
+name: PH-08 one-shot verified uniform gradient publisher (staging only)
+on:
+  push:
+    branches:
+      - feature/ph08-uniform-gradient-budget-staging
+    paths:
+      - ".github/workflows/ph08-one-shot-gradient-publish.yml"
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: github.repository == 'july-rust/BoardSI'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Strict staging/source trust checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 1214aa21e967b34aabced2603fde10f533cbfedd HEAD
+          python -m pip install numpy==2.3.5
+          python -m unittest discover -s tools/validation -p 'test_ph08_uniform_gradient_error_budget.py' -v
+          python tools/validation/ph08_private_archive_guard.py
+      - name: Publish exactly five allowlisted files as GitHub Verified
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo=july-rust/BoardSI
+          target=feature/ph08-uniform-gradient-budget-verified
+          base=0e69270a2eb00a737d6a1396730176e6f1def6d4
+          actual=$(gh api "repos/$repo/git/ref/heads/$target" --jq '.object.sha')
+          test "$actual" = "$base" || { echo "Verified branch moved; fail closed"; exit 1; }
+          for file in \
+            tools/validation/ph08_uniform_gradient_error_budget.py \
+            tools/validation/test_ph08_uniform_gradient_error_budget.py \
+            docs/validation/m2-g2-ph08-uniform-gradient-error-budget.md \
+            docs/validation/m2-g2-ph08-gateq-tr-proposal.md \
+            .github/workflows/m2-ph08-uniform-gradient-budget.yml
+          do
+            expected=$(git hash-object "$file")
+            encoded=$(base64 -w0 "$file")
+            response=$(gh api -X PUT "repos/$repo/contents/$file" \
+              -f "branch=$target" \
+              -f "message=test(ph08): verified public uniform-gradient publish $file" \
+              -f "content=$encoded")
+            actual_blob=$(printf '%s' "$response" | jq -r '.content.sha')
+            signed_commit=$(printf '%s' "$response" | jq -r '.commit.sha')
+            test "$expected" = "$actual_blob" || { echo "Source blob mismatch $file"; exit 1; }
+            verified=$(gh api "repos/$repo/git/commits/$signed_commit" --jq '.verification.verified')
+            test "$verified" = true || { echo "Commit not Verified $file"; exit 1; }
+            echo "GitHub Verified source $file $signed_commit"
+          done
+          echo "Published 5 exact source files with GitHub Verified commits. No publisher workflow transferred."
