@@ -221,6 +221,8 @@ def validate_definition_tables(source):
 
 
 def extract_mapping(source):
+    # Rendered, not raw, crosswalk rows define the public specification.
+    source = "\n".join(visible_markdown_lines(source))
     if "### 18.2 요구사항과 시험 연결" not in source or "### 18.3" not in source:
         raise ValueError("specification crosswalk section missing")
     section = source.split("### 18.2 요구사항과 시험 연결", 1)[1].split("### 18.3", 1)[0]
@@ -250,6 +252,8 @@ def extract_mapping(source):
     return mapping, u_phases, t_phases
 
 def extract_ledger(source):
+    # The audit ledger is also normative Markdown: code/commented rows do not count.
+    source = "\n".join(visible_markdown_lines(source))
     table_u = source.split("## U01–U48, full coverage (48/48)",1)[1].split("## T01–T54",1)[0]
     table_t = source.split("## T01–T54, full coverage (54/54)",1)[1].split("## Scope",1)[0]
     u_map, t_map, u_phases, t_phases = {}, {}, {}, {}
@@ -453,5 +457,21 @@ if __name__=="__main__":
             literal + "\n## 13 인수시험 및 독립 교차 검증",
             1,
         ), ledger)
+
+    # Definition, crosswalk AND audit-ledger ID rows must be rendered rows.
+    crosswalk_u01 = "| U01 | 8,10,11 | T06,T07,T43,T44 | M2 |"
+    ledger_u01 = "| U01 | M2 | T06,T07,T43,T44 |"
+    ledger_t44 = "| T44 | M2 |"
+    if crosswalk_u01 not in specification or ledger_u01 not in ledger or ledger_t44 not in ledger:
+        raise AssertionError("rendered crosswalk/ledger fixture missing")
+    for opening, closing in (("<!--\n", "\n-->"), (chr(96)*3 + "\n", "\n" + chr(96)*3)):
+        must_reject(specification.replace(
+            crosswalk_u01, opening + crosswalk_u01 + closing, 1
+        ), ledger)
+        for target in (ledger_u01, ledger_t44):
+            row = next(line for line in ledger.splitlines() if line.startswith(target))
+            must_reject(specification, ledger.replace(
+                row, opening + row + closing, 1
+            ))
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
