@@ -1,5 +1,7 @@
 # BoardSI icon B — approved design and source register
 
+**Immutable owner-approved SVG SHA-256:** `92ac87c323f49dcb3a15e88057d03357b39c9f5d1d8d8b4e1b1702b96b486406` (file: `assets/branding/boardsi-option-b-reconstruction.svg`; independent checksum guard in required docs CI). The Git blob SHA and SHA-256 identify this exact present design; do not rewrite paths/colors/geometry without new explicit approval.
+
 **DESIGN_APPROVED (owner confirmation 2026-10-18 KST):** The exact current [BoardSI option B SVG](../../assets/branding/boardsi-option-b-reconstruction.svg) is the user's approved **visual design master**. Preserve its existing geometry, colors, and paths unchanged. Its historical filename `reconstruction` and initial RECONSTRUCTION_ONLY comment describe the creation process, **not** a denial of the user's later design approval. A different image displayed in chat was incorrect and must never replace this approved SVG.
 
 ## Independent status dimensions
