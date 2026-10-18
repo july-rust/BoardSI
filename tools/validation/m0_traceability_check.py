@@ -278,7 +278,14 @@ def rendered_table_rows(section, header, prefix):
     while pos < len(lines):
         original_row = lines[pos]
         line = original_row.strip()
-        if not line or not line.startswith("|"):
+        if not line:
+            break
+        if not line.startswith("|"):
+            # CommonMark tables also allow rows WITHOUT an opening pipe.
+            # In this controlled specification, reject that alternate form
+            # rather than silently omitting a visible extra definition/ID row.
+            if "|" in line:
+                raise ValueError("unsupported openerless Markdown table row")
             break
         if original_row != original_row.lstrip():
             raise ValueError("normative table row must start at column zero")
@@ -788,5 +795,16 @@ if __name__=="__main__":
     must_reject(specification, ledger.replace(
         "M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified",
         "M0 native Qt/Worker prototype only; see #bogus; full T unqualified", 1))
+
+    # Openerless Markdown table rows are visible rows, not a table boundary.
+    spec_tail = next(line for line in specification.splitlines() if line.startswith("| U47 |"))
+    must_reject(specification.replace(
+        spec_tail, spec_tail + "\nU100 | 1 | T01 | M0 |", 1), ledger)
+    ledger_tail_u = next(line for line in ledger.splitlines() if line.startswith("| U48 |"))
+    must_reject(specification, ledger.replace(
+        ledger_tail_u, ledger_tail_u + "\nU100 | M0 | T01 | DEFINED | NOT_VERIFIED | NOT_RUN | Bogus |", 1))
+    ledger_tail_t = next(line for line in ledger.splitlines() if line.startswith("| T54 |"))
+    must_reject(specification, ledger.replace(
+        ledger_tail_t, ledger_tail_t + "\nT100 | M0 | U01 | NOT_RUN | Bogus |", 1))
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
