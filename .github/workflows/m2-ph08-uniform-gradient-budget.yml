@@ -1,0 +1,55 @@
+name: PH-08 uniform gradient budget (public synthetic)
+on:
+  pull_request:
+    paths:
+      - "tools/validation/ph08_uniform_gradient_error_budget.py"
+      - "tools/validation/test_ph08_uniform_gradient_error_budget.py"
+      - "tools/validation/ph08_recovery_operator_perturbation.py"
+      - "tools/validation/ph08_gateq_exact_captured.py"
+      - "docs/validation/m2-g2-ph08-uniform-gradient-error-budget.md"
+      - "docs/validation/m2-g2-ph08-gateq-tr-proposal.md"
+      - "tools/validation/ph08_private_archive_guard.py"
+      - ".github/workflows/m2-ph08-uniform-gradient-budget.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/validation/ph08_uniform_gradient_error_budget.py"
+      - "tools/validation/test_ph08_uniform_gradient_error_budget.py"
+      - "tools/validation/ph08_recovery_operator_perturbation.py"
+      - "tools/validation/ph08_gateq_exact_captured.py"
+      - ".github/workflows/m2-ph08-uniform-gradient-budget.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    name: ph08 uniform gradient budget (optional synthetic)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Pin floating numerical dependency
+        run: python -m pip install numpy==2.3.5
+      - name: Run full scoped synthetic regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ph08-gradient-evidence
+          python -m unittest discover -s tools/validation -p 'test_ph08_uniform_gradient_error_budget.py' -v 2>&1 | tee ph08-gradient-evidence/test.log
+          python tools/validation/ph08_private_archive_guard.py
+      - name: Capture public-only provenance and negative statuses
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p ph08-gradient-evidence
+          printf 'source_sha=%s\nscope=PUBLIC_SYNTHETIC_ONLY\nprivate_original=NOT_RUN\nhistorical_gate_q=FAIL\nphysical_bound=BOUND_NOT_CERTIFIED\ncontract=NOT_FROZEN\nrust_fem=NO_GO\n' "$GITHUB_SHA" > ph08-gradient-evidence/context.txt
+          sha256sum tools/validation/ph08_uniform_gradient_error_budget.py tools/validation/test_ph08_uniform_gradient_error_budget.py > ph08-gradient-evidence/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ph08-gradient-public-synthetic
+          path: ph08-gradient-evidence/
+          retention-days: 14
