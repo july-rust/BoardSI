@@ -156,6 +156,11 @@ def visible_markdown_lines(source):
             if character in (chr(96), "~"):
                 length = len(unindented) - len(unindented.lstrip(character))
                 if length >= 3:
+                    # GFM: backticks inside a backtick fence info string
+                    # invalidate the would-be opener. Fail closed here;
+                    # otherwise raw HTML below could be masked incorrectly.
+                    if character == chr(96) and chr(96) in unindented[length:]:
+                        raise ValueError("invalid backtick fence info string")
                     fence_character, fence_length = character, length
                     yield ""
                     continue
@@ -842,5 +847,14 @@ if __name__=="__main__":
         must_reject(specification, ledger.replace(
             "M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified",
             "M0 native Qt/Worker prototype only; " + fake, 1))
+
+    # Invalid GFM backtick-fence info strings must not hide raw HTML.
+    bogus_fence = chr(96)*3 + "tag" + chr(96) + "info"
+    must_reject(specification.replace(
+        "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |",
+        bogus_fence + "\n<template>\n| 요구 ID | 본문 | 주요 시험 | 완료 단계 |", 1), ledger)
+    must_reject(specification, ledger.replace(
+        "| Requirement ID | Phase from v1.0 18.2 | Linked test IDs",
+        bogus_fence + "\n<template>\n| Requirement ID | Phase from v1.0 18.2 | Linked test IDs", 1))
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
