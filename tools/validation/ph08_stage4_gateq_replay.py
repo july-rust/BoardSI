@@ -169,7 +169,7 @@ def _child_limits():
                           (resource.RLIMIT_FSIZE, MAX_JSON_BYTES)):
         soft, hard = resource.getrlimit(category)
         bounded = cap if hard == resource.RLIM_INFINITY else min(cap, hard)
-        resource.setrlimit(category, (bounded, hard))
+        resource.setrlimit(category, (bounded, bounded))
 
 
 def _run_private_child(argv: list[str], cwd: Path, env: dict,
@@ -217,6 +217,16 @@ def _probe_actual_child_runtime(source_dir: Path, root: Path, env: dict) -> None
             not observed['python'].startswith('3.13.') or
             any(observed[p] != v for p, v in EXPECTED_RUNTIME.items())):
         raise ReplayNotVerified('CHILD_RUNTIME_VERSION_UNAPPROVED')
+
+
+
+def _verified_child_runtime(value: object) -> bool:
+    """Validate the versions observed by the SAME process that ran mms_suite."""
+    return (isinstance(value, dict) and
+            set(value) == {'python', 'numpy', 'scipy'} and
+            all(isinstance(v, str) for v in value.values()) and
+            value['python'].startswith('3.13.') and
+            all(value[k] == v for k, v in EXPECTED_RUNTIME.items()))
 
 
 def rerun(archive: Path) -> dict:
@@ -273,9 +283,15 @@ def rerun(archive: Path) -> dict:
         env = _clean_env()
         _probe_actual_child_runtime(source_dir, root, env)
         program = (
-            "import json,sys;sys.path.insert(0,sys.argv[1]);"
-            "from m2_ph08_stage4_qualification import mms_suite;"
-            "print(json.dumps(mms_suite(),allow_nan=False))"
+            "import json,sys,numpy,scipy\n"
+            "runtime={'python':'.'.join(map(str,sys.version_info[:3])),"
+            "'numpy':numpy.__version__,'scipy':scipy.__version__}\n"
+            "if (not runtime['python'].startswith('3.13.') or "
+            "runtime['numpy']!='2.3.5' or runtime['scipy']!='1.17.0'):\n"
+            "    raise SystemExit(86)\n"
+            "sys.path.insert(0,sys.argv[1])\n"
+            "from m2_ph08_stage4_qualification import mms_suite\n"
+            "print(json.dumps({'runtime':runtime,'mms':mms_suite()},allow_nan=False))"
         )
         out, err = root / 'original-private-output.json', root / 'original-private-error.txt'
         exit_code = _run_private_child(
@@ -283,9 +299,13 @@ def rerun(archive: Path) -> dict:
             source_dir, env, out, err, timeout=120)
         if exit_code != 0 or out.stat().st_size > MAX_JSON_BYTES:
             raise ReplayNotVerified('ORIGINAL_REPLAY_EXIT_OR_OUTPUT_INVALID')
-        replay = load_unique_json(out.read_bytes())
-        if not isinstance(replay, dict):
-            raise ReplayNotVerified('REPLAY_JSON_SCHEMA_INVALID')
+        generated = load_unique_json(out.read_bytes())
+        if (not isinstance(generated, dict) or
+                set(generated) != {'runtime', 'mms'} or
+                not _verified_child_runtime(generated['runtime']) or
+                not isinstance(generated['mms'], dict)):
+            raise ReplayNotVerified('REPLAY_OR_RUNTIME_SCHEMA_INVALID')
+        replay = generated['mms']
     diffs = compare_rows(replay, saved)
     if not check_historical_gate(replay):
         diffs.append('original uniform quadratic gradient failure not reproduced')
