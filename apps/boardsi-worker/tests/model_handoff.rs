@@ -52,6 +52,42 @@ fn model() -> BoardModel {
         producer_version: "1".into(),
         capability: ImportCapability::default(),
     });
+    // A real canonical outline and exact source coordinate frame are required;
+    // omitted geometry must not be promoted as model readiness.
+    let frame_id = ObjectId::new(&source, ObjectKind::Frame, "xy", "");
+    board.frames.push(CoordinateFrame {
+        meta: metadata(&source, ObjectKind::Frame, "xy"),
+        unit_label: "synthetic metre grid".into(),
+        metres_per_tick: Rational::new(1, 1_000_000).unwrap(),
+        origin_m: [Rational::integer(0); 2],
+        orientation: Orientation::Orthogonal {
+            turn: QuarterTurn::Zero,
+            mirror_x: false,
+        },
+        source_layer_order_reversed: false,
+    });
+    let vertices = [
+        [0, 0],
+        [1_000, 0],
+        [1_000, 1_000],
+        [0, 1_000],
+    ]
+    .map(|ticks| Point {
+        frame: frame_id.clone(),
+        ticks,
+    });
+    board.outlines.push(Outline {
+        meta: metadata(&source, ObjectKind::Outline, "outline"),
+        outer: Boundary {
+            segments: (0..4)
+                .map(|index| BoundarySegment::Line {
+                    start: vertices[index].clone(),
+                    end: vertices[(index + 1) % 4].clone(),
+                })
+                .collect(),
+        },
+        cutouts: vec![],
+    });
     let material = metadata(&source, ObjectKind::Material, "copper");
     let material_id = material.id.clone();
     board.materials.push(Material {
