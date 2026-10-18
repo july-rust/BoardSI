@@ -174,8 +174,15 @@ def visible_markdown_lines(source):
                     # GFM: backticks inside a backtick fence info string
                     # invalidate the would-be opener. Fail closed here;
                     # otherwise raw HTML below could be masked incorrectly.
-                    if character == chr(96) and chr(96) in unindented[length:]:
-                        raise ValueError("invalid backtick fence info string")
+                    if character == chr(96):
+                        # Validate the ORIGINAL info string too: HTML comment
+                        # removal can erase a forbidden backtick, synthesizing
+                        # an opener that GFM would reject in the real source.
+                        original_length = len(original_start) - len(
+                            original_start.lstrip(character))
+                        if (chr(96) in original_start[original_length:]
+                            or chr(96) in unindented[length:]):
+                            raise ValueError("invalid original backtick fence info string")
                     fence_character, fence_length = character, length
                     yield ""
                     continue
@@ -926,6 +933,25 @@ if __name__=="__main__":
         must_reject(specification, ledger.replace(
             "M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified",
             "M0 native Qt/Worker prototype only; " + fake, 1))
+
+    # A backtick hidden by a removable HTML comment still makes the
+    # ORIGINAL backtick-fence info string invalid in GFM. The old parser
+    # treated this as an opener, then the next real opener as its closer,
+    # falsely accepting a crosswalk hidden from the actual renderer.
+    invalid_original_opener = chr(96) * 3 + "<!-- " + chr(96) + " -->"
+    start_crosswalk = "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |"
+    end_crosswalk = "| U47 | 13.1,15 | T06,T10,T12,T41,T50 | 단계별 게이트 |"
+    if start_crosswalk not in specification or end_crosswalk not in specification:
+        raise AssertionError("original fence-info regression fixture missing")
+    false_rendered_crosswalk = specification.replace(
+        start_crosswalk,
+        invalid_original_opener + "\n" + chr(96) * 3 + "\n" + start_crosswalk, 1
+    ).replace(
+        end_crosswalk,
+        end_crosswalk + "\n" + chr(96) * 3
+        + "\n<template>\n" + chr(96) * 3, 1
+    )
+    must_reject(false_rendered_crosswalk, ledger)
 
     # Invalid GFM backtick-fence info strings must not hide raw HTML.
     bogus_fence = chr(96)*3 + "tag" + chr(96) + "info"
