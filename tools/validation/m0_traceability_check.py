@@ -152,7 +152,7 @@ def visible_markdown_lines(source):
         # Normative definition tables cannot occur inside raw HTML blocks.
         # A literal example inside a code fence/comment is already excluded.
         if html_open.match(text) or re.search(
-            r"(?i)</?(?:style|script|textarea|pre)(?=[\\s>/]|$)",
+            r"(?i)</?(?:style|script|textarea|pre)(?=[\s>/]|$)",
             mask_inline_code_for_comment_scan(text),
         ):
             raise ValueError("raw HTML block is unsupported in normative specification")
@@ -161,11 +161,29 @@ def visible_markdown_lines(source):
         raise ValueError("unclosed HTML comment or code fence in specification")
 
 
+def visible_section(source, start_title, end_heading_prefix):
+    """Slice only at actual unindented visible Markdown heading lines."""
+    visible = "\n".join(visible_markdown_lines(source))
+    starts = list(re.finditer(
+        r"(?m)^" + re.escape(start_title) + r"\s*$", visible
+    ))
+    if len(starts) != 1:
+        raise ValueError("missing/ambiguous rendered section heading: " + start_title)
+    start = starts[0].end()
+    end = re.search(
+        r"(?m)^" + re.escape(end_heading_prefix) + r"[^\n]*$",
+        visible[start:],
+    )
+    if not end:
+        raise ValueError("missing rendered section boundary: " + end_heading_prefix)
+    return visible[start:start + end.start()]
+
+
 def validate_definition_tables(source):
     """Require an actual contiguous Markdown definition table, not just ID text."""
     # Parse comments/fences across the ENTIRE document first. An HTML comment
     # starting before a section heading must not make its hidden table count.
-    visible_source = "\n".join(visible_markdown_lines(source))
+
     ranges = (
         ("U", 48, "## 2 요구사항 추적표", "## 3 ",
          ["ID", "요구사항", "상태", "근거"]),
@@ -173,9 +191,7 @@ def validate_definition_tables(source):
          ["Test ID", "주요 검증", "통과 조건"]),
     )
     for prefix, maximum, begin, end, header in ranges:
-        if begin not in visible_source or end not in visible_source.split(begin, 1)[1]:
-            raise ValueError("visible specification definition section missing: " + prefix)
-        section = visible_source.split(begin, 1)[1].split(end, 1)[0]
+        section = visible_section(source, begin, end)
         visible = section.splitlines()
         found, table_count = set(), 0
         for position, line in enumerate(visible):
@@ -262,11 +278,8 @@ def rendered_table_rows(section, header, prefix):
 
 
 def extract_mapping(source):
-    # Rendered, not raw, crosswalk rows define the public specification.
-    source = "\n".join(visible_markdown_lines(source))
-    if "### 18.2 요구사항과 시험 연결" not in source or "### 18.3" not in source:
-        raise ValueError("specification crosswalk section missing")
-    section = source.split("### 18.2 요구사항과 시험 연결", 1)[1].split("### 18.3", 1)[0]
+    # Only a real rendered Markdown heading selects the public crosswalk.
+    section = visible_section(source, "### 18.2 요구사항과 시험 연결", "### 18.3")
     mapping, u_phases, t_phases = {}, {}, {}
     for line in rendered_table_rows(
         section, ["요구 ID", "본문", "주요 시험", "완료 단계"], "U"
@@ -274,8 +287,8 @@ def extract_mapping(source):
         if not re.match(r"\|\s*U\d{2}", line):
             raise ValueError("non-U crosswalk row: " + line)
         cells = split_markdown_cells(line)
-        if len(cells) != 4:
-            raise ValueError("bad section 18.2 row width")
+        if len(cells) != 4 or any(not cell.strip() for cell in cells):
+            raise ValueError("bad/empty section 18.2 row")
         tests = expand_ids(cells[2], "T")
         for u in expand_ids(cells[0], "U"):
             if u in mapping:
@@ -295,10 +308,9 @@ def extract_mapping(source):
     return mapping, u_phases, t_phases
 
 def extract_ledger(source):
-    # The audit ledger is also normative Markdown: code/commented rows do not count.
-    source = "\n".join(visible_markdown_lines(source))
-    table_u = source.split("## U01–U48, full coverage (48/48)",1)[1].split("## T01–T54",1)[0]
-    table_t = source.split("## T01–T54, full coverage (54/54)",1)[1].split("## Scope",1)[0]
+    # Ledger coverage requires real visible, unindented Markdown headings.
+    table_u = visible_section(source, "## U01–U48, full coverage (48/48)", "## T01–T54")
+    table_t = visible_section(source, "## T01–T54, full coverage (54/54)", "## Scope")
     table_u = rendered_table_rows(
         table_u, ["Requirement ID", "Phase from v1.0 18.2",
                   "Linked test IDs", "Definition", "Implementation",
@@ -319,6 +331,8 @@ def extract_ledger(source):
             if (len(cells)!=7 or m.group(1) in u_map or cells[3]!="DEFINED"
                 or cells[4] not in ("NOT_VERIFIED", "PARTIAL") or cells[5]!="NOT_RUN"):
                 raise ValueError("invalid / duplicate U ledger row: "+line)
+            if cells[4] == "PARTIAL" and (not cells[6] or "see #" not in cells[6].lower()):
+                raise ValueError("PARTIAL U row lacks linked evidence: " + line)
             u_map[m.group(1)] = set(expand_ids(cells[2], "T"))
             u_phases[m.group(1)] = cells[1]
     for line in table_t:
@@ -329,6 +343,8 @@ def extract_ledger(source):
             cells = split_markdown_cells(line)
             if len(cells)!=5 or m.group(1) in t_map or cells[3] not in ("NOT_RUN","PARTIAL"):
                 raise ValueError("invalid / duplicate T ledger row: "+line)
+            if cells[3] == "PARTIAL" and (not cells[4] or "see #" not in cells[4].lower()):
+                raise ValueError("PARTIAL T row lacks linked evidence: " + line)
             t_map[m.group(1)] = set(expand_ids(cells[2], "U"))
             t_phases[m.group(1)] = cells[1].split("; ")
     return u_map, t_map, u_phases, t_phases
@@ -601,5 +617,32 @@ if __name__=="__main__":
     must_reject(specification, ledger.replace(
         "| DEFINED | NOT_VERIFIED | NOT_RUN |",
         "| DEFINED | PASS | NOT_RUN |", 1))
+
+    # All normative section markers must be real Markdown heading lines.
+    must_reject(specification.replace(
+        "## 2 요구사항 추적표", "x ## 2 요구사항 추적표", 1), ledger)
+    must_reject(specification.replace(
+        "### 18.2 요구사항과 시험 연결",
+        "x ### 18.2 요구사항과 시험 연결", 1), ledger)
+    must_reject(specification, ledger.replace(
+        "## U01–U48, full coverage (48/48)",
+        "x ## U01–U48, full coverage (48/48)", 1))
+    # Crosswalk source-body references are required.
+    must_reject(specification.replace(
+        "| U01 | 8,10,11 | T06,T07,T43,T44 |",
+        "| U01 |  | T06,T07,T43,T44 |", 1), ledger)
+    # PARTIAL is an evidence-linked claim, not a label.
+    must_reject(specification, ledger.replace(
+        "| DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #3/#4/#5/#6 |",
+        "| DEFINED | PARTIAL | NOT_RUN |  |", 1))
+    must_reject(specification, ledger.replace(
+        "| PARTIAL | M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified |",
+        "| PARTIAL |  |", 1))
+    # Attribute-bearing raw HTML text containers cannot hide tables.
+    for tag in ('<style type="text/css">', '</style >'):
+        modified = specification.replace(
+            "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |",
+            "prefix " + tag + "\n| 요구 ID | 본문 | 주요 시험 | 완료 단계 |", 1)
+        must_reject(modified, ledger)
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
