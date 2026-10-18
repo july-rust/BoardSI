@@ -112,7 +112,7 @@ def visible_markdown_lines(source):
             indent = len(original_line) - len(line)
             if indent <= 3 and line.startswith(fence_character):
                 length = len(line) - len(line.lstrip(fence_character))
-                if length >= fence_length and not line[length:].strip():
+                if length >= fence_length and all(ch in (" ", "\t") for ch in line[length:]):
                     fence_character, fence_length = None, 0
             yield ""
             continue
@@ -331,7 +331,8 @@ def extract_mapping(source):
     # A body reference is a real section number, not free-form prose.
     section_numbers = set(re.findall(
         r"(?m)^#{2,5} +(\d+(?:\.\d+)*)\s+",
-        "\n".join(visible_markdown_lines(source)),
+        "\n".join(visible_markdown_lines(source))
+        .split("### 18.2 요구사항과 시험 연결", 1)[0],
     ))
     for line in rendered_table_rows(
         section, ["요구 ID", "본문", "주요 시험", "완료 단계"], "U"
@@ -887,5 +888,20 @@ if __name__=="__main__":
         must_reject(specification, ledger.replace(
             "| Requirement ID | Phase from v1.0 18.2 | Linked test IDs",
             false_fence + "\n<template>\n| Requirement ID | Phase from v1.0 18.2 | Linked test IDs", 1))
+
+    # Only ASCII space/tab can follow a real fenced-code closer (GFM).
+    # NBSP must not prematurely close a fence and expose hidden ID tables.
+    fence_header = "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |"
+    bad_close = chr(96) * 3 + chr(160)
+    must_reject(specification.replace(
+        fence_header,
+        chr(96) * 3 + "\n" + bad_close + "\n" + fence_header + "\n"
+        + chr(96) * 3 + "\n" + chr(96) * 3, 1
+    ), ledger)
+    # Crosswalk/appendix sections are not eligible requirement-body targets.
+    for non_body in ("18.2", "18.3"):
+        must_reject(specification.replace(
+            "| U01 | 8,10,11 |", "| U01 | " + non_body + " |", 1
+        ), ledger)
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
