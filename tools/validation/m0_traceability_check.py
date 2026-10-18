@@ -49,14 +49,27 @@ def split_markdown_cells(line):
 def visible_markdown_lines(section):
     """Strip HTML comments and fenced code, including multi-line regions."""
     in_comment = False
+    in_pre = False
     fence_character = None
     fence_length = 0
     for original_line in section.splitlines():
-        # Four-space / tab indentation renders code, not table definitions.
-        if original_line.startswith("    ") or original_line.startswith("\t"):
+        # CommonMark tab stops are 4 columns, so "  \t" may also be code.
+        normalized = original_line.expandtabs(4)
+        if normalized.startswith("    "):
             yield ""
             continue
         text = original_line
+        if in_pre:
+            if re.search(r"(?i)</pre\s*>", text):
+                in_pre = False
+            yield ""
+            continue
+        if re.search(r"(?i)<pre(?:\s[^>]*)?>", text):
+            # Raw HTML pre blocks cannot supply rendered Markdown table rows.
+            if not re.search(r"(?i)</pre\s*>", text):
+                in_pre = True
+            yield ""
+            continue
         unindented = text.lstrip(" ")
         indent = len(text) - len(unindented)
         if indent <= 3 and unindented:
@@ -92,8 +105,8 @@ def visible_markdown_lines(section):
                     in_comment = True
                     index = start + 4
         yield "".join(visible)
-    if in_comment or fence_character is not None:
-        raise ValueError("unclosed HTML comment or code fence in definition section")
+    if in_comment or in_pre or fence_character is not None:
+        raise ValueError("unclosed HTML block/comment or code fence in definition section")
 
 
 def validate_definition_tables(source):
@@ -333,6 +346,26 @@ if __name__=="__main__":
     hidden_test_section = specification.replace(marker_t, "<!--\n" + marker_t, 1)
     hidden_test_section = hidden_test_section.replace(closing_t, "-->\n" + closing_t, 1)
     must_reject(hidden_test_section, ledger)
+    # CommonMark tab-expansion code indentation and raw HTML pre blocks must not pass.
+    full_t_header = "| Test ID | 주요 검증 | 통과 조건 |"
+    space_tab_table = specification.replace(
+        full_t_header,
+        " \t" + full_t_header,
+        1,
+    )
+    # This isolated header is no longer a rendered table header.
+    must_reject(space_tab_table, ledger)
+    html_pre = specification.replace(
+        "## 13 인수시험 및 독립 교차 검증",
+        "<pre>\n## 13 인수시험 및 독립 교차 검증",
+        1,
+    ).replace(
+        "### 13.1 정량 인수 목표와 측정 조건",
+        "</pre>\n### 13.1 정량 인수 목표와 측정 조건",
+        1,
+    )
+    must_reject(html_pre, ledger)
+
 
 
 
