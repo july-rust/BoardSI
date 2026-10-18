@@ -129,11 +129,11 @@ fn structural_model_gates_real_synthetic_worker_process() {
     let mut bounded =
         ModelBoundSyntheticClient::spawn(worker(), "model-handoff/run-1", &board, snapshot())
             .unwrap();
-    assert!(std::ptr::eq(bounded.model, &board));
+    assert!(std::ptr::eq(bounded.model(), &board));
     let deadline = Instant::now() + Duration::from_secs(8);
     let mut synthetic_count = 0;
     loop {
-        for msg in bounded.client.poll().unwrap() {
+        for msg in bounded.poll().unwrap() {
             if let Body::Result { synthetic, .. } = msg.body {
                 assert!(
                     synthetic,
@@ -142,16 +142,16 @@ fn structural_model_gates_real_synthetic_worker_process() {
                 synthetic_count += 1;
             }
         }
-        if bounded.client.exit.is_some() {
+        if bounded.exit_success().is_some() {
             break;
         }
         assert!(Instant::now() < deadline, "Worker timeout");
         thread::sleep(Duration::from_millis(2));
     }
-    assert_eq!(bounded.client.guard.state, State::Completed);
-    assert!(bounded.client.exit.unwrap().success());
+    assert_eq!(bounded.state(), State::Completed);
+    assert!(bounded.exit_success().unwrap());
     assert_eq!(synthetic_count, 5);
-    assert_eq!(bounded.client.guard.results.len(), 5);
+    assert_eq!(bounded.result_count(), 5);
 }
 #[test]
 fn malformed_model_is_rejected_before_worker_spawn() {
@@ -179,6 +179,21 @@ fn missing_properties_and_non_synthetic_sources_fail_closed() {
             .is_err()
     );
 }
+#[test]
+fn assumed_material_is_not_accepted_as_verified() {
+    let mut board = model();
+    board.materials[0].conductivity_s_per_m = Property::Assumed {
+        value: 5e7,
+        rationale: "unverified test guess".into(),
+    };
+    assert!(board.validate().issues.iter().any(|issue| {
+        issue.severity == Severity::Assumption
+    }));
+    assert!(ModelBoundSyntheticClient::spawn(
+        worker(), "assumed/model", &board, snapshot()
+    ).is_err());
+}
+
 #[test]
 fn empty_board_and_invalid_snapshot_fail_closed() {
     let board = BoardModel::empty(BoardKind::Pcb);
