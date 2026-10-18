@@ -343,8 +343,16 @@ def extract_mapping(source):
         if len(cells) != 4 or any(not cell.strip() for cell in cells):
             raise ValueError("bad/empty section 18.2 row")
         refs = [ref.strip() for ref in cells[1].split(",")]
-        if not refs or any(ref not in section_numbers for ref in refs):
-            raise ValueError("unknown specification body section: " + cells[1])
+        # Only normative product/engineering chapters form a requirement body.
+        # 2 is the U definition list; 16-18 are sources, change history and
+        # review/crosswalk metadata, not substantive requirement bodies.
+        def normative_body(ref):
+            chapter = int(ref.split(".", 1)[0])
+            return chapter == 1 or 3 <= chapter <= 15
+        if not refs or any(
+            ref not in section_numbers or not normative_body(ref) for ref in refs
+        ):
+            raise ValueError("non-normative or unknown requirement body: " + cells[1])
         tests = expand_ids(cells[2], "T")
         for u in expand_ids(cells[0], "U"):
             if u in mapping:
@@ -903,5 +911,10 @@ if __name__=="__main__":
         must_reject(specification.replace(
             "| U01 | 8,10,11 |", "| U01 | " + non_body + " |", 1
         ), ledger)
+
+    # Change log, review summary and crosswalk sections are NOT requirement bodies.
+    for invalid_ref in ("2", "16", "17", "18", "18.1", "18.3"):
+        must_reject(specification.replace(
+            "| U01 | 8,10,11 |", "| U01 | " + invalid_ref + " |", 1), ledger)
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
