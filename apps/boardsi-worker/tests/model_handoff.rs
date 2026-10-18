@@ -203,6 +203,27 @@ fn assumed_material_is_not_accepted_as_verified() {
 }
 
 #[test]
+fn model_material_readiness_covers_full_synthetic_sweep() {
+    let mut board = model();
+    board.materials[0].conductivity_s_per_m = Property::Missing;
+    assert!(ModelBoundSyntheticClient::spawn(worker(), "missing/conductivity", &board, snapshot()).is_err());
+
+    let mut board = model();
+    board.materials[0].valid_band = confirmed(FrequencyRange {
+        min_hz: 1e6,
+        max_hz: 30e9,
+    });
+    assert!(ModelBoundSyntheticClient::spawn(worker(), "out-of-band/dc", &board, snapshot()).is_err());
+
+    let mut board = model();
+    board.materials[0].valid_band = confirmed(FrequencyRange {
+        min_hz: 0.0,
+        max_hz: 1e6,
+    });
+    assert!(ModelBoundSyntheticClient::spawn(worker(), "out-of-band/upper", &board, snapshot()).is_err());
+}
+
+#[test]
 fn empty_board_and_invalid_snapshot_fail_closed() {
     let board = BoardModel::empty(BoardKind::Pcb);
     assert!(ModelBoundSyntheticClient::spawn(worker(), "empty", &board, snapshot()).is_err());
