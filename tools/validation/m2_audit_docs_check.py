@@ -31,3 +31,11 @@ for audit_path, phrases in PRE_PH08_STATUS.items():
         assert phrase in audit_text, 'Pre-PH08 audit drift: %s missing %s' % (audit_path, phrase)
 assert 'Stage 5B original physics rerun remains NOT RUN' not in Path('docs/development-history.md').read_text(encoding='utf-8'), 'Old original Stage5B replay status'
 print('Pre-PH08 docs and option-B provenance consistency PASS, not original HMM certification')
+
+# Validate the reference SVG is local-only well-formed XML; not visual/pixel equality.
+import xml.etree.ElementTree as ET
+icon_root = ET.parse('assets/branding/boardsi-option-b-reconstruction.svg').getroot()
+assert icon_root.tag == '{http://www.w3.org/2000/svg}svg'
+for icon_element in icon_root.iter():
+    assert not any(attr.endswith('href') for attr in icon_element.attrib), 'No linked icon artwork allowed'
+print('B concept SVG syntactically valid, local-only; original selection pixels NOT VERIFIED')

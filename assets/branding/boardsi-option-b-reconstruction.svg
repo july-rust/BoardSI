@@ -1,14 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- RECONSTRUCTION_ONLY, NOT the previously selected exact BoardSI B artwork; see docs/branding/boardsi-icon-decision.md -->
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="BoardSI icon option B concept reconstruction">
-<defs><linearGradient id="bg" x2="1" y2="1"><stop offset="0" stop-color="#09142a"/><stop offset="1" stop-color="#203d62"/></linearGradient><linearGradient id="signal" x2="1"><stop offset="0" stop-color="#1bcaff"/><stop offset=".55" stop-color="#3186ff"/><stop offset="1" stop-color="#94c7ff"/></linearGradient></defs>
-<rect x="36" y="36" width="952" height="952" rx="198" fill="url(#bg)" stroke="#36638a" stroke-width="10"/>
-<g fill="none" stroke="#6caac5" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" opacity=".91">
-<path d="M175 273 H327 L412 358 V437"/><path d="M851 273 H697 L614 356 V437"/>
-<path d="M175 756 H326 L415 661 V593"/><path d="M851 756 H704 L616 657 V593"/>
-<path d="M303 855 V781 L381 710"/><path d="M721 855 V781 L645 710"/>
-</g>
-<g fill="#11294a" stroke="#9bd6ee" stroke-width="20"><circle cx="175" cy="273" r="33"/><circle cx="851" cy="273" r="33"/><circle cx="175" cy="756" r="33"/><circle cx="851" cy="756" r="33"/><circle cx="303" cy="855" r="29"/><circle cx="721" cy="855" r="29"/></g>
-<path d="M245 523 H338 L391 459 L469 592 L545 448 L621 566 L692 500 H778" fill="none" stroke="#0e2c4c" stroke-width="83" stroke-linejoin="round" stroke-linecap="round"/>
-<path d="M245 523 H338 L391 459 L469 592 L545 448 L621 566 L692 500 H778" fill="none" stroke="url(#signal)" stroke-width="46" stroke-linejoin="round" stroke-linecap="round"/>
+<!-- RECONSTRUCTION_ONLY: BoardSI official B concept reference; not original design-board image/crop. No release approval. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="BoardSI option B icon concept, reconstructed from archived design board">
+ <defs>
+  <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0d558c"/><stop offset=".4" stop-color="#053c74"/><stop offset="1" stop-color="#001b39"/></linearGradient>
+  <linearGradient id="signal" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#037adf"/><stop offset=".53" stop-color="#1ca5ff"/><stop offset="1" stop-color="#40bfff"/></linearGradient>
+ </defs>
+ <rect x="59" y="59" width="906" height="906" rx="160" fill="url(#panel)" stroke="#06305c" stroke-width="11"/>
+ <!-- White high-contrast routed PCB perimeter: intentionally interrupted near port/via pads. -->
+ <g fill="none" stroke="#f4fbff" stroke-linecap="round" stroke-linejoin="round" stroke-width="34">
+  <path d="M180 716 V346 L299 212 H811 Q857 212 857 262 V502"/>
+  <path d="M185 805 L283 872 H737 L857 742 V632"/>
+  <path d="M285 213 H378"/>
+ </g>
+ <g stroke-width="28" fill="#064675" stroke="#e7faff">
+  <circle cx="312" cy="212" r="31"/><circle cx="182" cy="745" r="35"/><circle cx="812" cy="213" r="39"/>
+ </g>
+ <g fill="#006d9b" stroke="#22bad2" stroke-width="16" opacity=".9">
+  <circle cx="199" cy="180" r="30"/><circle cx="384" cy="292" r="26"/><circle cx="274" cy="380" r="22"/><circle cx="843" cy="837" r="28"/>
+ </g>
+ <g fill="#1aaccd" opacity=".8"><circle cx="613" cy="233" r="12"/><circle cx="641" cy="244" r="11"/><circle cx="670" cy="230" r="12"/><circle cx="689" cy="258" r="9"/></g>
+ <path d="M260 605 C326 607 344 665 389 665 C440 665 444 318 499 318 C551 318 540 811 608 811 C662 811 667 515 708 522 C746 527 736 630 775 620 C800 615 800 572 843 576"
+    fill="none" stroke="#074372" stroke-width="77" stroke-linejoin="round" stroke-linecap="round"/>
+ <path d="M260 605 C326 607 344 665 389 665 C440 665 444 318 499 318 C551 318 540 811 608 811 C662 811 667 515 708 522 C746 527 736 630 775 620 C800 615 800 572 843 576"
+    fill="none" stroke="url(#signal)" stroke-width="46" stroke-linejoin="round" stroke-linecap="round"/>
 </svg>

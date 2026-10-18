@@ -18,7 +18,7 @@ GitHub API returned **213 file/directory entries** in the complete current main 
 | PH-08 Stage 4 original | 36/36 selected MMS rows privately reexecuted; original uniform quadratic gradient reductions **0.953506** and **0.459163** < preregistered **1.8** → **FAIL** | full original globally authenticated HMM coefficient/source/Recovery/gradient-RMS floating budget |
 | PH-08 Stage 5B original | authorized PRIVATE original reexecution on 2026-10-17 reproduced original Gate Q **FAIL**, **12/12** rows, **1761/1761** deterministic scalars matching; 12 timing values excluded | public GitHub CI is *synthetic only*; no whole-domain physical certification, AC-P1 or Gate M |
 | M1–M5 application | format priorities and architecture/issues | importer, artwork, stackup editor, ports, production sweep/Touchstone, cache, actual binaries |
-| Branding | **official option B** selected in earlier 2026-10-14 conversation | exact original pixel/byte asset absent; provisional **RECONSTRUCTION_ONLY** SVG, not approved artwork |
+| Branding | **official option B** selected in earlier 2026-10-14 conversation | original A–E icon design contact sheet found in Library but its raw PNG byte export denied; standalone B asset absent from GitHub; provisional **RECONSTRUCTION_ONLY** SVG not approved original |
 
 **Immutable physics block:** Stage 4/Stage 5B original Gate Q **FAIL**; AC-P1 PENDING, T/R PROPOSED_NOT_FROZEN, PH-08 contract NOT_FROZEN, Rust FEM NO_GO, Gate M NOT_VERIFIED, physical BOUND_NOT_CERTIFIED. A public synthetic matrix test or perfect exact rational identity does not prove original HMM upstream roundoff bounds.
 
@@ -43,3 +43,7 @@ GitHub API returned **213 file/directory entries** in the complete current main 
 Remediation must not modify frozen contracts, FEM/core numerical calculations, security limits, acceptance criteria or the 17 required checks. Confirm exact head and post-merge 17/17 before marking any item complete. Original accepted option-B art requires separately acquired original bytes and SHA-256 documentation; reconstructed concept must never masquerade as exact artwork.
 
 **Sources:** [#16](https://github.com/july-rust/BoardSI/issues/16), [#41](https://github.com/july-rust/BoardSI/issues/41), [#46](https://github.com/july-rust/BoardSI/issues/46), [#51](https://github.com/july-rust/BoardSI/issues/51), [#78](https://github.com/july-rust/BoardSI/issues/78), [original Stage5B evidence](../validation/m2-g2-ph08-stage5b-original-replay-evidence.md), [original Stage4](../validation/m2-g2-ph08-stage4-original-gateq-reexecution.md).
+
+### Additional source recovery after baseline
+
+The earlier 2026-10-14 1536×1024 `BoardSI 아이콘 디자인 제안 보드.png` was **visually recovered** from user's personal Library (A–E proposals plus B-1 small icon). Its raw byte materialization was rejected by the available Files service, so it could not be committed bit-identically; a different vector version is **not** accepted as the original. The B-specific white circuit border/vias and smooth blue wave were used only to improve the explicitly provisional reconstructed SVG. Original SHA-256, font/creator provenance and final portable icon files are **NOT VERIFIED**.
