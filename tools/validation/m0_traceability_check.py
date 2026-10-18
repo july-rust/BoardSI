@@ -33,7 +33,7 @@ def validate_definition_tables(source):
         section = source.split(begin, 1)[1].split(end, 1)[0]
         found = set()
         for line in section.splitlines():
-            match = re.match(rf"^\|\s*({prefix}[^|]*)\|", line)
+            match = re.match(rf"^[ \t]*\|\s*({prefix}[^|]*)\|", line)
             if not match:
                 continue
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -153,6 +153,11 @@ if __name__=="__main__":
     extra_u100 = specification.replace("| U48 |", "| U100 | Extra unapproved requirement | 확정 | D1 |\n| U48 |")
     must_reject(extra_t100, ledger)
     must_reject(extra_u100, ledger)
+    indented_t100 = specification.replace("| T54 |", "  | T100 | Indented rogue test | Reject |\n| T54 |")
+    indented_u100 = specification.replace("| U48 |", "   | U100 | Indented rogue requirement | 확정 | D1 |\n| U48 |")
+    must_reject(indented_t100, ledger)
+    must_reject(indented_u100, ledger)
+
 
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
