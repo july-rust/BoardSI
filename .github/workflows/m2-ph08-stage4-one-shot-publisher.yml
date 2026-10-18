@@ -63,8 +63,16 @@ jobs:
               blob = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
               if blob != pin:
                   raise SystemExit('REJECTED_SOURCE_BLOB_MISMATCH')
-          api('POST', 'git/refs', {'ref': 'refs/heads/' + signed_branch,
-                                    'sha': expected_base})
+          from urllib.error import HTTPError
+          try:
+              api('POST', 'git/refs', {'ref': 'refs/heads/' + signed_branch,
+                                        'sha': expected_base})
+          except HTTPError as exc:
+              if exc.code != 422:
+                  raise
+              existing_ref = api('GET', 'git/ref/heads/' + signed_branch)
+              if existing_ref['object']['sha'] != expected_base:
+                  raise SystemExit('REJECTED_SIGNED_BRANCH_MOVED')
           for path, pin in allow.items():
               raw = pathlib.Path(path).read_bytes()
               payload = {
@@ -72,7 +80,16 @@ jobs:
                   'content': base64.b64encode(raw).decode('ascii'),
                   'branch': signed_branch,
               }
-              result = api('PUT', 'contents/' + urllib.parse.quote(path, safe='/'), payload)
+              target = 'contents/' + urllib.parse.quote(path, safe='/')
+              try:
+                  prior = api('GET', target + '?ref=' + urllib.parse.quote(signed_branch, safe=''))
+              except HTTPError as exc:
+                  if exc.code != 404:
+                      raise
+                  prior = None
+              if prior is not None:
+                  payload['sha'] = prior['sha']
+              result = api('PUT', target, payload)
               if result['content']['sha'] != pin:
                   raise SystemExit('SIGNED_SOURCE_BLOB_MISMATCH')
               commit_sha = result['commit']['sha']
