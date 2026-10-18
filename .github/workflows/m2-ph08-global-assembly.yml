@@ -28,6 +28,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -45,7 +47,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p ph08-global-evidence
-          printf 'source_sha=%s\nscope=PUBLIC_SYNTHETIC_GLOBAL_ONLY\nprivate_original=NOT_RUN\nhistorical_gate_q=FAIL\nphysical_bound=BOUND_NOT_CERTIFIED\ncontract=NOT_FROZEN\nrust_fem=NO_GO\n' "$GITHUB_SHA" > ph08-global-evidence/context.txt
+          printf 'source_sha=%s\nscope=PUBLIC_SYNTHETIC_GLOBAL_ONLY\nprivate_original=NOT_RUN\nhistorical_gate_q=FAIL\nphysical_bound=BOUND_NOT_CERTIFIED\ncontract=NOT_FROZEN\nrust_fem=NO_GO\n' "$(git rev-parse HEAD)" > ph08-global-evidence/context.txt
           sha256sum tools/validation/ph08_uniform_global_assembly.py tools/validation/test_ph08_uniform_global_assembly.py > ph08-global-evidence/SHA256SUMS
       - uses: actions/upload-artifact@v4
         if: always()
