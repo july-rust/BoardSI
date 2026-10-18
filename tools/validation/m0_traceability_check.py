@@ -335,6 +335,18 @@ def extract_mapping(source):
         raise ValueError(f"U/T coverage gaps: U={sorted(expected_u-set(mapping))}, T={sorted(expected_t-mapped_t)}; extras U={sorted(set(mapping)-expected_u)}, T={sorted(mapped_t-expected_t)}")
     return mapping, u_phases, t_phases
 
+# M0 Issue references verified against the existing BoardSI M0 / Qt audit Issues.
+# No live GitHub/network access is required in the reproducible docs CI.
+KNOWN_M0_EVIDENCE_ISSUES = {2, 3, 4, 5, 6, 7, 46, 78}
+
+
+def has_known_m0_evidence(value):
+    return any(
+        int(number) in KNOWN_M0_EVIDENCE_ISSUES
+        for number in re.findall(r"(?<![A-Za-z0-9])#([1-9][0-9]*)(?![A-Za-z0-9_])", value)
+    )
+
+
 def extract_ledger(source):
     # Ledger coverage requires real visible, unindented Markdown headings.
     table_u = visible_section(source, "## U01–U48, full coverage (48/48)", "## T01–T54")
@@ -361,7 +373,7 @@ def extract_ledger(source):
                 raise ValueError("invalid / duplicate U ledger row: "+line)
             if not cells[6].strip():
                 raise ValueError("U ledger row has empty evidence scope: " + line)
-            if cells[4] == "PARTIAL" and "see #" not in cells[6].lower():
+            if cells[4] == "PARTIAL" and not has_known_m0_evidence(cells[6]):
                 raise ValueError("PARTIAL U row lacks linked evidence: " + line)
             u_map[m.group(1)] = set(expand_ids(cells[2], "T"))
             u_phases[m.group(1)] = cells[1]
@@ -375,7 +387,7 @@ def extract_ledger(source):
                 raise ValueError("invalid / duplicate T ledger row: "+line)
             if not cells[4].strip():
                 raise ValueError("T ledger row has empty evidence scope: " + line)
-            if cells[3] == "PARTIAL" and "see #" not in cells[4].lower():
+            if cells[3] == "PARTIAL" and not has_known_m0_evidence(cells[4]):
                 raise ValueError("PARTIAL T row lacks linked evidence: " + line)
             t_map[m.group(1)] = set(expand_ids(cells[2], "U"))
             t_phases[m.group(1)] = cells[1].split("; ")
@@ -765,5 +777,16 @@ if __name__=="__main__":
             cells = split_markdown_cells(row)
             cells[4] = ""
             must_reject(specification, ledger.replace(row, "| " + " | ".join(cells) + " |", 1))
+
+    # A token that merely says "see #" is not a resolvable evidence link.
+    must_reject(specification, ledger.replace(
+        "M0 restricted prototype; see #3/#4/#5/#6",
+        "M0 restricted prototype; see #bogus", 1))
+    must_reject(specification, ledger.replace(
+        "M0 restricted prototype; see #3/#4/#5/#6",
+        "M0 restricted prototype; see #99999", 1))
+    must_reject(specification, ledger.replace(
+        "M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified",
+        "M0 native Qt/Worker prototype only; see #bogus; full T unqualified", 1))
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
