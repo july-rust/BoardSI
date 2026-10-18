@@ -34,7 +34,7 @@ GitHub API returned **213 file/directory entries** in the complete current main 
 ## Open risks, controls and completion criteria
 
 - **P0:** full original PH-08 A/b, float coefficient and sparse solve, all original recovery stencils/whole RMS, finite/open-domain Neumann/Dirichlet and source-to-field bounds are **NOT CERTIFIED**. Do not change historical 1.8 acceptance threshold retroactively.
-- **P1:** macOS Qt native test once observed global UI gap **1134 ms** > unchanged **1000 ms** gate. Later passing runs do not prove root cause solved (#46).
+- **P1:** Qt native tests observed global startup gaps on **macOS ARM64 (1134 ms)** and **Windows ARM64 (1255 ms, 2026-10-18 staged run)**, exceeding the unchanged **1000 ms** gate. Windows timing was localized to the synchronous first-window-show interval (1240 ms) but its root cause is not certified. Exact-source later passing checks indicate intermittency, NOT remediation (#46).
 - **P1:** native prototype CI 17/17 success does not equate to completed all 54 system tests or real import-to-solver pipeline.
 - **P1:** ensure all audit commits are GitHub **Verified**, required strict checks PASS on exact head, threads resolved, squash-only, no bypass. **Never merge an unsigned PR**.
 - **P2:** repository has no finalized distribution software license; inspect Qt, parser, dependency and icon IP terms before distributing binaries.
