@@ -46,6 +46,40 @@ def split_markdown_cells(line):
     return cells
 
 
+def mask_inline_code_for_comment_scan(line):
+    """Mask only paired backtick spans when looking for comment openers."""
+    masked = list(line)
+    index = 0
+    while index < len(line):
+        if line[index] != chr(96):
+            index += 1
+            continue
+        end_run = index
+        while end_run < len(line) and line[end_run] == chr(96):
+            end_run += 1
+        delimiter = line[index:end_run]
+        search = end_run
+        closing = -1
+        while search < len(line):
+            next_open = line.find(delimiter, search)
+            if next_open == -1:
+                break
+            next_end = next_open + len(delimiter)
+            if (next_open == 0 or line[next_open - 1] != chr(96)) and (
+                next_end == len(line) or line[next_end] != chr(96)
+            ):
+                closing = next_end
+                break
+            search = next_end
+        if closing == -1:
+            index = end_run
+        else:
+            for position in range(index, closing):
+                masked[position] = " "
+            index = closing
+    return "".join(masked)
+
+
 def visible_markdown_lines(source):
     """Return visible text; reject raw HTML containers in this controlled spec.
 
@@ -72,7 +106,14 @@ def visible_markdown_lines(source):
             yield ""
             continue
 
-        # Remove real HTML comments before interpreting Markdown/HTML syntax.
+        # Indented code outside an existing comment is not HTML markup.
+        # Existing multi-line comments must still consume their closing token.
+        if not in_comment and original_line.expandtabs(4).startswith("    "):
+            yield ""
+            continue
+        # Inline code spans can contain literal "<!--" examples; those are
+        # not real HTML comment openers and must not mask subsequent tables.
+        comment_scan = mask_inline_code_for_comment_scan(original_line)
         visible = []
         index = 0
         while index < len(original_line):
@@ -84,7 +125,7 @@ def visible_markdown_lines(source):
                     in_comment = False
                     index = end + 3
             else:
-                start = original_line.find("<!--", index)
+                start = comment_scan.find("<!--", index)
                 if start == -1:
                     visible.append(original_line[index:])
                     index = len(original_line)
@@ -404,5 +445,13 @@ if __name__=="__main__":
         validate(specification.replace(
             "## 13 인수시험 및 독립 교차 검증",
             literal + "\n## 13 인수시험 및 독립 교차 검증", 1), ledger)
+
+    # A comment-looking opener in inline/indented code is literal text.
+    for literal in (chr(96) + "<!--" + chr(96), "    <!--"):
+        validate(specification.replace(
+            "## 13 인수시험 및 독립 교차 검증",
+            literal + "\n## 13 인수시험 및 독립 교차 검증",
+            1,
+        ), ledger)
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
