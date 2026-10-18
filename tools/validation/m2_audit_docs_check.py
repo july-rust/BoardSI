@@ -142,7 +142,7 @@ for bad in (
     b'<rect xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://example.invalid/a" />',
     b'<animate attributeName="opacity" values="0;1" />',
     b'<rect fill="url(&#104;ttps://example.invalid/x)" />',
-    b'<rect fill="u\72 l(\68\74\74\70\73\3a\2f\2f example.invalid\2f x)" />',
+    br'<rect fill="u\72 l(\68\74\74\70\73\3a\2f\2f example.invalid\2f x)" />',
     b'<?xml-stylesheet type="text/css" href="https://example.invalid/a.css"?>',
 ):
     _must_reject(svg_start + bad + svg_end)
