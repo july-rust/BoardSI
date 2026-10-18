@@ -348,9 +348,12 @@ KNOWN_M0_EVIDENCE_ISSUES = {2, 3, 4, 5, 6, 7, 46, 78}
 
 
 def has_known_m0_evidence(value):
+    # Only a real GitHub-style issue autolink token counts, not inline code
+    # or backslash-escaped literal '#'. The registry is validated off-line.
+    visible = mask_inline_code_for_comment_scan(value)
     return any(
         int(number) in KNOWN_M0_EVIDENCE_ISSUES
-        for number in re.findall(r"(?<![A-Za-z0-9])#([1-9][0-9]*)(?![A-Za-z0-9_])", value)
+        for number in re.findall(r"(?<![\\w\\\\`])#([1-9][0-9]*)(?!\\w)", visible)
     )
 
 
@@ -806,5 +809,14 @@ if __name__=="__main__":
     ledger_tail_t = next(line for line in ledger.splitlines() if line.startswith("| T54 |"))
     must_reject(specification, ledger.replace(
         ledger_tail_t, ledger_tail_t + "\nT100 | M0 | U01 | NOT_RUN | Bogus |", 1))
+
+    # Literal issue tokens are not resolvable evidence links.
+    for fake in (chr(96) + "#3" + chr(96), chr(92) + "#3"):
+        must_reject(specification, ledger.replace(
+            "M0 restricted prototype; see #3/#4/#5/#6",
+            "M0 restricted prototype; see " + fake, 1))
+        must_reject(specification, ledger.replace(
+            "M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified",
+            "M0 native Qt/Worker prototype only; see " + fake, 1))
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
