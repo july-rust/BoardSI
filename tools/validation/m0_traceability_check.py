@@ -244,13 +244,15 @@ def rendered_table_rows(section, header, prefix):
     lines = section.splitlines()
     headers = [
         i for i, line in enumerate(lines)
-        if split_markdown_cells(line.strip()) == header
+        if line == line.lstrip() and split_markdown_cells(line.strip()) == header
     ]
     if len(headers) != 1:
         raise ValueError("missing/duplicate rendered " + prefix + " table header")
     start = headers[0]
     if start + 1 >= len(lines):
         raise ValueError("missing " + prefix + " table delimiter")
+    if lines[start + 1] != lines[start + 1].lstrip():
+        raise ValueError("normative table delimiter must start at column zero")
     delimiter = split_markdown_cells(lines[start + 1].strip())
     if len(delimiter) != len(header) or not all(
         re.fullmatch(r":?-{3,}:?", cell) for cell in delimiter
@@ -259,9 +261,12 @@ def rendered_table_rows(section, header, prefix):
     rows = []
     pos = start + 2
     while pos < len(lines):
-        line = lines[pos].strip()
+        original_row = lines[pos]
+        line = original_row.strip()
         if not line or not line.startswith("|"):
             break
+        if original_row != original_row.lstrip():
+            raise ValueError("normative table row must start at column zero")
         cells = split_markdown_cells(line)
         if len(cells) != len(header):
             raise ValueError("invalid " + prefix + " table row width")
@@ -281,6 +286,11 @@ def extract_mapping(source):
     # Only a real rendered Markdown heading selects the public crosswalk.
     section = visible_section(source, "### 18.2 요구사항과 시험 연결", "### 18.3")
     mapping, u_phases, t_phases = {}, {}, {}
+    # A body reference is a real section number, not free-form prose.
+    section_numbers = set(re.findall(
+        r"(?m)^#{2,5} +(\d+(?:\.\d+)*)\s+",
+        "\n".join(visible_markdown_lines(source)),
+    ))
     for line in rendered_table_rows(
         section, ["요구 ID", "본문", "주요 시험", "완료 단계"], "U"
     ):
@@ -289,6 +299,9 @@ def extract_mapping(source):
         cells = split_markdown_cells(line)
         if len(cells) != 4 or any(not cell.strip() for cell in cells):
             raise ValueError("bad/empty section 18.2 row")
+        refs = [ref.strip() for ref in cells[1].split(",")]
+        if not refs or any(ref not in section_numbers for ref in refs):
+            raise ValueError("unknown specification body section: " + cells[1])
         tests = expand_ids(cells[2], "T")
         for u in expand_ids(cells[0], "U"):
             if u in mapping:
@@ -644,5 +657,22 @@ if __name__=="__main__":
             "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |",
             "prefix " + tag + "\n| 요구 ID | 본문 | 주요 시험 | 완료 단계 |", 1)
         must_reject(modified, ledger)
+
+    # Markdown list nesting cannot masquerade as canonical table rows.
+    source_header = "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |"
+    for indent in ("  ", "   "):
+        section = specification.split("### 18.2 요구사항과 시험 연결", 1)[1].split("### 18.3", 1)[0]
+        table = [line for line in section.splitlines() if line.startswith("|")]
+        modified = specification.replace(
+            source_header, "- <div>\n" + indent + source_header, 1)
+        # The delimiter is indented as well, creating a Markdown list block.
+        modified = modified.replace(
+            source_header + "\n| --- | --- | --- | --- |",
+            source_header + "\n" + indent + "| --- | --- | --- | --- |", 1)
+        must_reject(modified, ledger)
+    # Both malformed and nonexistent section/body links are invalid.
+    for invalid_ref in ("nonsense", "999"):
+        must_reject(specification.replace(
+            "| U01 | 8,10,11 |", "| U01 | " + invalid_ref + " |", 1), ledger)
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
