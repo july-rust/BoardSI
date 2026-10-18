@@ -45,6 +45,21 @@ impl<'a> ModelBoundSyntheticClient<'a> {
         {
             return Err(invalid("ModelValidationFailed"));
         }
+        // The synthetic Worker emits DC .. (points-1)*1 MHz, inclusive.
+        // Structural validation alone does not check required layer materials,
+        // assumed property provenance or their valid frequency bands.
+        for frequency_hz in [0.0, f64::from(snapshot.points - 1) * 1e6] {
+            let readiness = model.validate_materials_at(frequency_hz);
+            if readiness.has_errors()
+                || readiness.has_missing()
+                || readiness
+                    .issues
+                    .iter()
+                    .any(|issue| issue.severity == Severity::Assumption)
+            {
+                return Err(invalid("MaterialReadinessFailed"));
+            }
+        }
         let client = Client::spawn(path, None, run_id, snapshot)?;
         Ok(Self { client, model })
     }
