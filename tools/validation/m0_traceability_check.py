@@ -369,26 +369,38 @@ def extract_mapping(source):
     mapped_t = set().union(*mapping.values()) if mapping else set()
     if set(mapping) != expected_u or mapped_t != expected_t:
         raise ValueError(f"U/T coverage gaps: U={sorted(expected_u-set(mapping))}, T={sorted(expected_t-mapped_t)}; extras U={sorted(set(mapping)-expected_u)}, T={sorted(mapped_t-expected_t)}")
+    # Frozen v1.0 semantic mapping: T44 is the U01 export regression.
+    # Bidirectional ledger agreement alone cannot prevent an incorrect
+    # mutually coordinated reassignment of T44 to an unrelated U ID.
+    t44_owners = {u for u, tests in mapping.items() if "T44" in tests}
+    if t44_owners != {"U01"}:
+        raise ValueError("frozen T44/U01 semantic association drift")
     return mapping, u_phases, t_phases
 
 # M0 Issue references verified against the existing BoardSI M0 / Qt audit Issues.
 # No live GitHub/network access is required in the reproducible docs CI.
-KNOWN_M0_EVIDENCE_ISSUES = {2, 3, 4, 5, 6, 7, 46, 78}
+# Frozen, row-specific limited prototype evidence. Neither these IDs nor
+# PARTIAL status signifies full acceptance. Adding a new PARTIAL row requires
+# explicit code review and issue-specific justification, not a global allowlist.
+PARTIAL_EVIDENCE_BY_ID = {
+    "U02": {3}, "U03": {3, 6}, "U23": {5},
+    "U31": {4}, "U39": {4}, "U44": {5},
+    "T13": {3, 6}, "T39": {3, 6}, "T46": {5, 46},
+}
 
 
-def has_known_m0_evidence(value):
-    # The audited M0 ledger uses bare GitHub issue tokens, not Markdown
-    # link labels/destinations. An explicit link could target another host.
+def has_row_specific_partial_evidence(identifier, value):
+    # The audited ledger uses explicit "see #N" issue autolinks only.
+    # Reject Markdown links, inline-code decoys, unknown IDs and evidence
+    # borrowed from another row's unrelated engineering boundary.
     if "[" in value or "]" in value:
         return False
-    # Normative M0 ledger evidence deliberately permits only explicit bare
-    # GitHub issue autolinks of the form "see #N". A fragment in an arbitrary
-    # URL, escaped hash or inline code is NOT a resolvable BoardSI Issue link.
     visible = mask_inline_code_for_comment_scan(value)
-    return any(
-        int(number) in KNOWN_M0_EVIDENCE_ISSUES
-        for number in re.findall(r"(?i)(?<!\w)see\s+#([1-9][0-9]*)(?!\w)", visible)
-    )
+    references = {
+        int(number) for number in
+        re.findall(r"(?i)(?<!\\w)see\\s+#([1-9][0-9]*)(?!\\w)", visible)
+    }
+    return references and references == PARTIAL_EVIDENCE_BY_ID.get(identifier)
 
 
 def extract_ledger(source):
@@ -417,7 +429,7 @@ def extract_ledger(source):
                 raise ValueError("invalid / duplicate U ledger row: "+line)
             if not cells[6].strip():
                 raise ValueError("U ledger row has empty evidence scope: " + line)
-            if cells[4] == "PARTIAL" and not has_known_m0_evidence(cells[6]):
+            if cells[4] == "PARTIAL" and not has_row_specific_partial_evidence(m.group(1), cells[6]):
                 raise ValueError("PARTIAL U row lacks linked evidence: " + line)
             u_map[m.group(1)] = set(expand_ids(cells[2], "T"))
             u_phases[m.group(1)] = cells[1]
@@ -431,7 +443,7 @@ def extract_ledger(source):
                 raise ValueError("invalid / duplicate T ledger row: "+line)
             if not cells[4].strip():
                 raise ValueError("T ledger row has empty evidence scope: " + line)
-            if cells[3] == "PARTIAL" and not has_known_m0_evidence(cells[4]):
+            if cells[3] == "PARTIAL" and not has_row_specific_partial_evidence(m.group(1), cells[4]):
                 raise ValueError("PARTIAL T row lacks linked evidence: " + line)
             t_map[m.group(1)] = set(expand_ids(cells[2], "U"))
             t_phases[m.group(1)] = cells[1].split("; ")
@@ -471,6 +483,49 @@ if __name__=="__main__":
     specification = SPEC.read_text(encoding="utf-8")
     ledger = LEDGER.read_text(encoding="utf-8")
     count = validate(specification,ledger)
+    # Coordinated T44 reassignment must fail despite complete reciprocal
+    # ledger coverage and accurate per-stage metadata.
+    reassigned_spec = specification.replace(
+        "| U01 | 8,10,11 | T06,T07,T43,T44 | M2 |",
+        "| U01 | 8,10,11 | T06,T07,T43 | M2 |", 1
+    ).replace(
+        "| U47 | 13.1,15 | T06,T10,T12,T41,T50 | 단계별 게이트 |",
+        "| U47 | 13.1,15 | T06,T10,T12,T41,T44,T50 | 단계별 게이트 |", 1
+    )
+    reassigned_ledger = ledger.replace(
+        "| U01 | M2 | T06,T07,T43,T44 |",
+        "| U01 | M2 | T06,T07,T43 |", 1
+    ).replace(
+        "| U47 | 단계별 게이트 | T06,T10,T12,T41,T50 |",
+        "| U47 | 단계별 게이트 | T06,T10,T12,T41,T44,T50 |", 1
+    ).replace(
+        "| T44 | M2 | U01 |",
+        "| T44 | 단계별 게이트 | U47 |", 1
+    )
+    if reassigned_spec == specification or reassigned_ledger == ledger:
+        raise AssertionError("T44 reassignment fixture not constructed")
+    must_reject(reassigned_spec, reassigned_ledger)
+
+    # An unrelated U28/T01 cannot borrow an M0 prototype Issue to claim PARTIAL.
+    for identifier in ("U28", "T01"):
+        old = next(line for line in ledger.splitlines()
+                   if line.startswith("| " + identifier + " |"))
+        if identifier.startswith("U"):
+            bad = old.replace("NOT_VERIFIED", "PARTIAL").replace(
+                "See specification v1.0; no ID-specific full test evidence",
+                "M0 restricted prototype; see #3")
+        else:
+            bad = old.replace("NOT_RUN", "PARTIAL").replace(
+                "No complete case-specific T acceptance claimed",
+                "M0 native Qt/Worker prototype only; see #3; full T unqualified")
+        if bad == old or "PARTIAL" not in bad:
+            raise AssertionError("PARTIAL scope mutation not constructed: " + identifier)
+        must_reject(specification, ledger.replace(old, bad, 1))
+    # Even currently permitted PARTIAL rows must reject irrelevant issue evidence.
+    must_reject(specification, ledger.replace(
+        "M0 restricted prototype; see #4",
+        "M0 restricted prototype; see #3", 1))
+
     # Prove the exact prior T44 omission cannot silently recur.
     must_reject(specification.replace("T06,T07,T43,T44", "T06,T07,T43"),ledger)
     must_reject(specification,ledger.replace("| T44 |","| T99 |"))
@@ -722,10 +777,10 @@ if __name__=="__main__":
         "| U01 |  | T06,T07,T43,T44 |", 1), ledger)
     # PARTIAL is an evidence-linked claim, not a label.
     must_reject(specification, ledger.replace(
-        "| DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #3/#4/#5/#6 |",
+        "| DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #3 |",
         "| DEFINED | PARTIAL | NOT_RUN |  |", 1))
     must_reject(specification, ledger.replace(
-        "| PARTIAL | M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified |",
+        "| PARTIAL | M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified |",
         "| PARTIAL |  |", 1))
     # Attribute-bearing raw HTML text containers cannot hide tables.
     for tag in ('<style type="text/css">', '</style >'):
@@ -824,13 +879,13 @@ if __name__=="__main__":
 
     # A token that merely says "see #" is not a resolvable evidence link.
     must_reject(specification, ledger.replace(
-        "M0 restricted prototype; see #3/#4/#5/#6",
+        "M0 restricted prototype; see #3",
         "M0 restricted prototype; see #bogus", 1))
     must_reject(specification, ledger.replace(
-        "M0 restricted prototype; see #3/#4/#5/#6",
+        "M0 restricted prototype; see #3",
         "M0 restricted prototype; see #99999", 1))
     must_reject(specification, ledger.replace(
-        "M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified",
+        "M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified",
         "M0 native Qt/Worker prototype only; see #bogus; full T unqualified", 1))
 
     # Openerless Markdown table rows are visible rows, not a table boundary.
@@ -847,29 +902,29 @@ if __name__=="__main__":
     # Literal issue tokens are not resolvable evidence links.
     for fake in (chr(96) + "#3" + chr(96), chr(92) + "#3"):
         must_reject(specification, ledger.replace(
-            "M0 restricted prototype; see #3/#4/#5/#6",
+            "M0 restricted prototype; see #3",
             "M0 restricted prototype; see " + fake, 1))
         must_reject(specification, ledger.replace(
-            "M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified",
+            "M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified",
             "M0 native Qt/Worker prototype only; see " + fake, 1))
 
     # Arbitrary URL fragments are not BoardSI Issue evidence autolinks.
     for fake in ("https://example.invalid/#3", "https://example.invalid/path?issue=#3"):
         must_reject(specification, ledger.replace(
-            "M0 restricted prototype; see #3/#4/#5/#6",
+            "M0 restricted prototype; see #3",
             "M0 restricted prototype; see " + fake, 1))
         must_reject(specification, ledger.replace(
-            "M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified",
+            "M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified",
             "M0 native Qt/Worker prototype only; see " + fake, 1))
 
     # Explicit Markdown links can display a valid issue label while
     # navigating to a foreign destination; do not count their labels.
     for fake in ("[see #3](https://example.invalid)", "[see #3][external]"):
         must_reject(specification, ledger.replace(
-            "M0 restricted prototype; see #3/#4/#5/#6",
+            "M0 restricted prototype; see #3",
             "M0 restricted prototype; " + fake, 1))
         must_reject(specification, ledger.replace(
-            "M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified",
+            "M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified",
             "M0 native Qt/Worker prototype only; " + fake, 1))
 
     # Invalid GFM backtick-fence info strings must not hide raw HTML.
