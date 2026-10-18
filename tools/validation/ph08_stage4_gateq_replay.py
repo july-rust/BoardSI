@@ -208,7 +208,7 @@ def _probe_actual_child_runtime(source_dir: Path, root: Path, env: dict) -> None
     out, err = root / 'probe-private-output.json', root / 'probe-private-error.txt'
     code = _run_private_child(
         [sys.executable, '-I', '-c', probe, str(source_dir)],
-        root, env, out, err, timeout=30)
+        source_dir, env, out, err, timeout=30)
     if code != 0 or out.stat().st_size > 2048:
         raise ReplayNotVerified('CHILD_RUNTIME_PROBE_FAILED')
     observed = load_unique_json(out.read_bytes())
@@ -280,7 +280,7 @@ def rerun(archive: Path) -> dict:
         out, err = root / 'original-private-output.json', root / 'original-private-error.txt'
         exit_code = _run_private_child(
             [sys.executable, '-I', '-c', program, str(source_dir)],
-            root, env, out, err, timeout=120)
+            source_dir, env, out, err, timeout=120)
         if exit_code != 0 or out.stat().st_size > MAX_JSON_BYTES:
             raise ReplayNotVerified('ORIGINAL_REPLAY_EXIT_OR_OUTPUT_INVALID')
         replay = load_unique_json(out.read_bytes())
