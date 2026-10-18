@@ -208,6 +208,8 @@ def validate_definition_tables(source):
             if split_markdown_cells(line.strip()) != header:
                 continue
             table_count += 1
+            if position == 0 or visible[position - 1].strip():
+                raise ValueError("normative definition table requires blank block boundary")
             if position + 1 >= len(visible):
                 raise ValueError("missing Markdown delimiter after " + prefix + " header")
             delim = split_markdown_cells(visible[position + 1].strip())
@@ -259,6 +261,8 @@ def rendered_table_rows(section, header, prefix):
     if len(headers) != 1:
         raise ValueError("missing/duplicate rendered " + prefix + " table header")
     start = headers[0]
+    if start == 0 or lines[start - 1].strip():
+        raise ValueError("normative table requires blank preceding block boundary")
     if start + 1 >= len(lines):
         raise ValueError("missing " + prefix + " table delimiter")
     if lines[start + 1] != lines[start + 1].lstrip():
@@ -702,5 +706,20 @@ if __name__=="__main__":
     must_reject(specification, ledger.replace(
         "| T44 | M2 | U01", "| T44 | M2 | U01,U01", 1
     ))
+
+    # A preceding blockquote paragraph consumes lazy continuation table lines.
+    for header in (
+        "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |",
+        "| ID | 요구사항 | 상태 | 근거 |",
+    ):
+        if header not in specification:
+            raise AssertionError("blockquote boundary fixture missing")
+        must_reject(specification.replace(
+            header, "> prefix\n" + header, 1), ledger)
+    ledger_header = "| Requirement ID | Phase from v1.0 18.2 | Linked test IDs"
+    if ledger_header not in ledger:
+        raise AssertionError("ledger blockquote boundary fixture missing")
+    must_reject(specification, ledger.replace(
+        ledger_header, "> prefix\n" + ledger_header, 1))
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
