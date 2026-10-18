@@ -171,7 +171,12 @@ def visible_markdown_lines(source):
         # contained in them must not create false unclosed code spans.
         # Cross-line spoofing remains rejected because it has no same-line
         # HTML-comment terminator and retains its unmatched delimiter.
-        line_for_code_spans = re.sub(r"<!--.*?-->", "", original_line)
+        comment_visibility = mask_inline_code_for_comment_scan(original_line)
+        visible_code_chars = list(original_line)
+        for comment_match in re.finditer(r"<!--.*?-->", comment_visibility):
+            for pos in range(comment_match.start(), comment_match.end()):
+                visible_code_chars[pos] = " "
+        line_for_code_spans = "".join(visible_code_chars)
         if not in_comment and not real_fence_start and unclosed_inline_code_run(line_for_code_spans):
             raise ValueError("multiline inline-code span unsupported in normative Markdown")
         # Inline code spans can contain literal "<!--" examples; those are
@@ -322,7 +327,9 @@ def validate_definition_tables(source):
                     for wrapper in ("**", "__", "*", "_", chr(96)):
                         if (item.startswith(wrapper) and item.endswith(wrapper)
                             and len(item) > 2 * len(wrapper)):
-                            candidate = item[len(wrapper):-len(wrapper)].strip()
+                            # Whitespace adjacent to an emphasis delimiter
+                            # prevents GFM from recognizing valid emphasis.
+                            candidate = item[len(wrapper):-len(wrapper)]
                             if re.fullmatch(rf"{prefix}\d{{2}}", candidate):
                                 item = candidate
                                 break
@@ -1030,6 +1037,23 @@ if __name__=="__main__":
         must_reject(specification, ledger.replace(
             "M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified",
             "M0 native Qt/Worker prototype only; " + fake, 1))
+
+    # Literal HTML-comment-like tokens inside paired inline code are not
+    # comments and must not be removed before balancing backticks.
+    for literal_code in ("`<!-- -->`", "``<!-- -->``"):
+        intro = "### 18.2 요구사항과 시험 연결"
+        unaffected = specification.replace(
+            intro, literal_code + "\n\n" + intro, 1)
+        if validate(unaffected, ledger) != (48, 54):
+            raise AssertionError("valid comment-like inline code rejected")
+
+    # GFM emphasis delimiters cannot consume adjacent inner whitespace.
+    for invalid_markup in ("** U01 **", "* U01 *", "__ U01 __"):
+        bad_spec = specification.replace(
+            "| U01 |", "| " + invalid_markup + " |", 1)
+        if bad_spec == specification:
+            raise AssertionError("emphasis fixture absent")
+        must_reject(bad_spec, ledger)
 
     # Markup inside an inline code span is literal, not recursively
     # interpreted emphasis. It must not silently resolve to a valid ID.
