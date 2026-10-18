@@ -91,6 +91,41 @@ def mask_inline_code_for_comment_scan(line):
     return "".join(masked)
 
 
+def unclosed_inline_code_run(line):
+    """True when a physical line starts a GFM backtick span it cannot close.
+
+    This controlled normative document format forbids multiline inline code
+    because a masked cross-line span can spoof HTML comments/block boundaries.
+    Regular fenced code blocks are handled separately by the caller.
+    """
+    index = 0
+    open_width = None
+    while index < len(line):
+        if line[index] != chr(96):
+            index += 1
+            continue
+        # Outside code spans, escaped backticks are literal punctuation.
+        if open_width is None:
+            slash_count = 0
+            cursor = index - 1
+            while cursor >= 0 and line[cursor] == chr(92):
+                slash_count += 1
+                cursor -= 1
+            if slash_count % 2:
+                index += 1
+                continue
+        end = index
+        while end < len(line) and line[end] == chr(96):
+            end += 1
+        width = end - index
+        if open_width is None:
+            open_width = width
+        elif open_width == width:
+            open_width = None
+        index = end
+    return open_width is not None
+
+
 def visible_markdown_lines(source):
     """Return visible text; reject raw HTML containers in this controlled spec.
 
@@ -122,6 +157,18 @@ def visible_markdown_lines(source):
         if not in_comment and original_line.expandtabs(4).startswith("    "):
             yield ""
             continue
+        # A GFM inline-code span can extend across physical lines. In this
+        # controlled spec/ledger such a span is unsupported: fail closed on
+        # any opener without a same-line matching delimiter rather than
+        # misreading protected `<!--` text as a real HTML comment.
+        original_open = original_line.lstrip(" ")
+        original_indent_for_fence = len(original_line) - len(original_open)
+        real_fence_start = (
+            original_indent_for_fence <= 3
+            and original_open.startswith(("~~~", chr(96) * 3))
+        )
+        if not in_comment and not real_fence_start and unclosed_inline_code_run(original_line):
+            raise ValueError("multiline inline-code span unsupported in normative Markdown")
         # Inline code spans can contain literal "<!--" examples; those are
         # not real HTML comment openers and must not mask subsequent tables.
         comment_scan = mask_inline_code_for_comment_scan(original_line)
@@ -942,6 +989,21 @@ if __name__=="__main__":
         must_reject(specification, ledger.replace(
             "M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified",
             "M0 native Qt/Worker prototype only; " + fake, 1))
+
+    # GFM permits multi-line inline code, but this controlled normative
+    # format rejects it to avoid disguising real HTML template containers.
+    crosswalk_first = "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |"
+    crosswalk_last = "| U47 | 13.1,15 | T06,T10,T12,T41,T50 | 단계별 게이트 |"
+    for width in (1, 2):
+        tick = chr(96) * width
+        template_open = tick + "<!--\n" + tick + "\n<template>\n-->\n"
+        template_close = tick + "<!--\n" + tick + "\n</template>\n-->\n"
+        concealed = specification.replace(
+            crosswalk_first, template_open + crosswalk_first, 1
+        ).replace(
+            crosswalk_last, crosswalk_last + "\n" + template_close, 1
+        )
+        must_reject(concealed, ledger)
 
     # Source-level block markers are normative: comments cannot synthesize
     # a table header/delimiter, a definition row or section heading.
