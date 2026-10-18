@@ -19,6 +19,8 @@ def expand_ids(text, prefix):
         if first > last or first < 1:
             raise ValueError(f"invalid {prefix} range: {item!r}")
         results += [f"{prefix}{n:02d}" for n in range(first, last + 1)]
+    if len(results) != len(set(results)):
+        raise ValueError("duplicate or overlapping " + prefix + " IDs in group: " + text)
     return results
 
 def split_markdown_cells(line):
@@ -49,9 +51,17 @@ def split_markdown_cells(line):
 def mask_inline_code_for_comment_scan(line):
     """Mask only paired backtick spans when looking for comment openers."""
     masked = list(line)
+    def is_escaped(position):
+        backslashes = 0
+        cursor = position - 1
+        while cursor >= 0 and line[cursor] == chr(92):
+            backslashes += 1
+            cursor -= 1
+        return backslashes % 2 != 0
+
     index = 0
     while index < len(line):
-        if line[index] != chr(96):
+        if line[index] != chr(96) or is_escaped(index):
             index += 1
             continue
         end_run = index
@@ -65,9 +75,9 @@ def mask_inline_code_for_comment_scan(line):
             if next_open == -1:
                 break
             next_end = next_open + len(delimiter)
-            if (next_open == 0 or line[next_open - 1] != chr(96)) and (
-                next_end == len(line) or line[next_end] != chr(96)
-            ):
+            if (not is_escaped(next_open) and
+                (next_open == 0 or line[next_open - 1] != chr(96)) and
+                (next_end == len(line) or line[next_end] != chr(96))):
                 closing = next_end
                 break
             search = next_end
@@ -675,5 +685,22 @@ if __name__=="__main__":
     for invalid_ref in ("nonsense", "999"):
         must_reject(specification.replace(
             "| U01 | 8,10,11 |", "| U01 | " + invalid_ref + " |", 1), ledger)
+
+    # Escaped backticks do NOT create inline code; hidden raw pre is rejected.
+    escaped_tick = chr(92) + chr(96)
+    must_reject(specification.replace(
+        "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |",
+        escaped_tick + "<pre>" + escaped_tick + "\n| 요구 ID | 본문 | 주요 시험 | 완료 단계 |", 1
+    ), ledger)
+    # Repeated/overlapping IDs must not silently collapse into sets.
+    must_reject(specification.replace(
+        "T06,T07,T43,T44", "T06,T06,T07,T43,T44", 1
+    ), ledger)
+    must_reject(specification, ledger.replace(
+        "T06,T07,T43,T44", "T06,T06,T07,T43,T44", 1
+    ))
+    must_reject(specification, ledger.replace(
+        "| T44 | M2 | U01", "| T44 | M2 | U01,U01", 1
+    ))
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
