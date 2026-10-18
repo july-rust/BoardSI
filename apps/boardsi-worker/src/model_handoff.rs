@@ -9,6 +9,20 @@ use boardsi_ipc::{Message, Snapshot, State};
 use boardsi_model::{BoardModel, Severity, SourceFormat};
 use std::{io, path::Path};
 
+/// Model borrow must remain live through the Worker client's destruction.
+///
+/// ```compile_fail
+/// use boardsi_model::{BoardKind, BoardModel};
+/// use boardsi_ipc::Snapshot;
+/// use boardsi_worker::model_handoff::ModelBoundSyntheticClient;
+/// let mut board = BoardModel::empty(BoardKind::Pcb);
+/// let active = ModelBoundSyntheticClient::spawn(
+///     std::path::Path::new("worker"), "test", &board,
+///     Snapshot { points: 1, delay_ms: 0 }
+/// ).unwrap();
+/// active.state(); // even if this is the last explicit use
+/// board.nets.clear(); // forbidden until active client is dropped
+/// ```
 pub struct ModelBoundSyntheticClient<'a> {
     client: Client,
     model: &'a BoardModel,
@@ -91,5 +105,14 @@ impl<'a> ModelBoundSyntheticClient<'a> {
 
     pub fn exit_success(&self) -> Option<bool> {
         self.client.exit.as_ref().map(|status| status.success())
+    }
+}
+
+impl Drop for ModelBoundSyntheticClient<'_> {
+    fn drop(&mut self) {
+        // The referenced model must remain borrowed until the Worker client
+        // is destroyed, not merely until the last explicit call to state().
+        // A real Drop impl ensures this bound is enforced by drop checking.
+        let _model_lifetime = self.model;
     }
 }
