@@ -1,0 +1,85 @@
+name: PH-08 Stage4 one-shot signed source publisher (staging only)
+on:
+  push:
+    branches: ["research/ph08-stage4-replay-hardening"]
+    paths:
+      - ".github/workflows/m2-ph08-stage4-one-shot-publisher.yml"
+permissions:
+  contents: write
+concurrency:
+  group: boardsi-stage4-one-shot-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    name: One-time allowlisted verified source transfer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Verify public tests and no archived secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install numpy==2.3.5 scipy==1.17.0
+          python -m unittest discover -s tools/validation -p 'test_ph08_stage4_gateq_replay.py' -v
+          python tools/validation/ph08_private_archive_guard.py
+      - name: Publish only four pinned public files to verified-only branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, hashlib, json, os, pathlib, urllib.request, urllib.parse
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          expected_base = '20eb0dcca2575040d3852d0061d593db912c0ba9'
+          signed_branch = 'feature/ph08-stage4-replay-safety-verified'
+          allow = {
+              'tools/validation/ph08_stage4_gateq_replay.py': '4748e912800f7b8f082748e5ed01c4eca1ac0144',
+              'tools/validation/test_ph08_stage4_gateq_replay.py': '5fad161197999897dbf080777eef0c26ff0e83b8',
+              'docs/validation/m2-g2-ph08-stage4-original-gateq-reexecution.md': '449a900851053d6ef1af206cb8d97fcd84e6e872',
+              '.github/workflows/m2-ph08-stage4-replay-safety.yml': '96926746b9012ef04c40661b6caa8c4b6b398a78',
+          }
+          def api(method, path, payload=None):
+              body = None if payload is None else json.dumps(payload, separators=(',', ':')).encode()
+              req = urllib.request.Request('https://api.github.com/repos/' + repo + '/' + path,
+                  method=method, data=body, headers={
+                      'Authorization': 'Bearer ' + token,
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                      'Content-Type': 'application/json',
+                  })
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  return json.load(response)
+          main = api('GET', 'branches/main')['commit']['sha']
+          if main != expected_base:
+              raise SystemExit('REJECTED_MAIN_MOVED')
+          for path, pin in allow.items():
+              raw = pathlib.Path(path).read_bytes()
+              blob = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+              if blob != pin:
+                  raise SystemExit('REJECTED_SOURCE_BLOB_MISMATCH')
+          api('POST', 'git/refs', {'ref': 'refs/heads/' + signed_branch,
+                                    'sha': expected_base})
+          for path, pin in allow.items():
+              raw = pathlib.Path(path).read_bytes()
+              payload = {
+                  'message': 'fix(ph08): verified public Stage4 replay safety ' + path,
+                  'content': base64.b64encode(raw).decode('ascii'),
+                  'branch': signed_branch,
+              }
+              result = api('PUT', 'contents/' + urllib.parse.quote(path, safe='/'), payload)
+              if result['content']['sha'] != pin:
+                  raise SystemExit('SIGNED_SOURCE_BLOB_MISMATCH')
+              commit_sha = result['commit']['sha']
+              checked = api('GET', 'commits/' + commit_sha)
+              verify = checked.get('commit', {}).get('verification', {})
+              if verify.get('verified') is not True or verify.get('reason') != 'valid':
+                  raise SystemExit('GITHUB_COMMIT_NOT_VERIFIED')
+              print('verified public file:', path, 'SHA:', commit_sha)
+          print('SIGNED_TRANSFER_SUCCESS: four allowlisted files, source-only; no publisher workflow copied')
+          PY
