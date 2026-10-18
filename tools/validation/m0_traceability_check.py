@@ -151,6 +151,21 @@ def visible_markdown_lines(source):
             continue
         unindented = text.lstrip(" ")
         indent = len(text) - len(unindented)
+        # Fence syntax belongs to the ORIGINAL Markdown block, not text
+        # synthesized by removing inline comments. Otherwise an opener such
+        # as "<!-- -->" + "```" wrongly hides subsequent raw HTML.
+        original_start = original_line.lstrip(" ")
+        original_indent = len(original_line) - len(original_start)
+        synthesized_fence = (
+            indent <= 3
+            and unindented.startswith(("```", "~~~"))
+            and not (
+                original_indent <= 3
+                and original_start.startswith(("```", "~~~"))
+            )
+        )
+        if synthesized_fence:
+            raise ValueError("HTML comment cannot synthesize Markdown fence opener")
         if indent <= 3 and unindented:
             character = unindented[0]
             if character in (chr(96), "~"):
@@ -856,5 +871,21 @@ if __name__=="__main__":
     must_reject(specification, ledger.replace(
         "| Requirement ID | Phase from v1.0 18.2 | Linked test IDs",
         bogus_fence + "\n<template>\n| Requirement ID | Phase from v1.0 18.2 | Linked test IDs", 1))
+
+    # Removing HTML comments must never CREATE a fenced block.
+    # In GFM the source opener below is not at the beginning of a block;
+    # a false fence would hide the raw HTML template around the table.
+    for ch in (chr(96), "~"):
+        false_fence = "<!-- -->" + ch * 3
+        for target in (
+            "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |",
+            "| ID | 요구사항 | 상태 | 근거 |",
+        ):
+            must_reject(specification.replace(
+                target, false_fence + "\n<template>\n" + target, 1
+            ), ledger)
+        must_reject(specification, ledger.replace(
+            "| Requirement ID | Phase from v1.0 18.2 | Linked test IDs",
+            false_fence + "\n<template>\n| Requirement ID | Phase from v1.0 18.2 | Linked test IDs", 1))
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
