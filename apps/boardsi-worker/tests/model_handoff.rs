@@ -66,13 +66,7 @@ fn model() -> BoardModel {
         },
         source_layer_order_reversed: false,
     });
-    let vertices = [
-        [0, 0],
-        [1_000, 0],
-        [1_000, 1_000],
-        [0, 1_000],
-    ]
-    .map(|ticks| Point {
+    let vertices = [[0, 0], [1_000, 0], [1_000, 1_000], [0, 1_000]].map(|ticks| Point {
         frame: frame_id.clone(),
         ticks,
     });
