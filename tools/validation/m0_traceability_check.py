@@ -151,7 +151,10 @@ def visible_markdown_lines(source):
 
         # Normative definition tables cannot occur inside raw HTML blocks.
         # A literal example inside a code fence/comment is already excluded.
-        if html_open.match(text):
+        if html_open.match(text) or re.search(
+            r"(?i)</?(?:style|script|textarea|pre)(?=[\\s>/]|$)",
+            mask_inline_code_for_comment_scan(text),
+        ):
             raise ValueError("raw HTML block is unsupported in normative specification")
         yield text
     if in_comment or fence_character is not None:
@@ -313,7 +316,8 @@ def extract_ledger(source):
             raise ValueError("unknown/malformed U ledger row: " + line)
         if m:
             cells = split_markdown_cells(line)
-            if len(cells)!=7 or m.group(1) in u_map or cells[3]!="DEFINED" or cells[5]!="NOT_RUN":
+            if (len(cells)!=7 or m.group(1) in u_map or cells[3]!="DEFINED"
+                or cells[4] not in ("NOT_VERIFIED", "PARTIAL") or cells[5]!="NOT_RUN"):
                 raise ValueError("invalid / duplicate U ledger row: "+line)
             u_map[m.group(1)] = set(expand_ids(cells[2], "T"))
             u_phases[m.group(1)] = cells[1]
@@ -575,5 +579,27 @@ if __name__=="__main__":
     if escaped_crosswalk == specification:
         raise AssertionError("escaped crosswalk fixture missing")
     validate(escaped_crosswalk, ledger)
+
+    # Raw HTML style container tokens may occur in inline prose before a table.
+    for name, doc, token in (
+        ("spec", specification, "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |"),
+        ("ledger", ledger, "| Requirement ID | Phase from v1.0 18.2 | Linked test IDs"),
+    ):
+        if token not in doc:
+            raise AssertionError("inline style attack fixture missing")
+        modified = doc.replace(token, "prefix <style>\\n" + token, 1)
+        if name == "spec":
+            must_reject(modified, ledger)
+        else:
+            must_reject(specification, modified)
+    # No unsupported implementation/acceptance assertions in a ledger.
+    if "| DEFINED | NOT_VERIFIED | NOT_RUN |" not in ledger:
+        raise AssertionError("implementation status fixture missing")
+    must_reject(specification, ledger.replace(
+        "| DEFINED | NOT_VERIFIED | NOT_RUN |",
+        "| DEFINED | IMPLEMENTED | NOT_RUN |", 1))
+    must_reject(specification, ledger.replace(
+        "| DEFINED | NOT_VERIFIED | NOT_RUN |",
+        "| DEFINED | PASS | NOT_RUN |", 1))
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
