@@ -45,6 +45,42 @@ class UniformQuadraticIdentityTests(unittest.TestCase):
         r = verify_square(8, midpoint_boundary=True)
         self.assertGreater(r["boundary_mean_residual_inf"], 0)
 
+    def test_independent_exact_local_stiffness_bilinear_form(self):
+        # Derive K*u separately from the 5x5 symmetric local energy Hessian;
+        # catch an incorrect coefficient/sign in the closed-form residual.
+        normals = ((1, 0), (-1, 0), (0, 1), (0, -1))
+        for n in (2, 8, 32):
+            with self.subTest(n=n):
+                h = Q(1, n)
+                x = z = Q(1, 2*n)
+
+                def q(a, b):
+                    return a*a + b*b
+
+                u = [q(x, z) - h*h/6]
+                u.extend(q(x+h*nx/2, z+h*nz/2)+h*h/12
+                         for nx, nz in normals)
+
+                def operators(v):
+                    gx, gz = (v[1]-v[2])/h, (v[3]-v[4])/h
+                    rem = [v[j+1]-v[0]-h*(nx*gx+nz*gz)/2
+                           for j, (nx, nz) in enumerate(normals)]
+                    return gx, gz, rem
+
+                def stiffness(a, b):
+                    ax, az, ar = operators(a)
+                    bx, bz, br = operators(b)
+                    return h*h*(ax*bx+az*bz) + 2*sum(
+                        (v*w for v, w in zip(ar, br)), Q(0))
+
+                vectors = [[Q(int(i == j)) for i in range(5)]
+                           for j in range(5)]
+                actual = [stiffness(e, u) for e in vectors]
+                expected = [-4*h*h] + [
+                    h*(2*x*nx+2*z*nz)+h*h for nx, nz in normals
+                ]
+                self.assertEqual(actual, expected)
+
     def test_bounded_input_and_fraction_only(self):
         for bad in (True, False, 0, 1, MAX_N+1, 2.0, "2"):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
