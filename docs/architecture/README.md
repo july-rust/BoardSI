@@ -1,3 +1,18 @@
-# Architecture decision log (M0)
+# BoardSI architecture — current prototypes and open product choices
 
-Decisions still open: Qt Widgets/Quick; Rust binding with C ABI vs CXX-Qt; versioned async IPC, snapshot/Run ID/heartbeat; toolchain versions and true three-native-platform portability. All inputs normalize via format-specific adapters to a Canonical Board Model preserving geometry/provenance. Viewer/Port/Solver must use identical physical truth. Do not claim a numerical result for unsupported 3D discontinuities. Record decisions and measurable prototypes here.
+**2026-10-18 KST evidence checkpoint:** [complete-project audit](../audits/2026-10-18-pre-ph08-project-audit.md). Version 1.0 specification, frozen physics contracts and numerical thresholds remain unchanged.
+
+## Built and scope-tested (not full product)
+
+- M0 Rust scalar uniform RLGC/ABCD/S numerical engine: independent reference tests, [numerical contract](numerical-contract.md).
+- M0 canonical board geometry/provenance typed Rust model: synthetic integrity/validation, [canonical model](canonical-board-model.md). Neither PADS ASCII nor ODB++ real import adapter is production-qualified.
+- M0 asynchronous **Qt Widgets + QProcess** to isolated Rust Worker with versioned local framed IPC: native prototype tests, [IPC contract](worker-ipc-qt-prototype.md) and [Qt evidence](qt-native-runtime.md). This does **not** include complete layout viewer, crash-safe cache, production release or installer.
+- M2 research G0/G1 and PH-03/05/06/07: independent restricted **PEC/lossless** 2D FEM validation only, [validation index](../validation/README.md).
+
+## Still open
+
+Qt Widgets is the implemented **prototype choice**; final Widgets/Quick UX/render architecture, Qt SDK distribution and licensing are not frozen. C ABI/CXX-Qt was not introduced; the process boundary was selected for M0. Actual PCB adapter/model→physical solver G5, true 30 GHz material and conductor losses G3, coupled lines G4, real artwork/ports, progressive sweep and packaging are unqualified.
+
+Original PH-08 HMM Stage 4 and privately re-executed Stage 5B Gate Q **FAIL**; AC-P1 PENDING, T/R PROPOSED_NOT_FROZEN, contract NOT_FROZEN, Rust FEM NO_GO, Gate M NOT_VERIFIED, physical **BOUND_NOT_CERTIFIED**. [Issue #51](https://github.com/july-rust/BoardSI/issues/51) stays open, G5 [Draft PR #35](https://github.com/july-rust/BoardSI/pull/35) **DO NOT MERGE**. Separate macOS Qt intermittent >1s issue [#46](https://github.com/july-rust/BoardSI/issues/46) is not fixed by a later CI pass.
+
+Normalize each future CAD adapter to common Canonical Board Model; ODB++ is an input format, not internal representation. Never report a physical PCB Validated status from synthetic-only tests.
