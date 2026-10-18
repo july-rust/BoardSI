@@ -33,7 +33,7 @@ def validate_definition_tables(source):
         section = source.split(begin, 1)[1].split(end, 1)[0]
         found = set()
         for line in section.splitlines():
-            match = re.match(rf"^[ \t]*\|\s*({prefix}[^|]*)\|", line)
+            match = re.match(rf"^[ \t]*\|?[ \t]*({prefix}[^|]*)\|", line)
             if not match:
                 continue
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -157,6 +157,11 @@ if __name__=="__main__":
     indented_u100 = specification.replace("| U48 |", "   | U100 | Indented rogue requirement | 확정 | D1 |\n| U48 |")
     must_reject(indented_t100, ledger)
     must_reject(indented_u100, ledger)
+    openerless_t100 = specification.replace("| T54 |", "T100 | Unapproved test without opening pipe | Reject |\n| T54 |")
+    openerless_u100 = specification.replace("| U48 |", "U100 | Unapproved requirement without opening pipe | 확정 | D1 |\n| U48 |")
+    must_reject(openerless_t100, ledger)
+    must_reject(openerless_u100, ledger)
+
 
 
 
