@@ -353,7 +353,7 @@ def has_known_m0_evidence(value):
     visible = mask_inline_code_for_comment_scan(value)
     return any(
         int(number) in KNOWN_M0_EVIDENCE_ISSUES
-        for number in re.findall(r"(?<![\\w\\\\`])#([1-9][0-9]*)(?!\\w)", visible)
+        for number in re.findall(r"(?<![\w\x5c`])#([1-9][0-9]*)(?!\w)", visible)
     )
 
 
