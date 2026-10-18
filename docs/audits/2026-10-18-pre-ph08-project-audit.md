@@ -18,7 +18,7 @@ GitHub API returned **213 file/directory entries** in the complete current main 
 | PH-08 Stage 4 original | 36/36 selected MMS rows privately reexecuted; original uniform quadratic gradient reductions **0.953506** and **0.459163** < preregistered **1.8** → **FAIL** | full original globally authenticated HMM coefficient/source/Recovery/gradient-RMS floating budget |
 | PH-08 Stage 5B original | authorized PRIVATE original reexecution on 2026-10-17 reproduced original Gate Q **FAIL**, **12/12** rows, **1761/1761** deterministic scalars matching; 12 timing values excluded | public GitHub CI is *synthetic only*; no whole-domain physical certification, AC-P1 or Gate M |
 | M1–M5 application | format priorities and architecture/issues | importer, artwork, stackup editor, ports, production sweep/Touchstone, cache, actual binaries |
-| Branding | **official option B** selected in earlier 2026-10-14 conversation | original A–E icon design contact sheet found in Library but its raw PNG byte export denied; standalone B asset absent from GitHub; provisional **RECONSTRUCTION_ONLY** SVG not approved original |
+| Branding | **official option B** selected in earlier 2026-10-14 conversation | user approved exact SVG design on 2026-10-18; **DESIGN_APPROVED**; earlier PNG byte identity and release packaging **NOT VERIFIED** |
 
 **Immutable physics block:** Stage 4/Stage 5B original Gate Q **FAIL**; AC-P1 PENDING, T/R PROPOSED_NOT_FROZEN, PH-08 contract NOT_FROZEN, Rust FEM NO_GO, Gate M NOT_VERIFIED, physical BOUND_NOT_CERTIFIED. A public synthetic matrix test or perfect exact rational identity does not prove original HMM upstream roundoff bounds.
 
@@ -28,7 +28,7 @@ GitHub API returned **213 file/directory entries** in the complete current main 
 2. **P2 confirmed:** `docs/architecture/README.md` still calls Qt vs Rust IPC decision open despite existing Worker/Qt Widgets implementation. Distinguish prototype from product decision.
 3. **P2 confirmed:** root README says native platforms `not yet verified` though numerical/FEM/Qt prototype native jobs ran, while actual product binary unverified. Clarify scope.
 4. **P2 confirmed:** project management text calls PH-08 a future task; current Issue #51 work is active but scientifically blocked. CONTRIBUTING describes planning/M0 despite accepted limited M2 coupons.
-5. **P2 confirmed:** original chosen BoardSI icon B file was not in baseline GitHub tree. Store decision and marked reconstruction, then recover genuine original before release.
+5. **P2 confirmed:** original chosen BoardSI icon B file was not in baseline GitHub tree. Preserve owner-approved SVG exactly; independently check binary packaging and asset provenance before release.
 6. **P2 remaining:** docs status guard does not yet enforce current PH-08 historical replay cross-document consistency; improve without altering frozen PH-03/05/06/07 contracts.
 
 ## Open risks, controls and completion criteria
@@ -40,7 +40,7 @@ GitHub API returned **213 file/directory entries** in the complete current main 
 - **P2:** repository has no finalized distribution software license; inspect Qt, parser, dependency and icon IP terms before distributing binaries.
 - **P2:** G5 [Draft PR #35](https://github.com/july-rust/BoardSI/pull/35) remains open/UNMERGED. Physics #51, Qt #46 and solver #16 remain OPEN.
 
-Remediation must not modify frozen contracts, FEM/core numerical calculations, security limits, acceptance criteria or the 17 required checks. Confirm exact head and post-merge 17/17 before marking any item complete. Original accepted option-B art requires separately acquired original bytes and SHA-256 documentation; reconstructed concept must never masquerade as exact artwork.
+Remediation must not modify frozen contracts, FEM/core numerical calculations, security limits, acceptance criteria or the 17 required checks. Confirm exact head and post-merge 17/17 before marking any item complete. The current option-B SVG is the owner-approved design master; record its immutable checksum and validate later release packaging. Earlier PNG byte identity remains unverified and must not be claimed.
 
 **Sources:** [#16](https://github.com/july-rust/BoardSI/issues/16), [#41](https://github.com/july-rust/BoardSI/issues/41), [#46](https://github.com/july-rust/BoardSI/issues/46), [#51](https://github.com/july-rust/BoardSI/issues/51), [#78](https://github.com/july-rust/BoardSI/issues/78), [original Stage5B evidence](../validation/m2-g2-ph08-stage5b-original-replay-evidence.md), [original Stage4](../validation/m2-g2-ph08-stage4-original-gateq-reexecution.md).
 
@@ -51,3 +51,10 @@ The earlier 2026-10-14 1536×1024 `BoardSI 아이콘 디자인 제안 보드.png
 ### Additional P2 historical evidence correction
 
 [Stage 5D historical synthetic report](../validation/m2-g2-ph08-stage5d-evidence.md) incorrectly described the **338 checksum / 20 source** nested Stage 4 inventory as though it belonged to Stage **5B**. Correct classification: Stage 5B outer archive **36 checksum / 13 source**, nested Stage 4 archive **338 checksum / 20 source**. The original Stage5D *session-local* `Not Run` was valid at that historical date and remains a valid historical statement; the later separate private Stage5B original replay reproduced **FAIL** on 2026-10-17. No historical test outcomes or acceptance criteria were altered.
+
+## 2026-10-18 project owner decision correction / PR #81 review safety
+
+- **DESIGN_APPROVED:** The exact present `assets/branding/boardsi-option-b-reconstruction.svg` is explicitly accepted by the owner as the icon visual master; it is **not** to be redrawn or replaced. Its historical construction label is retained for provenance.
+- **ORIGINAL_PNG_BYTE_IDENTITY_NOT_VERIFIED:** The earlier multi-option PNG's bytes are not proven equal; byte identity is not required for design acceptance.
+- **RELEASE_PACKAGING_NOT_VERIFIED:** ICO/ICNS, small-size render, licensing and runtime integration remain NOT_RUN.
+- PR #81 review remediation deletes private Library path from the current branding document and expands the mandatory docs CI guard to reject active content, foreign elements, linked resources, stylesheet/CSS URLs, event handlers and invalid local references (with fail-closed mutation tests). Public Git history can retain old commits; final protected `main` must receive only a reviewed squash snapshot. This is security hardening, not original HMM physics certification.
