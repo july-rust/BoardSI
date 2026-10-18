@@ -22,7 +22,11 @@ def expand_ids(text, prefix):
     return results
 
 def validate_definition_tables(source):
-    # The crosswalk/ledger is invalid if the actual source definitions vanish.
+    """Read every row in each bounded source table, including valid Markdown variants.
+
+    Do not filter only U/T-prefixed raw cells: malformed or formatted IDs
+    would otherwise disappear, yielding a false complete-coverage PASS.
+    """
     ranges = (
         ("U", 48, "## 2 요구사항 추적표", "## 3 "),
         ("T", 54, "## 13 인수시험 및 독립 교차 검증", "### 13.1 "),
@@ -32,25 +36,48 @@ def validate_definition_tables(source):
             raise ValueError("specification definition section missing: " + prefix)
         section = source.split(begin, 1)[1].split(end, 1)[0]
         found = set()
+        expected_cols = 4 if prefix == "U" else 3
+        header_columns = ["ID", "요구사항", "상태", "근거"] if prefix == "U" else ["Test ID", "주요 검증", "통과 조건"]
+        header_count = 0
         for line in section.splitlines():
-            match = re.match(rf"^[ \t]*\|?[ \t]*({prefix}[^|]*)\|", line)
-            if not match:
+            raw = line.strip()
+            if "|" not in raw:
                 continue
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            expected_columns = 4 if prefix == "U" else 3
-            if len(cells) != expected_columns or any(not c for c in cells):
-                raise ValueError("malformed definition for " + match.group(1))
-            item = match.group(1).strip()
-            if prefix == "T" and item == "Test ID" and line.strip() == "| Test ID | 주요 검증 | 통과 조건 |":
-                continue  # Known table header, not an acceptance test definition.
+            cells = [c.strip() for c in raw.split("|")]
+            if cells and cells[0] == "":
+                cells.pop(0)
+            if cells and cells[-1] == "":
+                cells.pop()
+            if len(cells) != expected_cols:
+                raise ValueError(f"malformed {prefix} definition table row: {line}")
+            if cells == header_columns:
+                header_count += 1
+                continue
+            if all(re.fullmatch(r":?-{3,}:?", c or "") for c in cells):
+                continue
+            item = cells[0].strip()
+            while len(item) >= 2 and (
+                (item.startswith("**") and item.endswith("**"))
+                or (item.startswith("__") and item.endswith("__"))
+            ):
+                item = item[2:-2].strip()
+            while len(item) >= 2 and item[0] == item[-1] and item[0] in ("*", "_", chr(96)):
+                item = item[1:-1].strip()
             if not re.fullmatch(rf"{prefix}\d{{2}}", item):
-                raise ValueError("malformed or out-of-range definition ID: " + item)
+                raise ValueError(f"invalid {prefix} definition row ID: {cells[0]!r}")
+            if any(not c for c in cells[1:]):
+                raise ValueError("missing definition content: " + item)
             if item in found:
                 raise ValueError("duplicate " + prefix + " definition: " + item)
             found.add(item)
+        if header_count != 1:
+            raise ValueError(f"expected exactly one {prefix} definition header; found {header_count}")
         expected = {f"{prefix}{i:02d}" for i in range(1, maximum + 1)}
         if found != expected:
-            raise ValueError(f"{prefix} definition mismatch: missing={sorted(expected-found)}, extra={sorted(found-expected)}")
+            raise ValueError(
+                f"{prefix} definition mismatch: missing={sorted(expected-found)}, "
+                f"extra={sorted(found-expected)}"
+            )
 
 def extract_mapping(source):
     if "### 18.2 요구사항과 시험 연결" not in source or "### 18.3" not in source:
@@ -161,6 +188,21 @@ if __name__=="__main__":
     openerless_u100 = specification.replace("| U48 |", "U100 | Unapproved requirement without opening pipe | 확정 | D1 |\n| U48 |")
     must_reject(openerless_t100, ledger)
     must_reject(openerless_u100, ledger)
+    # A styled unknown first cell must be inspected, never skipped.
+    bold_t100 = specification.replace("| T54 |", "| **T100** | Extra bold test | Reject |\n| T54 |")
+    bold_u100 = specification.replace("| U48 |", "| **U100** | Extra bold requirement | 확정 | D1 |\n| U48 |")
+    must_reject(bold_t100, ledger)
+    must_reject(bold_u100, ledger)
+    # The otherwise valid openerless test-table header must still be accepted.
+    openerless_header = specification.replace(
+        "| Test ID | 주요 검증 | 통과 조건 |",
+        "Test ID | 주요 검증 | 통과 조건 |",
+        1,
+    )
+    if openerless_header == specification:
+        raise AssertionError("T header fixture missing")
+    validate(openerless_header, ledger)
+
 
 
 
