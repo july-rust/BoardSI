@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 from ph08_stage4_gateq_replay import (
     compare_rows, check_historical_gate, ReplayNotVerified,
-    _approved_parent_runtime, _read_original_once, fail, main,
+    _approved_parent_runtime, _read_original_once, _verified_child_runtime, fail, main,
 )
 
 
@@ -60,6 +60,21 @@ class ArchivedFailReplay(unittest.TestCase):
         x=reference(); x['rows'][0]['grid']='skew'
         self.assertTrue(compare_rows(x,reference()))
 
+
+
+    def test_replay_child_observed_runtime_validation(self):
+        expected = {'python': '3.13.5', 'numpy': '2.3.5', 'scipy': '1.17.0'}
+        self.assertTrue(_verified_child_runtime(expected))
+        for bad in (
+            {**expected, 'numpy': '9.9.9'},
+            {**expected, 'scipy': '0.0.0'},
+            {**expected, 'python': '3.12.9'},
+            {**expected, 'extra': 'unexpected'},
+            {'python': '3.13.5', 'numpy': '2.3.5'},
+            'not a runtime object',
+        ):
+            with self.subTest(bad=bad):
+                self.assertFalse(_verified_child_runtime(bad))
 
     def test_private_archive_invalid_digest_fail_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
