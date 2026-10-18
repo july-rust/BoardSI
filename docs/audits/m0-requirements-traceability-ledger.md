@@ -14,8 +14,8 @@
 | Requirement ID | Phase from v1.0 18.2 | Linked test IDs | Definition | Implementation | Full acceptance | Evidence scope |
 | --- | --- | --- | --- | --- | --- | --- |
 | U01 | M2 | T06,T07,T43,T44 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
-| U02 | M0 | T13,T39 | DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #3/#4/#5/#6 |
-| U03 | M0 및 릴리즈 | T13,T39 | DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #3/#4/#5/#6 |
+| U02 | M0 | T13,T39 | DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #3 |
+| U03 | M0 및 릴리즈 | T13,T39 | DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #3; see #6 |
 | U04 | M0~M2b | T10,T11,T32,T34,T35,T46,T50,T54 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U05 | 전체 단계 | T14,T15,T40,T49 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U06 | I1은 M1, 확대 M3~M5 | T01,T02,T03,T16,T17,T18,T19,T20,T21,T22,T27,T51 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
@@ -35,7 +35,7 @@
 | U20 | M2~M2a | T09,T29,T30,T31,T33,T41,T48,T53 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U21 | M2~M2a | T09,T29,T30,T31,T33,T41,T48,T53 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U22 | M0~M2b | T10,T11,T32,T34,T35,T46,T50,T54 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
-| U23 | M0~M2b | T10,T11,T32,T34,T35,T46,T50,T54 | DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #3/#4/#5/#6 |
+| U23 | M0~M2b | T10,T11,T32,T34,T35,T46,T50,T54 | DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #5 |
 | U24 | M0~M2b | T10,T11,T32,T34,T35,T46,T50,T54 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U25 | M2~M2a | T09,T29,T30,T31,T33,T41,T48,T53 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U26 | 기하 M1a, 정량 M2c | T36,T37,T38,T51 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
@@ -43,7 +43,7 @@
 | U28 | 기하 M1a, 정량 M2c | T36,T37,T38,T51 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U29 | 기하 M1a, 정량 M2c | T36,T37,T38,T51 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U30 | 기하 M1a, 정량 M2c | T36,T37,T38,T51 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
-| U31 | I1은 M1, 확대 M3~M5 | T01,T02,T03,T16,T17,T18,T19,T20,T21,T22,T27,T51 | DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #3/#4/#5/#6 |
+| U31 | I1은 M1, 확대 M3~M5 | T01,T02,T03,T16,T17,T18,T19,T20,T21,T22,T27,T51 | DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #4 |
 | U32 | I1은 M1, 확대 M3~M5 | T01,T02,T03,T16,T17,T18,T19,T20,T21,T22,T27,T51 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U33 | I1은 M1, 확대 M3~M5 | T01,T02,T03,T16,T17,T18,T19,T20,T21,T22,T27,T51 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U34 | M1b | T05,T08,T23,T24,T25,T26,T27,T28 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
@@ -51,12 +51,12 @@
 | U36 | M1b | T05,T08,T23,T24,T25,T26,T27,T28 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U37 | M1b | T05,T08,T23,T24,T25,T26,T27,T28 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U38 | I1은 M1, 확대 M3~M5 | T01,T02,T03,T16,T17,T18,T19,T20,T21,T22,T27,T51 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
-| U39 | I1은 M1, 확대 M3~M5 | T01,T02,T03,T16,T17,T18,T19,T20,T21,T22,T27,T51 | DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #3/#4/#5/#6 |
+| U39 | I1은 M1, 확대 M3~M5 | T01,T02,T03,T16,T17,T18,T19,T20,T21,T22,T27,T51 | DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #4 |
 | U40 | I1은 M1, 확대 M3~M5 | T01,T02,T03,T16,T17,T18,T19,T20,T21,T22,T27,T51 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U41 | M2~M2a | T09,T29,T30,T31,T33,T41,T48,T53 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U42 | 결합 모델 제공 시 M2 | T42 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U43 | M2a | T45,T53 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
-| U44 | M0~M2b | T32,T46,T50 | DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #3/#4/#5/#6 |
+| U44 | M0~M2b | T32,T46,T50 | DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #5 |
 | U45 | M2b | T12,T47,T54 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U46 | M2~M2a | T09,T29,T30,T31,T33,T41,T48,T53 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
 | U47 | 단계별 게이트 | T06,T10,T12,T41,T50 | DEFINED | NOT_VERIFIED | NOT_RUN | See specification v1.0; no ID-specific full test evidence |
@@ -78,7 +78,7 @@
 | T10 | M0~M2b; 단계별 게이트 | U04,U13,U22,U23,U24,U47 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T11 | M0~M2b | U04,U13,U22,U23,U24 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T12 | M2b; 단계별 게이트 | U45,U47 | NOT_RUN | No complete case-specific T acceptance claimed |
-| T13 | M0; M0 및 릴리즈 | U02,U03,U14 | PARTIAL | M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified |
+| T13 | M0; M0 및 릴리즈 | U02,U03,U14 | PARTIAL | M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified |
 | T14 | 전체 단계 | U05,U15 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T15 | 전체 단계 | U05,U15,U16 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T16 | I1은 M1, 확대 M3~M5 | U06,U07,U08,U31,U32,U33,U38,U39,U40,U48 | NOT_RUN | No complete case-specific T acceptance claimed |
@@ -104,14 +104,14 @@
 | T36 | 기하 M1a, 정량 M2c | U26,U27,U28,U29,U30 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T37 | 기하 M1a, 정량 M2c | U26,U27,U28,U29,U30 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T38 | 기하 M1a, 정량 M2c | U26,U27,U28,U29,U30 | NOT_RUN | No complete case-specific T acceptance claimed |
-| T39 | M0; M0 및 릴리즈 | U02,U03,U14 | PARTIAL | M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified |
+| T39 | M0; M0 및 릴리즈 | U02,U03,U14 | PARTIAL | M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified |
 | T40 | 전체 단계 | U05,U15,U16 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T41 | M2~M2a; 단계별 게이트 | U12,U17,U18,U19,U20,U21,U25,U41,U46,U47 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T42 | 결합 모델 제공 시 M2 | U42 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T43 | M2 | U01 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T44 | M2 | U01 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T45 | M2a | U43 | NOT_RUN | No complete case-specific T acceptance claimed |
-| T46 | M0~M2b | U04,U13,U22,U23,U24,U44 | PARTIAL | M0 native Qt/Worker prototype only; see #3/#5/#6; full T unqualified |
+| T46 | M0~M2b | U04,U13,U22,U23,U24,U44 | PARTIAL | M0 native Qt/Worker prototype only; see #5; see #46; full T unqualified |
 | T47 | M2b | U45 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T48 | M2~M2a | U12,U17,U18,U19,U20,U21,U25,U41,U46 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T49 | 전체 단계 | U05,U15 | NOT_RUN | No complete case-specific T acceptance claimed |
