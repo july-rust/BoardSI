@@ -9,7 +9,7 @@ permissions:
   contents: write
 jobs:
   publish:
-    if: github.repository == 'july-rust/BoardSI' && github.event.head_commit.message == 'ci(ph08): temporary one-shot verified publisher'
+    if: "github.repository == 'july-rust/BoardSI' && github.event.head_commit.message == 'ci(ph08): temporary one-shot verified publisher'"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -26,7 +26,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "326b74bddab17734228b9f7fa527358e2c2d406b"
+          test "$(git rev-parse HEAD^)" = "3035107e15653d4e056ee378cd7cc223ca06f729"
           test "$(git diff-tree --no-commit-id --name-only -r HEAD)" = ".github/workflows/ph08-one-shot-global-publish.yml"
           python -m pip install numpy==2.3.5
           python -m unittest discover -s tools/validation -p 'test_ph08_uniform_global_assembly.py' -v
