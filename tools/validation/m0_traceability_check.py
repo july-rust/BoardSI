@@ -315,13 +315,17 @@ def validate_definition_tables(source):
                 if len(cells) != len(header):
                     raise ValueError("malformed definition table row: " + row)
                 item = cells[0].strip()
-                while len(item) >= 2 and (
-                    (item.startswith("**") and item.endswith("**"))
-                    or (item.startswith("__") and item.endswith("__"))
-                ):
-                    item = item[2:-2].strip()
-                while len(item) >= 2 and item[0] == item[-1] and item[0] in ("*", "_", chr(96)):
-                    item = item[1:-1].strip()
+                # Only a SINGLE outer formatting wrapper can be removed.
+                # Recursive stripping corrupts code-span semantics:
+                # GFM renders `*U01*` literally, not as formatted U01.
+                if not re.fullmatch(rf"{prefix}\\d{{2}}", item):
+                    for wrapper in ("**", "__", "*", "_", chr(96)):
+                        if (item.startswith(wrapper) and item.endswith(wrapper)
+                            and len(item) > 2 * len(wrapper)):
+                            candidate = item[len(wrapper):-len(wrapper)].strip()
+                            if re.fullmatch(rf"{prefix}\\d{{2}}", candidate):
+                                item = candidate
+                                break
                 if not re.fullmatch(rf"{prefix}\d{{2}}", item):
                     raise ValueError("invalid definition ID: " + cells[0])
                 if any(not c for c in cells[1:]):
@@ -439,6 +443,8 @@ def extract_mapping(source):
         if len(cells) != 4 or any(not cell.strip() for cell in cells):
             raise ValueError("bad/empty section 18.2 row")
         refs = [ref.strip() for ref in cells[1].split(",")]
+        if len(refs) != len(set(refs)):
+            raise ValueError("duplicate requirement chapter reference: " + cells[1])
         # Only normative product/engineering chapters form a requirement body.
         # 2 is the U definition list; 16-18 are sources, change history and
         # review/crosswalk metadata, not substantive requirement bodies.
@@ -1024,6 +1030,19 @@ if __name__=="__main__":
         must_reject(specification, ledger.replace(
             "M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified",
             "M0 native Qt/Worker prototype only; " + fake, 1))
+
+    # Markup inside an inline code span is literal, not recursively
+    # interpreted emphasis. It must not silently resolve to a valid ID.
+    for marker in ("`*U01*`", "`**U01**`", "**`U01`**"):
+        bad_spec = specification.replace("| U01 |", "| " + marker + " |", 1)
+        if bad_spec == specification:
+            raise AssertionError("code-span ID mutation not constructed")
+        must_reject(bad_spec, ledger)
+    # Duplicate chapter links must reject even when the set of links
+    # matches the frozen U01 reference set.
+    must_reject(specification.replace(
+        "| U01 | 8,10,11 | T06,T07,T43,T44 | M2 |",
+        "| U01 | 8,8,10,11 | T06,T07,T43,T44 | M2 |", 1), ledger)
 
     # A single-line HTML comment may contain unmatched backticks: these
     # are invisible to rendered Markdown and cannot begin inline code.
