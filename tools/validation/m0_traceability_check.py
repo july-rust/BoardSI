@@ -41,6 +41,8 @@ def validate_definition_tables(source):
             if len(cells) != expected_columns or any(not c for c in cells):
                 raise ValueError("malformed definition for " + match.group(1))
             item = match.group(1).strip()
+            if prefix == "T" and item == "Test ID" and line.strip() == "| Test ID | 주요 검증 | 통과 조건 |":
+                continue  # Known table header, not an acceptance test definition.
             if not re.fullmatch(rf"{prefix}\d{{2}}", item):
                 raise ValueError("malformed or out-of-range definition ID: " + item)
             if item in found:
