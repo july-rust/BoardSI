@@ -33,5 +33,7 @@ jobs:
           assert all(x.get('summary') and len(x['summary']) > 20 for x in plan['issues'])
           print('Planning files validated (not Rust build or SI accuracy)')
           PY
+      - name: Verify M0 U/T crosswalk and per-ID ledger, including T44 regression
+        run: python3 tools/validation/m0_traceability_check.py
       - name: Verify frozen acceptance contracts and current audit status
         run: python3 tools/validation/m2_audit_docs_check.py
