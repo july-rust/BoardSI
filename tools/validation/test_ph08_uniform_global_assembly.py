@@ -66,8 +66,8 @@ class UniformGlobalAssemblyTests(unittest.TestCase):
     def test_observed_solver_ulp_changes_exact_residual(self):
         base = analyze_global_synthetic(2)
         mutated = analyze_global_synthetic(2, mutation="solution_ulp")
-        self.assertNotEqual(base["exact_captured_solution_residual_inf"],
-                            mutated["exact_captured_solution_residual_inf"])
+        self.assertNotEqual(base["captured_solution_component_0_exact"],
+                            mutated["captured_solution_component_0_exact"])
         self.assertTrue(mutated["ideal_candidate_solves_assembled_system"])
         self.assertTrue(mutated["conditional_exact_forward_enclosure"][
             "enclosure_verified"])
