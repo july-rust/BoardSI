@@ -34,4 +34,19 @@ The runner requires exact pinned external digest and passes the checksum/source 
 
 ## Remaining requirements
 
-Historical Stage 4 Gate Q **FAIL**, AC-P1 **PENDING**, Contract **NOT FROZEN**, Rust FEM **NO-GO**. Stage 5B original archive unavailable. Need separate source-backed Gate Q error-floor methodology that is prospectively registered and reviewed, and independent quantitative bounds including finite precision and open-domain tail before physical acceptance. No Frozen PH-03/05/06/07 changes; no PR #35 merge.
+Historical Stage 4 Gate Q **FAIL**, AC-P1 **PENDING**, Contract **NOT FROZEN**, Rust FEM **NO-GO**. At this 2026-10-16 checkpoint the Stage 5B original archive was unavailable; a separate authorized 2026-10-17 private replay later reproduced original Stage 5B Gate Q FAIL. Need separate source-backed Gate Q error-floor methodology that is prospectively registered and reviewed, and independent quantitative bounds including finite precision and open-domain tail before physical acceptance. No Frozen PH-03/05/06/07 changes; no PR #35 merge.
+
+## 2026-10-18 follow-up — Stage 4 private replay safety hardening (public tooling only)
+
+This section documents proposed code hardening in branch `research/ph08-stage4-replay-hardening`; do not imply a new private-original run.
+
+- Treat the input ZIP as a single bounded byte snapshot (8 MiB compressed cap), verify the immutable exact external SHA-256 before any extraction or execution, run the existing 338/338 and 20/20 auditor on a private temporary copy, and reauthenticate the snapshot before parsing the same in-memory bytes.
+- Require a POSIX private host approved for network isolation and aggregate resource quotas. The process group, per-process resource caps, isolated Python interpreter and temporary working directory **do not** form a security sandbox. No customer source may be used on public CI.
+- Require Python 3.13.x, NumPy 2.3.5, SciPy 1.17.0 in parent distribution metadata **and actual sanitized child imports**. Environment drift is NOT_VERIFIED, not silently tolerated. The prior historical run used Python 3.13.5; this check does not prove bitwise equivalence across all 3.13 patch levels.
+- Limit source extraction to the manifest-pinned, checksum-validated safe basenames. Reject duplicate-key JSON and unapproved archive layouts. Do not export child raw stdout/stderr, input paths, source excerpts, or archived failure vectors. Public results are fixed sanitized reason codes and approved counts.
+- If a private run is unavailable, report `PRIVATE_EXECUTION_NOT_VERIFIED`; the synthetic regression workflow demonstrates only safety behavior, not the original Gate Q physics. Successful historical replay always means **historic FAIL reproduced**, never physical PASS.
+- Use the optional `.github/workflows/m2-ph08-stage4-replay-safety.yml` for public-only negative controls and private-object guard. It must not be promoted into 17 protected required checks without separate review.
+
+**Historical immutable status:** Stage 4/Stage 5B Gate Q FAIL, AC-P1 PENDING, T/R PROPOSED_NOT_FROZEN, Contract NOT_FROZEN, Rust FEM NO_GO, Gate M NOT_VERIFIED, whole-space/float physical BOUND_NOT_CERTIFIED.
+
+**Next work after tool integration:** independently authorize original private Stage 4 data, inspect real full-domain assembly and all Recovery/RMS sites with provenance, and bound upstream assembly + sparse solve + recovery arithmetic separately. A replayed failure or public synthetic inequality alone does not certify physical correctness.
