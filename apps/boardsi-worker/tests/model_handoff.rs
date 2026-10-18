@@ -192,12 +192,14 @@ fn assumed_material_is_not_accepted_as_verified() {
             temperature_c: Some(25.0),
         },
     };
-    assert!(board.validate().issues.iter().any(|issue| {
-        issue.severity == Severity::Assumption
-    }));
-    assert!(ModelBoundSyntheticClient::spawn(
-        worker(), "assumed/model", &board, snapshot()
-    ).is_err());
+    assert!(board
+        .validate()
+        .issues
+        .iter()
+        .any(|issue| { issue.severity == Severity::Assumption }));
+    assert!(
+        ModelBoundSyntheticClient::spawn(worker(), "assumed/model", &board, snapshot()).is_err()
+    );
 }
 
 #[test]
