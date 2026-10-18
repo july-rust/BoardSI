@@ -91,7 +91,7 @@ def visible_markdown_lines(source):
     fence_character = None
     fence_length = 0
     html_open = re.compile(
-        r"^ {0,3}<(?:pre|script|style|textarea)(?:\s[^>]*?)?>",
+        r"^ {0,3}(?:</?[A-Za-z][A-Za-z0-9-]*(?:\s+[^<>]*)?\s*/?>|<![A-Za-z\[]|<\?)",
         re.IGNORECASE,
     )
     for original_line in source.splitlines():
@@ -149,10 +149,10 @@ def visible_markdown_lines(source):
                     yield ""
                     continue
 
-        # Raw HTML block content would not render as a Markdown table.
+        # Normative definition tables cannot occur inside raw HTML blocks.
         # A literal example inside a code fence/comment is already excluded.
         if html_open.match(text):
-            raise ValueError("unsupported raw HTML container in specification")
+            raise ValueError("raw HTML block is unsupported in normative specification")
         yield text
     if in_comment or fence_character is not None:
         raise ValueError("unclosed HTML comment or code fence in specification")
@@ -422,8 +422,8 @@ if __name__=="__main__":
 
 
 
-    # All four CommonMark raw HTML containers must be rejected.
-    for tag in ("pre", "script", "style", "textarea"):
+    # Fail-closed: all raw HTML block tags, not just the four type-1 tags.
+    for tag in ("pre", "script", "style", "textarea", "table", "div", "details", "section", "custom-element"):
         html_wrapped = specification.replace(
             "## 13 인수시험 및 독립 교차 검증",
             "<" + tag + ">\n## 13 인수시험 및 독립 교차 검증",
