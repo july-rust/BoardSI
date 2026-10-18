@@ -38,7 +38,10 @@ impl<'a> ModelBoundSyntheticClient<'a> {
         let report = model.validate();
         if report.has_errors()
             || report.has_missing()
-            || report.issues.iter().any(|issue| issue.severity == Severity::Assumption)
+            || report
+                .issues
+                .iter()
+                .any(|issue| issue.severity == Severity::Assumption)
         {
             return Err(invalid("ModelValidationFailed"));
         }
@@ -74,5 +77,4 @@ impl<'a> ModelBoundSyntheticClient<'a> {
     pub fn exit_success(&self) -> Option<bool> {
         self.client.exit.as_ref().map(|status| status.success())
     }
-
 }
