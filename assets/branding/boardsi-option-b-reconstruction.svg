@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- RECONSTRUCTION_ONLY, NOT the previously selected exact BoardSI B artwork; see docs/branding/boardsi-icon-decision.md -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="BoardSI icon option B concept reconstruction">
+<defs><linearGradient id="bg" x2="1" y2="1"><stop offset="0" stop-color="#09142a"/><stop offset="1" stop-color="#203d62"/></linearGradient><linearGradient id="signal" x2="1"><stop offset="0" stop-color="#1bcaff"/><stop offset=".55" stop-color="#3186ff"/><stop offset="1" stop-color="#94c7ff"/></linearGradient></defs>
+<rect x="36" y="36" width="952" height="952" rx="198" fill="url(#bg)" stroke="#36638a" stroke-width="10"/>
+<g fill="none" stroke="#6caac5" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" opacity=".91">
+<path d="M175 273 H327 L412 358 V437"/><path d="M851 273 H697 L614 356 V437"/>
+<path d="M175 756 H326 L415 661 V593"/><path d="M851 756 H704 L616 657 V593"/>
+<path d="M303 855 V781 L381 710"/><path d="M721 855 V781 L645 710"/>
+</g>
+<g fill="#11294a" stroke="#9bd6ee" stroke-width="20"><circle cx="175" cy="273" r="33"/><circle cx="851" cy="273" r="33"/><circle cx="175" cy="756" r="33"/><circle cx="851" cy="756" r="33"/><circle cx="303" cy="855" r="29"/><circle cx="721" cy="855" r="29"/></g>
+<path d="M245 523 H338 L391 459 L469 592 L545 448 L621 566 L692 500 H778" fill="none" stroke="#0e2c4c" stroke-width="83" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M245 523 H338 L391 459 L469 592 L545 448 L621 566 L692 500 H778" fill="none" stroke="url(#signal)" stroke-width="46" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
