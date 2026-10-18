@@ -318,12 +318,12 @@ def validate_definition_tables(source):
                 # Only a SINGLE outer formatting wrapper can be removed.
                 # Recursive stripping corrupts code-span semantics:
                 # GFM renders `*U01*` literally, not as formatted U01.
-                if not re.fullmatch(rf"{prefix}\\d{{2}}", item):
+                if not re.fullmatch(rf"{prefix}\d{{2}}", item):
                     for wrapper in ("**", "__", "*", "_", chr(96)):
                         if (item.startswith(wrapper) and item.endswith(wrapper)
                             and len(item) > 2 * len(wrapper)):
                             candidate = item[len(wrapper):-len(wrapper)].strip()
-                            if re.fullmatch(rf"{prefix}\\d{{2}}", candidate):
+                            if re.fullmatch(rf"{prefix}\d{{2}}", candidate):
                                 item = candidate
                                 break
                 if not re.fullmatch(rf"{prefix}\d{{2}}", item):
