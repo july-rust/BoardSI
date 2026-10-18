@@ -167,7 +167,12 @@ def visible_markdown_lines(source):
             original_indent_for_fence <= 3
             and original_open.startswith(("~~~", chr(96) * 3))
         )
-        if not in_comment and not real_fence_start and unclosed_inline_code_run(original_line):
+        # Single-line real HTML comments are invisible to GFM: backticks
+        # contained in them must not create false unclosed code spans.
+        # Cross-line spoofing remains rejected because it has no same-line
+        # HTML-comment terminator and retains its unmatched delimiter.
+        line_for_code_spans = re.sub(r"<!--.*?-->", "", original_line)
+        if not in_comment and not real_fence_start and unclosed_inline_code_run(line_for_code_spans):
             raise ValueError("multiline inline-code span unsupported in normative Markdown")
         # Inline code spans can contain literal "<!--" examples; those are
         # not real HTML comment openers and must not mask subsequent tables.
@@ -387,6 +392,34 @@ def rendered_table_rows(section, header, prefix):
     return rows
 
 
+# Frozen per-requirement body references from the approved v1.0 crosswalk.
+# This is a semantically scoped contract; comparing only existence of chapter
+# numbers is insufficient (e.g. U01 points to SI results, not general UI).
+FROZEN_BODY_REFS_BY_GROUP = {
+    "U01": "8,10,11",
+    "U02": "11,12",
+    "U03,U14": "12",
+    "U04,U13,U22~U24": "9,12,13.1",
+    "U05,U15": "12,14,15",
+    "U06~U08,U31~U33,U38~U40,U48": "4,5",
+    "U09,U10": "6",
+    "U11,U34~U37": "7",
+    "U12,U17~U21,U25,U41,U46": "9",
+    "U16": "1,15",
+    "U26~U30": "8.1",
+    "U42": "7.8",
+    "U43": "10.1",
+    "U44": "9.8,11",
+    "U45": "9.9,10.3",
+    "U47": "13.1,15",
+}
+FROZEN_BODY_REFS_BY_U = {
+    u: set(section.strip() for section in sections.split(","))
+    for group, sections in FROZEN_BODY_REFS_BY_GROUP.items()
+    for u in expand_ids(group, "U")
+}
+
+
 def extract_mapping(source):
     # Only a real rendered Markdown heading selects the public crosswalk.
     section = visible_section(source, "### 18.2 요구사항과 시험 연결", "### 18.3")
@@ -418,6 +451,8 @@ def extract_mapping(source):
             raise ValueError("non-normative or unknown requirement body: " + cells[1])
         tests = expand_ids(cells[2], "T")
         for u in expand_ids(cells[0], "U"):
+            if set(refs) != FROZEN_BODY_REFS_BY_U.get(u):
+                raise ValueError("incorrect frozen requirement body links: " + u)
             if u in mapping:
                 raise ValueError("duplicate U group: " + u)
             mapping[u] = set(tests)
@@ -989,6 +1024,26 @@ if __name__=="__main__":
         must_reject(specification, ledger.replace(
             "M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified",
             "M0 native Qt/Worker prototype only; " + fake, 1))
+
+    # A single-line HTML comment may contain unmatched backticks: these
+    # are invisible to rendered Markdown and cannot begin inline code.
+    for comment_line in ("<!-- reference ` inside comment -->", "<!-- double `` here -->"):
+        crosswalk_header = "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |"
+        normal_spec = specification.replace(
+            crosswalk_header, comment_line + "\n" + crosswalk_header, 1)
+        if validate(normal_spec, ledger) != (48, 54):
+            raise AssertionError("valid HTML comment unexpectedly rejected")
+        ledger_header = "| Requirement ID | Phase from v1.0 18.2 | Linked test IDs"
+        normal_ledger = ledger.replace(
+            ledger_header, comment_line + "\n" + ledger_header, 1)
+        if validate(specification, normal_ledger) != (48, 54):
+            raise AssertionError("valid ledger HTML comment unexpectedly rejected")
+
+    # A requirement's chapter refs cannot be reassigned to an unrelated but
+    # valid engineering chapter while preserving syntactic coverage.
+    must_reject(specification.replace(
+        "| U01 | 8,10,11 | T06,T07,T43,T44 | M2 |",
+        "| U01 | 3 | T06,T07,T43,T44 | M2 |", 1), ledger)
 
     # GFM permits multi-line inline code, but this controlled normative
     # format rejects it to avoid disguising real HTML template containers.
