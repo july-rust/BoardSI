@@ -33,14 +33,16 @@ def validate_definition_tables(source):
         section = source.split(begin, 1)[1].split(end, 1)[0]
         found = set()
         for line in section.splitlines():
-            match = re.match(rf"^\|\s*({prefix}\d{{2}})\s*\|", line)
+            match = re.match(rf"^\|\s*({prefix}[^|]*)\|", line)
             if not match:
                 continue
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
             expected_columns = 4 if prefix == "U" else 3
             if len(cells) != expected_columns or any(not c for c in cells):
                 raise ValueError("malformed definition for " + match.group(1))
-            item = match.group(1)
+            item = match.group(1).strip()
+            if not re.fullmatch(rf"{prefix}\d{{2}}", item):
+                raise ValueError("malformed or out-of-range definition ID: " + item)
             if item in found:
                 raise ValueError("duplicate " + prefix + " definition: " + item)
             found.add(item)
@@ -145,5 +147,10 @@ if __name__=="__main__":
         raise AssertionError("expected definition fixture not found")
     must_reject(missing_t44_definition, ledger)
     must_reject(missing_u31_definition, ledger)
+    extra_t100 = specification.replace("| T54 |", "| T100 | Extra unapproved test | Must not be accepted |\n| T54 |")
+    extra_u100 = specification.replace("| U48 |", "| U100 | Extra unapproved requirement | 확정 | D1 |\n| U48 |")
+    must_reject(extra_t100, ledger)
+    must_reject(extra_u100, ledger)
+
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
