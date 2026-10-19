@@ -740,10 +740,16 @@ mod tests {
     #[test]
     fn integer_spelling_of_binary64_field_is_rejected() {
         for invalid in [json!(4), json!(0), json!(-3), json!(4000000000u64)] {
-            assert!(finite_number(&invalid).is_err(), "integer JSON must be rejected");
+            assert!(
+                finite_number(&invalid).is_err(),
+                "integer JSON must be rejected"
+            );
         }
         for valid in [json!(4.0), json!(0.0), json!(-3.0), json!(1e9)] {
-            assert!(finite_number(&valid).is_ok(), "binary64 JSON must be accepted");
+            assert!(
+                finite_number(&valid).is_ok(),
+                "binary64 JSON must be accepted"
+            );
         }
     }
     #[test]
