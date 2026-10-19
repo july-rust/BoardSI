@@ -9,6 +9,7 @@ on:
       - apps/boardsi-qt-prototype/**
       - apps/boardsi-worker/**
       - crates/boardsi-worker/**
+      - crates/boardsi-numerics/**
       - crates/boardsi-model/**
       - crates/boardsi-ipc/**
       - Cargo.lock
