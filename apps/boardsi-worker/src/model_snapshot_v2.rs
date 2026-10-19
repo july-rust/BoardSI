@@ -357,7 +357,7 @@ fn object_keys<'a>(
     }
     Ok(map)
 }
-fn string<'a>(v: &'a Value) -> io::Result<&'a str> {
+fn string(v: &Value) -> io::Result<&str> {
     v.as_str().ok_or_else(|| bad("StringRequired"))
 }
 fn nonempty(v: &Value) -> io::Result<&str> {
@@ -367,7 +367,7 @@ fn nonempty(v: &Value) -> io::Result<&str> {
     }
     Ok(s)
 }
-fn array<'a>(v: &'a Value, min: usize, max: usize) -> io::Result<&'a [Value]> {
+fn array(v: &Value, min: usize, max: usize) -> io::Result<&[Value]> {
     let a = v.as_array().ok_or_else(|| bad("ArrayRequired"))?;
     if a.len() < min || a.len() > max {
         return Err(bad("InvalidArrayLength"));
@@ -662,7 +662,7 @@ fn validate_wire_model(model: &Value) -> io::Result<()> {
 }
 
 fn receipt_for_payload(payload: &[u8]) -> io::Result<Vec<u8>> {
-    let v: Value = serde_json::from_slice(&payload).map_err(|_| bad("InvalidV2Json"))?;
+    let v: Value = serde_json::from_slice(payload).map_err(|_| bad("InvalidV2Json"))?;
     let fields = v.as_object().ok_or_else(|| bad("NotObject"))?;
     if fields.len() != 8 || v["schema"] != 2 || v["kind"] != "SyntheticSnapshotV2" {
         return Err(bad("UnsupportedV2Schema"));
