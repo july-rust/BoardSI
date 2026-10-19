@@ -143,9 +143,13 @@ def main():
             raise RuntimeError("Unsupported Mach-O dependency location: " + path)
 
         def approved_system(path):
-            # These two Apple OS locations are an explicit allowlist, not a
-            # wildcard for Homebrew, /usr/local, or SDK frameworks.
-            return path.startswith("/usr/lib/") or path.startswith("/System/Library/")
+            # Normalize traversal BEFORE allowing Apple-system install names.
+            # Path prefixes on their own admit /usr/lib/../local and similar.
+            import posixpath
+            if not path.startswith("/"):
+                return False
+            normalized = posixpath.normpath(path)
+            return normalized.startswith("/usr/lib/") or normalized.startswith("/System/Library/")
 
         own_rpaths = {}
         deps = {}
@@ -179,16 +183,22 @@ def main():
 
         seen = set()
         dependency_count = 0
-        def check_chain(binary, inherited=()):
+        def check_chain(binary, inherited=(), active=frozenset()):
             nonlocal dependency_count
             actual = binary.resolve()
             if actual not in images:
                 raise RuntimeError("Uninspected bundled dylib: " + str(binary))
+            # A Mach-O image lists its own LC_ID_DYLIB; mutual dependencies
+            # also form cycles. Stop BEFORE extending inherited runpaths, so
+            # a cycle cannot create a new unique (image, runpaths) forever.
+            if actual in active:
+                return
             roots = tuple(own_rpaths[actual]) + inherited
             marker = (actual, roots)
             if marker in seen:
                 return
             seen.add(marker)
+            active = active | {actual}
             for dep in deps[actual]:
                 dependency_count += 1
                 if dep.startswith("@rpath/"):
@@ -211,7 +221,8 @@ def main():
                         raise RuntimeError("External dylib: " + dep)
                 else:
                     raise RuntimeError("Unsupported Mach-O dependency: " + dep)
-                check_chain(target, roots)
+                if target.resolve() != actual:
+                    check_chain(target, roots, active)
 
         # Real launch entrypoints must resolve independently; Qt plugin
         # entrypoints inherit only the main executable's loader-chain roots.
