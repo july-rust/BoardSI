@@ -16,7 +16,13 @@ fn input(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)
 }
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    const NIBBLES: &[u8; 16] = b"0123456789abcdef";
+    let mut text = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        text.push(NIBBLES[(byte >> 4) as usize] as char);
+        text.push(NIBBLES[(byte & 15) as usize] as char);
+    }
+    text
 }
 // SHA-256 FIPS 180-4. No security/authentication claim: this binds the transported bytes.
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -81,7 +87,11 @@ fn sha256_hex(bytes: &[u8]) -> String {
             *v = v.wrapping_add(delta);
         }
     }
-    h.iter().map(|n| format!("{n:08x}")).collect()
+    let mut digest_bytes = [0u8; 32];
+    for (chunk, word) in digest_bytes.chunks_exact_mut(4).zip(h.iter()) {
+        chunk.copy_from_slice(&word.to_be_bytes());
+    }
+    hex(&digest_bytes)
 }
 fn digest(domain: &[u8], bytes: &[u8]) -> String {
     let mut v = Vec::with_capacity(domain.len() + bytes.len());
