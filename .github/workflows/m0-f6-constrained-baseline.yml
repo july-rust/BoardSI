@@ -1,0 +1,110 @@
+name: M0 F6 free restricted 8 GiB Worker baseline
+on:
+  pull_request:
+    paths:
+      - .github/workflows/m0-f6-constrained-baseline.yml
+      - apps/boardsi-worker/**
+      - crates/boardsi-model/**
+      - crates/boardsi-ipc/**
+      - Cargo.lock
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-worker:
+    name: F6 CPU-only Worker memory-limited prototype (not full-PC)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Build fixed Rust Worker and generate bound A/B snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.75.0 --profile minimal
+          cargo +1.75.0 build --locked -p boardsi-worker
+          mkdir -p "$RUNNER_TEMP/m0-f6"
+          cargo +1.75.0 run --locked -p boardsi-worker --example m0_model_snapshot_fixture -- "$RUNNER_TEMP/m0-f6/a.frame" "$RUNNER_TEMP/m0-f6/b.frame"
+          sha256sum target/debug/boardsi-worker > "$RUNNER_TEMP/m0-f6/worker-sha256.txt"
+      - name: Verify effective 8 GiB container memory and 2 CPU quota; exercise synthetic v2 Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Public standard hosted Ubuntu: no separately billed VM. Container
+          # confinement is an EQUIVALENT RESTRICTED TEST, not proof of a
+          # physical 8 GiB PC, production GUI or CAD solver benchmark.
+          docker pull ubuntu:24.04
+          docker image inspect --format '{{json .RepoDigests}}' ubuntu:24.04 > "$RUNNER_TEMP/m0-f6/image-digests.json"
+          docker run --rm --network none --cpus 2 --memory 8g --memory-swap 8g \
+            --mount "type=bind,source=$GITHUB_WORKSPACE/target/debug/boardsi-worker,target=/worker,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/m0-f6,target=/evidence" \
+            ubuntu:24.04 /bin/sh -ec '
+              limit="$(cat /sys/fs/cgroup/memory.max)"
+              test "$limit" = 8589934592 || { echo "8 GiB memory limit NOT active: $limit" >&2; exit 42; }
+              set -- $(cat /sys/fs/cgroup/cpu.max)
+              test "$1" != max && test "$2" -gt 0 && test "$1" -le "$((2 * $2))" || { echo "2 CPU quota NOT active" >&2; exit 43; }
+              cat /sys/fs/cgroup/memory.max > /evidence/cgroup-memory-max.txt
+              cat /sys/fs/cgroup/cpu.max > /evidence/cgroup-cpu-max.txt
+              cat /etc/os-release > /evidence/container-os-release.txt
+              uname -m > /evidence/container-arch.txt
+              t0=$(date +%s%N)
+              /worker --model-snapshot-v2 < /evidence/a.frame > /evidence/a.receipt
+              t1=$(date +%s%N)
+              /worker --model-snapshot-v2 < /evidence/b.frame > /evidence/b.receipt
+              t2=$(date +%s%N)
+              printf "%s\n%s\n" "$(((t1 - t0) / 1000000))" "$(((t2 - t1) / 1000000))" > /evidence/worker-wall-ms.txt
+              cat /sys/fs/cgroup/memory.peak > /evidence/cgroup-memory-peak.txt
+            '
+      - name: Verify native IPC receipts and preserve exact run evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, struct
+          p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "m0-f6"
+          def frame(name):
+              raw = (p / name).read_bytes()
+              assert len(raw) >= 4
+              length, = struct.unpack(">I", raw[:4])
+              assert length == len(raw) - 4, (name, length, len(raw))
+              return json.loads(raw[4:].decode("utf-8"))
+          requests = [frame("a.frame"), frame("b.frame")]
+          receipts = [frame("a.receipt"), frame("b.receipt")]
+          for inp, out in zip(requests, receipts):
+              assert out["schema"] == 2 and out["type"] == "SyntheticModelReceipt"
+              assert out["synthetic"] is True
+              for key in ("run_id", "model_sha256", "snapshot_id"):
+                  assert out[key] == inp[key], (key, out[key], inp[key])
+          assert requests[0]["snapshot_id"] != requests[1]["snapshot_id"]
+          assert receipts[0]["model_sha256"] != receipts[1]["model_sha256"]
+          limit = int((p / "cgroup-memory-max.txt").read_text())
+          peak = int((p / "cgroup-memory-peak.txt").read_text())
+          assert limit == 8 * 1024**3 and 0 < peak <= limit
+          wall_ms = [int(x) for x in (p / "worker-wall-ms.txt").read_text().splitlines()]
+          assert len(wall_ms) == 2 and all(0 <= x < 30000 for x in wall_ms)
+          report = {
+              "status": "PASS restricted Worker-only transport; overall F6/M0 remains BLOCKED",
+              "scope": "M0 synthetic Canonical subset -> separate OS Rust Worker v2 receipts",
+              "excluded": ["full PC 8 GiB hardware certification", "native Qt GUI baseline",
+                           "CAD importer", "real PCB", "physical SI", "redistribution/legal"],
+              "source_sha": os.environ["GITHUB_SHA"],
+              "runner_os": os.environ["RUNNER_OS"],
+              "runner_arch": os.environ["RUNNER_ARCH"],
+              "memory_limit_bytes": limit, "container_memory_peak_bytes": peak,
+              "cpu_quota": (p / "cgroup-cpu-max.txt").read_text().strip(),
+              "worker_elapsed_ms": wall_ms,
+              "worker_sha256": (p / "worker-sha256.txt").read_text().split()[0],
+              "container_image_digests": json.loads((p / "image-digests.json").read_text()),
+              "frames_sha256": [hashlib.sha256((p / (n + ".frame")).read_bytes()).hexdigest() for n in ("a","b")],
+              "receipts_sha256": [hashlib.sha256((p / (n + ".receipt")).read_bytes()).hexdigest() for n in ("a","b")]
+          }
+          (p / "restricted-baseline-evidence.json").write_text(json.dumps(report, indent=2) + "\n")
+          print(json.dumps(report, indent=2))
+          PY
+      - name: Preserve F6 evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m0-f6-8gib-restricted-worker-evidence
+          path: ${{ runner.temp }}/m0-f6/
+          if-no-files-found: warn
