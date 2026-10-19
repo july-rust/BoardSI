@@ -29,6 +29,8 @@ jobs:
         run: |
           rustup toolchain install 1.75.0 --profile minimal
           cargo +1.75.0 build --locked -p boardsi-worker
+          mkdir -p build-qt
+          cargo +1.75.0 run --locked -p boardsi-worker --example m0_model_snapshot_fixture -- build-qt/qt-model-a.frame build-qt/qt-model-b.frame
       - name: Build actual Widgets GUI and runtime harness
         run: |
           test "$RUNNER_ARCH" = X64
@@ -126,6 +128,8 @@ jobs:
           rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
           rustc -vV
           cargo build --locked -p boardsi-worker
+          mkdir -p build-qt
+          cargo run --locked -p boardsi-worker --example m0_model_snapshot_fixture -- build-qt/qt-model-a.frame build-qt/qt-model-b.frame
       - name: Build Windows target with installed MSVC toolset
         if: runner.os == 'Windows'
         shell: pwsh
@@ -166,6 +170,7 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           pythonPath=$(python -c 'import sys; print(sys.executable)')
           ./boardsi-qt-runtime-validation$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$pythonPath" "$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests/fault_worker.py"
+          ./boardsi-qt-model-v2$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame"
       - name: Print native measurement evidence
         if: always()
         shell: bash
