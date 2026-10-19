@@ -150,7 +150,9 @@ def visible_markdown_lines(source):
         r"^ {0,3}(?:</?[A-Za-z][A-Za-z0-9-]*(?=[\s>/]|$)|<![A-Za-z\[]|<\?)",
         re.IGNORECASE,
     )
-    for original_line in source.splitlines():
+    # GFM only recognizes CRLF, CR or LF as line endings, never VT/FF/NEL/LS/PS.
+    source = source.replace("\r\n", "\n").replace("\r", "\n")
+    for original_line in source.split("\n"):
         # A fenced block owns all its content, even HTML-looking tokens.
         if fence_character is not None:
             line = original_line.lstrip(" ")
@@ -356,7 +358,7 @@ def validate_definition_tables(source):
     )
     for prefix, maximum, begin, end, header in ranges:
         section = visible_section(source, begin, end)
-        visible = section.splitlines()
+        visible = section.split("\n")
         found, table_count = set(), 0
         for position, line in enumerate(visible):
             if split_markdown_cells(line.strip()) != header:
@@ -413,7 +415,7 @@ def validate_definition_tables(source):
 
 def rendered_table_rows(section, header, prefix):
     """Require one contiguous, rendered Markdown table of the expected shape."""
-    lines = section.splitlines()
+    lines = section.split("\n")
     headers = [
         i for i, line in enumerate(lines)
         if line == line.lstrip() and split_markdown_cells(line.strip()) == header
@@ -561,17 +563,30 @@ PARTIAL_EVIDENCE_BY_ID = {
 
 
 def has_row_specific_partial_evidence(identifier, value):
-    # The audited ledger uses explicit "see #N" issue autolinks only.
-    # Reject Markdown links, inline-code decoys, unknown IDs and evidence
-    # borrowed from another row's unrelated engineering boundary.
-    if "[" in value or "]" in value:
+    """Require exact reviewed PARTIAL wording, not merely matching issue tokens.
+
+    Future acceptance updates require explicit independent evidence and review.
+    """
+    allowed = PARTIAL_EVIDENCE_BY_ID.get(identifier)
+    if not allowed:
         return False
-    visible = mask_inline_code_for_comment_scan(value)
-    references = {
-        int(number) for number in
-        re.findall(r"(?i)(?<!\w)see\s+#([1-9][0-9]*)(?!\w)", visible)
-    }
-    return references and references == PARTIAL_EVIDENCE_BY_ID.get(identifier)
+    links = "; ".join(f"see #{issue}" for issue in sorted(allowed))
+    if identifier.startswith("U"):
+        expected = "M0 restricted prototype; " + links
+    else:
+        expected = "M0 native Qt/Worker prototype only; " + links + "; full T unqualified"
+    return value == expected
+
+
+def has_audited_ledger_evidence(identifier, status, evidence):
+    """Fail closed on evidence contradicting the ledger's acceptance status."""
+    if status == "PARTIAL":
+        return has_row_specific_partial_evidence(identifier, evidence)
+    if identifier.startswith("U") and status == "NOT_VERIFIED":
+        return evidence == "See specification v1.0; no ID-specific full test evidence"
+    if identifier.startswith("T") and status == "NOT_RUN":
+        return evidence == "No complete case-specific T acceptance claimed"
+    return False
 
 
 def extract_ledger(source):
@@ -598,10 +613,8 @@ def extract_ledger(source):
             if (len(cells)!=7 or m.group(1) in u_map or cells[3]!="DEFINED"
                 or cells[4] not in ("NOT_VERIFIED", "PARTIAL") or cells[5]!="NOT_RUN"):
                 raise ValueError("invalid / duplicate U ledger row: "+line)
-            if not cells[6].strip():
-                raise ValueError("U ledger row has empty evidence scope: " + line)
-            if cells[4] == "PARTIAL" and not has_row_specific_partial_evidence(m.group(1), cells[6]):
-                raise ValueError("PARTIAL U row lacks linked evidence: " + line)
+            if not has_audited_ledger_evidence(m.group(1), cells[4], cells[6]):
+                raise ValueError("U ledger evidence contradicts audited status: " + line)
             u_map[m.group(1)] = set(expand_ids(cells[2], "T"))
             u_phases[m.group(1)] = cells[1]
     for line in table_t:
@@ -612,15 +625,16 @@ def extract_ledger(source):
             cells = split_markdown_cells(line)
             if len(cells)!=5 or m.group(1) in t_map or cells[3] not in ("NOT_RUN","PARTIAL"):
                 raise ValueError("invalid / duplicate T ledger row: "+line)
-            if not cells[4].strip():
-                raise ValueError("T ledger row has empty evidence scope: " + line)
-            if cells[3] == "PARTIAL" and not has_row_specific_partial_evidence(m.group(1), cells[4]):
-                raise ValueError("PARTIAL T row lacks linked evidence: " + line)
+            if not has_audited_ledger_evidence(m.group(1), cells[3], cells[4]):
+                raise ValueError("T ledger evidence contradicts audited status: " + line)
             t_map[m.group(1)] = set(expand_ids(cells[2], "U"))
             t_phases[m.group(1)] = cells[1].split("; ")
     return u_map, t_map, u_phases, t_phases
 
 def validate(spec_text, ledger_text):
+    # Direct API callers must use the same recognized Markdown boundaries.
+    spec_text = spec_text.replace("\r\n", "\n").replace("\r", "\n")
+    ledger_text = ledger_text.replace("\r\n", "\n").replace("\r", "\n")
     validate_definition_tables(spec_text)
     u_map, source_u_phases, source_t_phases = extract_mapping(spec_text)
     ledger_u, ledger_t, ledger_u_phases, ledger_t_phases = extract_ledger(ledger_text)
@@ -654,6 +668,53 @@ if __name__=="__main__":
     specification = SPEC.read_text(encoding="utf-8")
     ledger = LEDGER.read_text(encoding="utf-8")
     count = validate(specification,ledger)
+    # Five normative GFM tables: reject VT/FF/NEL/LS/PS, which are not line endings.
+    boundaries = (
+        (False, "| ID | 요구사항 | 상태 | 근거 |", "| --- | --- | --- | --- |"),
+        (False, "| Test ID | 주요 검증 | 통과 조건 |", "| --- | --- | --- |"),
+        (False, "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |", "| --- | --- | --- | --- |"),
+        (True, "| Requirement ID | Phase from v1.0 18.2 | Linked test IDs | Definition | Implementation | Full acceptance | Evidence scope |", "| --- | --- | --- | --- | --- | --- | --- |"),
+        (True, "| Test ID | Related stage(s) | Linked requirement IDs (coarse) | Complete acceptance result | Evidence |", "| --- | --- | --- | --- | --- |"),
+    )
+    for in_ledger, header, delimiter in boundaries:
+        original = ledger if in_ledger else specification
+        edge1 = header + "\n" + delimiter
+        edge2 = delimiter + "\n| "
+        if edge1 not in original or edge2 not in original:
+            raise AssertionError("missing physical-line fixture: " + header)
+        for invalid_separator in ("\x0b", "\x0c", "\x85", "\u2028", "\u2029"):
+            for before, after in ((edge1, header + invalid_separator + delimiter),
+                                  (edge2, delimiter + invalid_separator + "| ")):
+                corrupt = original.replace(before, after, 1)
+                if corrupt == original:
+                    raise AssertionError("missing separator mutation")
+                if in_ledger:
+                    must_reject(specification, corrupt)
+                else:
+                    must_reject(corrupt, ledger)
+    # Actual GFM CRLF and CR physical line endings remain accepted.
+    for ending in ("\r\n", "\r"):
+        if validate(specification.replace("\n", ending),
+                    ledger.replace("\n", ending)) != (48, 54):
+            raise AssertionError("valid Markdown ending rejected")
+
+    # Evidence assertions MUST agree with their full acceptance state.
+    for before, after in (
+        ("See specification v1.0; no ID-specific full test evidence",
+         "FULL IMPLEMENTATION AND ACCEPTANCE PASS; see #3"),
+        ("M0 restricted prototype; see #3",
+         "FULL IMPLEMENTATION AND ACCEPTANCE PASS; see #3"),
+        ("No complete case-specific T acceptance claimed", "FULL ACCEPTANCE PASS"),
+        ("M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified",
+         "FULL ACCEPTANCE PASS; see #3; see #6"),
+        ("M0 restricted prototype; see #5",
+         "M0 restricted prototype; see #5; FULL ACCEPTANCE PASS"),
+        ("No complete case-specific T acceptance claimed",
+         "No complete case-specific T acceptance claimed; PASS"),
+    ):
+        if before not in ledger:
+            raise AssertionError("missing semantic mutation fixture")
+        must_reject(specification, ledger.replace(before, after, 1))
     # Coordinated T44 reassignment must fail despite complete reciprocal
     # ledger coverage and accurate per-stage metadata.
     reassigned_spec = specification.replace(
@@ -679,7 +740,7 @@ if __name__=="__main__":
 
     # An unrelated U28/T01 cannot borrow an M0 prototype Issue to claim PARTIAL.
     for identifier in ("U28", "T01"):
-        old = next(line for line in ledger.splitlines()
+        old = next(line for line in ledger.split("\n")
                    if line.startswith("| " + identifier + " |"))
         if identifier.startswith("U"):
             bad = old.replace("NOT_VERIFIED", "PARTIAL").replace(
@@ -796,7 +857,7 @@ if __name__=="__main__":
         begin = specification.find(header)
         if begin == -1:
             raise AssertionError(prefix + " indented table fixture missing")
-        rows = specification[begin:].splitlines()
+        rows = specification[begin:].split("\n")
         table_rows = []
         for line in rows:
             if not table_rows or line.startswith("|"):
@@ -884,7 +945,7 @@ if __name__=="__main__":
             crosswalk_u01, opening + crosswalk_u01 + closing, 1
         ), ledger)
         for target in (ledger_u01, ledger_t44):
-            row = next(line for line in ledger.splitlines() if line.startswith(target))
+            row = next(line for line in ledger.split("\n") if line.startswith(target))
             must_reject(specification, ledger.replace(
                 row, opening + row + closing, 1
             ))
@@ -1060,7 +1121,7 @@ if __name__=="__main__":
     source_header = "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |"
     for indent in ("  ", "   "):
         section = specification.split("### 18.2 요구사항과 시험 연결", 1)[1].split("### 18.3", 1)[0]
-        table = [line for line in section.splitlines() if line.startswith("|")]
+        table = [line for line in section.split("\n") if line.startswith("|")]
         modified = specification.replace(
             source_header, "- <div>\n" + indent + source_header, 1)
         # The delimiter is indented as well, creating a Markdown list block.
@@ -1137,7 +1198,7 @@ if __name__=="__main__":
                 raise AssertionError("missing U01 evidence regression source")
             must_reject(specification, ledger.replace(target, replacement, 1))
         else:
-            row = next((line for line in ledger.splitlines() if line.startswith("| T01 |")), None)
+            row = next((line for line in ledger.split("\n") if line.startswith("| T01 |")), None)
             if row is None:
                 raise AssertionError("missing T01 evidence regression source")
             cells = split_markdown_cells(row)
@@ -1156,13 +1217,13 @@ if __name__=="__main__":
         "M0 native Qt/Worker prototype only; see #bogus; full T unqualified", 1))
 
     # Openerless Markdown table rows are visible rows, not a table boundary.
-    spec_tail = next(line for line in specification.splitlines() if line.startswith("| U47 |"))
+    spec_tail = next(line for line in specification.split("\n") if line.startswith("| U47 |"))
     must_reject(specification.replace(
         spec_tail, spec_tail + "\nU100 | 1 | T01 | M0 |", 1), ledger)
-    ledger_tail_u = next(line for line in ledger.splitlines() if line.startswith("| U48 |"))
+    ledger_tail_u = next(line for line in ledger.split("\n") if line.startswith("| U48 |"))
     must_reject(specification, ledger.replace(
         ledger_tail_u, ledger_tail_u + "\nU100 | M0 | T01 | DEFINED | NOT_VERIFIED | NOT_RUN | Bogus |", 1))
-    ledger_tail_t = next(line for line in ledger.splitlines() if line.startswith("| T54 |"))
+    ledger_tail_t = next(line for line in ledger.split("\n") if line.startswith("| T54 |"))
     must_reject(specification, ledger.replace(
         ledger_tail_t, ledger_tail_t + "\nT100 | M0 | U01 | NOT_RUN | Bogus |", 1))
 
