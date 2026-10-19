@@ -15,6 +15,8 @@ jobs:
     name: F6 CPU-only Worker memory-limited prototype (not full-PC)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Build fixed Rust Worker and generate bound A/B snapshots
@@ -87,7 +89,9 @@ jobs:
               "scope": "M0 synthetic Canonical subset -> separate OS Rust Worker v2 receipts",
               "excluded": ["full PC 8 GiB hardware certification", "native Qt GUI baseline",
                            "CAD importer", "real PCB", "physical SI", "redistribution/legal"],
-              "source_sha": os.environ["GITHUB_SHA"],
+              "source_head_sha": os.environ["BOARDSI_SOURCE_HEAD_SHA"],
+              "workflow_event_sha": os.environ["GITHUB_SHA"],
+              "checkout_sha": __import__("subprocess").check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
               "runner_os": os.environ["RUNNER_OS"],
               "runner_arch": os.environ["RUNNER_ARCH"],
               "memory_limit_bytes": limit, "container_memory_peak_bytes": peak,
