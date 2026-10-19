@@ -21,6 +21,8 @@ class RuntimeValidation {
     QJsonObject startupMilestones;
     QJsonObject appBootstrap;
     QElapsedTimer startupClock;
+    // Only populated during run(); the actual 10 ms global timer owns the gate.
+    std::function<bool()> initialGlobalTimerObserved;
     int assertions = 0;
     void startupMark(const char *name) {
         startupMilestones[QString::fromLatin1(name)] = startupClock.elapsed();
@@ -54,7 +56,20 @@ private:
     void start(Window &w, bool traceFirstWindow = false) {
         if (traceFirstWindow) startupMark("window_show_begin");
         w.show();
-        if (traceFirstWindow) startupMark("window_show_end");
+        if (traceFirstWindow) {
+            startupMark("window_show_end");
+            // A real user cannot click before the GUI event loop has resumed
+            // after the first native show. Exercise one real Qt timer dispatch
+            // between showing the window and launching the Worker, instead of
+            // doing both synchronously in the same top-level callback. The
+            // global 10 ms timer was armed BEFORE show() and is not reset:
+            // its original <=1000 ms wall-clock gap gate remains unchanged.
+            const bool ready = until([this] {
+                return initialGlobalTimerObserved && initialGlobalTimerObserved();
+            }, 1000);
+            startupMark("first_window_event_dispatch_observed");
+            check(ready, "No first Qt timer callback after native window show");
+        }
         QElapsedTimer t; t.start();
         if (traceFirstWindow) startupMark("start_click_begin");
         w.start->click();
@@ -352,6 +367,7 @@ public:
         });
         entireTick.start();
         startupMark("global_timer_armed");
+        initialGlobalTimerObserved = [&lastTick] { return lastTick > 0; };
         auto inPhase = [&](const QString &name, const std::function<void()> &operation) {
             phase=name;
             const qint64 started=entireClock.elapsed();
