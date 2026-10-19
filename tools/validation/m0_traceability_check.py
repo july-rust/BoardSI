@@ -583,7 +583,8 @@ def has_audited_ledger_evidence(identifier, status, evidence):
     if status == "PARTIAL":
         return has_row_specific_partial_evidence(identifier, evidence)
     if identifier.startswith("U") and status == "NOT_VERIFIED":
-        return evidence == "See specification v1.0; no ID-specific full test evidence"
+        return evidence in ("See specification v1.0; no ID-specific full test evidence",
+                            r"See \| specification v1.0; no ID-specific full test evidence")
     if identifier.startswith("T") and status == "NOT_RUN":
         return evidence == "No complete case-specific T acceptance claimed"
     return False
