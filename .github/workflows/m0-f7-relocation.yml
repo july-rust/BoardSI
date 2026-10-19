@@ -105,6 +105,12 @@ jobs:
             & $tool --release --no-translations --dir $dest (Join-Path $dest 'boardsi-qt-model-v2.exe')
             if ($LASTEXITCODE -ne 0) { throw 'windeployqt failed' }
           }
+          # Detach the complete Qt build SDK before launching the relocated app.
+          # This proves nonreliance on the original SDK path, not clean-OS deployment.
+          $sdkRoot = Join-Path $env:RUNNER_TEMP 'qt-native'
+          if (-not (Test-Path -LiteralPath $sdkRoot)) { throw 'Qt SDK directory absent before isolation' }
+          Move-Item -LiteralPath $sdkRoot -Destination (Join-Path $env:RUNNER_TEMP 'qt-native-detached') -ErrorAction Stop
+          if (Test-Path -LiteralPath $env:QT_PREFIX) { throw 'Qt target SDK remained accessible after detachment' }
           python .github/scripts/m0_f7_relocation_probe.py (Join-Path $dest 'boardsi-qt-model-v2.exe') (Join-Path $dest 'boardsi-worker.exe') build-qt/qt-model-a.frame build-qt/qt-model-b.frame
           if ($LASTEXITCODE -ne 0) { throw 'Relocated selftest failed' }
       - name: macOS Qt app deployment and relocated smoke
@@ -122,6 +128,12 @@ jobs:
           PLIST
           "$QT_PREFIX/bin/macdeployqt" "$app" -always-overwrite
           otool -L "$app/Contents/MacOS/boardsi-qt-model-v2"
+          # A moved SDK cannot satisfy hidden absolute Qt paths from deployment.
+          # The hosted runner is still not a certified clean-machine environment.
+          sdk="$RUNNER_TEMP/qt-native"
+          test -d "$sdk"
+          mv "$sdk" "$RUNNER_TEMP/qt-native-detached"
+          test ! -e "$QT_PREFIX"
           python .github/scripts/m0_f7_relocation_probe.py "$app/Contents/MacOS/boardsi-qt-model-v2" "$app/Contents/MacOS/boardsi-worker" build-qt/qt-model-a.frame build-qt/qt-model-b.frame
       - name: Persist F7 relocation evidence
         if: always()
