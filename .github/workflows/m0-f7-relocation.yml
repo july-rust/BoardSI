@@ -1,0 +1,144 @@
+name: M0 F7 native relocation smoke
+on:
+  pull_request:
+    paths:
+      - .github/scripts/m0_f7_relocation_probe.py
+      - .github/workflows/m0-f7-relocation.yml
+      - .github/scripts/install_qt_runtime.py
+      - .github/workflows/qt-runtime.yml
+      - apps/boardsi-qt-prototype/**
+      - apps/boardsi-worker/**
+      - crates/boardsi-worker/**
+      - crates/boardsi-numerics/**
+      - crates/boardsi-model/**
+      - crates/boardsi-ipc/**
+      - Cargo.lock
+      - Cargo.toml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  relocation:
+    name: F7 relocated Qt Worker ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: Windows x64, runner: windows-2022, host: windows, qt_arch: win64_msvc2022_64, target: x86_64-pc-windows-msvc, runner_arch: X64, python_arch: x64, cmake_arch: x64}
+          - {name: Windows ARM64, runner: windows-11-arm, host: windows, qt_arch: win64_msvc2022_arm64_cross_compiled, target: aarch64-pc-windows-msvc, runner_arch: ARM64, python_arch: x64, cmake_arch: arm64}
+          - {name: macOS ARM64, runner: macos-15, host: mac, qt_arch: clang_64, target: aarch64-apple-darwin, runner_arch: ARM64, python_arch: arm64, cmake_arch: arm64}
+    env:
+      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          architecture: ${{ matrix.python_arch }}
+      - name: Install pinned Qt BUILD SDK
+        shell: bash
+        run: |
+          test "$RUNNER_ARCH" = '${{ matrix.runner_arch }}'
+          python -m pip install aqtinstall==3.3.0
+          python .github/scripts/install_qt_runtime.py '${{ matrix.host }}' '${{ matrix.qt_arch }}'
+      - name: Build native Rust Worker and synthetic frames
+        shell: bash
+        run: |
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+          cargo build --locked -p boardsi-worker
+          mkdir -p build-qt
+          cargo run --locked -p boardsi-worker --example m0_model_snapshot_fixture -- build-qt/qt-model-a.frame build-qt/qt-model-b.frame
+      - name: Build Windows Qt model app
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
+          $vsInstall = & $vswhere -latest -products '*' -property installationPath
+          if (-not $vsInstall) { throw 'MSVC installation not found' }
+          $script = Join-Path $env:RUNNER_TEMP 'm0-f7-native-build.cmd'
+          $hostArg = ''
+          if ($env:QT_HOST_PREFIX) { $hostArg = "-DQT_HOST_PATH=$env:QT_HOST_PREFIX" }
+          @(
+            "@call `"$vsInstall\Common7\Tools\VsDevCmd.bat`" -arch=${{ matrix.cmake_arch }} -host_arch=${{ matrix.cmake_arch }}",
+            'if errorlevel 1 exit /b 1',
+            "cmake -S apps/boardsi-qt-prototype -B build-qt -G Ninja -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$env:QT_PREFIX $hostArg",
+            'if errorlevel 1 exit /b 1',
+            'cmake --build build-qt --parallel 2',
+            'if errorlevel 1 exit /b 1'
+          ) | Set-Content $script
+          & cmd /c $script
+          if ($LASTEXITCODE -ne 0) { throw 'CMake native build failed' }
+      - name: Build macOS Qt model app
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cmake -S apps/boardsi-qt-prototype -B build-qt -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX"
+          cmake --build build-qt --parallel 2
+      - name: Windows Qt deployment and relocated smoke
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP 'boardsi-m0-relocated'
+          New-Item -Type Directory -Force $dest | Out-Null
+          Copy-Item build-qt/boardsi-qt-model-v2.exe $dest
+          Copy-Item target/debug/boardsi-worker.exe $dest
+          $tool = Join-Path $env:QT_PREFIX 'bin/windeployqt.exe'
+          if (-not (Test-Path $tool) -and $env:QT_HOST_PREFIX) { $tool = Join-Path $env:QT_HOST_PREFIX 'bin/windeployqt.exe' }
+          if (-not (Test-Path $tool)) { throw 'windeployqt missing for target' }
+          if ($env:QT_HOST_PREFIX) {
+            # Only target ARM64 Qt Core/Gui/Widgets and the Windows platform plugin
+            # are required for this restricted Widgets prototype. Do not invoke
+            # host windeployqt with a non-executable target qtpaths.bat.
+            foreach ($relative in @('bin/Qt6Core.dll', 'bin/Qt6Gui.dll', 'bin/Qt6Widgets.dll')) {
+              $source = Join-Path $env:QT_PREFIX $relative
+              if (-not (Test-Path -LiteralPath $source)) { throw "Target Qt DLL missing: $source" }
+              Copy-Item -LiteralPath $source -Destination $dest -ErrorAction Stop
+            }
+            $plugin = Join-Path $env:QT_PREFIX 'plugins/platforms/qwindows.dll'
+            if (-not (Test-Path -LiteralPath $plugin)) { throw "Target Qt plugin missing: $plugin" }
+            $pluginDest = Join-Path $dest 'platforms'
+            New-Item -ItemType Directory -Path $pluginDest -Force | Out-Null
+            Copy-Item -LiteralPath $plugin -Destination $pluginDest -ErrorAction Stop
+          } else {
+            & $tool --release --no-translations --dir $dest (Join-Path $dest 'boardsi-qt-model-v2.exe')
+            if ($LASTEXITCODE -ne 0) { throw 'windeployqt failed' }
+          }
+          # Detach the complete Qt build SDK before launching the relocated app.
+          # This proves nonreliance on the original SDK path, not clean-OS deployment.
+          $sdkRoot = Join-Path $env:RUNNER_TEMP 'qt-native'
+          if (-not (Test-Path -LiteralPath $sdkRoot)) { throw 'Qt SDK directory absent before isolation' }
+          Move-Item -LiteralPath $sdkRoot -Destination (Join-Path $env:RUNNER_TEMP 'qt-native-detached') -ErrorAction Stop
+          if (Test-Path -LiteralPath $env:QT_PREFIX) { throw 'Qt target SDK remained accessible after detachment' }
+          python .github/scripts/m0_f7_relocation_probe.py (Join-Path $dest 'boardsi-qt-model-v2.exe') (Join-Path $dest 'boardsi-worker.exe') build-qt/qt-model-a.frame build-qt/qt-model-b.frame
+          if ($LASTEXITCODE -ne 0) { throw 'Relocated selftest failed' }
+      - name: macOS Qt app deployment and relocated smoke
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/BoardSI-M0-Model.app"
+          mkdir -p "$app/Contents/MacOS"
+          cp build-qt/boardsi-qt-model-v2 "$app/Contents/MacOS/"
+          cp target/debug/boardsi-worker "$app/Contents/MacOS/"
+          cat > "$app/Contents/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <plist version="1.0"><dict><key>CFBundleExecutable</key><string>boardsi-qt-model-v2</string><key>CFBundleIdentifier</key><string>org.boardsi.m0.relocation</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>
+          PLIST
+          "$QT_PREFIX/bin/macdeployqt" "$app" -always-overwrite
+          otool -L "$app/Contents/MacOS/boardsi-qt-model-v2"
+          # A moved SDK cannot satisfy hidden absolute Qt paths from deployment.
+          # The hosted runner is still not a certified clean-machine environment.
+          sdk="$RUNNER_TEMP/qt-native"
+          test -d "$sdk"
+          mv "$sdk" "$RUNNER_TEMP/qt-native-detached"
+          test ! -e "$QT_PREFIX"
+          python .github/scripts/m0_f7_relocation_probe.py "$app/Contents/MacOS/boardsi-qt-model-v2" "$app/Contents/MacOS/boardsi-worker" build-qt/qt-model-a.frame build-qt/qt-model-b.frame
+      - name: Persist F7 relocation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m0-f7-relocation-${{ matrix.name }}
+          path: ${{ runner.temp }}/m0-f7-relocation-result.json
+          if-no-files-found: warn
