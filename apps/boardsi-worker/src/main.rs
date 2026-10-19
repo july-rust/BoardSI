@@ -210,6 +210,15 @@ fn run() -> io::Result<i32> {
     }
 }
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("--model-snapshot-v2") {
+        match boardsi_worker::model_snapshot_v2::serve_stdio() {
+            Ok(()) => std::process::exit(0),
+            Err(e) => {
+                eprintln!("WORKER_SYNTHETIC_V2_REJECTED {e}");
+                std::process::exit(2);
+            }
+        }
+    }
     eprintln!(
         "WORKER_NATIVE_EXECUTION arch={} os={}",
         std::env::consts::ARCH,
