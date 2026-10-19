@@ -51,6 +51,43 @@ def main():
         plugin_dir = model.parent / "platforms"
     else:
         raise RuntimeError("Windows/macOS only")
+    if os.name == "nt":
+        # Refuse a deceptively passing smoke test with a host-x64 Qt DLL inside
+        # a Windows ARM64 bundle (or the reverse). Parse the PE header directly.
+        import struct
+        required = ("Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll")
+        for filename in required:
+            if not (model.parent / filename).is_file():
+                raise RuntimeError("Missing relocated Qt runtime: " + filename)
+        if not (plugin_dir / "qwindows.dll").is_file():
+            raise RuntimeError("Missing relocated Windows QPA plugin")
+        expected = {"X64": 0x8664, "ARM64": 0xAA64}.get(
+            os.environ.get("RUNNER_ARCH", "").upper()
+        )
+        if expected is None:
+            raise RuntimeError("Unknown native Windows runner architecture")
+        def machine(path):
+            with path.open("rb") as source:
+                dos = source.read(64)
+                if len(dos) != 64 or dos[:2] != b"MZ":
+                    raise RuntimeError("Not a Windows PE image: " + str(path))
+                pe_off = struct.unpack_from("<I", dos, 60)[0]
+                if pe_off < 64 or pe_off > 1048576:
+                    raise RuntimeError("Invalid PE header offset: " + str(path))
+                source.seek(pe_off)
+                header = source.read(6)
+                if len(header) != 6 or header[:4] != b"PE\\0\\0":
+                    raise RuntimeError("Invalid PE signature: " + str(path))
+                return struct.unpack_from("<H", header, 4)[0]
+        binaries = [model, worker, *model.parent.glob("*.dll"),
+                    *plugin_dir.glob("*.dll")]
+        for binary in binaries:
+            actual = machine(binary)
+            if actual != expected:
+                raise RuntimeError(
+                    f"Non-target PE machine 0x{actual:04x} for {binary.name}; "
+                    f"expected 0x{expected:04x}"
+                )
     env["QT_QPA_PLATFORM"] = backend
     # macdeployqt may leave an absolute SDK framework or LC_RPATH even when
     # Qt environment variables and PATH are stripped. Fail closed if any
