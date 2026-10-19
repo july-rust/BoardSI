@@ -37,6 +37,12 @@ def main():
     def is_sdk_path(p):
         item = normalized(p)
         return any(item == root or item.startswith(root + os.sep) for root in roots)
+    if os.name == "nt":
+        # Exercise the exact mixed-slash scenario from GitHub's GITHUB_ENV vs
+        # GITHUB_PATH: qt-native prefixes may use / while PATH uses \\.
+        for root in roots:
+            if not is_sdk_path(root.replace(os.sep, "/") + "/bin"):
+                raise RuntimeError("Windows mixed-slash Qt SDK PATH scrub failed")
     env["PATH"] = os.pathsep.join(
         p for p in env.get("PATH", "").split(os.pathsep)
         if p and not is_sdk_path(p)
@@ -79,8 +85,8 @@ def main():
                 if len(header) != 6 or header[:4] != bytes((80, 69, 0, 0)):
                     raise RuntimeError("Invalid PE signature: " + str(path))
                 return struct.unpack_from("<H", header, 4)[0]
-        binaries = [model, worker, *model.parent.glob("*.dll"),
-                    *plugin_dir.glob("*.dll")]
+        # windeployqt may place DLLs in nested plugin subdirectories.
+        binaries = [model, worker, *model.parent.rglob("*.dll")]
         for binary in binaries:
             actual = machine(binary)
             if actual != expected:
