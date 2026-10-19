@@ -11,7 +11,7 @@ LEDGER = Path("docs/audits/m0-requirements-traceability-ledger.md")
 def expand_ids(text, prefix):
     results = []
     for item in text.split(","):
-        match = re.fullmatch(rf"{prefix}(\d{{2}})(?:~(?:{prefix})?(\d{{2}}))?", item.strip())
+        match = re.fullmatch(rf"{prefix}([0-9]{{2}})(?:~(?:{prefix})?([0-9]{{2}}))?", item.strip())
         if not match:
             raise ValueError(f"invalid {prefix} crosswalk group: {item!r}")
         first = int(match.group(1))
@@ -46,6 +46,16 @@ def split_markdown_cells(line):
     if cells and cells[-1] == "":
         cells.pop()
     return cells
+
+
+def is_escaped_markdown_token(line, position):
+    """GFM backslash escape: odd preceding backslashes escape the token."""
+    count = 0
+    at = position - 1
+    while at >= 0 and line[at] == chr(92):
+        count += 1
+        at -= 1
+    return count % 2 != 0
 
 
 def mask_inline_code_for_comment_scan(line):
@@ -174,6 +184,9 @@ def visible_markdown_lines(source):
         comment_visibility = mask_inline_code_for_comment_scan(original_line)
         visible_code_chars = list(original_line)
         for comment_match in re.finditer(r"<!--.*?-->", comment_visibility):
+            # A backslash-escaped '<' is literal GFM text, not an opener.
+            if is_escaped_markdown_token(original_line, comment_match.start()):
+                continue
             for pos in range(comment_match.start(), comment_match.end()):
                 visible_code_chars[pos] = " "
         line_for_code_spans = "".join(visible_code_chars)
@@ -194,6 +207,8 @@ def visible_markdown_lines(source):
                     index = end + 3
             else:
                 start = comment_scan.find("<!--", index)
+                while start != -1 and is_escaped_markdown_token(original_line, start):
+                    start = comment_scan.find("<!--", start + 4)
                 if start == -1:
                     visible.append(original_line[index:])
                     index = len(original_line)
@@ -338,17 +353,17 @@ def validate_definition_tables(source):
                 # Only a SINGLE outer formatting wrapper can be removed.
                 # Recursive stripping corrupts code-span semantics:
                 # GFM renders `*U01*` literally, not as formatted U01.
-                if not re.fullmatch(rf"{prefix}\d{{2}}", item):
+                if not re.fullmatch(rf"{prefix}[0-9]{{2}}", item):
                     for wrapper in ("**", "__", "*", "_", chr(96)):
                         if (item.startswith(wrapper) and item.endswith(wrapper)
                             and len(item) > 2 * len(wrapper)):
                             # Whitespace adjacent to an emphasis delimiter
                             # prevents GFM from recognizing valid emphasis.
                             candidate = item[len(wrapper):-len(wrapper)]
-                            if re.fullmatch(rf"{prefix}\d{{2}}", candidate):
+                            if re.fullmatch(rf"{prefix}[0-9]{{2}}", candidate):
                                 item = candidate
                                 break
-                if not re.fullmatch(rf"{prefix}\d{{2}}", item):
+                if not re.fullmatch(rf"{prefix}[0-9]{{2}}", item):
                     raise ValueError("invalid definition ID: " + cells[0])
                 if any(not c for c in cells[1:]):
                     raise ValueError("missing definition content: " + item)
@@ -413,7 +428,7 @@ def rendered_table_rows(section, header, prefix):
     # Fail closed on detached ID rows that are not part of this table.
     for i, line in enumerate(lines):
         if i < start + 2 or i >= pos:
-            if re.match(r"^\s*\|\s*" + prefix + r"\d", line):
+            if re.match(r"^\s*\|\s*" + prefix + r"[0-9]", line):
                 raise ValueError("detached " + prefix + " ID row outside table")
     return rows
 
@@ -452,14 +467,14 @@ def extract_mapping(source):
     mapping, u_phases, t_phases = {}, {}, {}
     # A body reference is a real section number, not free-form prose.
     section_numbers = set(re.findall(
-        r"(?m)^#{2,5} +(\d+(?:\.\d+)*)\s+",
+        r"(?m)^#{2,5} +([0-9]+(?:\.[0-9]+)*)\s+",
         "\n".join(visible_markdown_lines(source))
         .split("### 18.2 요구사항과 시험 연결", 1)[0],
     ))
     for line in rendered_table_rows(
         section, ["요구 ID", "본문", "주요 시험", "완료 단계"], "U"
     ):
-        if not re.match(r"\|\s*U\d{2}", line):
+        if not re.match(r"\|\s*U[0-9]{2}", line):
             raise ValueError("non-U crosswalk row: " + line)
         cells = split_markdown_cells(line)
         if len(cells) != 4 or any(not cell.strip() for cell in cells):
@@ -545,7 +560,7 @@ def extract_ledger(source):
     )
     u_map, t_map, u_phases, t_phases = {}, {}, {}, {}
     for line in table_u:
-        m = re.match(r"^\|\s*(U\d{2})\s*\|",line)
+        m = re.match(r"^\|\s*(U[0-9]{2})\s*\|",line)
         if not m:
             raise ValueError("unknown/malformed U ledger row: " + line)
         if m:
@@ -560,7 +575,7 @@ def extract_ledger(source):
             u_map[m.group(1)] = set(expand_ids(cells[2], "T"))
             u_phases[m.group(1)] = cells[1]
     for line in table_t:
-        m = re.match(r"^\|\s*(T\d{2})\s*\|",line)
+        m = re.match(r"^\|\s*(T[0-9]{2})\s*\|",line)
         if not m:
             raise ValueError("unknown/malformed T ledger row: " + line)
         if m:
@@ -834,6 +849,45 @@ if __name__=="__main__":
         if block not in ledger:
             raise AssertionError("ledger table delimiter fixture missing")
         must_reject(specification, ledger.replace(block, header, 1))
+
+    # Escaped '<' must never open an HTML comment and conceal real HTML
+    # block containers surrounding a normative table. An even number of
+    # backslashes leaves the '<' unescaped; odd count remains literal text.
+    escaped_open = chr(92) + "<!--"
+    doubled_open = chr(92) * 2 + "<!--"
+    for table in (
+        "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |",
+        "| ID | 요구사항 | 상태 | 근거 |",
+    ):
+        if table not in specification:
+            raise AssertionError("escaped-comment fixture missing: " + table)
+        for open_mark in (escaped_open, chr(92) * 3 + "<!--"):
+            hidden_html = open_mark + "\n\n<style>\n-->\n" + table
+            must_reject(specification.replace(table, hidden_html, 1), ledger)
+        # A genuine opener (even slash parity) must still mask its comment
+        # contents; a table inside one cannot satisfy normative coverage.
+        hidden_table = doubled_open + "\n" + table + "\n-->"
+        must_reject(specification.replace(table, hidden_table, 1), ledger)
+
+    # Frozen U/T IDs use ASCII decimal digits only. Python's Unicode
+    # decimal digits would otherwise normalize look-alike identifiers.
+    for old, bad in (
+        ("| U01 | 8,10,11 |", "| U٠١ | 8,10,11 |"),
+        ("| T06,T07,T43,T44 |", "| T٠٦,T07,T43,T44 |"),
+        ("| U01 | 8,10,11 |", "| U０１ | 8,10,11 |"),
+    ):
+        if old not in specification:
+            raise AssertionError("Unicode ID fixture missing: " + old)
+        must_reject(specification.replace(old, bad, 1), ledger)
+    for prefix, original in (("U", "U01"), ("T", "T06")):
+        for non_ascii in ("٠", "０"):
+            rejected_id = original.replace("0", non_ascii, 1)
+            try:
+                expand_ids(rejected_id, prefix)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("non-ASCII U/T ID accepted: " + rejected_id)
 
     # GFM validates delimiter cells against raw source before stripping
     # inline HTML comments. Do not accept a delimiter synthesized as valid.
