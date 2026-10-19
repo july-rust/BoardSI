@@ -57,6 +57,15 @@ class ModelHandoffWindow : public QWidget {
         qInfo().noquote() << "M0_SYNTHETIC_QT_MODEL_HANDOFF" << (ok ? "PASS" : "FAIL") << reason;
         if (selftest) QTimer::singleShot(0, qApp, [ok] { qApp->exit(ok ? 0 : 1); });
     }
+    void handleWorkerTimeout() {
+        timedOut = true;
+        timeout.stop();
+        child.kill();
+        // Inject this same handler in the native timeout regression without
+        // invoking Qt's private-signal-only QTimer::timeout() signature.
+        if (selftest && stage == 4) status->setText("Worker timeout");
+        else endTest(false, "Worker timeout");
+    }
     void consume() {
         received += child.readAllStandardOutput();
         if (received.size() > 65540) { protocolError = true; received.clear(); child.kill(); return; }
@@ -129,18 +138,10 @@ public:
             return;
         }
         timeout.setSingleShot(true);
-        connect(&timeout, &QTimer::timeout, this, [this] {
-            timedOut = true;
-            timeout.stop();
-            child.kill();
-            // Selftest phase 4 deliberately injects the timeout without
-            // waiting 10 s, then verifies the OS-exit handler preserves it.
-            if (selftest && stage == 4) status->setText("Worker timeout");
-            else endTest(false, "Worker timeout");
-        });
+        connect(&timeout, &QTimer::timeout, this, [this] { handleWorkerTimeout(); });
         connect(launch, &QPushButton::clicked, this, [this] { startStage(1); });
         connect(&child, &QProcess::started, this, [this] {
-            if (selftest && stage == 4) { timeout.timeout(); return; }
+            if (selftest && stage == 4) { handleWorkerTimeout(); return; }
             if (child.write(pending) != pending.size()) {
                 protocolError = true; child.kill(); return;
             }
