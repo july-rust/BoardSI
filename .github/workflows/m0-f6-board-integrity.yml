@@ -1,0 +1,25 @@
+name: M0 F6 public reference PCB integrity
+on:
+  pull_request:
+    paths:
+      - .github/scripts/m0_f6_board_integrity.py
+      - .github/workflows/m0-f6-board-integrity.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public-board-integrity:
+    name: F6 immutable KiCad candidate byte and license check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify pinned public upstream KiCad bytes
+        run: python3 .github/scripts/m0_f6_board_integrity.py
+      - name: Keep exact candidate-source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m0-f6-candidate-integrity
+          path: build/m0-f6-public-boards/candidate-integrity.json
+          if-no-files-found: warn
