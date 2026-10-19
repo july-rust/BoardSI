@@ -18,6 +18,10 @@ cmake -S apps/boardsi-qt-prototype -B build-qt \
   -DCMAKE_PREFIX_PATH=/absolute/qt/prefix \
   -DBOARDSI_WORKER=/absolute/path/to/target/debug/boardsi-worker
 cmake --build build-qt --parallel 2
+# Required for qt-model-v2-identity: generate immutable synthetic fixtures.
+# Run from the repository root; do not use real or proprietary PCB data.
+cargo run --locked -p boardsi-worker --example m0_model_snapshot_fixture -- \
+  build-qt/qt-model-a.frame build-qt/qt-model-b.frame
 QT_QPA_PLATFORM=offscreen ctest --test-dir build-qt --output-on-failure
 # Run the actual GUI on a prepared desktop:
 ./build-qt/boardsi-qt-prototype /absolute/path/to/target/debug/boardsi-worker
@@ -27,6 +31,13 @@ If needed, include the SDK ICU/Qt library directory in LD_LIBRARY_PATH on Linux.
 BUILD_TESTING=ON requires Python3 for the test-only fault peer and an absolute
 BOARDSI_WORKER path. Use `-DBUILD_TESTING=OFF` to compile only the GUI.
 Windows multi-config executable locations and `.exe` need matching paths.
+The `qt-model-v2-identity` CTest **requires** the two generated synthetic
+`build-qt/qt-model-a.frame` and `build-qt/qt-model-b.frame` files shown above.
+They are not shipped in Git, must be regenerated after changing model fixture
+sources, and contain no real board geometry or measured SI results. Running
+`ctest` without generating these files first is an incomplete test setup.
+On Windows PowerShell, set `$env:QT_QPA_PLATFORM="offscreen"` before CTest
+instead of using the POSIX environment-variable prefix.
 
 The actual Window starts QProcess from the Start button; UUID/immutable snapshot,
 framed JSON, sequence/scope checking, bounded parse callbacks and QTimer separate

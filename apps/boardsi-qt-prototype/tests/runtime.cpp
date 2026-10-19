@@ -345,7 +345,10 @@ public:
             lastTick=now;
             lastTickPhase=phase;
         };
-        QTimer entireTick; entireTick.setInterval(10);
+        // Require non-coalesced scheduling of the measurement clock.
+        // This cannot exempt a real >1000 ms event-loop stall: the timer
+        // is still armed before first native show and observes every gap.
+        QTimer entireTick; entireTick.setTimerType(Qt::PreciseTimer); entireTick.setInterval(10);
         QObject::connect(&entireTick,&QTimer::timeout,[&] {
             if (lastTick==0) startupMark("first_global_timer_callback");
             observeGap(entireClock.elapsed());
