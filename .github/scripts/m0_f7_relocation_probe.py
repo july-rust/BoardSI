@@ -30,6 +30,8 @@ def main():
         ):
             env.pop(key, None)
     def normalized(p):
+        # GitHub's Windows target and GITHUB_PATH may use different separators.
+        # os.path.normcase on Windows canonicalizes slash direction and case.
         return os.path.normcase(os.path.normpath(p.strip('"')))
     roots = [normalized(q) for q in qt_prefixes if q]
     def is_sdk_path(p):
