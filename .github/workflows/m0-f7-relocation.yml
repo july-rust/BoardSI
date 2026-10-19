@@ -88,13 +88,23 @@ jobs:
           if (-not (Test-Path $tool) -and $env:QT_HOST_PREFIX) { $tool = Join-Path $env:QT_HOST_PREFIX 'bin/windeployqt.exe' }
           if (-not (Test-Path $tool)) { throw 'windeployqt missing for target' }
           if ($env:QT_HOST_PREFIX) {
-            $targetQtpaths = Join-Path $env:QT_PREFIX 'bin/qtpaths.bat'
-            if (-not (Test-Path $targetQtpaths)) { throw 'ARM64 target qtpaths.bat missing: cannot safely select target Qt runtime' }
-            & $tool --qtpaths $targetQtpaths --release --no-translations --dir $dest (Join-Path $dest 'boardsi-qt-model-v2.exe')
+            # Only target ARM64 Qt Core/Gui/Widgets and the Windows platform plugin
+            # are required for this restricted Widgets prototype. Do not invoke
+            # host windeployqt with a non-executable target qtpaths.bat.
+            foreach ($relative in @('bin/Qt6Core.dll', 'bin/Qt6Gui.dll', 'bin/Qt6Widgets.dll')) {
+              $source = Join-Path $env:QT_PREFIX $relative
+              if (-not (Test-Path -LiteralPath $source)) { throw "Target Qt DLL missing: $source" }
+              Copy-Item -LiteralPath $source -Destination $dest -ErrorAction Stop
+            }
+            $plugin = Join-Path $env:QT_PREFIX 'plugins/platforms/qwindows.dll'
+            if (-not (Test-Path -LiteralPath $plugin)) { throw "Target Qt plugin missing: $plugin" }
+            $pluginDest = Join-Path $dest 'platforms'
+            New-Item -ItemType Directory -Path $pluginDest -Force | Out-Null
+            Copy-Item -LiteralPath $plugin -Destination $pluginDest -ErrorAction Stop
           } else {
             & $tool --release --no-translations --dir $dest (Join-Path $dest 'boardsi-qt-model-v2.exe')
+            if ($LASTEXITCODE -ne 0) { throw 'windeployqt failed' }
           }
-          if ($LASTEXITCODE -ne 0) { throw 'windeployqt failed' }
           python .github/scripts/m0_f7_relocation_probe.py (Join-Path $dest 'boardsi-qt-model-v2.exe') (Join-Path $dest 'boardsi-worker.exe') build-qt/qt-model-a.frame build-qt/qt-model-b.frame
           if ($LASTEXITCODE -ne 0) { throw 'Relocated selftest failed' }
       - name: macOS Qt app deployment and relocated smoke
