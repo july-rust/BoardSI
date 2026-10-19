@@ -50,6 +50,7 @@ class ModelHandoffWindow : public QWidget {
     ModelFrame a, b, active;
     QByteArray pending, received;
     bool selftest = false, parsed = false, accepted = false, stale = false, protocolError = false;
+    bool timedOut = false;
     int stage = 0;
     void endTest(bool ok, const QString &reason) {
         status->setText(reason);
@@ -97,7 +98,7 @@ class ModelHandoffWindow : public QWidget {
     }
     void startStage(int target) {
         if (child.state() != QProcess::NotRunning) { endTest(false, "Overlap"); return; }
-        stage = target; parsed = accepted = stale = protocolError = false;
+        stage = target; parsed = accepted = stale = protocolError = timedOut = false;
         pending = target == 1 ? b.bytes : a.bytes;
         if (target == 2) pending = tamperDigest(pending);
         if (pending.isEmpty()) { endTest(false, "Fixture corruption"); return; }
@@ -129,10 +130,17 @@ public:
         }
         timeout.setSingleShot(true);
         connect(&timeout, &QTimer::timeout, this, [this] {
-            child.kill(); endTest(false, "Worker timeout");
+            timedOut = true;
+            timeout.stop();
+            child.kill();
+            // Selftest phase 4 deliberately injects the timeout without
+            // waiting 10 s, then verifies the OS-exit handler preserves it.
+            if (selftest && stage == 4) status->setText("Worker timeout");
+            else endTest(false, "Worker timeout");
         });
         connect(launch, &QPushButton::clicked, this, [this] { startStage(1); });
         connect(&child, &QProcess::started, this, [this] {
+            if (selftest && stage == 4) { timeout.timeout(); return; }
             if (child.write(pending) != pending.size()) {
                 protocolError = true; child.kill(); return;
             }
@@ -145,6 +153,14 @@ public:
         connect(&child, &QProcess::readyReadStandardOutput, this, [this] { consume(); });
         connect(&child, &QProcess::finished, this, [this](int code, QProcess::ExitStatus exitKind) {
             timeout.stop(); consume(); launch->setEnabled(true);
+            if (timedOut) {
+                // A kill-induced finished() is expected, not a new diagnosis.
+                // Preserve the original timeout and restore launch for retry.
+                if (selftest && stage == 4)
+                    endTest(status->text() == "Worker timeout" && launch->isEnabled(),
+                            "timeout diagnosis preserved after OS exit; UI recovered");
+                return;
+            }
             if (exitKind != QProcess::NormalExit || protocolError || !received.isEmpty()) {
                 endTest(false, "Framing or process error"); return;
             }
@@ -184,7 +200,7 @@ public:
                 if (child.state() != QProcess::NotRunning || timeout.isActive() || !launch->isEnabled())
                     endTest(false, "Failed-start UI recovery incomplete");
                 else
-                    endTest(true, "stale rejected; fresh accepted; tamper rejected; failed-start UI recovered");
+                    QTimer::singleShot(0, this, [this] { startStage(4); });
             } else {
                 endTest(false, "OS Worker failed to start");
             }
