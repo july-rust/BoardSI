@@ -29,10 +29,18 @@ def main():
             "DYLD_LIBRARY_PATH", "LD_LIBRARY_PATH", "CMAKE_PREFIX_PATH"
         ):
             env.pop(key, None)
+    def normalized(p):
+        return os.path.normcase(os.path.normpath(p.strip('"')))
+    roots = [normalized(q) for q in qt_prefixes if q]
+    def is_sdk_path(p):
+        item = normalized(p)
+        return any(item == root or item.startswith(root + os.sep) for root in roots)
     env["PATH"] = os.pathsep.join(
         p for p in env.get("PATH", "").split(os.pathsep)
-        if p and not any(q and p.lower().startswith(q.lower()) for q in qt_prefixes)
+        if p and not is_sdk_path(p)
     )
+    if any(is_sdk_path(p) for p in env["PATH"].split(os.pathsep) if p):
+        raise RuntimeError("Qt SDK path still present in child PATH")
     if sys.platform == "darwin":
         backend = "cocoa"
         plugin_dir = model.parent.parent / "PlugIns" / "platforms"
@@ -42,6 +50,34 @@ def main():
     else:
         raise RuntimeError("Windows/macOS only")
     env["QT_QPA_PLATFORM"] = backend
+    # macdeployqt may leave an absolute SDK framework or LC_RPATH even when
+    # Qt environment variables and PATH are stripped. Fail closed if any
+    # shipped Mach-O executable/library/plugin refers to the build SDK.
+    if sys.platform == "darwin":
+        app_root = model.parents[2]
+        qt_prefixes = [q for q in qt_prefixes if q]
+        sigs = (bytes.fromhex("cffaedfe"), bytes.fromhex("feedfacf"),
+                bytes.fromhex("cafebabe"), bytes.fromhex("bebafeca"))
+        checked = 0
+        for candidate in app_root.rglob("*"):
+            if not candidate.is_file() or candidate.is_symlink():
+                continue
+            with candidate.open("rb") as source:
+                magic = source.read(4)
+            if magic not in sigs:
+                continue
+            checked += 1
+            for args in (["otool", "-L", str(candidate)],
+                         ["otool", "-l", str(candidate)]):
+                info = subprocess.run(args, capture_output=True, text=True, check=True)
+                for prefix in qt_prefixes:
+                    if prefix in info.stdout:
+                        raise RuntimeError(
+                            "Absolute SDK linkage/rpath in bundled Mach-O: "
+                            + str(candidate.relative_to(app_root))
+                        )
+        if checked < 2:
+            raise RuntimeError("Packaged macOS Qt Mach-O dependencies not inspected")
     if not plugin_dir.is_dir() or not any(plugin_dir.iterdir()):
         print("Relocated Qt platform plugin missing", plugin_dir, file=sys.stderr)
         return 1
