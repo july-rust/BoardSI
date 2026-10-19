@@ -177,6 +177,19 @@ def visible_markdown_lines(source):
             original_indent_for_fence <= 3
             and original_open.startswith(("~~~", chr(96) * 3))
         )
+        # Recognize a genuine source GFM fence BEFORE scanning its info
+        # string for HTML-comment-looking text. The info string is inert:
+        # e.g. an opening fence with info "x <!--" is NOT a comment opener.
+        # Its following real closing fence must resume scanning raw HTML.
+        if real_fence_start and not in_comment:
+            opener_char = original_open[0]
+            opener_width = len(original_open) - len(original_open.lstrip(opener_char))
+            if opener_char == chr(96) and chr(96) in original_open[opener_width:]:
+                raise ValueError("invalid original backtick fence info string")
+            fence_character, fence_length = opener_char, opener_width
+            yield ""
+            continue
+
         # Single-line real HTML comments are invisible to GFM: backticks
         # contained in them must not create false unclosed code spans.
         # Cross-line spoofing remains rejected because it has no same-line
@@ -224,8 +237,6 @@ def visible_markdown_lines(source):
         # before any downstream consumer sees the comment-stripped version.
         stripped_cells = split_markdown_cells(text.strip())
         if (text != original_line
-            and original_line.lstrip(" ").startswith("|")
-            and text.lstrip(" ").startswith("|")
             and len(stripped_cells) >= 2
             and all(re.fullmatch(r":?-{3,}:?", cell) for cell in stripped_cells)):
             original_cells = split_markdown_cells(original_line.strip())
@@ -1286,5 +1297,50 @@ if __name__=="__main__":
     for invalid_ref in ("2", "16", "17", "18", "18.1", "18.3"):
         must_reject(specification.replace(
             "| U01 | 8,10,11 |", "| U01 | " + invalid_ref + " |", 1), ledger)
+
+    # GFM treats HTML-looking tokens in a valid fenced-code INFO string
+    # as inert text. Scan resumes after the real closing fence, so a
+    # subsequent raw HTML style block cannot conceal normative tables.
+    crosswalk_header = "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |"
+    crosswalk_last = "| U47 | 13.1,15 | T06,T10,T12,T41,T50 | 단계별 게이트 |"
+    opening_info_fence = chr(96) * 3 + "x <!--\n" + chr(96) * 3
+    harmless_info_fence = specification.replace(
+        crosswalk_header,
+        opening_info_fence + "\n\n" + crosswalk_header, 1
+    )
+    if harmless_info_fence == specification:
+        raise AssertionError("GFM fence info fixture not constructed")
+    if validate(harmless_info_fence, ledger) != (48, 54):
+        raise AssertionError("valid source GFM fence info rejected")
+    hidden_by_style = specification.replace(
+        crosswalk_header,
+        opening_info_fence + "\n<style>\n-->\n" + crosswalk_header, 1
+    ).replace(
+        crosswalk_last,
+        crosswalk_last + "\n" + opening_info_fence
+        + "\n</style>\n-->", 1
+    )
+    must_reject(hidden_by_style, ledger)
+
+    # GFM validates both pipe-leading AND openerless table delimiters
+    # against ORIGINAL Markdown before removing an HTML comment.
+    # An openerless delimiter fabricated by stripping comments is invalid.
+    for original_source, h, dash_count, is_ledger in (
+        (specification, "| ID | 요구사항 | 상태 | 근거 |", 4, False),
+        (specification, "| Test ID | 주요 검증 | 통과 조건 |", 3, False),
+        (specification, "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |", 4, False),
+        (ledger, "| Requirement ID | Phase from v1.0 18.2 | Linked test IDs | Definition | Implementation | Full acceptance | Evidence scope |", 7, True),
+        (ledger, "| Test ID | Related stage(s) | Linked requirement IDs (coarse) | Complete acceptance result | Evidence |", 5, True),
+    ):
+        normal_delimiter = "| " + " | ".join(["---"] * dash_count) + " |"
+        marker = h + "\n" + normal_delimiter
+        disguised = "<!-- -->" + " | ".join(["---"] * dash_count)
+        if marker not in original_source:
+            raise AssertionError("openerless delimiter fixture not constructed: " + h)
+        corrupt = original_source.replace(marker, h + "\n" + disguised, 1)
+        if is_ledger:
+            must_reject(specification, corrupt)
+        else:
+            must_reject(corrupt, ledger)
 
     print(f"M0 U/T traceability coverage PASS: {count[0]} requirements, {count[1]} tests; mutation guards PASS; no system T acceptance implied")
