@@ -42,11 +42,21 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $flags = @('-S', 'apps/boardsi-qt-prototype', '-B', 'build-qt', '-G', 'Visual Studio 17 2022', '-A', '${{ matrix.cmake_arch }}', '-DBUILD_TESTING=OFF', "-DCMAKE_PREFIX_PATH=$env:QT_PREFIX")
-          if ($env:QT_HOST_PREFIX) { $flags += "-DQT_HOST_PATH=$env:QT_HOST_PREFIX" }
-          & cmake @flags
-          if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed' }
-          cmake --build build-qt --config Release --parallel 2
+          $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
+          $vsInstall = & $vswhere -latest -products '*' -property installationPath
+          if (-not $vsInstall) { throw 'MSVC installation not found' }
+          $script = Join-Path $env:RUNNER_TEMP 'm0-f7-native-build.cmd'
+          $hostArg = ''
+          if ($env:QT_HOST_PREFIX) { $hostArg = "-DQT_HOST_PATH=$env:QT_HOST_PREFIX" }
+          @(
+            "@call `"$vsInstall\Common7\Tools\VsDevCmd.bat`" -arch=${{ matrix.cmake_arch }} -host_arch=${{ matrix.cmake_arch }}",
+            'if errorlevel 1 exit /b 1',
+            "cmake -S apps/boardsi-qt-prototype -B build-qt -G Ninja -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$env:QT_PREFIX $hostArg",
+            'if errorlevel 1 exit /b 1',
+            'cmake --build build-qt --parallel 2',
+            'if errorlevel 1 exit /b 1'
+          ) | Set-Content $script
+          & cmd /c $script
           if ($LASTEXITCODE -ne 0) { throw 'CMake native build failed' }
       - name: Build macOS Qt model app
         if: runner.os == 'macOS'
@@ -60,7 +70,7 @@ jobs:
         run: |
           $dest = Join-Path $env:RUNNER_TEMP 'boardsi-m0-relocated'
           New-Item -Type Directory -Force $dest | Out-Null
-          Copy-Item build-qt/Release/boardsi-qt-model-v2.exe $dest
+          Copy-Item build-qt/boardsi-qt-model-v2.exe $dest
           Copy-Item target/debug/boardsi-worker.exe $dest
           $tool = Join-Path $env:QT_PREFIX 'bin/windeployqt.exe'
           if (-not (Test-Path $tool) -and $env:QT_HOST_PREFIX) { $tool = Join-Path $env:QT_HOST_PREFIX 'bin/windeployqt.exe' }
