@@ -376,7 +376,9 @@ fn array<'a>(v: &'a Value, min: usize, max: usize) -> io::Result<&'a [Value]> {
 }
 fn finite_number(v: &Value) -> io::Result<f64> {
     let f = v.as_f64().ok_or_else(|| bad("NumberRequired"))?;
-    if !f.is_finite() { return Err(bad("NonFiniteNumber")); }
+    if !f.is_finite() {
+        return Err(bad("NonFiniteNumber"));
+    }
     Ok(f)
 }
 fn rational_wire(v: &Value, require_positive: bool) -> io::Result<()> {
@@ -384,9 +386,15 @@ fn rational_wire(v: &Value, require_positive: bool) -> io::Result<()> {
     let nstr = nonempty(&pair[0])?;
     let dstr = nonempty(&pair[1])?;
     let n = nstr.parse::<i128>().map_err(|_| bad("RationalNumerator"))?;
-    let d = dstr.parse::<i128>().map_err(|_| bad("RationalDenominator"))?;
-    if n.to_string() != nstr || d.to_string() != dstr || d <= 0 || n == i128::MIN
-        || (require_positive && n <= 0) {
+    let d = dstr
+        .parse::<i128>()
+        .map_err(|_| bad("RationalDenominator"))?;
+    if n.to_string() != nstr
+        || d.to_string() != dstr
+        || d <= 0
+        || n == i128::MIN
+        || (require_positive && n <= 0)
+    {
         return Err(bad("NonCanonicalRational"));
     }
     Ok(())
@@ -398,7 +406,7 @@ fn point_wire(v: &Value) -> io::Result<[i64; 2]> {
         pair[1].as_i64().ok_or_else(|| bad("InvalidCoordinate"))?,
     ])
 }
-fn meta_wire(v: &Value, kind: &str) -> io::Result<&str> {
+fn meta_wire<'a>(v: &'a Value, kind: &str) -> io::Result<&'a str> {
     object_keys(v, &["kind", "object", "part", "provenance_type"])?;
     if string(&v["kind"])? != kind {
         return Err(bad("WrongObjectKind"));
@@ -409,7 +417,16 @@ fn meta_wire(v: &Value, kind: &str) -> io::Result<&str> {
     Ok(name)
 }
 fn provenance_wire(v: &Value) -> io::Result<()> {
-    object_keys(v, &["document", "revision", "method", "reference_frequency_hz", "temperature_c"])?;
+    object_keys(
+        v,
+        &[
+            "document",
+            "revision",
+            "method",
+            "reference_frequency_hz",
+            "temperature_c",
+        ],
+    )?;
     nonempty(&v["document"])?;
     nonempty(&v["revision"])?;
     nonempty(&v["method"])?;
@@ -425,7 +442,9 @@ fn provenance_wire(v: &Value) -> io::Result<()> {
 }
 fn property_wire(v: &Value, minimum: f64) -> io::Result<()> {
     object_keys(v, &["value", "source"])?;
-    if finite_number(&v["value"])? < minimum { return Err(bad("InvalidMaterialValue")); }
+    if finite_number(&v["value"])? < minimum {
+        return Err(bad("InvalidMaterialValue"));
+    }
     provenance_wire(&v["source"])
 }
 fn rational_property_wire(v: &Value, positive: bool) -> io::Result<()> {
@@ -435,7 +454,11 @@ fn rational_property_wire(v: &Value, positive: bool) -> io::Result<()> {
 }
 fn digest_hex_wire(v: &Value) -> io::Result<()> {
     let s = string(v)?;
-    if s.len() != 64 || !s.bytes().all(|ch| ch.is_ascii_hexdigit() && !ch.is_ascii_uppercase()) {
+    if s.len() != 64
+        || !s
+            .bytes()
+            .all(|ch| ch.is_ascii_hexdigit() && !ch.is_ascii_uppercase())
+    {
         return Err(bad("InvalidHexDigest"));
     }
     Ok(())
@@ -443,15 +466,38 @@ fn digest_hex_wire(v: &Value) -> io::Result<()> {
 /// Independently check the *exact* supported nested wire grammar.
 /// This is a structural/schema check, NOT an independent physical BoardModel validator.
 fn validate_wire_model(model: &Value) -> io::Result<()> {
-    object_keys(model, &["scope", "kind", "source", "frame", "layer", "material", "net", "outline"])?;
+    object_keys(
+        model,
+        &[
+            "scope", "kind", "source", "frame", "layer", "material", "net", "outline",
+        ],
+    )?;
     if model["scope"] != "M0_SYNTHETIC_SUBSET_NOT_PHYSICS" || model["kind"] != "Pcb" {
         return Err(bad("UnsupportedModelScope"));
     }
     let source = &model["source"];
-    object_keys(source, &["format", "format_version", "importer_version", "producer",
-        "producer_version", "files", "conditions", "capability"])?;
-    if source["format"] != "Synthetic" { return Err(bad("NonSyntheticSource")); }
-    for k in ["format_version", "importer_version", "producer", "producer_version"] {
+    object_keys(
+        source,
+        &[
+            "format",
+            "format_version",
+            "importer_version",
+            "producer",
+            "producer_version",
+            "files",
+            "conditions",
+            "capability",
+        ],
+    )?;
+    if source["format"] != "Synthetic" {
+        return Err(bad("NonSyntheticSource"));
+    }
+    for k in [
+        "format_version",
+        "importer_version",
+        "producer",
+        "producer_version",
+    ] {
         nonempty(&source[k])?;
     }
     let files = array(&source["files"], 1, 64)?;
@@ -459,8 +505,11 @@ fn validate_wire_model(model: &Value) -> io::Result<()> {
     for f in files {
         object_keys(f, &["logical_path", "claimed_sha256"])?;
         let name = nonempty(&f["logical_path"])?;
-        if name.starts_with('/') || name.contains('\\') || name.split('/').any(|p| p == ".." || p.is_empty())
-            || previous.is_some_and(|last| last >= name) {
+        if name.starts_with('/')
+            || name.contains('\\')
+            || name.split('/').any(|p| p == ".." || p.is_empty())
+            || previous.is_some_and(|last| last >= name)
+        {
             return Err(bad("InvalidSourceFilePathOrOrder"));
         }
         digest_hex_wire(&f["claimed_sha256"])?;
@@ -476,21 +525,53 @@ fn validate_wire_model(model: &Value) -> io::Result<()> {
         last_condition = Some(entry);
     }
     let cap = &source["capability"];
-    object_keys(cap, &["geometry", "net", "pin_pad", "stackup", "reference", "model", "object_coverage"])?;
-    for k in ["geometry", "net", "pin_pad", "stackup", "reference", "model"] {
+    object_keys(
+        cap,
+        &[
+            "geometry",
+            "net",
+            "pin_pad",
+            "stackup",
+            "reference",
+            "model",
+            "object_coverage",
+        ],
+    )?;
+    for k in [
+        "geometry",
+        "net",
+        "pin_pad",
+        "stackup",
+        "reference",
+        "model",
+    ] {
         if !["Complete", "Partial", "Missing", "Conflicting"].contains(&string(&cap[k])?) {
             return Err(bad("InvalidCapability"));
         }
     }
-    for name in array(&cap["object_coverage"], 0, 1024)? { nonempty(name)?; }
+    for name in array(&cap["object_coverage"], 0, 1024)? {
+        nonempty(name)?;
+    }
 
     let frame = &model["frame"];
-    object_keys(frame, &["meta", "unit_label", "metres_per_tick", "origin_m",
-        "turn", "mirror_x", "source_layer_order_reversed"])?;
+    object_keys(
+        frame,
+        &[
+            "meta",
+            "unit_label",
+            "metres_per_tick",
+            "origin_m",
+            "turn",
+            "mirror_x",
+            "source_layer_order_reversed",
+        ],
+    )?;
     meta_wire(&frame["meta"], "Frame")?;
     nonempty(&frame["unit_label"])?;
     rational_wire(&frame["metres_per_tick"], true)?;
-    for r in array(&frame["origin_m"], 2, 2)? { rational_wire(r, false)?; }
+    for r in array(&frame["origin_m"], 2, 2)? {
+        rational_wire(r, false)?;
+    }
     if !["Zero", "One", "Two", "Three"].contains(&string(&frame["turn"])?) {
         return Err(bad("InvalidQuarterTurn"));
     }
@@ -499,7 +580,17 @@ fn validate_wire_model(model: &Value) -> io::Result<()> {
     }
 
     let material = &model["material"];
-    object_keys(material, &["meta", "name", "dk", "df", "conductivity_s_per_m", "valid_band"])?;
+    object_keys(
+        material,
+        &[
+            "meta",
+            "name",
+            "dk",
+            "df",
+            "conductivity_s_per_m",
+            "valid_band",
+        ],
+    )?;
     let material_id = meta_wire(&material["meta"], "Material")?;
     nonempty(&material["name"])?;
     property_wire(&material["dk"], f64::MIN_POSITIVE)?;
@@ -509,15 +600,30 @@ fn validate_wire_model(model: &Value) -> io::Result<()> {
     object_keys(band, &["min_hz", "max_hz", "source"])?;
     let min_f = finite_number(&band["min_hz"])?;
     let max_f = finite_number(&band["max_hz"])?;
-    if min_f < 0.0 || max_f < min_f { return Err(bad("InvalidFrequencyBand")); }
+    if min_f < 0.0 || max_f < min_f {
+        return Err(bad("InvalidFrequencyBand"));
+    }
     provenance_wire(&band["source"])?;
 
     let layer = &model["layer"];
-    object_keys(layer, &["meta", "name", "order", "kind", "z_m", "thickness_m", "material_object"])?;
+    object_keys(
+        layer,
+        &[
+            "meta",
+            "name",
+            "order",
+            "kind",
+            "z_m",
+            "thickness_m",
+            "material_object",
+        ],
+    )?;
     meta_wire(&layer["meta"], "Layer")?;
     nonempty(&layer["name"])?;
-    if layer["order"].as_u64() != Some(0) || layer["kind"] != "Copper"
-        || string(&layer["material_object"])? != material_id {
+    if layer["order"].as_u64() != Some(0)
+        || layer["kind"] != "Copper"
+        || string(&layer["material_object"])? != material_id
+    {
         return Err(bad("LayerMaterialReferenceMismatch"));
     }
     rational_property_wire(&layer["z_m"], false)?;
@@ -544,10 +650,14 @@ fn validate_wire_model(model: &Value) -> io::Result<()> {
         if start == end || previous_end.is_some_and(|last| last != start) {
             return Err(bad("OpenOrDegenerateOutline"));
         }
-        if first.is_none() { first = Some(start); }
+        if first.is_none() {
+            first = Some(start);
+        }
         previous_end = Some(end);
     }
-    if first != previous_end { return Err(bad("OpenOutline")); }
+    if first != previous_end {
+        return Err(bad("OpenOutline"));
+    }
     Ok(())
 }
 
@@ -620,7 +730,8 @@ mod tests {
         let model_sha = digest(MODEL_DOMAIN, model_json.as_bytes());
         let snapshot_bytes = serde_json::to_vec(&json!({
             "model_sha256":model_sha,"points":5,"delay_ms":0
-        })).unwrap();
+        }))
+        .unwrap();
         let snapshot_id = digest(SNAPSHOT_DOMAIN, &snapshot_bytes);
         let request = json!({
             "schema":2,"kind":"SyntheticSnapshotV2","run_id":"forged",
