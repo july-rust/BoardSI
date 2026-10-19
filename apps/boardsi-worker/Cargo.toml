@@ -8,3 +8,5 @@ publish = false
 boardsi-ipc = { path = "../../crates/boardsi-ipc" }
 boardsi-model = { path = "../../crates/boardsi-model" }
 boardsi-numerics = { path = "../../crates/boardsi-numerics" }
+
+serde_json = "=1.0.114"
