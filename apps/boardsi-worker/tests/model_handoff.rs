@@ -299,6 +299,9 @@ fn model_snapshot_v2_rejects_unrepresented_or_unready_model() {
             .unwrap()
             .model_sha256()
     );
+    let mut board = model();
+    board.sources[0].producer.clear();
+    assert!(BoundSyntheticSnapshot::capture(&board, "empty-producer", 5, 0).is_err());
     let board = model();
     assert!(BoundSyntheticSnapshot::capture(&board, "", 5, 0).is_err());
     assert!(BoundSyntheticSnapshot::capture(&board, "invalid", 0, 0).is_err());
