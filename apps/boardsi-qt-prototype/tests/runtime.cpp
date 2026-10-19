@@ -22,8 +22,14 @@ class RuntimeValidation {
     QJsonObject appBootstrap;
     QElapsedTimer startupClock;
     int assertions = 0;
+    int firstDispatchOrdinal = 0;
     void startupMark(const char *name) {
         startupMilestones[QString::fromLatin1(name)] = startupClock.elapsed();
+    }
+    void dispatchMark(const char *name) {
+        const auto key = QString::fromLatin1(name);
+        startupMilestones[key] = startupClock.elapsed();
+        startupMilestones[key + "_order"] = ++firstDispatchOrdinal;
     }
 public:
     // Timings before RuntimeValidation::run() are diagnostics only; the
@@ -142,7 +148,7 @@ private:
         // is unordered relative to other event sources; this is NOT a PASS gate
         // and does not assign causality to the Worker or OS scheduler.
         QTimer::singleShot(0, &w, [this] {
-            startupMark("first_nested_zero_timer_callback");
+            dispatchMark("first_nested_zero_timer_callback");
         });
         startupMark("worker_running_wait_begin");
         running(w);
@@ -357,7 +363,7 @@ public:
         // is still armed before first native show and observes every gap.
         QTimer entireTick; entireTick.setTimerType(Qt::PreciseTimer); entireTick.setInterval(10);
         QObject::connect(&entireTick,&QTimer::timeout,[&] {
-            if (lastTick==0) startupMark("first_global_timer_callback");
+            if (lastTick==0) dispatchMark("first_global_timer_callback");
             observeGap(entireClock.elapsed());
         });
         entireTick.start();
