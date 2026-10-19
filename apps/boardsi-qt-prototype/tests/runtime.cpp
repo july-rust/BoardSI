@@ -13,6 +13,13 @@
 #include <stdexcept>
 #include <thread>
 #include <vector>
+#include <optional>
+#if defined(Q_OS_WIN)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 class RuntimeValidation {
     QString rust, python, fixture;
@@ -45,6 +52,20 @@ private:
         ++assertions;
         if (!ok) throw std::runtime_error(message);
     }
+#if defined(Q_OS_WIN)
+    // Native GUI-thread CPU time is separate from elapsed wall-clock time.
+    // The difference also includes waits and OS effects; it does not by itself
+    // prove runner preemption or a specific Qt rendering bottleneck.
+    static std::optional<quint64> guiThreadCpuUs() {
+        FILETIME created{}, exited{}, kernel{}, user{};
+        if (!GetThreadTimes(GetCurrentThread(), &created, &exited, &kernel, &user))
+            return std::nullopt;
+        const auto toUs = [](const FILETIME &value) -> quint64 {
+            return ((quint64(value.dwHighDateTime) << 32) | value.dwLowDateTime) / 10;
+        };
+        return toUs(kernel) + toUs(user);
+    }
+#endif
     // Nested Qt loops dispatch UI/IPC/timers; no synchronous process/read waits.
     bool until(const std::function<bool()> &predicate, int timeout = 3000) {
         QEventLoop loop;
@@ -59,8 +80,20 @@ private:
     }
     void start(Window &w, bool traceFirstWindow = false) {
         if (traceFirstWindow) startupMark("window_show_begin");
+#if defined(Q_OS_WIN)
+        const auto showCpuBegin = traceFirstWindow ? guiThreadCpuUs() : std::nullopt;
+#endif
         w.show();
         if (traceFirstWindow) startupMark("window_show_end");
+#if defined(Q_OS_WIN)
+        if (traceFirstWindow) {
+            const auto showCpuEnd = guiThreadCpuUs();
+            const bool valid = showCpuBegin && showCpuEnd && *showCpuEnd >= *showCpuBegin;
+            startupMilestones["window_show_gui_thread_cpu_valid"] = valid;
+            if (valid)
+                startupMilestones["window_show_gui_thread_cpu_us"] = qint64(*showCpuEnd - *showCpuBegin);
+        }
+#endif
         QElapsedTimer t; t.start();
         if (traceFirstWindow) startupMark("start_click_begin");
         w.start->click();
