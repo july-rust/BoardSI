@@ -379,8 +379,8 @@ fn array(v: &Value, min: usize, max: usize) -> io::Result<&[Value]> {
 }
 fn finite_number(v: &Value) -> io::Result<f64> {
     let f = v.as_f64().ok_or_else(|| bad("NumberRequired"))?;
-    if !f.is_finite() {
-        return Err(bad("NonFiniteNumber"));
+    if !f.is_finite() || (f == 0.0 && f.is_sign_negative()) {
+        return Err(bad("NonCanonicalNumber"));
     }
     Ok(f)
 }
@@ -731,6 +731,12 @@ pub fn serve_stdio() -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn negative_zero_wire_float_is_not_canonical() {
+        assert!(finite_number(&json!(-0.0)).is_err());
+        assert!(finite_number(&json!(0.0)).is_ok());
+        assert!(finite_number(&json!(-1.0)).is_ok());
+    }
     #[test]
     fn unreduced_rational_wire_values_are_rejected() {
         for invalid in [json!(["2", "2"]), json!(["0", "2"]), json!(["4", "6"])] {
