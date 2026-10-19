@@ -104,8 +104,17 @@ class ModelHandoffWindow : public QWidget {
         active = target == 1 ? b : a;
         received.clear(); launch->setEnabled(false);
         status->setText("Starting separate OS Worker");
-        child.start(executable, {"--model-snapshot-v2"});
+        // Arm before process launch: FailedToStart can be delivered immediately.
         timeout.start(10000);
+        if (selftest && target == 3) {
+            // A nonexistent executable deterministically exercises the QProcess
+            // failed-start error path after the successful identity tests.
+            const QString missing = executable + ".boardsi-m0-intentionally-absent";
+            if (QFileInfo::exists(missing)) { timeout.stop(); endTest(false, "Missing Worker fixture exists"); return; }
+            child.start(missing, {"--model-snapshot-v2"});
+        } else {
+            child.start(executable, {"--model-snapshot-v2"});
+        }
     }
 public:
     ModelHandoffWindow(QString worker, ModelFrame first, ModelFrame second, bool testing)
@@ -158,11 +167,27 @@ public:
                 if (code == 0 || parsed || accepted) {
                     endTest(false, "Tampered model snapshot accepted"); return;
                 }
-                endTest(true, "stale discarded; fresh identity accepted; tampered digest rejected");
+                startStage(3);
+            } else if (stage == 3) {
+                endTest(false, "Missing Worker unexpectedly finished");
             }
         });
         connect(&child, &QProcess::errorOccurred, this, [this](QProcess::ProcessError e) {
-            if (e == QProcess::FailedToStart) endTest(false, "OS Worker failed to start");
+            if (e != QProcess::FailedToStart) return;
+            // FailedToStart does not guarantee a subsequent finished() signal.
+            // Restore the UI now, preserving the actionable error and allowing retry.
+            timeout.stop();
+            launch->setEnabled(true);
+            pending.clear();
+            received.clear();
+            if (selftest && stage == 3) {
+                if (child.state() != QProcess::NotRunning || timeout.isActive() || !launch->isEnabled())
+                    endTest(false, "Failed-start UI recovery incomplete");
+                else
+                    endTest(true, "stale rejected; fresh accepted; tamper rejected; failed-start UI recovered");
+            } else {
+                endTest(false, "OS Worker failed to start");
+            }
         });
         resize(460, 120);
         if (selftest) QTimer::singleShot(0, this, [this] { startStage(0); });
