@@ -76,7 +76,7 @@ def main():
                     raise RuntimeError("Invalid PE header offset: " + str(path))
                 source.seek(pe_off)
                 header = source.read(6)
-                if len(header) != 6 or header[:4] != b"PE\\0\\0":
+                if len(header) != 6 or header[:4] != bytes((80, 69, 0, 0)):
                     raise RuntimeError("Invalid PE signature: " + str(path))
                 return struct.unpack_from("<H", header, 4)[0]
         binaries = [model, worker, *model.parent.glob("*.dll"),
