@@ -551,8 +551,7 @@ fn validate_wire_model(model: &Value) -> io::Result<()> {
     Ok(())
 }
 
-pub fn serve_stdio() -> io::Result<()> {
-    let payload = read_frame(&mut io::stdin().lock())?;
+fn receipt_for_payload(payload: &[u8]) -> io::Result<Vec<u8>> {
     let v: Value = serde_json::from_slice(&payload).map_err(|_| bad("InvalidV2Json"))?;
     let fields = v.as_object().ok_or_else(|| bad("NotObject"))?;
     if fields.len() != 8 || v["schema"] != 2 || v["kind"] != "SyntheticSnapshotV2" {
@@ -597,12 +596,40 @@ pub fn serve_stdio() -> io::Result<()> {
     // Receipt is the only v2 response in this bounded phase. No SI solve performed.
     let receipt = json!({"schema":2,"type":"SyntheticModelReceipt","run_id":run,
         "model_sha256":model_sha,"snapshot_id":snapshot_id,"synthetic":true});
-    let bytes = serde_json::to_vec(&receipt).map_err(|_| bad("ReceiptEncode"))?;
-    write_frame(&mut io::stdout().lock(), &bytes)
+    serde_json::to_vec(&receipt).map_err(|_| bad("ReceiptEncode"))
+}
+pub fn serve_stdio() -> io::Result<()> {
+    let payload = read_frame(&mut io::stdin().lock())?;
+    let receipt = receipt_for_payload(&payload)?;
+    write_frame(&mut io::stdout().lock(), &receipt)
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn forged_canonical_nested_model_is_rejected_even_with_recomputed_digests() {
+        // Attack model: all eight top-level keys, valid canonical JSON and fresh
+        // *correct* SHA-256 IDs, but no nested material, net or frame schema.
+        let forged_model = json!({
+            "scope": "M0_SYNTHETIC_SUBSET_NOT_PHYSICS",
+            "kind": "Pcb", "source": {"format": "Synthetic"},
+            "frame": {}, "layer": {}, "material": {}, "net": {}, "outline": {}
+        });
+        let model_json = serde_json::to_string(&forged_model).unwrap();
+        let model_sha = digest(MODEL_DOMAIN, model_json.as_bytes());
+        let snapshot_bytes = serde_json::to_vec(&json!({
+            "model_sha256":model_sha,"points":5,"delay_ms":0
+        })).unwrap();
+        let snapshot_id = digest(SNAPSHOT_DOMAIN, &snapshot_bytes);
+        let request = json!({
+            "schema":2,"kind":"SyntheticSnapshotV2","run_id":"forged",
+            "model_json":model_json,"model_sha256":model_sha,
+            "snapshot_id":snapshot_id,"points":5,"delay_ms":0
+        });
+        assert!(validate_wire_model(&forged_model).is_err());
+        assert!(receipt_for_payload(&serde_json::to_vec(&request).unwrap()).is_err());
+    }
     #[test]
     fn sha256_nist_known_answers() {
         assert_eq!(
