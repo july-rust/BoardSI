@@ -346,6 +346,211 @@ pub fn write_frame(output: &mut impl Write, payload: &[u8]) -> io::Result<()> {
     output.write_all(payload)?;
     output.flush()
 }
+
+fn object_keys<'a>(
+    value: &'a Value,
+    expected: &[&str],
+) -> io::Result<&'a serde_json::Map<String, Value>> {
+    let map = value.as_object().ok_or_else(|| bad("ObjectRequired"))?;
+    if map.len() != expected.len() || expected.iter().any(|key| !map.contains_key(*key)) {
+        return Err(bad("UnexpectedOrMissingNestedField"));
+    }
+    Ok(map)
+}
+fn string<'a>(v: &'a Value) -> io::Result<&'a str> {
+    v.as_str().ok_or_else(|| bad("StringRequired"))
+}
+fn nonempty(v: &Value) -> io::Result<&str> {
+    let s = string(v)?;
+    if s.trim().is_empty() {
+        return Err(bad("EmptyRequiredString"));
+    }
+    Ok(s)
+}
+fn array<'a>(v: &'a Value, min: usize, max: usize) -> io::Result<&'a [Value]> {
+    let a = v.as_array().ok_or_else(|| bad("ArrayRequired"))?;
+    if a.len() < min || a.len() > max {
+        return Err(bad("InvalidArrayLength"));
+    }
+    Ok(a)
+}
+fn finite_number(v: &Value) -> io::Result<f64> {
+    let f = v.as_f64().ok_or_else(|| bad("NumberRequired"))?;
+    if !f.is_finite() { return Err(bad("NonFiniteNumber")); }
+    Ok(f)
+}
+fn rational_wire(v: &Value, require_positive: bool) -> io::Result<()> {
+    let pair = array(v, 2, 2)?;
+    let nstr = nonempty(&pair[0])?;
+    let dstr = nonempty(&pair[1])?;
+    let n = nstr.parse::<i128>().map_err(|_| bad("RationalNumerator"))?;
+    let d = dstr.parse::<i128>().map_err(|_| bad("RationalDenominator"))?;
+    if n.to_string() != nstr || d.to_string() != dstr || d <= 0 || n == i128::MIN
+        || (require_positive && n <= 0) {
+        return Err(bad("NonCanonicalRational"));
+    }
+    Ok(())
+}
+fn point_wire(v: &Value) -> io::Result<[i64; 2]> {
+    let pair = array(v, 2, 2)?;
+    Ok([
+        pair[0].as_i64().ok_or_else(|| bad("InvalidCoordinate"))?,
+        pair[1].as_i64().ok_or_else(|| bad("InvalidCoordinate"))?,
+    ])
+}
+fn meta_wire(v: &Value, kind: &str) -> io::Result<&str> {
+    object_keys(v, &["kind", "object", "part", "provenance_type"])?;
+    if string(&v["kind"])? != kind {
+        return Err(bad("WrongObjectKind"));
+    }
+    let name = nonempty(&v["object"])?;
+    string(&v["part"])?;
+    nonempty(&v["provenance_type"])?;
+    Ok(name)
+}
+fn provenance_wire(v: &Value) -> io::Result<()> {
+    object_keys(v, &["document", "revision", "method", "reference_frequency_hz", "temperature_c"])?;
+    nonempty(&v["document"])?;
+    nonempty(&v["revision"])?;
+    nonempty(&v["method"])?;
+    for key in ["reference_frequency_hz", "temperature_c"] {
+        if !v[key].is_null() {
+            let f = finite_number(&v[key])?;
+            if key == "reference_frequency_hz" && f < 0.0 {
+                return Err(bad("NegativeReferenceFrequency"));
+            }
+        }
+    }
+    Ok(())
+}
+fn property_wire(v: &Value, minimum: f64) -> io::Result<()> {
+    object_keys(v, &["value", "source"])?;
+    if finite_number(&v["value"])? < minimum { return Err(bad("InvalidMaterialValue")); }
+    provenance_wire(&v["source"])
+}
+fn rational_property_wire(v: &Value, positive: bool) -> io::Result<()> {
+    object_keys(v, &["value", "source"])?;
+    rational_wire(&v["value"], positive)?;
+    provenance_wire(&v["source"])
+}
+fn digest_hex_wire(v: &Value) -> io::Result<()> {
+    let s = string(v)?;
+    if s.len() != 64 || !s.bytes().all(|ch| ch.is_ascii_hexdigit() && !ch.is_ascii_uppercase()) {
+        return Err(bad("InvalidHexDigest"));
+    }
+    Ok(())
+}
+/// Independently check the *exact* supported nested wire grammar.
+/// This is a structural/schema check, NOT an independent physical BoardModel validator.
+fn validate_wire_model(model: &Value) -> io::Result<()> {
+    object_keys(model, &["scope", "kind", "source", "frame", "layer", "material", "net", "outline"])?;
+    if model["scope"] != "M0_SYNTHETIC_SUBSET_NOT_PHYSICS" || model["kind"] != "Pcb" {
+        return Err(bad("UnsupportedModelScope"));
+    }
+    let source = &model["source"];
+    object_keys(source, &["format", "format_version", "importer_version", "producer",
+        "producer_version", "files", "conditions", "capability"])?;
+    if source["format"] != "Synthetic" { return Err(bad("NonSyntheticSource")); }
+    for k in ["format_version", "importer_version", "producer", "producer_version"] {
+        nonempty(&source[k])?;
+    }
+    let files = array(&source["files"], 1, 64)?;
+    let mut previous: Option<&str> = None;
+    for f in files {
+        object_keys(f, &["logical_path", "claimed_sha256"])?;
+        let name = nonempty(&f["logical_path"])?;
+        if name.starts_with('/') || name.contains('\\') || name.split('/').any(|p| p == ".." || p.is_empty())
+            || previous.is_some_and(|last| last >= name) {
+            return Err(bad("InvalidSourceFilePathOrOrder"));
+        }
+        digest_hex_wire(&f["claimed_sha256"])?;
+        previous = Some(name);
+    }
+    let mut last_condition: Option<(String, String)> = None;
+    for p in array(&source["conditions"], 0, 128)? {
+        let pair = array(p, 2, 2)?;
+        let entry = (nonempty(&pair[0])?.to_owned(), string(&pair[1])?.to_owned());
+        if last_condition.as_ref().is_some_and(|last| last >= &entry) {
+            return Err(bad("UnsortedImportCondition"));
+        }
+        last_condition = Some(entry);
+    }
+    let cap = &source["capability"];
+    object_keys(cap, &["geometry", "net", "pin_pad", "stackup", "reference", "model", "object_coverage"])?;
+    for k in ["geometry", "net", "pin_pad", "stackup", "reference", "model"] {
+        if !["Complete", "Partial", "Missing", "Conflicting"].contains(&string(&cap[k])?) {
+            return Err(bad("InvalidCapability"));
+        }
+    }
+    for name in array(&cap["object_coverage"], 0, 1024)? { nonempty(name)?; }
+
+    let frame = &model["frame"];
+    object_keys(frame, &["meta", "unit_label", "metres_per_tick", "origin_m",
+        "turn", "mirror_x", "source_layer_order_reversed"])?;
+    meta_wire(&frame["meta"], "Frame")?;
+    nonempty(&frame["unit_label"])?;
+    rational_wire(&frame["metres_per_tick"], true)?;
+    for r in array(&frame["origin_m"], 2, 2)? { rational_wire(r, false)?; }
+    if !["Zero", "One", "Two", "Three"].contains(&string(&frame["turn"])?) {
+        return Err(bad("InvalidQuarterTurn"));
+    }
+    if !frame["mirror_x"].is_boolean() || !frame["source_layer_order_reversed"].is_boolean() {
+        return Err(bad("InvalidFrameFlags"));
+    }
+
+    let material = &model["material"];
+    object_keys(material, &["meta", "name", "dk", "df", "conductivity_s_per_m", "valid_band"])?;
+    let material_id = meta_wire(&material["meta"], "Material")?;
+    nonempty(&material["name"])?;
+    property_wire(&material["dk"], f64::MIN_POSITIVE)?;
+    property_wire(&material["df"], 0.0)?;
+    property_wire(&material["conductivity_s_per_m"], f64::MIN_POSITIVE)?;
+    let band = &material["valid_band"];
+    object_keys(band, &["min_hz", "max_hz", "source"])?;
+    let min_f = finite_number(&band["min_hz"])?;
+    let max_f = finite_number(&band["max_hz"])?;
+    if min_f < 0.0 || max_f < min_f { return Err(bad("InvalidFrequencyBand")); }
+    provenance_wire(&band["source"])?;
+
+    let layer = &model["layer"];
+    object_keys(layer, &["meta", "name", "order", "kind", "z_m", "thickness_m", "material_object"])?;
+    meta_wire(&layer["meta"], "Layer")?;
+    nonempty(&layer["name"])?;
+    if layer["order"].as_u64() != Some(0) || layer["kind"] != "Copper"
+        || string(&layer["material_object"])? != material_id {
+        return Err(bad("LayerMaterialReferenceMismatch"));
+    }
+    rational_property_wire(&layer["z_m"], false)?;
+    rational_property_wire(&layer["thickness_m"], true)?;
+
+    let net = &model["net"];
+    object_keys(net, &["meta", "name", "role"])?;
+    meta_wire(&net["meta"], "Net")?;
+    nonempty(&net["name"])?;
+    if !["Signal", "Ground", "Power", "Floating", "Unknown"].contains(&string(&net["role"])?) {
+        return Err(bad("InvalidNetRole"));
+    }
+
+    let outline = &model["outline"];
+    object_keys(outline, &["meta", "segments"])?;
+    meta_wire(&outline["meta"], "Outline")?;
+    let segments = array(&outline["segments"], 3, 4096)?;
+    let mut first: Option<[i64; 2]> = None;
+    let mut previous_end: Option<[i64; 2]> = None;
+    for segment in segments {
+        object_keys(segment, &["start", "end"])?;
+        let start = point_wire(&segment["start"])?;
+        let end = point_wire(&segment["end"])?;
+        if start == end || previous_end.is_some_and(|last| last != start) {
+            return Err(bad("OpenOrDegenerateOutline"));
+        }
+        if first.is_none() { first = Some(start); }
+        previous_end = Some(end);
+    }
+    if first != previous_end { return Err(bad("OpenOutline")); }
+    Ok(())
+}
+
 pub fn serve_stdio() -> io::Result<()> {
     let payload = read_frame(&mut io::stdin().lock())?;
     let v: Value = serde_json::from_slice(&payload).map_err(|_| bad("InvalidV2Json"))?;
@@ -375,6 +580,7 @@ pub fn serve_stdio() -> io::Result<()> {
         || model["scope"] != "M0_SYNTHETIC_SUBSET_NOT_PHYSICS"
         || model["kind"] != "Pcb"
         || model["source"]["format"] != "Synthetic"
+        || validate_wire_model(&model).is_err()
     {
         return Err(bad("NonCanonicalOrUnsupportedModel"));
     }
