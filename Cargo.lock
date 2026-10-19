@@ -25,6 +25,7 @@ dependencies = [
  "boardsi-ipc",
  "boardsi-model",
  "boardsi-numerics",
+ "serde_json",
 ]
 
 [[package]]
