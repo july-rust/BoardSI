@@ -1,0 +1,43 @@
+# BoardSI M0 exit gate — focused closeout (2026-10-19 KST)
+
+**State: BLOCKED — not M0 COMPLETE.** This is a *scope and evidence gate*, not a new specification, user-acceptance PASS, release certificate, or a substitute for source-level changes. Specification v1.0 §§14.2,15 remains normative. Baseline inspected: protected `main@f4cde32ac686ea531c90d9ec7f136a979cffe294`. Verify a fresh `main` SHA and required checks before each promotion.
+
+## 1. Frozen M0 boundary
+
+Specification §14.2 defines M0 as **Architecture / Canonical Model / technology proof**, terminating with **interfaces, isolated Solver IPC prototype, baseline PC, and minimum native execution on Windows x64, Windows ARM64 and macOS Apple Silicon ARM64**. Section 15 adds prototype Qt choice, toolchain/dependency locks, performance baseline PC and two public reference boards. The *production* PADS ASCII/ODB++ importer and Artwork Viewer are M1; ports are M1b; actual RLGC/S export are M2; progressive sweep and cache/recovery are M2a/M2b. No real-PCB material or physical accuracy qualification is an M0 sign-off.
+
+For M0 **choose the already executed Qt Widgets + C++17 / QProcess local framed IPC v1 + separately spawned Rust Worker as the current architecture baseline**, not Qt Quick or an in-process CXX-Qt bridge. Qt 6.8.3 and Rust 1.75.0 are the *tested prototype versions*; this is **not** proof that Qt licensing, redistributable SDK/packaging or clean-machine deployment is qualified. Keep lockfile/actual CI toolchains authoritative. Future Qt Quick rendering evaluation is not an M0 prerequisite unless a contrary test demonstrates Widgets cannot satisfy an M0 requirement. If such evidence arises, reopen this choice rather than silently switching.
+
+The existing M0 IPC v1 synthetic `Snapshot {points,delay_ms}` does **not** transfer full Canonical Board Model geometry. The partial model-gated synthetic Worker handoff in merged [PR #92](https://github.com/july-rust/BoardSI/pull/92) is structural prototype evidence, not CAD/EM support. [PR #95](https://github.com/july-rust/BoardSI/pull/95) adds a restricted synthetic content-bound v2 snapshot *experiment* and is **not an M0 closure dependency**. Do not merge it to `main` merely to close M0; do not claim its synthetic receipt is a physical SI calculation or full immutable production Run Snapshot. Evaluate unresolved review findings under its own follow-up work.
+
+## 2. Closeout matrix (proof and blockers)
+
+| Gate | Evidence already on current branch history | Status | Required before M0 COMPLETE |
+| --- | --- | --- | --- |
+| F1 specification U01–U48 / T01–T54 trace | [PR #93](https://github.com/july-rust/BoardSI/pull/93) merged; [U/T traceability ledger](../audits/m0-requirements-traceability-ledger.md) with source-definition checks | **PASS for document mapping only** | Check main signed state and documentation CI; **not** 54 completed user-acceptance tests |
+| F2 architecture / Qt and Rust IPC | [Qt prototype](../architecture/worker-ipc-qt-prototype.md); [native runtime](m0-qt-runtime-followup.md); Worker process + cancellation/heartbeat/crash tests | **PARTIAL** | Prove existing native responsiveness gate on final baseline, resolve any actual M0-blocking gap and freeze distributable Qt choice and licensing |
+| F3 Canonical Model foundation | [canonical architecture](../architecture/canonical-board-model.md); merged [PR #28](https://github.com/july-rust/BoardSI/pull/28) for typed layers, stackup, provenance, coordinates and structural tests | **PASS for limited synthetic model architecture only** | No actual CAD/Boolean connectivity or physical readiness implied; M1 follow-up explicitly tracked |
+| F4 isolated Solver Worker IPC proof | [PR #30](https://github.com/july-rust/BoardSI/pull/30) native Qt/Worker; [PR #92](https://github.com/july-rust/BoardSI/pull/92) restricted canonical model gate | **PASS for restricted synthetic IPC prototype** | Preserve failure/late-event correctness, no claim of complete geometry transfer / persisted Run Snapshot |
+| F5 three native targets | [Qt native evidence](m0-qt-runtime-followup.md) and [Rust native evidence](m0-native-platforms.md): Windows x64, Windows ARM64, macOS ARM64 tested | **PASS for native synthetic runtime**, not distributable installs | Verify exact final source/CI; do not infer OS/version coverage or clean-machine redistributable qualification |
+| F6 baseline PC and reference boards | Specification §12 resource candidate: approximately **8 GiB RAM / CPU-only**; candidates are *not* confirmed test hosts | **BLOCKED** | Record exact OS, CPU, available RAM, SSD, reproducible performance budget; identify **two public small/medium boards** with URL, hashes and redistribution rights. No fabricated performance/board-import metrics |
+| F7 dependency/licensing/distribution prototype | Tested Qt 6.8.3 SDK, Rust 1.75.0; Qt Core/Gui/Widgets; QProcess; local CI | **BLOCKED** | Record actual dependency pins and licenses; qualify 3-platform M0-level deployment/redistribution proof appropriate to §15. Product installer/release acceptance is later, but M0 prototype distribution decision is not silently waived |
+| F8 native timing reliability | [Issue #46](https://github.com/july-rust/BoardSI/issues/46): macOS 1134 ms and Windows ARM64 1255 ms outliers against unchanged <=1000 ms global event-loop bound; [diagnostics](m0-qt-issue46-cold-start-diagnostics.md) | **OPEN / ROOT CAUSE NOT CERTIFIED** | Isolate harness cold start from genuine UI blocking **without weakening existing gate**; fix if needed, test exact code, preserve original FAIL and passing same-SHA reruns |
+
+**M0 end state: BLOCKED**. Do not close issues #2–#7 globally on this ledger alone. Issue Definition of Done requires individual proof; a phase row PASS for *synthetic scope* must not silently become user-level acceptance PASS. Issue [#36](https://github.com/july-rust/BoardSI/issues/36) has historical Worker flake evidence and should be triaged by whether the current deterministic contract fails; it does not license skipping tests.
+
+## 3. Critical path — no extra physics work
+
+1. **Stop scope expansion.** No PH-08 original HMM work, new CAD importers, FEM solver precision research, CXX-Qt experiments, Snapshot v2 schema polishing or new GUI features in the M0-critical path.
+2. **Fast evidence validation:** confirm current `main` SHA/signature, applicable 17 required CI checks, existing Rust/Qt and traceability test evidence. No re-audit of all historical PRs.
+3. **Close blocker F8 first only if it truly blocks prototype acceptance.** Preserve original 1000 ms bound. Instrument/fix affected startup if confirmed, do not equate rerun PASS with solved root cause. Escalate precisely if a real hardware/OS investigation is necessary.
+4. **Close F6 and F7** with reproducible public evidence. If the CI environment cannot represent an 8 GiB PC, the platform is not a benchmark; obtain a correct host before a PASS. Test only approved redistributable board fixtures; no corporate PCB/ODB/Touchtone data or secrets in GitHub/Actions.
+5. **Consolidate source changes** into the minimum independently reviewable PRs. For protected `main`: strict required checks **17/17 on exact final HEAD**, review threads resolved, squash-only, GitHub Verified signatures, no bypass. Do not touch open Draft [PR #35](https://github.com/july-rust/BoardSI/pull/35).
+6. **Exit decision**: if all real M0-required gates PASS and protected main is verified, declare `M0 FOUNDATION COMPLETE — M1 DEVELOPMENT READY`; otherwise report `M0 BLOCKED` with the exact remaining gate. Do not invent a completion percentage from open issue counts.
+
+## 4. Scope and safety preservation
+
+Maintain v1.0 requirements and existing UI timing thresholds. Existing PH-03/05/06/07 are restricted PEC/lossless experiments; original PH-08 Gate Q remains FAIL, BOUND_NOT_CERTIFIED. No `Validated` physical PCB result, T01–T54 product acceptance or full 30 GHz SI capability is claimed. Keep security/offline commitments and public-fixture redistribution provenance explicit.
+
+## 5. Next action / ownerless execution rule
+
+Work in GitHub; reuse signed history and the existing CI/QA harness. Implement fixes only for proven M0 gate blockers. Link the final evidence from Issues [#3](https://github.com/july-rust/BoardSI/issues/3), [#6](https://github.com/july-rust/BoardSI/issues/6), [#7](https://github.com/july-rust/BoardSI/issues/7), [#46](https://github.com/july-rust/BoardSI/issues/46); report inability to exercise physical baseline hardware or redistribute external licenses as BLOCKED, not PASS. No personal SSH/signing key request.
