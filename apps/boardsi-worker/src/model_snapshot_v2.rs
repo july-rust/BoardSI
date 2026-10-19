@@ -400,6 +400,10 @@ fn rational_wire(v: &Value, require_positive: bool) -> io::Result<()> {
     {
         return Err(bad("NonCanonicalRational"));
     }
+    let reduced = Rational::new(n, d).map_err(|_| bad("InvalidRational"))?;
+    if reduced.numerator() != n || reduced.denominator() != d {
+        return Err(bad("UnreducedRational"));
+    }
     Ok(())
 }
 fn point_wire(v: &Value) -> io::Result<[i64; 2]> {
@@ -727,6 +731,14 @@ pub fn serve_stdio() -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn unreduced_rational_wire_values_are_rejected() {
+        for invalid in [json!(["2", "2"]), json!(["0", "2"]), json!(["4", "6"])] {
+            assert!(rational_wire(&invalid, false).is_err());
+        }
+        assert!(rational_wire(&json!(["1", "1"]), true).is_ok());
+        assert!(rational_wire(&json!(["0", "1"]), false).is_ok());
+    }
     #[test]
     fn source_paths_fail_closed_on_canonical_forbidden_components() {
         for invalid in [
