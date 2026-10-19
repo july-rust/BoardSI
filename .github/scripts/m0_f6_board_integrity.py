@@ -103,7 +103,7 @@ def geometry_inventory(board: bytes) -> dict:
         "count_pad_tokens": len(re.findall(r'\(pad\s', content)),
         "count_segment_tokens": len(re.findall(r'\(segment\s', content)),
         "count_via_tokens": len(re.findall(r'\(via\s', content)),
-        "count_net_declarations": len(re.findall(r'\(net\s+\d+\s+"', content)),
+        "count_net_assignment_occurrences_NOT_distinct_nets": len(re.findall(r'\(net\s+\d+\s+"', content)),
         "counts_are_lexical_not_canonical": True,
     }
 
