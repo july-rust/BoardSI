@@ -247,3 +247,118 @@ fn empty_board_and_invalid_snapshot_fail_closed() {
     )
     .is_err());
 }
+
+#[test]
+fn model_snapshot_v2_is_bound_to_actual_synthetic_contents() {
+    use boardsi_worker::model_snapshot_v2::BoundSyntheticSnapshot;
+    let mut board = model();
+    let before = BoundSyntheticSnapshot::capture(&board, "f4-1/run-a", 5, 0).unwrap();
+    let repeat = BoundSyntheticSnapshot::capture(&board, "f4-1/run-b", 5, 0).unwrap();
+    assert_eq!(before.model_sha256(), repeat.model_sha256());
+    assert_eq!(before.snapshot_id(), repeat.snapshot_id());
+    assert_eq!(before.frame().len(), repeat.frame().len());
+    board.nets[0].name.push_str("-changed");
+    let changed = BoundSyntheticSnapshot::capture(&board, "f4-1/run-a", 5, 0).unwrap();
+    assert_ne!(before.model_sha256(), changed.model_sha256());
+    assert_ne!(before.snapshot_id(), changed.snapshot_id());
+    // Immutable captured payload is unaffected by later edits to the originating fixture.
+    assert_eq!(before.model_sha256(), repeat.model_sha256());
+    let other_parameters = BoundSyntheticSnapshot::capture(&board, "f4-1/run-a", 6, 0).unwrap();
+    assert_ne!(changed.snapshot_id(), other_parameters.snapshot_id());
+    assert_eq!(changed.model_sha256(), other_parameters.model_sha256());
+}
+
+#[test]
+fn model_snapshot_v2_rejects_unrepresented_or_unready_model() {
+    use boardsi_worker::model_snapshot_v2::BoundSyntheticSnapshot;
+    let board = BoardModel::empty(BoardKind::Pcb);
+    assert!(BoundSyntheticSnapshot::capture(&board, "empty", 5, 0).is_err());
+    let mut board = model();
+    board.stackup.layers[0].material = None;
+    assert!(BoundSyntheticSnapshot::capture(&board, "missing", 5, 0).is_err());
+    let mut board = model();
+    board.materials[0].df = Property::Missing;
+    assert!(BoundSyntheticSnapshot::capture(&board, "missing-property", 5, 0).is_err());
+    let mut board = model();
+    board.sources[0].producer.push_str("-changed");
+    let original = BoundSyntheticSnapshot::capture(&model(), "source", 5, 0).unwrap();
+    assert_ne!(
+        original.model_sha256(),
+        BoundSyntheticSnapshot::capture(&board, "source", 5, 0)
+            .unwrap()
+            .model_sha256()
+    );
+    let mut board = model();
+    board.sources[0]
+        .capability
+        .object_coverage
+        .push("foreign".into());
+    assert_ne!(
+        original.model_sha256(),
+        BoundSyntheticSnapshot::capture(&board, "source", 5, 0)
+            .unwrap()
+            .model_sha256()
+    );
+    let mut board = model();
+    board.sources[0].producer.clear();
+    assert!(BoundSyntheticSnapshot::capture(&board, "empty-producer", 5, 0).is_err());
+    let board = model();
+    assert!(BoundSyntheticSnapshot::capture(&board, "", 5, 0).is_err());
+    assert!(BoundSyntheticSnapshot::capture(&board, "invalid", 0, 0).is_err());
+}
+
+#[test]
+fn model_snapshot_v2_crosses_real_worker_process_and_rejects_tampering() {
+    use boardsi_worker::model_snapshot_v2::{read_frame, write_frame, BoundSyntheticSnapshot};
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    fn execute(frame: &[u8]) -> std::process::Output {
+        let mut child = Command::new(worker())
+            .arg("--model-snapshot-v2")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("real OS Rust Worker must spawn");
+        {
+            let mut stdin = child.stdin.take().unwrap();
+            stdin.write_all(frame).unwrap();
+        }
+        child.wait_with_output().unwrap()
+    }
+    let snapshot = BoundSyntheticSnapshot::capture(&model(), "f4-1/os-process-1", 5, 0).unwrap();
+    let frame = snapshot.frame();
+    let good = execute(&frame);
+    assert!(
+        good.status.success(),
+        "{}",
+        String::from_utf8_lossy(&good.stderr)
+    );
+    let receipt = read_frame(&mut &good.stdout[..]).unwrap();
+    snapshot.verify_receipt(&receipt).unwrap();
+
+    let mut response: serde_json::Value = serde_json::from_slice(&receipt).unwrap();
+    response["run_id"] = serde_json::json!("other-run");
+    assert!(snapshot
+        .verify_receipt(&serde_json::to_vec(&response).unwrap())
+        .is_err());
+    let mut response: serde_json::Value = serde_json::from_slice(&receipt).unwrap();
+    response["synthetic"] = serde_json::json!(false);
+    assert!(snapshot
+        .verify_receipt(&serde_json::to_vec(&response).unwrap())
+        .is_err());
+
+    let mut request: serde_json::Value = serde_json::from_slice(&frame[4..]).unwrap();
+    request["model_sha256"] =
+        serde_json::json!("0000000000000000000000000000000000000000000000000000000000000000");
+    let broken = serde_json::to_vec(&request).unwrap();
+    let mut bad_frame = Vec::new();
+    write_frame(&mut bad_frame, &broken).unwrap();
+    let rejected = execute(&bad_frame);
+    assert_eq!(
+        rejected.status.code(),
+        Some(2),
+        "invalid model digest must fail closed"
+    );
+    assert!(rejected.stdout.is_empty(), "no forged receipt on failure");
+}
