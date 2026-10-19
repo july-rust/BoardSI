@@ -378,6 +378,12 @@ fn array(v: &Value, min: usize, max: usize) -> io::Result<&[Value]> {
     Ok(a)
 }
 fn finite_number(v: &Value) -> io::Result<f64> {
+    // Canonical capture always emits JSON binary64 (e.g. 4.0), not integer 4.
+    // Accepting an independently forged integer spelling creates a second identity
+    // for the same value even with recomputed public SHA-256 digests.
+    if !v.is_f64() {
+        return Err(bad("NonCanonicalFloatEncoding"));
+    }
     let f = v.as_f64().ok_or_else(|| bad("NumberRequired"))?;
     if !f.is_finite() || (f == 0.0 && f.is_sign_negative()) {
         return Err(bad("NonCanonicalNumber"));
@@ -731,6 +737,15 @@ pub fn serve_stdio() -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn integer_spelling_of_binary64_field_is_rejected() {
+        for invalid in [json!(4), json!(0), json!(-3), json!(4000000000u64)] {
+            assert!(finite_number(&invalid).is_err(), "integer JSON must be rejected");
+        }
+        for valid in [json!(4.0), json!(0.0), json!(-3.0), json!(1e9)] {
+            assert!(finite_number(&valid).is_ok(), "binary64 JSON must be accepted");
+        }
+    }
     #[test]
     fn negative_zero_wire_float_is_not_canonical() {
         assert!(finite_number(&json!(-0.0)).is_err());
