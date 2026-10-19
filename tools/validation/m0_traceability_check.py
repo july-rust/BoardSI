@@ -202,6 +202,21 @@ def visible_markdown_lines(source):
                     in_comment = True
                     index = start + 4
         text = "".join(visible)
+        # GFM evaluates pipe-table delimiters against ORIGINAL source text.
+        # A comment inside a delimiter cell can be removed below to synthesize
+        # a valid row (e.g. "| <!-- -->--- | --- | ..."), even though that
+        # delimiter was invalid in the rendered source. Reject such lines
+        # before any downstream consumer sees the comment-stripped version.
+        stripped_cells = split_markdown_cells(text.strip())
+        if (text != original_line
+            and original_line.lstrip(" ").startswith("|")
+            and text.lstrip(" ").startswith("|")
+            and len(stripped_cells) >= 2
+            and all(re.fullmatch(r":?-{3,}:?", cell) for cell in stripped_cells)):
+            original_cells = split_markdown_cells(original_line.strip())
+            if (len(original_cells) != len(stripped_cells)
+                or not all(re.fullmatch(r":?-{3,}:?", cell) for cell in original_cells)):
+                raise ValueError("HTML comment synthesized Markdown table delimiter")
         # HTML comment removal must NOT invent normative GFM block structure.
         # A line whose original first token is an HTML comment cannot become
         # an ATX heading, table row or table delimiter just by stripping it.
@@ -819,6 +834,36 @@ if __name__=="__main__":
         if block not in ledger:
             raise AssertionError("ledger table delimiter fixture missing")
         must_reject(specification, ledger.replace(block, header, 1))
+
+    # GFM validates delimiter cells against raw source before stripping
+    # inline HTML comments. Do not accept a delimiter synthesized as valid.
+    for doc_name, doc in (("spec", specification), ("ledger", ledger)):
+        tables = (
+            ("| ID | 요구사항 | 상태 | 근거 |", "| --- | --- | --- | --- |"),
+            ("| Test ID | 주요 검증 | 통과 조건 |", "| --- | --- | --- |"),
+            ("| 요구 ID | 본문 | 주요 시험 | 완료 단계 |", "| --- | --- | --- | --- |"),
+        ) if doc_name == "spec" else (
+            ("| Requirement ID | Phase from v1.0 18.2 | Linked test IDs | Definition | Implementation | Full acceptance | Evidence scope |",
+             "| --- | --- | --- | --- | --- | --- | --- |"),
+            ("| Test ID | Related stage(s) | Linked requirement IDs (coarse) | Complete acceptance result | Evidence |",
+             "| --- | --- | --- | --- | --- |"),
+        )
+        for header, delimiter in tables:
+            original = header + "\n" + delimiter
+            if original not in doc:
+                raise AssertionError("original delimiter guard fixture missing: " + doc_name)
+            # Left, middle and final cells must each be checked against the
+            # original GFM delimiter, not an HTML-comment-stripped variant.
+            for position in (0, len(split_markdown_cells(delimiter)) // 2,
+                             len(split_markdown_cells(delimiter)) - 1):
+                cells = split_markdown_cells(delimiter)
+                cells[position] = "<!-- -->" + cells[position]
+                bad = "| " + " | ".join(cells) + " |"
+                damaged = doc.replace(original, header + "\n" + bad, 1)
+                if doc_name == "spec":
+                    must_reject(damaged, ledger)
+                else:
+                    must_reject(specification, damaged)
 
     # CommonMark type-6 HTML blocks start on '<div' even without a '>'.
     for doc, row in (
