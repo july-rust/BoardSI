@@ -230,6 +230,25 @@ def visible_markdown_lines(source):
                     in_comment = True
                     index = start + 4
         text = "".join(visible)
+        # Normative GFM table headers must exist in the ORIGINAL source.
+        # Stripping a leading HTML comment can synthesize an openerless
+        # header even though GFM did not render the original as a table.
+        # These five controlled headers never permit embedded HTML comments;
+        # prohibit both openerless and pipe-leading header fabrication.
+        if text != original_line:
+            normative_headers = (
+                ("ID", "요구사항", "상태", "근거"),
+                ("Test ID", "주요 검증", "통과 조건"),
+                ("요구 ID", "본문", "주요 시험", "완료 단계"),
+                ("Requirement ID", "Phase from v1.0 18.2",
+                 "Linked test IDs", "Definition", "Implementation",
+                 "Full acceptance", "Evidence scope"),
+                ("Test ID", "Related stage(s)",
+                 "Linked requirement IDs (coarse)",
+                 "Complete acceptance result", "Evidence"),
+            )
+            if tuple(split_markdown_cells(text.strip())) in normative_headers:
+                raise ValueError("HTML comment synthesized normative table header")
         # GFM evaluates pipe-table delimiters against ORIGINAL source text.
         # A comment inside a delimiter cell can be removed below to synthesize
         # a valid row (e.g. "| <!-- -->--- | --- | ..."), even though that
@@ -716,6 +735,33 @@ if __name__=="__main__":
     if openerless_header == specification:
         raise AssertionError("T header fixture missing")
     validate(openerless_header, ledger)
+    # Comment removal must never create any of the five normative headers.
+    # Exercise the same GitHub review P2 repro with openerless headers, plus
+    # pipe-leading variants and the distinct specification/ledger tables.
+    for header, is_ledger in (
+        ("| ID | 요구사항 | 상태 | 근거 |", False),
+        ("| Test ID | 주요 검증 | 통과 조건 |", False),
+        ("| 요구 ID | 본문 | 주요 시험 | 완료 단계 |", False),
+        ("| Requirement ID | Phase from v1.0 18.2 | Linked test IDs | Definition | Implementation | Full acceptance | Evidence scope |", True),
+        ("| Test ID | Related stage(s) | Linked requirement IDs (coarse) | Complete acceptance result | Evidence |", True),
+    ):
+        original_document = ledger if is_ledger else specification
+        if original_document.count(header) != 1:
+            raise AssertionError("normative header fixture missing/ambiguous: " + header)
+        for comment_prefix in ("<!-- -->", "<!-- hidden -->"):
+            # A leading HTML comment followed by a header without the
+            # opening pipe is not an original GFM table header.
+            altered = original_document.replace(header, comment_prefix + header[2:], 1)
+            if is_ledger:
+                must_reject(specification, altered)
+            else:
+                must_reject(altered, ledger)
+            # A pipe-leading row with comment insertion is also rejected.
+            altered = original_document.replace(header, "| " + comment_prefix + header[2:], 1)
+            if is_ledger:
+                must_reject(specification, altered)
+            else:
+                must_reject(altered, ledger)
     # IDs in code fences/comments are not part of the rendered definition table.
     row_t54 = re.search(r"(?m)^\| T54 \|[^\n]*$", specification)
     if not row_t54:
