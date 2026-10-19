@@ -137,6 +137,13 @@ private:
             startupMark("qprocess_started_signal");
         });
         start(w, true);
+        // Additive diagnostic: determine whether *any* queued Qt callback can
+        // dispatch before the first global 10 ms timer callback. A 0 ms timer
+        // is unordered relative to other event sources; this is NOT a PASS gate
+        // and does not assign causality to the Worker or OS scheduler.
+        QTimer::singleShot(0, &w, [this] {
+            startupMark("first_nested_zero_timer_callback");
+        });
         startupMark("worker_running_wait_begin");
         running(w);
         startupMark("worker_running_observed");
