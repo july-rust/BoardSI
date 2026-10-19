@@ -278,8 +278,8 @@ impl BoundSyntheticSnapshot {
         let wire_model = synthetic_model_value(model, points)?;
         // Capture and receiver MUST enforce the same strict synthetic schema.
         validate_wire_model(&wire_model).map_err(|_| input("UnsupportedWireModel"))?;
-        let model_json = serde_json::to_string(&wire_model)
-            .map_err(|_| input("CannotSerializeModel"))?;
+        let model_json =
+            serde_json::to_string(&wire_model).map_err(|_| input("CannotSerializeModel"))?;
         if model_json.len() > 32_768 {
             return Err(input("ModelTooLarge"));
         }
@@ -460,7 +460,9 @@ fn source_path_valid(name: &str) -> bool {
         && !name.starts_with('/')
         && !name.contains('\\')
         && !name.contains(':')
-        && !name.split('/').any(|p| p == "." || p == ".." || p.is_empty())
+        && !name
+            .split('/')
+            .any(|p| p == "." || p == ".." || p.is_empty())
 }
 fn digest_hex_wire(v: &Value) -> io::Result<()> {
     let s = string(v)?;
@@ -515,8 +517,7 @@ fn validate_wire_model(model: &Value) -> io::Result<()> {
     for f in files {
         object_keys(f, &["logical_path", "claimed_sha256"])?;
         let name = nonempty(&f["logical_path"])?;
-        if !source_path_valid(name) || previous.is_some_and(|last| last >= name)
-        {
+        if !source_path_valid(name) || previous.is_some_and(|last| last >= name) {
             return Err(bad("InvalidSourceFilePathOrOrder"));
         }
         digest_hex_wire(&f["claimed_sha256"])?;
@@ -526,7 +527,10 @@ fn validate_wire_model(model: &Value) -> io::Result<()> {
     for p in array(&source["conditions"], 0, 128)? {
         let pair = array(p, 2, 2)?;
         let entry = (nonempty(&pair[0])?.to_owned(), string(&pair[1])?.to_owned());
-        if last_condition.as_ref().is_some_and(|last| last.0 >= entry.0) {
+        if last_condition
+            .as_ref()
+            .is_some_and(|last| last.0 >= entry.0)
+        {
             return Err(bad("UnsortedImportCondition"));
         }
         last_condition = Some(entry);
@@ -725,7 +729,9 @@ mod tests {
     use super::*;
     #[test]
     fn source_paths_fail_closed_on_canonical_forbidden_components() {
-        for invalid in ["./board", "C:board", "a/./b", "../b", "a//b", "/root", "a\\b"] {
+        for invalid in [
+            "./board", "C:board", "a/./b", "../b", "a//b", "/root", "a\\b",
+        ] {
             assert!(!source_path_valid(invalid), "accepted {invalid}");
         }
         assert!(source_path_valid("synthetic/model-handoff"));
