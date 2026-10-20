@@ -22,8 +22,21 @@ class ImportShell final : public QWidget {
     QByteArray output;
     bool testing = false;
     bool overflow = false;
+    bool timedOut = false;
+    bool terminalReported = false;
 
+    void collectOutput() {
+        if (overflow) return;
+        const qint64 remaining = 1024 - output.size();
+        if (remaining > 0) output += probe.read(remaining);
+        if (probe.bytesAvailable() > 0) {
+            overflow = true;
+            probe.kill();
+        }
+    }
     void finishTest(bool ok, const QString &message) {
+        if (terminalReported) return;
+        terminalReported = true;
         status->setText(message);
         if (testing) {
             qInfo().noquote() << "M1_QT_PADS_SIGNATURE_SHELL" << (ok ? "PASS" : "FAIL");
@@ -32,6 +45,8 @@ class ImportShell final : public QWidget {
     }
     void runProbe(const QString &source) {
         if (probe.state() != QProcess::NotRunning) return;
+        terminalReported = false;
+        timedOut = false;
         if (!QFileInfo(probeBinary).isAbsolute() || !QFileInfo(probeBinary).isExecutable()) {
             finishTest(false, "Local Rust signature probe is unavailable");
             return;
@@ -62,12 +77,10 @@ public:
                 this, "Open PCB source", QString(), "PADS ASCII PCB (*.asc *.ASC);;All files (*)");
             if (!file.isEmpty()) runProbe(file);
         });
+        probe.setProcessChannelMode(QProcess::SeparateChannels);
+        probe.setReadChannel(QProcess::StandardOutput);
         connect(&probe, &QProcess::readyReadStandardOutput, this, [this] {
-            output += probe.readAllStandardOutput();
-            if (output.size() > 1024) {
-                overflow = true;
-                probe.kill();
-            }
+            collectOutput();
         });
         connect(&probe, &QProcess::readyReadStandardError, this, [this] {
             // Do not log source filenames or potentially confidential diagnostics.
@@ -76,9 +89,22 @@ public:
         connect(&probe, &QProcess::finished, this, [this](int code, QProcess::ExitStatus exitStatus) {
             deadline.stop();
             open->setEnabled(true);
-            output += probe.readAllStandardOutput();
-            const QString line = QString::fromUtf8(output).trimmed();
-            const bool validExit = exitStatus == QProcess::NormalExit && !overflow;
+            if (terminalReported) return;
+            if (timedOut) {
+                finishTest(false, "Signature probe timeout; nothing imported");
+                return;
+            }
+            collectOutput();
+            QByteArray line = output;
+            bool hasNewline = false;
+            if (line.endsWith("\r\n")) {
+                line.chop(2);
+                hasNewline = true;
+            } else if (line.endsWith('\n')) {
+                line.chop(1);
+                hasNewline = true;
+            }
+            const bool validExit = exitStatus == QProcess::NormalExit && !overflow && hasNewline;
             const bool pcb = validExit && code == 0 &&
                 line == "PADS_PCB_ASCII_SIGNATURE_ONLY; geometry=NOT_PARSED; si=NOT_RUN";
             const bool unknown = validExit && code == 3 &&
@@ -103,8 +129,9 @@ public:
         });
         deadline.setSingleShot(true);
         connect(&deadline, &QTimer::timeout, this, [this] {
-            probe.kill();
-            finishTest(false, "Signature probe timeout; nothing imported");
+            timedOut = true;
+            if (probe.state() != QProcess::NotRunning) probe.kill();
+            else finishTest(false, "Signature probe timeout; nothing imported");
         });
         resize(470, 120);
         setWindowTitle("BoardSI - PADS file preflight (M1 prototype)");
