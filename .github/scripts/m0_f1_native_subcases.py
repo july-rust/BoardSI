@@ -68,11 +68,25 @@ def requirement(test: bool, message: str) -> None:
         raise ValueError(message)
 
 
+def reject_duplicate_json_members(pairs):
+    record = {}
+    for key, value in pairs:
+        requirement(key not in record, "Duplicate JSON field: " + key)
+        record[key] = value
+    return record
+
+
 def number(metrics: dict, key: str, minimum: float = 0.0) -> float:
     value = metrics.get(key)
-    requirement(type(value) in (int, float) and math.isfinite(value)
-                and value >= minimum, "Invalid/missing numeric metric: " + key)
-    return float(value)
+    requirement(type(value) in (int, float),
+                "Invalid/missing numeric metric: " + key)
+    try:
+        candidate = float(value)
+    except (OverflowError, ValueError):
+        raise ValueError("Invalid/oversized numeric metric: " + key) from None
+    requirement(math.isfinite(candidate) and candidate >= minimum,
+                "Nonfinite/negative numeric metric: " + key)
+    return candidate
 
 
 def evaluate(report: dict, platform: str, architecture: str) -> dict:
@@ -91,9 +105,16 @@ def evaluate(report: dict, platform: str, architecture: str) -> dict:
     seen = set()
     for item in raw_cases:
         requirement(isinstance(item, dict) and
+                    set(item) == {"name", "pass", "exit_code", "exit_status", "error"} and
                     isinstance(item.get("name"), str) and
-                    bool(item["name"]) and item["name"] not in seen,
-                    "Malformed or duplicate Qt scenario")
+                    bool(item["name"]) and item["name"] not in seen and
+                    type(item.get("exit_code")) is int and
+                    -2147483648 <= item["exit_code"] <= 2147483647 and
+                    type(item.get("exit_status")) is int and
+                    item["exit_status"] in (0, 1) and
+                    isinstance(item.get("error"), str) and
+                    len(item["error"]) <= 4096,
+                    "Malformed or duplicate Qt scenario producer record")
         seen.add(item["name"])
         requirement(item.get("pass") is True,
                     "Native scenario failed or unverified: " + item["name"])
@@ -185,6 +206,18 @@ def cli() -> int:
         "source_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", "NOT_GITHUB"),
         "github_source_sha": os.environ.get("BOARDSI_SOURCE_HEAD_SHA", "NOT_GITHUB"),
         "checkout_sha": "NOT_VERIFIED",
+        "qt_input_sha256": "NOT_COMPUTED",
+        "cases": [{
+            "id": test_id,
+            "status": "NOT_VERIFIED",
+            "scenarios_executed": [],
+            "independent_case_specific_acceptance_review": "NOT_PERFORMED",
+            "full_product_T_acceptance": "NOT_RUN",
+        } for test_id in CASE_SCENARIOS],
+        "outside_M0_or_not_proven": [
+            "later phase full T acceptance", "independent owner case signoff",
+            "clean OS legal/dependency qualification", "8 GiB physical reference PC",
+        ],
     }
     try:
         sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
@@ -193,10 +226,11 @@ def cli() -> int:
         data["checkout_sha"] = sha
         raw = args.qt_json.read_bytes()
         requirement(len(raw) <= 4_000_000 and raw, "Empty or unbounded native report")
-        source = json.loads(raw.decode("utf-8"))
+        data["qt_input_sha256"] = hashlib.sha256(raw).hexdigest()
+        source = json.loads(raw.decode("utf-8"),
+                            object_pairs_hook=reject_duplicate_json_members)
         summary = evaluate(source, args.qt_platform, args.cpu_arch)
         data.update(summary)
-        data["qt_input_sha256"] = hashlib.sha256(raw).hexdigest()
     except (OSError, UnicodeError, ValueError, subprocess.CalledProcessError) as exc:
         data["failure"] = f"{type(exc).__name__}: {exc}"
     args.output_json.parent.mkdir(parents=True, exist_ok=True)
