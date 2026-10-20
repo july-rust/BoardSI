@@ -24,7 +24,7 @@ class CaseEvidenceTests(unittest.TestCase):
         self.mutation_fails(lambda x: x["cases"].pop(), "Exactly ten")
 
     def test_duplicate_id_is_rejected(self):
-        self.mutation_fails(lambda x: x["cases"][0].update(id="T11"), "duplicate")
+        self.mutation_fails(lambda x: x["cases"][1].update(id="T10"), "duplicate")
 
     def test_false_full_acceptance_is_rejected(self):
         self.mutation_fails(lambda x: x["cases"][0].update(full_acceptance="PASS"),
