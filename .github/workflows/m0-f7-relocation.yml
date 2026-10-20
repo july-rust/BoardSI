@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - .github/scripts/m0_f7_relocation_probe.py
+      - .github/scripts/m0_f7_bundle_manifest.py
+      - .github/scripts/test_m0_f7_bundle_manifest.py
       - .github/workflows/m0-f7-relocation.yml
       - .github/scripts/install_qt_runtime.py
       - .github/workflows/qt-runtime.yml
@@ -37,6 +39,9 @@ jobs:
         with:
           python-version: '3.12'
           architecture: ${{ matrix.python_arch }}
+      - name: Test bundle integrity and fail-closed evidence
+        shell: bash
+        run: python -m unittest discover -s .github/scripts -p 'test_m0_f7_bundle_manifest.py' -v
       - name: Install pinned Qt BUILD SDK
         shell: bash
         run: |
