@@ -58,6 +58,18 @@ class TestPublicBoardInventory(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Conflicting observed"):
             geometry_inventory(corrupted)
 
+    def test_unterminated_named_net_fails_before_regex(self):
+        # The previous regex would skip this malformed conflicting declaration.
+        damaged = SYNTH[:-1] + b'\n(net 2 "CONFLICT))'
+        with self.assertRaisesRegex(ValueError, "unterminated quoted"):
+            geometry_inventory(damaged)
+
+    def test_malformed_global_parentheses_fail_before_inventory(self):
+        with self.assertRaisesRegex(ValueError, "unbalanced"):
+            geometry_inventory(SYNTH[:-1])
+        with self.assertRaisesRegex(ValueError, "multiple roots"):
+            geometry_inventory(SYNTH + b"\n(net 3 \"X\")")
+
     def test_duplicate_copper_table_indices_fail_closed(self):
         corrupted = SYNTH.replace(b'(1 "In1.Cu" signal)', b'(0 "In1.Cu" signal)')
         with self.assertRaisesRegex(ValueError, "Duplicate copper"):
