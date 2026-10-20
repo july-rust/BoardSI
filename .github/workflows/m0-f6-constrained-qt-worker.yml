@@ -54,13 +54,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Pin the fetched upstream OS base by registry digest rather than
-          # using a mutable ubuntu:24.04 tag during the actual build.
-          docker pull ubuntu:24.04
-          base_ref=$(docker image inspect --format '{{index .RepoDigests 0}}' ubuntu:24.04)
-          case "$base_ref" in ubuntu@sha256:*) ;; *) echo "No valid base image digest"; exit 1;; esac
+          # Immutable multi-arch Ubuntu 24.04 base reviewed in signed F6
+          # staging run 39374120825. Never resolve a mutable tag during CI.
+          base_ref="ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac"
+          docker pull "$base_ref"
           docker build --build-arg BASE_IMAGE="$base_ref" -t boardsi-m0-f6qt:24.04 -f - . <<'DOCKER'
-          ARG BASE_IMAGE
+          ARG BASE_IMAGE=ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
           FROM ${BASE_IMAGE}
           RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
               python3 ca-certificates libstdc++6 libglib2.0-0t64 libgl1 libopengl0 libegl1 libxkbcommon0 \
