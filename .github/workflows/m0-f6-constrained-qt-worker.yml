@@ -7,6 +7,7 @@ on:
       - apps/boardsi-worker/**
       - crates/boardsi-model/**
       - crates/boardsi-ipc/**
+      - crates/boardsi-numerics/**
       - Cargo.toml
       - Cargo.lock
   workflow_dispatch:
@@ -46,8 +47,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker build -t boardsi-m0-f6qt:24.04 -f - . <<'DOCKER'
-          FROM ubuntu:24.04
+          # Pin the fetched upstream OS base by registry digest rather than
+          # using a mutable ubuntu:24.04 tag during the actual build.
+          docker pull ubuntu:24.04
+          base_ref=$(docker image inspect --format '{{index .RepoDigests 0}}' ubuntu:24.04)
+          case "$base_ref" in ubuntu@sha256:*) ;; *) echo "No valid base image digest"; exit 1;; esac
+          docker build --build-arg BASE_IMAGE="$base_ref" -t boardsi-m0-f6qt:24.04 -f - . <<'DOCKER'
+          ARG BASE_IMAGE
+          FROM ${BASE_IMAGE}
           RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
               python3 ca-certificates libstdc++6 libglib2.0-0t64 libgl1 libopengl0 libegl1 libxkbcommon0 \
               libfontconfig1 libdbus-1-3 libicu74 libxcb1 libx11-6 libx11-xcb1 \
@@ -56,7 +63,11 @@ jobs:
               libxcb-xkb1 libxcb-sync1 libxkbcommon-x11-0 libxcb-shm0 \
               && rm -rf /var/lib/apt/lists/*
           DOCKER
-          docker image inspect --format '{{json .RepoDigests}}' boardsi-m0-f6qt:24.04 > "$RUNNER_TEMP/m0-f6qt/image-digests.json"
+          local_id=$(docker image inspect --format '{{.Id}}' boardsi-m0-f6qt:24.04)
+          case "$local_id" in sha256:*) ;; *) echo "No built image ID"; exit 1;; esac
+          # Registry RepoDigests are empty for images built only locally. The
+          # content-addressed image ID and pinned upstream reference are real.
+          printf '{"base_reference":"%s","runtime_image_id":"%s"}\n' "$base_ref" "$local_id" > "$RUNNER_TEMP/m0-f6qt/image-digests.json"
       - name: Run real Qt Widgets and independent Worker inside limited container
         shell: bash
         run: |
@@ -112,7 +123,7 @@ jobs:
         shell: bash
         run: |
           python3 - <<'PY'
-          import hashlib, json, os
+          import hashlib, json, os, re
           from pathlib import Path
           root = Path(os.environ["RUNNER_TEMP"]) / "m0-f6qt"
           report = {
@@ -140,6 +151,15 @@ jobs:
               limit = int((root / "memory-max-bytes").read_text())
               peak = int((root / "memory-peak-bytes").read_text())
               quota, period = (root / "cpu-max").read_text().split()
+              images = json.loads((root / "image-digests.json").read_text())
+              base_ref = images["base_reference"]
+              image_id = images["runtime_image_id"]
+              report["base_image_reference"] = base_ref
+              report["runtime_image_id"] = image_id
+              image_identity_valid = bool(
+                  re.fullmatch(r"ubuntu@sha256:[0-9a-f]{64}", base_ref)
+                  and re.fullmatch(r"sha256:[0-9a-f]{64}", image_id)
+              )
               report["qt_runtime_pass"] = result["pass"] is True
               report["qt_runtime_metrics"] = result.get("metrics", {})
               report["measured_peak_memory_bytes"] = peak
@@ -147,6 +167,7 @@ jobs:
               report["effective_cpu_max"] = f"{quota} {period}"
               report["technical_pass"] = (
                   result["pass"] is True and
+                  image_identity_valid and
                   limit == 8 * 1024**3 and 0 < peak <= limit and
                   quota != "max" and 0 < int(quota) <= 2 * int(period) and
                   "M0_SYNTHETIC_QT_MODEL_HANDOFF PASS" in
