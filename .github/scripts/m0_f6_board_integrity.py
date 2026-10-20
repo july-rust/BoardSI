@@ -9,6 +9,8 @@ import re
 import sys
 import urllib.request
 
+from m0_f6_outline_qualification import qualify_line_outline
+
 COMMIT = "181d683185b20890085b0e8f1e0e89fbda63a56b"
 ROOT = "https://raw.githubusercontent.com/KiCad/kicad-source-mirror/" + COMMIT + "/"
 OUTPUT = pathlib.Path("build/m0-f6-public-boards")
@@ -44,35 +46,31 @@ def download(path: str, max_bytes: int) -> bytes:
     return content
 
 def iter_sexpressions(raw: str, prefix: str):
-    """Yield balanced KiCad (gr_...) primitives; escaped quotes are respected."""
-    search_from = 0
-    while (start := raw.find(prefix, search_from)) >= 0:
-        depth = 0
-        in_string = False
-        escaped = False
-        end = None
-        for pos in range(start, len(raw)):
-            c = raw[pos]
-            if in_string:
-                if escaped:
-                    escaped = False
-                elif c == "\\":
-                    escaped = True
-                elif c == '"':
-                    in_string = False
+    """Find actual balanced KiCad lists, never tokens inside quoted strings."""
+    stack = []
+    quoted = False
+    escaped = False
+    for pos, c in enumerate(raw):
+        if quoted:
+            if escaped:
+                escaped = False
+            elif c == "\\":
+                escaped = True
             elif c == '"':
-                in_string = True
-            elif c == '(':
-                depth += 1
-            elif c == ')':
-                depth -= 1
-                if depth == 0:
-                    end = pos + 1
-                    break
-        if end is None:
-            raise ValueError(f"unbalanced KiCad primitive at position {start}")
-        yield raw[start:end]
-        search_from = end
+                quoted = False
+            continue
+        if c == '"':
+            quoted = True
+        elif c == '(':
+            stack.append((pos, raw.startswith(prefix, pos)))
+        elif c == ')':
+            if not stack:
+                raise ValueError("unbalanced KiCad primitive: unmatched closing paren")
+            start, matched = stack.pop()
+            if matched:
+                yield raw[start:pos + 1]
+    if stack or quoted:
+        raise ValueError("unbalanced KiCad primitive or unterminated string")
 
 def validate_balanced_kicad_sexpressions(content: str) -> None:
     """Fail closed on malformed global S-expression nesting or quoted strings.
@@ -172,6 +170,7 @@ def geometry_inventory(board: bytes) -> dict:
     return {
         "edge_cuts_graphic_primitives": len(outline),
         "edge_cuts_types_lexical": dict(sorted(types.items())),
+        "strict_line_only_outline_qualification": qualify_line_outline(outline, footprint_edge_graphics),
         "footprint_local_edge_cuts_primitives_lexical": footprint_edge_graphics,
         "edge_endpoints_extent_mm_DIAGNOSTIC_ONLY": endpoint_extent,
         "edge_extent_certified": False,

@@ -1,0 +1,42 @@
+name: M0 F6 KiCad native PCB outline qualification
+on:
+  pull_request:
+    paths:
+      - .github/scripts/m0_f6_native_kicad_outline.py
+      - .github/scripts/m0_f6_board_integrity.py
+      - .github/workflows/m0-f6-native-kicad-outline.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-kicad-outline:
+    name: Official KiCad 9 board polygon validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Install KiCad 9 official stable PPA in temporary Linux runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends software-properties-common
+          sudo add-apt-repository -y ppa:kicad/kicad-9.0-releases
+          sudo apt-get update
+          # Native contour oracle exactly matched the first successful run.
+          # Do not auto-upgrade a geometry acceptance tool between CI runs.
+          sudo apt-get install -y --no-install-recommends 'kicad=9.0.9~ubuntu24.04.1'
+          dpkg-query -W kicad
+          /usr/bin/python3 -c 'import pcbnew; print("KiCad native pcbnew:", pcbnew.GetBuildVersion())'
+      - name: Validate pinned original board contours with native KiCad
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 .github/scripts/m0_f6_native_kicad_outline.py
+      - name: Preserve only JSON qualifications (never raw PCB artwork)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m0-f6-kicad-outline-qualification
+          path: build/m0-f6-public-boards/native-kicad-outline.json
+          if-no-files-found: warn
