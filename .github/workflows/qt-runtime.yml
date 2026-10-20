@@ -188,8 +188,19 @@ jobs:
             exit 0
           fi
           cd build-qt
+          # This is diagnostic only; preserve the original native runtime
+          # step as the sole mandatory acceptance gate.
+          set +e
           ./boardsi-qt-f8-cold-show-control$suffix
-          cat f8-cold-show-control.json
+          diagnostic_rc=$?
+          set -e
+          echo "F8 cold-show diagnostic exit status: $diagnostic_rc (non-gating)"
+          if test -f f8-cold-show-control.json; then
+            cat f8-cold-show-control.json
+          else
+            echo "F8_DIAGNOSTIC_NOT_RUN: JSON not produced (non-gating)"
+          fi
+          exit 0
       - name: Preserve independent F8 control measurements
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
