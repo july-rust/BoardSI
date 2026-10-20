@@ -1,8 +1,9 @@
 """Adversarial tests: F1 CI proof is limited, per-case and fail closed."""
 import copy
+import json
 import unittest
 
-from m0_f1_native_subcases import CASE_SCENARIOS, evaluate
+from m0_f1_native_subcases import CASE_SCENARIOS, evaluate, reject_duplicate_json_members
 
 
 def reference():
@@ -17,8 +18,11 @@ def reference():
         "cpu_arch": "x86_64",
         "pass": True,
         "assertions": 100,
-        "cases": [{"name": name, "pass": True}
-                  for name in sorted(case_names)],
+        "cases": [
+            {"name": name, "pass": True, "exit_code": 0,
+             "exit_status": 0, "error": ""}
+            for name in sorted(case_names)
+        ],
         "metrics": {
             "normal_ui_count": 150,
             "burst_ui_count": 150,
@@ -97,6 +101,27 @@ class NativeScopedEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "failed or unverified"):
             evaluate(sample, "windows", "x86_64")
 
+    def test_missing_real_producer_field_fails(self):
+        sample = reference()
+        sample["cases"][0].pop("exit_status")
+        with self.assertRaisesRegex(ValueError, "producer record"):
+            evaluate(sample, "windows", "x86_64")
+
+    def test_invalid_producer_exit_status_fails(self):
+        sample = reference()
+        sample["cases"][0]["exit_status"] = "0"
+        with self.assertRaisesRegex(ValueError, "producer record"):
+            evaluate(sample, "windows", "x86_64")
+
+    def test_duplicate_nested_json_keys_are_not_normalized(self):
+        for data in (
+            '{"pass": false, "pass": true}',
+            '{"metrics": {"normal_ui_p95_ms": 999, "normal_ui_p95_ms": 1}}',
+            '{"cases":[{"name":"snapshot","name":"other"}]}',
+        ):
+            with self.subTest(data=data), self.assertRaisesRegex(ValueError, "Duplicate JSON field"):
+                json.loads(data, object_pairs_hook=reject_duplicate_json_members)
+
     def test_duplicate_case_fails(self):
         sample = reference()
         sample["cases"].append(dict(sample["cases"][0]))
@@ -142,6 +167,12 @@ class NativeScopedEvidenceTests(unittest.TestCase):
             sample["metrics"].pop(field)
             with self.subTest(field=field), self.assertRaises(ValueError):
                 evaluate(sample, "windows", "x86_64")
+
+    def test_oversized_integer_fails_validation_not_with_overflow(self):
+        sample = reference()
+        sample["metrics"]["cancel_ack_max_ms"] = 10 ** 400
+        with self.assertRaisesRegex(ValueError, "oversized"):
+            evaluate(sample, "windows", "x86_64")
 
     def test_wrong_qt_version_fails(self):
         sample = reference()
