@@ -225,13 +225,15 @@ def cli() -> int:
                     "Unable to attest checked-out source SHA")
         data["checkout_sha"] = sha
         raw = args.qt_json.read_bytes()
-        requirement(len(raw) <= 4_000_000 and raw, "Empty or unbounded native report")
+        # Input already exists, so preserve its hash even if size/shape invalid.
         data["qt_input_sha256"] = hashlib.sha256(raw).hexdigest()
+        requirement(len(raw) <= 4_000_000 and bool(raw), "Empty or unbounded native report")
         source = json.loads(raw.decode("utf-8"),
                             object_pairs_hook=reject_duplicate_json_members)
         summary = evaluate(source, args.qt_platform, args.cpu_arch)
         data.update(summary)
-    except (OSError, UnicodeError, ValueError, subprocess.CalledProcessError) as exc:
+    except (OSError, UnicodeError, ValueError, RecursionError,
+            subprocess.CalledProcessError) as exc:
         data["failure"] = f"{type(exc).__name__}: {exc}"
     args.output_json.parent.mkdir(parents=True, exist_ok=True)
     args.output_json.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n",
