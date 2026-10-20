@@ -11,8 +11,8 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-COORD = r"(-?\\d+(?:\\.\\d+)?)"
-POINT = lambda field: re.compile(r"\\(" + field + r"\\s+" + COORD + r"\\s+" + COORD + r"\\)")
+COORD = r"(-?\d+(?:\.\d+)?)"
+POINT = lambda field: re.compile(r"\(" + field + r"\s+" + COORD + r"\s+" + COORD + r"\)")
 CAP = 1500
 
 
@@ -68,7 +68,7 @@ def qualify_line_outline(outline: list[str], footprint_edges: int) -> dict:
     segments = []
     adjacency = defaultdict(list)
     for i, p in enumerate(outline):
-        if not re.match(r"^\\(gr_line(?:\\s|\\()", p):
+        if not re.match(r"^\(gr_line(?:\s|\()", p):
             return not_verified("Curves, rectangles and non-line shapes not qualified")
         st, en = POINT("start").findall(p), POINT("end").findall(p)
         if len(st) != 1 or len(en) != 1:
