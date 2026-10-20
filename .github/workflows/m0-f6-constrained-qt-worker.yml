@@ -85,8 +85,27 @@ jobs:
               uname -m > /evidence/arch
               ulimit -c 0
               cd /evidence
-              /qt-runtime /worker /usr/bin/python3 /tests/fault_worker.py > qt-runtime-stdout.txt 2>&1
-              /qt-model --selftest /worker /evidence/a.frame /evidence/b.frame > qt-model-stdout.txt 2>&1
+              # Capture the actual ELF loader state; never reclassify a missing
+              # runtime dependency as an 8 GiB memory/performance failure.
+              ldd /qt-runtime > qt-runtime-ldd.txt 2>&1 || true
+              ldd /qt/plugins/platforms/libqoffscreen.so > qt-offscreen-ldd.txt 2>&1 || true
+              if /qt-runtime /worker /usr/bin/python3 /tests/fault_worker.py > qt-runtime-stdout.txt 2>&1; then
+                :
+              else
+                rc=$?
+                echo "Restricted Qt test failed with exit $rc (raw diagnostic follows)"
+                cat qt-runtime-stdout.txt
+                cat qt-runtime-ldd.txt
+                cat qt-offscreen-ldd.txt
+                exit "$rc"
+              fi
+              if /qt-model --selftest /worker /evidence/a.frame /evidence/b.frame > qt-model-stdout.txt 2>&1; then
+                :
+              else
+                rc=$?
+                cat qt-model-stdout.txt
+                exit "$rc"
+              fi
             '
       - name: Validate scope-bound GUI/Worker results and write evidence
         if: always()
