@@ -54,8 +54,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Immutable multi-arch Ubuntu 24.04 base reviewed in signed F6
-          # staging run 39374120825. Never resolve a mutable tag during CI.
+          # Immutable Ubuntu 24.04 base pinned by digest, observed in F6
+          # CI run 39374120825. A passing run is NOT signing evidence;
+          # verify GitHub-signed staging separately before promotion.
           base_ref="ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac"
           docker pull "$base_ref"
           docker build --build-arg BASE_IMAGE="$base_ref" -t boardsi-m0-f6qt:24.04 -f - . <<'DOCKER'
