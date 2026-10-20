@@ -49,7 +49,7 @@ jobs:
           docker build -t boardsi-m0-f6qt:24.04 -f - . <<'DOCKER'
           FROM ubuntu:24.04
           RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-              python3 ca-certificates libstdc++6 libgl1 libopengl0 libegl1 libxkbcommon0 \
+              python3 ca-certificates libstdc++6 libglib2.0-0t64 libgl1 libopengl0 libegl1 libxkbcommon0 \
               libfontconfig1 libdbus-1-3 libicu74 libxcb1 libx11-6 libx11-xcb1 \
               libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
               libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 \
