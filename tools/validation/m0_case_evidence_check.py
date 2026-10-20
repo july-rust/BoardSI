@@ -7,6 +7,28 @@ from urllib.parse import urlparse
 LEDGER = Path("docs/validation/m0-case-evidence.json")
 M0_IDS = {"T10","T11","T13","T32","T34","T35","T39","T46","T50","T54"}
 SHA = re.compile(r"[0-9a-f]{40}\Z")
+# Intentionally separate from the editable evidence JSON. A new baseline
+# requires source-code change, tests and independent review; self-consistency
+# of two editable strings must never count as immutable provenance proof.
+BASE_SHA = "2a08c167d89279e15f1e65b689a58ed0682afc6e"
+BASE_DOC_RUN = "https://github.com/july-rust/BoardSI/actions/runs/39391822708"
+QT_RUN = "https://github.com/july-rust/BoardSI/actions/runs/39391822772"
+RUST_RUN = "https://github.com/july-rust/BoardSI/actions/runs/39391823062"
+F6_PR = "https://github.com/july-rust/BoardSI/pull/127"
+EXPECTED_EVIDENCE = {
+    "T10": [QT_RUN],
+    "T11": [],
+    "T13": [QT_RUN, RUST_RUN],
+    "T32": [QT_RUN],
+    "T34": [QT_RUN],
+    "T35": [F6_PR],
+    "T39": [QT_RUN, RUST_RUN],
+    "T46": [QT_RUN],
+    "T50": [QT_RUN],
+    "T54": [],
+}
+# These IDs were observed as successful on signed BASE_SHA; exact source
+# verification is recorded separately via the run URLs, not fabricated by CI.
 PROTOTYPE = {"PARTIAL", "NOT_RUN"}
 EXPECTED_KEYS = {
     "id", "title", "expected", "fixture", "prototype_status",
@@ -20,15 +42,15 @@ def validate(document):
     if document["schema"] != "boardsi.m0.case-evidence.v1":
         raise ValueError("Unsupported M0 case schema")
     sha = document["source_commit"]
-    if not isinstance(sha,str) or not SHA.fullmatch(sha):
-        raise ValueError("A full immutable source commit SHA is mandatory")
+    if not isinstance(sha,str) or not SHA.fullmatch(sha) or sha != BASE_SHA:
+        raise ValueError("Immutable SHA does not match independently pinned baseline")
     provenance = document["source_provenance"]
     if provenance.get("main_url") != f"https://github.com/july-rust/BoardSI/commit/{sha}":
         raise ValueError("Immutable source URL does not match SHA")
     if provenance.get("verified") != "valid" or provenance.get("mandatory_checks") != "17/17 success":
         raise ValueError("Provenance record lacks validated main checks")
-    if not isinstance(provenance.get("run_url"), str):
-        raise ValueError("Provenance requires exact document CI evidence")
+    if provenance.get("run_url") != BASE_DOC_RUN:
+        raise ValueError("Provenance must contain independently pinned successful docs CI run")
     if not isinstance(document["semantics"], dict) or set(document["semantics"]) != {
         "prototype_status","full_acceptance","review_scope"
     } or any(not isinstance(v, str) or len(v) < 25 for v in document["semantics"].values()):
@@ -54,6 +76,8 @@ def validate(document):
         ):
             raise ValueError("Case's expected result, fixture and limits required")
         links = item["evidence_urls"]
+        if links != EXPECTED_EVIDENCE[key]:
+            raise ValueError("Evidence URLs do not match case-specific pinned provenance")
         if not isinstance(links,list) or len(links) != len(set(links)):
             raise ValueError("Case links must be a unique list")
         if item["prototype_status"] == "NOT_RUN" and links:
