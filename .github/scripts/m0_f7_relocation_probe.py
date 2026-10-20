@@ -7,6 +7,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+from m0_f7_bundle_manifest import inventory
+
 def sha(path):
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -241,6 +243,11 @@ def main():
     if not plugin_dir.is_dir() or not any(plugin_dir.iterdir()):
         print("Relocated Qt platform plugin missing", plugin_dir, file=sys.stderr)
         return 1
+    bundle_root = model.parents[2] if sys.platform == "darwin" else model.parent
+    plugin_name = "libqcocoa.dylib" if sys.platform == "darwin" else "qwindows.dll"
+    # Inventory the exact installed bundle. Never confuse this with the
+    # uninstalled Qt SDK, a full clean-OS install, or legal clearance.
+    bundle_evidence = inventory(bundle_root, model, worker, plugin_dir / plugin_name)
     result = subprocess.run(
         [str(model), "--selftest", str(worker), str(a), str(b)],
         cwd=model.parent, env=env, capture_output=True, text=True,
@@ -255,7 +262,8 @@ def main():
         "platform_plugin_present": True,
         "qt_sdk_environment_paths_removed": True,
         "selftest_exit_code": result.returncode,
-        "selftest_pass": result.returncode == 0
+        "selftest_pass": result.returncode == 0,
+        "bundle_integrity_manifest": bundle_evidence,
     }
     out = Path(os.environ.get("RUNNER_TEMP", ".")) / "m0-f7-relocation-result.json"
     out.write_text(json.dumps(evidence, indent=2) + "\n")
