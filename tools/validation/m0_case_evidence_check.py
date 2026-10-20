@@ -48,8 +48,10 @@ def validate(document):
             raise ValueError("Prototype status cannot claim full PASS")
         if item["full_acceptance"] != "NOT_RUN" or item["case_specific_acceptance_review"] != "NOT_PERFORMED":
             raise ValueError("Do not claim unperformed full acceptance / reviewer")
-        if not all(isinstance(item[n],str) and len(item[n].strip()) >= 20
-                   for n in ("title","expected","fixture","limitations")):
+        if not isinstance(item["title"],str) or len(item["title"].strip()) < 8 or not all(
+            isinstance(item[n],str) and len(item[n].strip()) >= 20
+            for n in ("expected","fixture","limitations")
+        ):
             raise ValueError("Case's expected result, fixture and limits required")
         links = item["evidence_urls"]
         if not isinstance(links,list) or len(links) != len(set(links)):
