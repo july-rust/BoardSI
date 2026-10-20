@@ -54,6 +54,25 @@ EXPECTED_KEYS = {
     "case_specific_acceptance_review",
 }
 
+def reject_duplicate_json_members(pairs):
+    values = {}
+    for key, value in pairs:
+        if key in values:
+            raise ValueError("Duplicate JSON member rejected before normalization: " + key)
+        values[key] = value
+    return values
+
+def parse_exact_reviewed_ledger(raw):
+    """Bind raw bytes before JSON decoding, rejecting hidden duplicate keys."""
+    if not isinstance(raw, bytes):
+        raise TypeError("Raw ledger must be bytes")
+    calculated = hashlib.sha1(
+        b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw
+    ).hexdigest()
+    if calculated != PINNED_LEDGER_BLOB:
+        raise ValueError("Raw ledger bytes differ from reviewed Git blob")
+    return json.loads(raw.decode("utf-8"), object_pairs_hook=reject_duplicate_json_members)
+
 def validate(document):
     if set(document) != {"schema","source_commit","source_provenance","semantics","cases"}:
         raise ValueError("Unknown/missing top-level evidence keys")
@@ -119,5 +138,5 @@ def validate(document):
     return True
 
 if __name__ == "__main__":
-    validate(json.loads(LEDGER.read_text(encoding="utf-8")))
+    validate(parse_exact_reviewed_ledger(LEDGER.read_bytes()))
     print("M0 F1: 10/10 scoped evidence records structurally valid; full T acceptance NOT_RUN")
