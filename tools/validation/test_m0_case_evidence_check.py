@@ -58,7 +58,7 @@ class CaseEvidenceTests(unittest.TestCase):
 
     def test_missing_limitations_rejected(self):
         self.mutation_fails(lambda x: x["cases"][3].update(limitations="none"),
-                            "limitations required")
+                            "limits required")
 
 if __name__ == "__main__":
     unittest.main()
