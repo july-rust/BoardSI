@@ -61,6 +61,27 @@ class BundleIntegrityTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "escapes root"):
             manifest.inventory(self.root, self.app, self.worker, self.plugin)
 
+    def test_internal_symlink_retarget_changes_manifest(self):
+        versions = self.root / "framework" / "Versions"
+        (versions / "A").mkdir(parents=True)
+        (versions / "B").mkdir(parents=True)
+        (versions / "A" / "core").write_bytes(b"VERSION A")
+        (versions / "B" / "core").write_bytes(b"VERSION B")
+        link = versions / "Current"
+        try:
+            link.symlink_to("A", target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"Runner cannot create directory symlink: {exc}")
+        first = manifest.inventory(self.root, self.app, self.worker, self.plugin)
+        link.unlink()
+        link.symlink_to("B", target_is_directory=True)
+        second = manifest.inventory(self.root, self.app, self.worker, self.plugin)
+        self.assertEqual(first["files"], second["files"])
+        self.assertNotEqual(first["symlinks"], second["symlinks"])
+        self.assertEqual(first["symlinks"][0]["raw_target"], "A")
+        self.assertEqual(second["symlinks"][0]["raw_target"], "B")
+        self.assertEqual(first["symlink_count"], 1)
+
     def test_budgets_fail_closed(self):
         with mock.patch.object(manifest, "MAX_BYTES", 3):
             with self.assertRaisesRegex(ValueError, "budget"):
