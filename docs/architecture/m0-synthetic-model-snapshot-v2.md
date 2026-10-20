@@ -34,7 +34,7 @@ The SHA-256 routine is embedded solely to avoid introducing a new dependency int
 1. Freeze a full Canonical Board Model schema that includes **every** solver-relevant geometry/material/net/provenance field and clean revision migration, rather than this narrow subset.
 2. Transfer full immutable model/run payload to the independent Worker with version negotiation and rejection of unsupported model types; independent semantic validation and real numerical execution.
 3. Complete nonblocking Qt/QProcess v2 path, cancellation/heartbeat/progress/result/OS exit convergence, stale and cross-run rejection and load/backpressure behavior.
-4. Run native release/debug tests on Windows x64/ARM64, macOS Apple Silicon (Linux supplemental), retain original Qt #46 intermittent FAIL history and unchanged 1000ms global timer gate.
+4. Run native release/debug tests on Windows x64/ARM64, macOS Apple Silicon (Linux supplemental). **Historical** Qt #46 1,000 ms intermittent FAIL evidence remains unchanged; its old 1,000 ms criterion is **superseded for provisional M0 F8 only** by the explicit 2026-10-20 owner-approved **1,500 ms whole-test global Qt timer bound**. Require fresh native CI under the amended rule; preserve other UI/IPC acceptance limits and revisit startup jitter at release stabilization. See [M0 F8 provisional timing policy](../validation/m0-f8-provisional-1500ms-policy.md).
 5. Qualify redistributable test fixtures, package/license/installer and baseline PC separately.
 
 Prior PH-08 original Stage4/Stage5B Gate Q FAIL, BOUND_NOT_CERTIFIED, PH-08 NOT_FROZEN and the prohibited Draft PR #35 are unchanged. U/T acceptance statuses remain NOT_RUN unless independently qualified. A passing SHA here is **PARTIAL F4 transport evidence only**.
