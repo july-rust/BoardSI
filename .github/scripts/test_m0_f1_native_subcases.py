@@ -1,6 +1,11 @@
 """Adversarial tests: F1 CI proof is limited, per-case and fail closed."""
 import copy
+import hashlib
 import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 
 from m0_f1_native_subcases import CASE_SCENARIOS, evaluate, reject_duplicate_json_members
@@ -173,6 +178,26 @@ class NativeScopedEvidenceTests(unittest.TestCase):
         sample["metrics"]["cancel_ack_max_ms"] = 10 ** 400
         with self.assertRaisesRegex(ValueError, "oversized"):
             evaluate(sample, "windows", "x86_64")
+
+    def test_failure_json_preserves_input_hash_even_for_rejected_sizes(self):
+        for raw in (b"", b"0" * 4000001, b"[" * 100000 + b"]" * 100000):
+            with self.subTest(input_bytes=len(raw)), tempfile.TemporaryDirectory() as d:
+                incoming = Path(d) / "qt.json"
+                output = Path(d) / "m0-f1.json"
+                incoming.write_bytes(raw)
+                command = [sys.executable,
+                           str(Path(__file__).with_name("m0_f1_native_subcases.py")),
+                           str(incoming), str(output), "windows", "x86_64"]
+                result = subprocess.run(command, capture_output=True, text=True, timeout=15)
+                self.assertEqual(result.returncode, 1, result.stderr[-300:])
+                proof = json.loads(output.read_text(encoding="utf-8"))
+                self.assertEqual(proof["result"], "FAIL_CLOSED")
+                self.assertEqual(proof["qt_input_sha256"], hashlib.sha256(raw).hexdigest())
+                self.assertEqual(len(proof["cases"]), 6)
+                self.assertTrue(all(x["independent_case_specific_acceptance_review"] == "NOT_PERFORMED"
+                                    and x["full_product_T_acceptance"] == "NOT_RUN"
+                                    for x in proof["cases"]))
+                self.assertIn("failure", proof)
 
     def test_wrong_qt_version_fails(self):
         sample = reference()
