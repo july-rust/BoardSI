@@ -78,6 +78,20 @@ class CaseEvidenceTests(unittest.TestCase):
             ), "pinned successful docs"
         )
 
+    def test_top_level_full_acceptance_claim_is_rejected(self):
+        self.mutation_fails(
+            lambda x: x["semantics"].update(
+                full_acceptance="All full T tests are independently accepted and approved"
+            ), "pinned no-acceptance contract"
+        )
+
+    def test_top_level_reviewer_claim_is_rejected(self):
+        self.mutation_fails(
+            lambda x: x["semantics"].update(
+                review_scope="Every independent acceptance reviewer signed off on M0"
+            ), "pinned no-acceptance contract"
+        )
+
     def test_missing_limitations_rejected(self):
         self.mutation_fails(lambda x: x["cases"][3].update(limitations="none"),
                             "limits required")
