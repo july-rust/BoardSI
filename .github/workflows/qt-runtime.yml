@@ -216,6 +216,7 @@ jobs:
           PY
       - name: Preserve independent F8 control measurements
         if: always()
+        continue-on-error: true # Independent diagnostic transport must never gate original Qt runtime.
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: m0-f8-cold-show-control-${{ matrix.name }}-attempt-${{ github.run_attempt }}
