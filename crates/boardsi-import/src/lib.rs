@@ -32,7 +32,9 @@ pub fn probe_pads_header(input: &[u8]) -> Signature {
     } else {
         first
     };
-    if first.len() > MAX_PADS_HEADER_BYTES {
+    // No embedded CR is permitted. CRLF is handled only at the line boundary.
+    // In particular, "!PADS-POWERPCB-V9.5!\\rX\\n" is not a valid header.
+    if first.contains(&b'\r') || first.len() > MAX_PADS_HEADER_BYTES {
         return Signature::Unknown;
     }
     // The exporter normally uses raw ASCII. Permit UTF-8 BOM without moving the
@@ -112,6 +114,9 @@ mod tests {
             "unknown\n!PADS-POWERPCB-V9.4-MILS!\n",
             "!PADS-POWERPCBEVIL-V9.4-MILS!\n",
             "!PADS2000EVIL!\n",
+            "!PADS-POWERPCB-V9.5!\rX\n",
+            "!PADS-POWERPCB-V9.4-MILS!\r*PCB*",
+            "!PADS-POWERPCB-V9.5!\r*PCB*\n",
             "!PADS-POWERPCB-V9.4-MILS\n",
             "!PADS-POWERLOGIC",
             "!!PADS-POWERPCB-V9.4-MILS!",
