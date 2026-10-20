@@ -22,7 +22,16 @@ pub fn probe_pads_header(input: &[u8]) -> Signature {
         .split(|&byte| byte == b'\n')
         .next()
         .unwrap_or_default();
-    let first = first.strip_suffix(b"\r").unwrap_or(first);
+    // A trailing CR is a terminator only when the following LF is visible.
+    // Reject bare/boundary CR to avoid accepting truncated overlong first lines.
+    let first = if let Some(stripped) = first.strip_suffix(b"\r") {
+        if input.get(first.len()) != Some(&b'\n') {
+            return Signature::Unknown;
+        }
+        stripped
+    } else {
+        first
+    };
     if first.len() > MAX_PADS_HEADER_BYTES {
         return Signature::Unknown;
     }
@@ -53,13 +62,13 @@ pub fn probe_pads_header(input: &[u8]) -> Signature {
     }
 }
 
-/// Read at most 513 bytes, not the complete (possibly huge) PCB file.
-/// A header without a line break is accepted only if it fits the same limit.
+/// Read at most 514 bytes: up to 512 header bytes plus CRLF lookahead.
+/// Never scan the entire (possibly huge) PCB file. A bare CR is not a terminator.
 pub fn probe_pads_reader<R: Read>(mut source: R) -> io::Result<Signature> {
-    let mut prefix = Vec::with_capacity(MAX_PADS_HEADER_BYTES + 1);
+    let mut prefix = Vec::with_capacity(MAX_PADS_HEADER_BYTES + 2);
     source
         .by_ref()
-        .take((MAX_PADS_HEADER_BYTES + 1) as u64)
+        .take((MAX_PADS_HEADER_BYTES + 2) as u64)
         .read_to_end(&mut prefix)?;
     Ok(probe_pads_header(&prefix))
 }
@@ -122,7 +131,37 @@ mod tests {
             probe_pads_reader(&mut reader).unwrap(),
             Signature::PadsPcbAscii
         );
-        assert!(reader.position() <= (MAX_PADS_HEADER_BYTES + 1) as u64);
+        assert!(reader.position() <= (MAX_PADS_HEADER_BYTES + 2) as u64);
+    }
+
+    #[test]
+    fn handles_exact_length_crlf_and_rejects_truncated_boundary_cr() {
+        let tag = b"!PADS-POWERPCB-V9.5!";
+        let mut header = tag.to_vec();
+        header.resize(MAX_PADS_HEADER_BYTES, b' ');
+        assert_eq!(header.len(), 512);
+
+        // 512 content bytes + visible CRLF require a 514-byte bounded read.
+        for ending in [b"\n".as_slice(), b"\r\n".as_slice(), b"".as_slice()] {
+            let mut file = header.clone();
+            file.extend_from_slice(ending);
+            let mut reader = Cursor::new(file);
+            assert_eq!(probe_pads_reader(&mut reader).unwrap(), Signature::PadsPcbAscii);
+            assert!(reader.position() <= (MAX_PADS_HEADER_BYTES + 2) as u64);
+        }
+
+        // A CR on the boundary is not enough: do not strip CR until LF is seen.
+        for ending in [
+            b"\rXmore bytes\n".as_slice(),
+            b"\r".as_slice(),
+            b"X\r\n".as_slice(),
+            b"XX\n".as_slice(),
+        ] {
+            let mut file = header.clone();
+            file.extend_from_slice(ending);
+            assert_eq!(probe_pads_header(&file), Signature::Unknown);
+            assert_eq!(probe_pads_reader(Cursor::new(file)).unwrap(), Signature::Unknown);
+        }
     }
 
     #[test]
