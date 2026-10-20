@@ -65,7 +65,10 @@ def inventory(package: Path, executable: Path, worker: Path,
     entries = {e["path"]: e for e in found}
     role_map = {}
     for role, item in roots.items():
-        key = item.relative_to(package).as_posix()
+        # Windows may supply 8.3 aliases (RUNNER~1 vs runneradmin) while
+        # macOS temporary paths alias /var to /private/var. Canonicalize
+        # both sides before deriving a relative in-bundle entrypoint path.
+        key = item.resolve(strict=True).relative_to(package).as_posix()
         if key not in entries:
             raise ValueError(role + " not present in inventory")
         role_map[role] = key
