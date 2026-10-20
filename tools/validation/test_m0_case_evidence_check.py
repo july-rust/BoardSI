@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import unittest
 
-from m0_case_evidence_check import validate, LEDGER
+from m0_case_evidence_check import validate, LEDGER, parse_exact_reviewed_ledger, reject_duplicate_json_members
 
 class CaseEvidenceTests(unittest.TestCase):
     @classmethod
@@ -106,6 +106,29 @@ class CaseEvidenceTests(unittest.TestCase):
             item["fixture"] = "Actual complete PCB geometry, certified and installed on target."
             item["limitations"] = "All independent acceptance reviewers certify release readiness."
         self.mutation_fails(falsify, "Entire immutable evidence ledger")
+
+    def test_exact_raw_ledger_passes(self):
+        self.assertTrue(validate(parse_exact_reviewed_ledger(LEDGER.read_bytes())))
+
+    def test_byte_injection_hidden_by_json_normalization_rejected(self):
+        raw = LEDGER.read_bytes()
+        target = b'"scope": '
+        self.assertEqual(raw.count(target), 1)
+        forged = raw.replace(
+            target, b'"scope": "all full PCB tests PASS",\n    ' + target
+        )
+        with self.assertRaisesRegex(ValueError, "Raw ledger bytes differ"):
+            parse_exact_reviewed_ledger(forged)
+
+    def test_duplicate_json_member_hook_rejects_same_key(self):
+        with self.assertRaisesRegex(ValueError, "Duplicate JSON member"):
+            json.loads('{"scope":"false approval","scope":"not approved"}',
+                       object_pairs_hook=reject_duplicate_json_members)
+
+    def test_formatting_only_change_cannot_bypass_raw_blob_pin(self):
+        raw = LEDGER.read_bytes()
+        with self.assertRaisesRegex(ValueError, "Raw ledger bytes differ"):
+            parse_exact_reviewed_ledger(raw + b"\n")
 
     def test_missing_limitations_rejected(self):
         self.mutation_fails(lambda x: x["cases"][3].update(limitations="none"),
