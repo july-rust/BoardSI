@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - .github/scripts/m0_f6_board_integrity.py
+      - .github/scripts/test_m0_f6_board_integrity.py
       - .github/workflows/m0-f6-board-integrity.yml
   workflow_dispatch:
 permissions:
@@ -14,6 +15,8 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v5
+      - name: Run independent synthetic structure and license regressions
+        run: python3 -m unittest discover -s .github/scripts -p 'test_m0_f6_board_integrity.py' -v
       - name: Verify pinned public upstream KiCad bytes
         run: python3 .github/scripts/m0_f6_board_integrity.py
       - name: Keep exact candidate-source evidence
