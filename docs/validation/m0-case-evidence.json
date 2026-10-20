@@ -1,0 +1,146 @@
+{
+  "schema": "boardsi.m0.case-evidence.v1",
+  "source_commit": "2a08c167d89279e15f1e65b689a58ed0682afc6e",
+  "source_provenance": {
+    "main_url": "https://github.com/july-rust/BoardSI/commit/2a08c167d89279e15f1e65b689a58ed0682afc6e",
+    "verified": "valid",
+    "mandatory_checks": "17/17 success",
+    "run_url": "https://github.com/july-rust/BoardSI/actions/runs/39391822708",
+    "scope": "Exact signed main technology proof; all case-by-case full acceptance remains NOT_RUN"
+  },
+  "semantics": {
+    "prototype_status": "PARTIAL denotes restricted proof only; NOT_RUN denotes no applicable M0 case proof; never conflates with full T acceptance",
+    "full_acceptance": "NOT_RUN means later-phase complete acceptance has not occurred",
+    "review_scope": "PR and CI reviews verify source/checks; not a signed case-by-case user acceptance"
+  },
+  "cases": [
+    {
+      "id": "T10",
+      "title": "Resource, cancel, recovery",
+      "expected": "GUI responsive during restricted synthetic Worker, cancellation observable; full product memory/cold recovery not implemented",
+      "fixture": "synthetic-only; real PCB not imported",
+      "prototype_status": "PARTIAL",
+      "full_acceptance": "NOT_RUN",
+      "evidence_urls": [
+        "https://github.com/july-rust/BoardSI/actions/runs/39391822772"
+      ],
+      "limitations": "Synthetic Worker start/cancel/heartbeat covered; actual CAD import, physical solver and disk recovery excluded",
+      "case_specific_acceptance_review": "NOT_PERFORMED"
+    },
+    {
+      "id": "T11",
+      "title": "Optional GPU path",
+      "expected": "When GPU unavailable, explicit CPU-only behavior; supported GPU backend equivalence only if present",
+      "fixture": "synthetic-only; real PCB not imported",
+      "prototype_status": "NOT_RUN",
+      "full_acceptance": "NOT_RUN",
+      "evidence_urls": [],
+      "limitations": "No production GPU backend or full T11 enable/disable equivalence case",
+      "case_specific_acceptance_review": "NOT_PERFORMED"
+    },
+    {
+      "id": "T13",
+      "title": "Three native targets, Unicode and locale",
+      "expected": "Execute actual Qt/Worker on Windows x64/ARM64 and macOS ARM64; also verify full application Unicode and locale when implemented",
+      "fixture": "synthetic-only; real PCB not imported",
+      "prototype_status": "PARTIAL",
+      "full_acceptance": "NOT_RUN",
+      "evidence_urls": [
+        "https://github.com/july-rust/BoardSI/actions/runs/39391822772",
+        "https://github.com/july-rust/BoardSI/actions/runs/39391823062"
+      ],
+      "limitations": "Three native synthetic executables PASS; full Unicode-path and locale acceptance NOT_RUN",
+      "case_specific_acceptance_review": "NOT_PERFORMED"
+    },
+    {
+      "id": "T32",
+      "title": "Abort, pause/resume, crash restart",
+      "expected": "Cancel/crash must isolate partials and recovery; durable checkpoints and pause/resume are later scope",
+      "fixture": "synthetic-only; real PCB not imported",
+      "prototype_status": "PARTIAL",
+      "full_acceptance": "NOT_RUN",
+      "evidence_urls": [
+        "https://github.com/july-rust/BoardSI/actions/runs/39391822772"
+      ],
+      "limitations": "Synthetic cancel/crash/late result isolation exercised; production persisted checkpoint and pause/resume not implemented",
+      "case_specific_acceptance_review": "NOT_PERFORMED"
+    },
+    {
+      "id": "T34",
+      "title": "UI under costly import or analysis",
+      "expected": "Keep Viewer pan/zoom/cancel responsive under heavy real import/analysis",
+      "fixture": "synthetic-only; real PCB not imported",
+      "prototype_status": "PARTIAL",
+      "full_acceptance": "NOT_RUN",
+      "evidence_urls": [
+        "https://github.com/july-rust/BoardSI/actions/runs/39391822772"
+      ],
+      "limitations": "Synthetic Qt queue stress and CPU load exercised; no Artwork viewer/real import or physical solver saturation",
+      "case_specific_acceptance_review": "NOT_PERFORMED"
+    },
+    {
+      "id": "T35",
+      "title": "RAM exhaustion and SSD spill",
+      "expected": "Reserve budgets, fail safely under actual low RAM and disk spill failures",
+      "fixture": "synthetic-only; real PCB not imported",
+      "prototype_status": "PARTIAL",
+      "full_acceptance": "NOT_RUN",
+      "evidence_urls": [
+        "https://github.com/july-rust/BoardSI/pull/127"
+      ],
+      "limitations": "Cgroup 8 GiB/2 CPU synthetic Qt+Worker feasibility only; actual spill/failure recovery NOT_RUN",
+      "case_specific_acceptance_review": "NOT_PERFORMED"
+    },
+    {
+      "id": "T39",
+      "title": "Cross-platform reproduction",
+      "expected": "Compare equivalent board import and complex S response for same board across three platforms",
+      "fixture": "synthetic-only; real PCB not imported",
+      "prototype_status": "PARTIAL",
+      "full_acceptance": "NOT_RUN",
+      "evidence_urls": [
+        "https://github.com/july-rust/BoardSI/actions/runs/39391822772",
+        "https://github.com/july-rust/BoardSI/actions/runs/39391823062"
+      ],
+      "limitations": "Native synthetic Worker and numerical fixture pass; identical real PCB import and full multiport S cross-check NOT_RUN",
+      "case_specific_acceptance_review": "NOT_PERFORMED"
+    },
+    {
+      "id": "T46",
+      "title": "Late IPC and immutable run snapshot",
+      "expected": "Reject stale/duplicate/foreign events and prevent editing-in-flight snapshot mixing",
+      "fixture": "synthetic-only; real PCB not imported",
+      "prototype_status": "PARTIAL",
+      "full_acceptance": "NOT_RUN",
+      "evidence_urls": [
+        "https://github.com/july-rust/BoardSI/actions/runs/39391822772"
+      ],
+      "limitations": "Restricted synthetic v2 model-bound snapshot/Worker/Qt and stale-result fencing only, no production Run model",
+      "case_specific_acceptance_review": "NOT_PERFORMED"
+    },
+    {
+      "id": "T50",
+      "title": "UI, heartbeat, cancel timing",
+      "expected": "Measure GUI p95, heartbeat, cancel; M0-only whole-event-loop 1500 ms; other thresholds unchanged",
+      "fixture": "synthetic-only; real PCB not imported",
+      "prototype_status": "PARTIAL",
+      "full_acceptance": "NOT_RUN",
+      "evidence_urls": [
+        "https://github.com/july-rust/BoardSI/actions/runs/39391822772"
+      ],
+      "limitations": "M0 provisional 1500 ms whole-loop verified on native runners, other measured synthetic case coverage; no product viewer acceptance",
+      "case_specific_acceptance_review": "NOT_PERFORMED"
+    },
+    {
+      "id": "T54",
+      "title": "SSD exhaustion or interrupted write",
+      "expected": "Recover last committed checkpoint without mislabelling partial results as completed",
+      "fixture": "synthetic-only; real PCB not imported",
+      "prototype_status": "NOT_RUN",
+      "full_acceptance": "NOT_RUN",
+      "evidence_urls": [],
+      "limitations": "Production SSD spill/checkpoint subsystem absent at M0; cannot claim full T54",
+      "case_specific_acceptance_review": "NOT_PERFORMED"
+    }
+  ]
+}
