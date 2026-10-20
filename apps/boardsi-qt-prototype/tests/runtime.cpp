@@ -33,7 +33,7 @@ class RuntimeValidation {
     }
 public:
     // Timings before RuntimeValidation::run() are diagnostics only; the
-    // pre-existing global 1000 ms gate still begins inside run().
+    // M0 policy: global 1500 ms gate still begins inside run().
     void setAppBootstrap(qint64 constructorMs, qint64 loopEntryMs, qint64 testCallbackMs) {
         appBootstrap = QJsonObject{{"qapplication_constructor_ms", constructorMs},
                                    {"app_exec_entry_ms", loopEntryMs},
@@ -326,6 +326,9 @@ private:
 public:
     RuntimeValidation(QString r, QString p, QString f):rust(std::move(r)),python(std::move(p)),fixture(std::move(f)){}
     int run() {
+        // M0 provisional F8 acceptance, user decision 2026-10-20.
+        // Preserve all other UI p95, cancellation, IPC and Worker deadlines.
+        constexpr qint64 kGlobalGapLimitMs = 1500;
         QJsonObject report{{"qt", qVersion()}, {"platform", QGuiApplication::platformName()},
                            {"os", QSysInfo::prettyProductName()}, {"cpu_arch", QSysInfo::currentCpuArchitecture()}};
         int code=0;
@@ -339,7 +342,7 @@ public:
         QJsonArray longGaps;
         // A global timer measures callback-delivery gaps, not their cause.
         // Capture the previous and current harness phase to make rare CI
-        // outliers diagnosable without changing the original 1000 ms gate.
+        // outliers diagnosable under the recorded M0 1500 ms provisional gate.
         auto observeGap = [&](qint64 now) {
             const qint64 gap=now-lastTick;
             if (gap>phaseMaxGaps.value(phase).toInteger())
@@ -359,7 +362,7 @@ public:
             lastTickPhase=phase;
         };
         // Require non-coalesced scheduling of the measurement clock.
-        // This cannot exempt a real >1000 ms event-loop stall: the timer
+        // This cannot exempt a real >1500 ms event-loop stall: the timer
         // is still armed before first native show and observes every gap.
         QTimer entireTick; entireTick.setTimerType(Qt::PreciseTimer); entireTick.setInterval(10);
         QObject::connect(&entireTick,&QTimer::timeout,[&] {
@@ -415,13 +418,14 @@ public:
         observeGap(entireClock.elapsed());
         // The final observation MUST precede the acceptance check. Otherwise
         // a pause between the earlier check and this sample could report PASS
-        // with a measured gap >1000 ms (independent review P2).
+        // with a measured gap >1500 ms (independent review P2).
         if (code==0) {
-            try { check(entireMaxGap<=1000,"Global event-loop gap exceeded 1s"); }
+            try { check(entireMaxGap<=kGlobalGapLimitMs,"Global event-loop gap exceeded 1500 ms"); }
             catch (const std::exception &e) { report["failure"]=QString::fromUtf8(e.what()); code=1; }
         }
         metrics["app_bootstrap_ms"]=appBootstrap;
         metrics["first_window_startup_milestones_ms"]=startupMilestones;
+        metrics["global_event_loop_gap_limit_ms"]=kGlobalGapLimitMs;
         metrics["entire_test_timer_max_gap_ms"]=entireMaxGap;
         metrics["entire_test_elapsed_ms"]=entireClock.elapsed();
         metrics["global_max_gap_end_ms"]=worstGapAtMs;
