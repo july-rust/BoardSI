@@ -18,7 +18,10 @@ pub enum Signature {
 /// A matching header proves a PADS-family *signature*, not a supported revision,
 /// a valid PCB, parsed geometry or permission to run the solver.
 pub fn probe_pads_header(input: &[u8]) -> Signature {
-    let first = input.split(|&byte| byte == b'\n').next().unwrap_or_default();
+    let first = input
+        .split(|&byte| byte == b'\n')
+        .next()
+        .unwrap_or_default();
     let first = first.strip_suffix(b"\r").unwrap_or(first);
     if first.len() > MAX_PADS_HEADER_BYTES {
         return Signature::Unknown;
@@ -83,10 +86,7 @@ mod tests {
 
     #[test]
     fn rejects_schematics_as_pcb() {
-        for header in [
-            "*PADS-POWERLOGIC-V9.5*\n",
-            "!PADS-LOGIC-V9.0-CP1250!\n",
-        ] {
+        for header in ["*PADS-POWERLOGIC-V9.5*\n", "!PADS-LOGIC-V9.0-CP1250!\n"] {
             assert_eq!(
                 probe_pads_header(header.as_bytes()),
                 Signature::PadsSchematicAscii
