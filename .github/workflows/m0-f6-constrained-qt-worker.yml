@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - .github/workflows/m0-f6-constrained-qt-worker.yml
+      - .github/scripts/m0_f7_linux_runtime_bundle.py
+      - .github/scripts/m0_f7_linux_container_probe.py
+      - .github/scripts/test_m0_f7_linux_runtime_bundle.py
+      - .github/scripts/test_m0_f7_linux_container_probe.py
       - apps/boardsi-qt-prototype/**
       - apps/boardsi-worker/**
       - crates/boardsi-model/**
@@ -129,7 +133,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m unittest discover -s .github/scripts -p 'test_m0_f7_linux_runtime_bundle.py' -v
+          python3 -m unittest discover -s .github/scripts -p 'test_m0_f7_linux_*.py' -v
       - name: Assemble Qt and Worker runtime without Qt build SDK
         shell: bash
         run: |
