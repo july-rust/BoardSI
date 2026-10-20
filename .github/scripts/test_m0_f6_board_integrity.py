@@ -54,7 +54,9 @@ class TestPublicBoardInventory(unittest.TestCase):
         self.assertFalse(metrics["board_size_classification_verified"])
 
     def test_inconsistent_net_names_fail_closed(self):
-        corrupted = SYNTH + b'\n(net 2 "CONFLICT")'
+        # Keep one syntactically valid KiCad root so semantic net-ID
+        # conflict rejection, not the global syntax guard, is exercised.
+        corrupted = SYNTH[:-1] + b'\n(net 2 "CONFLICT")\n)'
         with self.assertRaisesRegex(ValueError, "Conflicting observed"):
             geometry_inventory(corrupted)
 
