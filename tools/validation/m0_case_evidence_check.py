@@ -27,6 +27,19 @@ EXPECTED_EVIDENCE = {
     "T50": [QT_RUN],
     "T54": [],
 }
+EXPECTED_SEMANTICS = {
+    "prototype_status": (
+        "PARTIAL denotes restricted proof only; NOT_RUN denotes no applicable "
+        "M0 case proof; never conflates with full T acceptance"
+    ),
+    "full_acceptance": (
+        "NOT_RUN means later-phase complete acceptance has not occurred"
+    ),
+    "review_scope": (
+        "PR and CI reviews verify source/checks; not a signed case-by-case "
+        "user acceptance"
+    ),
+}
 # These IDs were observed as successful on signed BASE_SHA; exact source
 # verification is recorded separately via the run URLs, not fabricated by CI.
 PROTOTYPE = {"PARTIAL", "NOT_RUN"}
@@ -51,10 +64,8 @@ def validate(document):
         raise ValueError("Provenance record lacks validated main checks")
     if provenance.get("run_url") != BASE_DOC_RUN:
         raise ValueError("Provenance must contain independently pinned successful docs CI run")
-    if not isinstance(document["semantics"], dict) or set(document["semantics"]) != {
-        "prototype_status","full_acceptance","review_scope"
-    } or any(not isinstance(v, str) or len(v) < 25 for v in document["semantics"].values()):
-        raise ValueError("Scope and review limitations must be explicit")
+    if document["semantics"] != EXPECTED_SEMANTICS:
+        raise ValueError("Scope and review semantics must match pinned no-acceptance contract")
     cases = document["cases"]
     if not isinstance(cases,list) or len(cases) != len(M0_IDS):
         raise ValueError("Exactly ten M0-related case records are required")
