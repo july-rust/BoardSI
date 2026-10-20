@@ -23,7 +23,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends software-properties-common
           sudo add-apt-repository -y ppa:kicad/kicad-9.0-releases
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends kicad
+          # Native contour oracle exactly matched the first successful run.
+          # Do not auto-upgrade a geometry acceptance tool between CI runs.
+          sudo apt-get install -y --no-install-recommends 'kicad=9.0.9~ubuntu24.04.1'
           dpkg-query -W kicad
           /usr/bin/python3 -c 'import pcbnew; print("KiCad native pcbnew:", pcbnew.GetBuildVersion())'
       - name: Validate pinned original board contours with native KiCad
