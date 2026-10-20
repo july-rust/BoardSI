@@ -1,0 +1,152 @@
+name: M0 F6 restricted 8 GiB Qt GUI and Worker
+on:
+  pull_request:
+    paths:
+      - .github/workflows/m0-f6-constrained-qt-worker.yml
+      - apps/boardsi-qt-prototype/**
+      - apps/boardsi-worker/**
+      - crates/boardsi-model/**
+      - crates/boardsi-ipc/**
+      - Cargo.toml
+      - Cargo.lock
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-restricted-gui:
+    name: Linux synthetic Qt+Worker with enforced 8 GiB and 2 CPU
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Install fixed Qt build tools and native dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y libgl-dev libopengl-dev libegl1 libxkbcommon-dev libvulkan-dev libxcb-cursor0
+          python3 -m venv "$RUNNER_TEMP/f6-qt-tools"
+          "$RUNNER_TEMP/f6-qt-tools/bin/pip" install aqtinstall==3.3.0 cmake==3.31.6
+          "$RUNNER_TEMP/f6-qt-tools/bin/aqt" install-qt linux desktop 6.8.3 linux_gcc_64 --archives qtbase icu -O "$RUNNER_TEMP/f6-qt-sdk"
+          echo "$RUNNER_TEMP/f6-qt-tools/bin" >> "$GITHUB_PATH"
+          echo "QT_PREFIX=$RUNNER_TEMP/f6-qt-sdk/6.8.3/gcc_64" >> "$GITHUB_ENV"
+      - name: Build native Rust Worker, synthetic frames and actual Qt Widgets tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.75.0 --profile minimal
+          cargo +1.75.0 build --locked -p boardsi-worker
+          mkdir -p "$RUNNER_TEMP/m0-f6qt"
+          cargo +1.75.0 run --locked -p boardsi-worker --example m0_model_snapshot_fixture -- "$RUNNER_TEMP/m0-f6qt/a.frame" "$RUNNER_TEMP/m0-f6qt/b.frame"
+          cmake -S apps/boardsi-qt-prototype -B build-f6-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker"
+          cmake --build build-f6-qt --parallel 2
+      - name: Build restricted runtime container from Ubuntu 24.04
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build -t boardsi-m0-f6qt:24.04 -f - . <<'DOCKER'
+          FROM ubuntu:24.04
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+              python3 ca-certificates libstdc++6 libgl1 libopengl0 libegl1 libxkbcommon0 \
+              libfontconfig1 libdbus-1-3 libicu74 libxcb1 libx11-6 libx11-xcb1 \
+              libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+              libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 \
+              libxcb-xkb1 libxcb-sync1 libxkbcommon-x11-0 libxcb-shm0 \
+              && rm -rf /var/lib/apt/lists/*
+          DOCKER
+          docker image inspect --format '{{json .RepoDigests}}' boardsi-m0-f6qt:24.04 > "$RUNNER_TEMP/m0-f6qt/image-digests.json"
+      - name: Run real Qt Widgets and independent Worker inside limited container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --cpus 2 --memory 8g --memory-swap 8g \
+            --mount "type=bind,source=$QT_PREFIX,target=/qt,readonly" \
+            --mount "type=bind,source=$GITHUB_WORKSPACE/build-f6-qt/boardsi-qt-runtime-validation,target=/qt-runtime,readonly" \
+            --mount "type=bind,source=$GITHUB_WORKSPACE/build-f6-qt/boardsi-qt-model-v2,target=/qt-model,readonly" \
+            --mount "type=bind,source=$GITHUB_WORKSPACE/target/debug/boardsi-worker,target=/worker,readonly" \
+            --mount "type=bind,source=$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests,target=/tests,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/m0-f6qt,target=/evidence" \
+            --env QT_QPA_PLATFORM=offscreen --env QT_PLUGIN_PATH=/qt/plugins \
+            --env QT_QPA_PLATFORM_PLUGIN_PATH=/qt/plugins/platforms \
+            --env LD_LIBRARY_PATH=/qt/lib \
+            --env BOARDSI_EXPECTED_QT_ARCH=x86_64 \
+            --env BOARDSI_EXPECTED_QT_PLATFORM=offscreen \
+            --env BOARDSI_EXPECTED_WORKER_ARCH=x86_64 \
+            boardsi-m0-f6qt:24.04 /bin/bash -ceu '
+              trap "cat /sys/fs/cgroup/memory.peak > /evidence/memory-peak-bytes || true" EXIT
+              test "$(cat /sys/fs/cgroup/memory.max)" = 8589934592
+              read quota period < /sys/fs/cgroup/cpu.max
+              test "$quota" != max && test "$period" -gt 0 && test "$quota" -le "$((2 * period))"
+              cat /sys/fs/cgroup/memory.max > /evidence/memory-max-bytes
+              cat /sys/fs/cgroup/cpu.max > /evidence/cpu-max
+              cat /etc/os-release > /evidence/os-release
+              uname -m > /evidence/arch
+              ulimit -c 0
+              cd /evidence
+              /qt-runtime /worker /usr/bin/python3 /tests/fault_worker.py > qt-runtime-stdout.txt 2>&1
+              /qt-model --selftest /worker /evidence/a.frame /evidence/b.frame > qt-model-stdout.txt 2>&1
+            '
+      - name: Validate scope-bound GUI/Worker results and write evidence
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "m0-f6qt"
+          report = {
+              "gate": "M0 F6", "scope": "CPU-only Linux Qt Widgets and OS Rust Worker, synthetic only",
+              "overall_m0_status": "BLOCKED",
+              "not_proven": ["real physical 8 GiB PC", "Windows or macOS memory baseline",
+                             "actual PCB importer or SI", "full clean deployment and license"],
+              "source_head_sha": os.environ["SOURCE_HEAD_SHA"],
+              "workflow_sha": os.environ["GITHUB_SHA"],
+              "runner_arch": os.environ.get("RUNNER_ARCH"),
+              "runner_os": os.environ.get("RUNNER_OS"),
+              "files": {},
+          }
+          for file in ("qt-runtime-results.json", "qt-runtime-stdout.txt", "qt-model-stdout.txt",
+                       "memory-max-bytes", "memory-peak-bytes", "cpu-max", "os-release",
+                       "arch", "image-digests.json"):
+              p = root / file
+              if p.exists():
+                  report["files"][file] = {
+                      "sha256": hashlib.sha256(p.read_bytes()).hexdigest(),
+                      "size_bytes": p.stat().st_size
+                  }
+          try:
+              result = json.loads((root / "qt-runtime-results.json").read_text())
+              limit = int((root / "memory-max-bytes").read_text())
+              peak = int((root / "memory-peak-bytes").read_text())
+              quota, period = (root / "cpu-max").read_text().split()
+              report["qt_runtime_pass"] = result["pass"] is True
+              report["qt_runtime_metrics"] = result.get("metrics", {})
+              report["measured_peak_memory_bytes"] = peak
+              report["effective_limit_bytes"] = limit
+              report["effective_cpu_max"] = f"{quota} {period}"
+              report["technical_pass"] = (
+                  result["pass"] is True and
+                  limit == 8 * 1024**3 and 0 < peak <= limit and
+                  quota != "max" and 0 < int(quota) <= 2 * int(period) and
+                  "M0_SYNTHETIC_QT_MODEL_HANDOFF PASS" in
+                  (root / "qt-model-stdout.txt").read_text()
+              )
+          except (FileNotFoundError, ValueError, KeyError, OSError) as error:
+              report["technical_pass"] = False
+              report["error"] = str(error)
+          root.mkdir(parents=True, exist_ok=True)
+          (root / "restricted-gui-evidence.json").write_text(json.dumps(report, indent=2) + "\n")
+          print(json.dumps({k:v for k,v in report.items() if k != "qt_runtime_metrics"}, indent=2))
+          if not report["technical_pass"]:
+              raise SystemExit("F6 restricted Qt/Worker technical test FAILED or NOT_RUN")
+          PY
+      - name: Preserve F6 technical evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m0-f6-8gib-restricted-qt-worker
+          path: ${{ runner.temp }}/m0-f6qt/
+          if-no-files-found: warn
+          retention-days: 7
