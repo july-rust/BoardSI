@@ -172,6 +172,10 @@ jobs:
           ./boardsi-qt-runtime-validation$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$pythonPath" "$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests/fault_worker.py"
           ./boardsi-qt-model-v2$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame"
       - name: Validate M0-only F1 native case-specific technology evidence
+        # Even when real Qt FAILS it writes qt-runtime-results.json.
+        # An earlier failure must remain a failed job; preserve the negative
+        # source digest and six nonaccepted case records unless cancelled.
+        if: !cancelled()
         shell: bash
         env:
           BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
