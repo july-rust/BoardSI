@@ -176,3 +176,25 @@ jobs:
         shell: bash
         run: |
           if test -f build-qt/qt-runtime-results.json; then cat build-qt/qt-runtime-results.json; fi
+
+      - name: Run independent cold-show control after original runtime gate
+        if: always()
+        shell: bash
+        run: |
+          suffix=''
+          if test "${{ runner.os }}" = Windows; then suffix='.exe'; fi
+          if test ! -f "build-qt/boardsi-qt-f8-cold-show-control$suffix"; then
+            echo 'NOT_RUN: control executable not built; original CI status is unchanged'
+            exit 0
+          fi
+          cd build-qt
+          ./boardsi-qt-f8-cold-show-control$suffix
+          cat f8-cold-show-control.json
+      - name: Preserve independent F8 control measurements
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m0-f8-cold-show-control-${{ matrix.name }}
+          path: build-qt/f8-cold-show-control.json
+          if-no-files-found: warn
+          retention-days: 7
