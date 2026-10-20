@@ -10,6 +10,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QDebug>
+#include <utility>
 
 class ImportShell final : public QWidget {
     QProcess probe;
@@ -113,16 +114,16 @@ public:
 
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
-    const bool selfTest = argc == 5 && QString::fromLocal8Bit(argv[2]) == "--selftest";
-    if (argc != 2 && !selfTest) {
+    const QStringList args = app.arguments(); // Unicode paths on all native OSes.
+    const bool selfTest = args.size() == 5 && args.at(2) == "--selftest";
+    if (args.size() != 2 && !selfTest) {
         qCritical("usage: boardsi-qt-import-shell ABSOLUTE_PROBE_PATH [--selftest FILE PCB|UNKNOWN|SCHEMATIC]");
         return 2;
     }
-    ImportShell window(QString::fromLocal8Bit(argv[1]), selfTest,
-                       selfTest ? QString::fromLocal8Bit(argv[4]) : QString());
+    ImportShell window(args.at(1), selfTest, selfTest ? args.at(4) : QString());
     window.show();
     if (selfTest) {
-        const QString source = QString::fromLocal8Bit(argv[3]);
+        const QString source = args.at(3);
         QTimer::singleShot(0, &window, [&window, source] { window.selfTestFile(source); });
     }
     return app.exec();
