@@ -125,6 +125,34 @@ jobs:
                 exit "$rc"
               fi
             '
+      - name: Self-test the fail-closed SDK-free Linux runtime packager
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s .github/scripts -p 'test_m0_f7_linux_runtime_bundle.py' -v
+      - name: Assemble Qt and Worker runtime without Qt build SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LD_LIBRARY_PATH="$QT_PREFIX/lib"
+          python3 .github/scripts/m0_f7_linux_runtime_bundle.py \
+            "$QT_PREFIX" \
+            "$GITHUB_WORKSPACE/build-f6-qt/boardsi-qt-model-v2" \
+            "$GITHUB_WORKSPACE/target/debug/boardsi-worker" \
+            "$QT_PREFIX/plugins/platforms/libqoffscreen.so" \
+            "$RUNNER_TEMP/m0-f6qt/sdk-free-runtime"
+      - name: Execute SDK-free runtime in independent 8 GiB Linux rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Reuse the already pinned Ubuntu image. No SDK/Qt build tree is
+          # mounted inside this container. Only runtime files and fixtures.
+          docker run --rm --network none --cpus 2 --memory 8g --memory-swap 8g \
+            --mount "type=bind,source=$RUNNER_TEMP/m0-f6qt/sdk-free-runtime,target=/runtime,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/m0-f6qt,target=/evidence" \
+            --mount "type=bind,source=$GITHUB_WORKSPACE/.github/scripts,target=/checks,readonly" \
+            --env "SOURCE_HEAD_SHA=$SOURCE_HEAD_SHA" \
+            boardsi-m0-f6qt:24.04 python3 /checks/m0_f7_linux_container_probe.py
       - name: Validate scope-bound GUI/Worker results and write evidence
         if: always()
         shell: bash
