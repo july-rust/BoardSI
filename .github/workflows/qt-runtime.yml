@@ -111,6 +111,9 @@ jobs:
       QT_QPA_PLATFORM: ${{ matrix.platform }}
       RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
     steps:
+      - name: Record job-start clock for optional F8 diagnostic budget
+        shell: bash
+        run: date +%s > "$RUNNER_TEMP/boardsi-m0-f8-job-start-epoch"
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v7
         with:
@@ -185,6 +188,15 @@ jobs:
           if test "${{ runner.os }}" = Windows; then suffix='.exe'; fi
           if test ! -f "build-qt/boardsi-qt-f8-cold-show-control$suffix"; then
             echo 'NOT_RUN: control executable not built; original CI status is unchanged'
+            exit 0
+          fi
+          # Preserve the original 20-minute job deadline. If setup/build/
+          # native acceptance have used 17 minutes already, skip this OPTIONAL
+          # control rather than put a successful required gate at timeout risk.
+          started=$(cat "$RUNNER_TEMP/boardsi-m0-f8-job-start-epoch")
+          elapsed=$(($(date +%s) - started))
+          if test "$elapsed" -ge 1020; then
+            echo "F8_DIAGNOSTIC_SKIPPED: original job budget nearly exhausted ($elapsed s)"
             exit 0
           fi
           cd build-qt
