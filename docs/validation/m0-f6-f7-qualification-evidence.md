@@ -42,5 +42,5 @@ These are **not certified small/medium benchmark boards** yet. File length is no
 ## Independent closeout guardrails
 
 - F4 restricted synthetic model→snapshot→Worker→Qt proof was Squash-merged as PR #102 into GitHub Verified `main@6ccaa840ceb3da02913b6e83162716400b6e4e95` with 17/17 successful **post-merge** required check runs. F4 does not imply F6/F7 or F8.
-- F8 Issue #46 remains OPEN after historical macOS/Windows ARM64 timer violations; the unchanged global 1000 ms acceptance bound remains mandatory.
+- F8 Issue #46 retains historical native Qt >1,000 ms failures. **As of the explicit user decision on 2026-10-20**, provisional **M0 whole-runtime global Qt timer gap <=1,500 ms** is the new acceptance bound; historical failures retain their original status, and all independent UI/IPC/Cancel and product-specification timings stay unchanged. See [M0 F8 provisional policy](m0-f8-provisional-1500ms-policy.md). Fresh exact-head CI remains required; cold-start root cause is deferred to release stabilization.
 - No broad PH-08 or M1+ research and no change to Draft PR #35. Original PH-08 Gate Q remains FAIL / BOUND_NOT_CERTIFIED.
