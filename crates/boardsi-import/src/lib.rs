@@ -146,7 +146,10 @@ mod tests {
             let mut file = header.clone();
             file.extend_from_slice(ending);
             let mut reader = Cursor::new(file);
-            assert_eq!(probe_pads_reader(&mut reader).unwrap(), Signature::PadsPcbAscii);
+            assert_eq!(
+                probe_pads_reader(&mut reader).unwrap(),
+                Signature::PadsPcbAscii
+            );
             assert!(reader.position() <= (MAX_PADS_HEADER_BYTES + 2) as u64);
         }
 
@@ -160,7 +163,10 @@ mod tests {
             let mut file = header.clone();
             file.extend_from_slice(ending);
             assert_eq!(probe_pads_header(&file), Signature::Unknown);
-            assert_eq!(probe_pads_reader(Cursor::new(file)).unwrap(), Signature::Unknown);
+            assert_eq!(
+                probe_pads_reader(Cursor::new(file)).unwrap(),
+                Signature::Unknown
+            );
         }
     }
 
