@@ -1,6 +1,6 @@
 # Issue #46 — Qt native runtime cold-start timing evidence (2026-10-15 KST)
 
-Scope: **diagnosis only**, no production GUI/Worker changes or M2 physics changes. The frozen global Qt event-loop callback-gap acceptance bound remains **1000 ms**. The UI-probe and Worker/IPC acceptance tests are unchanged.
+Scope: **historical diagnosis only**, no production GUI/Worker changes or M2 physics changes. **At the time of these recorded tests**, the frozen global Qt event-loop callback-gap acceptance bound was **1,000 ms**. By explicit user decision on **2026-10-20** it is now **1,500 ms for provisional M0 global-timer acceptance only**; see [policy amendment](m0-f8-provisional-1500ms-policy.md). Do not retroactively relabel earlier failures. The UI-probe and Worker/IPC acceptance tests are unchanged.
 
 ## Independent log inspection
 
