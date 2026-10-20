@@ -48,7 +48,21 @@ def geometry(path: Path) -> dict:
         "delta_height_mm": round(
             abs(pcbnew.ToMM(board_box.GetHeight()) - dimensions["height_mm"]), 6),
     }
+    # Count parsed, typed KiCad BOARD objects, not S-expression tokens.
+    # These metrics describe fixture complexity only, not electrical nets'
+    # connectivity, model validity or BoardSI import support.
+    objects = {
+        "copper_layer_count": int(board.GetCopperLayerCount()),
+        "declared_net_count_kicad": int(board.GetNetCount()),
+        "footprint_count": len(board.GetFootprints()),
+        "pad_count": len(board.GetPads()),
+        "track_and_via_count": len(board.GetTracks()),
+        "board_drawing_count": len(board.GetDrawings()),
+    }
+    if objects["copper_layer_count"] < 2 or objects["pad_count"] < 1:
+        raise ValueError("KiCad reference board has insufficient typed structure")
     return {
+        "native_kicad_typed_structure": objects,
         "status": "KICAD_NATIVE_OUTLINE_PASSED",
         "tool": "pcbnew.SHAPE_POLY_SET from KiCad",
         "num_outer_contours": poly.OutlineCount(),
