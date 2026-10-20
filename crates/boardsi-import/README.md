@@ -9,7 +9,7 @@ cargo run --locked -p boardsi-import --bin boardsi-import-probe -- /path/to/synt
 cargo test --locked -p boardsi-import
 ```
 
-The binary prints one of `PADS_PCB_ASCII_SIGNATURE_ONLY`, `PADS_SCHEMATIC_ASCII`, or `UNKNOWN_OR_UNSUPPORTED`. Schematic/unknown inputs return nonzero. No source bytes, filenames, private net names or geometry are logged. Only the first 513 bytes are read; headers longer than 512 bytes are rejected.
+The binary prints one of `PADS_PCB_ASCII_SIGNATURE_ONLY`, `PADS_SCHEMATIC_ASCII`, or `UNKNOWN_OR_UNSUPPORTED`. Schematic/unknown inputs return nonzero. No source bytes, filenames, private net names or geometry are logged. Only the first 514 bytes are read (512-byte first-line limit plus CRLF lookahead); headers longer than 512 bytes and truncated or bare-CR terminators are rejected.
 
 These are public synthetic examples only; do **not** upload company PCB sources to GitHub Actions. The detector tests both `!` and `*` anchored PowerPCB forms and excludes schematic `PADS-POWERLOGIC`/`PADS-LOGIC` and non-PADS `.asc` files.
 
