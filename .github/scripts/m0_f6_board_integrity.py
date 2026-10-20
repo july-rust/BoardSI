@@ -74,9 +74,44 @@ def iter_sexpressions(raw: str, prefix: str):
         yield raw[start:end]
         search_from = end
 
+def validate_balanced_kicad_sexpressions(content: str) -> None:
+    """Fail closed on malformed global S-expression nesting or quoted strings.
+
+    Validate the entire document, not only the tokens that a metadata regex
+    happened to recognize. This is a lexical integrity guard, not a CAD parse.
+    """
+    depth = 0
+    quoted = False
+    escaped = False
+    roots = 0
+    for char in content:
+        if quoted:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                quoted = False
+        elif char == '"':
+            quoted = True
+        elif char == '(':
+            if depth == 0:
+                roots += 1
+            depth += 1
+        elif char == ')':
+            depth -= 1
+            if depth < 0:
+                raise ValueError("Malformed KiCad S-expression: unmatched closing paren")
+    if quoted or escaped:
+        raise ValueError("Malformed KiCad S-expression: unterminated quoted string")
+    if depth != 0 or roots != 1:
+        raise ValueError("Malformed KiCad S-expression: unbalanced or multiple roots")
+
+
 def geometry_inventory(board: bytes) -> dict:
     """Lexical CAD-source inventory, not a topology/closed-board measurement."""
     content = board.decode("utf-8")
+    validate_balanced_kicad_sexpressions(content)
     primitives = list(iter_sexpressions(content, "(gr_"))
     edge_layer = re.compile(r'\(layer\s+"?Edge\.Cuts"?\)')
     outline = [p for p in primitives if edge_layer.search(p)]
