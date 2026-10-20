@@ -92,6 +92,21 @@ class CaseEvidenceTests(unittest.TestCase):
             ), "pinned no-acceptance contract"
         )
 
+    def test_fabricated_provenance_scope_and_extra_signoff_rejected(self):
+        def falsify(x):
+            x["source_provenance"]["scope"] = "All physical PCB cases approved"
+            x["source_provenance"]["acceptance_review"] = "PASS"
+        self.mutation_fails(falsify, "Entire immutable evidence ledger")
+
+    def test_coordinated_false_case_interpretation_rejected(self):
+        def falsify(x):
+            item = x["cases"][0]
+            item["title"] = "Actual PCB and production release acceptance"
+            item["expected"] = "This case has completed full PCB acceptance."
+            item["fixture"] = "Actual complete PCB geometry, certified and installed on target."
+            item["limitations"] = "All independent acceptance reviewers certify release readiness."
+        self.mutation_fails(falsify, "Entire immutable evidence ledger")
+
     def test_missing_limitations_rejected(self):
         self.mutation_fails(lambda x: x["cases"][3].update(limitations="none"),
                             "limits required")
