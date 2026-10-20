@@ -188,19 +188,32 @@ jobs:
             exit 0
           fi
           cd build-qt
-          # This is diagnostic only; preserve the original native runtime
-          # step as the sole mandatory acceptance gate.
-          set +e
-          ./boardsi-qt-f8-cold-show-control$suffix
-          diagnostic_rc=$?
-          set -e
-          echo "F8 cold-show diagnostic exit status: $diagnostic_rc (non-gating)"
-          if test -f f8-cold-show-control.json; then
-            cat f8-cold-show-control.json
-          else
-            echo "F8_DIAGNOSTIC_NOT_RUN: JSON not produced (non-gating)"
-          fi
-          exit 0
+          # Outside-process watchdog is mandatory: the diagnostic's own Qt
+          # deadline cannot fire if native show() or its event loop hangs.
+          # Never turn this observation into a required Qt acceptance result.
+          python - "./boardsi-qt-f8-cold-show-control$suffix" <<'PY'
+          import pathlib
+          import subprocess
+          import sys
+
+          try:
+              result = subprocess.run(
+                  [sys.argv[1]], timeout=30, capture_output=True,
+                  text=True, errors="replace", check=False
+              )
+              print(f"F8 diagnostic exit={result.returncode} (non-gating)")
+              print((result.stdout + result.stderr)[-4000:])
+          except subprocess.TimeoutExpired:
+              print("F8_DIAGNOSTIC_TIMEOUT: killed after 30 seconds (non-gating)")
+          except OSError as error:
+              print(f"F8_DIAGNOSTIC_UNAVAILABLE: {error} (non-gating)")
+
+          record = pathlib.Path("f8-cold-show-control.json")
+          if record.is_file():
+              print(record.read_text(encoding="utf-8", errors="replace")[-4000:])
+          else:
+              print("F8_DIAGNOSTIC_NOT_RUN: JSON unavailable (non-gating)")
+          PY
       - name: Preserve independent F8 control measurements
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
