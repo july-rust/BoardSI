@@ -1,5 +1,6 @@
 """Fail-closed M0 prototype case-evidence ledger checker, not a T acceptance runner."""
 import json
+import hashlib
 from pathlib import Path
 import re
 from urllib.parse import urlparse
@@ -11,6 +12,10 @@ SHA = re.compile(r"[0-9a-f]{40}\Z")
 # requires source-code change, tests and independent review; self-consistency
 # of two editable strings must never count as immutable provenance proof.
 BASE_SHA = "2a08c167d89279e15f1e65b689a58ed0682afc6e"
+# GitHub Contents API's exact reviewed JSON blob (git blob SHA-1).
+# This commits every free-text interpretation, all metadata, keys and URL order;
+# changing the case matrix requires updating this independently reviewed pin.
+PINNED_LEDGER_BLOB = "43b88c0cfdfa2f0267fef8d3619af02a6b54879d"
 BASE_DOC_RUN = "https://github.com/july-rust/BoardSI/actions/runs/39391822708"
 QT_RUN = "https://github.com/july-rust/BoardSI/actions/runs/39391822772"
 RUST_RUN = "https://github.com/july-rust/BoardSI/actions/runs/39391823062"
@@ -105,6 +110,12 @@ def validate(document):
                 raise ValueError("Evidence must be a concrete BoardSI run/PR URL")
     if seen != M0_IDS:
         raise ValueError("M0 case coverage mismatch")
+    encoded = (json.dumps(document, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    git_blob = hashlib.sha1(
+        b"blob " + str(len(encoded)).encode("ascii") + b"\0" + encoded
+    ).hexdigest()
+    if git_blob != PINNED_LEDGER_BLOB:
+        raise ValueError("Entire immutable evidence ledger differs from reviewed Git blob")
     return True
 
 if __name__ == "__main__":
