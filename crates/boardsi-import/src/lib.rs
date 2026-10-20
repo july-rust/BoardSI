@@ -44,7 +44,7 @@ pub fn probe_pads_header(input: &[u8]) -> Signature {
             .map(|tail| tail.is_empty() || tail.starts_with(b"-"))
             .unwrap_or(false)
     }
-    if starts_family(tag, b"PADS-POWERPCB") || tag.starts_with(b"PADS2000") {
+    if starts_family(tag, b"PADS-POWERPCB") || starts_family(tag, b"PADS2000") {
         Signature::PadsPcbAscii
     } else if starts_family(tag, b"PADS-POWERLOGIC") || starts_family(tag, b"PADS-LOGIC") {
         Signature::PadsSchematicAscii
@@ -102,6 +102,7 @@ mod tests {
             "noise !PADS-POWERPCB-V9.4-MILS!\n",
             "unknown\n!PADS-POWERPCB-V9.4-MILS!\n",
             "!PADS-POWERPCBEVIL-V9.4-MILS!\n",
+            "!PADS2000EVIL!\n",
             "!PADS-POWERPCB-V9.4-MILS\n",
             "!PADS-POWERLOGIC",
             "!!PADS-POWERPCB-V9.4-MILS!",
