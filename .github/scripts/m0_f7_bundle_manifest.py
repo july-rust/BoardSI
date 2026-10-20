@@ -42,14 +42,25 @@ def inventory(package: Path, executable: Path, worker: Path,
         if not item.is_file() or not inside(item, package):
             raise ValueError(f"{role} missing or outside bundle")
     found = []
+    links = []
     total = 0
     count = 0
     for item in sorted(package.rglob("*")):
         count += 1
         if count > MAX_FILES:
             raise ValueError("Bundle has too many filesystem entries")
-        if item.is_symlink() and not inside(item, package):
-            raise ValueError("Bundle symlink escapes root: " + str(item))
+        if item.is_symlink():
+            if not inside(item, package):
+                raise ValueError("Bundle symlink escapes root: " + str(item))
+            # Capture the exact topological mapping. A directory link may
+            # switch between two existing in-bundle framework versions while
+            # all regular-file SHA-256 entries remain unchanged.
+            links.append({
+                "path": item.relative_to(package).as_posix(),
+                "raw_target": os.readlink(item),
+                "resolved_target": item.resolve(strict=True).relative_to(package).as_posix(),
+            })
+            continue
         if not item.is_file():
             continue
         if not inside(item, package):
@@ -78,7 +89,9 @@ def inventory(package: Path, executable: Path, worker: Path,
         "status": "PASS_INTEGRITY_ONLY",
         "root_role": "relocated M0 Qt application directory",
         "files": found,
+        "symlinks": links,
         "entrypoints": role_map,
+        "symlink_count": len(links),
         "file_count": len(found),
         "total_regular_file_bytes": total,
         "sha256_algorithm": "SHA-256",
