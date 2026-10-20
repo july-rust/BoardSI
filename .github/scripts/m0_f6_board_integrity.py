@@ -75,11 +75,13 @@ def iter_sexpressions(raw: str, prefix: str):
         search_from = end
 
 def geometry_inventory(board: bytes) -> dict:
+    """Lexical CAD-source inventory, not a topology/closed-board measurement."""
     content = board.decode("utf-8")
     primitives = list(iter_sexpressions(content, "(gr_"))
-    outline = [p for p in primitives if re.search(r'\(layer\s+"?Edge\.Cuts"?\)', p)]
+    edge_layer = re.compile(r'\(layer\s+"?Edge\.Cuts"?\)')
+    outline = [p for p in primitives if edge_layer.search(p)]
     point_re = re.compile(
-        r'\((?:start|end|xy|center)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\)'
+        r'\((?:start|mid|end|xy|center)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\)'
     )
     points = [(float(x), float(y)) for p in outline for x, y in point_re.findall(p)]
     endpoint_extent = None
@@ -91,20 +93,69 @@ def geometry_inventory(board: bytes) -> dict:
             "delta_x": round(xmax - xmin, 6),
             "delta_y": round(ymax - ymin, 6),
         }
+
+    # In KiCad the (layers ...) table enumerates named copper layers.
+    # This is an observed table count, NOT validated copper connectivity.
+    layers = next(iter_sexpressions(content, "(layers"), "")
+    copper_entries = re.findall(
+        r'\(\s*(\d{1,3})\s+"((?:F|B|In\d+)\.Cu)"\s+\w+',
+        layers
+    )
+    copper_layers = sorted(
+        {name for _, name in copper_entries},
+        key=lambda name: (name != "F.Cu", name == "B.Cu", name),
+    )
+    if len({number for number, _ in copper_entries}) != len(copper_entries):
+        raise ValueError("Duplicate copper-layer table indices")
+
+    # KiCad may repeat (net id "name") within pad assignments; count
+    # unique seen IDs, not occurrences or independently verified nets.
+    net_declarations = re.findall(
+        r'\(net\s+(\d+)\s+"((?:\\.|[^"\\])*)"\s*\)', content
+    )
+    unique_net_names = {}
+    for raw_id, name in net_declarations:
+        ident = int(raw_id)
+        if ident in unique_net_names and unique_net_names[ident] != name:
+            raise ValueError("Conflicting observed KiCad net names for one ID")
+        unique_net_names[ident] = name
+    observed_named_nets = sum(
+        1 for ident, name in unique_net_names.items() if ident != 0 and name
+    )
+    types = {}
+    for primitive in outline:
+        match = re.match(r'\((gr_[A-Za-z_]+)\b', primitive)
+        if match:
+            key = match.group(1)
+            types[key] = types.get(key, 0) + 1
+    # Edge.Cuts might also be inside footprint-local graphic coordinates.
+    # They require rotation/translation before any board bounding estimate.
+    footprint_edge_graphics = sum(
+        1 for p in iter_sexpressions(content, "(fp_")
+        if edge_layer.search(p)
+    )
     return {
         "edge_cuts_graphic_primitives": len(outline),
+        "edge_cuts_types_lexical": dict(sorted(types.items())),
+        "footprint_local_edge_cuts_primitives_lexical": footprint_edge_graphics,
         "edge_endpoints_extent_mm_DIAGNOSTIC_ONLY": endpoint_extent,
         "edge_extent_certified": False,
         "reason": (
-            "Endpoint extents are not a closed-board outline; arc extrema, "
-            "cutouts, footprints and board-shape validation need KiCad geometry tools."
+            "Endpoint/midpoint extents are NOT a closed-board outline; "
+            "arc/circle extrema, footprint transforms, holes/cutouts, "
+            "manufacturing geometry and connectivity remain unverified."
         ),
+        "copper_layer_table_names_lexical": copper_layers,
+        "copper_layer_table_count_lexical": len(copper_layers),
+        "observed_unique_named_net_ids_lexical": observed_named_nets,
         "count_footprint_tokens": len(re.findall(r'\(footprint\s', content)),
         "count_pad_tokens": len(re.findall(r'\(pad\s', content)),
         "count_segment_tokens": len(re.findall(r'\(segment\s', content)),
         "count_via_tokens": len(re.findall(r'\(via\s', content)),
-        "count_net_assignment_occurrences_NOT_distinct_nets": len(re.findall(r'\(net\s+\d+\s+"', content)),
+        "count_net_assignment_occurrences_NOT_distinct_nets": len(net_declarations),
         "counts_are_lexical_not_canonical": True,
+        "board_dimensions_mm_verified": False,
+        "board_size_classification_verified": False,
     }
 
 def verify(entry: dict) -> dict:
@@ -122,10 +173,17 @@ def verify(entry: dict) -> dict:
             f"bytes={size}, sha256={sha256}, git_sha1={git_sha1}"
         )
     license_data = download(entry["license"], 500_000)
-    if entry["license_marker"].lower() not in license_data.decode(
+    license_text = " ".join(license_data.decode(
         "utf-8", errors="replace"
-    ).lower():
+    ).split())
+    if entry["license_marker"].lower() not in license_text.lower():
         raise ValueError(f"{entry['name']}: missing expected license marker")
+    expected_license_phrase = {
+        "RoyalBlue54L-Feather": "CERN Open Hardware Licence Version 2 - Permissive",
+        "TinyTapeout-demo": "Apache License Version 2.0, January 2004",
+    }[entry["name"]]
+    if expected_license_phrase.lower() not in license_text.lower():
+        raise ValueError(f"{entry['name']}: unexpected source license family")
     return {
         "name": entry["name"],
         "upstream_commit": COMMIT,
@@ -136,6 +194,9 @@ def verify(entry: dict) -> dict:
         "git_blob_sha1": git_sha1,
         "license_raw_sha256": hashlib.sha256(license_data).hexdigest(),
         "license_marker_found": True,
+        "license_family_heading": expected_license_phrase,
+        "license_family_heading_found": True,
+        "redistribution_legal_clearance": "NOT_VERIFIED",
         "integrity_pass": True,
         "redistribution_approved": False,
         "physical_board_size_certified": False,
