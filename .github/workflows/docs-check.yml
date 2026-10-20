@@ -35,5 +35,9 @@ jobs:
           PY
       - name: Verify M0 U/T crosswalk and per-ID ledger, including T44 regression
         run: python3 tools/validation/m0_traceability_check.py
+      - name: Validate per-case M0 prototype evidence without promoting full acceptance
+        run: |
+          python3 tools/validation/m0_case_evidence_check.py
+          python3 -m unittest discover -s tools/validation -p 'test_m0_case_evidence_check.py' -v
       - name: Verify frozen acceptance contracts and current audit status
         run: python3 tools/validation/m2_audit_docs_check.py
