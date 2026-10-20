@@ -219,7 +219,20 @@ private:
     }
     void hang(const QString &mode, bool real = false) {
         Window w(real ? rust : python, real ? QStringList{"--fault=unresponsive"} : QStringList{fixture, mode});
-        start(w); running(w);
+        start(w);
+        if (mode == "completed-hang") {
+            // The fixture may deliver Started, all results and Completed in one
+            // Qt event-loop pass. Polling only for transient Running would then
+            // spuriously fail even though the ordered Started frame was accepted.
+            // Do not weaken any other case or the terminal/OS-exit assertions.
+            const bool transitioned = until([&] {
+                return w.state == Window::Running || w.state == Window::Completed;
+            });
+            check(transitioned, "Started/Completed not received");
+            check(!w.observations.isEmpty() &&
+                  w.observations.first().toObject().value("type").toString() == "Started",
+                  "Ordered Started event missing before Completed");
+        } else running(w);
         if (mode != "completed-hang") cancel(w);
         if (mode == "cancel-hang") check(until([&] { return w.state==Window::Cancelled; }), "Missing Cancelled");
         if (mode == "completed-hang") check(until([&] { return w.state==Window::Completed; }), "Missing Completed");
