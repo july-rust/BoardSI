@@ -175,7 +175,7 @@ jobs:
         # Even when real Qt FAILS it writes qt-runtime-results.json.
         # An earlier failure must remain a failed job; preserve the negative
         # source digest and six nonaccepted case records unless cancelled.
-        if: !cancelled()
+        if: ${{ !cancelled() }}
         shell: bash
         env:
           BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
