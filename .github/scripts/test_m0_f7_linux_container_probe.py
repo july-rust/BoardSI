@@ -111,7 +111,7 @@ class TestQtLibraryProvenance(unittest.TestCase):
 
     def test_unparsed_qt_mapping_fails(self):
         with self.assertRaisesRegex(ValueError, "Unparseable"):
-            verify_qt_linkage("libQt6Core.so.6 => strange", self.root)
+            verify_qt_linkage("libQt6Core.so.6 @unknown", self.root)
 
     def test_missing_qt_mapping_fails(self):
         with self.assertRaisesRegex(ValueError, "Qt Core"):
