@@ -40,21 +40,43 @@ class CaseEvidenceTests(unittest.TestCase):
 
     def test_partial_case_requires_real_link(self):
         self.mutation_fails(lambda x: x["cases"][0].update(evidence_urls=[]),
-                            "concrete run")
+                            "pinned provenance")
 
     def test_unrun_case_cannot_embed_fake_link(self):
         self.mutation_fails(lambda x: x["cases"][1].update(evidence_urls=[
             "https://github.com/july-rust/BoardSI/actions/runs/1"
-        ]), "NOT_RUN")
+        ]), "pinned provenance")
 
     def test_external_or_placeholder_evidence_rejected(self):
         self.mutation_fails(lambda x: x["cases"][0].update(evidence_urls=[
             "https://evil.example/BoardSI/actions/runs/39391822772"
-        ]), "concrete BoardSI")
+        ]), "pinned provenance")
 
     def test_source_url_mismatch_rejected(self):
         self.mutation_fails(lambda x: x["source_commit"] == "0"*40 or x.update(
-            source_commit="0"*40), "URL does not match SHA")
+            source_commit="0"*40), "pinned baseline")
+
+    def test_fabricated_valid_same_repo_run_is_rejected(self):
+        self.mutation_fails(
+            lambda x: x["cases"][0].update(
+                evidence_urls=["https://github.com/july-rust/BoardSI/actions/runs/1"]
+            ), "case-specific pinned provenance"
+        )
+
+    def test_coordinated_source_and_self_consistent_url_is_rejected(self):
+        def falsify(x):
+            x["source_commit"] = "0" * 40
+            x["source_provenance"]["main_url"] = (
+                "https://github.com/july-rust/BoardSI/commit/" + "0" * 40
+            )
+        self.mutation_fails(falsify, "pinned baseline")
+
+    def test_fabricated_provenance_run_is_rejected(self):
+        self.mutation_fails(
+            lambda x: x["source_provenance"].update(
+                run_url="https://github.com/july-rust/BoardSI/actions/runs/1"
+            ), "pinned successful docs"
+        )
 
     def test_missing_limitations_rejected(self):
         self.mutation_fails(lambda x: x["cases"][3].update(limitations="none"),
