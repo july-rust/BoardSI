@@ -39,7 +39,14 @@ if ($SelfTest) {
     if (-not (Test-Path -PathType Leaf $fixture)) { throw 'Public test fixture missing.' }
     $launchArgs = @('--selftest') + $launchArgs + @($fixture)
 }
-& $preview @launchArgs
-if ($LASTEXITCODE -ne 0) {
-    throw ('BoardSI Preview exited with code ' + $LASTEXITCODE)
+# GUI smoke writes its JSON receipt relative to the process working directory.
+# Always reuse build-qt, where native CI and its artifact collector expect it.
+Push-Location (Join-Path $root 'build-qt')
+try {
+    & $preview @launchArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw ('BoardSI Preview exited with code ' + $LASTEXITCODE)
+    }
+} finally {
+    Pop-Location
 }

@@ -186,13 +186,29 @@ jobs:
         shell: pwsh
         env:
           BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: ./scripts/run-boardsi-preview-windows-x64.ps1 -SelfTest
+        run: |
+          $nativeReceipt = 'build-qt/qt-preview-p0-results.json'
+          $directReceipt = 'build-qt/qt-preview-native-direct.json'
+          if (-not (Test-Path -PathType Leaf $nativeReceipt)) {
+            throw 'Missing direct native GUI smoke receipt'
+          }
+          Move-Item -LiteralPath $nativeReceipt -Destination $directReceipt -Force
+          ./scripts/run-boardsi-preview-windows-x64.ps1 -SelfTest
+          if (-not (Test-Path -PathType Leaf $nativeReceipt)) {
+            throw 'Missing developer launcher GUI smoke receipt'
+          }
+          $receipt = Get-Content -LiteralPath $nativeReceipt -Raw | ConvertFrom-Json
+          if ($receipt.pass -ne $true -or $receipt.p2a_imported_artwork -ne $true) {
+            throw 'Developer launcher receipt does not prove P2-A GUI smoke'
+          }
       - name: Preserve developer Preview P0 native execution evidence (not a distributable binary)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: boardsi-preview-p0-native-${{ matrix.name }}
-          path: build-qt/qt-preview-p0-results.json
+          path: |
+            build-qt/qt-preview-p0-results.json
+            build-qt/qt-preview-native-direct.json
           if-no-files-found: warn
       - name: Exercise adversarial F1 verifier tests
         id: f1_adversarial_tests
