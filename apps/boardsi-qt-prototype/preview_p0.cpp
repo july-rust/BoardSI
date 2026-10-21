@@ -86,7 +86,7 @@ class PreviewWindow : public QMainWindow {
 
 public:
     PreviewWindow(const QString &workerPath, const QString &firstFrame,
-                  const QString &secondFrame) {
+                  const QString &secondFrame = QString()) {
         setObjectName("boardsiPreviewP0");
         setWindowTitle("BoardSI Developer Preview P0 - SYNTHETIC / NOT PCB SI");
         auto *bar = addToolBar("Preview controls");
