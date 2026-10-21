@@ -224,6 +224,7 @@ class NativeScopedEvidenceTests(unittest.TestCase):
                 env = dict(os.environ)
                 env["BOARDSI_SOURCE_HEAD_SHA"] = sha
                 env["BOARDSI_NATIVE_QT_EXECUTION_OUTCOME"] = outcome
+                env["BOARDSI_F1_ADVERSARIAL_TESTS_OUTCOME"] = "success"
                 p = subprocess.run(
                     [sys.executable,
                      str(Path(__file__).with_name("m0_f1_native_subcases.py")),
@@ -245,6 +246,36 @@ class NativeScopedEvidenceTests(unittest.TestCase):
                     self.assertTrue(all(x["status"] == "NOT_VERIFIED" for x in evidence["cases"]))
                     self.assertTrue(all(x["full_product_T_acceptance"] == "NOT_RUN"
                                         for x in evidence["cases"]))
+
+    def test_adversarial_unit_test_failure_preserves_nonaccepted_proof(self):
+        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        for verdict in ("success", "failure", "skipped", ""):
+            with self.subTest(verdict=verdict), tempfile.TemporaryDirectory() as d:
+                incoming, output = Path(d) / "qt.json", Path(d) / "proof.json"
+                incoming.write_text(json.dumps(reference()), encoding="utf-8")
+                env = dict(os.environ)
+                env["BOARDSI_SOURCE_HEAD_SHA"] = sha
+                env["BOARDSI_NATIVE_QT_EXECUTION_OUTCOME"] = "success"
+                env["BOARDSI_F1_ADVERSARIAL_TESTS_OUTCOME"] = verdict
+                result = subprocess.run(
+                    [sys.executable,
+                     str(Path(__file__).with_name("m0_f1_native_subcases.py")),
+                     str(incoming), str(output), "windows", "x86_64"],
+                    env=env, capture_output=True, text=True, timeout=15)
+                proof = json.loads(output.read_text(encoding="utf-8"))
+                self.assertEqual(proof["f1_adversarial_tests_outcome"], verdict)
+                self.assertEqual(proof["qt_input_sha256"],
+                                 hashlib.sha256(incoming.read_bytes()).hexdigest())
+                self.assertEqual(result.returncode, 0 if verdict == "success" else 1)
+                if verdict != "success":
+                    self.assertEqual(proof["result"], "FAIL_CLOSED")
+                    self.assertIn("adversarial verifier unit tests did not PASS",
+                                  proof["failure"])
+                    self.assertTrue(all(x["status"] == "NOT_VERIFIED" for x in proof["cases"]))
+                    self.assertTrue(all(x["independent_case_specific_acceptance_review"] ==
+                                        "NOT_PERFORMED" for x in proof["cases"]))
+                else:
+                    self.assertEqual(proof["result"], "PASS_RESTRICTED_SYNTHETIC_SUBCASES_ONLY")
 
     def test_wrong_qt_version_fails(self):
         sample = reference()
