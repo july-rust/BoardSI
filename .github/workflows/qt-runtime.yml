@@ -112,6 +112,10 @@ jobs:
       RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Test the exact PR source commit; otherwise the F1 SHA/CI proof
+          # would describe a synthetic merge-ref instead of its claimed HEAD.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -162,6 +166,7 @@ jobs:
           cmake --build build-qt --parallel 2
           file build-qt/boardsi-qt-runtime-validation target/debug/boardsi-worker
       - name: Execute actual native Qt backend
+        id: native_qt_execution
         shell: bash
         run: |
           ulimit -c 0 || true
@@ -171,6 +176,34 @@ jobs:
           pythonPath=$(python -c 'import sys; print(sys.executable)')
           ./boardsi-qt-runtime-validation$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$pythonPath" "$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests/fault_worker.py"
           ./boardsi-qt-model-v2$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame"
+      - name: Exercise adversarial F1 verifier tests
+        id: f1_adversarial_tests
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: python -m unittest discover -s .github/scripts -p 'test_m0_f1_native_subcases.py' -v
+      - name: Validate M0-only F1 native case-specific technology evidence
+        # Always preserve an explicit failing proof if native Qt execution
+        # OR verifier-adversarial tests failed (unless job was cancelled).
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BOARDSI_NATIVE_QT_EXECUTION_OUTCOME: ${{ steps.native_qt_execution.outcome }}
+          BOARDSI_F1_ADVERSARIAL_TESTS_OUTCOME: ${{ steps.f1_adversarial_tests.outcome }}
+        run: |
+          set -euo pipefail
+          python .github/scripts/m0_f1_native_subcases.py \
+            build-qt/qt-runtime-results.json \
+            "$RUNNER_TEMP/m0-f1-native-subcases.json" \
+            '${{ matrix.platform }}' \
+            '${{ matrix.qt_cpu }}'
+      - name: Preserve bounded per-case native proof (including failed checks)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m0-f1-native-subcases-${{ matrix.name }}
+          path: ${{ runner.temp }}/m0-f1-native-subcases.json
+          if-no-files-found: warn
       - name: Print native measurement evidence
         if: always()
         shell: bash
