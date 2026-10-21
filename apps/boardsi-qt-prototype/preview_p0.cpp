@@ -294,7 +294,8 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         if (phase == 1 && engine->progressBar()->value() > 0 && window.stopControl()->isEnabled()) {
             window.stopControl()->trigger(); phase = 2; return;
         }
-        if (phase == 2 && status.startsWith("Cancelled") && engine->runButton()->isEnabled()) {
+        if (phase == 2 && status.startsWith("Cancelled") && engine->runButton()->isEnabled() &&
+            window.runControl()->isEnabled()) {
             window.runControl()->trigger(); phase = 3; return;
         }
         if (phase == 3 && status.startsWith("Synthetic calculation completed") &&
