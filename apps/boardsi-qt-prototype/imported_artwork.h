@@ -44,7 +44,7 @@ class ImportedArtworkPanel final : public QWidget {
             "Segments: %1  Visible: %2  Highlighted: %3\n"
             "Unsupported route records: %4\n"
             "Pads, vias, pours, net connectivity, stackup: NOT IMPORTED")
-            .arg(tracks_.size()).arg(visible).arg(highlighted).arg(skipped_);
+            .arg(static_cast<qlonglong>(tracks_.size())).arg(visible).arg(highlighted).arg(skipped_);
         summary_->setText(line);
         if (detailsCallback_) detailsCallback_(line);
     }

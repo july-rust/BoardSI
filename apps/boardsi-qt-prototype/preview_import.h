@@ -118,7 +118,7 @@ public:
             tabs_->setTabText(1, "Imported Partial");
             tabs_->setCurrentWidget(imported_);
             status(QString("PARTIAL V9.4-MILS / %1 straight segments / %2 omitted / SI NOT_RUN")
-                       .arg(tracks.size()).arg(skipped));
+                       .arg(static_cast<qlonglong>(tracks.size())).arg(skipped));
         });
         connect(&process_, &QProcess::errorOccurred, this,
                 [this](QProcess::ProcessError code) {
