@@ -109,11 +109,25 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     if source.len() > MAX_FILE_BYTES {
         return Err("INPUT_TOO_LARGE");
     }
-    let source = std::str::from_utf8(source).map_err(|_| "NON_UTF8_UNSUPPORTED")?;
-    let header = source.lines().next().ok_or("EMPTY_FILE")?;
-    if !header.starts_with("!PADS-POWERPCB-V9.4-MILS!") {
+    // Header controls are ASCII even when ignored CAD sections use CP1252.
+    // Accept only the documented V9.4 MILS/CP1252 source subset; never infer
+    // that a different declared code page has been decoded correctly.
+    let first = source.split(|&byte| byte == b'\n').next().ok_or("EMPTY_FILE")?;
+    let header = std::str::from_utf8(first).map_err(|_| "INVALID_HEADER_ENCODING")?;
+    let tag = header.split_ascii_whitespace().next().unwrap_or("");
+    if !matches!(
+        tag,
+        "!PADS-POWERPCB-V9.4-MILS!"
+            | "!PADS-POWERPCB-V9.4-MILS-CP1252!"
+            | "!PADS-POWERPCB-V9.4-MILS-250L!"
+            | "!PADS-POWERPCB-V9.4-MILS-250L-CP1252!"
+    ) {
         return Err("UNSUPPORTED_REVISION_OR_UNIT");
     }
+    // Do not decode high bytes into route grammar: the supported subset has
+    // ASCII-only route/pin/net tokens. Non-UTF8 CP1252 bytes elsewhere are
+    // explicitly ignored, never mapped into copper geometry.
+    let source = String::from_utf8_lossy(source);
     let mut max_layer = 0u32;
     let mut in_pcb = false;
     let mut in_route = false;
@@ -192,6 +206,9 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         }
         if !in_route {
             continue;
+        }
+        if !line.is_ascii() {
+            return Err("NON_ASCII_ROUTE_UNSUPPORTED");
         }
         let fields = parts(line);
         if fields.is_empty() {
@@ -570,6 +587,49 @@ mod tests {
         );
         let boundary = SAMPLE.replace("100 200 1 10 0", "56000 -56000 1 10 0");
         assert_eq!(parse(boundary.as_bytes()).unwrap().segments.len(), 2);
+    }
+    #[test]
+    fn cp1252_control_header_and_ignored_high_bytes_preserve_copper_geometry() {
+        let annotated = SAMPLE
+            .replace(
+                "!PADS-POWERPCB-V9.4-MILS!",
+                "!PADS-POWERPCB-V9.4-MILS-CP1252!",
+            )
+            .replace("*PCB*", "*TEXT* ignored\n*PCB*")
+            .replace("*ROUTE*", "*REMARK* cafe\n*ROUTE*");
+        let bytes = annotated.replace("ignored", "cafe").into_bytes();
+        // CP1252 high byte in a non-route section and remark; not valid UTF-8.
+        let bytes: Vec<u8> = bytes
+            .into_iter()
+            .flat_map(|b| if b == b'@' { vec![0xe9] } else { vec![b] })
+            .collect();
+        let parsed = parse(&bytes).unwrap();
+        assert_eq!(parsed.segments.len(), 2);
+        assert_eq!(parsed.segments[0].a, [10_000, 20_000]);
+
+        let default = SAMPLE.replace("*ROUTE*", "*REMARK* @\n*ROUTE*");
+        let bytes: Vec<u8> = default.into_bytes().into_iter()
+            .map(|b| if b == b'@' { 0xe9 } else { b })
+            .collect();
+        assert_eq!(parse(&bytes).unwrap().segments.len(), 2);
+    }
+    #[test]
+    fn reject_other_code_pages_and_nonascii_active_routes() {
+        let cp932 = SAMPLE.replace(
+            "!PADS-POWERPCB-V9.4-MILS!",
+            "!PADS-POWERPCB-V9.4-MILS-CP932!",
+        );
+        assert_eq!(
+            parse(cp932.as_bytes()).unwrap_err(),
+            "UNSUPPORTED_REVISION_OR_UNIT"
+        );
+        let mut active = SAMPLE.replace("*SIGNAL* NET_A", "*SIGNAL* NET_@").into_bytes();
+        for byte in &mut active {
+            if *byte == b'@' {
+                *byte = 0xe9;
+            }
+        }
+        assert_eq!(parse(&active).unwrap_err(), "NON_ASCII_ROUTE_UNSUPPORTED");
     }
     #[test]
     fn standard_two_field_pin_pair_is_accepted_without_invented_metadata() {
