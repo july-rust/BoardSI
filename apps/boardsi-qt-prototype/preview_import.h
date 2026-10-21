@@ -182,6 +182,11 @@ public:
             }
             tabs_->setTabText(1, "Imported Partial");
             tabs_->setCurrentWidget(imported_);
+            // The imported tab can be hidden during load(), before its viewport
+            // has a usable size. Refit once it is visible in the event loop.
+            QTimer::singleShot(0, imported_, [this] {
+                if (tabs_->currentWidget() == imported_) imported_->fitArtwork();
+            });
             status(QString("PARTIAL V9.4-MILS / %1 straight segments / %2 omitted / SI NOT_RUN")
                        .arg(static_cast<qlonglong>(tracks.size())).arg(skipped));
         });
