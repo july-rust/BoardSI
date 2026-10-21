@@ -200,7 +200,12 @@ public:
         connect(top_, &QCheckBox::toggled, this, [this] { refreshArtwork(); });
         connect(bottom_, &QCheckBox::toggled, this, [this] { refreshArtwork(); });
         connect(nets_, &QComboBox::currentTextChanged, this,
-                [this] { refreshArtwork(); });
+                [this] {
+                    // Clear the previous clicked item so a subsequent click on
+                    // that same primitive emits selectionChanged again.
+                    scene_->clearSelection();
+                    refreshArtwork();
+                });
         connect(zoomIn, &QPushButton::clicked, this, [this] {
             const qreal scale = canvas_->transform().m11();
             if (scale * 1.2 <= 120.0) canvas_->scale(1.2, 1.2);
