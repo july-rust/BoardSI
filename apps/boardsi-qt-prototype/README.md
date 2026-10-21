@@ -109,3 +109,40 @@ prototype. Qt LGPLv3 dynamic-link compliance, all Qt/ICU/other dependencies,
 clean target-machine deployment, and redistribution rights are NOT verified.
 Binary redistribution remains BLOCKED pending F7 legal/package review;
 a CI compilation or selftest PASS does not authorize public release.
+
+
+## Developer Preview P1 — synthetic artwork UI (Issue #11 subset)
+
+The existing **boardsi-preview-p0** executable name and P0 Qt/Rust Worker
+interfaces are retained for compatibility while the Preview P1 UI is developed.
+
+The Artwork Viewer is now a Qt `QGraphicsScene` / `QGraphicsView` with a
+strictly **hard-coded, offline, illustrative two-layer PCB fixture**. It is
+not the Rust Canonical Board Model, imported copper, or a solver input.
+The synthetic board dimensions and positions in the scene are illustrative
+millimetres, not measurements of a manufactured PCB.
+
+- Left mouse drag pans the canvas; mouse wheel and +/- zoom; Fit restores full view.
+- Top / Bottom layer checkboxes hide and show matching mock copper.
+- The Net selector highlights only fictional DATA_P0, CLK_N0 and CTRL0
+  primitives. Clicking a copper primitive selects its fictional net.
+- The Properties panel reports selected mock net, layer visibility and
+  primitive counts, always marked **SYNTHETIC / NOT IMPORTED**.
+- **Open PCB** remains local filename selection only, without reading a
+  file, detecting its signature or replacing the synthetic fixture.
+- Physical SI (impedance/RLGC/S-parameters), real CAD artwork, Save Project,
+  PADS ASC parser and generated Touchstone remain **NOT IMPLEMENTED / NOT_RUN**.
+
+The existing `boardsi-preview-p0 --selftest` native workflow now asserts
+the scene contains mock copper, toggles both layers, confirms zero visible
+copper when both are hidden, selects/highlights a net, checks zoom and Fit
+controls, restores full mock view, and then runs the **unchanged** Worker
+progress/cancel/restart/completion/error and Canonical A/B receipt exercises.
+The `qt-preview-p0-results.json` file adds `p1_synthetic_artwork`, without
+replacing the old output schema. Native Windows x64/ARM64 and macOS ARM64
+runs provide the release-independent technical UI acceptance evidence.
+
+P1 is a narrow runnable UI slice of the existing [M1 Artwork issue](https://github.com/july-rust/BoardSI/issues/11).
+It does NOT close that issue's full real-board U08/T03/T34 acceptance contract.
+The independent M0 F1/F6/F7 legal/hardware gates and the Qt binary
+redistribution restriction remain unchanged; no Qt executables are published.
