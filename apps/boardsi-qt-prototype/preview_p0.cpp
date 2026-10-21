@@ -392,6 +392,11 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 if (!window.openCandidate(fixture)) {
                     stopWith("P2-A local importer did not start"); return;
                 }
+                // A second Open during the active QProcess must not alter the
+                // accepted filename or the importer state.
+                if (window.openCandidate(fixture + ".busy-rejected")) {
+                    stopWith("P2-A accepted overlapping import requests"); return;
+                }
                 phase = 6; return;
             }
             window.runControl()->trigger(); phase = 1; return;
@@ -464,6 +469,9 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 stopWith("P2-A layer/zoom controls missing"); return;
             }
             toggle->click(); // The initially selected copper layer is Top (1).
+            if (!window.displayedProperties().contains("Visible: 1")) {
+                stopWith("P2-A imported layer change did not refresh Properties"); return;
+            }
             if (panel->visibleSegments() != 1) {
                 stopWith("P2-A layer 1 hide does not leave only layer 4 visible"); return;
             }
