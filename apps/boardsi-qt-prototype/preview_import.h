@@ -38,9 +38,19 @@ class PreviewImportPanel final : public QWidget {
         if (callback_) callback_(status_);
     }
     void collect() {
-        const qint64 remaining = 2 * 1024 * 1024 - data_.size();
-        if (remaining > 0) data_ += process_.read(qMin<qint64>(remaining, 65536));
-        if (process_.bytesAvailable() > 0) { overflow_ = true; process_.kill(); }
+        // stdout may arrive in arbitrarily large batches. The cap is cumulative,
+        // not per readyRead signal; drain each available chunk before deciding overflow.
+        while (process_.bytesAvailable() > 0) {
+            const qint64 remaining = 2 * 1024 * 1024 - data_.size();
+            if (remaining <= 0) {
+                overflow_ = true;
+                process_.kill();
+                return;
+            }
+            const QByteArray chunk = process_.read(qMin<qint64>(remaining, 65536));
+            if (chunk.isEmpty()) break;
+            data_.append(chunk);
+        }
     }
     static bool decode(const QByteArray &bytes, int &layers, int &skipped,
                        std::vector<ImportedTrack> &tracks) {
