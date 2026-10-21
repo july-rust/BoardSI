@@ -89,6 +89,17 @@ def number(metrics: dict, key: str, minimum: float = 0.0) -> float:
     return candidate
 
 
+def attest_exact_source(checkout_sha: str, claimed_source_sha: str) -> str:
+    """Never promote merge-ref output under a claimed different source HEAD."""
+    requirement(bool(re.fullmatch(r"[0-9a-f]{40}", checkout_sha)),
+                "Invalid checked-out SHA")
+    requirement(bool(re.fullmatch(r"[0-9a-f]{40}", claimed_source_sha)),
+                "Missing/invalid claimed GitHub source SHA")
+    requirement(checkout_sha == claimed_source_sha,
+                "Native Qt checkout SHA differs from claimed source HEAD")
+    return "EXACT_COMMIT_SHA"
+
+
 def evaluate(report: dict, platform: str, architecture: str) -> dict:
     """Return subcase PASS only if the real native case array/measurements pass."""
     requirement((platform, architecture) in TARGETS, "Unsupported M0 native target")
@@ -206,6 +217,7 @@ def cli() -> int:
         "source_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", "NOT_GITHUB"),
         "github_source_sha": os.environ.get("BOARDSI_SOURCE_HEAD_SHA", "NOT_GITHUB"),
         "checkout_sha": "NOT_VERIFIED",
+        "source_identity_proof": "NOT_VERIFIED",
         "qt_input_sha256": "NOT_COMPUTED",
         "cases": [{
             "id": test_id,
@@ -231,7 +243,11 @@ def cli() -> int:
         source = json.loads(raw.decode("utf-8"),
                             object_pairs_hook=reject_duplicate_json_members)
         summary = evaluate(source, args.qt_platform, args.cpu_arch)
+        # Native Qt checkout is explicitly pinned to the PR source SHA.
+        # An Actions merge-ref checkout is a different commit and MUST fail.
+        proof = attest_exact_source(sha, data["github_source_sha"])
         data.update(summary)
+        data["source_identity_proof"] = proof
     except (OSError, UnicodeError, ValueError, RecursionError,
             subprocess.CalledProcessError) as exc:
         data["failure"] = f"{type(exc).__name__}: {exc}"
