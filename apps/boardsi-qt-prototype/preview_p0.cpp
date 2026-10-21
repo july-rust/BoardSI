@@ -172,6 +172,7 @@ public:
             "Stackup: NOT LOADED\n"
             "Solver: NOT PCB SI", propBox);
         properties->setWordWrap(true);
+        properties->setTextFormat(Qt::PlainText); // Local filenames must never become rich text.
         propLayout->addWidget(properties);
         rightLayout->addWidget(propBox);
         auto *validBox = new QGroupBox("Validation", right);
@@ -182,6 +183,7 @@ public:
             "Physical SI: NOT_RUN\n"
             "Worker: awaiting demo", validBox);
         validation->setWordWrap(true);
+        validation->setTextFormat(Qt::PlainText);
         validLayout->addWidget(validation);
         rightLayout->addWidget(validBox);
         artwork->setDetailsCallback([this](const QString &details) {
@@ -368,7 +370,8 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
         {"elapsed_ms", clock.elapsed()},
         {"asserted", "window raster; synthetic fixture/layers/net highlight/zoom; unsupported import; run; progress; cancel; restart; completion; error; Canonical A/B receipt"},
-        {"p1_synthetic_artwork", "PASS if overall pass; mock geometry only, not imported"}
+        {"p1_synthetic_artwork", phase >= 1},
+        {"p1_scope", "synthetic illustrative geometry only; no PCB file imported"}
     };
     QFile evidence("qt-preview-p0-results.json");
     if (!evidence.open(QIODevice::WriteOnly) ||
