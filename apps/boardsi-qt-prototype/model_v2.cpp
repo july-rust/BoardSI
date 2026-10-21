@@ -51,6 +51,7 @@ class ModelHandoffWindow : public QWidget {
     QByteArray pending, received;
     bool selftest = false, parsed = false, accepted = false, stale = false, protocolError = false;
     bool timedOut = false;
+    bool previewClosing = false;
     int stage = 0;
     void endTest(bool ok, const QString &reason) {
         status->setText(reason);
@@ -127,6 +128,16 @@ class ModelHandoffWindow : public QWidget {
         }
     }
 public:
+    // P0 shutdown adapter: never destroy a still-running independent model Worker.
+    bool stopForPreviewClose() {
+        if (child.state() == QProcess::NotRunning) return true;
+        previewClosing = true;
+        timeout.stop();
+        child.kill(); // asynchronous; the enclosing window retries close after finished()
+        return false;
+    }
+    QPushButton *runButton() const { return launch; }
+    QLabel *statusLabel() const { return status; }
     ModelHandoffWindow(QString worker, ModelFrame first, ModelFrame second, bool testing)
         : executable(std::move(worker)), a(std::move(first)), b(std::move(second)), selftest(testing) {
         auto *layout = new QVBoxLayout(this);
@@ -141,6 +152,7 @@ public:
         connect(&timeout, &QTimer::timeout, this, [this] { handleWorkerTimeout(); });
         connect(launch, &QPushButton::clicked, this, [this] { startStage(1); });
         connect(&child, &QProcess::started, this, [this] {
+            if (previewClosing) { child.kill(); return; }
             if (selftest && stage == 4) { handleWorkerTimeout(); return; }
             if (child.write(pending) != pending.size()) {
                 protocolError = true; child.kill(); return;
@@ -153,6 +165,7 @@ public:
         });
         connect(&child, &QProcess::readyReadStandardOutput, this, [this] { consume(); });
         connect(&child, &QProcess::finished, this, [this](int code, QProcess::ExitStatus exitKind) {
+            if (previewClosing) { timeout.stop(); launch->setEnabled(false); return; }
             timeout.stop(); consume(); launch->setEnabled(true);
             if (timedOut) {
                 // A kill-induced finished() is expected, not a new diagnosis.
@@ -190,6 +203,7 @@ public:
             }
         });
         connect(&child, &QProcess::errorOccurred, this, [this](QProcess::ProcessError e) {
+            if (previewClosing) return;
             if (e != QProcess::FailedToStart) return;
             // FailedToStart does not guarantee a subsequent finished() signal.
             // Restore the UI now, preserving the actionable error and allowing retry.
@@ -210,6 +224,7 @@ public:
         if (selftest) QTimer::singleShot(0, this, [this] { startStage(0); });
     }
 };
+#ifndef BOARDSI_MODEL_V2_NO_MAIN
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     QString executable, firstPath, secondPath;
@@ -234,3 +249,5 @@ int main(int argc, char **argv) {
     window.show();
     return app.exec();
 }
+
+#endif // BOARDSI_MODEL_V2_NO_MAIN

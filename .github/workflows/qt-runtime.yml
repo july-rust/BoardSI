@@ -176,6 +176,15 @@ jobs:
           pythonPath=$(python -c 'import sys; print(sys.executable)')
           ./boardsi-qt-runtime-validation$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$pythonPath" "$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests/fault_worker.py"
           ./boardsi-qt-model-v2$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame"
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame"
+          cat qt-preview-p0-results.json
+      - name: Preserve developer Preview P0 native execution evidence (not a distributable binary)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: boardsi-preview-p0-native-${{ matrix.name }}
+          path: build-qt/qt-preview-p0-results.json
+          if-no-files-found: warn
       - name: Exercise adversarial F1 verifier tests
         id: f1_adversarial_tests
         if: ${{ !cancelled() }}
