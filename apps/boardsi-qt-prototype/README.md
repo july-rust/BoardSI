@@ -59,3 +59,53 @@ Offscreen diagnostics are recorded; desktop rendering is not validated.
 [Current raw measurements](../../docs/validation/qt-runtime-linux-followup.json) ·
 [ADR and race update](../../docs/architecture/qt-runtime-followup.md) ·
 [CI](../../.github/workflows/qt-runtime.yml).
+
+
+## Developer Preview P0 (native desktop, NOT PCB SI)
+
+Build the existing Rust Worker and two offline synthetic Canonical Model fixtures
+using the commands above, then compile the new `boardsi-preview-p0` Qt target
+from the same CMake build. The preview executable is a native Qt Widgets window.
+
+Run it on a developer machine with a matching installed Qt runtime:
+
+```sh
+# Use absolute paths on each operating system; add .exe on Windows.
+./build-qt/boardsi-preview-p0 /absolute/boardsi-worker \
+  /absolute/qt-model-a.frame /absolute/qt-model-b.frame
+```
+
+Windows example from PowerShell after generating the two fixtures:
+
+```powershell
+.\build-qt\boardsi-preview-p0.exe "$PWD\target\debug\boardsi-worker.exe" "$PWD\build-qt\qt-model-a.frame" "$PWD\build-qt\qt-model-b.frame"
+```
+
+A no-argument launch is permitted to inspect the shell, but Worker and fixture
+files are then sought beside the Qt executable; missing files are reported and
+no synthetic Canonical A/B test is available. This is NOT a self-contained
+installer, nor an approved distribution package.
+
+- **Run** starts the existing M0-tested independent Worker synthetic progress
+  demonstration; **Stop** requests Cancel. The Progress tab retains Force stop.
+- **Canonical Model A/B** is a separate, existing immutable model-v2 receipt
+  demonstration, with no progress protocol and no physical SI output.
+- **Open PCB** only chooses a local filename. It does NOT inspect the file,
+  recognize PADS syntax, import geometry, or upload files. **Save Project**,
+  Artwork, S-Parameters and Impedance are explicitly unsupported.
+- Every result is marked **SYNTHETIC / NOT PCB SI**. No physical PCB results
+  have been produced.
+
+The native CI calls `boardsi-preview-p0 --selftest WORKER FRAME_A FRAME_B`.
+It opens the real Qt window (native Windows/macOS backend, offscreen on Linux),
+checks widget rendering, clicks Run/Stop and restart, verifies synthetic
+progress/completion, a missing-Worker error, and runs Canonical A/B receipt.
+It writes `qt-preview-p0-results.json` with the source SHA, architecture,
+Qt version, platform, result and failure phase. P0 also runs under Linux CTest.
+Native CI uploads only JSON evidence, **not any executable or Qt runtime**.
+
+**License boundary:** this implementation is a developer source/build
+prototype. Qt LGPLv3 dynamic-link compliance, all Qt/ICU/other dependencies,
+clean target-machine deployment, and redistribution rights are NOT verified.
+Binary redistribution remains BLOCKED pending F7 legal/package review;
+a CI compilation or selftest PASS does not authorize public release.
