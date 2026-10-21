@@ -56,13 +56,13 @@ class PreviewImportPanel final : public QWidget {
                        std::vector<ImportedTrack> &tracks) {
         if (bytes.size() > 2 * 1024 * 1024 || !bytes.endsWith('\n')) return false;
         const auto lines = QString::fromUtf8(bytes).split('\n', Qt::SkipEmptyParts);
-        if (lines.size() < 5 || lines.size() > 10040) return false;
+        if (lines.size() < 4 || lines.size() > 10070) return false;
         const auto header = lines.first().split('|');
         bool ok = false;
         if (header.size() != 3 || header[0] != "BOARDSI_P2A_PARTIAL_V1" ||
             header[1] != "V9.4-MILS") return false;
         layers = header[2].toInt(&ok);
-        if (!ok || layers < 2 || layers > 32) return false;
+        if (!ok || layers < 1 || layers > 64) return false;
         int layerRecords = 0;
         bool end = false;
         for (qsizetype i = 1; i < lines.size(); ++i) {
