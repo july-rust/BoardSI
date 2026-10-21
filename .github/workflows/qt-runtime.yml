@@ -166,6 +166,7 @@ jobs:
           cmake --build build-qt --parallel 2
           file build-qt/boardsi-qt-runtime-validation target/debug/boardsi-worker
       - name: Execute actual native Qt backend
+        id: native_qt_execution
         shell: bash
         run: |
           ulimit -c 0 || true
@@ -183,6 +184,7 @@ jobs:
         shell: bash
         env:
           BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BOARDSI_NATIVE_QT_EXECUTION_OUTCOME: ${{ steps.native_qt_execution.outcome }}
         run: |
           set -euo pipefail
           python -m unittest discover -s .github/scripts -p 'test_m0_f1_native_subcases.py' -v
