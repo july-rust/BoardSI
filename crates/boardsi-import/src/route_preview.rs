@@ -183,7 +183,7 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         // Coordinate tokens may contain '.', so integer probing is unsafe:
         // 100.25 must never be silently mistaken for a pin-pair boundary.
         let numeric_start = fields[0].as_bytes().first()
-            .is_some_and(|c| c.is_ascii_digit() || matches!(c, b'-' | b'+' | b'.'));
+            .is_some_and(|c| c.is_ascii_digit() || matches!(*c, b'-' | b'+' | b'.'));
         if !numeric_start { return Err("INVALID_PIN_PAIR_OR_ROUTE_RECORD"); }
         if net.is_none() { return Err("ROUTE_WITHOUT_SIGNAL"); }
         if !have_pin_pair { return Err("MISSING_PIN_PAIR"); }
@@ -421,8 +421,8 @@ mod tests {
     fn parses_annotated_controls_remarks_and_exact_signed_decimal_values() {
         let sample = SAMPLE.replace("*PCB*", "*PCB* GENERAL PARAMETERS OF THE PCB DESIGN")
             .replace("*ROUTE*", "*ROUTE* ROUTE DEFINITIONS")
-            .replace("MAXLAYER 4", "*REMARK* comment in PCB\\nMAXLAYER 4")
-            .replace("*SIGNAL* NET_A", "*REMARK* comment in route\\n*SIGNAL* NET_A")
+            .replace("MAXLAYER 4", "*REMARK* comment in PCB\nMAXLAYER 4")
+            .replace("*SIGNAL* NET_A", "*REMARK* comment in route\n*SIGNAL* NET_A")
             .replace("100 200 1 10 0", "-100.25 200.01 1 10.50 0")
             .replace("300 200 1 10 0", "300.75 200.01 1 10.50 0")
             .replace("300 400 1 10 0", "300.75 400.50 1 10.50 0");
@@ -441,7 +441,7 @@ mod tests {
     fn fail_closed_on_decimal_precision_and_missing_or_corrupt_pin_pair() {
         let bad_precision = SAMPLE.replace("300 200 1 10 0", "300.001 200 1 10 0");
         assert_eq!(parse(bad_precision.as_bytes()).unwrap_err(), "UNSUPPORTED_PRECISION");
-        let no_pair = SAMPLE.replace("U1.1 U2.2 R 0 0\\n", "");
+        let no_pair = SAMPLE.replace("U1.1 U2.2 R 0 0\n", "");
         assert_eq!(parse(no_pair.as_bytes()).unwrap_err(), "MISSING_PIN_PAIR");
         let bad_pair = SAMPLE.replace("U1.1 U2.2 R 0 0", "U1.1 GARBAGE R 0 0");
         assert_eq!(parse(bad_pair.as_bytes()).unwrap_err(), "INVALID_PIN_PAIR_OR_ROUTE_RECORD");
@@ -456,7 +456,7 @@ mod tests {
             assert_eq!(parse(candidate.as_bytes()).unwrap_err(), "NO_SUPPORTED_TRACES");
         }
         let candidate = SAMPLE.replace("300 200 1 10 0", "300 200 1 10 24576")
-            .replace("300 400 1 10 0", "300 400 1 10 0\\n400 400 1 10 0");
+            .replace("300 400 1 10 0", "300 400 1 10 0\n400 400 1 10 0");
         let art = parse(candidate.as_bytes()).unwrap();
         assert_eq!(art.skipped, 1);
         assert_eq!(art.segments.len(), 1);
@@ -465,7 +465,7 @@ mod tests {
     }
     #[test]
     fn pair_and_signal_boundaries_do_not_connect_unrelated_routes() {
-        let candidate = SAMPLE.replace("300 400 1 10 0", "300 400 1 10 0\\nU2.2 U3.3 P 0 0\\n400 400 1 10 0\\n500 400 1 10 0\\n*SIGNAL* NET_B\\nU4.1 U5.2 R 0 0\\n600 400 2 10 0\\n700 400 2 10 0");
+        let candidate = SAMPLE.replace("300 400 1 10 0", "300 400 1 10 0\nU2.2 U3.3 P 0 0\n400 400 1 10 0\n500 400 1 10 0\n*SIGNAL* NET_B\nU4.1 U5.2 R 0 0\n600 400 2 10 0\n700 400 2 10 0");
         let art = parse(candidate.as_bytes()).unwrap();
         assert_eq!(art.segments.len(), 4);
         assert_eq!(art.segments[2].net, "NET_A");
