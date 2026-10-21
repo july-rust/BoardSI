@@ -133,7 +133,7 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         let flag = parse_i64(fields[4])?;
         // Any optional fields (via, arc, teardrop, reuse) are outside this subset.
         // Do not silently draw a chord for an unsupported arc or across a via.
-        if width <= 0 || flag < 0 || flag > 32767 {
+        if width <= 0 || !(0..=32767).contains(&flag) {
             return Err("INVALID_ROUTE_FIELD");
         }
         let p = [x, y];
