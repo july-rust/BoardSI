@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -209,6 +210,41 @@ class NativeScopedEvidenceTests(unittest.TestCase):
                                     and x["full_product_T_acceptance"] == "NOT_RUN"
                                     for x in proof["cases"]))
                 self.assertIn("failure", proof)
+
+    def test_model_to_worker_selftest_failure_can_never_pass_f1(self):
+        """Native Qt metrics PASS is insufficient if following IPC selftest fails."""
+        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        self.assertEqual(len(sha), 40)
+        for outcome, expected_ok in (("success", True), ("failure", False),
+                                     ("skipped", False), ("", False)):
+            with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as d:
+                incoming = Path(d) / "qt.json"
+                output = Path(d) / "proof.json"
+                incoming.write_text(json.dumps(reference()), encoding="utf-8")
+                env = dict(os.environ)
+                env["BOARDSI_SOURCE_HEAD_SHA"] = sha
+                env["BOARDSI_NATIVE_QT_EXECUTION_OUTCOME"] = outcome
+                p = subprocess.run(
+                    [sys.executable,
+                     str(Path(__file__).with_name("m0_f1_native_subcases.py")),
+                     str(incoming), str(output), "windows", "x86_64"],
+                    env=env, capture_output=True, text=True, timeout=15,
+                )
+                evidence = json.loads(output.read_text(encoding="utf-8"))
+                self.assertEqual(p.returncode, 0 if expected_ok else 1, p.stderr)
+                self.assertEqual(evidence["native_qt_execution_outcome"], outcome)
+                self.assertEqual(
+                    evidence["qt_input_sha256"],
+                    hashlib.sha256(incoming.read_bytes()).hexdigest())
+                self.assertEqual(evidence["result"],
+                                 "PASS_RESTRICTED_SYNTHETIC_SUBCASES_ONLY"
+                                 if expected_ok else "FAIL_CLOSED")
+                if not expected_ok:
+                    self.assertIn("selftest did not PASS", evidence["failure"])
+                    self.assertEqual(len(evidence["cases"]), 6)
+                    self.assertTrue(all(x["status"] == "NOT_VERIFIED" for x in evidence["cases"]))
+                    self.assertTrue(all(x["full_product_T_acceptance"] == "NOT_RUN"
+                                        for x in evidence["cases"]))
 
     def test_wrong_qt_version_fails(self):
         sample = reference()
