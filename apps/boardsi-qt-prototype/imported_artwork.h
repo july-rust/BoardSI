@@ -55,6 +55,7 @@ public:
           layers_(new QComboBox(this)), nets_(new QComboBox(this)),
           summary_(new QLabel("No imported PCB. Synthetic demo is a separate tab.", this)) {
         setObjectName("importedArtworkP2A");
+        layers_->setObjectName("importedLayerSelect");
         auto *layout = new QVBoxLayout(this);
         auto *bar = new QHBoxLayout();
         bar->addWidget(new QLabel("Layer:", this));
@@ -71,7 +72,9 @@ public:
         fit->setObjectName("importedFit");
         bar->addWidget(fit);
         auto *zoomIn = new QPushButton("+", this);
+        zoomIn->setObjectName("importedZoomIn");
         auto *zoomOut = new QPushButton("-", this);
+        zoomOut->setObjectName("importedZoomOut");
         bar->addWidget(zoomIn);
         bar->addWidget(zoomOut);
         layout->addLayout(bar);
@@ -105,6 +108,20 @@ public:
     }
     void setDetailsCallback(std::function<void(const QString &)> callback) {
         detailsCallback_ = std::move(callback);
+    }
+    // Starting a new import invalidates the last artwork. In particular, a failed
+    // attempt must not leave old copper visible under a "NOTHING IMPORTED" status.
+    void clearArtwork() {
+        scene_->clear();
+        tracks_.clear();
+        layerVisible_.clear();
+        layers_->clear();
+        nets_->clear();
+        nets_->addItem("All nets");
+        skipped_ = 0;
+        scene_->setSceneRect(QRectF());
+        summary_->setText("No imported PCB. Synthetic demo is a separate tab.");
+        if (detailsCallback_) detailsCallback_(summary_->text());
     }
     bool load(int layerCount, int skipped, const std::vector<ImportedTrack> &input) {
         if (layerCount < 1 || layerCount > 64 || input.empty() || input.size() > 10000) return false;
