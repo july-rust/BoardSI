@@ -595,9 +595,9 @@ mod tests {
                 "!PADS-POWERPCB-V9.4-MILS!",
                 "!PADS-POWERPCB-V9.4-MILS-CP1252!",
             )
-            .replace("*PCB*", "*TEXT* ignored\n*PCB*")
-            .replace("*ROUTE*", "*REMARK* cafe\n*ROUTE*");
-        let bytes = annotated.replace("ignored", "cafe").into_bytes();
+            .replace("*PCB*", "*TEXT*\ncafe@\n*PCB*")
+            .replace("*ROUTE*", "*REMARK* cafe@\n*ROUTE*");
+        let bytes = annotated.into_bytes();
         // CP1252 high byte in a non-route section and remark; not valid UTF-8.
         let bytes: Vec<u8> = bytes
             .into_iter()
