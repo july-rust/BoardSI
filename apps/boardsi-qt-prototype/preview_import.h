@@ -204,6 +204,10 @@ public:
     void setStatusCallback(std::function<void(const QString &)> cb) { callback_ = std::move(cb); }
     bool openPath(const QString &path) {
         if (process_.state() != QProcess::NotRunning) return false;
+        // An import attempt replaces the candidate, even when start/parse fails.
+        // Never show previous geometry with the current "NOTHING IMPORTED" result.
+        imported_->clearArtwork();
+        tabs_->setTabText(1, "Imported Partial (none)");
         if (!QFileInfo(binary_).isAbsolute() || !QFileInfo(binary_).isExecutable() ||
             !QFileInfo(path).isFile()) {
             status("FAILED / unsupported local file or importer unavailable");
