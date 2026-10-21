@@ -281,7 +281,7 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         if (phase == 0) {
             if (!window.isVisible() || window.saveControl()->isEnabled() ||
                 !window.openControl()->isEnabled() || !window.runControl()->isEnabled() ||
-                window.findChild<QLabel *>("artworkUnsupported")->text().contains("NOT IMPLEMENTED") ||
+                !window.findChild<QLabel *>("artworkUnsupported")->text().contains("NOT IMPLEMENTED") ||
                 !window.modelIdentity()) {
                 stopWith("Preview widgets, unsupported labels or synthetic A/B fixtures missing"); return;
             }
