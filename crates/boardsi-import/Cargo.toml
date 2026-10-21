@@ -6,3 +6,5 @@ rust-version = "1.75"
 publish = false
 
 [dependencies]
+
+boardsi-model = { path = "../boardsi-model" }

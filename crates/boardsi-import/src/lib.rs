@@ -181,3 +181,6 @@ mod tests {
         assert_eq!(probe_pads_reader(&mut reader).unwrap(), Signature::Unknown);
     }
 }
+
+pub mod route_preview;
+pub mod digest;
