@@ -179,7 +179,7 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
                     let value = window[1]
                         .parse::<u32>()
                         .map_err(|_| "INVALID_LAYER_COUNT")?;
-                    if !(2..=32).contains(&value) {
+                    if !(1..=64).contains(&value) {
                         return Err("UNSUPPORTED_LAYER_COUNT");
                     }
                     if max_layer != 0 && max_layer != value {
@@ -524,6 +524,32 @@ mod tests {
         assert_eq!(art.segments[0].a, [30_000, 40_000]);
         assert_eq!(art.segments[0].b, [40_000, 40_000]);
     }
+
+    #[test]
+    fn accepts_complete_pads_v94_maximum_copper_layer_domain() {
+        let high = SAMPLE
+            .replace("MAXLAYER 4", "MAXIMUMLAYER 64")
+            .replace("100 200 1 10 0", "100 200 64 10 0")
+            .replace("300 200 1 10 0", "300 200 64 10 0")
+            .replace("300 400 1 10 0", "300 400 64 10 0");
+        let art = parse(high.as_bytes()).unwrap();
+        assert_eq!(art.max_layer, 64);
+        assert_eq!(art.segments.len(), 2);
+        assert!(art.segments.iter().all(|segment| segment.layer == 64));
+        let board = into_canonical(high.as_bytes(), &art).unwrap();
+        assert_eq!(board.stackup.layers.len(), 64);
+        assert!(!board.validate().has_errors());
+
+        let one_layer = SAMPLE.replace("MAXLAYER 4", "MAXIMUMLAYER 1");
+        let art = parse(one_layer.as_bytes()).unwrap();
+        assert_eq!(art.max_layer, 1);
+        assert_eq!(art.segments.len(), 2);
+        assert!(!into_canonical(one_layer.as_bytes(), &art).unwrap().validate().has_errors());
+
+        let invalid = SAMPLE.replace("MAXLAYER 4", "MAXIMUMLAYER 65");
+        assert_eq!(parse(invalid.as_bytes()).unwrap_err(), "UNSUPPORTED_LAYER_COUNT");
+    }
+
     #[test]
     fn enforces_v94_mils_coordinate_domain_without_rounding() {
         let high = SAMPLE.replace("100 200 1 10 0", "56000.01 200 1 10 0");
