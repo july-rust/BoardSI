@@ -205,6 +205,8 @@ public:
     }
     SyntheticArtworkPanel *synthetic() const { return synthetic_; }
     ImportedArtworkPanel *imported() const { return imported_; }
+    QTabWidget *artworkTabs() const { return tabs_; }
+    bool showingImported() const { return tabs_->currentWidget() == imported_; }
     QString importStatus() const { return status_; }
     void setStatusCallback(std::function<void(const QString &)> cb) { callback_ = std::move(cb); }
     bool openPath(const QString &path) {
