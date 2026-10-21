@@ -182,5 +182,5 @@ mod tests {
     }
 }
 
-pub mod route_preview;
 pub mod digest;
+pub mod route_preview;

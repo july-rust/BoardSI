@@ -82,14 +82,18 @@ pub fn sha256(bytes: &[u8]) -> [u8; 32] {
     let text = sha256_hex(bytes);
     let mut out = [0u8; 32];
     for (i, slot) in out.iter_mut().enumerate() {
-        *slot = u8::from_str_radix(&text[i*2..i*2+2], 16).expect("hex nibble");
+        *slot = u8::from_str_radix(&text[i * 2..i * 2 + 2], 16).expect("hex nibble");
     }
     out
 }
 #[cfg(test)]
 mod tests {
-  use super::*;
-  #[test] fn reference() {
-    assert_eq!(sha256_hex(b"abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
-  }
+    use super::*;
+    #[test]
+    fn reference() {
+        assert_eq!(
+            sha256_hex(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
 }
