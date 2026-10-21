@@ -8,10 +8,14 @@ target_link_libraries(boardsi-qt-prototype PRIVATE Qt6::Core Qt6::Gui Qt6::Widge
 # Isolated opt-in F4 proof: synthetic Canonical Model identity/receipt, no physical solver.
 add_executable(boardsi-qt-model-v2 model_v2.cpp)
 target_link_libraries(boardsi-qt-model-v2 PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+add_executable(boardsi-preview-p0 preview_p0.cpp)
+target_link_libraries(boardsi-preview-p0 PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
 if(MSVC)
+  target_compile_options(boardsi-preview-p0 PRIVATE /W4 /WX)
   target_compile_options(boardsi-qt-prototype PRIVATE /W4 /WX)
   target_compile_options(boardsi-qt-model-v2 PRIVATE /W4 /WX)
 else()
+  target_compile_options(boardsi-preview-p0 PRIVATE -Wall -Wextra -Wpedantic -Werror)
   target_compile_options(boardsi-qt-prototype PRIVATE -Wall -Wextra -Wpedantic -Werror)
   target_compile_options(boardsi-qt-model-v2 PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
@@ -33,6 +37,10 @@ if(BUILD_TESTING)
   add_test(NAME qt-worker-runtime COMMAND boardsi-qt-runtime-validation
     "${BOARDSI_WORKER}" "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/fault_worker.py")
   set_tests_properties(qt-worker-runtime PROPERTIES TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  # Actual QApplication desktop controls and native Rust process exercised by P0.
+  add_test(NAME qt-preview-p0-smoke COMMAND boardsi-preview-p0 --selftest
+    "${BOARDSI_WORKER}" "${CMAKE_CURRENT_BINARY_DIR}/qt-model-a.frame" "${CMAKE_CURRENT_BINARY_DIR}/qt-model-b.frame")
+  set_tests_properties(qt-preview-p0-smoke PROPERTIES TIMEOUT 35 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   # Files are produced from boardsi_model by the Rust example before ctest.
   add_test(NAME qt-model-v2-identity COMMAND boardsi-qt-model-v2 --selftest
     "${BOARDSI_WORKER}" "${CMAKE_CURRENT_BINARY_DIR}/qt-model-a.frame" "${CMAKE_CURRENT_BINARY_DIR}/qt-model-b.frame")
