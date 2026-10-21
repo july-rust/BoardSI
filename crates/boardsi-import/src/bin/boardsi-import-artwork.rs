@@ -5,7 +5,8 @@ use std::{
     env, fs,
     io::{self, Write},
 };
-const NM: i64 = 25_400;
+// 0.01 mil canonical tick = 254 nm. All Qt wire coordinates remain nm.
+const NM: i64 = 254;
 fn run() -> Result<(), &'static str> {
     let args: Vec<_> = env::args_os().collect();
     if args.len() != 2 {
