@@ -6,6 +6,7 @@
 #define BOARDSI_MODEL_V2_NO_MAIN
 #include "model_v2.cpp"
 #include "synthetic_artwork.h"
+#include "preview_import.h"
 
 #include <QAction>
 #include <QCloseEvent>
@@ -35,6 +36,8 @@ class PreviewWindow : public QMainWindow {
     QAction *runAction = nullptr;
     QAction *stopAction = nullptr;
     SyntheticArtworkPanel *artwork = nullptr;
+    PreviewImportPanel *importUI = nullptr;
+    QString importResultStatus = "NOT IMPORTED";
     QLabel *properties = nullptr;
     QLabel *validation = nullptr;
     QLabel *stateSummary = nullptr;
@@ -62,11 +65,11 @@ class PreviewWindow : public QMainWindow {
         overallProgress->setValue(ipc->progressBar()->value());
         const QString status = ipc->statusLabel()->text();
         const QString error = ipc->errorLabel()->text();
-        stateSummary->setText("SYNTHETIC / NOT PCB SI  |  " + status);
+        stateSummary->setText("Worker: " + status + " | PCB: " + importResultStatus + " | SI NOT_RUN");
         validation->setText(
             (chosenFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
                                     "PCB candidate: " + chosenFile + " (NOT IMPORTED)") +
-            "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: NOT_RUN\nPhysical SI: NOT_RUN\nWorker: " + status +
+            "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
             "DEVELOPER PREVIEW P1  -  SYNTHETIC / NOT PCB SI\n\n"
@@ -93,9 +96,9 @@ class PreviewWindow : public QMainWindow {
 
 public:
     PreviewWindow(const QString &workerPath, const QString &firstFrame = QString(),
-                  const QString &secondFrame = QString()) {
+                  const QString &secondFrame = QString(), const QString &importBinary = QString()) {
         setObjectName("boardsiPreviewP0");
-        setWindowTitle("BoardSI Developer Preview P1 - SYNTHETIC / NOT PCB SI");
+        setWindowTitle("BoardSI Developer Preview P2-A - PARTIAL IMPORT / NOT PCB SI");
         auto *bar = addToolBar("Preview controls");
         bar->setMovable(false);
         openAction = bar->addAction("Open PCB");
@@ -112,7 +115,7 @@ public:
         auto *root = new QWidget(this);
         auto *vertical = new QVBoxLayout(root);
         auto *header = new QLabel(
-            "BoardSI PREVIEW P1    |    SYNTHETIC ARTWORK / NOT PCB SI    |    Developer build only",
+            "BoardSI PREVIEW P2-A | Synthetic Demo / Imported Partial | NOT PCB SI | Developer build",
             root);
         header->setStyleSheet("font-weight: bold; padding: 8px; background: #2b3441; color: #ffffff;");
         vertical->addWidget(header);
@@ -133,11 +136,12 @@ public:
 
         auto *center = new QWidget(horizontal);
         auto *centerLayout = new QVBoxLayout(center);
-        auto *centerTitle = new QLabel("Artwork Viewer - SYNTHETIC FIXTURE ONLY", center);
+        auto *centerTitle = new QLabel("Artwork Viewer - Synthetic or Imported Partial (never mixed)", center);
         centerTitle->setStyleSheet("font-weight: bold;");
         centerLayout->addWidget(centerTitle);
-        artwork = new SyntheticArtworkPanel(center);
-        centerLayout->addWidget(artwork, 3);
+        importUI = new PreviewImportPanel(importBinary, center);
+        artwork = importUI->synthetic();
+        centerLayout->addWidget(importUI, 3);
 
         auto *tabs = new QTabWidget(center);
         resultSummary = new QTextEdit(tabs);
@@ -186,6 +190,13 @@ public:
         validation->setTextFormat(Qt::PlainText);
         validLayout->addWidget(validation);
         rightLayout->addWidget(validBox);
+        importUI->setStatusCallback([this](const QString &state) {
+            importResultStatus = state;
+            log->appendPlainText("PCB Import: " + state);
+            if (state.startsWith("PARTIAL")) properties->setText(
+                "Imported straight segments only; Canonical partial model.\n" + state +
+                "\nStackup, connectivity and SI: NOT_RUN");
+        });
         artwork->setDetailsCallback([this](const QString &details) {
             properties->setText(details +
                 (chosenFile.isEmpty() ? QString() :
@@ -230,18 +241,8 @@ public:
                 "PCB candidate (*.asc *.ASC);;All files (*)");
             if (file.isEmpty()) return;
             chosenFile = QFileInfo(file).fileName();
-            properties->setText(
-                "Selected file: " + chosenFile + "\n"
-                "Status: NOT IMPORTED\n"
-                "Format: NOT VERIFIED\n"
-                "Synthetic Artwork: mock board only\n"
-                "Imported Artwork: NOT AVAILABLE\n"
-                "Solver: NOT PCB SI");
-            validation->setText(
-                "Local file selected only\n"
-                "No file read, signature probe, parsing or SI performed.\n"
-                "Import/geometry: NOT_RUN");
-            log->appendPlainText("Open PCB: local file selected; no import performed.");
+            if (!importUI->openPath(file))
+                log->appendPlainText("Open PCB: unsupported source or local importer unavailable.");
         });
         auto *poll = new QTimer(this);
         poll->setInterval(100);
@@ -258,10 +259,16 @@ public:
     QAction *openControl() const { return openAction; }
     QAction *saveControl() const { return saveAction; }
     SyntheticArtworkPanel *artworkPanel() const { return artwork; }
+    PreviewImportPanel *importPanel() const { return importUI; }
 
 protected:
     void closeEvent(QCloseEvent *event) override {
         // Preserve the existing nonblocking Worker close/kill discipline.
+        if (importUI && importUI->busy()) {
+            importUI->stop(); event->ignore();
+            QTimer::singleShot(200, this, [this] { if (isVisible()) close(); });
+            return;
+        }
         if ((identity && !identity->stopForPreviewClose()) || !ipc->close()) {
             event->ignore();
             QTimer::singleShot(200, this, [this] { if (isVisible()) close(); });
@@ -272,11 +279,12 @@ protected:
 };
 
 static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
-                           const QString &worker) {
+                           const QString &worker, const QString &fixture) {
     app.setQuitOnLastWindowClosed(false);
     QElapsedTimer clock;
     clock.start();
     int phase = 0;
+    const bool testImport = !fixture.isEmpty();
     QString failure;
     auto *tick = new QTimer(&app);
     tick->setInterval(50);
@@ -331,7 +339,24 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 !window.findChild<QLabel *>("syntheticArtworkStatus")->text().contains("NOT IMPORTED")) {
                 stopWith("P1 fixture reset / provenance label failed"); return;
             }
+            if (testImport) {
+                if (!window.importPanel()->openPath(fixture)) {
+                    stopWith("P2-A local importer did not start"); return;
+                }
+                phase = 6; return;
+            }
             window.runControl()->trigger(); phase = 1; return;
+        }
+        if (phase == 6 && window.importPanel()->importStatus().startsWith("PARTIAL")) {
+            auto *panel = window.importPanel()->imported();
+            if (panel->segmentCount() < 2 || !panel->selectNet("NET_A") ||
+                panel->visibleSegments() < 2) {
+                stopWith("P2-A imported partial artwork controls invalid"); return;
+            }
+            window.runControl()->trigger(); phase = 1; return;
+        }
+        if (phase == 6 && window.importPanel()->importStatus().startsWith("FAILED")) {
+            stopWith("P2-A parser returned failure"); return;
         }
         if (phase == 1 && engine->progressBar()->value() > 0 && window.stopControl()->isEnabled()) {
             window.stopControl()->trigger(); phase = 2; return;
@@ -377,6 +402,7 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         {"elapsed_ms", clock.elapsed()},
         {"asserted", "window raster; synthetic fixture/layers/net highlight/zoom; unsupported import; run; progress; cancel; restart; completion; error; Canonical A/B receipt"},
         {"p1_synthetic_artwork", phase >= 1},
+        {"p2a_imported_artwork", testImport && rc == 0 && phase == 5},
         {"p1_scope", "synthetic illustrative geometry only; no PCB file imported"}
     };
     QFile evidence("qt-preview-p0-results.json");
@@ -389,12 +415,14 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
-    const bool testing = args.size() == 5 && args.at(1) == "--selftest";
-    QString worker, first, second;
+    const bool testing = (args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest";
+    QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
-    } else if (args.size() == 4) {
+        if (args.size() == 7) { importer = args.at(5); fixture = args.at(6); }
+    } else if (args.size() == 4 || args.size() == 5) {
         worker = args.at(1); first = args.at(2); second = args.at(3);
+        if (args.size() == 5) importer = args.at(4);
     } else if (args.size() == 1) {
         const QString dir = QCoreApplication::applicationDirPath();
 #ifdef Q_OS_WIN
@@ -405,10 +433,10 @@ int main(int argc, char **argv) {
         first = dir + "/qt-model-a.frame";
         second = dir + "/qt-model-b.frame";
     } else {
-        qCritical("Usage: boardsi-preview-p0 [--selftest] [WORKER_ABSOLUTE FRAME_A FRAME_B]");
+        qCritical("Usage: boardsi-preview-p0 [--selftest] WORKER FRAME_A FRAME_B [IMPORTER [FIXTURE]]");
         return 2;
     }
-    PreviewWindow window(worker, first, second);
+    PreviewWindow window(worker, first, second, importer);
     window.show();
-    return testing ? runPreviewSmoke(app, window, worker) : app.exec();
+    return testing ? runPreviewSmoke(app, window, worker, fixture) : app.exec();
 }
