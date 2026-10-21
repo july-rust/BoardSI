@@ -151,6 +151,14 @@ protected:
         else event->accept();
     }
 public:
+    // Read-only/P0 control adapters for the existing M0-tested IPC engine.
+    // Keep worker framing, state machine, and regression harness in one place.
+    QPushButton *runButton() const { return start; }
+    QPushButton *cancelButton() const { return cancel; }
+    QLabel *statusLabel() const { return status; }
+    QLabel *errorLabel() const { return error; }
+    QLabel *resultLabel() const { return results; }
+    QProgressBar *progressBar() const { return progress; }
     explicit Window(QString executable, QStringList args = {}) : path(std::move(executable)), arguments(std::move(args)) {
         auto *layout = new QVBoxLayout(this);
         start = new QPushButton("Start", this); cancel = new QPushButton("Cancel", this); force = new QPushButton("Force stop", this);
