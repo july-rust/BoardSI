@@ -271,7 +271,17 @@ jobs:
           $manifest = Join-Path $stage 'SHA256SUMS.txt'
           $hashLines | Set-Content -LiteralPath $manifest -Encoding ascii
           foreach ($line in (Get-Content -LiteralPath $manifest)) {
-            if ($line -notmatch '^([A-Fa-f0-9]{64})  (.+)
+            $parts = $line -split '  ', 2
+            if ($parts.Count -ne 2 -or $parts[0].Length -ne 64 -or
+                $parts[0] -match '[^A-Fa-f0-9]') {
+              throw 'Malformed SHA256 manifest entry'
+            }
+            $filePath = Join-Path $stage $parts[1]
+            $actual = (Get-FileHash -LiteralPath $filePath -Algorithm SHA256).Hash
+            if ($actual -ne $parts[0]) {
+              throw ('Checksum mismatch: ' + $filePath)
+            }
+          }
       - name: Upload Windows x64 developer-only executable artifact
         if: matrix.name == 'Windows x64'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
