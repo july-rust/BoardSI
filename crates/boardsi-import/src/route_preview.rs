@@ -65,21 +65,36 @@ fn parse_fixed(value: &str) -> Result<i64, &'static str> {
         2 => fraction.parse::<i64>().map_err(|_| "INVALID_NUMBER")?,
         _ => return Err("UNSUPPORTED_PRECISION"),
     };
-    let ticks = base.checked_mul(100).and_then(|n| n.checked_add(cents))
+    let ticks = base
+        .checked_mul(100)
+        .and_then(|n| n.checked_add(cents))
         .ok_or("COORDINATE_OVERFLOW")?;
-    if negative { ticks.checked_neg().ok_or("COORDINATE_OVERFLOW") } else { Ok(ticks) }
+    if negative {
+        ticks.checked_neg().ok_or("COORDINATE_OVERFLOW")
+    } else {
+        Ok(ticks)
+    }
 }
 fn pin_token(value: &str) -> bool {
-    let Some((reference, pin)) = value.rsplit_once('.') else { return false; };
-    !reference.is_empty() && reference.len() <= 15 && !pin.is_empty() && pin.len() <= 7
-        && reference.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
+    let Some((reference, pin)) = value.rsplit_once('.') else {
+        return false;
+    };
+    !reference.is_empty()
+        && reference.len() <= 15
+        && !pin.is_empty()
+        && pin.len() <= 7
+        && reference
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || c == b'_')
         && pin.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
 }
 fn pin_pair(fields: &[&str]) -> bool {
     fields.len() == 5
-        && pin_token(fields[0]) && pin_token(fields[1])
+        && pin_token(fields[0])
+        && pin_token(fields[1])
         && matches!(fields[2], "R" | "P" | "U")
-        && fields[3].parse::<i64>().is_ok() && fields[4].parse::<i64>().is_ok()
+        && fields[3].parse::<i64>().is_ok()
+        && fields[4].parse::<i64>().is_ok()
 }
 fn mul_nm(n: i64) -> Result<i64, &'static str> {
     n.checked_mul(NM_PER_TICK).ok_or("COORDINATE_OVERFLOW")
@@ -113,7 +128,9 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
             continue;
         }
         let keyword = line.split_ascii_whitespace().next().unwrap_or("");
-        if keyword == "*REMARK*" { continue; }
+        if keyword == "*REMARK*" {
+            continue;
+        }
         if keyword == "*END*" {
             found_end = true;
             break;
@@ -175,19 +192,31 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
             continue;
         }
         if pin_pair(&fields) {
-            if net.is_none() { return Err("PIN_PAIR_WITHOUT_SIGNAL"); }
+            if net.is_none() {
+                return Err("PIN_PAIR_WITHOUT_SIGNAL");
+            }
             have_pin_pair = true;
             previous = None;
             continue;
         }
         // Coordinate tokens may contain '.', so integer probing is unsafe:
         // 100.25 must never be silently mistaken for a pin-pair boundary.
-        let numeric_start = fields[0].as_bytes().first()
+        let numeric_start = fields[0]
+            .as_bytes()
+            .first()
             .is_some_and(|c| c.is_ascii_digit() || matches!(*c, b'-' | b'+' | b'.'));
-        if !numeric_start { return Err("INVALID_PIN_PAIR_OR_ROUTE_RECORD"); }
-        if net.is_none() { return Err("ROUTE_WITHOUT_SIGNAL"); }
-        if !have_pin_pair { return Err("MISSING_PIN_PAIR"); }
-        if fields.len() < 5 { return Err("INVALID_ROUTE_RECORD"); }
+        if !numeric_start {
+            return Err("INVALID_PIN_PAIR_OR_ROUTE_RECORD");
+        }
+        if net.is_none() {
+            return Err("ROUTE_WITHOUT_SIGNAL");
+        }
+        if !have_pin_pair {
+            return Err("MISSING_PIN_PAIR");
+        }
+        if fields.len() < 5 {
+            return Err("INVALID_ROUTE_RECORD");
+        }
         let x = parse_fixed(fields[0])?;
         let y = parse_fixed(fields[1])?;
         let layer = parse_i64(fields[2])?;
@@ -419,10 +448,14 @@ mod tests {
     }
     #[test]
     fn parses_annotated_controls_remarks_and_exact_signed_decimal_values() {
-        let sample = SAMPLE.replace("*PCB*", "*PCB* GENERAL PARAMETERS OF THE PCB DESIGN")
+        let sample = SAMPLE
+            .replace("*PCB*", "*PCB* GENERAL PARAMETERS OF THE PCB DESIGN")
             .replace("*ROUTE*", "*ROUTE* ROUTE DEFINITIONS")
             .replace("MAXLAYER 4", "*REMARK* comment in PCB\nMAXLAYER 4")
-            .replace("*SIGNAL* NET_A", "*REMARK* comment in route\n*SIGNAL* NET_A")
+            .replace(
+                "*SIGNAL* NET_A",
+                "*REMARK* comment in route\n*SIGNAL* NET_A",
+            )
             .replace("100 200 1 10 0", "-100.25 200.01 1 10.50 0")
             .replace("300 200 1 10 0", "300.75 200.01 1 10.50 0")
             .replace("300 400 1 10 0", "300.75 400.50 1 10.50 0");
@@ -434,28 +467,45 @@ mod tests {
         assert_eq!(mul_nm(art.segments[0].a[0]).unwrap(), -2_546_350);
         let board = into_canonical(sample.as_bytes(), &art).unwrap();
         assert!(!board.validate().has_errors());
-        assert_eq!(board.frames[0].metres_per_tick, Rational::new(127, 500_000_000).unwrap());
+        assert_eq!(
+            board.frames[0].metres_per_tick,
+            Rational::new(127, 500_000_000).unwrap()
+        );
         assert_eq!(board.traces.len(), 2);
     }
     #[test]
     fn fail_closed_on_decimal_precision_and_missing_or_corrupt_pin_pair() {
         let bad_precision = SAMPLE.replace("300 200 1 10 0", "300.001 200 1 10 0");
-        assert_eq!(parse(bad_precision.as_bytes()).unwrap_err(), "UNSUPPORTED_PRECISION");
+        assert_eq!(
+            parse(bad_precision.as_bytes()).unwrap_err(),
+            "UNSUPPORTED_PRECISION"
+        );
         let no_pair = SAMPLE.replace("U1.1 U2.2 R 0 0\n", "");
         assert_eq!(parse(no_pair.as_bytes()).unwrap_err(), "MISSING_PIN_PAIR");
         let bad_pair = SAMPLE.replace("U1.1 U2.2 R 0 0", "U1.1 GARBAGE R 0 0");
-        assert_eq!(parse(bad_pair.as_bytes()).unwrap_err(), "INVALID_PIN_PAIR_OR_ROUTE_RECORD");
+        assert_eq!(
+            parse(bad_pair.as_bytes()).unwrap_err(),
+            "INVALID_PIN_PAIR_OR_ROUTE_RECORD"
+        );
         let over = SAMPLE.replace("300 200 1 10 0", "92233720368547758.08 200 1 10 0");
         assert_eq!(parse(over.as_bytes()).unwrap_err(), "COORDINATE_OVERFLOW");
     }
     #[test]
     fn miter_arc_and_extensions_never_invent_chords() {
-        for replacement in ["300 200 1 10 24576", "300 200 1 10 28672 CW",
-                            "300 200 1 10 0 STANDARDVIA", "300 200 1 10 0 TEARDROP P 80 80"] {
+        for replacement in [
+            "300 200 1 10 24576",
+            "300 200 1 10 28672 CW",
+            "300 200 1 10 0 STANDARDVIA",
+            "300 200 1 10 0 TEARDROP P 80 80",
+        ] {
             let candidate = SAMPLE.replace("300 200 1 10 0", replacement);
-            assert_eq!(parse(candidate.as_bytes()).unwrap_err(), "NO_SUPPORTED_TRACES");
+            assert_eq!(
+                parse(candidate.as_bytes()).unwrap_err(),
+                "NO_SUPPORTED_TRACES"
+            );
         }
-        let candidate = SAMPLE.replace("300 200 1 10 0", "300 200 1 10 24576")
+        let candidate = SAMPLE
+            .replace("300 200 1 10 0", "300 200 1 10 24576")
             .replace("300 400 1 10 0", "300 400 1 10 0\n400 400 1 10 0");
         let art = parse(candidate.as_bytes()).unwrap();
         assert_eq!(art.skipped, 1);
@@ -472,5 +522,4 @@ mod tests {
         assert_eq!(art.segments[3].net, "NET_B");
         assert_eq!(art.segments[3].layer, 2);
     }
-
 }
