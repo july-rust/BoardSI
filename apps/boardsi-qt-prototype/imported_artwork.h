@@ -163,7 +163,12 @@ public:
         return true;
     }
     void fitArtwork() {
-        if (!tracks_.empty()) view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
+        if (!tracks_.empty()) {
+            // Qt's Fit is cumulative with the existing view transform. Reset
+            // first so a Fit after Zoom is repeatable and does not drift.
+            view_->resetTransform();
+            view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
+        }
     }
     int segmentCount() const { return static_cast<int>(tracks_.size()); }
     int visibleSegments() const {
