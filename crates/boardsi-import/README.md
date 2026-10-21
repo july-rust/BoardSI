@@ -87,3 +87,22 @@ smoke does not qualify a self-contained, redistributable Qt package.
 
 Reference: [PADS Layout ASCII Format Specification 9.4, ROUTE Definition pp. 51–52]
 (https://www.freecalypso.org/pub/CAD/PADS/pdfdocs/Ppcb_ASCII.pdf).
+
+### A_007 Windows x64 local Developer Preview launcher
+
+After reproducing the native `qt-runtime.yml` Rust build, Qt CMake build
+and synthetic model-fixture generation, set `QT_PREFIX` to the pinned
+Qt 6.8.3 MSVC x64 SDK and start the **local** GUI:
+
+```powershell
+$env:QT_PREFIX = "C:\\path\\to\\Qt\\6.8.3\\msvc2022_64"
+./scripts/run-boardsi-preview-windows-x64.ps1
+```
+
+Add `-SelfTest` to run the same GUI window, Rust Importer and Worker against
+the public synthetic fixture with a bounded automated smoke. The new
+Windows x64 GitHub Actions step executes that launcher using the native
+desktop Qt backend and uploads the same JSON result as the other Preview
+tests. This verifies the *development launch path*; it does not produce or
+authorize a portable redistribution package. Qt/LGPL and other bundled
+third-party licensing checks remain a separate BLOCKED/NOT_VERIFIED gate.
