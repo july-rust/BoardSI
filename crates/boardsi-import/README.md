@@ -55,3 +55,8 @@ NOT_VERIFIED until an independent real-export fixture is checked.
 - The parser has synthetic independent expected-coordinate and CLI-transport tests,
   but **actual exporter compatibility and visual cross-reference remain NOT_VERIFIED**.
   Even when import succeeds, the result is PARTIAL and SI_NOT_RUN.
+
+- General-parameter `MAXIMUMLAYER` is accepted over the PADS V9.4 source-domain
+  range 1–64, including routes on copper layer 64; layer 65 remains a pin
+  termination marker, not a copper layer. The Qt decoder and viewer accept
+  the same 1–64 copper-layer range.
