@@ -2,6 +2,7 @@
 // NOT imported PCB artwork, real Canonical Board Model, or physical SI evidence.
 #pragma once
 
+#include <QBrush>
 #include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
@@ -9,17 +10,22 @@
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QHBoxLayout>
+#include <QLineF>
 #include <QLabel>
 #include <QPainter>
 #include <QPen>
+#include <QPointF>
+#include <QRectF>
 #include <QPushButton>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 #include <QWidget>
+#include <QString>
 
 #include <functional>
 #include <vector>
+#include <utility>
 
 class SyntheticArtworkCanvas final : public QGraphicsView {
 public:
