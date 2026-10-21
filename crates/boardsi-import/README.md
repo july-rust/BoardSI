@@ -34,9 +34,24 @@ between two consecutive supported coordinate records (identical layer and
 width, no arc/via/teardrop extension) are represented. Components, padstacks,
 vias, pours, net connectivity, reference planes, board outline and stackup
 are MISSING. Layer names are generic until verified layer-definition
-import exists. The Canonical Model records Source SHA-256 and exact MILS
-coordinate ticks and produces a PARTIAL/MISSING capability report; it is
+import exists. The Canonical Model records Source SHA-256 and exact 0.01-mil integer
+coordinate ticks (254 nm per tick) and produces a PARTIAL/MISSING capability report; it is
 not SI-ready. Input cap: 8 MiB; line cap 16 KiB; segment cap 10,000.
 Only publicly safe synthetic fixtures are exercised in automated tests.
 Real PADS V9.4 ASCII exports and external reference comparison remain
 NOT_VERIFIED until an independent real-export fixture is checked.
+
+### P2-A parser correction gate (A_005)
+- Accept standard annotated `*PCB*` controls and `*REMARK*` without losing the surrounding section.
+- Decimal coordinate and width tokens are accepted to a maximum of two fractional digits,
+  converted **exactly** to integer 0.01-mil ticks, then to nm for the Qt wire format.
+  Excess precision and overflow cause a failed import rather than rounded geometry.
+- A SIGNAL must contain a recognized pin pair before any route-coordinate line. Unexpected
+  route records cause an error, not silent geometry loss. A fresh pin pair or SIGNAL
+  breaks any carried path.
+- This version **does not render** arcs, miters, vias, teardrops, jumpers or any
+  extended coordinate record. Unsupported records reset path continuity; they
+  never cause a substitute straight chord to be drawn. Counts are reported.
+- The parser has synthetic independent expected-coordinate and CLI-transport tests,
+  but **actual exporter compatibility and visual cross-reference remain NOT_VERIFIED**.
+  Even when import succeeds, the result is PARTIAL and SI_NOT_RUN.
