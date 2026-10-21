@@ -5,6 +5,7 @@
 #include "main.cpp"
 #define BOARDSI_MODEL_V2_NO_MAIN
 #include "model_v2.cpp"
+#include "synthetic_artwork.h"
 
 #include <QAction>
 #include <QCloseEvent>
@@ -33,7 +34,7 @@ class PreviewWindow : public QMainWindow {
     QAction *saveAction = nullptr;
     QAction *runAction = nullptr;
     QAction *stopAction = nullptr;
-    QLabel *artwork = nullptr;
+    SyntheticArtworkPanel *artwork = nullptr;
     QLabel *properties = nullptr;
     QLabel *validation = nullptr;
     QLabel *stateSummary = nullptr;
@@ -65,15 +66,15 @@ class PreviewWindow : public QMainWindow {
         validation->setText(
             (chosenFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
                                     "PCB candidate: " + chosenFile + " (NOT IMPORTED)") +
-            "\nArtwork: NOT_RUN\nPhysical SI: NOT_RUN\nWorker: " + status +
+            "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: NOT_RUN\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
-            "DEVELOPER PREVIEW P0  -  SYNTHETIC / NOT PCB SI\n\n"
+            "DEVELOPER PREVIEW P1  -  SYNTHETIC / NOT PCB SI\n\n"
             "Worker: independent Rust process\n" + status + "\n" +
             ipc->resultLabel()->text() +
             (error.isEmpty() ? QString() : "\nERROR: " + error) +
             "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n"
-            "No PCB import, artwork or impedance analysis has been performed.");
+            "Only the mock artwork fixture is displayed. No PCB import or physical SI analysis was performed.");
         if (status != previousStatus) {
             log->appendPlainText("Worker: " + status);
             previousStatus = status;
@@ -94,7 +95,7 @@ public:
     PreviewWindow(const QString &workerPath, const QString &firstFrame = QString(),
                   const QString &secondFrame = QString()) {
         setObjectName("boardsiPreviewP0");
-        setWindowTitle("BoardSI Developer Preview P0 - SYNTHETIC / NOT PCB SI");
+        setWindowTitle("BoardSI Developer Preview P1 - SYNTHETIC / NOT PCB SI");
         auto *bar = addToolBar("Preview controls");
         bar->setMovable(false);
         openAction = bar->addAction("Open PCB");
@@ -111,7 +112,7 @@ public:
         auto *root = new QWidget(this);
         auto *vertical = new QVBoxLayout(root);
         auto *header = new QLabel(
-            "BoardSI PREVIEW P0    |    SYNTHETIC / NOT PCB SI    |    Developer build only",
+            "BoardSI PREVIEW P1    |    SYNTHETIC ARTWORK / NOT PCB SI    |    Developer build only",
             root);
         header->setStyleSheet("font-weight: bold; padding: 8px; background: #2b3441; color: #ffffff;");
         vertical->addWidget(header);
@@ -122,7 +123,7 @@ public:
         tree->setMinimumWidth(185);
         auto *project = new QTreeWidgetItem(tree, {"Project"});
         for (const auto &name : {"PCB - NOT IMPORTED", "Substrate - UNSUPPORTED",
-                                 "Layers - UNSUPPORTED", "Nets - UNSUPPORTED"})
+                                 "Synthetic Layers - UI ONLY", "Synthetic Nets - UI ONLY"})
             new QTreeWidgetItem(project, {QString::fromLatin1(name)});
         auto *workflow = new QTreeWidgetItem(tree, {"Workflow"});
         for (const auto &name : {"Select PCB file only", "Import - NOT IMPLEMENTED",
@@ -132,19 +133,10 @@ public:
 
         auto *center = new QWidget(horizontal);
         auto *centerLayout = new QVBoxLayout(center);
-        auto *centerTitle = new QLabel("Artwork Viewer", center);
+        auto *centerTitle = new QLabel("Artwork Viewer - SYNTHETIC FIXTURE ONLY", center);
         centerTitle->setStyleSheet("font-weight: bold;");
         centerLayout->addWidget(centerTitle);
-        artwork = new QLabel(
-            "ARTWORK VIEWER - NOT IMPLEMENTED\n\n"
-            "No board geometry has been imported.\n"
-            "Open PCB only selects a local file; it does not parse or analyze it.",
-            center);
-        artwork->setObjectName("artworkUnsupported");
-        artwork->setAlignment(Qt::AlignCenter);
-        artwork->setWordWrap(true);
-        artwork->setMinimumHeight(190);
-        artwork->setStyleSheet("background: #29313b; color: #f2f2f2; padding: 20px;");
+        artwork = new SyntheticArtworkPanel(center);
         centerLayout->addWidget(artwork, 3);
 
         auto *tabs = new QTabWidget(center);
@@ -174,7 +166,7 @@ public:
         auto *propBox = new QGroupBox("Properties", right);
         auto *propLayout = new QVBoxLayout(propBox);
         properties = new QLabel(
-            "Mode: Developer Preview P0\n"
+            "Mode: Developer Preview P1\n"
             "Source: synthetic only\n"
             "PCB: NOT LOADED\n"
             "Stackup: NOT LOADED\n"
@@ -186,12 +178,17 @@ public:
         auto *validLayout = new QVBoxLayout(validBox);
         validation = new QLabel(
             "PCB import: NOT_RUN\n"
-            "Artwork: NOT_RUN\n"
+            "Synthetic Artwork UI: DISPLAYED\nImported Artwork: NOT_RUN\n"
             "Physical SI: NOT_RUN\n"
             "Worker: awaiting demo", validBox);
         validation->setWordWrap(true);
         validLayout->addWidget(validation);
         rightLayout->addWidget(validBox);
+        artwork->setDetailsCallback([this](const QString &details) {
+            properties->setText(details +
+                (chosenFile.isEmpty() ? QString() :
+                 "\nSelected file: " + chosenFile + " (NOT IMPORTED)"));
+        });
 
         ModelFrame a, b;
         if (readModelFrame(firstFrame, a) && readModelFrame(secondFrame, b) &&
@@ -235,7 +232,8 @@ public:
                 "Selected file: " + chosenFile + "\n"
                 "Status: NOT IMPORTED\n"
                 "Format: NOT VERIFIED\n"
-                "Artwork: NOT AVAILABLE\n"
+                "Synthetic Artwork: mock board only\n"
+                "Imported Artwork: NOT AVAILABLE\n"
                 "Solver: NOT PCB SI");
             validation->setText(
                 "Local file selected only\n"
@@ -257,6 +255,7 @@ public:
     QAction *stopControl() const { return stopAction; }
     QAction *openControl() const { return openAction; }
     QAction *saveControl() const { return saveAction; }
+    SyntheticArtworkPanel *artworkPanel() const { return artwork; }
 
 protected:
     void closeEvent(QCloseEvent *event) override {
@@ -287,13 +286,42 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         if (phase == 0) {
             if (!window.isVisible() || window.saveControl()->isEnabled() ||
                 !window.openControl()->isEnabled() || !window.runControl()->isEnabled() ||
-                !window.findChild<QLabel *>("artworkUnsupported")->text().contains("NOT IMPLEMENTED") ||
+                !window.artworkPanel() || window.artworkPanel()->primitiveCount() < 12 ||
                 !window.modelIdentity()) {
                 stopWith("Preview widgets, unsupported labels or synthetic A/B fixtures missing"); return;
             }
             const QImage rendered = window.grab().toImage();
             if (rendered.isNull() || rendered.width() < 500 || rendered.height() < 350) {
                 stopWith("Actual Qt window raster capture failed"); return;
+            }
+            // Exercise the real P1 Qt scene and controls before the unchanged P0 Worker phases.
+            auto *art = window.artworkPanel();
+            const int initial = art->visiblePrimitives();
+            if (initial != art->primitiveCount() ||
+                !art->setLayerVisible("Top", false) ||
+                art->visiblePrimitives() >= initial ||
+                !art->setLayerVisible("Bottom", false) ||
+                art->visiblePrimitives() != 0 ||
+                !art->setLayerVisible("Top", true) ||
+                !art->selectNet("DATA_P0") ||
+                art->highlightedPrimitives() < 3 ||
+                art->highlightedPrimitives() >= art->visiblePrimitives()) {
+                stopWith("P1 synthetic layer visibility / net highlight failed"); return;
+            }
+            const qreal beforeZoom = art->canvasScale();
+            auto *zoom = window.findChild<QPushButton *>("syntheticZoomIn");
+            auto *fit = window.findChild<QPushButton *>("syntheticFit");
+            if (!zoom || !fit) { stopWith("P1 zoom controls missing"); return; }
+            zoom->click();
+            if (art->canvasScale() <= beforeZoom) {
+                stopWith("P1 zoom did not change scene transform"); return;
+            }
+            fit->click();
+            if (!art->selectNet("All nets") ||
+                !art->setLayerVisible("Bottom", true) ||
+                art->visiblePrimitives() != initial ||
+                !window.findChild<QLabel *>("syntheticArtworkStatus")->text().contains("NOT IMPORTED")) {
+                stopWith("P1 fixture reset / provenance label failed"); return;
             }
             window.runControl()->trigger(); phase = 1; return;
         }
@@ -339,7 +367,8 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         {"worker_path", QFileInfo(worker).fileName()},
         {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
         {"elapsed_ms", clock.elapsed()},
-        {"asserted", "window raster; unsupported features; run; progress; cancel; restart; completion; error; Canonical A/B receipt"}
+        {"asserted", "window raster; synthetic fixture/layers/net highlight/zoom; unsupported import; run; progress; cancel; restart; completion; error; Canonical A/B receipt"},
+        {"p1_synthetic_artwork", "PASS if overall pass; mock geometry only, not imported"}
     };
     QFile evidence("qt-preview-p0-results.json");
     if (!evidence.open(QIODevice::WriteOnly) ||
