@@ -68,7 +68,9 @@ class PreviewWindow : public QMainWindow {
         stateSummary->setText("Worker: " + status + " | PCB: " + importResultStatus + " | SI NOT_RUN");
         validation->setText(
             (chosenFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
-                                    "PCB candidate: " + chosenFile + " (NOT IMPORTED)") +
+                "PCB candidate: " + chosenFile +
+                (importResultStatus.startsWith("PARTIAL") ?
+                    " (PARTIAL STRAIGHT-ROUTE IMPORT)" : " (NOT IMPORTED)")) +
             "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
@@ -195,9 +197,15 @@ public:
         importUI->setStatusCallback([this](const QString &state) {
             importResultStatus = state;
             log->appendPlainText("PCB Import: " + state);
-            if (state.startsWith("PARTIAL")) properties->setText(
-                "Imported straight segments only; Canonical partial model.\n" + state +
-                "\nStackup, connectivity and SI: NOT_RUN");
+            if (state.startsWith("PARTIAL")) {
+                properties->setText(
+                    "Imported straight segments only; Canonical partial model.\n" + state +
+                    "\nStackup, connectivity and SI: NOT_RUN");
+            } else if (state.startsWith("FAILED") || state.startsWith("CANCELLED") ||
+                       state.startsWith("RUNNING")) {
+                properties->setText("PCB: NOT IMPORTED\n" + state +
+                                    "\nStackup, connectivity and SI: NOT_RUN");
+            }
         });
         artwork->setDetailsCallback([this](const QString &details) {
             properties->setText(details +
@@ -288,6 +296,7 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
     int phase = 0;
     const bool testImport = !fixture.isEmpty();
     QString failure;
+    bool importedGeometryVerified = false;
     auto *tick = new QTimer(&app);
     tick->setInterval(50);
     QObject::connect(tick, &QTimer::timeout, &app, [&] {
@@ -351,14 +360,95 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         }
         if (phase == 6 && window.importPanel()->importStatus().startsWith("PARTIAL")) {
             auto *panel = window.importPanel()->imported();
-            if (panel->segmentCount() < 2 || !panel->selectNet("NET_A") ||
-                panel->visibleSegments() < 2) {
-                stopWith("P2-A imported partial artwork controls invalid"); return;
+            auto *scene = panel->findChild<QGraphicsScene *>();
+            if (!scene || scene->items().size() != 3 || panel->segmentCount() != 3 ||
+                panel->visibleSegments() != 3) {
+                stopWith("P2-A imported scene does not contain the expected three tracks"); return;
+            }
+            // Independent millimetre reference from the PUBLIC synthetic PADS fixture.
+            // Verify the *rendered* Qt geometry, Y inversion, net and real pen width,
+            // not just the Rust line-protocol strings.
+            struct ExpectedLine { const char *net; qreal x0,y0,x1,y1,width; };
+            const ExpectedLine reference[] = {
+                {"NET_A",  2.54, -5.08,  7.62, -5.08, 0.254},
+                {"NET_A",  7.62, -5.08,  7.62,-10.16, 0.254},
+                {"NET_B", 25.40, -7.62, 38.10, -7.62, 0.3048}
+            };
+            const auto near = [](qreal x, qreal y) { return qAbs(x - y) < 0.000001; };
+            for (const auto &want : reference) {
+                bool found = false;
+                for (QGraphicsItem *item : scene->items()) {
+                    const auto *line = qgraphicsitem_cast<QGraphicsLineItem *>(item);
+                    if (!line || line->data(0).toString() != QString::fromLatin1(want.net)) continue;
+                    const QLineF actual = line->line();
+                    if (near(actual.x1(), want.x0) && near(actual.y1(), want.y0) &&
+                        near(actual.x2(), want.x1) && near(actual.y2(), want.y1) &&
+                        near(line->pen().widthF(), want.width)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    stopWith("P2-A Qt scene geometry/net/width differs from independent reference");
+                    return;
+                }
+            }
+            if (!panel->selectNet("NET_A")) {
+                stopWith("P2-A net selection unavailable"); return;
+            }
+            for (QGraphicsItem *item : scene->items()) {
+                if (item->data(0).toString() == "NET_B" && !near(item->opacity(), 0.12)) {
+                    stopWith("P2-A net highlight opacity mismatch"); return;
+                }
+            }
+            auto *toggle = window.findChild<QPushButton *>("importedLayerToggle");
+            auto *fit = window.findChild<QPushButton *>("importedFit");
+            auto *zoom = window.findChild<QPushButton *>("importedZoomIn");
+            if (!toggle || !fit || !zoom) {
+                stopWith("P2-A layer/zoom controls missing"); return;
+            }
+            toggle->click(); // The initially selected copper layer is Top (1).
+            if (panel->visibleSegments() != 1) {
+                stopWith("P2-A layer 1 hide does not leave only layer 4 visible"); return;
+            }
+            toggle->click();
+            if (panel->visibleSegments() != 3) {
+                stopWith("P2-A layer visibility restore failed"); return;
+            }
+            const qreal fitScale = panel->scale();
+            zoom->click();
+            if (panel->scale() <= fitScale) {
+                stopWith("P2-A imported zoom did not change the canvas"); return;
+            }
+            fit->click();
+            if (fitScale <= 0 || qAbs(panel->scale() - fitScale) >
+                                  qMax(qreal(0.02), fitScale * qreal(0.01))) {
+                stopWith("P2-A imported Fit did not restore the canvas"); return;
+            }
+            importedGeometryVerified = true;
+            // Regression: a failed replacement must not retain the previous board
+            // under the misleading "NOTHING IMPORTED" status.
+            if (window.importPanel()->openPath(fixture + ".missing-board") ||
+                panel->segmentCount() != 0 || panel->visibleSegments() != 0 ||
+                !window.importPanel()->importStatus().startsWith("FAILED")) {
+                stopWith("P2-A stale geometry survived a failed import"); return;
+            }
+            if (!window.importPanel()->openPath(fixture)) {
+                stopWith("P2-A re-import failed to start after a rejected file"); return;
+            }
+            phase = 7; return;
+        }
+        if (phase == 6 && window.importPanel()->importStatus().startsWith("FAILED")) {
+            stopWith("P2-A initial parser returned failure"); return;
+        }
+        if (phase == 7 && window.importPanel()->importStatus().startsWith("PARTIAL")) {
+            if (window.importPanel()->imported()->segmentCount() != 3) {
+                stopWith("P2-A re-import after failure has incorrect geometry"); return;
             }
             window.runControl()->trigger(); phase = 1; return;
         }
-        if (phase == 6 && window.importPanel()->importStatus().startsWith("FAILED")) {
-            stopWith("P2-A parser returned failure"); return;
+        if (phase == 7 && window.importPanel()->importStatus().startsWith("FAILED")) {
+            stopWith("P2-A re-import after failure returned FAILED"); return;
         }
         if (phase == 1 && engine->progressBar()->value() > 0 && window.stopControl()->isEnabled()) {
             window.stopControl()->trigger(); phase = 2; return;
@@ -405,6 +495,7 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         {"asserted", "window raster; synthetic fixture/layers/net highlight/zoom; unsupported import; run; progress; cancel; restart; completion; error; Canonical A/B receipt"},
         {"p1_synthetic_artwork", phase >= 1},
         {"p2a_imported_artwork", testImport && rc == 0 && phase == 5},
+        {"p2a_geometry_mm_width_y_net_verified", importedGeometryVerified},
         {"p1_scope", "synthetic illustrative geometry only; no PCB file imported"}
     };
     QFile evidence("qt-preview-p0-results.json");
