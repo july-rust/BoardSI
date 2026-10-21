@@ -417,6 +417,7 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             if (panel->visibleSegments() != 3) {
                 stopWith("P2-A layer visibility restore failed"); return;
             }
+            fit->click(); // Establish baseline after the tab has become visible.
             const qreal fitScale = panel->scale();
             zoom->click();
             if (panel->scale() <= fitScale) {
