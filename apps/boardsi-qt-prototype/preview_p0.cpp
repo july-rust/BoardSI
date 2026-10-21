@@ -208,9 +208,11 @@ public:
             }
         });
         artwork->setDetailsCallback([this](const QString &details) {
+            const QString validity = importResultStatus.startsWith("PARTIAL") ?
+                " (PARTIAL STRAIGHT-ROUTE IMPORT)" : " (NOT IMPORTED)";
             properties->setText(details +
                 (chosenFile.isEmpty() ? QString() :
-                 "\nSelected file: " + chosenFile + " (NOT IMPORTED)"));
+                 "\nSelected file: " + chosenFile + validity));
         });
 
         ModelFrame a, b;
