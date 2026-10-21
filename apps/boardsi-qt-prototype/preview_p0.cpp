@@ -239,12 +239,12 @@ public:
         connect(stopAction, &QAction::triggered, this, [this] { ipc->cancelButton()->click(); });
         connect(openAction, &QAction::triggered, this, [this] {
             const QString file = QFileDialog::getOpenFileName(
-                this, "Select local PCB file - NOT IMPORTED", QString(),
+                this, "Open local PADS V9.4-MILS file - partial artwork only", QString(),
                 "PCB candidate (*.asc *.ASC);;All files (*)");
             if (file.isEmpty()) return;
             chosenFile = QFileInfo(file).fileName();
             if (!importUI->openPath(file))
-                log->appendPlainText("Open PCB: unsupported source or local importer unavailable.");
+                log->appendPlainText("Open PCB: unsupported PADS source, importer busy or local executable unavailable.");
         });
         auto *poll = new QTimer(this);
         poll->setInterval(100);
