@@ -76,7 +76,7 @@ class PreviewWindow : public QMainWindow {
             "Worker: independent Rust process\n" + status + "\n" +
             ipc->resultLabel()->text() +
             (error.isEmpty() ? QString() : "\nERROR: " + error) +
-            "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n"
+            "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n" +
             (importResultStatus.startsWith("PARTIAL") ?
                 "Imported PCB: PARTIAL straight-route segments ONLY; no pad/via/stackup/connectivity. Physical SI NOT_RUN." :
                 "Synthetic fixture only; no real PCB imported or physical SI analysis performed."));
