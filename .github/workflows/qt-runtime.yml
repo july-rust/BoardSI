@@ -176,18 +176,22 @@ jobs:
           pythonPath=$(python -c 'import sys; print(sys.executable)')
           ./boardsi-qt-runtime-validation$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$pythonPath" "$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests/fault_worker.py"
           ./boardsi-qt-model-v2$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame"
+      - name: Exercise adversarial F1 verifier tests
+        id: f1_adversarial_tests
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: python -m unittest discover -s .github/scripts -p 'test_m0_f1_native_subcases.py' -v
       - name: Validate M0-only F1 native case-specific technology evidence
-        # Even when real Qt FAILS it writes qt-runtime-results.json.
-        # An earlier failure must remain a failed job; preserve the negative
-        # source digest and six nonaccepted case records unless cancelled.
+        # Always preserve an explicit failing proof if native Qt execution
+        # OR verifier-adversarial tests failed (unless job was cancelled).
         if: ${{ !cancelled() }}
         shell: bash
         env:
           BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           BOARDSI_NATIVE_QT_EXECUTION_OUTCOME: ${{ steps.native_qt_execution.outcome }}
+          BOARDSI_F1_ADVERSARIAL_TESTS_OUTCOME: ${{ steps.f1_adversarial_tests.outcome }}
         run: |
           set -euo pipefail
-          python -m unittest discover -s .github/scripts -p 'test_m0_f1_native_subcases.py' -v
           python .github/scripts/m0_f1_native_subcases.py \
             build-qt/qt-runtime-results.json \
             "$RUNNER_TEMP/m0-f1-native-subcases.json" \
