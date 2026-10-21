@@ -135,9 +135,10 @@ public:
         process_.setReadChannel(QProcess::StandardOutput);
         connect(&process_, &QProcess::readyReadStandardOutput, this, [this] { collect(); });
         connect(&process_, &QProcess::readyReadStandardError, this, [this] {
+            // read() follows the selected stdout channel; collect stderr explicitly.
+            const QByteArray stderrChunk = process_.readAllStandardError();
             const qint64 budget = 256 - errors_.size();
-            if (budget > 0) errors_.append(process_.read(qMin<qint64>(budget, 256)));
-            process_.readAllStandardError();
+            if (budget > 0) errors_.append(stderrChunk.left(budget));
         });
         connect(&process_, &QProcess::finished, this,
                 [this](int code, QProcess::ExitStatus exitStatus) {
