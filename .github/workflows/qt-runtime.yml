@@ -198,9 +198,79 @@ jobs:
             throw 'Missing developer launcher GUI smoke receipt'
           }
           $receipt = Get-Content -LiteralPath $nativeReceipt -Raw | ConvertFrom-Json
-          if ($receipt.pass -ne $true -or $receipt.p2a_imported_artwork -ne $true) {
-            throw 'Developer launcher receipt does not prove P2-A GUI smoke'
+          if ($receipt.pass -ne $true -or $receipt.p2a_imported_artwork -ne $true -or
+              $receipt.p2a_properties_source_isolation_verified -ne $true -or
+              $receipt.source_sha -ne $env:BOARDSI_SOURCE_HEAD_SHA) {
+            throw 'Developer launcher receipt does not prove current-HEAD P2-A source-isolation smoke'
           }
+      - name: Stage Windows x64 developer-only executables (without Qt DLLs)
+        if: matrix.name == 'Windows x64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stage = 'build-qt/boardsi-preview-windows-x64-dev'
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          $items = @{
+            'build-qt/boardsi-preview-p0.exe' = 'boardsi-preview-p0.exe'
+            'target/debug/boardsi-worker.exe' = 'boardsi-worker.exe'
+            'target/debug/boardsi-import-artwork.exe' = 'boardsi-import-artwork.exe'
+            'build-qt/qt-model-a.frame' = 'qt-model-a.frame'
+            'build-qt/qt-model-b.frame' = 'qt-model-b.frame'
+            'crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc' = 'public-pads-v94-synthetic.asc'
+          }
+          foreach ($source in $items.Keys) {
+            if (-not (Test-Path -PathType Leaf $source)) { throw "Missing developer artifact input: $source" }
+            Copy-Item -LiteralPath $source -Destination (Join-Path $stage $items[$source])
+          }
+          @'
+          param()
+          $ErrorActionPreference = 'Stop'
+          if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString() -ne 'X64' -or
+              [System.Environment]::OSVersion.Platform.ToString() -ne 'Win32NT') {
+            throw 'This is a Windows x64 developer-only build.'
+          }
+          $qt = $env:QT_PREFIX
+          if ([string]::IsNullOrWhiteSpace($qt)) {
+            throw 'Set QT_PREFIX to an installed matching Qt 6.8.3 MSVC x64 SDK.'
+          }
+          $qtBin = Join-Path $qt 'bin'
+          if (-not (Test-Path (Join-Path $qtBin 'Qt6Core.dll')) -or
+              -not (Test-Path (Join-Path $qt 'plugins/platforms/qwindows.dll'))) {
+            throw 'Qt SDK is unavailable or missing the Windows platform plugin.'
+          }
+          $env:PATH = $qtBin + ';' + $env:PATH
+          $env:QT_PLUGIN_PATH = Join-Path $qt 'plugins'
+          $env:QT_QPA_PLATFORM = 'windows'
+          $dir = Split-Path -Parent $MyInvocation.MyCommand.Path
+          Push-Location $dir
+          try {
+            & (Join-Path $dir 'boardsi-preview-p0.exe') (Join-Path $dir 'boardsi-worker.exe') (Join-Path $dir 'qt-model-a.frame') (Join-Path $dir 'qt-model-b.frame') (Join-Path $dir 'boardsi-import-artwork.exe')
+            if ($LASTEXITCODE -ne 0) { throw "Preview executable returned $LASTEXITCODE" }
+          } finally {
+            Pop-Location
+          }
+          '@ | Set-Content -LiteralPath (Join-Path $stage 'run-preview.ps1') -Encoding UTF8
+          @'
+          BoardSI P2-A Windows x64 DEVELOPER BUILD - NOT A GENERAL RELEASE
+          Extract the files to one directory. Install a compatible Qt 6.8.3 MSVC x64
+          developer SDK separately and set QT_PREFIX to the SDK root. On Windows x64,
+          run .\run-preview.ps1 from PowerShell. C++ runtime dependencies may also apply.
+          The folder contains a public synthetic PADS fixture, NOT vendor-export proof.
+          No Qt DLLs, Qt plugins, commercial CAD sources, installer, or SI solver
+          are included. Import only the restricted PADS V9.4 MILS straight traces.
+          Check SHA256SUMS.txt before use. Redistribution/license approval is NOT_VERIFIED.
+          '@ | Set-Content -LiteralPath (Join-Path $stage 'README.txt') -Encoding UTF8
+          Get-ChildItem -LiteralPath $stage -File | Sort-Object Name | ForEach-Object {
+            ('{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash, $_.Name)
+          } | Set-Content -LiteralPath (Join-Path $stage 'SHA256SUMS.txt') -Encoding ascii
+      - name: Upload Windows x64 developer-only executable artifact
+        if: matrix.name == 'Windows x64'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: boardsi-preview-p2a-windows-x64-dev
+          path: build-qt/boardsi-preview-windows-x64-dev/
+          if-no-files-found: error
+          retention-days: 7
       - name: Preserve developer Preview P0 native execution evidence (not a distributable binary)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
