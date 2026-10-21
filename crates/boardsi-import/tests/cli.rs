@@ -38,11 +38,11 @@ fn artwork_cli_uses_exact_nm_transport_for_known_public_geometry() {
         "artwork importer exit was {:?}: {:?}",
         output.status.code(), String::from_utf8_lossy(&output.stderr));
     let message = String::from_utf8(output.stdout).expect("ASCII transport");
-    assert!(message.starts_with("BOARDSI_P2A_PARTIAL_V1|V9.4-MILS|4\\n"));
+    assert!(message.starts_with("BOARDSI_P2A_PARTIAL_V1|V9.4-MILS|4\n"));
     // Source points (100,200) -> (300,200), width 10 mil;
     // independent fixed reference values: 2_540_000, 5_080_000,
     // 7_620_000 and 254_000 nanometres.
-    assert!(message.contains("T|1|NET_A|2540000|5080000|7620000|5080000|254000\\n"));
-    assert!(message.contains("T|4|NET_B|25400000|7620000|38100000|7620000|304800\\n"));
-    assert!(message.ends_with("END|3|0|CANONICAL_PARTIAL|SI_NOT_RUN\\n"));
+    assert!(message.contains("T|1|NET_A|2540000|5080000|7620000|5080000|254000\n"));
+    assert!(message.contains("T|4|NET_B|25400000|7620000|38100000|7620000|304800\n"));
+    assert!(message.ends_with("END|3|0|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
 }
