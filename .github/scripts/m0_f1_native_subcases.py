@@ -219,6 +219,7 @@ def cli() -> int:
         "checkout_sha": "NOT_VERIFIED",
         "source_identity_proof": "NOT_VERIFIED",
         "native_qt_execution_outcome": os.environ.get("BOARDSI_NATIVE_QT_EXECUTION_OUTCOME", "NOT_VERIFIED"),
+        "f1_adversarial_tests_outcome": os.environ.get("BOARDSI_F1_ADVERSARIAL_TESTS_OUTCOME", "NOT_VERIFIED"),
         "qt_input_sha256": "NOT_COMPUTED",
         "cases": [{
             "id": test_id,
@@ -252,6 +253,8 @@ def cli() -> int:
         # This records FAIL_CLOSED even if the runtime metrics themselves PASS.
         requirement(data["native_qt_execution_outcome"] == "success",
                     "Native Qt backend or model-to-Worker selftest did not PASS")
+        requirement(data["f1_adversarial_tests_outcome"] == "success",
+                    "F1 adversarial verifier unit tests did not PASS")
         data.update(summary)
         data["source_identity_proof"] = proof
     except (OSError, UnicodeError, ValueError, RecursionError,
