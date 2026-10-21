@@ -31,12 +31,12 @@ The full specification still requires PADS+ODB++ for M1 and other M0-M2b gates f
 
 ## C. Formal M0 closeout track, in parallel and accurately reported
 
-The owner-authorized delivery-first decision **supersedes only the previous blanket M0-only scheduling freeze**, permitting independent P0+ Preview work; it does **not** waive M0 ``14.2/15 exits or associated U/T proofs. Official [M0 completion gate](validation/m0-completion-gate.md) remains authoritative; historical audit documents must not be silently rewritten.
+The owner-authorized delivery-first decision **supersedes only the previous blanket M0-only scheduling freeze**, permitting independent P0+ Preview work; it does **not** waive M0 specification §§14.2/15 exit requirements or associated U/T proofs. Official [M0 completion gate](validation/m0-completion-gate.md) remains authoritative; historical audit documents must not be silently rewritten.
 
 - **F1:** reconcile individual applicable M0 technology-case evidence, fixtures, native exact-commit job IDs and independent acceptance; do not turn CI or synthetic subcase PASS into full T-case acceptance.
 - **F6:** preserve verified public KiCad native-board geometry proof and 8 GiB/2 CPU Linux constrained synthetic demonstration. A qualified representative approximately 8 GiB reference host, documented RAM/CPU/SSD/OS and complete sample redistribution rights/notices remain external/formal blockers.
 - **F7:** preserve tested Qt/Worker native relocation and SDK-free Linux proof. Clean Windows x64/ARM64 and macOS ARM64 installation/deployment, Qt LGPLv3 source/replacement notices, third-party rights and independent legal compliance review remain separate blockers.
-- **F8:** owner-approved provisional 1,500 ms whole-test Qt global callback-gap criterion for M0 only; preserve unchanged user-facing timing/Cancel/Heartbeat/IPC limits and recorded 2,930 ms macOS FAIL. Root-cause investigation remains tracked in [Issue #46](https://github.com/july-rust/BoardSI/issues/46).
+- **F8:** owner-approved provisional 1,500 ms whole-test Qt global callback-gap criterion for M0 only; preserve unchanged user-facing timing/Cancel/Heartbeat/IPC limits and documented 1,331 ms macOS ARM64 historical FAIL ([Actions run 39375357028, job 118472164680](https://github.com/july-rust/BoardSI/actions/runs/39375357028/job/118472164680)); preserve every other historical FAIL without relabeling. Root-cause investigation remains tracked in [Issue #46](https://github.com/july-rust/BoardSI/issues/46).
 - **PH-08:** original Gate Q FAIL, AC-P1 pending and physical error bound NOT CERTIFIED; no "physics complete" claims. Leave Draft [PR #35](https://github.com/july-rust/BoardSI/pull/35) untouched.
 
 A paid/physical reference host, license or independent owner review that cannot be satisfied in GitHub is reported as `EXTERNAL DEPENDENCY — NOT PERFORMED`, not repeatedly attacked with unchanged CI runs. No automatic lowering of formal M0 exit requirements.
