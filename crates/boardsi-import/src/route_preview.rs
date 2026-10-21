@@ -112,7 +112,10 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     // Header controls are ASCII even when ignored CAD sections use CP1252.
     // Accept only the documented V9.4 MILS/CP1252 source subset; never infer
     // that a different declared code page has been decoded correctly.
-    let first = source.split(|&byte| byte == b'\n').next().ok_or("EMPTY_FILE")?;
+    let first = source
+        .split(|&byte| byte == b'\n')
+        .next()
+        .ok_or("EMPTY_FILE")?;
     let header = std::str::from_utf8(first).map_err(|_| "INVALID_HEADER_ENCODING")?;
     let tag = header.split_ascii_whitespace().next().unwrap_or("");
     if !matches!(
@@ -608,7 +611,9 @@ mod tests {
         assert_eq!(parsed.segments[0].a, [10_000, 20_000]);
 
         let default = SAMPLE.replace("*ROUTE*", "*REMARK* @\n*ROUTE*");
-        let bytes: Vec<u8> = default.into_bytes().into_iter()
+        let bytes: Vec<u8> = default
+            .into_bytes()
+            .into_iter()
             .map(|b| if b == b'@' { 0xe9 } else { b })
             .collect();
         assert_eq!(parse(&bytes).unwrap().segments.len(), 2);
@@ -623,7 +628,9 @@ mod tests {
             parse(cp932.as_bytes()).unwrap_err(),
             "UNSUPPORTED_REVISION_OR_UNIT"
         );
-        let mut active = SAMPLE.replace("*SIGNAL* NET_A", "*SIGNAL* NET_@").into_bytes();
+        let mut active = SAMPLE
+            .replace("*SIGNAL* NET_A", "*SIGNAL* NET_@")
+            .into_bytes();
         for byte in &mut active {
             if *byte == b'@' {
                 *byte = 0xe9;
