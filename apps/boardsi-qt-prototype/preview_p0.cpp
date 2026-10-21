@@ -319,6 +319,12 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 stopWith("P1 zoom did not change scene transform"); return;
             }
             fit->click();
+            const qreal afterFit = art->canvasScale();
+            // Fit must restore the original scene transform, not merely exist.
+            if (beforeZoom <= 0.0 || qAbs(afterFit - beforeZoom) >
+                    qMax(qreal(0.02), beforeZoom * qreal(0.01))) {
+                stopWith("P1 Fit did not restore the original scene transform"); return;
+            }
             if (!art->selectNet("All nets") ||
                 !art->setLayerVisible("Bottom", true) ||
                 art->visiblePrimitives() != initial ||
