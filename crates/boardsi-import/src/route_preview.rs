@@ -636,7 +636,18 @@ mod tests {
                 *byte = 0xe9;
             }
         }
-        assert_eq!(parse(&active).unwrap_err(), "NON_ASCII_ROUTE_UNSUPPORTED");
+        assert_eq!(parse(&active).unwrap_err(), "INVALID_NET");
+
+        // A non-ASCII byte in an active numeric ROUTE record is rejected too.
+        let mut geometry = SAMPLE
+            .replace("300 200 1 10 0", "300 @ 1 10 0")
+            .into_bytes();
+        for byte in &mut geometry {
+            if *byte == b'@' {
+                *byte = 0xe9;
+            }
+        }
+        assert_eq!(parse(&geometry).unwrap_err(), "NON_ASCII_ROUTE_UNSUPPORTED");
     }
     #[test]
     fn standard_two_field_pin_pair_is_accepted_without_invented_metadata() {
