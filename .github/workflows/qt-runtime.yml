@@ -112,6 +112,10 @@ jobs:
       RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Test the exact PR source commit; otherwise the F1 SHA/CI proof
+          # would describe a synthetic merge-ref instead of its claimed HEAD.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
