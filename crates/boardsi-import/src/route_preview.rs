@@ -89,6 +89,10 @@ fn pin_token(value: &str) -> bool {
         && pin.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
 }
 fn pin_pair(fields: &[&str]) -> bool {
+    // Standard ROUTE grammar also permits the exact two-field pin pair.
+    if fields.len() == 2 {
+        return pin_token(fields[0]) && pin_token(fields[1]);
+    }
     fields.len() == 5
         && pin_token(fields[0])
         && pin_token(fields[1])
@@ -512,6 +516,13 @@ mod tests {
         assert_eq!(art.segments.len(), 1);
         assert_eq!(art.segments[0].a, [30_000, 40_000]);
         assert_eq!(art.segments[0].b, [40_000, 40_000]);
+    }
+    #[test]
+    fn standard_two_field_pin_pair_is_accepted_without_invented_metadata() {
+        let sample = SAMPLE.replace("U1.1 U2.2 R 0 0", "U1.1 U2.2");
+        let art = parse(sample.as_bytes()).unwrap();
+        assert_eq!(art.segments.len(), 2);
+        assert_eq!(art.segments[0].net, "NET_A");
     }
     #[test]
     fn pair_and_signal_boundaries_do_not_connect_unrelated_routes() {
