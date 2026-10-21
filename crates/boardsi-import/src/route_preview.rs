@@ -659,7 +659,10 @@ mod tests {
             );
         }
         let annotated_signal = SAMPLE.replace("*SIGNAL* NET_A", "*SIGNAL* NET_A 1024 0");
-        assert_eq!(parse(annotated_signal.as_bytes()).unwrap().segments.len(), 2);
+        assert_eq!(
+            parse(annotated_signal.as_bytes()).unwrap().segments.len(),
+            2
+        );
     }
     #[test]
     fn pair_and_signal_boundaries_do_not_connect_unrelated_routes() {
