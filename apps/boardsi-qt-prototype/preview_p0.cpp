@@ -72,12 +72,14 @@ class PreviewWindow : public QMainWindow {
             "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
-            "DEVELOPER PREVIEW P1  -  SYNTHETIC / NOT PCB SI\n\n"
+            "DEVELOPER PREVIEW P2-A - PARTIAL Import / NOT PCB SI\n\n"
             "Worker: independent Rust process\n" + status + "\n" +
             ipc->resultLabel()->text() +
             (error.isEmpty() ? QString() : "\nERROR: " + error) +
             "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n"
-            "Only the mock artwork fixture is displayed. No PCB import or physical SI analysis was performed.");
+            (importResultStatus.startsWith("PARTIAL") ?
+                "Imported PCB: PARTIAL straight-route segments ONLY; no pad/via/stackup/connectivity. Physical SI NOT_RUN." :
+                "Synthetic fixture only; no real PCB imported or physical SI analysis performed."));
         if (status != previousStatus) {
             log->appendPlainText("Worker: " + status);
             previousStatus = status;
@@ -125,11 +127,11 @@ public:
         tree->setHeaderLabel("Project / Workflow");
         tree->setMinimumWidth(185);
         auto *project = new QTreeWidgetItem(tree, {"Project"});
-        for (const auto &name : {"PCB - NOT IMPORTED", "Substrate - UNSUPPORTED",
+        for (const auto &name : {"PCB - select file (P2-A partial)", "Substrate - UNSUPPORTED",
                                  "Synthetic Layers - UI ONLY", "Synthetic Nets - UI ONLY"})
             new QTreeWidgetItem(project, {QString::fromLatin1(name)});
         auto *workflow = new QTreeWidgetItem(tree, {"Workflow"});
-        for (const auto &name : {"Select PCB file only", "Import - NOT IMPLEMENTED",
+        for (const auto &name : {"Select PCB file", "Import - PADS V9.4-MILS partial",
                                  "Run synthetic Worker", "Inspect demo status"})
             new QTreeWidgetItem(workflow, {QString::fromLatin1(name)});
         tree->expandAll();
@@ -170,8 +172,8 @@ public:
         auto *propBox = new QGroupBox("Properties", right);
         auto *propLayout = new QVBoxLayout(propBox);
         properties = new QLabel(
-            "Mode: Developer Preview P1\n"
-            "Source: synthetic only\n"
+            "Mode: Developer Preview P2-A\n"
+            "Source: synthetic or imported partial\n"
             "PCB: NOT LOADED\n"
             "Stackup: NOT LOADED\n"
             "Solver: NOT PCB SI", propBox);
