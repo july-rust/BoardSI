@@ -9,12 +9,18 @@
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QDebug>
+#include <QPushButton>
+#include <QLabel>
+#include <QHBoxLayout>
 #include <functional>
 #include <vector>
 #include <utility>
 
 class PreviewImportPanel final : public QWidget {
     QTabWidget *tabs_;
+    QPushButton *cancelButton_ = nullptr;
+    QLabel *importLabel_ = nullptr;
+    bool cancelled_ = false;
     SyntheticArtworkPanel *synthetic_;
     ImportedArtworkPanel *imported_;
     QProcess process_;
@@ -26,6 +32,8 @@ class PreviewImportPanel final : public QWidget {
     bool expired_ = false, overflow_ = false;
     void status(const QString &message) {
         status_ = message;
+        if (importLabel_) importLabel_->setText(message);
+        if (cancelButton_) cancelButton_->setEnabled(message.startsWith("RUNNING"));
         if (callback_) callback_(status_);
     }
     void collect() {
@@ -92,6 +100,23 @@ public:
         }
         auto *layout = new QVBoxLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
+        auto *controls = new QHBoxLayout();
+        importLabel_ = new QLabel("NOT IMPORTED / SI NOT_RUN", this);
+        importLabel_->setWordWrap(true);
+        cancelButton_ = new QPushButton("Cancel Import", this);
+        cancelButton_->setObjectName("importCancelButton");
+        cancelButton_->setEnabled(false);
+        controls->addWidget(importLabel_, 1);
+        controls->addWidget(cancelButton_);
+        layout->addLayout(controls);
+        connect(cancelButton_, &QPushButton::clicked, this, [this] {
+            if (process_.state() != QProcess::NotRunning) {
+                cancelled_ = true;
+                deadline_.stop();
+                process_.kill();
+                status("CANCELLED / no new board imported / SI NOT_RUN");
+            }
+        });
         tabs_->addTab(synthetic_, "Synthetic Fixture");
         tabs_->addTab(imported_, "Imported Partial (none)");
         layout->addWidget(tabs_);
@@ -104,6 +129,10 @@ public:
                 [this](int code, QProcess::ExitStatus exitStatus) {
             deadline_.stop();
             collect();
+            if (cancelled_) {
+                status("CANCELLED / no new board imported / SI NOT_RUN");
+                return;
+            }
             if (expired_ || overflow_ || code != 0 || exitStatus != QProcess::NormalExit) {
                 status("FAILED / invalid, unsupported, timeout or excessive output / NOTHING IMPORTED");
                 return;
@@ -147,6 +176,7 @@ public:
         data_.clear();
         expired_ = false;
         overflow_ = false;
+        cancelled_ = false;
         status("RUNNING / local PADS route import, SI NOT_RUN");
         deadline_.start(10000);
         process_.start(binary_, {path});
