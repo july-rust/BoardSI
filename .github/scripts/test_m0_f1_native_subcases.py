@@ -8,7 +8,8 @@ import sys
 import tempfile
 import unittest
 
-from m0_f1_native_subcases import CASE_SCENARIOS, evaluate, reject_duplicate_json_members
+from m0_f1_native_subcases import (CASE_SCENARIOS, attest_exact_source,
+    evaluate, reject_duplicate_json_members)
 
 
 def reference():
@@ -72,6 +73,16 @@ class NativeScopedEvidenceTests(unittest.TestCase):
         self.assertTrue(all(c["full_product_T_acceptance"] == "NOT_RUN" for c in got["cases"]))
         self.assertTrue(all(c["independent_case_specific_acceptance_review"] == "NOT_PERFORMED"
                             for c in got["cases"]))
+
+    def test_native_checkout_exact_sha_proof(self):
+        head = "a" * 40
+        self.assertEqual(attest_exact_source(head, head), "EXACT_COMMIT_SHA")
+        with self.assertRaisesRegex(ValueError, "differs from"):
+            attest_exact_source("b" * 40, head)
+        with self.assertRaisesRegex(ValueError, "Missing/invalid"):
+            attest_exact_source(head, "NOT_GITHUB")
+        with self.assertRaisesRegex(ValueError, "Invalid checked-out"):
+            attest_exact_source("bad", head)
 
     def test_native_arm64_targets_are_distinct(self):
         for platform in ("windows", "cocoa"):
