@@ -8,7 +8,9 @@ use std::sync::Arc;
 
 pub const MAX_FILE_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_SEGMENTS: usize = 10_000;
-const NM_PER_TICK: i64 = 25_400;
+// One canonical tick is 0.01 mil = exactly 254 nm.
+const NM_PER_TICK: i64 = 254;
+const SUPPORTED_STRAIGHT_FLAGS: i64 = 0x0080 | 0x0200 | 0x0400;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Segment {
@@ -31,6 +33,54 @@ fn parts(line: &str) -> Vec<&str> {
 fn parse_i64(value: &str) -> Result<i64, &'static str> {
     value.parse::<i64>().map_err(|_| "INVALID_NUMBER")
 }
+// PADS 9.4 MILS coordinates are decimal, not integer-only. Preserve
+// hundredth-mil precision without f64 rounding or truncation.
+fn parse_fixed(value: &str) -> Result<i64, &'static str> {
+    let (negative, digits) = if let Some(rest) = value.strip_prefix('-') {
+        (true, rest)
+    } else if let Some(rest) = value.strip_prefix('+') {
+        (false, rest)
+    } else {
+        (false, value)
+    };
+    let (whole, fraction) = match digits.split_once('.') {
+        Some((whole, fraction)) => {
+            if fraction.is_empty() || fraction.len() > 2 {
+                return Err("UNSUPPORTED_PRECISION");
+            }
+            (whole, fraction)
+        }
+        None => (digits, ""),
+    };
+    if whole.is_empty()
+        || !whole.bytes().all(|c| c.is_ascii_digit())
+        || !fraction.bytes().all(|c| c.is_ascii_digit())
+    {
+        return Err("INVALID_NUMBER");
+    }
+    let base = whole.parse::<i64>().map_err(|_| "INVALID_NUMBER")?;
+    let cents = match fraction.len() {
+        0 => 0,
+        1 => fraction.parse::<i64>().map_err(|_| "INVALID_NUMBER")? * 10,
+        2 => fraction.parse::<i64>().map_err(|_| "INVALID_NUMBER")?,
+        _ => return Err("UNSUPPORTED_PRECISION"),
+    };
+    let ticks = base.checked_mul(100).and_then(|n| n.checked_add(cents))
+        .ok_or("COORDINATE_OVERFLOW")?;
+    if negative { ticks.checked_neg().ok_or("COORDINATE_OVERFLOW") } else { Ok(ticks) }
+}
+fn pin_token(value: &str) -> bool {
+    let Some((reference, pin)) = value.rsplit_once('.') else { return false; };
+    !reference.is_empty() && reference.len() <= 15 && !pin.is_empty() && pin.len() <= 7
+        && reference.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
+        && pin.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
+}
+fn pin_pair(fields: &[&str]) -> bool {
+    fields.len() == 5
+        && pin_token(fields[0]) && pin_token(fields[1])
+        && matches!(fields[2], "R" | "P" | "U")
+        && fields[3].parse::<i64>().is_ok() && fields[4].parse::<i64>().is_ok()
+}
 fn mul_nm(n: i64) -> Result<i64, &'static str> {
     n.checked_mul(NM_PER_TICK).ok_or("COORDINATE_OVERFLOW")
 }
@@ -49,6 +99,7 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     let mut found_route = false;
     let mut found_end = false;
     let mut net: Option<&str> = None;
+    let mut have_pin_pair = false;
     // A new SIGNAL or pin pair is an explicit break in the physical route path.
     let mut previous: Option<([i64; 2], i64, i64)> = None;
     let mut segments = Vec::new();
@@ -61,21 +112,24 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         if line.is_empty() || line.starts_with("REMARK ") {
             continue;
         }
-        if line == "*END*" {
+        let keyword = line.split_ascii_whitespace().next().unwrap_or("");
+        if keyword == "*REMARK*" { continue; }
+        if keyword == "*END*" {
             found_end = true;
             break;
         }
         if line.starts_with('*') {
-            if line == "*PCB*" {
+            if keyword == "*PCB*" {
                 in_pcb = true;
                 in_route = false;
-            } else if line == "*ROUTE*" {
+            } else if keyword == "*ROUTE*" {
                 in_route = true;
                 in_pcb = false;
                 found_route = true;
                 net = None;
+                have_pin_pair = false;
                 previous = None;
-            } else if in_route && line.starts_with("*SIGNAL* ") {
+            } else if in_route && keyword == "*SIGNAL*" {
                 let fields = parts(line);
                 if fields.len() < 2
                     || fields[1].len() > 64
@@ -84,11 +138,13 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
                     return Err("INVALID_NET");
                 }
                 net = Some(fields[1]);
+                have_pin_pair = false;
                 previous = None;
             } else {
                 in_pcb = false;
                 in_route = false;
                 net = None;
+                have_pin_pair = false;
                 previous = None;
             }
             continue;
@@ -118,21 +174,25 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         if fields.is_empty() {
             continue;
         }
-        // The pin-pair header is not coordinate geometry.
-        if fields.len() < 5 || fields[0].parse::<i64>().is_err() {
+        if pin_pair(&fields) {
+            if net.is_none() { return Err("PIN_PAIR_WITHOUT_SIGNAL"); }
+            have_pin_pair = true;
             previous = None;
             continue;
         }
-        if net.is_none() {
-            return Err("ROUTE_WITHOUT_SIGNAL");
-        }
-        let x = parse_i64(fields[0])?;
-        let y = parse_i64(fields[1])?;
+        // Coordinate tokens may contain '.', so integer probing is unsafe:
+        // 100.25 must never be silently mistaken for a pin-pair boundary.
+        let numeric_start = fields[0].as_bytes().first()
+            .is_some_and(|c| c.is_ascii_digit() || matches!(c, b'-' | b'+' | b'.'));
+        if !numeric_start { return Err("INVALID_PIN_PAIR_OR_ROUTE_RECORD"); }
+        if net.is_none() { return Err("ROUTE_WITHOUT_SIGNAL"); }
+        if !have_pin_pair { return Err("MISSING_PIN_PAIR"); }
+        if fields.len() < 5 { return Err("INVALID_ROUTE_RECORD"); }
+        let x = parse_fixed(fields[0])?;
+        let y = parse_fixed(fields[1])?;
         let layer = parse_i64(fields[2])?;
-        let width = parse_i64(fields[3])?;
+        let width = parse_fixed(fields[3])?;
         let flag = parse_i64(fields[4])?;
-        // Any optional fields (via, arc, teardrop, reuse) are outside this subset.
-        // Do not silently draw a chord for an unsupported arc or across a via.
         if width <= 0 || !(0..=32767).contains(&flag) {
             return Err("INVALID_ROUTE_FIELD");
         }
@@ -140,7 +200,9 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         mul_nm(x)?;
         mul_nm(y)?;
         mul_nm(width)?;
-        if fields.len() != 5 || flag & 0x1000 != 0 {
+        // Only flag bits which cannot alter geometry are supported.
+        // Any arc/miter/via/jumper/teardrop/unknown extension breaks the path.
+        if fields.len() != 5 || flag & !SUPPORTED_STRAIGHT_FLAGS != 0 {
             skipped = skipped.saturating_add(1);
             previous = None;
             continue;
@@ -215,7 +277,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             logical_path: "local/source.asc".into(),
             sha256: sha,
         }],
-        importer_version: "preview-p2a-straight-v1".into(),
+        importer_version: "preview-p2a-straight-v2-centimil".into(),
         conditions: vec![("route_subset".into(), "straight-same-layer".into())],
     });
     let mut board = BoardModel::empty(BoardKind::Pcb);
@@ -237,7 +299,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
     board.frames.push(CoordinateFrame {
         meta: meta(&source, ObjectKind::Frame, "xy"),
         unit_label: "PADS 9.4 MILS".into(),
-        metres_per_tick: Rational::new(127, 5_000_000).map_err(|_| "FRAME_OVERFLOW")?,
+        metres_per_tick: Rational::new(127, 500_000_000).map_err(|_| "FRAME_OVERFLOW")?,
         origin_m: [Rational::integer(0); 2],
         orientation: Orientation::Orthogonal {
             turn: QuarterTurn::Zero,
@@ -293,7 +355,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                     ticks: s.b,
                 },
             ],
-            width_m: Rational::new(i128::from(s.width_ticks) * 127, 5_000_000)
+            width_m: Rational::new(i128::from(s.width_ticks) * 127, 500_000_000)
                 .map_err(|_| "WIDTH_OVERFLOW")?,
         });
     }
@@ -311,8 +373,9 @@ mod tests {
     fn parses_exact_partial_artwork_with_canonical_links() {
         let parsed = parse(SAMPLE.as_bytes()).unwrap();
         assert_eq!(parsed.segments.len(), 2);
-        assert_eq!(parsed.segments[0].a, [100, 200]);
+        assert_eq!(parsed.segments[0].a, [10_000, 20_000]);
         assert_eq!(mul_nm(parsed.segments[0].width_ticks).unwrap(), 254_000);
+        assert_eq!(parsed.segments[0].width_ticks, 1000);
         let model = into_canonical(SAMPLE.as_bytes(), &parsed).unwrap();
         assert_eq!(model.traces.len(), 2);
         assert_eq!(model.stackup.layers.len(), 4);
@@ -354,4 +417,60 @@ mod tests {
             "NO_SUPPORTED_TRACES"
         );
     }
+    #[test]
+    fn parses_annotated_controls_remarks_and_exact_signed_decimal_values() {
+        let sample = SAMPLE.replace("*PCB*", "*PCB* GENERAL PARAMETERS OF THE PCB DESIGN")
+            .replace("*ROUTE*", "*ROUTE* ROUTE DEFINITIONS")
+            .replace("MAXLAYER 4", "*REMARK* comment in PCB\\nMAXLAYER 4")
+            .replace("*SIGNAL* NET_A", "*REMARK* comment in route\\n*SIGNAL* NET_A")
+            .replace("100 200 1 10 0", "-100.25 200.01 1 10.50 0")
+            .replace("300 200 1 10 0", "300.75 200.01 1 10.50 0")
+            .replace("300 400 1 10 0", "300.75 400.50 1 10.50 0");
+        let art = parse(sample.as_bytes()).unwrap();
+        assert_eq!(art.segments.len(), 2);
+        assert_eq!(art.segments[0].a, [-10_025, 20_001]);
+        assert_eq!(art.segments[0].b, [30_075, 20_001]);
+        assert_eq!(art.segments[0].width_ticks, 1050);
+        assert_eq!(mul_nm(art.segments[0].a[0]).unwrap(), -2_546_350);
+        let board = into_canonical(sample.as_bytes(), &art).unwrap();
+        assert!(!board.validate().has_errors());
+        assert_eq!(board.frames[0].metres_per_tick, Rational::new(127, 500_000_000).unwrap());
+        assert_eq!(board.traces.len(), 2);
+    }
+    #[test]
+    fn fail_closed_on_decimal_precision_and_missing_or_corrupt_pin_pair() {
+        let bad_precision = SAMPLE.replace("300 200 1 10 0", "300.001 200 1 10 0");
+        assert_eq!(parse(bad_precision.as_bytes()).unwrap_err(), "UNSUPPORTED_PRECISION");
+        let no_pair = SAMPLE.replace("U1.1 U2.2 R 0 0\\n", "");
+        assert_eq!(parse(no_pair.as_bytes()).unwrap_err(), "MISSING_PIN_PAIR");
+        let bad_pair = SAMPLE.replace("U1.1 U2.2 R 0 0", "U1.1 GARBAGE R 0 0");
+        assert_eq!(parse(bad_pair.as_bytes()).unwrap_err(), "INVALID_PIN_PAIR_OR_ROUTE_RECORD");
+        let over = SAMPLE.replace("300 200 1 10 0", "92233720368547758.08 200 1 10 0");
+        assert_eq!(parse(over.as_bytes()).unwrap_err(), "COORDINATE_OVERFLOW");
+    }
+    #[test]
+    fn miter_arc_and_extensions_never_invent_chords() {
+        for replacement in ["300 200 1 10 24576", "300 200 1 10 28672 CW",
+                            "300 200 1 10 0 STANDARDVIA", "300 200 1 10 0 TEARDROP P 80 80"] {
+            let candidate = SAMPLE.replace("300 200 1 10 0", replacement);
+            assert_eq!(parse(candidate.as_bytes()).unwrap_err(), "NO_SUPPORTED_TRACES");
+        }
+        let candidate = SAMPLE.replace("300 200 1 10 0", "300 200 1 10 24576")
+            .replace("300 400 1 10 0", "300 400 1 10 0\\n400 400 1 10 0");
+        let art = parse(candidate.as_bytes()).unwrap();
+        assert_eq!(art.skipped, 1);
+        assert_eq!(art.segments.len(), 1);
+        assert_eq!(art.segments[0].a, [30_000, 40_000]);
+        assert_eq!(art.segments[0].b, [40_000, 40_000]);
+    }
+    #[test]
+    fn pair_and_signal_boundaries_do_not_connect_unrelated_routes() {
+        let candidate = SAMPLE.replace("300 400 1 10 0", "300 400 1 10 0\\nU2.2 U3.3 P 0 0\\n400 400 1 10 0\\n500 400 1 10 0\\n*SIGNAL* NET_B\\nU4.1 U5.2 R 0 0\\n600 400 2 10 0\\n700 400 2 10 0");
+        let art = parse(candidate.as_bytes()).unwrap();
+        assert_eq!(art.segments.len(), 4);
+        assert_eq!(art.segments[2].net, "NET_A");
+        assert_eq!(art.segments[3].net, "NET_B");
+        assert_eq!(art.segments[3].layer, 2);
+    }
+
 }
