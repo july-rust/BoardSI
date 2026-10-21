@@ -26,6 +26,7 @@ class PreviewImportPanel final : public QWidget {
     QProcess process_;
     QTimer deadline_;
     QByteArray data_;
+    QByteArray errors_; // Small bounded diagnostic (fixed importer error codes only).
     QString binary_;
     QString status_ = "NOT IMPORTED / SI NOT_RUN";
     std::function<void(const QString &)> callback_;
@@ -123,8 +124,11 @@ public:
         process_.setProcessChannelMode(QProcess::SeparateChannels);
         process_.setReadChannel(QProcess::StandardOutput);
         connect(&process_, &QProcess::readyReadStandardOutput, this, [this] { collect(); });
-        connect(&process_, &QProcess::readyReadStandardError, this,
-                [this] { process_.readAllStandardError(); });
+        connect(&process_, &QProcess::readyReadStandardError, this, [this] {
+            const qint64 budget = 256 - errors_.size();
+            if (budget > 0) errors_.append(process_.read(qMin<qint64>(budget, 256)));
+            process_.readAllStandardError();
+        });
         connect(&process_, &QProcess::finished, this,
                 [this](int code, QProcess::ExitStatus exitStatus) {
             deadline_.stop();
@@ -133,8 +137,29 @@ public:
                 status("CANCELLED / no new board imported / SI NOT_RUN");
                 return;
             }
-            if (expired_ || overflow_ || code != 0 || exitStatus != QProcess::NormalExit) {
-                status("FAILED / invalid, unsupported, timeout or excessive output / NOTHING IMPORTED");
+            if (expired_ || overflow_) {
+                status("FAILED / local import timeout or excessive output / NOTHING IMPORTED");
+                return;
+            }
+            if (code != 0 || exitStatus != QProcess::NormalExit) {
+                const QString diagnostic = QString::fromLatin1(errors_).trimmed();
+                const QString prefix = "P2A_IMPORT_ERROR:";
+                QString errorCode;
+                if (diagnostic.startsWith(prefix)) {
+                    errorCode = diagnostic.mid(prefix.size());
+                    if (errorCode.size() > 48) errorCode.clear();
+                    for (const QChar character : errorCode) {
+                        const ushort ch = character.unicode();
+                        if (!((ch >= 'A' && ch <= 'Z') ||
+                              (ch >= '0' && ch <= '9') || ch == '_')) {
+                            errorCode.clear();
+                            break;
+                        }
+                    }
+                }
+                status(errorCode.isEmpty()
+                    ? QString("FAILED / invalid or unsupported local import / NOTHING IMPORTED")
+                    : QString("FAILED / %1 / NOTHING IMPORTED").arg(errorCode));
                 return;
             }
             int layers = 0, skipped = 0;
@@ -174,6 +199,7 @@ public:
             return false;
         }
         data_.clear();
+        errors_.clear();
         expired_ = false;
         overflow_ = false;
         cancelled_ = false;
