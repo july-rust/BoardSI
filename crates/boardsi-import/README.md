@@ -60,3 +60,12 @@ NOT_VERIFIED until an independent real-export fixture is checked.
   range 1–64, including routes on copper layer 64; layer 65 remains a pin
   termination marker, not a copper layer. The Qt decoder and viewer accept
   the same 1–64 copper-layer range.
+
+- The V9.4 MILS header may omit an encoding suffix (default CP1252) or explicitly
+  declare `-CP1252`; optional `-250L` is also recognized. The restricted
+  route importer does **not** decode all PADS code pages or accept every V9.4
+  object. CP1252 high bytes in unsupported/ignored sections and comments do not
+  invalidate supported ASCII straight ROUTE geometry. **Only ASCII route pin,
+  net, and coordinate records are accepted**; non-ASCII active ROUTE data is
+  rejected with `NON_ASCII_ROUTE_UNSUPPORTED`. Headers declaring CP932 or other
+  code pages are rejected. This is not general CP1252 artwork/net support.
