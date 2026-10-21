@@ -10,6 +10,8 @@ pub const MAX_FILE_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_SEGMENTS: usize = 10_000;
 // One canonical tick is 0.01 mil = exactly 254 nm.
 const NM_PER_TICK: i64 = 254;
+// PADS 9.4 MILS source-domain limit is +/-56,000 mil (exactly +/-5,600,000 ticks).
+const MAX_COORD_TICKS: i64 = 5_600_000;
 const SUPPORTED_STRAIGHT_FLAGS: i64 = 0x0080 | 0x0200 | 0x0400;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -226,6 +228,11 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         let layer = parse_i64(fields[2])?;
         let width = parse_fixed(fields[3])?;
         let flag = parse_i64(fields[4])?;
+        if !(-MAX_COORD_TICKS..=MAX_COORD_TICKS).contains(&x)
+            || !(-MAX_COORD_TICKS..=MAX_COORD_TICKS).contains(&y)
+        {
+            return Err("COORDINATE_OUT_OF_RANGE");
+        }
         if width <= 0 || !(0..=32767).contains(&flag) {
             return Err("INVALID_ROUTE_FIELD");
         }
@@ -516,6 +523,21 @@ mod tests {
         assert_eq!(art.segments.len(), 1);
         assert_eq!(art.segments[0].a, [30_000, 40_000]);
         assert_eq!(art.segments[0].b, [40_000, 40_000]);
+    }
+    #[test]
+    fn enforces_v94_mils_coordinate_domain_without_rounding() {
+        let high = SAMPLE.replace("100 200 1 10 0", "56000.01 200 1 10 0");
+        assert_eq!(
+            parse(high.as_bytes()).unwrap_err(),
+            "COORDINATE_OUT_OF_RANGE"
+        );
+        let low = SAMPLE.replace("100 200 1 10 0", "-56000.01 200 1 10 0");
+        assert_eq!(
+            parse(low.as_bytes()).unwrap_err(),
+            "COORDINATE_OUT_OF_RANGE"
+        );
+        let boundary = SAMPLE.replace("100 200 1 10 0", "56000 -56000 1 10 0");
+        assert_eq!(parse(boundary.as_bytes()).unwrap().segments.len(), 2);
     }
     #[test]
     fn standard_two_field_pin_pair_is_accepted_without_invented_metadata() {
