@@ -107,7 +107,7 @@ public:
         detailsCallback_ = std::move(callback);
     }
     bool load(int layerCount, int skipped, const std::vector<ImportedTrack> &input) {
-        if (layerCount < 2 || layerCount > 32 || input.empty() || input.size() > 10000) return false;
+        if (layerCount < 1 || layerCount > 64 || input.empty() || input.size() > 10000) return false;
         // Keep the old artwork untouched if a candidate fails validation.
         for (const auto &t : input) {
             if (t.layer <= 0 || t.layer > layerCount || t.width_nm <= 0 ||
