@@ -18,3 +18,25 @@ References:
 - [KiCad header discriminator](https://docs.kicad.org/doxygen/pads__common_8cpp_source.html)
 
 Roadmap trace: [Issue #8](https://github.com/july-rust/BoardSI/issues/8) (format detection) and [Issue #9](https://github.com/july-rust/BoardSI/issues/9) (future real PADS importer). Product acceptance tests T01/T02/T03/T16/T17/T20/T22 remain NOT_RUN: the new unit tests are limited parser-preflight evidence, **not** the M1 import acceptance gate. No SI accuracy, provenance transformation or redistribution claim.
+
+
+## P2-A (restricted, experimental)
+The developer Preview has an **offline straight-segment-only** parser for
+PADS POWERPCB V9.4-MILS ROUTE entries. This is NOT full PADS support.
+Reference: PADS Layout ASCII Format Specification 9.4, pp. 51-55;
+KiCad developer documentation on PADS units/ROUTE.
+
+Build: cargo build --locked -p boardsi-import --bin boardsi-import-artwork
+Usage: boardsi-import-artwork PRIVATE_LOCAL_FILE.asc
+Output contains an explicit BOARDSI_P2A_PARTIAL_V1 magic and SI_NOT_RUN.
+It is for local Qt IPC only; **do not upload your PCB**. Only segments
+between two consecutive supported coordinate records (identical layer and
+width, no arc/via/teardrop extension) are represented. Components, padstacks,
+vias, pours, net connectivity, reference planes, board outline and stackup
+are MISSING. Layer names are generic until verified layer-definition
+import exists. The Canonical Model records Source SHA-256 and exact MILS
+coordinate ticks and produces a PARTIAL/MISSING capability report; it is
+not SI-ready. Input cap: 8 MiB; line cap 16 KiB; segment cap 10,000.
+Only publicly safe synthetic fixtures are exercised in automated tests.
+Real PADS V9.4 ASCII exports and external reference comparison remain
+NOT_VERIFIED until an independent real-export fixture is checked.
