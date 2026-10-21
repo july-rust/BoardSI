@@ -69,3 +69,21 @@ NOT_VERIFIED until an independent real-export fixture is checked.
   net, and coordinate records are accepted**; non-ASCII active ROUTE data is
   rejected with `NON_ASCII_ROUTE_UNSUPPORTED`. Headers declaring CP932 or other
   code pages are rejected. This is not general CP1252 artwork/net support.
+
+### A_007 spec-alignment correction (PADS V9.4, ROUTE p. 52)
+
+The original Preview synthetic route fixture mistakenly used a five-token
+Connection-style pin pair (`REF.PIN REF.PIN R 0 0`). In the official PADS 9.4
+Layout ASCII **ROUTE** grammar the pin pair is exactly **two** tokens:
+`REF.PIN REF.PIN`. The Preview parser and public fixture now enforce that
+distinction. Five-token reuse/connection records in the ROUTE section fail
+closed with `INVALID_PIN_PAIR_OR_ROUTE_RECORD`; they are never converted to
+copper traces. Optional SIGNAL metadata remains accepted.
+
+This is a spec-based synthetic regression, **not** an independent vendor-
+exported board comparison. Proprietary PCB data remain excluded from GitHub.
+The local UI continues to report PARTIAL and SI_NOT_RUN. Native desktop GUI
+smoke does not qualify a self-contained, redistributable Qt package.
+
+Reference: [PADS Layout ASCII Format Specification 9.4, ROUTE Definition pp. 51–52]
+(https://www.freecalypso.org/pub/CAD/PADS/pdfdocs/Ppcb_ASCII.pdf).

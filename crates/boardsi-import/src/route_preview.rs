@@ -91,16 +91,11 @@ fn pin_token(value: &str) -> bool {
         && pin.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
 }
 fn pin_pair(fields: &[&str]) -> bool {
-    // Standard ROUTE grammar also permits the exact two-field pin pair.
-    if fields.len() == 2 {
-        return pin_token(fields[0]) && pin_token(fields[1]);
-    }
-    fields.len() == 5
-        && pin_token(fields[0])
-        && pin_token(fields[1])
-        && matches!(fields[2], "R" | "P" | "U")
-        && fields[3].parse::<i64>().is_ok()
-        && fields[4].parse::<i64>().is_ok()
+    // PADS 9.4 Layout ASCII spec, ROUTE Definition (p. 52): the ROUTE
+    // pin-pair record has EXACTLY two REF.PIN tokens. The 5-field reuse
+    // metadata grammar belongs to the separate Connection section and must
+    // not accidentally qualify malformed ROUTE records as copper paths.
+    fields.len() == 2 && pin_token(fields[0]) && pin_token(fields[1])
 }
 fn mul_nm(n: i64) -> Result<i64, &'static str> {
     n.checked_mul(NM_PER_TICK).ok_or("COORDINATE_OVERFLOW")
@@ -428,7 +423,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
 #[cfg(test)]
 mod tests {
     use super::*;
-    const SAMPLE: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2 R 0 0\n100 200 1 10 0\n300 200 1 10 0\n300 400 1 10 0\n*END*\n";
+    const SAMPLE: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0\n300 400 1 10 0\n*END*\n";
     #[test]
     fn parses_exact_partial_artwork_with_canonical_links() {
         let parsed = parse(SAMPLE.as_bytes()).unwrap();
@@ -511,9 +506,9 @@ mod tests {
             parse(bad_precision.as_bytes()).unwrap_err(),
             "UNSUPPORTED_PRECISION"
         );
-        let no_pair = SAMPLE.replace("U1.1 U2.2 R 0 0\n", "");
+        let no_pair = SAMPLE.replace("U1.1 U2.2\n", "");
         assert_eq!(parse(no_pair.as_bytes()).unwrap_err(), "MISSING_PIN_PAIR");
-        let bad_pair = SAMPLE.replace("U1.1 U2.2 R 0 0", "U1.1 GARBAGE R 0 0");
+        let bad_pair = SAMPLE.replace("U1.1 U2.2", "U1.1 GARBAGE R 0 0");
         assert_eq!(
             parse(bad_pair.as_bytes()).unwrap_err(),
             "INVALID_PIN_PAIR_OR_ROUTE_RECORD"
@@ -650,15 +645,25 @@ mod tests {
         assert_eq!(parse(&geometry).unwrap_err(), "NON_ASCII_ROUTE_UNSUPPORTED");
     }
     #[test]
-    fn standard_two_field_pin_pair_is_accepted_without_invented_metadata() {
-        let sample = SAMPLE.replace("U1.1 U2.2 R 0 0", "U1.1 U2.2");
-        let art = parse(sample.as_bytes()).unwrap();
+    fn official_two_field_route_pin_pair_is_required() {
+        let art = parse(SAMPLE.as_bytes()).unwrap();
         assert_eq!(art.segments.len(), 2);
         assert_eq!(art.segments[0].net, "NET_A");
+        // Connection-section reuse suffixes do not belong in ROUTE entries.
+        // Previously, these were accepted by the synthetic-only importer.
+        for suffix in [" R 0 0", " P 0 0", " U 0 0"] {
+            let candidate = SAMPLE.replace("U1.1 U2.2", &format!("U1.1 U2.2{suffix}"));
+            assert_eq!(
+                parse(candidate.as_bytes()).unwrap_err(),
+                "INVALID_PIN_PAIR_OR_ROUTE_RECORD"
+            );
+        }
+        let annotated_signal = SAMPLE.replace("*SIGNAL* NET_A", "*SIGNAL* NET_A 1024 0");
+        assert_eq!(parse(annotated_signal.as_bytes()).unwrap().segments.len(), 2);
     }
     #[test]
     fn pair_and_signal_boundaries_do_not_connect_unrelated_routes() {
-        let candidate = SAMPLE.replace("300 400 1 10 0", "300 400 1 10 0\nU2.2 U3.3 P 0 0\n400 400 1 10 0\n500 400 1 10 0\n*SIGNAL* NET_B\nU4.1 U5.2 R 0 0\n600 400 2 10 0\n700 400 2 10 0");
+        let candidate = SAMPLE.replace("300 400 1 10 0", "300 400 1 10 0\nU2.2 U3.3\n400 400 1 10 0\n500 400 1 10 0\n*SIGNAL* NET_B\nU4.1 U5.2\n600 400 2 10 0\n700 400 2 10 0");
         let art = parse(candidate.as_bytes()).unwrap();
         assert_eq!(art.segments.len(), 4);
         assert_eq!(art.segments[2].net, "NET_A");
