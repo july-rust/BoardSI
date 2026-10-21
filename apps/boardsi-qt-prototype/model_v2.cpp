@@ -127,6 +127,8 @@ class ModelHandoffWindow : public QWidget {
         }
     }
 public:
+    QPushButton *runButton() const { return launch; }
+    QLabel *statusLabel() const { return status; }
     ModelHandoffWindow(QString worker, ModelFrame first, ModelFrame second, bool testing)
         : executable(std::move(worker)), a(std::move(first)), b(std::move(second)), selftest(testing) {
         auto *layout = new QVBoxLayout(this);
@@ -210,6 +212,7 @@ public:
         if (selftest) QTimer::singleShot(0, this, [this] { startStage(0); });
     }
 };
+#ifndef BOARDSI_MODEL_V2_NO_MAIN
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     QString executable, firstPath, secondPath;
@@ -234,3 +237,5 @@ int main(int argc, char **argv) {
     window.show();
     return app.exec();
 }
+
+#endif // BOARDSI_MODEL_V2_NO_MAIN
