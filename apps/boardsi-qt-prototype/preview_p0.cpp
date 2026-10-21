@@ -48,6 +48,8 @@ class PreviewWindow : public QMainWindow {
     QString previousError;
     QString previousIdentity;
     QString chosenFile;
+    QString syntheticDetails;
+    QString importedDetails;
 
     static QWidget *unsupportedTab(const QString &message, QWidget *parent) {
         auto *page = new QWidget(parent);
@@ -57,6 +59,31 @@ class PreviewWindow : public QMainWindow {
         label->setAlignment(Qt::AlignCenter);
         layout->addWidget(label);
         return page;
+    }
+
+    // Properties always describe the visible artwork tab, not the other source.
+    void refreshProperties() {
+        if (!importUI || !properties) return;
+        if (!importUI->showingImported()) {
+            properties->setText(
+                "Source: SYNTHETIC FIXTURE ONLY / NOT IMPORTED\n" +
+                (syntheticDetails.isEmpty() ? QString("Illustrative PCB artwork only") : syntheticDetails) +
+                "\nPhysical SI: NOT_RUN");
+            return;
+        }
+        const QString candidate = chosenFile.isEmpty() ? QString("No PCB candidate selected") :
+                                  QString("PCB candidate: ") + chosenFile;
+        const bool loaded = importResultStatus.startsWith("PARTIAL") &&
+                            importUI->imported()->segmentCount() > 0;
+        if (!loaded) {
+            properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
+                                candidate + "\nImport status: " + importResultStatus +
+                                "\nStackup, connectivity and SI: NOT_RUN");
+            return;
+        }
+        properties->setText("Source: IMPORTED PARTIAL / PADS V9.4 MILS\n" +
+                            candidate + "\n" + importedDetails +
+                            "\nStackup, connectivity and SI: NOT_RUN");
     }
 
     void refresh() {
@@ -198,23 +225,19 @@ public:
         importUI->setStatusCallback([this](const QString &state) {
             importResultStatus = state;
             log->appendPlainText("PCB Import: " + state);
-            if (state.startsWith("PARTIAL")) {
-                properties->setText(
-                    "Imported straight segments only; Canonical partial model.\n" + state +
-                    "\nStackup, connectivity and SI: NOT_RUN");
-            } else if (state.startsWith("FAILED") || state.startsWith("CANCELLED") ||
-                       state.startsWith("RUNNING")) {
-                properties->setText("PCB: NOT IMPORTED\n" + state +
-                                    "\nStackup, connectivity and SI: NOT_RUN");
-            }
+            refreshProperties();
         });
         artwork->setDetailsCallback([this](const QString &details) {
-            const QString validity = importResultStatus.startsWith("PARTIAL") ?
-                " (PARTIAL STRAIGHT-ROUTE IMPORT)" : " (NOT IMPORTED)";
-            properties->setText(details +
-                (chosenFile.isEmpty() ? QString() :
-                 "\nSelected file: " + chosenFile + validity));
+            syntheticDetails = details;
+            if (!importUI->showingImported()) refreshProperties();
         });
+        importUI->imported()->setDetailsCallback([this](const QString &details) {
+            importedDetails = details;
+            if (importUI->showingImported()) refreshProperties();
+        });
+        connect(importUI->artworkTabs(), &QTabWidget::currentChanged, this,
+                [this](int) { refreshProperties(); });
+        refreshProperties();
 
         ModelFrame a, b;
         if (readModelFrame(firstFrame, a) && readModelFrame(secondFrame, b) &&
@@ -253,15 +276,7 @@ public:
                 this, "Open local PADS V9.4-MILS file - partial artwork only", QString(),
                 "PCB candidate (*.asc *.ASC);;All files (*)");
             if (file.isEmpty()) return;
-            // Never replace the displayed source filename while another import
-            // is still in progress: it would mislabel the active artwork.
-            if (importUI->busy()) {
-                log->appendPlainText("Open PCB: import already running; active filename retained.");
-                return;
-            }
-            chosenFile = QFileInfo(file).fileName();
-            if (!importUI->openPath(file))
-                log->appendPlainText("Open PCB: unsupported PADS source or local executable unavailable.");
+            openCandidate(file);
         });
         auto *poll = new QTimer(this);
         poll->setInterval(100);
@@ -271,6 +286,20 @@ public:
         resize(1240, 780);
     }
 
+    // Production Open PCB and smoke checks share the same provenance path.
+    bool openCandidate(const QString &file) {
+        if (importUI->busy()) {
+            log->appendPlainText("Open PCB: import already running; active filename retained.");
+            return false;
+        }
+        chosenFile = QFileInfo(file).fileName();
+        const bool started = importUI->openPath(file);
+        if (!started)
+            log->appendPlainText("Open PCB: unsupported PADS source or local executable unavailable.");
+        refreshProperties();
+        return started;
+    }
+    QString displayedProperties() const { return properties->text(); }
     Window *workerControls() const { return ipc; }
     ModelHandoffWindow *modelIdentity() const { return identity; }
     QAction *runControl() const { return runAction; }
@@ -360,7 +389,7 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 stopWith("P1 fixture reset / provenance label failed"); return;
             }
             if (testImport) {
-                if (!window.importPanel()->openPath(fixture)) {
+                if (!window.openCandidate(fixture)) {
                     stopWith("P2-A local importer did not start"); return;
                 }
                 phase = 6; return;
@@ -369,6 +398,11 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         }
         if (phase == 6 && window.importPanel()->importStatus().startsWith("PARTIAL")) {
             auto *panel = window.importPanel()->imported();
+            if (!window.importPanel()->showingImported() ||
+                !window.displayedProperties().contains("Source: IMPORTED PARTIAL") ||
+                !window.displayedProperties().contains(QFileInfo(fixture).fileName())) {
+                stopWith("P2-A imported tab Properties/provenance not synchronized"); return;
+            }
             auto *scene = panel->findChild<QGraphicsScene *>();
             if (!scene || scene->items().size() != 3 || panel->segmentCount() != 3 ||
                 panel->visibleSegments() != 3) {
@@ -402,8 +436,21 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                     return;
                 }
             }
-            if (!panel->selectNet("NET_A")) {
-                stopWith("P2-A net selection unavailable"); return;
+            if (!panel->selectNet("NET_A") ||
+                !window.displayedProperties().contains("Selected net: NET_A")) {
+                stopWith("P2-A net selection/Properties callback unavailable"); return;
+            }
+            window.importPanel()->artworkTabs()->setCurrentIndex(0);
+            if (!window.artworkPanel()->selectNet("DATA_P0") ||
+                !window.displayedProperties().contains("Source: SYNTHETIC") ||
+                window.displayedProperties().contains("PCB candidate:") ||
+                window.displayedProperties().contains("Source: IMPORTED PARTIAL")) {
+                stopWith("P2-A synthetic Properties leaked imported provenance"); return;
+            }
+            window.importPanel()->artworkTabs()->setCurrentIndex(1);
+            if (!window.displayedProperties().contains("Source: IMPORTED PARTIAL") ||
+                !window.displayedProperties().contains("Selected net: NET_A")) {
+                stopWith("P2-A imported Properties not restored after tab switch"); return;
             }
             for (QGraphicsItem *item : scene->items()) {
                 if (item->data(0).toString() == "NET_B" && !near(item->opacity(), 0.12)) {
@@ -438,12 +485,14 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             importedGeometryVerified = true;
             // Regression: a failed replacement must not retain the previous board
             // under the misleading "NOTHING IMPORTED" status.
-            if (window.importPanel()->openPath(fixture + ".missing-board") ||
+            if (window.openCandidate(fixture + ".missing-board") ||
                 panel->segmentCount() != 0 || panel->visibleSegments() != 0 ||
-                !window.importPanel()->importStatus().startsWith("FAILED")) {
+                !window.importPanel()->importStatus().startsWith("FAILED") ||
+                !window.displayedProperties().contains("NOTHING IMPORTED") ||
+                window.displayedProperties().contains("Source: IMPORTED PARTIAL")) {
                 stopWith("P2-A stale geometry survived a failed import"); return;
             }
-            if (!window.importPanel()->openPath(fixture)) {
+            if (!window.openCandidate(fixture)) {
                 stopWith("P2-A re-import failed to start after a rejected file"); return;
             }
             phase = 7; return;
@@ -452,7 +501,9 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             stopWith("P2-A initial parser returned failure"); return;
         }
         if (phase == 7 && window.importPanel()->importStatus().startsWith("PARTIAL")) {
-            if (window.importPanel()->imported()->segmentCount() != 3) {
+            if (window.importPanel()->imported()->segmentCount() != 3 ||
+                !window.displayedProperties().contains("Source: IMPORTED PARTIAL") ||
+                !window.displayedProperties().contains(QFileInfo(fixture).fileName())) {
                 stopWith("P2-A re-import after failure has incorrect geometry"); return;
             }
             window.runControl()->trigger(); phase = 1; return;
@@ -506,6 +557,7 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         {"p1_synthetic_artwork", phase >= 1},
         {"p2a_imported_artwork", testImport && rc == 0 && phase == 5},
         {"p2a_geometry_mm_width_y_net_verified", importedGeometryVerified},
+        {"p2a_properties_source_isolation_verified", testImport && importedGeometryVerified && rc == 0 && phase == 5},
         {"p1_scope", "synthetic illustrative geometry only; no PCB file imported"}
     };
     QFile evidence("qt-preview-p0-results.json");
