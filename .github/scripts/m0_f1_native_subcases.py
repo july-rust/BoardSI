@@ -218,6 +218,7 @@ def cli() -> int:
         "github_source_sha": os.environ.get("BOARDSI_SOURCE_HEAD_SHA", "NOT_GITHUB"),
         "checkout_sha": "NOT_VERIFIED",
         "source_identity_proof": "NOT_VERIFIED",
+        "native_qt_execution_outcome": os.environ.get("BOARDSI_NATIVE_QT_EXECUTION_OUTCOME", "NOT_VERIFIED"),
         "qt_input_sha256": "NOT_COMPUTED",
         "cases": [{
             "id": test_id,
@@ -246,6 +247,11 @@ def cli() -> int:
         # Native Qt checkout is explicitly pinned to the PR source SHA.
         # An Actions merge-ref checkout is a different commit and MUST fail.
         proof = attest_exact_source(sha, data["github_source_sha"])
+        # A PASS for the runtime harness alone cannot mask failure in the
+        # immediately following Qt-model -> real Rust Worker --selftest.
+        # This records FAIL_CLOSED even if the runtime metrics themselves PASS.
+        requirement(data["native_qt_execution_outcome"] == "success",
+                    "Native Qt backend or model-to-Worker selftest did not PASS")
         data.update(summary)
         data["source_identity_proof"] = proof
     except (OSError, UnicodeError, ValueError, RecursionError,
