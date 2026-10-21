@@ -60,6 +60,7 @@ class PreviewWindow : public QMainWindow {
     }
 
     void refresh() {
+        openAction->setEnabled(!importUI->busy());
         runAction->setEnabled(ipc->runButton()->isEnabled());
         stopAction->setEnabled(ipc->cancelButton()->isEnabled());
         overallProgress->setValue(ipc->progressBar()->value());
@@ -252,9 +253,15 @@ public:
                 this, "Open local PADS V9.4-MILS file - partial artwork only", QString(),
                 "PCB candidate (*.asc *.ASC);;All files (*)");
             if (file.isEmpty()) return;
+            // Never replace the displayed source filename while another import
+            // is still in progress: it would mislabel the active artwork.
+            if (importUI->busy()) {
+                log->appendPlainText("Open PCB: import already running; active filename retained.");
+                return;
+            }
             chosenFile = QFileInfo(file).fileName();
             if (!importUI->openPath(file))
-                log->appendPlainText("Open PCB: unsupported PADS source, importer busy or local executable unavailable.");
+                log->appendPlainText("Open PCB: unsupported PADS source or local executable unavailable.");
         });
         auto *poll = new QTimer(this);
         poll->setInterval(100);
