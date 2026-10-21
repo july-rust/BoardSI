@@ -62,10 +62,16 @@ class PreviewWindow : public QMainWindow {
         const QString status = ipc->statusLabel()->text();
         const QString error = ipc->errorLabel()->text();
         stateSummary->setText("SYNTHETIC / NOT PCB SI  |  " + status);
+        validation->setText(
+            (chosenFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
+                                    "PCB candidate: " + chosenFile + " (NOT IMPORTED)") +
+            "\nArtwork: NOT_RUN\nPhysical SI: NOT_RUN\nWorker: " + status +
+            (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
             "DEVELOPER PREVIEW P0  -  SYNTHETIC / NOT PCB SI\n\n"
             "Worker: independent Rust process\n" + status + "\n" +
             ipc->resultLabel()->text() +
+            (error.isEmpty() ? QString() : "\nERROR: " + error) +
             "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n"
             "No PCB import, artwork or impedance analysis has been performed.");
         if (status != previousStatus) {
@@ -255,7 +261,7 @@ public:
 protected:
     void closeEvent(QCloseEvent *event) override {
         // Preserve the existing nonblocking Worker close/kill discipline.
-        if (!ipc->close()) {
+        if ((identity && !identity->stopForPreviewClose()) || !ipc->close()) {
             event->ignore();
             QTimer::singleShot(200, this, [this] { if (isVisible()) close(); });
             return;
