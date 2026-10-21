@@ -544,10 +544,16 @@ mod tests {
         let art = parse(one_layer.as_bytes()).unwrap();
         assert_eq!(art.max_layer, 1);
         assert_eq!(art.segments.len(), 2);
-        assert!(!into_canonical(one_layer.as_bytes(), &art).unwrap().validate().has_errors());
+        assert!(!into_canonical(one_layer.as_bytes(), &art)
+            .unwrap()
+            .validate()
+            .has_errors());
 
         let invalid = SAMPLE.replace("MAXLAYER 4", "MAXIMUMLAYER 65");
-        assert_eq!(parse(invalid.as_bytes()).unwrap_err(), "UNSUPPORTED_LAYER_COUNT");
+        assert_eq!(
+            parse(invalid.as_bytes()).unwrap_err(),
+            "UNSUPPORTED_LAYER_COUNT"
+        );
     }
 
     #[test]
