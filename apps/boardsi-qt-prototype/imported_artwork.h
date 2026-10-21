@@ -41,10 +41,10 @@ class ImportedArtworkPanel final : public QWidget {
             if (shown) { ++visible; if (net != "All nets" && active) ++highlighted; }
         }
         const QString line = QString("IMPORTED PARTIAL / PADS V9.4 MILS / SI NOT_RUN\n"
-            "Segments: %1  Visible: %2  Highlighted: %3\n"
-            "Unsupported route records: %4\n"
+            "Selected net: %1\nSegments: %2  Visible: %3  Highlighted: %4\n"
+            "Unsupported route records: %5\n"
             "Pads, vias, pours, net connectivity, stackup: NOT IMPORTED")
-            .arg(static_cast<qlonglong>(tracks_.size())).arg(visible).arg(highlighted).arg(skipped_);
+            .arg(net).arg(static_cast<qlonglong>(tracks_.size())).arg(visible).arg(highlighted).arg(skipped_);
         summary_->setText(line);
         if (detailsCallback_) detailsCallback_(line);
     }
