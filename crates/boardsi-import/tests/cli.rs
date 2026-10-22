@@ -133,3 +133,30 @@ fn v1_transport_remains_unchanged_when_unsupported_parts_emit_no_pads() {
     assert!(!message.contains("\nP|"));
     assert!(message.ends_with("END|3|0|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
 }
+
+#[test]
+fn p2e_cli_bottom_mirror_top_mixed_explicit_side_and_no_net() {
+    let bin = env!("CARGO_BIN_EXE_boardsi-import-artwork");
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pads_bottom_mirror_v94.asc");
+    let output = Command::new(bin).arg(&fixture).output().expect("P2E CLI");
+    assert!(output.status.success(), "{:?}", String::from_utf8_lossy(&output.stderr));
+    let msg = String::from_utf8(output.stdout).unwrap();
+    assert!(msg.starts_with("BOARDSI_P2E_PARTIAL_V4|V9.4-MILS|4\\n"));
+    let pads: Vec<_> = msg.lines().filter(|s| s.starts_with("P|")).collect();
+    assert_eq!(pads.len(), 10);
+    let expected = [
+        "P|U0|1|4|RF|5080000|7620000|2032000|762000|NET_UNVERIFIED|B|0",
+        "P|U0|2|4|RF|2540000|7620000|762000|2032000|NET_UNVERIFIED|B|0",
+        "P|U1|1|4|RF|10160000|7620000|762000|2032000|NET_UNVERIFIED|B|90",
+        "P|U1|2|4|RF|10160000|10160000|2032000|762000|NET_UNVERIFIED|B|90",
+        "P|U2|1|4|RF|15240000|7620000|2032000|762000|NET_UNVERIFIED|B|180",
+        "P|U2|2|4|RF|17780000|7620000|762000|2032000|NET_UNVERIFIED|B|180",
+        "P|U3|1|4|RF|20320000|7620000|762000|2032000|NET_UNVERIFIED|B|270",
+        "P|U3|2|4|RF|20320000|5080000|2032000|762000|NET_UNVERIFIED|B|270",
+        "P|U4|1|1|RF|25400000|7620000|2032000|762000|NET_UNVERIFIED|T|0",
+        "P|U4|2|1|RF|27940000|7620000|762000|2032000|NET_UNVERIFIED|T|0",
+    ];
+    for want in expected { assert!(pads.contains(&want), "missing {want}"); }
+    assert!(msg.ends_with("END|0|0|10|CANONICAL_PARTIAL|SI_NOT_RUN\\n"));
+}
