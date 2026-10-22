@@ -277,7 +277,7 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
         };
         // Do not mistake an alternate-footprint selection or mirrored bottom
         // placement for the verified primary unmirrored top case.
-        if !matches!(p[6], "0" | "N") || p[7] != "0" {
+        if !matches!(p[5], "G" | "U") || p[6] != "N" || p[7] != "0" {
             skipped += decal.terminals.len();
             continue;
         }
@@ -454,7 +454,7 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
 #[cfg(test)]
 mod tests {
     use super::*;
-    const SAMPLE: &str = "!PADS-POWERPCB-V9.4-MILS!\n*PARTDECAL*\nD2 I 1000 1000 0 2 1 0 0\nT0 0 0 0 1\nT100 0 0 0 2\nPAD 0 3\n-2 40 R 0\n-1 0 R 0\n0 0 R 0\n*PARTTYPE*\nTYPEA D2 UND 0 0 0 0\n*PART*\nU1 TYPEA 200 300 90 0 0 0\n*END*\n";
+    const SAMPLE: &str = "!PADS-POWERPCB-V9.4-MILS!\n*PARTDECAL*\nD2 I 1000 1000 0 2 1 0 0\nT0 0 0 0 1\nT100 0 0 0 2\nPAD 0 3\n-2 40 R 0\n-1 0 R 0\n0 0 R 0\n*PARTTYPE*\nTYPEA D2 UND 0 0 0 0\n*PART*\nU1 TYPEA 200 300 90 U N 0\n*END*\n";
     #[test]
     fn import_exact_top_smd_positions_and_nonconnectivity() {
         let out = parse(SAMPLE.as_bytes(), 4);
@@ -472,7 +472,7 @@ mod tests {
                 .pads
                 .is_empty()
         );
-        assert!(parse(SAMPLE.replace("90 0 0 0", "90 0 1 0").as_bytes(), 4)
+        assert!(parse(SAMPLE.replace("90 U N 0", "90 U M 0").as_bytes(), 4)
             .pads
             .is_empty());
         assert!(
