@@ -26,7 +26,7 @@ struct ImportedPad {
     QString reference, pin, shape;
     int layer = 0;
     QString side = "T";
-    int rotation = 0;
+    int rotation = -1; // Legacy V2/V3 do not carry rotation; never invent zero.
     qint64 x_nm = 0, y_nm = 0, width_nm = 0, height_nm = 0;
 };
 
@@ -251,8 +251,9 @@ public:
             if ((pad.side != "T" && pad.side != "B") ||
                 (pad.side == "T" && pad.layer != 1) ||
                 (pad.side == "B" && (layerCount < 2 || pad.layer != layerCount)) ||
-                (pad.rotation != 0 && pad.rotation != 90 &&
+                (pad.rotation != -1 && pad.rotation != 0 && pad.rotation != 90 &&
                  pad.rotation != 180 && pad.rotation != 270) ||
+                (pad.side == "B" && pad.rotation == -1) ||
                 pad.reference.isEmpty() || pad.pin.isEmpty() ||
                 pad.width_nm <= 0 || pad.height_nm <= 0 ||
                 (pad.shape != "R" && pad.shape != "S" && pad.shape != "RF") ||
@@ -328,12 +329,14 @@ public:
                       box, QPen(color.darker(140), 0), QBrush(color)));
             item->setData(1, QString("Pad %1.%2 / layer %3 / %4 / %5 mm x %6 mm"
                                      " / centre (%7, %8) mm / net NOT_VERIFIED"
-                                     " / side %9 / rotation %10 deg / source PADS PART")
+                                     " / side %9 / rotation %10 / source PADS PART")
                                   .arg(pad.reference).arg(pad.pin).arg(pad.layer)
                                   .arg(pad.shape == "R" ? "round" : (pad.shape == "S" ? "square" : "rectangular RF"))
                                   .arg(width, 0, 'f', 6).arg(height, 0, 'f', 6)
                                   .arg(x, 0, 'f', 6).arg(-y, 0, 'f', 6)
-                                  .arg(pad.side == "B" ? "Bottom" : "Top").arg(pad.rotation));
+                                  .arg(pad.side == "B" ? "Bottom" : "Top")
+                                  .arg(pad.rotation < 0 ? QString("NOT_VERIFIED") :
+                                       QString("%1 deg").arg(pad.rotation)));
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             pads_.push_back({item, pad});
         }
