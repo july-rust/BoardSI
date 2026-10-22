@@ -160,3 +160,41 @@ connections or impedance/S-parameters; SI remains `NOT_RUN`.
 
 Specification: [PADS Layout ASCII Format Specification, PADS 9.4,
 Part Decal Definition, pages 36-37](https://www.freecalypso.org/pub/CAD/PADS/pdfdocs/Ppcb_ASCII.pdf).
+
+### A_013 P2-E restricted Bottom SMD / mirror preview
+
+PADS V9.4 `*PART*` explicit `M` (bottom) and `N` (top)
+placements are supported only for the already restricted drill-free
+round/square/RF rectangular decal cases, with primary decal (alternate 0),
+zero piece/text/label/cluster, and orthogonal 0/90/180/270 degree turns.
+No mirror interpretation is inferred for unsupported records.
+
+In the PADS top-view Cartesian frame, local terminal geometry is first rotated
+by the component turn, then mirrored about the component-origin vertical axis
+for bottom placement. Existing Source 0.01-MILS integer coordinates are
+preserved and mapped to the final declared copper layer. Canonical
+`Component.placement.bottom_side` and `mirror_x` record this restricted
+transform; `Pin.net` and `Pad.net` remain `None`.
+
+When any bottom pad is accepted, IPC
+`BOARDSI_P2E_PARTIAL_V4` emits `P|ref|pin|layer|shape|x_nm|y_nm|width_nm|height_nm|NET_UNVERIFIED|T_or_B|rotation_degrees`.
+Legacy V1/V2/V3 output is unchanged for corresponding top-only boards.
+Qt Artwork Viewer uses the fixed top-view projection on both sides, with
+separate Top/Bottom copper-layer visibility and selection details.
+
+Public synthetic asymmetric mixed fixture:
+`tests/fixtures/pads_bottom_mirror_v94.asc`. Rust CLI checks all ten exact
+positions, layers and dimensions, while Qt native `--bottom-selftest` checks
+ten rendered pads, selected Properties and independent Bottom-layer hiding.
+Linux CTest and native desktop Windows x64/ARM64/macOS ARM64 tests are part of
+the existing Qt workflow.
+
+**Limits:** This is experimental synthetic PADS V9.4 geometry preview only,
+not general production PADS compatibility. Real vendor-exporter cross-reference
+and independent CAD roundtrip remain **NOT_VERIFIED**; electrical connectivity
+is **NET_UNVERIFIED** and physical SI is **SI_NOT_RUN**.
+
+Source: PADS Layout ASCII Format Specification 9.4 Part List pp. 45-46;
+KiCad PADS importer footprint bottom-layer `Flip(... LEFT_RIGHT)`
+implementation. The KiCad reference does not constitute a formal vendor
+compatibility certification. Issues #9/#11 remain open.

@@ -758,7 +758,9 @@ static int runRectSmoke(PreviewWindow &window, const QString &fixture) {
                     for (QGraphicsItem *item : scene->items()) allShown &= item->isVisible();
                     visibility = allHidden && allShown;
                 }
-                passed = geometry && counts && selected && visibility;
+                const bool legacyRotationUnknown = panel->selectPad(2) &&
+                    window.displayedProperties().contains("rotation NOT_VERIFIED");
+                passed = geometry && counts && selected && visibility && legacyRotationUnknown;
                 if (!passed) failure = "RF geometry / pad-only Properties / layer visibility mismatch";
                 loop.quit();
             }
@@ -778,6 +780,106 @@ static int runRectSmoke(PreviewWindow &window, const QString &fixture) {
         {"scope", "public RF pad-only orthogonal 0/90 and part 0/90/180/270; SI NOT_RUN"}
     };
     QFile receipt("qt-preview-p2d-rect-results.json");
+    if (!receipt.open(QIODevice::WriteOnly) ||
+        receipt.write(QJsonDocument(report).toJson(QJsonDocument::Indented)) < 1) return 2;
+    qInfo().noquote() << QJsonDocument(report).toJson(QJsonDocument::Compact);
+    return passed ? 0 : 1;
+}
+
+
+static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
+    QElapsedTimer clock;
+    clock.start();
+    bool passed = false;
+    QString failure;
+    QEventLoop loop;
+    if (!window.openCandidate(fixture)) {
+        failure = "P2-E public bottom fixture unavailable";
+    } else {
+        QTimer tick;
+        QObject::connect(&tick, &QTimer::timeout, &loop, [&] {
+            const QString status = window.importPanel()->importStatus();
+            if (status.startsWith("FAILED") || status.startsWith("CANCELLED")) {
+                failure = "P2-E import failed: " + status;
+                loop.quit();
+            } else if (status.startsWith("PARTIAL")) {
+                auto *panel = window.importPanel()->imported();
+                auto *scene = panel->findChild<QGraphicsScene *>();
+                const auto near = [](qreal a, qreal b) { return qAbs(a - b) < 0.000001; };
+                struct Expected { const char *label; qreal x,y,w,h; int layer,rotation; };
+                // Independently expected PADS top-view geometry, in mm.
+                const Expected expected[] = {
+                    {"Pad U0.1", 5.08,-7.62,2.032,0.762,4,0},
+                    {"Pad U0.2", 2.54,-7.62,0.762,2.032,4,0},
+                    {"Pad U1.1",10.16,-7.62,0.762,2.032,4,90},
+                    {"Pad U1.2",10.16,-10.16,2.032,0.762,4,90},
+                    {"Pad U2.1",15.24,-7.62,2.032,0.762,4,180},
+                    {"Pad U2.2",17.78,-7.62,0.762,2.032,4,180},
+                    {"Pad U3.1",20.32,-7.62,0.762,2.032,4,270},
+                    {"Pad U3.2",20.32,-5.08,2.032,0.762,4,270},
+                    {"Pad U4.1",25.40,-7.62,2.032,0.762,1,0},
+                    {"Pad U4.2",27.94,-7.62,0.762,2.032,1,0}
+                };
+                bool geometry = scene && scene->items().size() == 10;
+                if (geometry) for (const auto &want : expected) {
+                    bool found = false;
+                    for (QGraphicsItem *item : scene->items()) {
+                        auto *rect = qgraphicsitem_cast<QGraphicsRectItem *>(item);
+                        if (!rect || !item->data(1).toString().contains(want.label)) continue;
+                        const QRectF r = rect->rect();
+                        const QString d = item->data(1).toString();
+                        if (near(r.center().x(),want.x) && near(r.center().y(),want.y) &&
+                            near(r.width(),want.w) && near(r.height(),want.h) &&
+                            d.contains(QString("layer %1").arg(want.layer)) &&
+                            d.contains(QString("rotation %1 deg").arg(want.rotation)) &&
+                            d.contains(want.layer == 4 ? "side Bottom" : "side Top") &&
+                            d.contains("net NOT_VERIFIED"))
+                            found = true;
+                    }
+                    if (!found) { geometry = false; break; }
+                }
+                const bool selected = panel->selectPad(1) &&
+                    window.displayedProperties().contains("Pad U0.2") &&
+                    window.displayedProperties().contains("side Bottom") &&
+                    window.displayedProperties().contains("Top SMD: 2  Bottom SMD: 8");
+                auto *layers = window.findChild<QComboBox *>("importedLayerSelect");
+                auto *toggle = window.findChild<QPushButton *>("importedLayerToggle");
+                bool visibility = false;
+                if (layers && toggle && scene) {
+                    const int index = layers->findData(4);
+                    if (index >= 0) {
+                        layers->setCurrentIndex(index);
+                        toggle->click();
+                        int count = 0;
+                        for (auto *item : scene->items()) if (item->isVisible()) ++count;
+                        const bool onlyTop = count == 2;
+                        toggle->click();
+                        count = 0;
+                        for (auto *item : scene->items()) if (item->isVisible()) ++count;
+                        visibility = onlyTop && count == 10;
+                    }
+                }
+                passed = geometry && selected && visibility && panel->padCount() == 10 &&
+                         panel->segmentCount() == 0 && panel->viaCount() == 0;
+                if (!passed) failure = "P2-E geometry/side/selection/visibility mismatch";
+                loop.quit();
+            }
+        });
+        QTimer::singleShot(15000, &loop, &QEventLoop::quit);
+        tick.start(20);
+        loop.exec();
+        tick.stop();
+        if (!passed && failure.isEmpty()) failure = "P2-E smoke timed out";
+    }
+    QJsonObject report{
+        {"schema", "boardsi-preview-p2e-bottom-smoke-v1"},
+        {"pass", passed}, {"failure", failure}, {"elapsed_ms", clock.elapsed()},
+        {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"native_backend", QGuiApplication::platformName()},
+        {"host_arch", QSysInfo::currentCpuArchitecture()},
+        {"scope", "PADS V9.4 synthetic top/bottom orthogonal SMD, SI NOT_RUN"}
+    };
+    QFile receipt("qt-preview-p2e-bottom-results.json");
     if (!receipt.open(QIODevice::WriteOnly) ||
         receipt.write(QJsonDocument(report).toJson(QJsonDocument::Indented)) < 1) return 2;
     qInfo().noquote() << QJsonDocument(report).toJson(QJsonDocument::Compact);
@@ -843,8 +945,9 @@ int main(int argc, char **argv) {
     const bool viaTesting = args.size() == 7 && args.at(1) == "--via-selftest";
     const bool padTesting = args.size() == 7 && args.at(1) == "--pad-selftest";
     const bool rectTesting = args.size() == 7 && args.at(1) == "--rect-selftest";
+    const bool bottomTesting = args.size() == 7 && args.at(1) == "--bottom-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
-                         viaTesting || padTesting || rectTesting;
+                         viaTesting || padTesting || rectTesting || bottomTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -867,7 +970,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return rectTesting ? runRectSmoke(window, fixture) :
+    return bottomTesting ? runBottomSmoke(window, fixture) :
+           rectTesting ? runRectSmoke(window, fixture) :
            padTesting ? runPadSmoke(window, fixture) :
            viaTesting ? runViaSmoke(window, fixture) :
            testing ? runPreviewSmoke(app, window, worker, fixture) : app.exec();
