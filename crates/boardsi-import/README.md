@@ -106,3 +106,28 @@ desktop Qt backend and uploads the same JSON result as the other Preview
 tests. This verifies the *development launch path*; it does not produce or
 authorize a portable redistribution package. Qt/LGPL and other bundled
 third-party licensing checks remain a separate BLOCKED/NOT_VERIFIED gate.
+
+### A_010 P2-B experimental via artwork (NOT FULL PADSTACK SUPPORT)
+This experimental branch additionally accepts **explicit named round through-vias**
+from the PADS 9.4 `*VIA*` section and the matching sixth `*ROUTE*` vertex token.
+The intentionally strict definition is `name drill 2` plus **top -2 and
+bottom 0**, each with equal `R` diameters exceeding the drill, or
+`name drill 3` with the same `R` diameter at -2, -1 and 0. Drill
+and diameter are exact 0.01-mil integer values (254 nm per tick).
+
+These are only **explicit circular pad/drill marks** and known full-span
+through-hole declarations; other padstack shapes, partial-layer via spans,
+slots, unusual per-layer pads, implicit/default vias, inferred routing,
+stitches, teardrops, thermal parameters, 3D plating and copper connectivity
+remain unsupported. Unknown/unaccepted named-route extensions reset route
+continuity, are counted as omitted, and **must not** be drawn as invented
+straight chords. Canonical `connected_layers` is deliberately empty;
+net names are labels, not independent evidence of electrical contact.
+Geometric import is always `PARTIAL` and physical SI is `NOT_RUN`.
+
+Public-only fixture: `tests/fixtures/pads_via_round_through_v94.asc`.
+It is exercised by Rust unit tests and native Qt `--via-selftest`,
+recorded in `qt-preview-p2b-via-results.json`. Actual manufacturer-exported
+PADS board fidelity remains `NOT_VERIFIED`. No company PCB is uploaded.
+PADS format source: https://www.freecalypso.org/pub/CAD/PADS/pdfdocs/Ppcb_ASCII.pdf
+(pp. 39-40, 51-52). Reference cross-check: https://dev-docs.kicad.org/en/import-formats/pads/index.html
