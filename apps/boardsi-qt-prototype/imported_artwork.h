@@ -43,8 +43,11 @@ class ImportedArtworkPanel final : public QWidget {
         int visible = 0;
         int highlighted = 0;
         QSet<int> layersWithTraces;
+        QSet<QString> netsWithTraces;
+        QSet<QString> netsWithVias;
         for (const auto &entry : tracks_) {
             layersWithTraces.insert(entry.second.layer);
+            netsWithTraces.insert(entry.second.net);
             const ImportedTrack &t = entry.second;
             const bool shown = t.layer > 0 && t.layer < layerVisible_.size() && layerVisible_[t.layer];
             entry.first->setVisible(shown);
@@ -56,6 +59,7 @@ class ImportedArtworkPanel final : public QWidget {
         int highlightedVias = 0;
         for (const auto &entry : vias_) {
             const ImportedVia &via = entry.second;
+            netsWithVias.insert(via.net);
             bool shown = false;
             for (int n = via.firstLayer; n <= via.lastLayer; ++n) {
                 if (n > 0 && n < layerVisible_.size() && layerVisible_[n]) {
@@ -81,9 +85,10 @@ class ImportedArtworkPanel final : public QWidget {
         QString line =
             QString("IMPORTED PARTIAL / PADS V9.4 MILS / SI NOT_RUN\n"
                     "Declared layers: %1  Layers with straight traces: %2\n"
-                    "Nets in accepted objects: %3\n")
+                    "Nets with straight traces: %3\n")
                 .arg(layerVisible_.size() - 1).arg(layersWithTraces.size())
-                .arg(nets_->count() - 1) +
+                .arg(netsWithTraces.size()) +
+            QString("Nets with explicit vias: %1\\n").arg(netsWithVias.size()) +
             QString("Selected layer: %1 (ID %2; %3)\nSelected net: %4\n")
                 .arg(selectedLayer).arg(layerId)
                 .arg(selectedVisible ? "visible" : "hidden/not loaded").arg(net) +
@@ -159,6 +164,12 @@ public:
             refresh();
         });
         setMinimumHeight(230);
+    }
+    ~ImportedArtworkPanel() override {
+        // Scene item destruction may emit selectionChanged. Disconnect first:
+        // other Qt child widgets can already be in their destruction sequence.
+        QObject::disconnect(scene_, nullptr, this, nullptr);
+        scene_->clearSelection();
     }
     void setDetailsCallback(std::function<void(const QString &)> callback) {
         detailsCallback_ = std::move(callback);
