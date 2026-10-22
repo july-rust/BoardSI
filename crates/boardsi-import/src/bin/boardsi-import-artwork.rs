@@ -100,11 +100,19 @@ fn run() -> Result<(), &'static str> {
             pad.reference,
             pad.pin,
             pad.layer,
-            if pad.rectangular { "RF" } else if pad.square { "S" } else { "R" },
+            if pad.rectangular {
+                "RF"
+            } else if pad.square {
+                "S"
+            } else {
+                "R"
+            },
             pad.point[0].checked_mul(NM).ok_or("PAD_COORD_OVERFLOW")?,
             pad.point[1].checked_mul(NM).ok_or("PAD_COORD_OVERFLOW")?,
             pad.width_ticks.checked_mul(NM).ok_or("PAD_SIZE_OVERFLOW")?,
-            pad.height_ticks.checked_mul(NM).ok_or("PAD_SIZE_OVERFLOW")?
+            pad.height_ticks
+                .checked_mul(NM)
+                .ok_or("PAD_SIZE_OVERFLOW")?
         )
         .map_err(|_| "FORMAT_ERROR")?;
     }
