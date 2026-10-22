@@ -57,7 +57,7 @@ class PreviewImportPanel final : public QWidget {
                        std::vector<ImportedVia> &vias) {
         if (bytes.size() > 2 * 1024 * 1024 || !bytes.endsWith('\n')) return false;
         const auto lines = QString::fromUtf8(bytes).split('\n', Qt::SkipEmptyParts);
-        if (lines.size() < 4 || lines.size() > 10070) return false;
+        if (lines.size() < 4 || lines.size() > 20070) return false;
         const auto header = lines.first().split('|');
         bool ok = false;
         if (header.size() != 3 || header[0] != "BOARDSI_P2A_PARTIAL_V1" ||
