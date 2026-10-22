@@ -627,7 +627,7 @@ static int runRendererSmoke(PreviewWindow &window) {
     QEventLoop loop;
     QTimer::singleShot(650, &loop, &QEventLoop::quit);
     loop.exec();
-    auto *canvas = window.findChild<SyntheticArtworkCanvas *>("syntheticCanvas");
+    auto *canvas = window.artworkPanel()->canvas();
     const bool validCanvas = canvas != nullptr;
     const QString status = validCanvas ? canvas->rendererStatus() : "MISSING_CANVAS";
     const QString requested = qEnvironmentVariable("BOARDSI_ARTWORK_RENDERER")
