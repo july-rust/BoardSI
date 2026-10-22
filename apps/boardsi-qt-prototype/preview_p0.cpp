@@ -625,10 +625,21 @@ static int runRendererSmoke(PreviewWindow &window) {
     QElapsedTimer clock;
     clock.start();
     QEventLoop loop;
-    QTimer::singleShot(650, &loop, &QEventLoop::quit);
-    loop.exec();
     auto *canvas = window.artworkPanel()->canvas();
     const bool validCanvas = canvas != nullptr;
+    QTimer monitor;
+    QObject::connect(&monitor, &QTimer::timeout, &loop, [&] {
+        if (!validCanvas) { loop.quit(); return; }
+        const QString status = canvas->rendererStatus();
+        if (status.startsWith("CPU_") || status == "GPU_OPENGL_ACTIVE")
+            loop.quit();
+    });
+    // The GPU path is only verified after a real frameSwapped signal.
+    // Allow the renderer's 3000 ms no-frame fallback before time-out.
+    QTimer::singleShot(3900, &loop, &QEventLoop::quit);
+    monitor.start(20);
+    loop.exec();
+    monitor.stop();
     const QString status = validCanvas ? canvas->rendererStatus() : "MISSING_CANVAS";
     const QString requested = qEnvironmentVariable("BOARDSI_ARTWORK_RENDERER")
                                  .trimmed().toLower();
@@ -641,11 +652,11 @@ static int runRendererSmoke(PreviewWindow &window) {
     const bool policy = validCanvas && canvas->rendererPolicy() == "GPU_PREFERRED" &&
                         window.importPanel()->imported()->rendererPolicy() == "GPU_PREFERRED";
     const bool mode = forcedCpu ? (status == "CPU_FORCED" && !actualGlViewport) :
-        (status.startsWith("CPU_FALLBACK_") ||
-         (status.startsWith("GPU_OPENGL_") && actualGlViewport));
-    // A hardware context is only a proof when Qt has emitted frameSwapped.
-    const bool completed = status != "GPU_PROBING" &&
-                           status != "GPU_PREFERRED_NOT_PROBED";
+        (status.startsWith("CPU_FALLBACK_") && !actualGlViewport ||
+         (status == "GPU_OPENGL_ACTIVE" && actualGlViewport));
+    // Pending contexts are NOT GPU results, regardless of GL availability.
+    const bool completed = status == "GPU_OPENGL_ACTIVE" ||
+                           status.startsWith("CPU_");
     const bool passed = policy && mode && completed;
     QJsonObject record{
         {"schema", "boardsi-preview-renderer-policy-v1"},
