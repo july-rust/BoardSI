@@ -136,7 +136,7 @@ PADS format source: https://www.freecalypso.org/pub/CAD/PADS/pdfdocs/Ppcb_ASCII.
 ### A_012 P2-D restricted rectangular-finger SMD preview
 
 The importer accepts a deliberately narrow PADS V9.4 `RF` top-layer
-rectangular-finger padstack: `-2 width RF 0 orientation length 0 0`.
+rectangular-finger padstack: `-2 width RF orientation length 0 0`.
 Only `orientation=0/90`, exact zero finger offset, exact zero corner radius,
 no drill, and three top/inner/bottom stack rows with nonconductive
 inner/bottom are supported. Component quarter-turns 0/90/180/270 rotate
