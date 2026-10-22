@@ -3,6 +3,7 @@
 #include "synthetic_artwork.h"
 #include <QComboBox>
 #include <QGraphicsLineItem>
+#include <QGraphicsEllipseItem>
 #include <QLabel>
 #include <QPushButton>
 #include <QSet>
@@ -19,6 +20,13 @@ struct ImportedTrack {
     qint64 x0_nm = 0, y0_nm = 0, x1_nm = 0, y1_nm = 0, width_nm = 0;
 };
 
+struct ImportedVia {
+    QString net;
+    QString name;
+    qint64 x_nm = 0, y_nm = 0, diameter_nm = 0, drill_nm = 0;
+    int firstLayer = 0, lastLayer = 0;
+};
+
 class ImportedArtworkPanel final : public QWidget {
     QGraphicsScene *scene_;
     SyntheticArtworkCanvas *view_;
@@ -27,6 +35,7 @@ class ImportedArtworkPanel final : public QWidget {
     QLabel *summary_;
     QVector<bool> layerVisible_;
     std::vector<std::pair<QGraphicsLineItem *, ImportedTrack>> tracks_;
+    std::vector<std::pair<QGraphicsEllipseItem *, ImportedVia>> vias_;
     std::function<void(const QString &)> detailsCallback_;
     int skipped_ = 0;
     void refresh() {
@@ -42,6 +51,25 @@ class ImportedArtworkPanel final : public QWidget {
             const bool active = net == "All nets" || net == t.net;
             entry.first->setOpacity(active ? 1.0 : 0.12);
             if (shown) { ++visible; if (net != "All nets" && active) ++highlighted; }
+        }
+        int visibleVias = 0;
+        int highlightedVias = 0;
+        for (const auto &entry : vias_) {
+            const ImportedVia &via = entry.second;
+            bool shown = false;
+            for (int n = via.firstLayer; n <= via.lastLayer; ++n) {
+                if (n > 0 && n < layerVisible_.size() && layerVisible_[n]) {
+                    shown = true;
+                    break;
+                }
+            }
+            entry.first->setVisible(shown);
+            const bool active = net == "All nets" || net == via.net;
+            entry.first->setOpacity(active ? 1.0 : 0.12);
+            if (shown) {
+                ++visibleVias;
+                if (net != "All nets" && active) ++highlightedVias;
+            }
         }
         // Declared layers are NOT necessarily copper layers with accepted traces.
         // Counts below describe only rendered straight-route data, not inferred geometry.
@@ -60,10 +88,12 @@ class ImportedArtworkPanel final : public QWidget {
                 .arg(selectedLayer).arg(layerId)
                 .arg(selectedVisible ? "visible" : "hidden/not loaded").arg(net) +
             QString("Segments: %1  Visible: %2  Highlighted: %3\n"
-                    "Unsupported route records omitted: %4\n"
-                    "Pads, vias, pours, net connectivity, stackup: NOT IMPORTED")
+                    "Explicit round through vias: %4  Visible: %5  Highlighted: %6\n"
+                    "Unsupported route records omitted: %7\n"
+                    "Other pads, unsupported vias, pours, electrical connectivity, stackup: NOT IMPORTED")
                 .arg(static_cast<qlonglong>(tracks_.size())).arg(visible)
-                .arg(highlighted).arg(skipped_);
+                .arg(highlighted).arg(static_cast<qlonglong>(vias_.size()))
+                .arg(visibleVias).arg(highlightedVias).arg(skipped_);
         summary_->setText(line);
         if (detailsCallback_) detailsCallback_(line);
     }
@@ -134,6 +164,7 @@ public:
     void clearArtwork() {
         scene_->clear();
         tracks_.clear();
+        vias_.clear();
         layerVisible_.clear();
         layers_->clear();
         nets_->clear();
@@ -143,8 +174,10 @@ public:
         summary_->setText("No imported PCB. Synthetic demo is a separate tab.");
         if (detailsCallback_) detailsCallback_(summary_->text());
     }
-    bool load(int layerCount, int skipped, const std::vector<ImportedTrack> &input) {
-        if (layerCount < 1 || layerCount > 64 || input.empty() || input.size() > 10000) return false;
+    bool load(int layerCount, int skipped, const std::vector<ImportedTrack> &input,
+              const std::vector<ImportedVia> &viaInput = {}) {
+        if (layerCount < 1 || layerCount > 64 || (input.empty() && viaInput.empty()) ||
+            input.size() > 10000 || viaInput.size() > 10000) return false;
         // Keep the old artwork untouched if a candidate fails validation.
         for (const auto &t : input) {
             if (t.layer <= 0 || t.layer > layerCount || t.width_nm <= 0 ||
@@ -154,8 +187,18 @@ public:
                     return false;
             }
         }
+        for (const auto &via : viaInput) {
+            if (via.net.isEmpty() || via.net.size() > 64 || via.name.isEmpty() ||
+                via.name.size() > 64 || via.firstLayer < 1 ||
+                via.firstLayer >= via.lastLayer || via.lastLayer > layerCount ||
+                via.drill_nm <= 0 || via.diameter_nm <= via.drill_nm ||
+                via.diameter_nm > 100000000000LL ||
+                qAbs(via.x_nm) > 100000000000LL || qAbs(via.y_nm) > 100000000000LL)
+                return false;
+        }
         scene_->clear();
         tracks_.clear();
+        vias_.clear();
         layerVisible_ = QVector<bool>(layerCount + 1, true);
         layers_->clear();
         nets_->clear();
@@ -176,6 +219,23 @@ public:
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             tracks_.push_back({item, t});
         }
+        for (const auto &via : viaInput) {
+            if (nets_->findText(via.net) < 0) nets_->addItem(via.net);
+            const qreal x = via.x_nm / 1e6;
+            const qreal y = -via.y_nm / 1e6;
+            const qreal radius = via.diameter_nm / 2e6;
+            const qreal drillRadius = via.drill_nm / 2e6;
+            auto *outer = scene_->addEllipse(
+                QRectF(x-radius, y-radius, 2*radius, 2*radius),
+                QPen(QColor("#e7d488"), 0), QBrush(QColor("#b98b45")));
+            auto *hole = new QGraphicsEllipseItem(
+                QRectF(x-drillRadius, y-drillRadius, 2*drillRadius, 2*drillRadius), outer);
+            hole->setPen(QPen(QColor("#554332"), 0));
+            hole->setBrush(QBrush(QColor("#232c34")));
+            outer->setData(0, via.net);
+            outer->setFlag(QGraphicsItem::ItemIsSelectable);
+            vias_.push_back({outer, via});
+        }
         skipped_ = skipped;
         scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-1, -1, 1, 1));
         refresh();
@@ -183,7 +243,7 @@ public:
         return true;
     }
     void fitArtwork() {
-        if (!tracks_.empty()) {
+        if (!tracks_.empty() || !vias_.empty()) {
             // Qt's Fit is cumulative with the existing view transform. Reset
             // first so a Fit after Zoom is repeatable and does not drift.
             view_->resetTransform();
@@ -191,6 +251,7 @@ public:
         }
     }
     int segmentCount() const { return static_cast<int>(tracks_.size()); }
+    int viaCount() const { return static_cast<int>(vias_.size()); }
     int visibleSegments() const {
         int count = 0;
         for (const auto &t : tracks_) if (t.first->isVisible()) ++count;
