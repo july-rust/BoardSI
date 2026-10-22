@@ -48,26 +48,35 @@ if ($crt.Count -gt 0) {throw 'Do not redistribute individual MSVC CRT DLL files'
 Prefix=.
 Plugins=.
 '@ | Set-Content -LiteralPath (Join-Path $stage 'qt.conf') -Encoding ascii
-$sourceName='qtbase-everywhere-src-6.8.3.tar.xz'
-$sourceSha='56001b905601bb9023d399f3ba780d7fa940f3e4861e496a7c490331f49e0b80'
+# Pin official Qt Project's v6.8.3 source commit rather than depending
+# on third-party release mirrors that can return HTTP 404 in the CI runner.
+$sourceName='qtbase-v6.8.3-source.zip'
+$sourceCommit='c07c2d5a527a644d36e7853d55132ae38921682f'
 $sourceDir=Join-Path $stage 'source'
 $licenseDir=Join-Path $stage 'LICENSES'
 New-Item -ItemType Directory -Path $sourceDir,$licenseDir -Force | Out-Null
 $archive=Join-Path $sourceDir $sourceName
-$urls=@('https://download.qt.io/archive/qt/6.8/6.8.3/submodules/'+$sourceName,
-        'https://qt.mirror.constant.com/archive/qt/6.8/6.8.3/submodules/'+$sourceName)
-$verified=$false
-foreach ($url in $urls) {
-    try {
-        Invoke-WebRequest -Uri $url -OutFile $archive -MaximumRedirection 8
-        if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -eq $sourceSha) {
-            $verified=$true
-            break
-        }
-        Write-Warning ('Qt source SHA256 mismatch at '+$url)
-    } catch {Write-Warning ('Qt source download failed: '+$_.Exception.Message)}
+$checkout=Join-Path $env:RUNNER_TEMP 'boardsi-qtbase-6.8.3-source'
+if (Test-Path -LiteralPath $checkout) {Remove-Item -LiteralPath $checkout -Force -Recurse}
+& git -c core.longpaths=true clone --depth 1 --single-branch --branch v6.8.3 https://github.com/qt/qtbase.git $checkout
+if ($LASTEXITCODE -ne 0) {throw 'Cannot fetch official QtBase release tag for source compliance'}
+$actualCommit=(& git -C $checkout rev-parse HEAD | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $actualCommit -ne $sourceCommit) {
+    throw ('QtBase v6.8.3 commit identity mismatch: '+$actualCommit)
 }
-if (-not $verified) {throw 'Unable to provide hash-verified QtBase 6.8.3 source: refuse bundled artifact'}
+& git -C $checkout archive --format=zip --prefix=qtbase-v6.8.3/ --output=$archive HEAD
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $archive -PathType Leaf)) {
+    throw 'Cannot archive official verified QtBase source'
+}
+$sourceSha=(Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+@"
+Upstream: https://github.com/qt/qtbase/tree/v6.8.3
+Exact git commit: $sourceCommit
+Packaged source file: $sourceName
+Packaged source SHA256: $sourceSha
+Qt release: 6.8.3
+No local source modifications.
+"@ | Set-Content -LiteralPath (Join-Path $sourceDir 'SOURCE-PROVENANCE.txt') -Encoding utf8
 $entries=@(& tar -tf $archive)
 if ($LASTEXITCODE -ne 0) {throw 'Qt source archive index invalid'}
 $extractRoot=Join-Path $env:RUNNER_TEMP 'boardsi-qt-license-extract'
@@ -97,10 +106,10 @@ and user-replaceable. Qt is copyright The Qt Company Ltd and contributors.
 Full LGPLv3 and GPLv3 texts: LICENSES/ directory.
 The COMPLETE EXACT QtBase 6.8.3 upstream source (including bundled
 third-party code and license/attribution records) is INCLUDED:
-source/qtbase-everywhere-src-6.8.3.tar.xz
-Official source URL:
-https://download.qt.io/archive/qt/6.8/6.8.3/submodules/qtbase-everywhere-src-6.8.3.tar.xz
-Source SHA256: 56001b905601bb9023d399f3ba780d7fa940f3e4861e496a7c490331f49e0b80
+source/qtbase-v6.8.3-source.zip
+Official tagged source: https://github.com/qt/qtbase/tree/v6.8.3
+Pinned source commit: c07c2d5a527a644d36e7853d55132ae38921682f
+Source SHA256 and provenance: source/SOURCE-PROVENANCE.txt
 The LGPL grants rights to modify/rebuild and substitute the Qt DLLs.
 The application is not locked to unmodified Qt DLLs. No standalone
 Microsoft compiler runtime DLL is intentionally distributed.
