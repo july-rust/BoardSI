@@ -1,5 +1,5 @@
 # BoardSI Windows x64 developer launcher (source build or unpacked developer artifact).
-# Qt 6.8.3 MSVC x64 must be installed separately. NOT a redistribution installer.
+# Bundled packages contain Qt runtime. Source builds may use QT_PREFIX. Not a final installer.
 param(
     [switch]$SelfTest,
     [switch]$ValidateOnly,
@@ -30,39 +30,66 @@ if ($packed) {
     $fixture = Join-Path $root 'crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc'
     $defaultWorkingDirectory = Join-Path $root 'build-qt'
 }
-$qt = $env:QT_PREFIX
-if ([string]::IsNullOrWhiteSpace($qt)) {
-    throw 'QT_PREFIX must point to a separately installed Qt 6.8.3 MSVC 2022 x64 SDK. Qt is not bundled.'
-}
-$qt = [System.IO.Path]::GetFullPath($qt)
-$qtBin = Join-Path $qt 'bin'
-$qmake = Join-Path $qtBin 'qmake.exe'
-$qtFiles = @(
-    (Join-Path $qtBin 'Qt6Core.dll'),
-    (Join-Path $qtBin 'Qt6Gui.dll'),
-    (Join-Path $qtBin 'Qt6Widgets.dll'),
-    (Join-Path $qt 'plugins/platforms/qwindows.dll'),
-    $qmake
-)
-foreach ($required in $qtFiles) {
-    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-        throw ('Missing Qt SDK runtime/plugin component: ' + $required)
+# Bundled-mode binaries require no Qt installation, QT_PREFIX or compiler SDK.
+# Source-developer builds continue to use the pinned separately installed SDK.
+$bundled = $packed -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'Qt6Core.dll') -PathType Leaf)
+if ($bundled) {
+    $qtBin = $PSScriptRoot
+    $platformDll = Join-Path $PSScriptRoot 'platforms/qwindows.dll'
+    foreach ($file in @('Qt6Core.dll','Qt6Gui.dll','Qt6Widgets.dll','platforms/qwindows.dll',
+                       'qt.conf','LICENSES/LGPL-3.0-only.txt','LICENSES/GPL-3.0-only.txt',
+                       'source/qtbase-everywhere-src-6.8.3.tar.xz', 'SHA256SUMS.txt')) {
+        $expected = Join-Path $PSScriptRoot $file
+        if (-not (Test-Path -LiteralPath $expected -PathType Leaf)) {
+            throw ('Missing bundled Qt dependency, license or source: ' + $expected)
+        }
     }
-}
-$qtVersion = (& $qmake -query QT_VERSION 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $qtVersion -ne '6.8.3') {
-    throw ('Expected Qt 6.8.3 MSVC x64 SDK, qmake reports: ' + $qtVersion)
-}
-# QMAKE_XSPEC and architecture data distinguish the pinned MSVC x64 kit
-# from a Qt 6.8.3 MinGW or ARM64 kit that has the same DLL filenames.
-$kitSpec = (& $qmake -query QMAKE_XSPEC 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0) { throw 'Cannot query Qt target mkspec' }
-$archData = (& $qmake -query QT_INSTALL_ARCHDATA 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0) { throw 'Cannot query Qt target architecture data' }
-$kitName = [System.IO.Path]::GetFileName($archData.TrimEnd([char[]]@('/', '\')))
-if ($kitSpec -ne 'win32-msvc' -or $kitName -ne 'msvc2022_64') {
-    throw ('Incompatible Qt kit; expected Qt 6.8.3 MSVC 2022 x64, got spec=' +
-           $kitSpec + ', archdata=' + $archData)
+    # The package was assembled by the pinned CI. Verify its entire payload,
+    # including Qt DLLs, source and notices; do not trust an incomplete copy.
+    foreach ($entry in (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'SHA256SUMS.txt'))) {
+        $pair = $entry -split '  ', 2
+        if ($pair.Count -ne 2 -or $pair[0] -notmatch '^[0-9a-fA-F]{64}$') {
+            throw 'Malformed bundled SHA256SUMS.txt'
+        }
+        $file = Join-Path $PSScriptRoot $pair[1]
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+            throw ('Missing bundled manifest payload: ' + $pair[1])
+        }
+        if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne $pair[0]) {
+            throw ('Bundled integrity failure: ' + $pair[1])
+        }
+    }
+    $kitLabel = 'bundled Qt 6.8.3 MSVC 2022 x64'
+} else {
+    $qt = $env:QT_PREFIX
+    if ([string]::IsNullOrWhiteSpace($qt)) {
+        throw 'Qt runtime not bundled: install Qt 6.8.3 MSVC x64 SDK and set QT_PREFIX.'
+    }
+    $qt = [System.IO.Path]::GetFullPath($qt)
+    $qtBin = Join-Path $qt 'bin'
+    $platformDll = Join-Path $qt 'plugins/platforms/qwindows.dll'
+    $qmake = Join-Path $qtBin 'qmake.exe'
+    foreach ($required in @(
+        (Join-Path $qtBin 'Qt6Core.dll'),(Join-Path $qtBin 'Qt6Gui.dll'),
+        (Join-Path $qtBin 'Qt6Widgets.dll'),$platformDll,$qmake
+    )) {
+        if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+            throw ('Missing Qt SDK runtime/plugin: ' + $required)
+        }
+    }
+    $qtVersion = (& $qmake -query QT_VERSION 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $qtVersion -ne '6.8.3') {
+        throw ('Expected Qt 6.8.3, got: ' + $qtVersion)
+    }
+    $kitSpec = (& $qmake -query QMAKE_XSPEC 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot query Qt target mkspec' }
+    $archData = (& $qmake -query QT_INSTALL_ARCHDATA 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot query Qt target architecture data' }
+    $kitName = [System.IO.Path]::GetFileName($archData.TrimEnd([char[]]@('/', '\')))
+    if ($kitSpec -ne 'win32-msvc' -or $kitName -ne 'msvc2022_64') {
+        throw ('Expected MSVC 2022 x64 Qt 6.8.3, got spec=' + $kitSpec + ', kit=' + $kitName)
+    }
+    $kitLabel = 'Qt 6.8.3 MSVC 2022 x64 developer SDK'
 }
 foreach ($required in @($preview, $worker, $importer, $a, $b)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
@@ -95,8 +122,7 @@ function Assert-Amd64PeFile([string]$path) {
 foreach ($native in @($preview, $worker, $importer,
                        (Join-Path $qtBin 'Qt6Core.dll'),
                        (Join-Path $qtBin 'Qt6Gui.dll'),
-                       (Join-Path $qtBin 'Qt6Widgets.dll'),
-                       (Join-Path $qt 'plugins/platforms/qwindows.dll'))) {
+                       (Join-Path $qtBin 'Qt6Widgets.dll'), $platformDll)) {
     Assert-Amd64PeFile $native
 }
 if ([string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
@@ -109,7 +135,7 @@ if (-not (Test-Path -LiteralPath $workingDirectory -PathType Container)) {
     throw ('Evidence/working directory not found: ' + $workingDirectory)
 }
 Write-Host ('BoardSI developer launcher: ' + $(if ($packed) { 'unpacked artifact' } else { 'source tree' }))
-Write-Host ('Qt SDK: ' + $qt + ' (6.8.3); Windows x64; NO Qt redistribution approval')
+Write-Host ('Qt runtime: ' + $kitLabel + ' ; Windows x64 preview, NOT a certified release')
 Write-Host ('GUI: ' + $preview)
 if ($ValidateOnly) {
     Write-Host 'VALIDATION ONLY - no GUI started or native execution claimed.'
@@ -122,7 +148,7 @@ $oldPluginPath = $env:QT_PLUGIN_PATH
 $oldPlatform = $env:QT_QPA_PLATFORM
 try {
     $env:PATH = $qtBin + ';' + $oldPath
-    $env:QT_PLUGIN_PATH = Join-Path $qt 'plugins'
+    $env:QT_PLUGIN_PATH = if ($bundled) { $PSScriptRoot } else { Join-Path $qt 'plugins' }
     $env:QT_QPA_PLATFORM = 'windows'
     # Smoke writes qt-preview-p0-results.json in the process working directory.
     # CI uses a directory outside the staged artifact to keep SHA256SUMS complete.
