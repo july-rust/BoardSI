@@ -220,7 +220,7 @@ fn decals(lines: &[String]) -> BTreeMap<String, Decal> {
                         good = false;
                         continue;
                     };
-                    if length < 100 || length > 100_000 || angle > 1 {
+                    if !(100..=100_000).contains(&length) || angle > 1 {
                         good = false;
                         continue;
                     }
