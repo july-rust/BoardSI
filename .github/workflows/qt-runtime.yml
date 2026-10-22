@@ -205,122 +205,80 @@ jobs:
               $receipt.source_sha -ne $env:BOARDSI_SOURCE_HEAD_SHA) {
             throw 'Developer launcher receipt does not prove current-HEAD P2-A source-isolation smoke'
           }
-      - name: Stage Windows x64 developer-only executables (without Qt DLLs)
+      - name: Stage Windows x64 Qt-bundled release test and license sources
         if: matrix.name == 'Windows x64'
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $stage = 'build-qt/boardsi-preview-windows-x64-dev'
-          New-Item -ItemType Directory -Path $stage -Force | Out-Null
-          $items = @{
-            'build-qt/boardsi-preview-p0.exe' = 'boardsi-preview-p0.exe'
-            'target/debug/boardsi-worker.exe' = 'boardsi-worker.exe'
-            'target/debug/boardsi-import-artwork.exe' = 'boardsi-import-artwork.exe'
-            'build-qt/qt-model-a.frame' = 'qt-model-a.frame'
-            'build-qt/qt-model-b.frame' = 'qt-model-b.frame'
-            'crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc' = 'public-pads-v94-synthetic.asc'
-            'crates/boardsi-import/tests/fixtures/not_a_pcb.asc' = 'not_a_pcb.asc'
-          }
-          foreach ($source in $items.Keys) {
-            if (-not (Test-Path -PathType Leaf $source)) { throw "Missing developer artifact input: $source" }
-            Copy-Item -LiteralPath $source -Destination (Join-Path $stage $items[$source])
-          }
-          # Ship exactly the same reviewed launcher that native CI executes.
-          Copy-Item -LiteralPath 'scripts/run-boardsi-preview-windows-x64.ps1' -Destination (Join-Path $stage 'run-preview.ps1')
-          @'
-          BoardSI P2-A Windows x64 DEVELOPER BUILD - NOT A GENERAL RELEASE
-          1. Extract all files to the same directory (including the two model frames).
-          2. Separately install Qt 6.8.3 MSVC 2022 x64 SDK and any required MSVC runtime.
-          3. In Windows x64 PowerShell, set QT_PREFIX to the Qt SDK root directory:
-             $env:QT_PREFIX = 'C:\path\to\Qt\6.8.3\msvc2022_64'
-          4. Verify installation: .\run-preview.ps1 -ValidateOnly
-          5. Run synthetic native smoke: .\run-preview.ps1 -SelfTest
-             (writes qt-preview-p0-results.json; this is not a vendor PCB test)
-          6. Launch the actual Qt GUI: .\run-preview.ps1
-             Open PCB -> choose a restricted V9.4 MILS PADS ASCII file (*.asc).
-          The viewer accepts only straight routed traces of a supported subset,
-          NOT pads, vias, copper pours, connectivity, layer materials or physical SI.
-          Declared layers are NOT equivalent to layers containing imported copper.
-          No Qt DLLs, Qt plugins, company CAD data, installer, or solver are included.
-          SHA256SUMS.txt covers the nine original payloads, not subsequently
-          generated selftest receipts. Verify before running. License approval,
-          vendor PADS compatibility and general redistribution remain NOT_VERIFIED.
-          '@ | Set-Content -LiteralPath (Join-Path $stage 'README.txt') -Encoding UTF8
-          # Take a stable payload snapshot BEFORE opening the manifest.
-          $payload = @(Get-ChildItem -LiteralPath $stage -File |
-            Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | Sort-Object Name)
-          if ($payload.Count -ne 9) { throw 'Unexpected developer artifact payload count' }
-          $hashLines = @($payload | ForEach-Object {
-            ('{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash, $_.Name)
-          })
-          $manifest = Join-Path $stage 'SHA256SUMS.txt'
-          $hashLines | Set-Content -LiteralPath $manifest -Encoding ascii
-          foreach ($line in (Get-Content -LiteralPath $manifest)) {
-            $parts = $line -split '  ', 2
-            if ($parts.Count -ne 2 -or $parts[0].Length -ne 64 -or
-                $parts[0] -match '[^A-Fa-f0-9]') {
-              throw 'Malformed SHA256 manifest entry'
-            }
-            $filePath = Join-Path $stage $parts[1]
-            $actual = (Get-FileHash -LiteralPath $filePath -Algorithm SHA256).Hash
-            if ($actual -ne $parts[0]) {
-              throw ('Checksum mismatch: ' + $filePath)
-            }
-          }
-      - name: Exercise relocated Windows x64 artifact in Unicode path against Qt SDK
+          ./scripts/stage-boardsi-preview-windows-x64-qt.ps1 -StagePath 'build-qt/boardsi-preview-windows-x64-qt-bundled'
+      - name: Verify Qt-bundled artifact without separately installed Qt SDK
         if: matrix.name == 'Windows x64'
         shell: pwsh
         env:
           BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $stage = 'build-qt/boardsi-preview-windows-x64-dev'
-          # Recreate a genuine relocated developer folder with spaces and
-          # non-ASCII characters. Exercise only PUBLIC fixture data.
-          $relocated = Join-Path $env:RUNNER_TEMP 'BoardSI Preview 한글 공백 경로'
-          Copy-Item -LiteralPath $stage -Destination $relocated -Recurse -Force
-          $runner = Join-Path $relocated 'run-preview.ps1'
-          if (-not (Test-Path -LiteralPath $runner -PathType Leaf)) {
-            throw 'Relocated developer launcher missing after copy'
+          $stage = 'build-qt/boardsi-preview-windows-x64-qt-bundled'
+          $copy = Join-Path $env:RUNNER_TEMP 'BoardSI Qt 한글 공백'
+          Copy-Item -LiteralPath $stage -Destination $copy -Recurse -Force
+          $runner = Join-Path $copy 'run-preview.ps1'
+          $oldQt = $env:QT_PREFIX
+          $oldPlugin = $env:QT_PLUGIN_PATH
+          $oldPath = $env:PATH
+          try {
+            $env:QT_PREFIX = $null
+            $env:QT_PLUGIN_PATH = $null
+            $qtBin = (Join-Path $oldQt 'bin').TrimEnd('\','/')
+            $env:PATH = (($oldPath -split ';') | Where-Object {$_.TrimEnd('\','/') -ine $qtBin}) -join ';'
+            & $runner -ValidateOnly
+            $receipt = 'build-qt/qt-preview-p0-results.json'
+            if (-not (Test-Path -LiteralPath $receipt -PathType Leaf)) {throw 'Missing source launcher receipt'}
+            Move-Item -LiteralPath $receipt -Destination 'build-qt/qt-preview-source-launcher.json' -Force
+            & $runner -SelfTest -EvidenceDirectory 'build-qt'
+            if (-not (Test-Path -LiteralPath $receipt -PathType Leaf)) {throw 'Missing Qt-bundled GUI smoke receipt'}
+            $e = Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
+            if ($e.pass -ne $true -or $e.p2a_imported_artwork -ne $true -or
+                $e.p2a_properties_source_isolation_verified -ne $true -or
+                $e.p2a_import_summary_counts_verified -ne $true -or
+                $e.p2a_import_failure_recovery_verified -ne $true -or
+                $e.source_sha -ne $env:BOARDSI_SOURCE_HEAD_SHA) {
+              throw 'Bundled Qt native smoke identity or import assertions failed'
+            }
+            Copy-Item -LiteralPath $receipt -Destination 'build-qt/qt-preview-staged-package.json'
+            Push-Location 'build-qt'
+            try {
+              $exe=Join-Path $copy 'boardsi-preview-p0.exe'
+              $worker=Join-Path $copy 'boardsi-worker.exe'
+              $a=Join-Path $copy 'qt-model-a.frame'
+              $b=Join-Path $copy 'qt-model-b.frame'
+              $importer=Join-Path $copy 'boardsi-import-artwork.exe'
+              $fixture=Join-Path $copy 'public-pads-v94-synthetic.asc'
+              & $exe --selftest $worker $a $b $importer $fixture
+              if ($LASTEXITCODE -ne 0) {throw 'Direct Windows executable bundled Qt smoke failed'}
+            } finally {Pop-Location}
+            $direct=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
+            if ($direct.pass -ne $true -or $direct.source_sha -ne $env:BOARDSI_SOURCE_HEAD_SHA) {
+              throw 'Direct Qt EXE smoke did not prove exact source HEAD'
+            }
+            Copy-Item -LiteralPath $receipt -Destination 'build-qt/qt-preview-standalone-direct.json'
+          } finally {
+            $env:PATH=$oldPath
+            $env:QT_PREFIX=$oldQt
+            $env:QT_PLUGIN_PATH=$oldPlugin
           }
-          & $runner -ValidateOnly
-          # The last receipt came from the source-tree launcher. Keep both proofs.
-          $receiptPath = 'build-qt/qt-preview-p0-results.json'
-          if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) {
-            throw 'Source-tree launcher receipt missing'
+          $entries = @(Get-Content -LiteralPath (Join-Path $copy 'SHA256SUMS.txt'))
+          if ($entries.Count -lt 17) {throw 'Bundled manifest too short'}
+          foreach ($line in $entries) {
+            $pair=$line -split '  ',2
+            if ($pair.Count -ne 2 -or $pair[0] -notmatch '^[A-Fa-f0-9]{64}$') {throw 'Invalid bundled manifest'}
+            $actual=(Get-FileHash -LiteralPath (Join-Path $copy $pair[1]) -Algorithm SHA256).Hash
+            if ($actual -ne $pair[0]) {throw ('Bundled checksum mismatch: '+$pair[1])}
           }
-          Move-Item -LiteralPath $receiptPath -Destination 'build-qt/qt-preview-source-launcher.json' -Force
-          # Execute the relocated staged binary from a separate CWD so the
-          # archived payload stays exactly covered by its SHA256 manifest.
-          & $runner -SelfTest -EvidenceDirectory 'build-qt'
-          if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) {
-            throw 'Unpacked artifact native smoke receipt missing'
-          }
-          $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
-          if ($receipt.pass -ne $true -or $receipt.p2a_imported_artwork -ne $true -or
-              $receipt.p2a_properties_source_isolation_verified -ne $true -or
-              $receipt.p2a_import_summary_counts_verified -ne $true -or
-              $receipt.p2a_import_failure_recovery_verified -ne $true -or
-              $receipt.source_sha -ne $env:BOARDSI_SOURCE_HEAD_SHA) {
-            throw 'Unpacked artifact does not prove current-HEAD native P2-A smoke'
-          }
-          Copy-Item -LiteralPath $receiptPath -Destination 'build-qt/qt-preview-staged-package.json'
-          $payload = @(Get-ChildItem -LiteralPath $relocated -File |
-            Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | Sort-Object Name)
-          if ($payload.Count -ne 9) { throw 'Unexpected relocated payload after execution' }
-          foreach ($line in (Get-Content -LiteralPath (Join-Path $relocated 'SHA256SUMS.txt'))) {
-            $parts = $line -split '  ', 2
-            if ($parts.Count -ne 2 -or $parts[0].Length -ne 64 -or
-                $parts[0] -match '[^A-Fa-f0-9]') { throw 'Malformed staged SHA256 manifest' }
-            $actual = (Get-FileHash -LiteralPath (Join-Path $relocated $parts[1]) -Algorithm SHA256).Hash
-            if ($actual -ne $parts[0]) { throw ('Unpacked artifact checksum mismatch: ' + $parts[1]) }
-          }
-      - name: Upload Windows x64 developer-only executable artifact
+      - name: Upload Windows x64 Qt-bundled test archive
         if: matrix.name == 'Windows x64'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: boardsi-preview-p2a-windows-x64-dev
-          path: build-qt/boardsi-preview-windows-x64-dev/
+          name: boardsi-preview-p2a-windows-x64-qt-bundled-test
+          path: build-qt/boardsi-preview-windows-x64-qt-bundled/
           if-no-files-found: error
           retention-days: 7
       - name: Preserve developer Preview P0 native execution evidence (not a distributable binary)
@@ -333,6 +291,7 @@ jobs:
             build-qt/qt-preview-native-direct.json
             build-qt/qt-preview-source-launcher.json
             build-qt/qt-preview-staged-package.json
+            build-qt/qt-preview-standalone-direct.json
           if-no-files-found: warn
       - name: Exercise adversarial F1 verifier tests
         id: f1_adversarial_tests
