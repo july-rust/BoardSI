@@ -263,7 +263,19 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
     let mut seen_refs = BTreeSet::new();
     for line in sections(&src, "*PART*") {
         let p = words(&line);
-        if p.len() != 8 || !safe_name(p[0], 15) || !seen_refs.insert(p[0].to_owned()) {
+        // Documented PART suffix: clstid, clsattr, brotherid, labels.
+        // Preserve ordinary unclustered/unlabeled exports (including partially
+        // omitted defaults), but never reinterpret non-default references as
+        // an independent simple pad with potentially different ownership.
+        const DEFAULT_SUFFIX: [&str; 4] = ["-1", "0", "-1", "0"];
+        if !(8..=12).contains(&p.len())
+            || !safe_name(p[0], 15)
+            || p[8..]
+                .iter()
+                .zip(DEFAULT_SUFFIX.iter())
+                .any(|(actual, expected)| actual != expected)
+            || !seen_refs.insert(p[0].to_owned())
+        {
             skipped += 1;
             continue;
         }
@@ -492,6 +504,40 @@ mod tests {
                 .len(),
             2
         );
+    }
+    #[test]
+    fn accepts_documented_part_suffix_defaults_without_inventing_contacts() {
+        // Documented optional four fields: clstid clsattr brotherid labels.
+        // Valid exports often include all four even for ordinary standalone parts.
+        for suffix in ["", " -1", " -1 0", " -1 0 -1", " -1 0 -1 0"] {
+            let source = SAMPLE.replace(
+                "U1 TYPEA 200 300 90 U N 0",
+                &format!("U1 TYPEA 200 300 90 U N 0{suffix}"),
+            );
+            let parsed = parse(source.as_bytes(), 4);
+            assert_eq!(parsed.skipped, 0, "valid default suffix: {suffix}");
+            assert_eq!(parsed.pads.len(), 2, "valid default suffix: {suffix}");
+            assert_eq!(parsed.pads[0].point, [20_000, 30_000]);
+        }
+    }
+    #[test]
+    fn refuses_nondefault_cluster_brother_labels_and_excess_part_tokens() {
+        for suffix in [
+            " 0 0 -1 0", " -1 1 -1 0", " -1 0 1 0",
+            " -1 0 -1 1", " -1 0 -1 0 EXTRA",
+            " -1 0 -1",
+        ] {
+            // A complete but truncated default suffix is valid and covered above;
+            // every changed value / extra token is not.
+            if suffix == " -1 0 -1" { continue; }
+            let source = SAMPLE.replace(
+                "U1 TYPEA 200 300 90 U N 0",
+                &format!("U1 TYPEA 200 300 90 U N 0{suffix}"),
+            );
+            let parsed = parse(source.as_bytes(), 4);
+            assert!(parsed.pads.is_empty(), "unsupported suffix: {suffix}");
+            assert!(parsed.skipped > 0);
+        }
     }
     #[test]
     fn pad_only_board_creates_canonical_objects_without_fake_net() {
