@@ -36,7 +36,7 @@ $bundled = $packed -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'Qt6Cor
 if ($bundled) {
     $qtBin = $PSScriptRoot
     $platformDll = Join-Path $PSScriptRoot 'platforms/qwindows.dll'
-    foreach ($file in @('Qt6Core.dll','Qt6Gui.dll','Qt6Widgets.dll','platforms/qwindows.dll',
+    foreach ($file in @('Qt6Core.dll','Qt6Gui.dll','Qt6Network.dll','Qt6Widgets.dll','platforms/qwindows.dll',
                        'qt.conf','LICENSES/LGPL-3.0-only.txt','LICENSES/GPL-3.0-only.txt',
                        'source/qtbase-everywhere-src-6.8.3.tar.xz', 'SHA256SUMS.txt')) {
         $expected = Join-Path $PSScriptRoot $file
@@ -122,6 +122,7 @@ function Assert-Amd64PeFile([string]$path) {
 foreach ($native in @($preview, $worker, $importer,
                        (Join-Path $qtBin 'Qt6Core.dll'),
                        (Join-Path $qtBin 'Qt6Gui.dll'),
+                       (Join-Path $qtBin 'Qt6Network.dll'),
                        (Join-Path $qtBin 'Qt6Widgets.dll'), $platformDll)) {
     Assert-Amd64PeFile $native
 }
