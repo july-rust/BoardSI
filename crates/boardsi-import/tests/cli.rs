@@ -51,3 +51,17 @@ fn artwork_cli_uses_exact_nm_transport_for_known_public_geometry() {
     assert!(message.contains("T|4|NET_B|25400000|7620000|38100000|7620000|304800\n"));
     assert!(message.ends_with("END|3|0|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
 }
+
+#[test]
+fn p2c_cli_emits_explicit_unverified_net_and_exact_simple_pad_geometry() {
+    let bin = env!("CARGO_BIN_EXE_boardsi-import-artwork");
+    let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pads_component_simple_v94.asc");
+    let output = Command::new(bin).arg(file).output().expect("P2-C CLI executable");
+    assert!(output.status.success(), "{:?}", String::from_utf8_lossy(&output.stderr));
+    let msg = String::from_utf8(output.stdout).expect("bounded ASCII");
+    assert!(msg.starts_with("BOARDSI_P2C_PARTIAL_V2|V9.4-MILS|4\n"));
+    assert!(msg.contains("P|U1|1|1|R|5080000|7620000|1016000|1016000|NET_UNVERIFIED\n"));
+    assert!(msg.contains("P|U1|2|1|S|5080000|10160000|762000|762000|NET_UNVERIFIED\n"));
+    assert!(msg.ends_with("END|1|0|2|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
+}
