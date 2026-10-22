@@ -23,6 +23,7 @@ $items=@{
  'build-qt/qt-model-a.frame'='qt-model-a.frame'
  'build-qt/qt-model-b.frame'='qt-model-b.frame'
  'crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc'='public-pads-v94-synthetic.asc'
+ 'crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc'='public-pads-v94-through-via-synthetic.asc'
  'crates/boardsi-import/tests/fixtures/not_a_pcb.asc'='not_a_pcb.asc'
  'scripts/run-boardsi-preview-windows-x64.ps1'='run-preview.ps1'
 }
@@ -108,8 +109,8 @@ BoardSI P2-A Windows x64 QT-BUNDLED TEST PACKAGE (NOT A RELEASE)
 2. Double-click boardsi-preview-p0.exe. No Qt SDK or QT_PREFIX needed.
 3. Optional: PowerShell .\run-preview.ps1 -ValidateOnly
    then .\run-preview.ps1 -SelfTest or .\run-preview.ps1
-4. Open PCB: restricted PADS V9.4 MILS straight-route subset only.
-   No pads/vias/connectivity/stackup or physical PCB SI results.
+4. Open PCB: restricted PADS V9.4 MILS straight-route and explicit round\n   through-via subset only.
+   Other pads, vias, connectivity, stackup and physical SI are NOT IMPORTED.
 5. If an MSVC runtime DLL is missing, install the official Microsoft
    Visual C++ 2015-2022 x64 Redistributable:
    https://aka.ms/vs/17/release/vc_redist.x64.exe
