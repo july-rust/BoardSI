@@ -53,7 +53,8 @@ class PreviewImportPanel final : public QWidget {
         }
     }
     static bool decode(const QByteArray &bytes, int &layers, int &skipped,
-                       std::vector<ImportedTrack> &tracks) {
+                       std::vector<ImportedTrack> &tracks,
+                       std::vector<ImportedVia> &vias) {
         if (bytes.size() > 2 * 1024 * 1024 || !bytes.endsWith('\n')) return false;
         const auto lines = QString::fromUtf8(bytes).split('\n', Qt::SkipEmptyParts);
         if (lines.size() < 4 || lines.size() > 10070) return false;
@@ -83,6 +84,21 @@ class PreviewImportPanel final : public QWidget {
                 }
                 if (tracks.size() >= 10000) return false;
                 tracks.push_back(std::move(t));
+            } else if (parts.size() == 9 && parts[0] == "V" && layerRecords == layers) {
+                ImportedVia via;
+                via.net = parts[1];
+                via.name = parts[2];
+                qint64 *measurements[] = {&via.x_nm, &via.y_nm,
+                                         &via.diameter_nm, &via.drill_nm};
+                for (int j = 0; j < 4; ++j) {
+                    *measurements[j] = parts[j+3].toLongLong(&ok);
+                    if (!ok) return false;
+                }
+                via.firstLayer = parts[7].toInt(&ok);
+                if (!ok) return false;
+                via.lastLayer = parts[8].toInt(&ok);
+                if (!ok || vias.size() >= 10000) return false;
+                vias.push_back(std::move(via));
             } else if (parts.size() == 5 && parts[0] == "END" &&
                        i == lines.size() - 1 && layerRecords == layers) {
                 const int count = parts[1].toInt(&ok);
@@ -176,11 +192,12 @@ public:
             }
             int layers = 0, skipped = 0;
             std::vector<ImportedTrack> tracks;
-            if (!decode(data_, layers, skipped, tracks)) {
+            std::vector<ImportedVia> vias;
+            if (!decode(data_, layers, skipped, tracks, vias)) {
                 status("FAILED / INVALID_TRANSPORT / NOTHING IMPORTED");
                 return;
             }
-            if (!imported_->load(layers, skipped, tracks)) {
+            if (!imported_->load(layers, skipped, tracks, vias)) {
                 status("FAILED / INVALID_GEOMETRY / NOTHING IMPORTED");
                 return;
             }
@@ -191,8 +208,9 @@ public:
             QTimer::singleShot(0, imported_, [this] {
                 if (tabs_->currentWidget() == imported_) imported_->fitArtwork();
             });
-            status(QString("PARTIAL V9.4-MILS / %1 straight segments / %2 omitted / SI NOT_RUN")
-                       .arg(static_cast<qlonglong>(tracks.size())).arg(skipped));
+            status(QString("PARTIAL V9.4-MILS / %1 straight segments / %2 explicit vias / %3 omitted / SI NOT_RUN")
+                       .arg(static_cast<qlonglong>(tracks.size()))
+                       .arg(static_cast<qlonglong>(vias.size())).arg(skipped));
         });
         connect(&process_, &QProcess::errorOccurred, this,
                 [this](QProcess::ProcessError code) {
