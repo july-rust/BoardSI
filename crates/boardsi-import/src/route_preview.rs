@@ -120,7 +120,7 @@ fn scan_simple_via_defs(source: &str) -> BTreeMap<String, SimpleViaDef> {
                 SimpleViaDef {
                     drill_ticks: drill,
                     diameter_ticks: top.unwrap_or_default(),
-                inner_pad: interior.is_some(),
+                    inner_pad: interior.is_some(),
                 },
             );
         }
@@ -600,17 +600,17 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             let diameter_m = Rational::new(i128::from(via.diameter_ticks) * 127, 500_000_000)
                 .map_err(|_| "VIA_DIMENSION_OVERFLOW")?;
             let mut entries = vec![
-                    PadstackLayer {
-                        layer: start.clone(),
-                        role: PadRole::Conductive,
-                        shape: PadShape::Circle { diameter_m },
-                    },
-                    PadstackLayer {
-                        layer: end.clone(),
-                        role: PadRole::Conductive,
-                        shape: PadShape::Circle { diameter_m },
-                    },
-                ];
+                PadstackLayer {
+                    layer: start.clone(),
+                    role: PadRole::Conductive,
+                    shape: PadShape::Circle { diameter_m },
+                },
+                PadstackLayer {
+                    layer: end.clone(),
+                    role: PadRole::Conductive,
+                    shape: PadShape::Circle { diameter_m },
+                },
+            ];
             if via.inner_pad {
                 for n in 2..via.last_layer {
                     entries.push(PadstackLayer {
@@ -979,11 +979,18 @@ mod p2b_via_regressions {
     }
     #[test]
     fn via_only_model_does_not_need_invented_trace() {
-        let source = BASE.replace("100 200 1 10 0\n", "")
+        let source = BASE
+            .replace("100 200 1 10 0\n", "")
             .replace("500 200 2 10 0\n", "");
         let artwork = parse(source.as_bytes()).unwrap();
         assert!(artwork.segments.is_empty());
         assert_eq!(artwork.vias.len(), 1);
-        assert_eq!(into_canonical(source.as_bytes(), &artwork).unwrap().vias.len(), 1);
+        assert_eq!(
+            into_canonical(source.as_bytes(), &artwork)
+                .unwrap()
+                .vias
+                .len(),
+            1
+        );
     }
 }
