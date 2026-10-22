@@ -826,10 +826,12 @@ mod tests {
                 Rational::new(i128::from(origin[0]) * 127, 500_000_000).unwrap(),
                 Rational::new(i128::from(origin[1]) * 127, 500_000_000).unwrap(),
             ];
-            let canonical = local_frame.exact_m(&Point {
-                frame: local_frame.meta.id.clone(),
-                ticks: [10_000, 0],
-            }).unwrap();
+            let canonical = local_frame
+                .exact_m(&Point {
+                    frame: local_frame.meta.id.clone(),
+                    ticks: [10_000, 0],
+                })
+                .unwrap();
             let expected_point = imported.pads[1].point;
             assert_eq!(
                 canonical,
