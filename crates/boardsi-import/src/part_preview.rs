@@ -19,6 +19,7 @@ pub struct ComponentPad {
     pub size_ticks: i64,
     pub square: bool,
     pub rectangular: bool,
+    pub bottom: bool,
     pub width_ticks: i64,
     pub height_ticks: i64,
 }
@@ -368,7 +369,7 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
         };
         // Do not mistake an alternate-footprint selection or mirrored bottom
         // placement for the verified primary unmirrored top case.
-        if !matches!(p[5], "G" | "U") || p[6] != "N" || p[7] != "0" {
+        if !matches!(p[5], "G" | "U") || !matches!(p[6], "N" | "M") || p[7] != "0" || (p[6] == "M" && max_layer < 2) {
             skipped += decal.terminals.len();
             continue;
         }
@@ -376,6 +377,7 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
             skipped += decal.terminals.len();
             continue;
         };
+        let bottom = p[6] == "M";
         for term in &decal.terminals {
             if pads.len() >= MAX_PADS {
                 skipped += 1;
@@ -396,7 +398,11 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
                 2 => [-a, -b],
                 _ => [b, -a],
             };
-            let Some(xx) = x.checked_add(delta[0]) else {
+            // PADS PART bottom placement: rotate local coordinates first, then
+            // flip horizontally about the component origin in the top-view.
+            // This is the restricted LEFT_RIGHT footprint flip used by KiCad PADS.
+            let dx = if bottom { -delta[0] } else { delta[0] };
+            let Some(xx) = x.checked_add(dx) else {
                 skipped += 1;
                 continue;
             };
@@ -414,10 +420,11 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
                 point: [xx, yy],
                 component_origin: [x, y],
                 rotation: rot,
-                layer: 1.min(max_layer),
+                layer: if bottom { max_layer } else { 1 },
                 size_ticks: stack.width,
                 square: stack.square,
                 rectangular: stack.rectangular,
+                bottom,
                 width_ticks: if rot % 2 == 0 {
                     stack.width
                 } else {
@@ -458,7 +465,7 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
                     &source,
                     ObjectKind::Component,
                     &component_key,
-                    "PART unmirrored / verified component origin and turn",
+                    "PART orthogonal origin/turn and explicit N(top)/M(bottom) flag; geometry preview only",
                 ),
                 reference: pad.reference.clone(),
                 placement: Placement {
@@ -473,9 +480,9 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
                             2 => QuarterTurn::Two,
                             _ => QuarterTurn::Three,
                         },
-                        mirror_x: false,
+                        mirror_x: pad.bottom,
                     },
-                    bottom_side: false,
+                    bottom_side: pad.bottom,
                 },
             });
             references.insert(pad.reference.clone(), component_id.clone());
@@ -505,7 +512,7 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
                 &source,
                 ObjectKind::Padstack,
                 &stack_key,
-                "PADS PARTDECAL top-only SMD round/square/restricted RF",
+                "PADS PARTDECAL restricted SMD round/square/RF; PART top/bottom side mapped",
             ),
             entries: vec![PadstackLayer {
                 layer,
@@ -520,7 +527,7 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
                 &source,
                 ObjectKind::Pad,
                 &pad_key,
-                "PADS PARTDECAL terminal + PART placement (top-only)",
+                "PADS PARTDECAL terminal + PART placement (top/bottom restricted)",
             ),
             position: Point {
                 frame: frame.clone(),
@@ -548,7 +555,7 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
     }
     board.sources[0].capability.pin_pad = CapabilityState::Partial;
     board.sources[0].capability.object_coverage.push(
-        "PARTDECAL/PARTTYPE/PART: top-only drill-free round/square/restricted RF SMD; net NOT_VERIFIED".into(),
+        "PARTDECAL/PARTTYPE/PART: restricted top/bottom drill-free R/S/RF SMD; net NOT_VERIFIED".into(),
     );
     if board.validate().has_errors() {
         return Err("PAD_CANONICAL_INVALID");
@@ -576,7 +583,12 @@ mod tests {
                 .pads
                 .is_empty()
         );
-        assert!(parse(SAMPLE.replace("90 U N 0", "90 U M 0").as_bytes(), 4)
+        let bottom = parse(SAMPLE.replace("90 U N 0", "90 U M 0").as_bytes(), 4);
+        assert_eq!(bottom.pads.len(), 2);
+        assert_eq!(bottom.pads[0].layer, 4);
+        assert!(bottom.pads[0].bottom);
+        assert_eq!(bottom.pads[1].point, [20_000, 40_000]);
+        assert!(parse(SAMPLE.replace("90 U N 0", "90 U M 0").as_bytes(), 1)
             .pads
             .is_empty());
         assert!(
@@ -767,6 +779,36 @@ mod tests {
         augment(&mut board, &parse(source.as_bytes(), route.max_layer)).unwrap();
         assert!(!board.validate().has_errors());
         assert!(board.pins.iter().all(|pin| pin.net.is_none()));
+    }
+    #[test]
+    fn bottom_mirror_post_rotation_and_layer_are_independent_of_top() {
+        // Asymmetric two-terminal decal: a left/right flip must not be
+        // mistaken for a Y flip or for rotation-first in the wrong direction.
+        let src = SAMPLE.replace("300 90 U N 0", "300 0 U M 0");
+        let zero = parse(src.as_bytes(), 4);
+        assert_eq!(zero.pads[0].point, [20_000, 30_000]);
+        assert_eq!(zero.pads[1].point, [10_000, 30_000]);
+        for (angle, expected) in [
+            ("0", [10_000, 30_000]),
+            ("90", [20_000, 40_000]),
+            ("180", [30_000, 30_000]),
+            ("270", [20_000, 20_000]),
+        ] {
+            let sample = SAMPLE.replace("300 90 U N 0", &format!("300 {angle} U M 0"));
+            let imported = parse(sample.as_bytes(), 4);
+            assert_eq!(imported.pads.len(), 2);
+            assert_eq!(imported.pads[1].point, expected, "bottom {angle}");
+            assert_eq!(imported.pads[1].layer, 4);
+            assert_eq!(imported.pads[1].bottom, true);
+            let route = crate::route_preview::parse(sample.as_bytes()).unwrap();
+            let mut model = crate::route_preview::into_canonical(sample.as_bytes(), &route).unwrap();
+            augment(&mut model, &imported).unwrap();
+            assert_eq!(model.components.len(), 1);
+            assert!(model.components[0].placement.bottom_side);
+            assert!(model.pins.iter().all(|p| p.net.is_none()));
+            assert!(model.pads.iter().all(|p| p.net.is_none()));
+            assert!(!model.validate().has_errors());
+        }
     }
     #[test]
     fn square_only_not_unsupported_asymmetric_rectangle() {
