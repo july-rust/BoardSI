@@ -1,52 +1,107 @@
-# Local developer-only launcher for the tested Windows x64 Qt + Rust Preview.
-# Requires the pinned Qt SDK and binaries already built per qt-runtime.yml.
-# This is not a Qt DLL redistribution bundle or public installer.
+# BoardSI Windows x64 developer launcher (source build or unpacked developer artifact).
+# Qt 6.8.3 MSVC x64 must be installed separately. NOT a redistribution installer.
 param(
-    [switch]$SelfTest
+    [switch]$SelfTest,
+    [switch]$ValidateOnly,
+    [string]$EvidenceDirectory = ''
 )
 $ErrorActionPreference = 'Stop'
-$root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-if (-not [System.Environment]::OSVersion.Platform.ToString().Equals('Win32NT') -or
+if ([System.Environment]::OSVersion.Platform.ToString() -ne 'Win32NT' -or
     [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString() -ne 'X64') {
-    throw 'This launcher is specifically for Windows x64.'
+    throw 'BoardSI Preview developer launcher requires Windows x64.'
+}
+# Package detection is anchored to the script directory, not to the caller's CWD.
+$packed = Test-Path -LiteralPath (Join-Path $PSScriptRoot 'boardsi-preview-p0.exe') -PathType Leaf
+if ($packed) {
+    $preview = Join-Path $PSScriptRoot 'boardsi-preview-p0.exe'
+    $worker = Join-Path $PSScriptRoot 'boardsi-worker.exe'
+    $importer = Join-Path $PSScriptRoot 'boardsi-import-artwork.exe'
+    $a = Join-Path $PSScriptRoot 'qt-model-a.frame'
+    $b = Join-Path $PSScriptRoot 'qt-model-b.frame'
+    $fixture = Join-Path $PSScriptRoot 'public-pads-v94-synthetic.asc'
+    $defaultWorkingDirectory = $PSScriptRoot
+} else {
+    $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+    $preview = Join-Path $root 'build-qt/boardsi-preview-p0.exe'
+    $worker = Join-Path $root 'target/debug/boardsi-worker.exe'
+    $importer = Join-Path $root 'target/debug/boardsi-import-artwork.exe'
+    $a = Join-Path $root 'build-qt/qt-model-a.frame'
+    $b = Join-Path $root 'build-qt/qt-model-b.frame'
+    $fixture = Join-Path $root 'crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc'
+    $defaultWorkingDirectory = Join-Path $root 'build-qt'
 }
 $qt = $env:QT_PREFIX
 if ([string]::IsNullOrWhiteSpace($qt)) {
-    throw 'QT_PREFIX is required: point it to the pinned Qt 6.8.3 MSVC x64 SDK.'
+    throw 'QT_PREFIX must point to a separately installed Qt 6.8.3 MSVC 2022 x64 SDK. Qt is not bundled.'
 }
+$qt = [System.IO.Path]::GetFullPath($qt)
 $qtBin = Join-Path $qt 'bin'
-$qtPlatforms = Join-Path $qt 'plugins/platforms'
-if (-not (Test-Path (Join-Path $qtBin 'Qt6Core.dll')) -or
-    -not (Test-Path (Join-Path $qtPlatforms 'qwindows.dll'))) {
-    throw 'Qt runtime or Windows platform plugin missing from QT_PREFIX.'
-}
-$preview = Join-Path $root 'build-qt/boardsi-preview-p0.exe'
-$worker = Join-Path $root 'target/debug/boardsi-worker.exe'
-$importer = Join-Path $root 'target/debug/boardsi-import-artwork.exe'
-$a = Join-Path $root 'build-qt/qt-model-a.frame'
-$b = Join-Path $root 'build-qt/qt-model-b.frame'
-foreach ($required in @($preview, $worker, $importer, $a, $b)) {
-    if (-not (Test-Path -PathType Leaf $required)) {
-        throw ('Missing developer build input. Reproduce qt-runtime.yml build: ' + $required)
+$qmake = Join-Path $qtBin 'qmake.exe'
+$qtFiles = @(
+    (Join-Path $qtBin 'Qt6Core.dll'),
+    (Join-Path $qtBin 'Qt6Gui.dll'),
+    (Join-Path $qtBin 'Qt6Widgets.dll'),
+    (Join-Path $qt 'plugins/platforms/qwindows.dll'),
+    $qmake
+)
+foreach ($required in $qtFiles) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw ('Missing Qt SDK runtime/plugin component: ' + $required)
     }
 }
-$env:PATH = $qtBin + ';' + $env:PATH
-$env:QT_PLUGIN_PATH = Join-Path $qt 'plugins'
-$env:QT_QPA_PLATFORM = 'windows'
-$launchArgs = @($worker, $a, $b, $importer)
-if ($SelfTest) {
-    $fixture = Join-Path $root 'crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc'
-    if (-not (Test-Path -PathType Leaf $fixture)) { throw 'Public test fixture missing.' }
-    $launchArgs = @('--selftest') + $launchArgs + @($fixture)
+$qtVersion = (& $qmake -query QT_VERSION 2>&1 | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $qtVersion -ne '6.8.3') {
+    throw ('Expected Qt 6.8.3 MSVC x64 SDK, qmake reports: ' + $qtVersion)
 }
-# GUI smoke writes its JSON receipt relative to the process working directory.
-# Always reuse build-qt, where native CI and its artifact collector expect it.
-Push-Location (Join-Path $root 'build-qt')
+foreach ($required in @($preview, $worker, $importer, $a, $b)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw ('Missing BoardSI executable/model frame: ' + $required)
+    }
+}
+if ($SelfTest -and -not (Test-Path -LiteralPath $fixture -PathType Leaf)) {
+    throw ('Missing public synthetic test fixture: ' + $fixture)
+}
+if ([string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
+    $workingDirectory = $defaultWorkingDirectory
+} else {
+    $workingDirectory = [System.IO.Path]::GetFullPath(
+        [System.IO.Path]::Combine((Get-Location).Path, $EvidenceDirectory))
+}
+if (-not (Test-Path -LiteralPath $workingDirectory -PathType Container)) {
+    throw ('Evidence/working directory not found: ' + $workingDirectory)
+}
+Write-Host ('BoardSI developer launcher: ' + $(if ($packed) { 'unpacked artifact' } else { 'source tree' }))
+Write-Host ('Qt SDK: ' + $qt + ' (6.8.3); Windows x64; NO Qt redistribution approval')
+Write-Host ('GUI: ' + $preview)
+if ($ValidateOnly) {
+    Write-Host 'VALIDATION ONLY - no GUI started or native execution claimed.'
+    return
+}
+$launchArgs = @($worker, $a, $b, $importer)
+if ($SelfTest) { $launchArgs = @('--selftest') + $launchArgs + @($fixture) }
+$oldPath = $env:PATH
+$oldPluginPath = $env:QT_PLUGIN_PATH
+$oldPlatform = $env:QT_QPA_PLATFORM
 try {
-    & $preview @launchArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw ('BoardSI Preview exited with code ' + $LASTEXITCODE)
+    $env:PATH = $qtBin + ';' + $oldPath
+    $env:QT_PLUGIN_PATH = Join-Path $qt 'plugins'
+    $env:QT_QPA_PLATFORM = 'windows'
+    # Smoke writes qt-preview-p0-results.json in the process working directory.
+    # CI uses a directory outside the staged artifact to keep SHA256SUMS complete.
+    Push-Location -LiteralPath $workingDirectory
+    try {
+        & $preview @launchArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw ('BoardSI Preview exited with code ' + $LASTEXITCODE)
+        }
+        if ($SelfTest -and -not (Test-Path -LiteralPath 'qt-preview-p0-results.json' -PathType Leaf)) {
+            throw 'Native GUI smoke receipt missing'
+        }
+    } finally {
+        Pop-Location
     }
 } finally {
-    Pop-Location
+    $env:PATH = $oldPath
+    $env:QT_PLUGIN_PATH = $oldPluginPath
+    $env:QT_QPA_PLATFORM = $oldPlatform
 }
