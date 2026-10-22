@@ -67,14 +67,15 @@ fn scan_simple_via_defs(source: &str) -> BTreeMap<String, SimpleViaDef> {
             continue;
         }
         let header = parts(line);
-        if header.len() != 3 || !header[0].is_ascii()
-            || header[0].len() > 64 || header[0].contains('|')
+        if header.len() != 3
+            || !header[0].is_ascii()
+            || header[0].len() > 64
+            || header[0].contains('|')
         {
             i += 1;
             continue;
         }
-        let (Ok(drill), Ok(count)) = (parse_fixed(header[1]), header[2].parse::<usize>())
-        else {
+        let (Ok(drill), Ok(count)) = (parse_fixed(header[1]), header[2].parse::<usize>()) else {
             i += 1;
             continue;
         };
@@ -92,11 +93,10 @@ fn scan_simple_via_defs(source: &str) -> BTreeMap<String, SimpleViaDef> {
                 valid = false;
                 continue;
             }
-            let (Ok(level), Ok(diameter)) =
-                (parse_i64(row[0]), parse_fixed(row[1])) else {
-                    valid = false;
-                    continue;
-                };
+            let (Ok(level), Ok(diameter)) = (parse_i64(row[0]), parse_fixed(row[1])) else {
+                valid = false;
+                continue;
+            };
             if diameter <= drill || diameter > MAX_COORD_TICKS {
                 valid = false;
             }
@@ -107,13 +107,14 @@ fn scan_simple_via_defs(source: &str) -> BTreeMap<String, SimpleViaDef> {
                 _ => valid = false,
             }
         }
-        if valid && top.is_some() && top == bottom
-            && (count == 2 || interior == top)
-        {
-            definitions.insert(header[0].to_string(), SimpleViaDef {
-                drill_ticks: drill,
-                diameter_ticks: top.unwrap_or_default(),
-            });
+        if valid && top.is_some() && top == bottom && (count == 2 || interior == top) {
+            definitions.insert(
+                header[0].to_string(),
+                SimpleViaDef {
+                    drill_ticks: drill,
+                    diameter_ticks: top.unwrap_or_default(),
+                },
+            );
         }
         i += count + 1;
     }
@@ -546,8 +547,18 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         });
     }
     for via in &parsed.vias {
-        let start = ObjectId::new(&source, ObjectKind::Layer, &format!("layer-{}", via.first_layer), "");
-        let end = ObjectId::new(&source, ObjectKind::Layer, &format!("layer-{}", via.last_layer), "");
+        let start = ObjectId::new(
+            &source,
+            ObjectKind::Layer,
+            &format!("layer-{}", via.first_layer),
+            "",
+        );
+        let end = ObjectId::new(
+            &source,
+            ObjectKind::Layer,
+            &format!("layer-{}", via.last_layer),
+            "",
+        );
         let span = ViaSpan {
             first_layer: start.clone(),
             last_layer: end.clone(),
@@ -562,10 +573,16 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             board.padstacks.push(Padstack {
                 meta: meta(&source, ObjectKind::Padstack, &padstack_key),
                 entries: vec![
-                    PadstackLayer { layer: start.clone(), role: PadRole::Conductive,
-                        shape: PadShape::Circle { diameter_m } },
-                    PadstackLayer { layer: end.clone(), role: PadRole::Conductive,
-                        shape: PadShape::Circle { diameter_m } },
+                    PadstackLayer {
+                        layer: start.clone(),
+                        role: PadRole::Conductive,
+                        shape: PadShape::Circle { diameter_m },
+                    },
+                    PadstackLayer {
+                        layer: end.clone(),
+                        role: PadRole::Conductive,
+                        shape: PadShape::Circle { diameter_m },
+                    },
                 ],
             });
             board.drills.push(Drill {
@@ -577,8 +594,15 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             });
         }
         board.vias.push(Via {
-            meta: meta(&source, ObjectKind::Via, &format!("via-line-{}", via.source_line)),
-            position: Point { frame: frame_id.clone(), ticks: via.point },
+            meta: meta(
+                &source,
+                ObjectKind::Via,
+                &format!("via-line-{}", via.source_line),
+            ),
+            position: Point {
+                frame: frame_id.clone(),
+                ticks: via.point,
+            },
             padstack: padstack_id,
             drill: drill_id,
             span,
