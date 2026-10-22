@@ -219,6 +219,7 @@ jobs:
             'build-qt/qt-model-a.frame' = 'qt-model-a.frame'
             'build-qt/qt-model-b.frame' = 'qt-model-b.frame'
             'crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc' = 'public-pads-v94-synthetic.asc'
+            'crates/boardsi-import/tests/fixtures/not_a_pcb.asc' = 'not_a_pcb.asc'
           }
           foreach ($source in $items.Keys) {
             if (-not (Test-Path -PathType Leaf $source)) { throw "Missing developer artifact input: $source" }
@@ -241,14 +242,14 @@ jobs:
           NOT pads, vias, copper pours, connectivity, layer materials or physical SI.
           Declared layers are NOT equivalent to layers containing imported copper.
           No Qt DLLs, Qt plugins, company CAD data, installer, or solver are included.
-          SHA256SUMS.txt covers the eight original payloads, not subsequently
+          SHA256SUMS.txt covers the nine original payloads, not subsequently
           generated selftest receipts. Verify before running. License approval,
           vendor PADS compatibility and general redistribution remain NOT_VERIFIED.
           '@ | Set-Content -LiteralPath (Join-Path $stage 'README.txt') -Encoding UTF8
           # Take a stable payload snapshot BEFORE opening the manifest.
           $payload = @(Get-ChildItem -LiteralPath $stage -File |
             Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | Sort-Object Name)
-          if ($payload.Count -ne 8) { throw 'Unexpected developer artifact payload count' }
+          if ($payload.Count -ne 9) { throw 'Unexpected developer artifact payload count' }
           $hashLines = @($payload | ForEach-Object {
             ('{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash, $_.Name)
           })
@@ -299,7 +300,7 @@ jobs:
           Copy-Item -LiteralPath $receiptPath -Destination 'build-qt/qt-preview-staged-package.json'
           $payload = @(Get-ChildItem -LiteralPath $stage -File |
             Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | Sort-Object Name)
-          if ($payload.Count -ne 8) { throw 'Unexpected staged payload after execution' }
+          if ($payload.Count -ne 9) { throw 'Unexpected staged payload after execution' }
           foreach ($line in (Get-Content -LiteralPath (Join-Path $stage 'SHA256SUMS.txt'))) {
             $parts = $line -split '  ', 2
             if ($parts.Count -ne 2 -or $parts[0].Length -ne 64 -or
