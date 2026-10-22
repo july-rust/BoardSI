@@ -140,7 +140,11 @@ fn p2e_cli_bottom_mirror_top_mixed_explicit_side_and_no_net() {
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/pads_bottom_mirror_v94.asc");
     let output = Command::new(bin).arg(&fixture).output().expect("P2E CLI");
-    assert!(output.status.success(), "{:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let msg = String::from_utf8(output.stdout).unwrap();
     assert!(msg.starts_with("BOARDSI_P2E_PARTIAL_V4|V9.4-MILS|4\n"));
     let pads: Vec<_> = msg.lines().filter(|s| s.starts_with("P|")).collect();
@@ -157,6 +161,8 @@ fn p2e_cli_bottom_mirror_top_mixed_explicit_side_and_no_net() {
         "P|U4|1|1|RF|25400000|7620000|2032000|762000|NET_UNVERIFIED|T|0",
         "P|U4|2|1|RF|27940000|7620000|762000|2032000|NET_UNVERIFIED|T|0",
     ];
-    for want in expected { assert!(pads.contains(&want), "missing {want}"); }
+    for want in expected {
+        assert!(pads.contains(&want), "missing {want}");
+    }
     assert!(msg.ends_with("END|0|0|10|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
 }
