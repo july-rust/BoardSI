@@ -94,6 +94,8 @@ function Assert-Amd64PeFile([string]$path) {
 }
 foreach ($native in @($preview, $worker, $importer,
                        (Join-Path $qtBin 'Qt6Core.dll'),
+                       (Join-Path $qtBin 'Qt6Gui.dll'),
+                       (Join-Path $qtBin 'Qt6Widgets.dll'),
                        (Join-Path $qt 'plugins/platforms/qwindows.dll'))) {
     Assert-Amd64PeFile $native
 }
