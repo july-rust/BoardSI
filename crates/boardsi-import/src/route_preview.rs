@@ -1017,9 +1017,21 @@ mod p2b_via_tests {
             .any(|scope| scope.contains("VIA explicit round")));
         assert_eq!(board.padstacks.len(), 1);
         assert_eq!(board.drills.len(), 1);
-        assert!(board.padstacks[0].meta.provenance.source_object_type.contains("VIA definition"));
-        assert!(board.drills[0].meta.provenance.source_object_type.contains("VIA definition"));
-        assert!(board.vias[0].meta.provenance.source_object_type.contains("ROUTE via placement"));
+        assert!(board.padstacks[0]
+            .meta
+            .provenance
+            .source_object_type
+            .contains("VIA definition"));
+        assert!(board.drills[0]
+            .meta
+            .provenance
+            .source_object_type
+            .contains("VIA definition"));
+        assert!(board.vias[0]
+            .meta
+            .provenance
+            .source_object_type
+            .contains("ROUTE via placement"));
         assert!(board.vias[0].connected_layers.is_empty());
         assert!(!board.validate().has_errors());
     }
