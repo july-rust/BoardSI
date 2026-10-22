@@ -262,7 +262,7 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
         // here without claiming their geometry is supported.
         if !(7..=8).contains(&fields.len())
             || !safe_name(fields[0], 40)
-            || !matches!(fields[2], "UND")
+            || !safe_name(fields[2], 3)
             || fields[3] != "0"
             || fields[4] != "0"
             || fields[5] != "0"
@@ -568,10 +568,8 @@ mod tests {
         assert_eq!(parsed.skipped, 0);
         assert_eq!(parsed.pads.len(), 2);
         assert_eq!(parsed.pads[1].point, [20_000, 40_000]);
-        assert!(parse(
-            SAMPLE.replace("*PART*\n", "*PART*\n*STANDARD*\n*ROUTE*\n").as_bytes(),
-            4,
-        ).pads.is_empty());
+        let separated = SAMPLE.replace("*PART*\n", "*PART*\n*STANDARD*\n*ROUTE*\n");
+        assert!(parse(separated.as_bytes(), 4).pads.is_empty());
     }
     #[test]
     fn accepts_primary_decal_from_alternate_list_only() {
@@ -582,8 +580,9 @@ mod tests {
             assert_eq!(parsed.pads.len(), 2);
         }
         // Selecting an unmodeled alternate is deliberately not supported.
-        let source = SAMPLE.replace("TYPEA D2 UND", "TYPEA D2:D3 UND")
-                           .replace("90 U N 0", "90 U N 1");
+        let source = SAMPLE
+            .replace("TYPEA D2 UND", "TYPEA D2:D3 UND")
+            .replace("90 U N 0", "90 U N 1");
         assert!(parse(source.as_bytes(), 4).pads.is_empty());
         for list in ["D2:", ":D2", "D2::D3"] {
             let source = SAMPLE.replace("TYPEA D2 UND", &format!("TYPEA {list} UND"));
