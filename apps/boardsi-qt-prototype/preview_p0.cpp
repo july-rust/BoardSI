@@ -618,6 +618,80 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
 }
 
 
+
+static int runPadSmoke(PreviewWindow &window, const QString &fixture) {
+    QElapsedTimer clock;
+    clock.start();
+    QString failure;
+    bool passed = false;
+    QEventLoop loop;
+    if (!window.openCandidate(fixture)) {
+        failure = "P2-C synthetic component pad fixture unavailable";
+    } else {
+        QTimer tick;
+        QObject::connect(&tick, &QTimer::timeout, &loop, [&] {
+            const QString status = window.importPanel()->importStatus();
+            if (status.startsWith("FAILED") || status.startsWith("CANCELLED")) {
+                failure = "P2-C import failed: " + status;
+                loop.quit();
+            } else if (status.startsWith("PARTIAL")) {
+                auto *panel = window.importPanel()->imported();
+                auto *scene = panel->findChild<QGraphicsScene *>();
+                const auto near = [](qreal a, qreal b) {
+                    return qAbs(a-b) < 0.000001;
+                };
+                bool roundOK = false, squareOK = false;
+                if (scene) for (QGraphicsItem *item : scene->items()) {
+                    const QString details = item->data(1).toString();
+                    if (details.contains("Pad U1.1")) {
+                        auto *circle = qgraphicsitem_cast<QGraphicsEllipseItem *>(item);
+                        if (circle) {
+                            const QRectF actual = circle->rect();
+                            roundOK = near(actual.center().x(), 5.08) &&
+                                      near(actual.center().y(), -7.62) &&
+                                      near(actual.width(), 1.016) && near(actual.height(), 1.016);
+                        }
+                    } else if (details.contains("Pad U1.2")) {
+                        auto *rect = qgraphicsitem_cast<QGraphicsRectItem *>(item);
+                        if (rect) {
+                            const QRectF actual = rect->rect();
+                            squareOK = near(actual.center().x(), 5.08) &&
+                                       near(actual.center().y(), -10.16) &&
+                                       near(actual.width(), 0.762) && near(actual.height(), 0.762);
+                        }
+                    }
+                }
+                const bool selected = panel->selectPad(1);
+                const bool props = window.displayedProperties().contains("Pad U1.2") &&
+                                   window.displayedProperties().contains("net NOT_VERIFIED") &&
+                                   window.displayedProperties().contains("Component SMD pads: 2");
+                const bool count = panel->padCount() == 2 && panel->segmentCount() == 1;
+                passed = count && roundOK && squareOK && selected && props;
+                if (!passed) failure = "P2-C scene geometry/selection/provenance mismatch";
+                loop.quit();
+            }
+        });
+        QTimer::singleShot(15000, &loop, &QEventLoop::quit);
+        tick.start(20);
+        loop.exec();
+        tick.stop();
+        if (!passed && failure.isEmpty()) failure = "P2-C smoke timed out";
+    }
+    QJsonObject report{
+        {"schema", "boardsi-preview-p2c-pad-smoke-v1"},
+        {"pass", passed}, {"failure", failure}, {"elapsed_ms", clock.elapsed()},
+        {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"native_backend", QGuiApplication::platformName()},
+        {"host_arch", QSysInfo::currentCpuArchitecture()},
+        {"scope", "public synthetic top-only SMD round/square; net NOT_VERIFIED; SI NOT_RUN"}
+    };
+    QFile receipt("qt-preview-p2c-pad-results.json");
+    if (!receipt.open(QIODevice::WriteOnly) ||
+        receipt.write(QJsonDocument(report).toJson(QJsonDocument::Indented)) < 1) return 2;
+    qInfo().noquote() << QJsonDocument(report).toJson(QJsonDocument::Compact);
+    return passed ? 0 : 1;
+}
+
 static int runViaSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock;
     clock.start();
@@ -675,8 +749,9 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
     const bool viaTesting = args.size() == 7 && args.at(1) == "--via-selftest";
+    const bool padTesting = args.size() == 7 && args.at(1) == "--pad-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
-                         viaTesting;
+                         viaTesting || padTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -699,6 +774,7 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return viaTesting ? runViaSmoke(window, fixture) :
+    return padTesting ? runPadSmoke(window, fixture) :
+           viaTesting ? runViaSmoke(window, fixture) :
            testing ? runPreviewSmoke(app, window, worker, fixture) : app.exec();
 }
