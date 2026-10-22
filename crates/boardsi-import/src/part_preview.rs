@@ -418,8 +418,16 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
                 size_ticks: stack.width,
                 square: stack.square,
                 rectangular: stack.rectangular,
-                width_ticks: if rot % 2 == 0 { stack.width } else { stack.height },
-                height_ticks: if rot % 2 == 0 { stack.height } else { stack.width },
+                width_ticks: if rot % 2 == 0 {
+                    stack.width
+                } else {
+                    stack.height
+                },
+                height_ticks: if rot % 2 == 0 {
+                    stack.height
+                } else {
+                    stack.width
+                },
             });
         }
     }
@@ -710,10 +718,7 @@ mod tests {
     }
     #[test]
     fn restricted_rf_all_component_turns_and_finger_orientations() {
-        let fixture = SAMPLE.replace(
-            "-2 40 R 0",
-            "-2 30 RF 0 80 0 0",
-        );
+        let fixture = SAMPLE.replace("-2 40 R 0", "-2 30 RF 0 80 0 0");
         for (rotation, expected) in [
             ("0", (8000, 3000)),
             ("90", (3000, 8000)),
@@ -731,7 +736,10 @@ mod tests {
         let source = fixture.replace("-2 30 RF 0 80 0 0", "-2 30 RF 90 80 0 0");
         let parsed = parse(source.as_bytes(), 4);
         assert_eq!(parsed.pads.len(), 2);
-        assert_eq!((parsed.pads[0].width_ticks, parsed.pads[0].height_ticks), (8000, 3000));
+        assert_eq!(
+            (parsed.pads[0].width_ticks, parsed.pads[0].height_ticks),
+            (8000, 3000)
+        );
     }
     #[test]
     fn rejects_unmodeled_rf_extensions_and_preserves_other_pads() {
@@ -747,7 +755,10 @@ mod tests {
             "-2 30 RF 0 80 0",
         ] {
             let source = valid.replace("-2 30 RF 0 80 0 0", replacement);
-            assert!(parse(source.as_bytes(), 4).pads.is_empty(), "invalid: {replacement}");
+            assert!(
+                parse(source.as_bytes(), 4).pads.is_empty(),
+                "invalid: {replacement}"
+            );
         }
         // Canonical construction requires a real declared copper-layer count.
         let source = valid.replacen("*PARTDECAL*", "*PCB*\nMAXLAYER 4\n*PARTDECAL*", 1);
