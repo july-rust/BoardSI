@@ -149,7 +149,8 @@ public:
                 return;
             }
             if (expired_ || overflow_) {
-                status("FAILED / local import timeout or excessive output / NOTHING IMPORTED");
+                status(expired_ ? "FAILED / IMPORT_TIMEOUT / NOTHING IMPORTED"
+                                : "FAILED / IMPORT_OUTPUT_LIMIT / NOTHING IMPORTED");
                 return;
             }
             if (code != 0 || exitStatus != QProcess::NormalExit) {
@@ -175,9 +176,12 @@ public:
             }
             int layers = 0, skipped = 0;
             std::vector<ImportedTrack> tracks;
-            if (!decode(data_, layers, skipped, tracks) ||
-                !imported_->load(layers, skipped, tracks)) {
-                status("FAILED / invalid Canonical partial transport / NOTHING IMPORTED");
+            if (!decode(data_, layers, skipped, tracks)) {
+                status("FAILED / INVALID_TRANSPORT / NOTHING IMPORTED");
+                return;
+            }
+            if (!imported_->load(layers, skipped, tracks)) {
+                status("FAILED / INVALID_GEOMETRY / NOTHING IMPORTED");
                 return;
             }
             tabs_->setTabText(1, "Imported Partial");
@@ -194,7 +198,7 @@ public:
                 [this](QProcess::ProcessError code) {
             if (code == QProcess::FailedToStart) {
                 deadline_.stop();
-                status("FAILED / local importer process unavailable");
+                status("FAILED / IMPORTER_UNAVAILABLE / NOTHING IMPORTED");
             }
         });
         deadline_.setSingleShot(true);
@@ -215,9 +219,12 @@ public:
         // Never show previous geometry with the current "NOTHING IMPORTED" result.
         imported_->clearArtwork();
         tabs_->setTabText(1, "Imported Partial (none)");
-        if (!QFileInfo(binary_).isAbsolute() || !QFileInfo(binary_).isExecutable() ||
-            !QFileInfo(path).isFile()) {
-            status("FAILED / unsupported local file or importer unavailable");
+        if (!QFileInfo(binary_).isAbsolute() || !QFileInfo(binary_).isExecutable()) {
+            status("FAILED / IMPORTER_UNAVAILABLE / NOTHING IMPORTED");
+            return false;
+        }
+        if (!QFileInfo(path).isFile()) {
+            status("FAILED / FILE_NOT_FOUND / NOTHING IMPORTED");
             return false;
         }
         data_.clear();
