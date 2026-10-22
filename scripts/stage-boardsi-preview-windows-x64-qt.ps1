@@ -33,7 +33,7 @@ foreach ($path in $items.Keys) {
 $priorPath=$env:PATH
 try {
     $env:PATH=$bin+';'+$env:PATH
-    & $windeployqt --release --no-translations --no-compiler-runtime --no-system-d3d-compiler --no-opengl-sw --no-plugins --dir $stage (Join-Path $stage 'boardsi-preview-p0.exe')
+    & $windeployqt --release --no-translations --no-compiler-runtime --no-system-d3d-compiler --no-system-dxc-compiler --no-opengl-sw --no-plugins --dir $stage (Join-Path $stage 'boardsi-preview-p0.exe')
     if ($LASTEXITCODE -ne 0) {throw "windeployqt failed with $LASTEXITCODE"}
 } finally {$env:PATH=$priorPath}
 New-Item -ItemType Directory -Path (Join-Path $stage 'platforms') -Force | Out-Null
@@ -43,6 +43,19 @@ $found=@(Get-ChildItem -LiteralPath $stage -File -Filter 'Qt6*.dll' | Select-Obj
 if (@(Compare-Object $expected $found).Count -gt 0) { throw "Unexpected Qt module set: $($found -join ',')" }
 $crt=@(Get-ChildItem -LiteralPath $stage -Recurse -File | Where-Object {$_.Name -match '^(vcruntime|msvcp|concrt|ucrtbase|api-ms-win-).*\.dll$'})
 if ($crt.Count -gt 0) {throw 'Do not redistribute individual MSVC CRT DLL files'}
+
+# No 3rd-party DXC/DirectX/OpenSSL or compiler DLL may slip into a test
+# artifact without separate notices/provenance. Only four QtBase shared
+# libraries and the QtBase Windows platform plugin are approved.
+$allowedDlls=@('Qt6Core.dll','Qt6Gui.dll','Qt6Network.dll','Qt6Widgets.dll','platforms/qwindows.dll')
+$otherDlls=@(Get-ChildItem -LiteralPath $stage -Recurse -File -Filter '*.dll' | Where-Object {
+    $relative=$_.FullName.Substring($stage.Length+1).Replace('\','/')
+    $allowedDlls -cnotcontains $relative
+})
+if ($otherDlls.Count -gt 0) {
+    throw ('Unapproved DLL in bundled Qt artifact: '+(($otherDlls | ForEach-Object {$_.FullName}) -join ','))
+}
+
 @'
 [Paths]
 Prefix=.
