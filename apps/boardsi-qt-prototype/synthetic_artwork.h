@@ -18,6 +18,7 @@
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QPointer>
+#include <QShowEvent>
 #ifdef BOARDSI_OPENGL_VIEWPORT
 #include <QOpenGLWidget>
 #endif
@@ -134,8 +135,8 @@ public:
         setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
         setBackgroundBrush(QColor("#111923"));
         setMinimumHeight(220);
-        // Defer probing until after widget construction and first show.
-        QTimer::singleShot(0, this, [this] { chooseRenderer(); });
+        // GPU probing is deferred to showEvent, when the tab is actually visible.
+        // An inactive Imported tab must not fail its frame timeout while hidden.
     }
 
     QString rendererStatus() const { return rendererStatus_; }
@@ -146,6 +147,13 @@ public:
     }
 
 protected:
+    void showEvent(QShowEvent *event) override {
+        QGraphicsView::showEvent(event);
+        if (rendererStatus_ != "GPU_PREFERRED_NOT_PROBED") return;
+        rendererStatus_ = "GPU_PROBING";
+        QTimer::singleShot(0, this, [this] { chooseRenderer(); });
+    }
+
     void wheelEvent(QWheelEvent *event) override {
         const int delta = event->angleDelta().y();
         if (delta == 0) {
