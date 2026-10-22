@@ -4,6 +4,7 @@
 #include <QComboBox>
 #include <QGraphicsLineItem>
 #include <QGraphicsEllipseItem>
+#include <QGraphicsRectItem>
 #include <QLabel>
 #include <QPushButton>
 #include <QSet>
@@ -19,6 +20,12 @@ struct ImportedTrack {
     int layer = 0;
     QString net;
     qint64 x0_nm = 0, y0_nm = 0, x1_nm = 0, y1_nm = 0, width_nm = 0;
+};
+
+struct ImportedPad {
+    QString reference, pin, shape;
+    int layer = 0;
+    qint64 x_nm = 0, y_nm = 0, width_nm = 0, height_nm = 0;
 };
 
 struct ImportedVia {
@@ -37,6 +44,7 @@ class ImportedArtworkPanel final : public QWidget {
     QVector<bool> layerVisible_;
     std::vector<std::pair<QGraphicsLineItem *, ImportedTrack>> tracks_;
     std::vector<std::pair<QGraphicsEllipseItem *, ImportedVia>> vias_;
+    std::vector<std::pair<QGraphicsItem *, ImportedPad>> pads_;
     std::function<void(const QString &)> detailsCallback_;
     int skipped_ = 0;
     void refresh() {
@@ -76,6 +84,17 @@ class ImportedArtworkPanel final : public QWidget {
                 if (net != "All nets" && active) ++highlightedVias;
             }
         }
+        int visiblePads = 0;
+        for (const auto &entry : pads_) {
+            const ImportedPad &pad = entry.second;
+            const bool shown = pad.layer > 0 && pad.layer < layerVisible_.size() &&
+                               layerVisible_[pad.layer];
+            entry.first->setVisible(shown);
+            // Pad net ownership has not been verified. Never highlight pads
+            // as electrically connected to a selected route net.
+            entry.first->setOpacity(net == "All nets" ? 1.0 : 0.12);
+            if (shown) ++visiblePads;
+        }
         // Declared layers are NOT necessarily copper layers with accepted traces.
         // Counts below describe only rendered straight-route data, not inferred geometry.
         const int layerId = layers_->currentData().toInt();
@@ -95,11 +114,13 @@ class ImportedArtworkPanel final : public QWidget {
                 .arg(selectedVisible ? "visible" : "hidden/not loaded").arg(net) +
             QString("Segments: %1  Visible: %2  Highlighted: %3\n"
                     "Explicit round through vias: %4  Visible: %5  Highlighted: %6\n"
-                    "Unsupported route records omitted: %7\n"
+                    "Component SMD pads: %8  Visible: %9  Net: NOT_VERIFIED\n"
+                    "Unsupported route/part records omitted: %7\n"
                     "Other pads, unsupported vias, pours, electrical connectivity, stackup: NOT IMPORTED")
                 .arg(static_cast<qlonglong>(tracks_.size())).arg(visible)
                 .arg(highlighted).arg(static_cast<qlonglong>(vias_.size()))
-                .arg(visibleVias).arg(highlightedVias).arg(skipped_);
+                .arg(visibleVias).arg(highlightedVias).arg(skipped_)
+                .arg(static_cast<qlonglong>(pads_.size())).arg(visiblePads);
         const auto selected = scene_->selectedItems();
         if (!selected.isEmpty() && !selected.first()->data(1).toString().isEmpty())
             line += "\nSelected object: " + selected.first()->data(1).toString();
@@ -183,6 +204,7 @@ public:
         const QSignalBlocker muteSelection(scene_);
         tracks_.clear();
         vias_.clear();
+        pads_.clear();
         scene_->clear();
         layerVisible_.clear();
         layers_->clear();
@@ -194,9 +216,12 @@ public:
         if (detailsCallback_) detailsCallback_(summary_->text());
     }
     bool load(int layerCount, int skipped, const std::vector<ImportedTrack> &input,
-              const std::vector<ImportedVia> &viaInput = {}) {
-        if (layerCount < 1 || layerCount > 64 || (input.empty() && viaInput.empty()) ||
-            input.size() > 10000 || viaInput.size() > 10000) return false;
+              const std::vector<ImportedVia> &viaInput = {},
+              const std::vector<ImportedPad> &padInput = {}) {
+        if (layerCount < 1 || layerCount > 64 ||
+            (input.empty() && viaInput.empty() && padInput.empty()) ||
+            input.size() > 10000 || viaInput.size() > 10000 ||
+            padInput.size() > 5000) return false;
         // Keep the old artwork untouched if a candidate fails validation.
         for (const auto &t : input) {
             if (t.layer <= 0 || t.layer > layerCount || t.width_nm <= 0 ||
@@ -216,10 +241,19 @@ public:
                 via.y_nm < -100000000000LL || via.y_nm > 100000000000LL)
                 return false;
         }
+        for (const auto &pad : padInput) {
+            if (pad.layer != 1 || pad.reference.isEmpty() || pad.pin.isEmpty() ||
+                pad.width_nm <= 0 || pad.height_nm != pad.width_nm ||
+                (pad.shape != "R" && pad.shape != "S") ||
+                pad.x_nm < -100000000000LL || pad.x_nm > 100000000000LL ||
+                pad.y_nm < -100000000000LL || pad.y_nm > 100000000000LL)
+                return false;
+        }
         {
             const QSignalBlocker muteSelection(scene_);
             tracks_.clear();
             vias_.clear();
+            pads_.clear();
             scene_->clear();
         }
         layerVisible_ = QVector<bool>(layerCount + 1, true);
@@ -267,6 +301,27 @@ public:
             outer->setFlag(QGraphicsItem::ItemIsSelectable);
             vias_.push_back({outer, via});
         }
+        for (const auto &pad : padInput) {
+            const qreal width = pad.width_nm / 1e6;
+            const qreal height = pad.height_nm / 1e6;
+            const qreal x = pad.x_nm / 1e6;
+            const qreal y = -pad.y_nm / 1e6;
+            const QRectF box(x-width/2, y-height/2, width, height);
+            const QColor color("#d0a55a");
+            QGraphicsItem *item = pad.shape == "R"
+                ? static_cast<QGraphicsItem *>(scene_->addEllipse(
+                      box, QPen(color.darker(140), 0), QBrush(color)))
+                : static_cast<QGraphicsItem *>(scene_->addRect(
+                      box, QPen(color.darker(140), 0), QBrush(color)));
+            item->setData(1, QString("Pad %1.%2 / layer %3 / %4 / %5 mm x %6 mm"
+                                     " / centre (%7, %8) mm / net NOT_VERIFIED")
+                                  .arg(pad.reference).arg(pad.pin).arg(pad.layer)
+                                  .arg(pad.shape == "R" ? "round" : "square")
+                                  .arg(width, 0, 'f', 6).arg(height, 0, 'f', 6)
+                                  .arg(x, 0, 'f', 6).arg(-y, 0, 'f', 6));
+            item->setFlag(QGraphicsItem::ItemIsSelectable);
+            pads_.push_back({item, pad});
+        }
         skipped_ = skipped;
         scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-1, -1, 1, 1));
         refresh();
@@ -274,7 +329,7 @@ public:
         return true;
     }
     void fitArtwork() {
-        if (!tracks_.empty() || !vias_.empty()) {
+        if (!tracks_.empty() || !vias_.empty() || !pads_.empty()) {
             // Qt's Fit is cumulative with the existing view transform. Reset
             // first so a Fit after Zoom is repeatable and does not drift.
             view_->resetTransform();
@@ -283,6 +338,13 @@ public:
     }
     int segmentCount() const { return static_cast<int>(tracks_.size()); }
     int viaCount() const { return static_cast<int>(vias_.size()); }
+    int padCount() const { return static_cast<int>(pads_.size()); }
+    bool selectPad(int index) {
+        if (index < 0 || index >= static_cast<int>(pads_.size())) return false;
+        scene_->clearSelection();
+        pads_[static_cast<size_t>(index)].first->setSelected(true);
+        return true;
+    }
     bool selectVia(int index) {
         if (index < 0 || index >= static_cast<int>(vias_.size())) return false;
         scene_->clearSelection();

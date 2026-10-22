@@ -1,5 +1,6 @@
 //! Offline local PADS ASC (V9.4 MILS only) -> partial Canonical Model -> Qt line protocol.
 //! Standard output is a bounded transport, never an SI simulation or full CAD import.
+use boardsi_import::part_preview::{self, MAX_PADS};
 use boardsi_import::route_preview::{into_canonical, parse, MAX_FILE_BYTES};
 use std::{
     env, fs,
@@ -19,16 +20,25 @@ fn run() -> Result<(), &'static str> {
     }
     let bytes = fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
     let result = parse(&bytes)?;
-    let board = into_canonical(&bytes, &result)?;
+    let mut board = into_canonical(&bytes, &result)?;
+    let pad_data = part_preview::parse(&bytes, result.max_layer);
+    part_preview::augment(&mut board, &pad_data)?;
     if board.traces.len() != result.segments.len()
         || board.vias.len() != result.vias.len()
+        || board.pads.len() != pad_data.pads.len()
         || board.validate().has_errors()
     {
         return Err("CANONICAL_VALIDATION_FAILED");
     }
     let mut out = Vec::new();
-    writeln!(out, "BOARDSI_P2A_PARTIAL_V1|V9.4-MILS|{}", result.max_layer)
-        .map_err(|_| "FORMAT_ERROR")?;
+    // Preserve the established P2A/P2B V1 wire contract whenever no pad
+    // records are actually emitted. Rejected PART rows are not P2C geometry.
+    let mode = if pad_data.pads.is_empty() {
+        "BOARDSI_P2A_PARTIAL_V1"
+    } else {
+        "BOARDSI_P2C_PARTIAL_V2"
+    };
+    writeln!(out, "{}|V9.4-MILS|{}", mode, result.max_layer).map_err(|_| "FORMAT_ERROR")?;
     for layer in &board.stackup.layers {
         writeln!(out, "L|{}|{}", layer.order + 1, layer.name).map_err(|_| "FORMAT_ERROR")?;
     }
@@ -76,12 +86,42 @@ fn run() -> Result<(), &'static str> {
         )
         .map_err(|_| "FORMAT_ERROR")?;
     }
-    writeln!(
-        out,
-        "END|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
-        result.segments.len(),
-        result.skipped
-    )
+    if pad_data.pads.len() > MAX_PADS {
+        return Err("PAD_LIMIT");
+    }
+    for pad in &pad_data.pads {
+        // The only currently accepted rectangle is a square; no copper or net
+        // is fabricated for offset/custom footprint shapes.
+        writeln!(
+            out,
+            "P|{}|{}|{}|{}|{}|{}|{}|{}|NET_UNVERIFIED",
+            pad.reference,
+            pad.pin,
+            pad.layer,
+            if pad.square { "S" } else { "R" },
+            pad.point[0].checked_mul(NM).ok_or("PAD_COORD_OVERFLOW")?,
+            pad.point[1].checked_mul(NM).ok_or("PAD_COORD_OVERFLOW")?,
+            pad.size_ticks.checked_mul(NM).ok_or("PAD_SIZE_OVERFLOW")?,
+            pad.size_ticks.checked_mul(NM).ok_or("PAD_SIZE_OVERFLOW")?
+        )
+        .map_err(|_| "FORMAT_ERROR")?;
+    }
+    if mode == "BOARDSI_P2A_PARTIAL_V1" {
+        writeln!(
+            out,
+            "END|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+            result.segments.len(),
+            result.skipped
+        )
+    } else {
+        writeln!(
+            out,
+            "END|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+            result.segments.len(),
+            result.skipped.saturating_add(pad_data.skipped as u32),
+            pad_data.pads.len()
+        )
+    }
     .map_err(|_| "FORMAT_ERROR")?;
     if out.len() > 2 * 1024 * 1024 {
         return Err("OUTPUT_LIMIT");

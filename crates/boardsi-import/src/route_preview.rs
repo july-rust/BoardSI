@@ -464,13 +464,18 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     if !found_end {
         return Err("MISSING_END_MARKER");
     }
-    if !found_route {
-        return Err("MISSING_ROUTE_SECTION");
-    }
     if max_layer == 0 {
         return Err("MISSING_LAYER_COUNT");
     }
-    if segments.is_empty() && vias.is_empty() {
+    // Pad-only fixtures are legitimate Preview input; route-only regression
+    // behavior stays unchanged when no verified simple SMD pads exist.
+    let has_pad = !crate::part_preview::parse(source.as_bytes(), max_layer)
+        .pads
+        .is_empty();
+    if !found_route && !has_pad {
+        return Err("MISSING_ROUTE_SECTION");
+    }
+    if segments.is_empty() && vias.is_empty() && !has_pad {
         return Err("NO_SUPPORTED_TRACES");
     }
     Ok(Artwork {
