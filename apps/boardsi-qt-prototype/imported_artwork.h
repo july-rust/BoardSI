@@ -96,7 +96,7 @@ class ImportedArtworkPanel final : public QWidget {
                 .arg(visibleVias).arg(highlightedVias).arg(skipped_);
         const auto selected = scene_->selectedItems();
         if (!selected.isEmpty() && !selected.first()->data(1).toString().isEmpty())
-            line += "\\nSelected object: " + selected.first()->data(1).toString();
+            line += "\nSelected object: " + selected.first()->data(1).toString();
         summary_->setText(line);
         if (detailsCallback_) detailsCallback_(line);
     }
