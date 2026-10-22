@@ -75,7 +75,8 @@ class PreviewWindow : public QMainWindow {
         const QString candidate = chosenFile.isEmpty() ? QString("No PCB candidate selected") :
                                   QString("PCB candidate: ") + chosenFile;
         const bool loaded = importResultStatus.startsWith("PARTIAL") &&
-                            ((importUI->imported()->segmentCount() + importUI->imported()->viaCount()) > 0);
+                            ((importUI->imported()->segmentCount() + importUI->imported()->viaCount() +
+                              importUI->imported()->padCount()) > 0);
         if (!loaded) {
             properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
                                 candidate + "\nImport status: " + importResultStatus +
@@ -99,17 +100,17 @@ class PreviewWindow : public QMainWindow {
             (chosenFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
                 "PCB candidate: " + chosenFile +
                 (importResultStatus.startsWith("PARTIAL") ?
-                    " (PARTIAL STRAIGHT-ROUTE IMPORT)" : " (NOT IMPORTED)")) +
+                    " (PARTIAL ARTWORK IMPORT)" : " (NOT IMPORTED)")) +
             "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
-            "DEVELOPER PREVIEW P2-A - PARTIAL Import / NOT PCB SI\n\n"
+            "DEVELOPER PREVIEW P2-D - PARTIAL Import / NOT PCB SI\n\n"
             "Worker: independent Rust process\n" + status + "\n" +
             ipc->resultLabel()->text() +
             (error.isEmpty() ? QString() : "\nERROR: " + error) +
             "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n" +
             (importResultStatus.startsWith("PARTIAL") ?
-                "Imported PCB: PARTIAL straight-route segments and supported through vias ONLY; other padstack/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
+                "Imported PCB: PARTIAL accepted straight routes, through vias and restricted top SMD pads; other geometry/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
                 "Synthetic fixture only; no real PCB imported or physical SI analysis performed."));
         if (status != previousStatus) {
             log->appendPlainText("Worker: " + status);
@@ -131,7 +132,7 @@ public:
     PreviewWindow(const QString &workerPath, const QString &firstFrame = QString(),
                   const QString &secondFrame = QString(), const QString &importBinary = QString()) {
         setObjectName("boardsiPreviewP0");
-        setWindowTitle("BoardSI Developer Preview P2-A - PARTIAL IMPORT / NOT PCB SI");
+        setWindowTitle("BoardSI Developer Preview P2-D - PARTIAL IMPORT / NOT PCB SI");
         auto *bar = addToolBar("Preview controls");
         bar->setMovable(false);
         openAction = bar->addAction("Open PCB");
@@ -148,7 +149,7 @@ public:
         auto *root = new QWidget(this);
         auto *vertical = new QVBoxLayout(root);
         auto *header = new QLabel(
-            "BoardSI PREVIEW P2-A | Synthetic Demo / Imported Partial | NOT PCB SI | Developer build",
+            "BoardSI PREVIEW P2-D | Synthetic Demo / Imported Partial | NOT PCB SI | Developer build",
             root);
         header->setStyleSheet("font-weight: bold; padding: 8px; background: #2b3441; color: #ffffff;");
         vertical->addWidget(header);
@@ -203,7 +204,7 @@ public:
         auto *propBox = new QGroupBox("Properties", right);
         auto *propLayout = new QVBoxLayout(propBox);
         properties = new QLabel(
-            "Mode: Developer Preview P2-A\n"
+            "Mode: Developer Preview P2-D\n"
             "Source: synthetic or imported partial\n"
             "PCB: NOT LOADED\n"
             "Stackup: NOT LOADED\n"
