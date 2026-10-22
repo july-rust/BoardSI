@@ -267,7 +267,7 @@ jobs:
               throw ('Checksum mismatch: ' + $filePath)
             }
           }
-      - name: Exercise Windows x64 unpacked developer artifact against installed Qt SDK
+      - name: Exercise relocated Windows x64 artifact in Unicode path against Qt SDK
         if: matrix.name == 'Windows x64'
         shell: pwsh
         env:
@@ -275,7 +275,14 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $stage = 'build-qt/boardsi-preview-windows-x64-dev'
-          $runner = Join-Path $stage 'run-preview.ps1'
+          # Recreate a genuine relocated developer folder with spaces and
+          # non-ASCII characters. Exercise only PUBLIC fixture data.
+          $relocated = Join-Path $env:RUNNER_TEMP 'BoardSI Preview 한글 공백 경로'
+          Copy-Item -LiteralPath $stage -Destination $relocated -Recurse -Force
+          $runner = Join-Path $relocated 'run-preview.ps1'
+          if (-not (Test-Path -LiteralPath $runner -PathType Leaf)) {
+            throw 'Relocated developer launcher missing after copy'
+          }
           & $runner -ValidateOnly
           # The last receipt came from the source-tree launcher. Keep both proofs.
           $receiptPath = 'build-qt/qt-preview-p0-results.json'
@@ -298,14 +305,14 @@ jobs:
             throw 'Unpacked artifact does not prove current-HEAD native P2-A smoke'
           }
           Copy-Item -LiteralPath $receiptPath -Destination 'build-qt/qt-preview-staged-package.json'
-          $payload = @(Get-ChildItem -LiteralPath $stage -File |
+          $payload = @(Get-ChildItem -LiteralPath $relocated -File |
             Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | Sort-Object Name)
-          if ($payload.Count -ne 9) { throw 'Unexpected staged payload after execution' }
-          foreach ($line in (Get-Content -LiteralPath (Join-Path $stage 'SHA256SUMS.txt'))) {
+          if ($payload.Count -ne 9) { throw 'Unexpected relocated payload after execution' }
+          foreach ($line in (Get-Content -LiteralPath (Join-Path $relocated 'SHA256SUMS.txt'))) {
             $parts = $line -split '  ', 2
             if ($parts.Count -ne 2 -or $parts[0].Length -ne 64 -or
                 $parts[0] -match '[^A-Fa-f0-9]') { throw 'Malformed staged SHA256 manifest' }
-            $actual = (Get-FileHash -LiteralPath (Join-Path $stage $parts[1]) -Algorithm SHA256).Hash
+            $actual = (Get-FileHash -LiteralPath (Join-Path $relocated $parts[1]) -Algorithm SHA256).Hash
             if ($actual -ne $parts[0]) { throw ('Unpacked artifact checksum mismatch: ' + $parts[1]) }
           }
       - name: Upload Windows x64 developer-only executable artifact
