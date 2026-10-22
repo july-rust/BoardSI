@@ -1,7 +1,7 @@
 //! Offline local PADS ASC (V9.4 MILS only) -> partial Canonical Model -> Qt line protocol.
 //! Standard output is a bounded transport, never an SI simulation or full CAD import.
-use boardsi_import::route_preview::{into_canonical, parse, MAX_FILE_BYTES};
 use boardsi_import::part_preview::{self, MAX_PADS};
+use boardsi_import::route_preview::{into_canonical, parse, MAX_FILE_BYTES};
 use std::{
     env, fs,
     io::{self, Write},
@@ -36,8 +36,7 @@ fn run() -> Result<(), &'static str> {
     } else {
         "BOARDSI_P2C_PARTIAL_V2"
     };
-    writeln!(out, "{}|V9.4-MILS|{}", mode, result.max_layer)
-        .map_err(|_| "FORMAT_ERROR")?;
+    writeln!(out, "{}|V9.4-MILS|{}", mode, result.max_layer).map_err(|_| "FORMAT_ERROR")?;
     for layer in &board.stackup.layers {
         writeln!(out, "L|{}|{}", layer.order + 1, layer.name).map_err(|_| "FORMAT_ERROR")?;
     }
@@ -85,26 +84,41 @@ fn run() -> Result<(), &'static str> {
         )
         .map_err(|_| "FORMAT_ERROR")?;
     }
-    if pad_data.pads.len() > MAX_PADS { return Err("PAD_LIMIT"); }
+    if pad_data.pads.len() > MAX_PADS {
+        return Err("PAD_LIMIT");
+    }
     for pad in &pad_data.pads {
         // The only currently accepted rectangle is a square; no copper or net
         // is fabricated for offset/custom footprint shapes.
-        writeln!(out, "P|{}|{}|{}|{}|{}|{}|{}|{}|NET_UNVERIFIED",
-            pad.reference, pad.pin, pad.layer,
+        writeln!(
+            out,
+            "P|{}|{}|{}|{}|{}|{}|{}|{}|NET_UNVERIFIED",
+            pad.reference,
+            pad.pin,
+            pad.layer,
             if pad.square { "S" } else { "R" },
             pad.point[0].checked_mul(NM).ok_or("PAD_COORD_OVERFLOW")?,
             pad.point[1].checked_mul(NM).ok_or("PAD_COORD_OVERFLOW")?,
             pad.size_ticks.checked_mul(NM).ok_or("PAD_SIZE_OVERFLOW")?,
-            pad.size_ticks.checked_mul(NM).ok_or("PAD_SIZE_OVERFLOW")?)
-            .map_err(|_| "FORMAT_ERROR")?;
+            pad.size_ticks.checked_mul(NM).ok_or("PAD_SIZE_OVERFLOW")?
+        )
+        .map_err(|_| "FORMAT_ERROR")?;
     }
     if pad_data.pads.is_empty() {
-        writeln!(out, "END|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
-            result.segments.len(), result.skipped)
+        writeln!(
+            out,
+            "END|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+            result.segments.len(),
+            result.skipped
+        )
     } else {
-        writeln!(out, "END|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
-            result.segments.len(), result.skipped.saturating_add(pad_data.skipped as u32),
-            pad_data.pads.len())
+        writeln!(
+            out,
+            "END|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+            result.segments.len(),
+            result.skipped.saturating_add(pad_data.skipped as u32),
+            pad_data.pads.len()
+        )
     }
     .map_err(|_| "FORMAT_ERROR")?;
     if out.len() > 2 * 1024 * 1024 {
