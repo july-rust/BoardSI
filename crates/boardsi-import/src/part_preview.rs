@@ -482,6 +482,21 @@ mod tests {
         );
     }
     #[test]
+    fn pad_only_board_creates_canonical_objects_without_fake_net() {
+        let source = SAMPLE.replace("*PARTDECAL*", "*PCB*\\nMAXLAYER 4\\n*PARTDECAL*");
+        let route = crate::route_preview::parse(source.as_bytes()).unwrap();
+        assert!(route.segments.is_empty());
+        let mut model = crate::route_preview::into_canonical(source.as_bytes(), &route).unwrap();
+        let parsed = parse(source.as_bytes(), route.max_layer);
+        augment(&mut model, &parsed).unwrap();
+        assert_eq!(model.pads.len(), 2);
+        assert_eq!(model.pins.len(), 2);
+        assert_eq!(model.components.len(), 1);
+        assert!(model.pins.iter().all(|p| p.net.is_none()));
+        assert!(model.pads.iter().all(|p| p.net.is_none()));
+        assert!(!model.validate().has_errors());
+    }
+    #[test]
     fn square_only_not_unsupported_asymmetric_rectangle() {
         let x = parse(SAMPLE.replace("-2 40 R 0", "-2 40 S 0").as_bytes(), 4);
         assert_eq!(x.pads.len(), 2);
