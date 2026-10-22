@@ -263,7 +263,7 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
     let mut seen_refs = BTreeSet::new();
     for line in sections(&src, "*PART*") {
         let p = words(&line);
-        if p.len() < 8 || !safe_name(p[0], 15) || !seen_refs.insert(p[0].to_owned()) {
+        if p.len() != 8 || !safe_name(p[0], 15) || !seen_refs.insert(p[0].to_owned()) {
             skipped += 1;
             continue;
         }
