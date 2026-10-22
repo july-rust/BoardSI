@@ -61,10 +61,11 @@ class PreviewImportPanel final : public QWidget {
         if (lines.size() < 4 || lines.size() > 25100) return false;
         const auto header = lines.first().split('|');
         bool ok = false;
+        const bool p2d = header.size() == 3 && header[0] == "BOARDSI_P2D_PARTIAL_V3";
         const bool p2c = header.size() == 3 &&
                          header[0] == "BOARDSI_P2C_PARTIAL_V2";
         if (header.size() != 3 ||
-            (!p2c && header[0] != "BOARDSI_P2A_PARTIAL_V1") ||
+            (!p2c && !p2d && header[0] != "BOARDSI_P2A_PARTIAL_V1") ||
             header[1] != "V9.4-MILS") return false;
         layers = header[2].toInt(&ok);
         if (!ok || layers < 1 || layers > 64) return false;
@@ -103,14 +104,14 @@ class PreviewImportPanel final : public QWidget {
                 via.lastLayer = parts[8].toInt(&ok);
                 if (!ok || vias.size() >= 10000) return false;
                 vias.push_back(std::move(via));
-            } else if (p2c && parts.size() == 10 && parts[0] == "P" &&
+            } else if ((p2c || p2d) && parts.size() == 10 && parts[0] == "P" &&
                        layerRecords == layers && parts[9] == "NET_UNVERIFIED") {
                 ImportedPad pad;
                 pad.reference = parts[1]; pad.pin = parts[2];
                 pad.layer = parts[3].toInt(&ok);
                 if (!ok || pad.layer != 1) return false;
                 pad.shape = parts[4];
-                if (pad.shape != "R" && pad.shape != "S") return false;
+                if (pad.shape != "R" && pad.shape != "S" && !(p2d && pad.shape == "RF")) return false;
                 qint64 *v[] = {&pad.x_nm, &pad.y_nm, &pad.width_nm, &pad.height_nm};
                 for (int j = 0; j < 4; ++j) {
                     *v[j] = parts[j+5].toLongLong(&ok);
@@ -120,12 +121,12 @@ class PreviewImportPanel final : public QWidget {
                 pads.push_back(std::move(pad));
             } else if (parts[0] == "END" && i == lines.size()-1 &&
                        layerRecords == layers &&
-                       ((p2c && parts.size() == 6) || (!p2c && parts.size() == 5))) {
+                       (((p2c || p2d) && parts.size() == 6) || (!p2c && !p2d && parts.size() == 5))) {
                 const int count = parts[1].toInt(&ok);
                 if (!ok || count != static_cast<int>(tracks.size())) return false;
                 skipped = parts[2].toInt(&ok);
                 if (!ok || skipped < 0) return false;
-                if (p2c) {
+                if (p2c || p2d) {
                     const int padCount = parts[3].toInt(&ok);
                     if (!ok || padCount != static_cast<int>(pads.size()) ||
                         parts[4] != "CANONICAL_PARTIAL" ||
