@@ -53,6 +53,17 @@ $qtVersion = (& $qmake -query QT_VERSION 2>&1 | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or $qtVersion -ne '6.8.3') {
     throw ('Expected Qt 6.8.3 MSVC x64 SDK, qmake reports: ' + $qtVersion)
 }
+# QMAKE_XSPEC and architecture data distinguish the pinned MSVC x64 kit
+# from a Qt 6.8.3 MinGW or ARM64 kit that has the same DLL filenames.
+$kitSpec = (& $qmake -query QMAKE_XSPEC 2>&1 | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) { throw 'Cannot query Qt target mkspec' }
+$archData = (& $qmake -query QT_INSTALL_ARCHDATA 2>&1 | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) { throw 'Cannot query Qt target architecture data' }
+$kitName = [System.IO.Path]::GetFileName($archData.TrimEnd([char[]]@('/', '\')))
+if ($kitSpec -ne 'win32-msvc' -or $kitName -ne 'msvc2022_64') {
+    throw ('Incompatible Qt kit; expected Qt 6.8.3 MSVC 2022 x64, got spec=' +
+           $kitSpec + ', archdata=' + $archData)
+}
 foreach ($required in @($preview, $worker, $importer, $a, $b)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw ('Missing BoardSI executable/model frame: ' + $required)
@@ -60,6 +71,31 @@ foreach ($required in @($preview, $worker, $importer, $a, $b)) {
 }
 if ($SelfTest -and -not (Test-Path -LiteralPath $fixture -PathType Leaf)) {
     throw ('Missing public synthetic test fixture: ' + $fixture)
+}
+# Validate executable and runtime PE headers rather than trusting the folder name.
+function Assert-Amd64PeFile([string]$path) {
+    $stream = [System.IO.File]::OpenRead($path)
+    try {
+        $reader = [System.IO.BinaryReader]::new($stream)
+        if ($reader.ReadUInt16() -ne 0x5A4D) { throw 'Missing MZ header' }
+        $stream.Position = 0x3C
+        $peOffset = $reader.ReadInt32()
+        if ($peOffset -lt 64 -or $peOffset -gt ($stream.Length - 6)) {
+            throw 'Invalid PE header offset'
+        }
+        $stream.Position = $peOffset
+        if ($reader.ReadUInt32() -ne 0x00004550) { throw 'Missing PE signature' }
+        if ($reader.ReadUInt16() -ne 0x8664) { throw 'Not an AMD64 executable' }
+    } catch {
+        throw ('Windows x64 PE architecture check failed: ' + $path + ' / ' + $_.Exception.Message)
+    } finally {
+        $stream.Dispose()
+    }
+}
+foreach ($native in @($preview, $worker, $importer,
+                       (Join-Path $qtBin 'Qt6Core.dll'),
+                       (Join-Path $qt 'plugins/platforms/qwindows.dll'))) {
+    Assert-Amd64PeFile $native
 }
 if ([string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
     $workingDirectory = $defaultWorkingDirectory
