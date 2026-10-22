@@ -24,10 +24,100 @@ pub struct Segment {
     pub source_line: usize,
 }
 #[derive(Debug)]
+pub struct ViaInstance {
+    pub name: String,
+    pub net: String,
+    pub point: [i64; 2],
+    pub diameter_ticks: i64,
+    pub drill_ticks: i64,
+    pub first_layer: u32,
+    pub last_layer: u32,
+    pub source_line: usize,
+}
+#[derive(Debug)]
 pub struct Artwork {
+    pub vias: Vec<ViaInstance>,
     pub segments: Vec<Segment>,
     pub max_layer: u32,
     pub skipped: u32,
+}
+#[derive(Clone, Copy)]
+struct SimpleViaDef {
+    drill_ticks: i64,
+    diameter_ticks: i64,
+}
+// Deliberately narrow PADS 9.4 subset: only two or three explicit equal
+// round conductive pads (-2 = top, 0 = bottom, optional -1 = interior).
+// No blind/buried/microvia, thermal, antipad or implicit pad geometry.
+fn scan_simple_via_defs(source: &str) -> BTreeMap<String, SimpleViaDef> {
+    let lines: Vec<&str> = source.lines().collect();
+    let mut definitions = BTreeMap::new();
+    let mut in_via = false;
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i].trim();
+        let keyword = line.split_ascii_whitespace().next().unwrap_or("");
+        if line.starts_with('*') {
+            in_via = keyword == "*VIA*";
+            i += 1;
+            continue;
+        }
+        if !in_via || line.is_empty() || line.starts_with("REMARK ") {
+            i += 1;
+            continue;
+        }
+        let header = parts(line);
+        if header.len() != 3 || !header[0].is_ascii()
+            || header[0].len() > 64 || header[0].contains('|')
+        {
+            i += 1;
+            continue;
+        }
+        let (Ok(drill), Ok(count)) = (parse_fixed(header[1]), header[2].parse::<usize>())
+        else {
+            i += 1;
+            continue;
+        };
+        if !(2..=3).contains(&count) || i + count >= lines.len() {
+            i += 1;
+            continue;
+        }
+        let mut top = None;
+        let mut bottom = None;
+        let mut interior = None;
+        let mut valid = drill > 0 && drill <= MAX_COORD_TICKS;
+        for entry in &lines[i + 1..=i + count] {
+            let row = parts(entry.trim());
+            if row.len() != 3 || row[2] != "R" {
+                valid = false;
+                continue;
+            }
+            let (Ok(level), Ok(diameter)) =
+                (parse_i64(row[0]), parse_fixed(row[1])) else {
+                    valid = false;
+                    continue;
+                };
+            if diameter <= drill || diameter > MAX_COORD_TICKS {
+                valid = false;
+            }
+            match level {
+                -2 if top.replace(diameter).is_none() => {}
+                -1 if interior.replace(diameter).is_none() => {}
+                0 if bottom.replace(diameter).is_none() => {}
+                _ => valid = false,
+            }
+        }
+        if valid && top.is_some() && top == bottom
+            && (count == 2 || interior == top)
+        {
+            definitions.insert(header[0].to_string(), SimpleViaDef {
+                drill_ticks: drill,
+                diameter_ticks: top.unwrap_or_default(),
+            });
+        }
+        i += count + 1;
+    }
+    definitions
 }
 fn parts(line: &str) -> Vec<&str> {
     line.split_ascii_whitespace().collect()
@@ -126,6 +216,8 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     // ASCII-only route/pin/net tokens. Non-UTF8 CP1252 bytes elsewhere are
     // explicitly ignored, never mapped into copper geometry.
     let source = String::from_utf8_lossy(source);
+    let via_defs = scan_simple_via_defs(&source);
+    let mut vias = Vec::new();
     let mut max_layer = 0u32;
     let mut in_pcb = false;
     let mut in_route = false;
@@ -260,8 +352,30 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         mul_nm(x)?;
         mul_nm(y)?;
         mul_nm(width)?;
-        // Only flag bits which cannot alter geometry are supported.
-        // Any arc/miter/via/jumper/teardrop/unknown extension breaks the path.
+        // A named via is a separate placement at this exact route vertex,
+        // NOT proof of electrical contact with other copper layers.
+        if fields.len() == 6 && flag & !SUPPORTED_STRAIGHT_FLAGS == 0 {
+            if let Some(definition) = via_defs.get(fields[5]) {
+                if (1..=i64::from(max_layer)).contains(&layer) && max_layer >= 2 {
+                    if vias.len() >= MAX_SEGMENTS {
+                        return Err("VIA_LIMIT");
+                    }
+                    vias.push(ViaInstance {
+                        name: fields[5].to_string(),
+                        net: net.unwrap_or_default().to_string(),
+                        point: p,
+                        diameter_ticks: definition.diameter_ticks,
+                        drill_ticks: definition.drill_ticks,
+                        first_layer: 1,
+                        last_layer: max_layer,
+                        source_line: line_no + 1,
+                    });
+                    previous = None;
+                    continue;
+                }
+            }
+        }
+        // Arc/miter/via extensions never become fictitious straight chords.
         if fields.len() != 5 || flag & !SUPPORTED_STRAIGHT_FLAGS != 0 {
             skipped = skipped.saturating_add(1);
             previous = None;
@@ -310,10 +424,11 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     if max_layer == 0 {
         return Err("MISSING_LAYER_COUNT");
     }
-    if segments.is_empty() {
+    if segments.is_empty() && vias.is_empty() {
         return Err("NO_SUPPORTED_TRACES");
     }
     Ok(Artwork {
+        vias,
         segments,
         max_layer,
         skipped,
@@ -385,6 +500,17 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         });
     }
     let mut nets = BTreeMap::<String, ObjectId>::new();
+    for via in &parsed.vias {
+        if !nets.contains_key(&via.net) {
+            let m = meta(&source, ObjectKind::Net, &via.net);
+            nets.insert(via.net.clone(), m.id.clone());
+            board.nets.push(Net {
+                meta: m,
+                name: via.net.clone(),
+                role: NetRole::Unknown,
+            });
+        }
+    }
     for s in &parsed.segments {
         if !nets.contains_key(&s.net) {
             let m = meta(&source, ObjectKind::Net, &s.net);
@@ -417,6 +543,49 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             ],
             width_m: Rational::new(i128::from(s.width_ticks) * 127, 500_000_000)
                 .map_err(|_| "WIDTH_OVERFLOW")?,
+        });
+    }
+    for via in &parsed.vias {
+        let start = ObjectId::new(&source, ObjectKind::Layer, &format!("layer-{}", via.first_layer), "");
+        let end = ObjectId::new(&source, ObjectKind::Layer, &format!("layer-{}", via.last_layer), "");
+        let span = ViaSpan {
+            first_layer: start.clone(),
+            last_layer: end.clone(),
+        };
+        let padstack_key = format!("simple-via-{}", via.name);
+        let padstack_id = ObjectId::new(&source, ObjectKind::Padstack, &padstack_key, "");
+        let drill_key = format!("simple-via-drill-{}", via.name);
+        let drill_id = ObjectId::new(&source, ObjectKind::Drill, &drill_key, "");
+        if !board.padstacks.iter().any(|p| p.meta.id == padstack_id) {
+            let diameter_m = Rational::new(i128::from(via.diameter_ticks) * 127, 500_000_000)
+                .map_err(|_| "VIA_DIMENSION_OVERFLOW")?;
+            board.padstacks.push(Padstack {
+                meta: meta(&source, ObjectKind::Padstack, &padstack_key),
+                entries: vec![
+                    PadstackLayer { layer: start.clone(), role: PadRole::Conductive,
+                        shape: PadShape::Circle { diameter_m } },
+                    PadstackLayer { layer: end.clone(), role: PadRole::Conductive,
+                        shape: PadShape::Circle { diameter_m } },
+                ],
+            });
+            board.drills.push(Drill {
+                meta: meta(&source, ObjectKind::Drill, &drill_key),
+                diameter_m: Rational::new(i128::from(via.drill_ticks) * 127, 500_000_000)
+                    .map_err(|_| "VIA_DIMENSION_OVERFLOW")?,
+                plated: true,
+                span: span.clone(),
+            });
+        }
+        board.vias.push(Via {
+            meta: meta(&source, ObjectKind::Via, &format!("via-line-{}", via.source_line)),
+            position: Point { frame: frame_id.clone(), ticks: via.point },
+            padstack: padstack_id,
+            drill: drill_id,
+            span,
+            kind: ViaKind::Through,
+            net: nets.get(&via.net).cloned(),
+            // Never infer electrical contacts solely from same net or drill span.
+            connected_layers: vec![],
         });
     }
     let report = board.validate();
@@ -693,5 +862,35 @@ mod tests {
         assert_eq!(art.segments[2].net, "NET_A");
         assert_eq!(art.segments[3].net, "NET_B");
         assert_eq!(art.segments[3].layer, 2);
+    }
+}
+
+#[cfg(test)]
+mod p2b_via_tests {
+    use super::*;
+    const VIA_SAMPLE: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0\n300 200 1 10 0 SIMPLEVIA\n400 200 2 10 0\n500 200 2 10 0\n*END*\n";
+    #[test]
+    fn imports_named_through_via_without_inferred_contacts() {
+        let artwork = parse(VIA_SAMPLE.as_bytes()).unwrap();
+        assert_eq!(artwork.vias.len(), 1);
+        assert_eq!(artwork.vias[0].point, [30_000, 20_000]);
+        assert_eq!(artwork.vias[0].diameter_ticks, 3500);
+        assert_eq!(artwork.vias[0].drill_ticks, 1500);
+        let board = into_canonical(VIA_SAMPLE.as_bytes(), &artwork).unwrap();
+        assert_eq!(board.vias.len(), 1);
+        assert_eq!(board.padstacks.len(), 1);
+        assert_eq!(board.drills.len(), 1);
+        assert!(board.vias[0].connected_layers.is_empty());
+        assert!(!board.validate().has_errors());
+    }
+    #[test]
+    fn unknown_and_unsupported_vias_are_not_fabricated() {
+        let source = VIA_SAMPLE.replace("SIMPLEVIA", "OTHER_VIA");
+        // The renamed definition and reference still match.
+        assert_eq!(parse(source.as_bytes()).unwrap().vias.len(), 1);
+        let bad = VIA_SAMPLE.replace("0 35 R", "0 35 S");
+        let artwork = parse(bad.as_bytes()).unwrap();
+        assert!(artwork.vias.is_empty());
+        assert!(artwork.skipped > 0);
     }
 }
