@@ -7,6 +7,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QSet>
+#include <QSignalBlocker>
 #include <QVector>
 #include <QVBoxLayout>
 #include <limits>
@@ -177,9 +178,12 @@ public:
     // Starting a new import invalidates the last artwork. In particular, a failed
     // attempt must not leave old copper visible under a "NOTHING IMPORTED" status.
     void clearArtwork() {
-        scene_->clear();
+        // Clearing selected graphics items can synchronously emit
+        // selectionChanged. Prevent callbacks from iterating freed pointers.
+        const QSignalBlocker muteSelection(scene_);
         tracks_.clear();
         vias_.clear();
+        scene_->clear();
         layerVisible_.clear();
         layers_->clear();
         nets_->clear();
@@ -212,9 +216,12 @@ public:
                 via.y_nm < -100000000000LL || via.y_nm > 100000000000LL)
                 return false;
         }
-        scene_->clear();
-        tracks_.clear();
-        vias_.clear();
+        {
+            const QSignalBlocker muteSelection(scene_);
+            tracks_.clear();
+            vias_.clear();
+            scene_->clear();
+        }
         layerVisible_ = QVector<bool>(layerCount + 1, true);
         layers_->clear();
         nets_->clear();
