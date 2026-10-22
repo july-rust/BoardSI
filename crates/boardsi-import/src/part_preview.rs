@@ -480,16 +480,12 @@ mod tests {
                 .pads
                 .is_empty()
         );
-        assert!(
-            parse(SAMPLE.replace("90 U N 0", "90 0 0 0").as_bytes(), 4)
-                .pads
-                .is_empty()
-        );
-        assert!(
-            parse(SAMPLE.replace("90 U N 0", "90 U N 1").as_bytes(), 4)
-                .pads
-                .is_empty()
-        );
+        assert!(parse(SAMPLE.replace("90 U N 0", "90 0 0 0").as_bytes(), 4)
+            .pads
+            .is_empty());
+        assert!(parse(SAMPLE.replace("90 U N 0", "90 U N 1").as_bytes(), 4)
+            .pads
+            .is_empty());
         assert_eq!(
             parse(SAMPLE.replace("90 U N 0", "90 G N 0").as_bytes(), 4)
                 .pads
