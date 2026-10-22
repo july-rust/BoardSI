@@ -91,6 +91,11 @@ fn sections(source: &str, wanted: &str) -> Vec<String> {
             continue;
         }
         if tag.starts_with('*') {
+            // *STANDARD* is an optional secondary directive within *PART*;
+            // it is not the beginning of another PCB section.
+            if active && wanted == "*PART*" && tag == "*STANDARD*" {
+                continue;
+            }
             active = tag == wanted;
             continue;
         }
@@ -250,13 +255,31 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
     let mut type_to_decal = BTreeMap::new();
     for line in sections(&src, "*PARTTYPE*") {
         let fields = words(&line);
-        if fields.len() >= 7
-            && safe_name(fields[0], 40)
-            && safe_name(fields[1], 40)
-            && !type_to_decal.contains_key(fields[0])
+        // Restricted preview: do not generate fabricated pin identity when
+        // gate/signal subrecords or alphanumeric mapping lines are present.
+        // The documented dcalnm[:altdcal...] field chooses index 0 for
+        // unmirrored PART records with alt=0, so alternate names are allowed
+        // here without claiming their geometry is supported.
+        if !(7..=8).contains(&fields.len())
+            || !safe_name(fields[0], 40)
+            || !matches!(fields[2], "UND")
+            || fields[3] != "0"
+            || fields[4] != "0"
+            || fields[5] != "0"
+            || fields[6] != "0"
+            || fields.get(7).is_some_and(|eco| !matches!(*eco, "Y" | "N"))
+            || type_to_decal.contains_key(fields[0])
         {
-            type_to_decal.insert(fields[0].to_owned(), fields[1].to_owned());
+            continue;
         }
+        let decals: Vec<_> = fields[1].split(':').collect();
+        if decals.is_empty()
+            || decals.len() > 16
+            || !decals.iter().all(|name| safe_name(name, 40))
+        {
+            continue;
+        }
+        type_to_decal.insert(fields[0].to_owned(), decals[0].to_owned());
     }
     let mut pads = Vec::new();
     let mut skipped = 0;
@@ -535,6 +558,49 @@ mod tests {
             );
             let parsed = parse(source.as_bytes(), 4);
             assert!(parsed.pads.is_empty(), "unsupported suffix: {suffix}");
+            assert!(parsed.skipped > 0);
+        }
+    }
+    #[test]
+    fn standard_directive_is_part_section_secondary_control() {
+        let source = SAMPLE.replace("*PART*\n", "*PART*\n*STANDARD*\n");
+        let parsed = parse(source.as_bytes(), 4);
+        assert_eq!(parsed.skipped, 0);
+        assert_eq!(parsed.pads.len(), 2);
+        assert_eq!(parsed.pads[1].point, [20_000, 40_000]);
+        assert!(parse(
+            SAMPLE.replace("*PART*\n", "*PART*\n*STANDARD*\n*ROUTE*\n").as_bytes(),
+            4,
+        ).pads.is_empty());
+    }
+    #[test]
+    fn accepts_primary_decal_from_alternate_list_only() {
+        for list in ["D2:D3", "D2:D3:D4"] {
+            let source = SAMPLE.replace("TYPEA D2 UND", &format!("TYPEA {list} UND"));
+            let parsed = parse(source.as_bytes(), 4);
+            assert_eq!(parsed.skipped, 0);
+            assert_eq!(parsed.pads.len(), 2);
+        }
+        // Selecting an unmodeled alternate is deliberately not supported.
+        let source = SAMPLE.replace("TYPEA D2 UND", "TYPEA D2:D3 UND")
+                           .replace("90 U N 0", "90 U N 1");
+        assert!(parse(source.as_bytes(), 4).pads.is_empty());
+        for list in ["D2:", ":D2", "D2::D3"] {
+            let source = SAMPLE.replace("TYPEA D2 UND", &format!("TYPEA {list} UND"));
+            assert!(parse(source.as_bytes(), 4).pads.is_empty());
+        }
+    }
+    #[test]
+    fn refuses_uninterpreted_alphanumeric_pins_and_gate_signal_subrecords() {
+        for header in [
+            "TYPEA D2 UND 0 0 2 0",
+            "TYPEA D2 UND 1 0 0 0",
+            "TYPEA D2 UND 0 1 0 0",
+            "TYPEA D2 UND 0 0 0 32",
+        ] {
+            let source = SAMPLE.replace("TYPEA D2 UND 0 0 0 0", header);
+            let parsed = parse(source.as_bytes(), 4);
+            assert!(parsed.pads.is_empty(), "unsupported part type: {header}");
             assert!(parsed.skipped > 0);
         }
     }
