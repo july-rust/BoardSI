@@ -12,6 +12,8 @@ pub struct ComponentPad {
     pub reference: String,
     pub pin: String,
     pub point: [i64; 2],
+    pub component_origin: [i64; 2],
+    pub rotation: u8,
     pub layer: u32,
     pub size_ticks: i64,
     pub square: bool,
@@ -178,7 +180,8 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
             if xx.abs() > LIMIT || yy.abs() > LIMIT { skipped += 1; continue; }
             pads.push(ComponentPad {
                 reference: p[0].to_owned(), pin: term.pin.clone(),
-                point: [xx,yy], layer: 1.min(max_layer),
+                point: [xx,yy], component_origin: [x,y], rotation: rot,
+                layer: 1.min(max_layer),
                 size_ticks: stack.size, square: stack.square
             });
         }
@@ -202,16 +205,18 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
         let component_key = format!("p2c-component-{}", pad.reference);
         let component_id = ObjectId::new(&source, ObjectKind::Component, &component_key, "");
         if !references.contains_key(&pad.reference) {
-            // Full origin is NOT claimed; component anchor uses first verified
-            // pad only as a local display proxy. No solver placement guarantee.
             board.components.push(Component {
                 meta: meta(&source, ObjectKind::Component, &component_key,
-                           "PART unmirrored / component anchor provisional"),
+                           "PART unmirrored / verified component origin and turn"),
                 reference: pad.reference.clone(),
                 placement: Placement {
-                    position: Point { frame: frame.clone(), ticks: pad.point },
+                    position: Point { frame: frame.clone(), ticks: pad.component_origin },
                     orientation: Orientation::Orthogonal {
-                        turn: QuarterTurn::Zero, mirror_x: false
+                        turn: match pad.rotation {
+                            0 => QuarterTurn::Zero, 1 => QuarterTurn::One,
+                            2 => QuarterTurn::Two, _ => QuarterTurn::Three
+                        },
+                        mirror_x: false
                     },
                     bottom_side: false,
                 },
