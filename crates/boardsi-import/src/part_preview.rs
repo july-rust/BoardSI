@@ -749,7 +749,8 @@ mod tests {
             let source = valid.replace("-2 30 RF 0 80 0 0", replacement);
             assert!(parse(source.as_bytes(), 4).pads.is_empty(), "invalid: {replacement}");
         }
-        let source = valid.replace("-2 30 RF 0 80 0 0", "-2 30 RF 0 80 0 0");
+        // Canonical construction requires a real declared copper-layer count.
+        let source = valid.replacen("*PARTDECAL*", "*PCB*\nMAXLAYER 4\n*PARTDECAL*", 1);
         let route = crate::route_preview::parse(source.as_bytes()).unwrap();
         let mut board = crate::route_preview::into_canonical(source.as_bytes(), &route).unwrap();
         augment(&mut board, &parse(source.as_bytes(), route.max_layer)).unwrap();
