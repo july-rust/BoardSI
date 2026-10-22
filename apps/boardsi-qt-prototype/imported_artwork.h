@@ -5,6 +5,7 @@
 #include <QGraphicsLineItem>
 #include <QLabel>
 #include <QPushButton>
+#include <QSet>
 #include <QVector>
 #include <QVBoxLayout>
 #include <limits>
@@ -32,7 +33,9 @@ class ImportedArtworkPanel final : public QWidget {
         const QString net = nets_->currentText();
         int visible = 0;
         int highlighted = 0;
+        QSet<int> layersWithTraces;
         for (const auto &entry : tracks_) {
+            layersWithTraces.insert(entry.second.layer);
             const ImportedTrack &t = entry.second;
             const bool shown = t.layer > 0 && t.layer < layerVisible_.size() && layerVisible_[t.layer];
             entry.first->setVisible(shown);
@@ -40,11 +43,18 @@ class ImportedArtworkPanel final : public QWidget {
             entry.first->setOpacity(active ? 1.0 : 0.12);
             if (shown) { ++visible; if (net != "All nets" && active) ++highlighted; }
         }
+        // Declared layers are NOT necessarily copper layers with accepted traces.
+        // Counts below describe only rendered straight-route data, not inferred geometry.
         const QString line = QString("IMPORTED PARTIAL / PADS V9.4 MILS / SI NOT_RUN\n"
-            "Selected net: %1\nSegments: %2  Visible: %3  Highlighted: %4\n"
-            "Unsupported route records: %5\n"
+            "Declared layers: %1  Layers with straight traces: %2\n"
+            "Nets with straight traces: %3\n"
+            "Selected net: %4\nSegments: %5  Visible: %6  Highlighted: %7\n"
+            "Unsupported route records omitted: %8\n"
             "Pads, vias, pours, net connectivity, stackup: NOT IMPORTED")
-            .arg(net).arg(static_cast<qlonglong>(tracks_.size())).arg(visible).arg(highlighted).arg(skipped_);
+            .arg(layerVisible_.size() - 1).arg(layersWithTraces.size())
+            .arg(nets_->count() - 1).arg(net)
+            .arg(static_cast<qlonglong>(tracks_.size())).arg(visible)
+            .arg(highlighted).arg(skipped_);
         summary_->setText(line);
         if (detailsCallback_) detailsCallback_(line);
     }
