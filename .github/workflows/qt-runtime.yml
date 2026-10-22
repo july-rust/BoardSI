@@ -200,6 +200,8 @@ jobs:
           $receipt = Get-Content -LiteralPath $nativeReceipt -Raw | ConvertFrom-Json
           if ($receipt.pass -ne $true -or $receipt.p2a_imported_artwork -ne $true -or
               $receipt.p2a_properties_source_isolation_verified -ne $true -or
+              $receipt.p2a_import_summary_counts_verified -ne $true -or
+              $receipt.p2a_import_failure_recovery_verified -ne $true -or
               $receipt.source_sha -ne $env:BOARDSI_SOURCE_HEAD_SHA) {
             throw 'Developer launcher receipt does not prove current-HEAD P2-A source-isolation smoke'
           }
@@ -280,6 +282,8 @@ jobs:
           $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
           if ($receipt.pass -ne $true -or $receipt.p2a_imported_artwork -ne $true -or
               $receipt.p2a_properties_source_isolation_verified -ne $true -or
+              $receipt.p2a_import_summary_counts_verified -ne $true -or
+              $receipt.p2a_import_failure_recovery_verified -ne $true -or
               $receipt.source_sha -ne $env:BOARDSI_SOURCE_HEAD_SHA) {
             throw 'Unpacked artifact does not prove current-HEAD native P2-A smoke'
           }
