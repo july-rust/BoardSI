@@ -33,7 +33,9 @@ fn run() -> Result<(), &'static str> {
     let mut out = Vec::new();
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
     // records are actually emitted. Rejected PART rows are not P2C geometry.
-    let mode = if pad_data.pads.is_empty() {
+    let mode = if pad_data.pads.iter().any(|pad| pad.bottom) {
+        "BOARDSI_P2E_PARTIAL_V4"
+    } else if pad_data.pads.is_empty() {
         "BOARDSI_P2A_PARTIAL_V1"
     } else if pad_data.pads.iter().any(|pad| pad.rectangular) {
         "BOARDSI_P2D_PARTIAL_V3"
@@ -96,7 +98,7 @@ fn run() -> Result<(), &'static str> {
         // unknown custom shapes are never interpreted as RF.
         writeln!(
             out,
-            "P|{}|{}|{}|{}|{}|{}|{}|{}|NET_UNVERIFIED",
+            "P|{}|{}|{}|{}|{}|{}|{}|{}|NET_UNVERIFIED{}",
             pad.reference,
             pad.pin,
             pad.layer,
@@ -112,7 +114,12 @@ fn run() -> Result<(), &'static str> {
             pad.width_ticks.checked_mul(NM).ok_or("PAD_SIZE_OVERFLOW")?,
             pad.height_ticks
                 .checked_mul(NM)
-                .ok_or("PAD_SIZE_OVERFLOW")?
+                .ok_or("PAD_SIZE_OVERFLOW")?,
+            if mode == "BOARDSI_P2E_PARTIAL_V4" {
+                format!("|{}|{}", if pad.bottom { "B" } else { "T" }, u32::from(pad.rotation) * 90)
+            } else {
+                String::new()
+            }
         )
         .map_err(|_| "FORMAT_ERROR")?;
     }
