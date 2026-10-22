@@ -806,7 +806,7 @@ mod tests {
             assert_eq!(imported.pads.len(), 2);
             assert_eq!(imported.pads[1].point, expected, "bottom {angle}");
             assert_eq!(imported.pads[1].layer, 4);
-            assert_eq!(imported.pads[1].bottom, true);
+            assert!(imported.pads[1].bottom);
             let route = crate::route_preview::parse(sample.as_bytes()).unwrap();
             let mut model =
                 crate::route_preview::into_canonical(sample.as_bytes(), &route).unwrap();
