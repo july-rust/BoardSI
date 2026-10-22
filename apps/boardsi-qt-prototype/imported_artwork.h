@@ -78,10 +78,10 @@ class ImportedArtworkPanel final : public QWidget {
                                      layerVisible_[layerId];
         const QString selectedLayer = layers_->currentText().isEmpty()
                                           ? QString("None") : layers_->currentText();
-        const QString line =
+        QString line =
             QString("IMPORTED PARTIAL / PADS V9.4 MILS / SI NOT_RUN\n"
                     "Declared layers: %1  Layers with straight traces: %2\n"
-                    "Nets with straight traces: %3\n")
+                    "Nets in accepted objects: %3\n")
                 .arg(layerVisible_.size() - 1).arg(layersWithTraces.size())
                 .arg(nets_->count() - 1) +
             QString("Selected layer: %1 (ID %2; %3)\nSelected net: %4\n")
@@ -94,6 +94,9 @@ class ImportedArtworkPanel final : public QWidget {
                 .arg(static_cast<qlonglong>(tracks_.size())).arg(visible)
                 .arg(highlighted).arg(static_cast<qlonglong>(vias_.size()))
                 .arg(visibleVias).arg(highlightedVias).arg(skipped_);
+        const auto selected = scene_->selectedItems();
+        if (!selected.isEmpty() && !selected.first()->data(1).toString().isEmpty())
+            line += "\\nSelected object: " + selected.first()->data(1).toString();
         summary_->setText(line);
         if (detailsCallback_) detailsCallback_(line);
     }
@@ -153,6 +156,7 @@ public:
                 const int pos = nets_->findText(name);
                 if (pos >= 0) { nets_->setCurrentIndex(pos); break; }
             }
+            refresh();
         });
         setMinimumHeight(230);
     }
@@ -193,7 +197,8 @@ public:
                 via.firstLayer >= via.lastLayer || via.lastLayer > layerCount ||
                 via.drill_nm <= 0 || via.diameter_nm <= via.drill_nm ||
                 via.diameter_nm > 100000000000LL ||
-                qAbs(via.x_nm) > 100000000000LL || qAbs(via.y_nm) > 100000000000LL)
+                via.x_nm < -100000000000LL || via.x_nm > 100000000000LL ||
+                via.y_nm < -100000000000LL || via.y_nm > 100000000000LL)
                 return false;
         }
         scene_->clear();
@@ -216,6 +221,8 @@ public:
             auto *item = scene_->addLine(line, QPen(color, t.width_nm / 1e6,
                                                    Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             item->setData(0, t.net);
+            item->setData(1, QString("Straight trace / layer %1 / width %2 mm")
+                                 .arg(t.layer).arg(t.width_nm / 1e6, 0, 'f', 6));
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             tracks_.push_back({item, t});
         }
@@ -233,6 +240,12 @@ public:
             hole->setPen(QPen(QColor("#554332"), 0));
             hole->setBrush(QBrush(QColor("#232c34")));
             outer->setData(0, via.net);
+            outer->setData(1, QString("Via %1 / outer %2 mm / drill %3 mm / span L%4-L%5"
+                                      " / electrical contact NOT_VERIFIED")
+                                   .arg(via.name)
+                                   .arg(via.diameter_nm / 1e6, 0, 'f', 6)
+                                   .arg(via.drill_nm / 1e6, 0, 'f', 6)
+                                   .arg(via.firstLayer).arg(via.lastLayer));
             outer->setFlag(QGraphicsItem::ItemIsSelectable);
             vias_.push_back({outer, via});
         }
@@ -252,6 +265,12 @@ public:
     }
     int segmentCount() const { return static_cast<int>(tracks_.size()); }
     int viaCount() const { return static_cast<int>(vias_.size()); }
+    bool selectVia(int index) {
+        if (index < 0 || index >= static_cast<int>(vias_.size())) return false;
+        scene_->clearSelection();
+        vias_[static_cast<size_t>(index)].first->setSelected(true);
+        return true;
+    }
     int visibleSegments() const {
         int count = 0;
         for (const auto &t : tracks_) if (t.first->isVisible()) ++count;
