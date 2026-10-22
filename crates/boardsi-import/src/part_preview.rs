@@ -483,7 +483,7 @@ mod tests {
     }
     #[test]
     fn pad_only_board_creates_canonical_objects_without_fake_net() {
-        let source = SAMPLE.replace("*PARTDECAL*", "*PCB*\\nMAXLAYER 4\\n*PARTDECAL*");
+        let source = SAMPLE.replace("*PARTDECAL*", "*PCB*\nMAXLAYER 4\n*PARTDECAL*");
         let route = crate::route_preview::parse(source.as_bytes()).unwrap();
         assert!(route.segments.is_empty());
         let mut model = crate::route_preview::into_canonical(source.as_bytes(), &route).unwrap();
