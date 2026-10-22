@@ -620,6 +620,56 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
 
 
 
+
+static int runRendererSmoke(PreviewWindow &window) {
+    QElapsedTimer clock;
+    clock.start();
+    QEventLoop loop;
+    QTimer::singleShot(650, &loop, &QEventLoop::quit);
+    loop.exec();
+    auto *canvas = window.findChild<SyntheticArtworkCanvas *>("syntheticCanvas");
+    const bool validCanvas = canvas != nullptr;
+    const QString status = validCanvas ? canvas->rendererStatus() : "MISSING_CANVAS";
+    const QString requested = qEnvironmentVariable("BOARDSI_ARTWORK_RENDERER")
+                                 .trimmed().toLower();
+    const bool forcedCpu = requested == "cpu";
+    bool actualGlViewport = false;
+#ifdef BOARDSI_OPENGL_VIEWPORT
+    if (validCanvas)
+        actualGlViewport = qobject_cast<QOpenGLWidget *>(canvas->viewport()) != nullptr;
+#endif
+    const bool policy = validCanvas && canvas->rendererPolicy() == "GPU_PREFERRED" &&
+                        window.importPanel()->imported()->rendererPolicy() == "GPU_PREFERRED";
+    const bool mode = forcedCpu ? (status == "CPU_FORCED" && !actualGlViewport) :
+        (status.startsWith("CPU_FALLBACK_") ||
+         (status.startsWith("GPU_OPENGL_") && actualGlViewport));
+    // A hardware context is only a proof when Qt has emitted frameSwapped.
+    const bool completed = status != "GPU_PROBING" &&
+                           status != "GPU_PREFERRED_NOT_PROBED";
+    const bool passed = policy && mode && completed;
+    QJsonObject record{
+        {"schema", "boardsi-preview-renderer-policy-v1"},
+        {"pass", passed},
+        {"default_renderer_policy", "GPU_PREFERRED"},
+        {"renderer_setting", requested.isEmpty() ? QString("auto") : requested},
+        {"synthetic_renderer_status", status},
+        {"imported_renderer_status", window.importPanel()->imported()->rendererStatus()},
+        {"actual_gl_viewport", actualGlViewport},
+        {"gpu_frame_confirmed", status == "GPU_OPENGL_ACTIVE"},
+        {"gpu_adapter", validCanvas ? canvas->rendererName() : QString()},
+        {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"native_backend", QGuiApplication::platformName()},
+        {"host_arch", QSysInfo::currentCpuArchitecture()},
+        {"elapsed_ms", clock.elapsed()},
+        {"scope", "GPU-first Qt OpenGL viewport policy only, no GPU throughput or SI claims"}
+    };
+    QFile evidence("qt-preview-renderer-results.json");
+    if (!evidence.open(QIODevice::WriteOnly) ||
+        evidence.write(QJsonDocument(record).toJson(QJsonDocument::Indented)) < 1) return 2;
+    qInfo().noquote() << QJsonDocument(record).toJson(QJsonDocument::Compact);
+    return passed ? 0 : 1;
+}
+
 static int runPadSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock;
     clock.start();
@@ -942,12 +992,13 @@ static int runViaSmoke(PreviewWindow &window, const QString &fixture) {
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    const bool rendererTesting = args.size() == 5 && args.at(1) == "--renderer-selftest";
     const bool viaTesting = args.size() == 7 && args.at(1) == "--via-selftest";
     const bool padTesting = args.size() == 7 && args.at(1) == "--pad-selftest";
     const bool rectTesting = args.size() == 7 && args.at(1) == "--rect-selftest";
     const bool bottomTesting = args.size() == 7 && args.at(1) == "--bottom-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
-                         viaTesting || padTesting || rectTesting || bottomTesting;
+                         rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -970,7 +1021,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return bottomTesting ? runBottomSmoke(window, fixture) :
+    return rendererTesting ? runRendererSmoke(window) :
+           bottomTesting ? runBottomSmoke(window, fixture) :
            rectTesting ? runRectSmoke(window, fixture) :
            padTesting ? runPadSmoke(window, fixture) :
            viaTesting ? runViaSmoke(window, fixture) :
