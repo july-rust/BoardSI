@@ -108,7 +108,7 @@ class ImportedArtworkPanel final : public QWidget {
                     "Nets with straight traces: %3\n")
                 .arg(layerVisible_.size() - 1).arg(layersWithTraces.size())
                 .arg(netsWithTraces.size()) +
-            QString("Nets with explicit vias: %1\\n").arg(netsWithVias.size()) +
+            QString("Nets with explicit vias: %1\n").arg(netsWithVias.size()) +
             QString("Selected layer: %1 (ID %2; %3)\nSelected net: %4\n")
                 .arg(selectedLayer).arg(layerId)
                 .arg(selectedVisible ? "visible" : "hidden/not loaded").arg(net) +
@@ -243,8 +243,9 @@ public:
         }
         for (const auto &pad : padInput) {
             if (pad.layer != 1 || pad.reference.isEmpty() || pad.pin.isEmpty() ||
-                pad.width_nm <= 0 || pad.height_nm != pad.width_nm ||
-                (pad.shape != "R" && pad.shape != "S") ||
+                pad.width_nm <= 0 || pad.height_nm <= 0 ||
+                (pad.shape != "R" && pad.shape != "S" && pad.shape != "RF") ||
+                (pad.shape != "RF" && pad.height_nm != pad.width_nm) ||
                 pad.x_nm < -100000000000LL || pad.x_nm > 100000000000LL ||
                 pad.y_nm < -100000000000LL || pad.y_nm > 100000000000LL)
                 return false;
@@ -316,7 +317,7 @@ public:
             item->setData(1, QString("Pad %1.%2 / layer %3 / %4 / %5 mm x %6 mm"
                                      " / centre (%7, %8) mm / net NOT_VERIFIED")
                                   .arg(pad.reference).arg(pad.pin).arg(pad.layer)
-                                  .arg(pad.shape == "R" ? "round" : "square")
+                                  .arg(pad.shape == "R" ? "round" : (pad.shape == "S" ? "square" : "rectangular RF"))
                                   .arg(width, 0, 'f', 6).arg(height, 0, 'f', 6)
                                   .arg(x, 0, 'f', 6).arg(-y, 0, 'f', 6));
             item->setFlag(QGraphicsItem::ItemIsSelectable);
