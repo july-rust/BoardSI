@@ -194,9 +194,9 @@ fn decals(lines: &[String]) -> BTreeMap<String, Decal> {
                 i += 1;
                 let finger = row.get(2) == Some(&"RF");
                 if !matches!(row.get(2), Some(&"R" | &"S" | &"RF"))
-                    || (finger && row.len() != 8)
+                    || (finger && row.len() != 7)
                     || (!finger && row.len() != 4)
-                    || row[3] != "0"
+                    || (!finger && row[3] != "0")
                     || !matches!(row[0], "-2" | "-1" | "0")
                     || (finger && row[0] != "-2")
                 {
@@ -207,15 +207,16 @@ fn decals(lines: &[String]) -> BTreeMap<String, Decal> {
                     good = false;
                     continue;
                 };
-                // PADS V9.4: level size RF idia finori finlength finoffset corner.
+                // PADS V9.4: level size RF finori finlength finoffset corner.
+                // Inner diameter is omitted for the non-annular RF shape.
                 // Only orthogonal, zero-offset, sharp-corner rectangular SMD
                 // fingerprints are currently independently renderable.
                 let (length, finger_turn) = if finger {
-                    if fixed(row[6]) != Some(0) || fixed(row[7]) != Some(0) {
+                    if fixed(row[5]) != Some(0) || fixed(row[6]) != Some(0) {
                         good = false;
                         continue;
                     }
-                    let (Some(length), Some(angle)) = (fixed(row[5]), turn(row[4])) else {
+                    let (Some(length), Some(angle)) = (fixed(row[4]), turn(row[3])) else {
                         good = false;
                         continue;
                     };
@@ -711,7 +712,7 @@ mod tests {
     fn restricted_rf_all_component_turns_and_finger_orientations() {
         let fixture = SAMPLE.replace(
             "-2 40 R 0",
-            "-2 30 RF 0 0 80 0 0",
+            "-2 30 RF 0 80 0 0",
         );
         for (rotation, expected) in [
             ("0", (8000, 3000)),
@@ -727,28 +728,28 @@ mod tests {
             assert_eq!((pad.width_ticks, pad.height_ticks), expected);
             assert_eq!(pad.size_ticks, 8000);
         }
-        let source = fixture.replace("-2 30 RF 0 0 80 0 0", "-2 30 RF 0 90 80 0 0");
+        let source = fixture.replace("-2 30 RF 0 80 0 0", "-2 30 RF 90 80 0 0");
         let parsed = parse(source.as_bytes(), 4);
         assert_eq!(parsed.pads.len(), 2);
         assert_eq!((parsed.pads[0].width_ticks, parsed.pads[0].height_ticks), (8000, 3000));
     }
     #[test]
     fn rejects_unmodeled_rf_extensions_and_preserves_other_pads() {
-        let valid = SAMPLE.replace("-2 40 R 0", "-2 30 RF 0 0 80 0 0");
+        let valid = SAMPLE.replace("-2 40 R 0", "-2 30 RF 0 80 0 0");
         for replacement in [
-            "-2 30 RF 0 45 80 0 0",
-            "-2 30 RF 0 180 80 0 0",
-            "-2 30 RF 0 0 80 1 0",
-            "-2 30 RF 0 0 80 0 1",
-            "-2 30 RF 0 0 80 0 0 0",
-            "-2 30 RF 0 0 0 0 0",
-            "-2 30 RF 0 0 1001 0 0",
-            "-2 30 RF 0 0 80 0",
+            "-2 30 RF 45 80 0 0",
+            "-2 30 RF 180 80 0 0",
+            "-2 30 RF 0 80 1 0",
+            "-2 30 RF 0 80 0 1",
+            "-2 30 RF 0 80 0 0 0",
+            "-2 30 RF 0 0 0 0",
+            "-2 30 RF 0 1001 0 0",
+            "-2 30 RF 0 80 0",
         ] {
-            let source = valid.replace("-2 30 RF 0 0 80 0 0", replacement);
+            let source = valid.replace("-2 30 RF 0 80 0 0", replacement);
             assert!(parse(source.as_bytes(), 4).pads.is_empty(), "invalid: {replacement}");
         }
-        let source = valid.replace("-2 30 RF 0 0 80 0 0", "-2 30 RF 0 0 80 0 0");
+        let source = valid.replace("-2 30 RF 0 80 0 0", "-2 30 RF 0 80 0 0");
         let route = crate::route_preview::parse(source.as_bytes()).unwrap();
         let mut board = crate::route_preview::into_canonical(source.as_bytes(), &route).unwrap();
         augment(&mut board, &parse(source.as_bytes(), route.max_layer)).unwrap();
