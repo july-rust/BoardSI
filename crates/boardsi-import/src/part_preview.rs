@@ -523,13 +523,12 @@ mod tests {
     #[test]
     fn refuses_nondefault_cluster_brother_labels_and_excess_part_tokens() {
         for suffix in [
-            " 0 0 -1 0", " -1 1 -1 0", " -1 0 1 0",
-            " -1 0 -1 1", " -1 0 -1 0 EXTRA",
-            " -1 0 -1",
+            " 0 0 -1 0",
+            " -1 1 -1 0",
+            " -1 0 1 0",
+            " -1 0 -1 1",
+            " -1 0 -1 0 EXTRA",
         ] {
-            // A complete but truncated default suffix is valid and covered above;
-            // every changed value / extra token is not.
-            if suffix == " -1 0 -1" { continue; }
             let source = SAMPLE.replace(
                 "U1 TYPEA 200 300 90 U N 0",
                 &format!("U1 TYPEA 200 300 90 U N 0{suffix}"),
