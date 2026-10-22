@@ -25,6 +25,8 @@ struct ImportedTrack {
 struct ImportedPad {
     QString reference, pin, shape;
     int layer = 0;
+    QString side = "T";
+    int rotation = 0;
     qint64 x_nm = 0, y_nm = 0, width_nm = 0, height_nm = 0;
 };
 
@@ -85,7 +87,9 @@ class ImportedArtworkPanel final : public QWidget {
             }
         }
         int visiblePads = 0;
+        int bottomPads = 0;
         for (const auto &entry : pads_) {
+            if (entry.second.side == "B") ++bottomPads;
             const ImportedPad &pad = entry.second;
             const bool shown = pad.layer > 0 && pad.layer < layerVisible_.size() &&
                                layerVisible_[pad.layer];
@@ -121,6 +125,8 @@ class ImportedArtworkPanel final : public QWidget {
                 .arg(highlighted).arg(static_cast<qlonglong>(vias_.size()))
                 .arg(visibleVias).arg(highlightedVias).arg(skipped_)
                 .arg(static_cast<qlonglong>(pads_.size())).arg(visiblePads);
+        line += QString("\nTop SMD: %1  Bottom SMD: %2")
+                    .arg(static_cast<qlonglong>(pads_.size()) - bottomPads).arg(bottomPads);
         const auto selected = scene_->selectedItems();
         if (!selected.isEmpty() && !selected.first()->data(1).toString().isEmpty())
             line += "\nSelected object: " + selected.first()->data(1).toString();
@@ -242,7 +248,12 @@ public:
                 return false;
         }
         for (const auto &pad : padInput) {
-            if (pad.layer != 1 || pad.reference.isEmpty() || pad.pin.isEmpty() ||
+            if ((pad.side != "T" && pad.side != "B") ||
+                (pad.side == "T" && pad.layer != 1) ||
+                (pad.side == "B" && (layerCount < 2 || pad.layer != layerCount)) ||
+                (pad.rotation != 0 && pad.rotation != 90 &&
+                 pad.rotation != 180 && pad.rotation != 270) ||
+                pad.reference.isEmpty() || pad.pin.isEmpty() ||
                 pad.width_nm <= 0 || pad.height_nm <= 0 ||
                 (pad.shape != "R" && pad.shape != "S" && pad.shape != "RF") ||
                 (pad.shape != "RF" && pad.height_nm != pad.width_nm) ||
@@ -308,18 +319,21 @@ public:
             const qreal x = pad.x_nm / 1e6;
             const qreal y = -pad.y_nm / 1e6;
             const QRectF box(x-width/2, y-height/2, width, height);
-            const QColor color("#d0a55a");
+            // Same fixed top-view coordinates; bottom pads were mirrored by the importer.
+            const QColor color(pad.side == "B" ? "#55b4e9" : "#d0a55a");
             QGraphicsItem *item = pad.shape == "R"
                 ? static_cast<QGraphicsItem *>(scene_->addEllipse(
                       box, QPen(color.darker(140), 0), QBrush(color)))
                 : static_cast<QGraphicsItem *>(scene_->addRect(
                       box, QPen(color.darker(140), 0), QBrush(color)));
             item->setData(1, QString("Pad %1.%2 / layer %3 / %4 / %5 mm x %6 mm"
-                                     " / centre (%7, %8) mm / net NOT_VERIFIED")
+                                     " / centre (%7, %8) mm / net NOT_VERIFIED"
+                                     " / side %9 / rotation %10 deg / source PADS PART")
                                   .arg(pad.reference).arg(pad.pin).arg(pad.layer)
                                   .arg(pad.shape == "R" ? "round" : (pad.shape == "S" ? "square" : "rectangular RF"))
                                   .arg(width, 0, 'f', 6).arg(height, 0, 'f', 6)
-                                  .arg(x, 0, 'f', 6).arg(-y, 0, 'f', 6));
+                                  .arg(x, 0, 'f', 6).arg(-y, 0, 'f', 6)
+                                  .arg(pad.side == "B" ? "Bottom" : "Top").arg(pad.rotation));
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             pads_.push_back({item, pad});
         }
