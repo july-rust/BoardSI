@@ -59,6 +59,12 @@ fn scan_simple_via_defs(source: &str) -> BTreeMap<String, SimpleViaDef> {
     while i < lines.len() {
         let line = lines[i].trim();
         let keyword = line.split_ascii_whitespace().next().unwrap_or("");
+        // Like the actual ROUTE parser, stop at the first database terminator.
+        // Subsequent bytes are not part of the PADS board and must not define
+        // geometry referenced by records before *END*.
+        if keyword == "*END*" {
+            break;
+        }
         // A remark is not a section boundary; preserve VIA mode.
         if keyword == "*REMARK*" {
             i += 1;
@@ -977,6 +983,20 @@ mod p2b_via_regressions {
         assert_eq!(board.vias[0].connected_layers.len(), 0);
         assert!(!board.validate().has_errors());
     }
+    #[test]
+    fn via_definitions_after_first_end_do_not_create_geometry() {
+        const TRAILING: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0 POSTEND\n400 200 1 10 0\n500 200 1 10 0\n*END*\n*VIA*\nPOSTEND 15 2\n-2 35 R\n0 35 R\n*END*\n";
+        let artwork = parse(TRAILING.as_bytes()).unwrap();
+        assert!(artwork.vias.is_empty());
+        assert_eq!(artwork.segments.len(), 1);
+        assert_eq!(artwork.segments[0].a, [40_000, 20_000]);
+        let board = into_canonical(TRAILING.as_bytes(), &artwork).unwrap();
+        assert!(board.vias.is_empty());
+        assert!(board.padstacks.is_empty());
+        assert!(board.drills.is_empty());
+        assert!(!board.validate().has_errors());
+    }
+
     #[test]
     fn via_only_model_does_not_need_invented_trace() {
         let source = BASE
