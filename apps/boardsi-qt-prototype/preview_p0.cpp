@@ -652,7 +652,7 @@ static int runRendererSmoke(PreviewWindow &window) {
     const bool policy = validCanvas && canvas->rendererPolicy() == "GPU_PREFERRED" &&
                         window.importPanel()->imported()->rendererPolicy() == "GPU_PREFERRED";
     const bool mode = forcedCpu ? (status == "CPU_FORCED" && !actualGlViewport) :
-        (status.startsWith("CPU_FALLBACK_") && !actualGlViewport ||
+        ((status.startsWith("CPU_FALLBACK_") && !actualGlViewport) ||
          (status == "GPU_OPENGL_ACTIVE" && actualGlViewport));
     // Pending contexts are NOT GPU results, regardless of GL availability.
     const bool completed = status == "GPU_OPENGL_ACTIVE" ||
