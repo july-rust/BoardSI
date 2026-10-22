@@ -131,3 +131,32 @@ recorded in `qt-preview-p2b-via-results.json`. Actual manufacturer-exported
 PADS board fidelity remains `NOT_VERIFIED`. No company PCB is uploaded.
 PADS format source: https://www.freecalypso.org/pub/CAD/PADS/pdfdocs/Ppcb_ASCII.pdf
 (pp. 39-40, 51-52). Reference cross-check: https://dev-docs.kicad.org/en/import-formats/pads/index.html
+
+
+### A_012 P2-D restricted rectangular-finger SMD preview
+
+The importer accepts a deliberately narrow PADS V9.4 `RF` top-layer
+rectangular-finger padstack: `-2 width RF 0 orientation length 0 0`.
+Only `orientation=0/90`, exact zero finger offset, exact zero corner radius,
+no drill, and three top/inner/bottom stack rows with nonconductive
+inner/bottom are supported. Component quarter-turns 0/90/180/270 rotate
+final **board-axis** width and height. Other `RF` syntax fails closed.
+
+When a restricted rectangle is present, the ASCII IPC reports
+`BOARDSI_P2D_PARTIAL_V3` and uses a distinct `RF` pad shape with explicit
+nm widths and heights. Existing no-pad V1 and round/square-only V2 records
+remain unchanged. Pad Net stays `NOT_VERIFIED`; source
+geometry and real exported PADS V9.4 compatibility remain `NOT_VERIFIED`.
+A pad-only file is valid partial artwork even without traces or vias.
+
+Public synthetic fixture: `tests/fixtures/pads_rf_rectangle_v94.asc`.
+The CLI test independently checks all 8 pads for four component rotations
+and two rectangular-finger orientations, while Qt native
+`--rect-selftest` exercises pad-only Properties, 8 rendered rectangles,
+source millimetre geometry, selection, and layer visibility. The Linux CTest
+and native Windows x64/ARM64 and macOS ARM64 workflow are mandatory.
+This does **not** implement bottom/mirrored components, custom pads,
+connections or impedance/S-parameters; SI remains `NOT_RUN`.
+
+Specification: [PADS Layout ASCII Format Specification, PADS 9.4,
+Part Decal Definition, pages 36-37](https://www.freecalypso.org/pub/CAD/PADS/pdfdocs/Ppcb_ASCII.pdf).
