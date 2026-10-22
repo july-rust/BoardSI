@@ -261,7 +261,7 @@ class SyntheticArtworkPanel final : public QWidget {
                 if (net != "All nets" && primitive.net == net) ++highlighted;
             }
         }
-        const QString state = QString(
+        QString state = QString(
             "SYNTHETIC FIXTURE ONLY / NOT IMPORTED\n"
             "Net: %1\nTop: %2  Bottom: %3\n"
             "Visible primitives: %4  Highlighted: %5\n"
@@ -383,4 +383,5 @@ public:
     qreal canvasScale() const { return canvas_->transform().m11(); }
     QString rendererStatus() const { return canvas_->rendererStatus(); }
     QString rendererPolicy() const { return canvas_->rendererPolicy(); }
+    SyntheticArtworkCanvas *canvas() const { return canvas_; }
 };
