@@ -417,6 +417,18 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 !details.contains("Segments: 3")) {
                 stopWith("P2-A imported properties counts do not reflect actual accepted traces"); return;
             }
+            auto *layerSelector = window.findChild<QComboBox *>("importedLayerSelect");
+            if (!layerSelector || !details.contains("Selected layer: Top")) {
+                stopWith("P2-A selected layer missing from imported Properties"); return;
+            }
+            layerSelector->setCurrentIndex(1); // Declared inner layer has no accepted copper.
+            if (!window.displayedProperties().contains("Selected layer: Inner 2")) {
+                stopWith("P2-A imported layer selector did not refresh Properties"); return;
+            }
+            layerSelector->setCurrentIndex(0);
+            if (!window.displayedProperties().contains("Selected layer: Top")) {
+                stopWith("P2-A imported selected layer not restored"); return;
+            }
             importSummaryVerified = true;
             auto *scene = panel->findChild<QGraphicsScene *>();
             if (!scene || scene->items().size() != 3 || panel->segmentCount() != 3 ||

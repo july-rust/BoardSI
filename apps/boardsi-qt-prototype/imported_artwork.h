@@ -45,16 +45,25 @@ class ImportedArtworkPanel final : public QWidget {
         }
         // Declared layers are NOT necessarily copper layers with accepted traces.
         // Counts below describe only rendered straight-route data, not inferred geometry.
-        const QString line = QString("IMPORTED PARTIAL / PADS V9.4 MILS / SI NOT_RUN\n"
-            "Declared layers: %1  Layers with straight traces: %2\n"
-            "Nets with straight traces: %3\n"
-            "Selected net: %4\nSegments: %5  Visible: %6  Highlighted: %7\n"
-            "Unsupported route records omitted: %8\n"
-            "Pads, vias, pours, net connectivity, stackup: NOT IMPORTED")
-            .arg(layerVisible_.size() - 1).arg(layersWithTraces.size())
-            .arg(nets_->count() - 1).arg(net)
-            .arg(static_cast<qlonglong>(tracks_.size())).arg(visible)
-            .arg(highlighted).arg(skipped_);
+        const int layerId = layers_->currentData().toInt();
+        const bool selectedVisible = layerId > 0 && layerId < layerVisible_.size() &&
+                                     layerVisible_[layerId];
+        const QString selectedLayer = layers_->currentText().isEmpty()
+                                          ? QString("None") : layers_->currentText();
+        const QString line =
+            QString("IMPORTED PARTIAL / PADS V9.4 MILS / SI NOT_RUN\n"
+                    "Declared layers: %1  Layers with straight traces: %2\n"
+                    "Nets with straight traces: %3\n")
+                .arg(layerVisible_.size() - 1).arg(layersWithTraces.size())
+                .arg(nets_->count() - 1) +
+            QString("Selected layer: %1 (ID %2; %3)\nSelected net: %4\n")
+                .arg(selectedLayer).arg(layerId)
+                .arg(selectedVisible ? "visible" : "hidden/not loaded").arg(net) +
+            QString("Segments: %1  Visible: %2  Highlighted: %3\n"
+                    "Unsupported route records omitted: %4\n"
+                    "Pads, vias, pours, net connectivity, stackup: NOT IMPORTED")
+                .arg(static_cast<qlonglong>(tracks_.size())).arg(visible)
+                .arg(highlighted).arg(skipped_);
         summary_->setText(line);
         if (detailsCallback_) detailsCallback_(line);
     }
@@ -99,6 +108,7 @@ public:
             for (int i = 1; i < layerVisible_.size(); ++i) layerVisible_[i] = true;
             refresh();
         });
+        connect(layers_, &QComboBox::currentIndexChanged, this, [this](int) { refresh(); });
         connect(nets_, &QComboBox::currentTextChanged, this, [this] { refresh(); });
         connect(fit, &QPushButton::clicked, this, [this] { fitArtwork(); });
         connect(zoomIn, &QPushButton::clicked, this, [this] {
