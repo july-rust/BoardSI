@@ -985,8 +985,12 @@ mod p2b_via_tests {
         let board = into_canonical(VIA_SAMPLE.as_bytes(), &artwork).unwrap();
         assert_eq!(board.vias.len(), 1);
         let coverage = &board.sources[0].capability.object_coverage;
-        assert!(coverage.iter().any(|scope| scope.contains("ROUTE straight")));
-        assert!(coverage.iter().any(|scope| scope.contains("VIA explicit round")));
+        assert!(coverage
+            .iter()
+            .any(|scope| scope.contains("ROUTE straight")));
+        assert!(coverage
+            .iter()
+            .any(|scope| scope.contains("VIA explicit round")));
         assert_eq!(board.padstacks.len(), 1);
         assert_eq!(board.drills.len(), 1);
         assert!(board.vias[0].connected_layers.is_empty());
