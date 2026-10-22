@@ -476,14 +476,27 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         skipped,
     })
 }
-fn meta(source: &SourceId, kind: ObjectKind, object: &str) -> ObjectMeta {
+fn meta_with_provenance(
+    source: &SourceId,
+    kind: ObjectKind,
+    object: &str,
+    source_type: &str,
+) -> ObjectMeta {
     ObjectMeta {
         id: ObjectId::new(source, kind, object, ""),
         provenance: GeometryProvenance {
-            source_object_type: "PADS Layout ROUTE (partial straight segments)".into(),
+            source_object_type: source_type.into(),
             history: vec![],
         },
     }
+}
+fn meta(source: &SourceId, kind: ObjectKind, object: &str) -> ObjectMeta {
+    meta_with_provenance(
+        source,
+        kind,
+        object,
+        "PADS Layout ROUTE (partial straight segments)",
+    )
 }
 pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'static str> {
     let sha = crate::digest::sha256(bytes);
@@ -659,11 +672,21 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                 }
             }
             board.padstacks.push(Padstack {
-                meta: meta(&source, ObjectKind::Padstack, &padstack_key),
+                meta: meta_with_provenance(
+                    &source,
+                    ObjectKind::Padstack,
+                    &padstack_key,
+                    "PADS Layout VIA definition (restricted round padstack geometry)",
+                ),
                 entries,
             });
             board.drills.push(Drill {
-                meta: meta(&source, ObjectKind::Drill, &drill_key),
+                meta: meta_with_provenance(
+                    &source,
+                    ObjectKind::Drill,
+                    &drill_key,
+                    "PADS Layout VIA definition (restricted round drill geometry)",
+                ),
                 diameter_m: Rational::new(i128::from(via.drill_ticks) * 127, 500_000_000)
                     .map_err(|_| "VIA_DIMENSION_OVERFLOW")?,
                 plated: true,
@@ -671,10 +694,11 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             });
         }
         board.vias.push(Via {
-            meta: meta(
+            meta: meta_with_provenance(
                 &source,
                 ObjectKind::Via,
                 &format!("via-line-{}", via.source_line),
+                "PADS Layout ROUTE via placement (restricted round through-via)",
             ),
             position: Point {
                 frame: frame_id.clone(),
@@ -993,6 +1017,9 @@ mod p2b_via_tests {
             .any(|scope| scope.contains("VIA explicit round")));
         assert_eq!(board.padstacks.len(), 1);
         assert_eq!(board.drills.len(), 1);
+        assert!(board.padstacks[0].meta.provenance.source_object_type.contains("VIA definition"));
+        assert!(board.drills[0].meta.provenance.source_object_type.contains("VIA definition"));
+        assert!(board.vias[0].meta.provenance.source_object_type.contains("ROUTE via placement"));
         assert!(board.vias[0].connected_layers.is_empty());
         assert!(!board.validate().has_errors());
     }
