@@ -794,7 +794,8 @@ mod tests {
             ("180", [30_000, 30_000]),
             ("270", [20_000, 20_000]),
         ] {
-            let sample = SAMPLE.replace("300 90 U N 0", &format!("300 {angle} U M 0"));
+            let sample = SAMPLE.replace("300 90 U N 0", &format!("300 {angle} U M 0"))
+                .replace("*PARTDECAL*", "*PCB*\nMAXLAYER 4\n*PARTDECAL*");
             let imported = parse(sample.as_bytes(), 4);
             assert_eq!(imported.pads.len(), 2);
             assert_eq!(imported.pads[1].point, expected, "bottom {angle}");
