@@ -594,10 +594,7 @@ mod tests {
     #[test]
     fn enforces_v94_mils_trace_width_domain() {
         for bad_width in ["56000.01", "-0.01", "0", "-56000", "56001"] {
-            let candidate = SAMPLE.replace(
-                "300 200 1 10 0",
-                &format!("300 200 1 {bad_width} 0"),
-            );
+            let candidate = SAMPLE.replace("300 200 1 10 0", &format!("300 200 1 {bad_width} 0"));
             assert_eq!(
                 parse(candidate.as_bytes()).unwrap_err(),
                 "WIDTH_OUT_OF_RANGE",
