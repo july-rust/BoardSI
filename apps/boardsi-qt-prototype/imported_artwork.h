@@ -130,6 +130,7 @@ class ImportedArtworkPanel final : public QWidget {
         const auto selected = scene_->selectedItems();
         if (!selected.isEmpty() && !selected.first()->data(1).toString().isEmpty())
             line += "\nSelected object: " + selected.first()->data(1).toString();
+        line += "\nArtwork renderer: " + view_->rendererStatus();
         summary_->setText(line);
         if (detailsCallback_) detailsCallback_(line);
     }
@@ -191,6 +192,7 @@ public:
             }
             refresh();
         });
+        view_->setRendererChangedCallback([this] { refresh(); });
         setMinimumHeight(230);
     }
     ~ImportedArtworkPanel() override {
@@ -381,4 +383,6 @@ public:
         return true;
     }
     qreal scale() const { return view_->transform().m11(); }
+    QString rendererStatus() const { return view_->rendererStatus(); }
+    QString rendererPolicy() const { return view_->rendererPolicy(); }
 };
