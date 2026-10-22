@@ -116,7 +116,11 @@ fn run() -> Result<(), &'static str> {
                 .checked_mul(NM)
                 .ok_or("PAD_SIZE_OVERFLOW")?,
             if mode == "BOARDSI_P2E_PARTIAL_V4" {
-                format!("|{}|{}", if pad.bottom { "B" } else { "T" }, u32::from(pad.rotation) * 90)
+                format!(
+                    "|{}|{}",
+                    if pad.bottom { "B" } else { "T" },
+                    u32::from(pad.rotation) * 90
+                )
             } else {
                 String::new()
             }
