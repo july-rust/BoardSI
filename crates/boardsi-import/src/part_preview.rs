@@ -241,11 +241,21 @@ fn decals(lines: &[String]) -> BTreeMap<String, Decal> {
     out
 }
 fn turn(s: &str) -> Option<u8> {
-    match s {
-        "0" | "0.0" => Some(0),
-        "90" | "90.0" => Some(1),
-        "180" | "180.0" => Some(2),
-        "270" | "270.0" => Some(3),
+    // PADS allows up to three fractional decimal places in orientation.
+    // Accept only exact orthogonal values with zero fractional digits.
+    let whole = if let Some((whole, fraction)) = s.split_once('.') {
+        if !(1..=3).contains(&fraction.len()) || !fraction.bytes().all(|b| b == b'0') {
+            return None;
+        }
+        whole
+    } else {
+        s
+    };
+    match whole {
+        "0" => Some(0),
+        "90" => Some(1),
+        "180" => Some(2),
+        "270" => Some(3),
         _ => None,
     }
 }
@@ -273,9 +283,7 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
             continue;
         }
         let decals: Vec<_> = fields[1].split(':').collect();
-        if decals.is_empty()
-            || decals.len() > 16
-            || !decals.iter().all(|name| safe_name(name, 40))
+        if decals.is_empty() || decals.len() > 16 || !decals.iter().all(|name| safe_name(name, 40))
         {
             continue;
         }
@@ -302,10 +310,23 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
             skipped += 1;
             continue;
         }
-        let Some(decal_name) = type_to_decal.get(p[1]) else {
+        // A per-instance `TYPE@DECAL` override identifies a decal record,
+        // never a new part type. A modified decal absent from the supported
+        // definition set must fail closed rather than guessing geometry.
+        let (type_name, decal_override) = if let Some((name, decal)) = p[1].split_once('@') {
+            if !safe_name(name, 40) || !safe_name(decal, 40) {
+                skipped += 1;
+                continue;
+            }
+            (name, Some(decal))
+        } else {
+            (p[1], None)
+        };
+        let Some(primary_decal) = type_to_decal.get(type_name) else {
             skipped += 1;
             continue;
         };
+        let decal_name = decal_override.unwrap_or(primary_decal.as_str());
         let Some(decal) = defs.get(decal_name) else {
             skipped += 1;
             continue;
@@ -600,6 +621,35 @@ mod tests {
             let source = SAMPLE.replace("TYPEA D2 UND 0 0 0 0", header);
             let parsed = parse(source.as_bytes(), 4);
             assert!(parsed.pads.is_empty(), "unsupported part type: {header}");
+            assert!(parsed.skipped > 0);
+        }
+    }
+    #[test]
+    fn orthogonal_rotation_accepts_all_documented_zero_decimal_spellings() {
+        for (name, quarter) in [("0", 0), ("90", 1), ("180", 2), ("270", 3)] {
+            for suffix in ["", ".0", ".00", ".000"] {
+                let orient = format!("{name}{suffix}");
+                assert_eq!(turn(&orient), Some(quarter));
+                let source = SAMPLE.replace("300 90 U N 0", &format!("300 {orient} U N 0"));
+                let parsed = parse(source.as_bytes(), 4);
+                assert_eq!(parsed.pads.len(), 2, "valid orientation {orient}");
+            }
+        }
+        for orient in ["90.001", "90.0000", "90.", "45.000", "90.0.0", "91"] {
+            assert!(turn(orient).is_none(), "unsupported orientation {orient}");
+        }
+    }
+    #[test]
+    fn per_part_decal_override_is_validated_against_supported_definitions() {
+        let source = SAMPLE.replace("U1 TYPEA", "U1 TYPEA@D2");
+        let parsed = parse(source.as_bytes(), 4);
+        assert_eq!(parsed.skipped, 0);
+        assert_eq!(parsed.pads.len(), 2);
+        assert_eq!(parsed.pads[1].point, [20_000, 40_000]);
+        for part in ["TYPEA@NOT_PRESENT", "TYPEA@D2@D3", "UNKNOWN@D2", "TYPEA@"] {
+            let source = SAMPLE.replace("U1 TYPEA", &format!("U1 {part}"));
+            let parsed = parse(source.as_bytes(), 4);
+            assert!(parsed.pads.is_empty(), "unsupported part token: {part}");
             assert!(parsed.skipped > 0);
         }
     }
