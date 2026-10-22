@@ -52,6 +52,13 @@ if(BUILD_TESTING)
   add_test(NAME qt-preview-p0-smoke COMMAND boardsi-preview-p0 --selftest
     "${BOARDSI_WORKER}" "${CMAKE_CURRENT_BINARY_DIR}/qt-model-a.frame" "${CMAKE_CURRENT_BINARY_DIR}/qt-model-b.frame")
   set_tests_properties(qt-preview-p0-smoke PROPERTIES TIMEOUT 35 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  add_test(NAME qt-preview-gpu-first-cpu-fallback
+    COMMAND ${CMAKE_COMMAND} -E env BOARDSI_ARTWORK_RENDERER=cpu
+    $<TARGET_FILE:boardsi-preview-p0> --renderer-selftest
+    "${BOARDSI_WORKER}" "${CMAKE_CURRENT_BINARY_DIR}/qt-model-a.frame"
+    "${CMAKE_CURRENT_BINARY_DIR}/qt-model-b.frame")
+  set_tests_properties(qt-preview-gpu-first-cpu-fallback PROPERTIES TIMEOUT 20
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   # Optional P2-A import smoke: actual Rust binary and a public synthetic fixture.
   set(BOARDSI_IMPORTER "" CACHE FILEPATH "Absolute built PADS route importer")
   if(BOARDSI_IMPORTER)
