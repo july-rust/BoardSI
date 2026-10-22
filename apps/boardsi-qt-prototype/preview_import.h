@@ -113,8 +113,8 @@ class PreviewImportPanel final : public QWidget {
                 pad.layer = parts[3].toInt(&ok);
                 if (!ok) return false;
                 pad.side = p2e ? parts[10] : "T";
-                pad.rotation = p2e ? parts[11].toInt(&ok) : 0;
-                if (!ok || (pad.rotation != 0 && pad.rotation != 90 &&
+                pad.rotation = p2e ? parts[11].toInt(&ok) : -1;
+                if (!ok || (p2e && pad.rotation != 0 && pad.rotation != 90 &&
                             pad.rotation != 180 && pad.rotation != 270) ||
                     !((pad.side == "T" && pad.layer == 1) ||
                       (p2e && pad.side == "B" && layers >= 2 && pad.layer == layers)))
