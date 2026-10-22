@@ -248,7 +248,12 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         {
             return Err("COORDINATE_OUT_OF_RANGE");
         }
-        if width <= 0 || !(0..=32767).contains(&flag) {
+        // PADS V9.4 MILS source-domain width must be positive and <= 56000 mil.
+        // Reject it BEFORE Canonical/Qt so a malformed trace cannot be drawn.
+        if !(1..=MAX_COORD_TICKS).contains(&width) {
+            return Err("WIDTH_OUT_OF_RANGE");
+        }
+        if !(0..=32767).contains(&flag) {
             return Err("INVALID_ROUTE_FIELD");
         }
         let p = [x, y];
@@ -585,6 +590,25 @@ mod tests {
         );
         let boundary = SAMPLE.replace("100 200 1 10 0", "56000 -56000 1 10 0");
         assert_eq!(parse(boundary.as_bytes()).unwrap().segments.len(), 2);
+    }
+    #[test]
+    fn enforces_v94_mils_trace_width_domain() {
+        for bad_width in ["56000.01", "-0.01", "0", "-56000", "56001"] {
+            let candidate = SAMPLE.replace(
+                "300 200 1 10 0",
+                &format!("300 200 1 {bad_width} 0"),
+            );
+            assert_eq!(
+                parse(candidate.as_bytes()).unwrap_err(),
+                "WIDTH_OUT_OF_RANGE",
+                "invalid PADS width: {bad_width}"
+            );
+        }
+        // The documented positive upper boundary must not be rounded away.
+        let boundary = SAMPLE.replace(" 1 10 0", " 1 56000 0");
+        let parsed = parse(boundary.as_bytes()).unwrap();
+        assert_eq!(parsed.segments.len(), 2);
+        assert_eq!(parsed.segments[0].width_ticks, MAX_COORD_TICKS);
     }
     #[test]
     fn cp1252_control_header_and_ignored_high_bytes_preserve_copper_geometry() {
