@@ -228,13 +228,22 @@ jobs:
           Copy-Item -LiteralPath 'scripts/run-boardsi-preview-windows-x64.ps1' -Destination (Join-Path $stage 'run-preview.ps1')
           @'
           BoardSI P2-A Windows x64 DEVELOPER BUILD - NOT A GENERAL RELEASE
-          Extract the files to one directory. Install a compatible Qt 6.8.3 MSVC x64
-          developer SDK separately and set QT_PREFIX to the SDK root. On Windows x64,
-          run .\run-preview.ps1 from PowerShell. C++ runtime dependencies may also apply.
-          The folder contains a public synthetic PADS fixture, NOT vendor-export proof.
-          No Qt DLLs, Qt plugins, commercial CAD sources, installer, or SI solver
-          are included. Import only the restricted PADS V9.4 MILS straight traces.
-          Check SHA256SUMS.txt before use. Redistribution/license approval is NOT_VERIFIED.
+          1. Extract all files to the same directory (including the two model frames).
+          2. Separately install Qt 6.8.3 MSVC 2022 x64 SDK and any required MSVC runtime.
+          3. In Windows x64 PowerShell, set QT_PREFIX to the Qt SDK root directory:
+             $env:QT_PREFIX = 'C:\path\to\Qt\6.8.3\msvc2022_64'
+          4. Verify installation: .\run-preview.ps1 -ValidateOnly
+          5. Run synthetic native smoke: .\run-preview.ps1 -SelfTest
+             (writes qt-preview-p0-results.json; this is not a vendor PCB test)
+          6. Launch the actual Qt GUI: .\run-preview.ps1
+             Open PCB -> choose a restricted V9.4 MILS PADS ASCII file (*.asc).
+          The viewer accepts only straight routed traces of a supported subset,
+          NOT pads, vias, copper pours, connectivity, layer materials or physical SI.
+          Declared layers are NOT equivalent to layers containing imported copper.
+          No Qt DLLs, Qt plugins, company CAD data, installer, or solver are included.
+          SHA256SUMS.txt covers the eight original payloads, not subsequently
+          generated selftest receipts. Verify before running. License approval,
+          vendor PADS compatibility and general redistribution remain NOT_VERIFIED.
           '@ | Set-Content -LiteralPath (Join-Path $stage 'README.txt') -Encoding UTF8
           # Take a stable payload snapshot BEFORE opening the manifest.
           $payload = @(Get-ChildItem -LiteralPath $stage -File |
