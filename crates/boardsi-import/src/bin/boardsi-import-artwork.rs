@@ -31,7 +31,9 @@ fn run() -> Result<(), &'static str> {
         return Err("CANONICAL_VALIDATION_FAILED");
     }
     let mut out = Vec::new();
-    let mode = if pad_data.pads.is_empty() && pad_data.skipped == 0 {
+    // Preserve the established P2A/P2B V1 wire contract whenever no pad
+    // records are actually emitted. Rejected PART rows are not P2C geometry.
+    let mode = if pad_data.pads.is_empty() {
         "BOARDSI_P2A_PARTIAL_V1"
     } else {
         "BOARDSI_P2C_PARTIAL_V2"
