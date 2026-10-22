@@ -38,7 +38,7 @@ if ($bundled) {
     $platformDll = Join-Path $PSScriptRoot 'platforms/qwindows.dll'
     foreach ($file in @('Qt6Core.dll','Qt6Gui.dll','Qt6Network.dll','Qt6Widgets.dll','platforms/qwindows.dll',
                        'qt.conf','LICENSES/LGPL-3.0-only.txt','LICENSES/GPL-3.0-only.txt',
-                       'source/qtbase-everywhere-src-6.8.3.tar.xz', 'SHA256SUMS.txt')) {
+                       'source/qtbase-v6.8.3-source.zip', 'SHA256SUMS.txt')) {
         $expected = Join-Path $PSScriptRoot $file
         if (-not (Test-Path -LiteralPath $expected -PathType Leaf)) {
             throw ('Missing bundled Qt dependency, license or source: ' + $expected)
