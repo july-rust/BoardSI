@@ -54,13 +54,17 @@ class PreviewImportPanel final : public QWidget {
     }
     static bool decode(const QByteArray &bytes, int &layers, int &skipped,
                        std::vector<ImportedTrack> &tracks,
-                       std::vector<ImportedVia> &vias) {
+                       std::vector<ImportedVia> &vias,
+                       std::vector<ImportedPad> &pads) {
         if (bytes.size() > 2 * 1024 * 1024 || !bytes.endsWith('\n')) return false;
         const auto lines = QString::fromUtf8(bytes).split('\n', Qt::SkipEmptyParts);
-        if (lines.size() < 4 || lines.size() > 20070) return false;
+        if (lines.size() < 4 || lines.size() > 25100) return false;
         const auto header = lines.first().split('|');
         bool ok = false;
-        if (header.size() != 3 || header[0] != "BOARDSI_P2A_PARTIAL_V1" ||
+        const bool p2c = header.size() == 3 &&
+                         header[0] == "BOARDSI_P2C_PARTIAL_V2";
+        if (header.size() != 3 ||
+            (!p2c && header[0] != "BOARDSI_P2A_PARTIAL_V1") ||
             header[1] != "V9.4-MILS") return false;
         layers = header[2].toInt(&ok);
         if (!ok || layers < 1 || layers > 64) return false;
@@ -99,17 +103,39 @@ class PreviewImportPanel final : public QWidget {
                 via.lastLayer = parts[8].toInt(&ok);
                 if (!ok || vias.size() >= 10000) return false;
                 vias.push_back(std::move(via));
-            } else if (parts.size() == 5 && parts[0] == "END" &&
-                       i == lines.size() - 1 && layerRecords == layers) {
+            } else if (p2c && parts.size() == 10 && parts[0] == "P" &&
+                       layerRecords == layers && parts[9] == "NET_UNVERIFIED") {
+                ImportedPad pad;
+                pad.reference = parts[1]; pad.pin = parts[2];
+                pad.layer = parts[3].toInt(&ok);
+                if (!ok || pad.layer != 1) return false;
+                pad.shape = parts[4];
+                if (pad.shape != "R" && pad.shape != "S") return false;
+                qint64 *v[] = {&pad.x_nm, &pad.y_nm, &pad.width_nm, &pad.height_nm};
+                for (int j = 0; j < 4; ++j) {
+                    *v[j] = parts[j+5].toLongLong(&ok);
+                    if (!ok) return false;
+                }
+                if (pads.size() >= 5000) return false;
+                pads.push_back(std::move(pad));
+            } else if (parts[0] == "END" && i == lines.size()-1 &&
+                       layerRecords == layers &&
+                       ((p2c && parts.size() == 6) || (!p2c && parts.size() == 5))) {
                 const int count = parts[1].toInt(&ok);
                 if (!ok || count != static_cast<int>(tracks.size())) return false;
                 skipped = parts[2].toInt(&ok);
-                if (!ok || skipped < 0 || parts[3] != "CANONICAL_PARTIAL" ||
-                    parts[4] != "SI_NOT_RUN") return false;
+                if (!ok || skipped < 0) return false;
+                if (p2c) {
+                    const int padCount = parts[3].toInt(&ok);
+                    if (!ok || padCount != static_cast<int>(pads.size()) ||
+                        parts[4] != "CANONICAL_PARTIAL" ||
+                        parts[5] != "SI_NOT_RUN") return false;
+                } else if (parts[3] != "CANONICAL_PARTIAL" ||
+                           parts[4] != "SI_NOT_RUN" || !pads.empty()) return false;
                 end = true;
             } else return false;
         }
-        return end && (!tracks.empty() || !vias.empty());
+        return end && (!tracks.empty() || !vias.empty() || !pads.empty());
     }
 public:
     explicit PreviewImportPanel(const QString &importBinary = QString(), QWidget *parent = nullptr)
@@ -193,11 +219,12 @@ public:
             int layers = 0, skipped = 0;
             std::vector<ImportedTrack> tracks;
             std::vector<ImportedVia> vias;
-            if (!decode(data_, layers, skipped, tracks, vias)) {
+            std::vector<ImportedPad> pads;
+            if (!decode(data_, layers, skipped, tracks, vias, pads)) {
                 status("FAILED / INVALID_TRANSPORT / NOTHING IMPORTED");
                 return;
             }
-            if (!imported_->load(layers, skipped, tracks, vias)) {
+            if (!imported_->load(layers, skipped, tracks, vias, pads)) {
                 status("FAILED / INVALID_GEOMETRY / NOTHING IMPORTED");
                 return;
             }
@@ -208,9 +235,11 @@ public:
             QTimer::singleShot(0, imported_, [this] {
                 if (tabs_->currentWidget() == imported_) imported_->fitArtwork();
             });
-            status(QString("PARTIAL V9.4-MILS / %1 straight segments / %2 explicit vias / %3 omitted / SI NOT_RUN")
+            status(QString("PARTIAL V9.4-MILS / %1 straight segments / %2 explicit vias"
+                           " / %3 SMD pads / %4 omitted / SI NOT_RUN")
                        .arg(static_cast<qlonglong>(tracks.size()))
-                       .arg(static_cast<qlonglong>(vias.size())).arg(skipped));
+                       .arg(static_cast<qlonglong>(vias.size()))
+                       .arg(static_cast<qlonglong>(pads.size())).arg(skipped));
         });
         connect(&process_, &QProcess::errorOccurred, this,
                 [this](QProcess::ProcessError code) {
