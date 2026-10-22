@@ -50,6 +50,12 @@ if(BUILD_TESTING)
       "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc")
     set_tests_properties(qt-preview-p2a-partial-import PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    add_test(NAME qt-preview-p2b-through-via COMMAND boardsi-preview-p0 --via-selftest
+      "${BOARDSI_WORKER}" "${CMAKE_CURRENT_BINARY_DIR}/qt-model-a.frame"
+      "${CMAKE_CURRENT_BINARY_DIR}/qt-model-b.frame" "${BOARDSI_IMPORTER}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
+    set_tests_properties(qt-preview-p2b-through-via PROPERTIES TIMEOUT 30
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
   # Files are produced from boardsi_model by the Rust example before ctest.
   add_test(NAME qt-model-v2-identity COMMAND boardsi-qt-model-v2 --selftest
