@@ -637,9 +637,13 @@ static int runViaSmoke(PreviewWindow &window, const QString &fixture) {
                 auto *panel = window.importPanel()->imported();
                 const bool count = panel->viaCount() == 1 && panel->segmentCount() == 2;
                 const bool net = panel->selectNet("NET_A");
+                const bool selected = panel->selectVia(0);
                 const bool details = window.displayedProperties().contains(
-                    "Explicit round through vias: 1");
-                passed = count && net && details;
+                    "Explicit round through vias: 1") &&
+                    window.displayedProperties().contains("Via SIMPLEVIA") &&
+                    window.displayedProperties().contains("outer 0.889000 mm") &&
+                    window.displayedProperties().contains("drill 0.381000 mm");
+                passed = count && net && selected && details;
                 if (!passed) failure = "Via/net/Properties scene mismatch";
                 loop.quit();
             }
