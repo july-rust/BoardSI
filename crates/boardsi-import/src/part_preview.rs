@@ -367,9 +367,13 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
             skipped += 1;
             continue;
         };
-        // Do not mistake an alternate-footprint selection or mirrored bottom
-        // placement for the verified primary unmirrored top case.
-        if !matches!(p[5], "G" | "U") || !matches!(p[6], "N" | "M") || p[7] != "0" || (p[6] == "M" && max_layer < 2) {
+        // Only primary-decal, ordinary top/bottom placement is modeled;
+        // unsupported ALT/cluster and nonorthogonal placement fail closed.
+        if !matches!(p[5], "G" | "U")
+            || !matches!(p[6], "N" | "M")
+            || p[7] != "0"
+            || (p[6] == "M" && max_layer < 2)
+        {
             skipped += decal.terminals.len();
             continue;
         }
@@ -555,7 +559,8 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
     }
     board.sources[0].capability.pin_pad = CapabilityState::Partial;
     board.sources[0].capability.object_coverage.push(
-        "PARTDECAL/PARTTYPE/PART: restricted top/bottom drill-free R/S/RF SMD; net NOT_VERIFIED".into(),
+        "PARTDECAL/PARTTYPE/PART: restricted top/bottom drill-free R/S/RF SMD; net NOT_VERIFIED"
+            .into(),
     );
     if board.validate().has_errors() {
         return Err("PAD_CANONICAL_INVALID");
@@ -794,7 +799,8 @@ mod tests {
             ("180", [30_000, 30_000]),
             ("270", [20_000, 20_000]),
         ] {
-            let sample = SAMPLE.replace("300 90 U N 0", &format!("300 {angle} U M 0"))
+            let sample = SAMPLE
+                .replace("300 90 U N 0", &format!("300 {angle} U M 0"))
                 .replace("*PARTDECAL*", "*PCB*\nMAXLAYER 4\n*PARTDECAL*");
             let imported = parse(sample.as_bytes(), 4);
             assert_eq!(imported.pads.len(), 2);
@@ -802,7 +808,8 @@ mod tests {
             assert_eq!(imported.pads[1].layer, 4);
             assert_eq!(imported.pads[1].bottom, true);
             let route = crate::route_preview::parse(sample.as_bytes()).unwrap();
-            let mut model = crate::route_preview::into_canonical(sample.as_bytes(), &route).unwrap();
+            let mut model =
+                crate::route_preview::into_canonical(sample.as_bytes(), &route).unwrap();
             augment(&mut model, &imported).unwrap();
             assert_eq!(model.components.len(), 1);
             assert!(model.components[0].placement.bottom_side);
