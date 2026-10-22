@@ -13,6 +13,14 @@
 #include <QLineF>
 #include <QLabel>
 #include <QPainter>
+#include <QGuiApplication>
+#include <QOffscreenSurface>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
+#include <QPointer>
+#ifdef BOARDSI_OPENGL_VIEWPORT
+#include <QOpenGLWidget>
+#endif
 #include <QPen>
 #include <QPointF>
 #include <QRectF>
@@ -27,7 +35,97 @@
 #include <vector>
 #include <utility>
 
+
+// GPU-first is an artwork *viewport* policy, not a promise that all QPainter
+// items are batched or hardware rasterized. Do not confuse OpenGL/Mesa software
+// contexts with hardware GPU acceleration. The default is GPU-preferred.
+// BOARDSI_ARTWORK_RENDERER=cpu is a stable, documented CPU fallback / test mode.
 class SyntheticArtworkCanvas final : public QGraphicsView {
+    QString rendererStatus_ = "GPU_PREFERRED_NOT_PROBED";
+    QString rendererName_;
+    std::function<void()> rendererChanged_;
+#ifdef BOARDSI_OPENGL_VIEWPORT
+    QPointer<QOpenGLWidget> gpuViewport_;
+#endif
+
+    void setRendererStatus(const QString &status) {
+        if (rendererStatus_ == status) return;
+        rendererStatus_ = status;
+        if (rendererChanged_) {
+            QTimer::singleShot(0, this, [this] {
+                if (rendererChanged_) rendererChanged_();
+            });
+        }
+    }
+
+    void chooseRenderer() {
+        const QString setting = qEnvironmentVariable("BOARDSI_ARTWORK_RENDERER")
+                                    .trimmed().toLower();
+        if (setting == "cpu") {
+            setRendererStatus("CPU_FORCED");
+            return;
+        }
+        if (!setting.isEmpty() && setting != "auto" && setting != "gpu") {
+            setRendererStatus("CPU_FALLBACK_INVALID_SETTING");
+            return;
+        }
+        if (QGuiApplication::platformName() == "offscreen" ||
+            QGuiApplication::platformName() == "minimal") {
+            setRendererStatus("CPU_FALLBACK_HEADLESS");
+            return;
+        }
+#ifndef BOARDSI_OPENGL_VIEWPORT
+        setRendererStatus("CPU_FALLBACK_OPENGL_WIDGETS_UNAVAILABLE");
+#else
+        // One bounded, native GUI-thread probe. An offscreen GL context alone
+        // is insufficient proof of hardware execution: inspect GL_RENDERER.
+        QOpenGLContext context;
+        if (!context.create()) {
+            setRendererStatus("CPU_FALLBACK_NO_GL_CONTEXT");
+            return;
+        }
+        QOffscreenSurface surface;
+        surface.setFormat(context.format());
+        surface.create();
+        if (!surface.isValid() || !context.makeCurrent(&surface)) {
+            setRendererStatus("CPU_FALLBACK_NO_GL_SURFACE");
+            return;
+        }
+        const auto rendererBytes = context.functions()->glGetString(GL_RENDERER);
+        rendererName_ = rendererBytes
+            ? QString::fromLatin1(reinterpret_cast<const char *>(rendererBytes))
+            : QString();
+        context.doneCurrent();
+        const QString label = rendererName_.toLower();
+        if (label.isEmpty() || label.contains("llvmpipe") ||
+            label.contains("softpipe") || label.contains("software rasterizer") ||
+            label.contains("swiftshader") || label.contains("gdi generic") ||
+            label.contains("swrast") || label.contains("soft raster")) {
+            setRendererStatus("CPU_FALLBACK_SOFTWARE_GL_OR_UNKNOWN");
+            return;
+        }
+        auto *gpu = new QOpenGLWidget(this);
+        gpuViewport_ = gpu;
+        // QOpenGLWidget requires complete viewport repaints in Graphics View.
+        setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
+        setViewport(gpu);
+        setRendererStatus("GPU_OPENGL_PENDING_FRAME");
+        connect(gpu, &QOpenGLWidget::frameSwapped, this, [this] {
+            if (rendererStatus_ == "GPU_OPENGL_PENDING_FRAME")
+                setRendererStatus("GPU_OPENGL_ACTIVE");
+        });
+        // Context creation is not a successful *draw*. If the viewport never
+        // produces a frame, fail closed instead of claiming GPU acceleration.
+        QTimer::singleShot(3000, this, [this] {
+            if (rendererStatus_ != "GPU_OPENGL_PENDING_FRAME") return;
+            setRendererStatus("CPU_FALLBACK_GL_NO_FRAME");
+            gpuViewport_.clear();
+            setViewport(new QWidget(this));
+            setViewportUpdateMode(QGraphicsView::MinimalViewportUpdate);
+        });
+#endif
+    }
+
 public:
     explicit SyntheticArtworkCanvas(QGraphicsScene *scene, QWidget *parent = nullptr)
         : QGraphicsView(scene, parent) {
@@ -36,6 +134,15 @@ public:
         setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
         setBackgroundBrush(QColor("#111923"));
         setMinimumHeight(220);
+        // Defer probing until after widget construction and first show.
+        QTimer::singleShot(0, this, [this] { chooseRenderer(); });
+    }
+
+    QString rendererStatus() const { return rendererStatus_; }
+    QString rendererName() const { return rendererName_; }
+    QString rendererPolicy() const { return "GPU_PREFERRED"; }
+    void setRendererChangedCallback(std::function<void()> callback) {
+        rendererChanged_ = std::move(callback);
     }
 
 protected:
@@ -155,6 +262,7 @@ class SyntheticArtworkPanel final : public QWidget {
             .arg(top_->isChecked() ? "shown" : "hidden")
             .arg(bottom_->isChecked() ? "shown" : "hidden")
             .arg(visible).arg(highlighted);
+        state += "\nArtwork renderer: " + canvas_->rendererStatus();
         summary_->setText(state);
         if (detailsCallback_) detailsCallback_(state);
     }
@@ -196,6 +304,7 @@ public:
         summary_->setWordWrap(true);
         layout->addWidget(summary_);
         createFixture();
+        canvas_->setRendererChangedCallback([this] { refreshArtwork(); });
 
         connect(top_, &QCheckBox::toggled, this, [this] { refreshArtwork(); });
         connect(bottom_, &QCheckBox::toggled, this, [this] { refreshArtwork(); });
@@ -264,4 +373,6 @@ public:
         return count;
     }
     qreal canvasScale() const { return canvas_->transform().m11(); }
+    QString rendererStatus() const { return canvas_->rendererStatus(); }
+    QString rendererPolicy() const { return canvas_->rendererPolicy(); }
 };
