@@ -12,6 +12,8 @@ pub const MAX_SEGMENTS: usize = 10_000;
 const NM_PER_TICK: i64 = 254;
 // PADS 9.4 MILS source-domain limit is +/-56,000 mil (exactly +/-5,600,000 ticks).
 const MAX_COORD_TICKS: i64 = 5_600_000;
+// PADS 9.4 padstack/VIA drill limit is 1000 mil = 100,000 centimil ticks.
+const MAX_VIA_DRILL_TICKS: i64 = 100_000;
 const SUPPORTED_STRAIGHT_FLAGS: i64 = 0x0080 | 0x0200 | 0x0400;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -105,7 +107,7 @@ fn scan_simple_via_defs(source: &str) -> BTreeMap<String, SimpleViaDef> {
         let mut top = None;
         let mut bottom = None;
         let mut interior = None;
-        let mut valid = drill > 0 && drill <= MAX_COORD_TICKS;
+        let mut valid = drill > 0 && drill <= MAX_VIA_DRILL_TICKS;
         for entry in &lines[i + 1..=i + count] {
             let row = parts(entry.trim());
             if row.len() != 3 || row[2] != "R" {
@@ -300,7 +302,9 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         if in_pcb {
             let fields = parts(line);
             for window in fields.windows(2) {
-                if window[0] == "MAXLAYER" || window[0] == "MAXIMUMLAYER" {
+                if window[0].eq_ignore_ascii_case("MAXLAYER")
+                    || window[0].eq_ignore_ascii_case("MAXIMUMLAYER")
+                {
                     let value = window[1]
                         .parse::<u32>()
                         .map_err(|_| "INVALID_LAYER_COUNT")?;
@@ -1051,6 +1055,30 @@ mod p2b_via_tests {
 mod p2b_via_regressions {
     use super::*;
     const BASE: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\n*REMARK* keep section\nSIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 2 10 0 SIMPLEVIA\n500 200 2 10 0\n*END*\n";
+    #[test]
+    fn pcb_layer_parameter_names_accept_ascii_case_variants() {
+        for keyword in ["maximumlayer", "MaximumLayer", "maxlayer", "MaxLayer"] {
+            let source = BASE.replace("MAXLAYER", keyword);
+            let artwork = parse(source.as_bytes()).unwrap();
+            assert_eq!(artwork.max_layer, 4);
+            assert_eq!(artwork.vias.len(), 1);
+        }
+    }
+
+    #[test]
+    fn rejects_oversize_via_drills_without_fabricating_geometry() {
+        let oversized = BASE.replace("SIMPLEVIA 15 3", "SIMPLEVIA 2000 3")
+            .replace("35 R", "3000 R");
+        let scan = scan_simple_via_defs(&oversized);
+        assert!(!scan.contains_key("SIMPLEVIA"));
+        assert_eq!(parse(oversized.as_bytes()).unwrap_err(), "NO_SUPPORTED_TRACES");
+
+        let upper_bound = BASE.replace("SIMPLEVIA 15 3", "SIMPLEVIA 1000 3")
+            .replace("35 R", "3000 R");
+        let scan = scan_simple_via_defs(&upper_bound);
+        assert_eq!(scan.get("SIMPLEVIA").map(|via| via.drill_ticks), Some(100_000));
+    }
+
     #[test]
     fn inner_pad_and_remark_are_preserved() {
         let artwork = parse(BASE.as_bytes()).unwrap();
