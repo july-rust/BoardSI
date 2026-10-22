@@ -31,7 +31,7 @@ fn run() -> Result<(), &'static str> {
         return Err("CANONICAL_VALIDATION_FAILED");
     }
     let mut out = Vec::new();
-    let mode = if pad_data.pads.is_empty() {
+    let mode = if pad_data.pads.is_empty() && pad_data.skipped == 0 {
         "BOARDSI_P2A_PARTIAL_V1"
     } else {
         "BOARDSI_P2C_PARTIAL_V2"
@@ -104,7 +104,7 @@ fn run() -> Result<(), &'static str> {
         )
         .map_err(|_| "FORMAT_ERROR")?;
     }
-    if pad_data.pads.is_empty() {
+    if mode == "BOARDSI_P2A_PARTIAL_V1" {
         writeln!(
             out,
             "END|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
