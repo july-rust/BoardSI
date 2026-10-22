@@ -12,6 +12,7 @@
 #include <QCloseEvent>
 #include <QCryptographicHash>
 #include <QDir>
+#include <QEventLoop>
 #include <QFileDialog>
 #include <QGroupBox>
 #include <QGuiApplication>
@@ -74,7 +75,7 @@ class PreviewWindow : public QMainWindow {
         const QString candidate = chosenFile.isEmpty() ? QString("No PCB candidate selected") :
                                   QString("PCB candidate: ") + chosenFile;
         const bool loaded = importResultStatus.startsWith("PARTIAL") &&
-                            importUI->imported()->segmentCount() > 0;
+                            ((importUI->imported()->segmentCount() + importUI->imported()->viaCount()) > 0);
         if (!loaded) {
             properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
                                 candidate + "\nImport status: " + importResultStatus +
@@ -108,7 +109,7 @@ class PreviewWindow : public QMainWindow {
             (error.isEmpty() ? QString() : "\nERROR: " + error) +
             "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n" +
             (importResultStatus.startsWith("PARTIAL") ?
-                "Imported PCB: PARTIAL straight-route segments ONLY; no pad/via/stackup/connectivity. Physical SI NOT_RUN." :
+                "Imported PCB: PARTIAL straight-route segments and supported through vias ONLY; other padstack/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
                 "Synthetic fixture only; no real PCB imported or physical SI analysis performed."));
         if (status != previousStatus) {
             log->appendPlainText("Worker: " + status);
@@ -616,10 +617,66 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
     return rc == 0 && phase == 5 ? 0 : 1;
 }
 
+
+static int runViaSmoke(PreviewWindow &window, const QString &fixture) {
+    QElapsedTimer clock;
+    clock.start();
+    QString failure;
+    bool passed = false;
+    QEventLoop loop;
+    if (!window.openCandidate(fixture)) {
+        failure = "P2-B synthetic via fixture could not be opened";
+    } else {
+        QTimer tick;
+        QObject::connect(&tick, &QTimer::timeout, &loop, [&] {
+            const QString status = window.importPanel()->importStatus();
+            if (status.startsWith("FAILED") || status.startsWith("CANCELLED")) {
+                failure = "P2-B import failed: " + status;
+                loop.quit();
+            } else if (status.startsWith("PARTIAL")) {
+                auto *panel = window.importPanel()->imported();
+                const bool count = panel->viaCount() == 1 && panel->segmentCount() == 2;
+                const bool net = panel->selectNet("NET_A");
+                const bool selected = panel->selectVia(0);
+                const bool details = window.displayedProperties().contains(
+                    "Explicit round through vias: 1") &&
+                    window.displayedProperties().contains("Via SIMPLEVIA") &&
+                    window.displayedProperties().contains("outer 0.889000 mm") &&
+                    window.displayedProperties().contains("drill 0.381000 mm");
+                passed = count && net && selected && details;
+                if (!passed) failure = "Via/net/Properties scene mismatch";
+                loop.quit();
+            }
+        });
+        QTimer::singleShot(15000, &loop, &QEventLoop::quit);
+        tick.start(20);
+        loop.exec();
+        tick.stop();
+        if (!passed && failure.isEmpty()) failure = "Via smoke timed out";
+    }
+    QJsonObject report{
+        {"schema", "boardsi-preview-p2b-via-smoke-v1"},
+        {"pass", passed}, {"failure", failure},
+        {"elapsed_ms", clock.elapsed()},
+        {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"native_backend", QGuiApplication::platformName()},
+        {"host_arch", QSysInfo::currentCpuArchitecture()},
+        {"scope", "public synthetic explicit round through-via only; SI NOT_RUN"}
+    };
+    QFile receipt("qt-preview-p2b-via-results.json");
+    if (!receipt.open(QIODevice::WriteOnly) ||
+        receipt.write(QJsonDocument(report).toJson(QJsonDocument::Indented)) < 1)
+        return 2;
+    qInfo().noquote() << QJsonDocument(report).toJson(QJsonDocument::Compact);
+    return passed ? 0 : 1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
-    const bool testing = (args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest";
+    const bool viaTesting = args.size() == 7 && args.at(1) == "--via-selftest";
+    const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
+                         viaTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -642,5 +699,6 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return testing ? runPreviewSmoke(app, window, worker, fixture) : app.exec();
+    return viaTesting ? runViaSmoke(window, fixture) :
+           testing ? runPreviewSmoke(app, window, worker, fixture) : app.exec();
 }

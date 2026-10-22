@@ -180,6 +180,8 @@ jobs:
           ./boardsi-qt-model-v2$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame"
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame"
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc"
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --via-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc"
+          cat qt-preview-p2b-via-results.json
           cat qt-preview-p0-results.json
       - name: Exercise Windows x64 developer desktop launcher
         if: matrix.name == 'Windows x64'
@@ -288,6 +290,7 @@ jobs:
           name: boardsi-preview-p0-native-${{ matrix.name }}
           path: |
             build-qt/qt-preview-p0-results.json
+            build-qt/qt-preview-p2b-via-results.json
             build-qt/qt-preview-native-direct.json
             build-qt/qt-preview-source-launcher.json
             build-qt/qt-preview-staged-package.json
