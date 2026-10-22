@@ -335,6 +335,8 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
     const bool testImport = !fixture.isEmpty();
     QString failure;
     bool importedGeometryVerified = false;
+    bool importSummaryVerified = false;
+    bool importFailureRecoveryVerified = false;
     auto *tick = new QTimer(&app);
     tick->setInterval(50);
     QObject::connect(tick, &QTimer::timeout, &app, [&] {
@@ -408,6 +410,14 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 !window.displayedProperties().contains(QFileInfo(fixture).fileName())) {
                 stopWith("P2-A imported tab Properties/provenance not synchronized"); return;
             }
+            const QString details = window.displayedProperties();
+            if (!details.contains("Declared layers: 4") ||
+                !details.contains("Layers with straight traces: 2") ||
+                !details.contains("Nets with straight traces: 2") ||
+                !details.contains("Segments: 3")) {
+                stopWith("P2-A imported properties counts do not reflect actual accepted traces"); return;
+            }
+            importSummaryVerified = true;
             auto *scene = panel->findChild<QGraphicsScene *>();
             if (!scene || scene->items().size() != 3 || panel->segmentCount() != 3 ||
                 panel->visibleSegments() != 3) {
@@ -495,18 +505,35 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             // under the misleading "NOTHING IMPORTED" status.
             if (window.openCandidate(fixture + ".missing-board") ||
                 panel->segmentCount() != 0 || panel->visibleSegments() != 0 ||
-                !window.importPanel()->importStatus().startsWith("FAILED") ||
+                !window.importPanel()->importStatus().contains("FILE_NOT_FOUND") ||
                 !window.displayedProperties().contains("NOTHING IMPORTED") ||
                 window.displayedProperties().contains("Source: IMPORTED PARTIAL")) {
-                stopWith("P2-A stale geometry survived a failed import"); return;
+                stopWith("P2-A stale geometry or incorrect FILE_NOT_FOUND diagnostic"); return;
             }
-            if (!window.openCandidate(fixture)) {
-                stopWith("P2-A re-import failed to start after a rejected file"); return;
+            // A real but unrecognized source must fail closed too; it may not
+            // resurrect the previous geometry or claim vendor PADS fidelity.
+            const QString invalid = QFileInfo(fixture).absoluteDir().filePath("not_a_pcb.asc");
+            if (!window.openCandidate(invalid)) {
+                stopWith("P2-A invalid-header regression fixture unavailable"); return;
             }
-            phase = 7; return;
+            phase = 8; return;
         }
         if (phase == 6 && window.importPanel()->importStatus().startsWith("FAILED")) {
             stopWith("P2-A initial parser returned failure"); return;
+        }
+        if (phase == 8 && window.importPanel()->importStatus().startsWith("PARTIAL")) {
+            stopWith("P2-A accepted invalid-header fixture as imported geometry"); return;
+        }
+        if (phase == 8 && window.importPanel()->importStatus().startsWith("FAILED")) {
+            if (window.importPanel()->imported()->segmentCount() != 0 ||
+                !window.displayedProperties().contains("NOTHING IMPORTED")) {
+                stopWith("P2-A invalid header retained stale geometry"); return;
+            }
+            if (!window.openCandidate(fixture)) {
+                stopWith("P2-A re-import after invalid header did not start"); return;
+            }
+            importFailureRecoveryVerified = true;
+            phase = 7; return;
         }
         if (phase == 7 && window.importPanel()->importStatus().startsWith("PARTIAL")) {
             if (window.importPanel()->imported()->segmentCount() != 3 ||
@@ -565,6 +592,8 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         {"p1_synthetic_artwork", phase >= 1},
         {"p2a_imported_artwork", testImport && rc == 0 && phase == 5},
         {"p2a_geometry_mm_width_y_net_verified", importedGeometryVerified},
+        {"p2a_import_summary_counts_verified", importSummaryVerified},
+        {"p2a_import_failure_recovery_verified", importFailureRecoveryVerified},
         {"p2a_properties_source_isolation_verified", testImport && importedGeometryVerified && rc == 0 && phase == 5},
         {"p1_scope", "synthetic illustrative geometry only; no PCB file imported"}
     };
