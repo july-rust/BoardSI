@@ -1067,16 +1067,24 @@ mod p2b_via_regressions {
 
     #[test]
     fn rejects_oversize_via_drills_without_fabricating_geometry() {
-        let oversized = BASE.replace("SIMPLEVIA 15 3", "SIMPLEVIA 2000 3")
+        let oversized = BASE
+            .replace("SIMPLEVIA 15 3", "SIMPLEVIA 2000 3")
             .replace("35 R", "3000 R");
         let scan = scan_simple_via_defs(&oversized);
         assert!(!scan.contains_key("SIMPLEVIA"));
-        assert_eq!(parse(oversized.as_bytes()).unwrap_err(), "NO_SUPPORTED_TRACES");
+        assert_eq!(
+            parse(oversized.as_bytes()).unwrap_err(),
+            "NO_SUPPORTED_TRACES"
+        );
 
-        let upper_bound = BASE.replace("SIMPLEVIA 15 3", "SIMPLEVIA 1000 3")
+        let upper_bound = BASE
+            .replace("SIMPLEVIA 15 3", "SIMPLEVIA 1000 3")
             .replace("35 R", "3000 R");
         let scan = scan_simple_via_defs(&upper_bound);
-        assert_eq!(scan.get("SIMPLEVIA").map(|via| via.drill_ticks), Some(100_000));
+        assert_eq!(
+            scan.get("SIMPLEVIA").map(|via| via.drill_ticks),
+            Some(100_000)
+        );
     }
 
     #[test]
