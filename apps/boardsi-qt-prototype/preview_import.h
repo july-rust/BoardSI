@@ -109,7 +109,7 @@ class PreviewImportPanel final : public QWidget {
                 end = true;
             } else return false;
         }
-        return end && !tracks.empty();
+        return end && (!tracks.empty() || !vias.empty());
     }
 public:
     explicit PreviewImportPanel(const QString &importBinary = QString(), QWidget *parent = nullptr)
