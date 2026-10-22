@@ -6,11 +6,13 @@
 #define BOARDSI_MODEL_V2_NO_MAIN
 #include "model_v2.cpp"
 #include "synthetic_artwork.h"
+#include "preview_import.h"
 
 #include <QAction>
 #include <QCloseEvent>
 #include <QCryptographicHash>
 #include <QDir>
+#include <QEventLoop>
 #include <QFileDialog>
 #include <QGroupBox>
 #include <QGuiApplication>
@@ -35,6 +37,8 @@ class PreviewWindow : public QMainWindow {
     QAction *runAction = nullptr;
     QAction *stopAction = nullptr;
     SyntheticArtworkPanel *artwork = nullptr;
+    PreviewImportPanel *importUI = nullptr;
+    QString importResultStatus = "NOT IMPORTED";
     QLabel *properties = nullptr;
     QLabel *validation = nullptr;
     QLabel *stateSummary = nullptr;
@@ -45,6 +49,8 @@ class PreviewWindow : public QMainWindow {
     QString previousError;
     QString previousIdentity;
     QString chosenFile;
+    QString syntheticDetails;
+    QString importedDetails;
 
     static QWidget *unsupportedTab(const QString &message, QWidget *parent) {
         auto *page = new QWidget(parent);
@@ -56,25 +62,55 @@ class PreviewWindow : public QMainWindow {
         return page;
     }
 
+    // Properties always describe the visible artwork tab, not the other source.
+    void refreshProperties() {
+        if (!importUI || !properties) return;
+        if (!importUI->showingImported()) {
+            properties->setText(
+                "Source: SYNTHETIC FIXTURE ONLY / NOT IMPORTED\n" +
+                (syntheticDetails.isEmpty() ? QString("Illustrative PCB artwork only") : syntheticDetails) +
+                "\nPhysical SI: NOT_RUN");
+            return;
+        }
+        const QString candidate = chosenFile.isEmpty() ? QString("No PCB candidate selected") :
+                                  QString("PCB candidate: ") + chosenFile;
+        const bool loaded = importResultStatus.startsWith("PARTIAL") &&
+                            ((importUI->imported()->segmentCount() + importUI->imported()->viaCount()) > 0);
+        if (!loaded) {
+            properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
+                                candidate + "\nImport status: " + importResultStatus +
+                                "\nStackup, connectivity and SI: NOT_RUN");
+            return;
+        }
+        properties->setText("Source: IMPORTED PARTIAL / PADS V9.4 MILS\n" +
+                            candidate + "\n" + importedDetails +
+                            "\nStackup, connectivity and SI: NOT_RUN");
+    }
+
     void refresh() {
+        openAction->setEnabled(!importUI->busy());
         runAction->setEnabled(ipc->runButton()->isEnabled());
         stopAction->setEnabled(ipc->cancelButton()->isEnabled());
         overallProgress->setValue(ipc->progressBar()->value());
         const QString status = ipc->statusLabel()->text();
         const QString error = ipc->errorLabel()->text();
-        stateSummary->setText("SYNTHETIC / NOT PCB SI  |  " + status);
+        stateSummary->setText("Worker: " + status + " | PCB: " + importResultStatus + " | SI NOT_RUN");
         validation->setText(
             (chosenFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
-                                    "PCB candidate: " + chosenFile + " (NOT IMPORTED)") +
-            "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: NOT_RUN\nPhysical SI: NOT_RUN\nWorker: " + status +
+                "PCB candidate: " + chosenFile +
+                (importResultStatus.startsWith("PARTIAL") ?
+                    " (PARTIAL STRAIGHT-ROUTE IMPORT)" : " (NOT IMPORTED)")) +
+            "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
-            "DEVELOPER PREVIEW P1  -  SYNTHETIC / NOT PCB SI\n\n"
+            "DEVELOPER PREVIEW P2-A - PARTIAL Import / NOT PCB SI\n\n"
             "Worker: independent Rust process\n" + status + "\n" +
             ipc->resultLabel()->text() +
             (error.isEmpty() ? QString() : "\nERROR: " + error) +
-            "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n"
-            "Only the mock artwork fixture is displayed. No PCB import or physical SI analysis was performed.");
+            "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n" +
+            (importResultStatus.startsWith("PARTIAL") ?
+                "Imported PCB: PARTIAL straight-route segments and supported through vias ONLY; other padstack/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
+                "Synthetic fixture only; no real PCB imported or physical SI analysis performed."));
         if (status != previousStatus) {
             log->appendPlainText("Worker: " + status);
             previousStatus = status;
@@ -93,9 +129,9 @@ class PreviewWindow : public QMainWindow {
 
 public:
     PreviewWindow(const QString &workerPath, const QString &firstFrame = QString(),
-                  const QString &secondFrame = QString()) {
+                  const QString &secondFrame = QString(), const QString &importBinary = QString()) {
         setObjectName("boardsiPreviewP0");
-        setWindowTitle("BoardSI Developer Preview P1 - SYNTHETIC / NOT PCB SI");
+        setWindowTitle("BoardSI Developer Preview P2-A - PARTIAL IMPORT / NOT PCB SI");
         auto *bar = addToolBar("Preview controls");
         bar->setMovable(false);
         openAction = bar->addAction("Open PCB");
@@ -112,7 +148,7 @@ public:
         auto *root = new QWidget(this);
         auto *vertical = new QVBoxLayout(root);
         auto *header = new QLabel(
-            "BoardSI PREVIEW P1    |    SYNTHETIC ARTWORK / NOT PCB SI    |    Developer build only",
+            "BoardSI PREVIEW P2-A | Synthetic Demo / Imported Partial | NOT PCB SI | Developer build",
             root);
         header->setStyleSheet("font-weight: bold; padding: 8px; background: #2b3441; color: #ffffff;");
         vertical->addWidget(header);
@@ -122,22 +158,23 @@ public:
         tree->setHeaderLabel("Project / Workflow");
         tree->setMinimumWidth(185);
         auto *project = new QTreeWidgetItem(tree, {"Project"});
-        for (const auto &name : {"PCB - NOT IMPORTED", "Substrate - UNSUPPORTED",
+        for (const auto &name : {"PCB - select file (P2-A partial)", "Substrate - UNSUPPORTED",
                                  "Synthetic Layers - UI ONLY", "Synthetic Nets - UI ONLY"})
             new QTreeWidgetItem(project, {QString::fromLatin1(name)});
         auto *workflow = new QTreeWidgetItem(tree, {"Workflow"});
-        for (const auto &name : {"Select PCB file only", "Import - NOT IMPLEMENTED",
+        for (const auto &name : {"Select PCB file", "Import - PADS V9.4-MILS partial",
                                  "Run synthetic Worker", "Inspect demo status"})
             new QTreeWidgetItem(workflow, {QString::fromLatin1(name)});
         tree->expandAll();
 
         auto *center = new QWidget(horizontal);
         auto *centerLayout = new QVBoxLayout(center);
-        auto *centerTitle = new QLabel("Artwork Viewer - SYNTHETIC FIXTURE ONLY", center);
+        auto *centerTitle = new QLabel("Artwork Viewer - Synthetic or Imported Partial (never mixed)", center);
         centerTitle->setStyleSheet("font-weight: bold;");
         centerLayout->addWidget(centerTitle);
-        artwork = new SyntheticArtworkPanel(center);
-        centerLayout->addWidget(artwork, 3);
+        importUI = new PreviewImportPanel(importBinary, center);
+        artwork = importUI->synthetic();
+        centerLayout->addWidget(importUI, 3);
 
         auto *tabs = new QTabWidget(center);
         resultSummary = new QTextEdit(tabs);
@@ -166,8 +203,8 @@ public:
         auto *propBox = new QGroupBox("Properties", right);
         auto *propLayout = new QVBoxLayout(propBox);
         properties = new QLabel(
-            "Mode: Developer Preview P1\n"
-            "Source: synthetic only\n"
+            "Mode: Developer Preview P2-A\n"
+            "Source: synthetic or imported partial\n"
             "PCB: NOT LOADED\n"
             "Stackup: NOT LOADED\n"
             "Solver: NOT PCB SI", propBox);
@@ -186,11 +223,22 @@ public:
         validation->setTextFormat(Qt::PlainText);
         validLayout->addWidget(validation);
         rightLayout->addWidget(validBox);
-        artwork->setDetailsCallback([this](const QString &details) {
-            properties->setText(details +
-                (chosenFile.isEmpty() ? QString() :
-                 "\nSelected file: " + chosenFile + " (NOT IMPORTED)"));
+        importUI->setStatusCallback([this](const QString &state) {
+            importResultStatus = state;
+            log->appendPlainText("PCB Import: " + state);
+            refreshProperties();
         });
+        artwork->setDetailsCallback([this](const QString &details) {
+            syntheticDetails = details;
+            if (!importUI->showingImported()) refreshProperties();
+        });
+        importUI->imported()->setDetailsCallback([this](const QString &details) {
+            importedDetails = details;
+            if (importUI->showingImported()) refreshProperties();
+        });
+        connect(importUI->artworkTabs(), &QTabWidget::currentChanged, this,
+                [this](int) { refreshProperties(); });
+        refreshProperties();
 
         ModelFrame a, b;
         if (readModelFrame(firstFrame, a) && readModelFrame(secondFrame, b) &&
@@ -226,22 +274,10 @@ public:
         connect(stopAction, &QAction::triggered, this, [this] { ipc->cancelButton()->click(); });
         connect(openAction, &QAction::triggered, this, [this] {
             const QString file = QFileDialog::getOpenFileName(
-                this, "Select local PCB file - NOT IMPORTED", QString(),
+                this, "Open local PADS V9.4-MILS file - partial artwork only", QString(),
                 "PCB candidate (*.asc *.ASC);;All files (*)");
             if (file.isEmpty()) return;
-            chosenFile = QFileInfo(file).fileName();
-            properties->setText(
-                "Selected file: " + chosenFile + "\n"
-                "Status: NOT IMPORTED\n"
-                "Format: NOT VERIFIED\n"
-                "Synthetic Artwork: mock board only\n"
-                "Imported Artwork: NOT AVAILABLE\n"
-                "Solver: NOT PCB SI");
-            validation->setText(
-                "Local file selected only\n"
-                "No file read, signature probe, parsing or SI performed.\n"
-                "Import/geometry: NOT_RUN");
-            log->appendPlainText("Open PCB: local file selected; no import performed.");
+            openCandidate(file);
         });
         auto *poll = new QTimer(this);
         poll->setInterval(100);
@@ -251,6 +287,20 @@ public:
         resize(1240, 780);
     }
 
+    // Production Open PCB and smoke checks share the same provenance path.
+    bool openCandidate(const QString &file) {
+        if (importUI->busy()) {
+            log->appendPlainText("Open PCB: import already running; active filename retained.");
+            return false;
+        }
+        chosenFile = QFileInfo(file).fileName();
+        const bool started = importUI->openPath(file);
+        if (!started)
+            log->appendPlainText("Open PCB: unsupported PADS source or local executable unavailable.");
+        refreshProperties();
+        return started;
+    }
+    QString displayedProperties() const { return properties->text(); }
     Window *workerControls() const { return ipc; }
     ModelHandoffWindow *modelIdentity() const { return identity; }
     QAction *runControl() const { return runAction; }
@@ -258,10 +308,16 @@ public:
     QAction *openControl() const { return openAction; }
     QAction *saveControl() const { return saveAction; }
     SyntheticArtworkPanel *artworkPanel() const { return artwork; }
+    PreviewImportPanel *importPanel() const { return importUI; }
 
 protected:
     void closeEvent(QCloseEvent *event) override {
         // Preserve the existing nonblocking Worker close/kill discipline.
+        if (importUI && importUI->busy()) {
+            importUI->stop(); event->ignore();
+            QTimer::singleShot(200, this, [this] { if (isVisible()) close(); });
+            return;
+        }
         if ((identity && !identity->stopForPreviewClose()) || !ipc->close()) {
             event->ignore();
             QTimer::singleShot(200, this, [this] { if (isVisible()) close(); });
@@ -272,12 +328,16 @@ protected:
 };
 
 static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
-                           const QString &worker) {
+                           const QString &worker, const QString &fixture) {
     app.setQuitOnLastWindowClosed(false);
     QElapsedTimer clock;
     clock.start();
     int phase = 0;
+    const bool testImport = !fixture.isEmpty();
     QString failure;
+    bool importedGeometryVerified = false;
+    bool importSummaryVerified = false;
+    bool importFailureRecoveryVerified = false;
     auto *tick = new QTimer(&app);
     tick->setInterval(50);
     QObject::connect(tick, &QTimer::timeout, &app, [&] {
@@ -331,7 +391,173 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 !window.findChild<QLabel *>("syntheticArtworkStatus")->text().contains("NOT IMPORTED")) {
                 stopWith("P1 fixture reset / provenance label failed"); return;
             }
+            if (testImport) {
+                if (!window.openCandidate(fixture)) {
+                    stopWith("P2-A local importer did not start"); return;
+                }
+                // A second Open during the active QProcess must not alter the
+                // accepted filename or the importer state.
+                if (window.openCandidate(fixture + ".busy-rejected")) {
+                    stopWith("P2-A accepted overlapping import requests"); return;
+                }
+                phase = 6; return;
+            }
             window.runControl()->trigger(); phase = 1; return;
+        }
+        if (phase == 6 && window.importPanel()->importStatus().startsWith("PARTIAL")) {
+            auto *panel = window.importPanel()->imported();
+            if (!window.importPanel()->showingImported() ||
+                !window.displayedProperties().contains("Source: IMPORTED PARTIAL") ||
+                !window.displayedProperties().contains(QFileInfo(fixture).fileName())) {
+                stopWith("P2-A imported tab Properties/provenance not synchronized"); return;
+            }
+            const QString details = window.displayedProperties();
+            if (!details.contains("Declared layers: 4") ||
+                !details.contains("Layers with straight traces: 2") ||
+                !details.contains("Nets with straight traces: 2") ||
+                !details.contains("Segments: 3")) {
+                stopWith("P2-A imported properties counts do not reflect actual accepted traces"); return;
+            }
+            auto *layerSelector = window.findChild<QComboBox *>("importedLayerSelect");
+            if (!layerSelector || !details.contains("Selected layer: Top")) {
+                stopWith("P2-A selected layer missing from imported Properties"); return;
+            }
+            layerSelector->setCurrentIndex(1); // Declared inner layer has no accepted copper.
+            if (!window.displayedProperties().contains("Selected layer: Inner 2")) {
+                stopWith("P2-A imported layer selector did not refresh Properties"); return;
+            }
+            layerSelector->setCurrentIndex(0);
+            if (!window.displayedProperties().contains("Selected layer: Top")) {
+                stopWith("P2-A imported selected layer not restored"); return;
+            }
+            importSummaryVerified = true;
+            auto *scene = panel->findChild<QGraphicsScene *>();
+            if (!scene || scene->items().size() != 3 || panel->segmentCount() != 3 ||
+                panel->visibleSegments() != 3) {
+                stopWith("P2-A imported scene does not contain the expected three tracks"); return;
+            }
+            // Independent millimetre reference from the PUBLIC synthetic PADS fixture.
+            // Verify the *rendered* Qt geometry, Y inversion, net and real pen width,
+            // not just the Rust line-protocol strings.
+            struct ExpectedLine { const char *net; qreal x0,y0,x1,y1,width; };
+            const ExpectedLine reference[] = {
+                {"NET_A",  2.54, -5.08,  7.62, -5.08, 0.254},
+                {"NET_A",  7.62, -5.08,  7.62,-10.16, 0.254},
+                {"NET_B", 25.40, -7.62, 38.10, -7.62, 0.3048}
+            };
+            const auto near = [](qreal x, qreal y) { return qAbs(x - y) < 0.000001; };
+            for (const auto &want : reference) {
+                bool found = false;
+                for (QGraphicsItem *item : scene->items()) {
+                    const auto *line = qgraphicsitem_cast<QGraphicsLineItem *>(item);
+                    if (!line || line->data(0).toString() != QString::fromLatin1(want.net)) continue;
+                    const QLineF actual = line->line();
+                    if (near(actual.x1(), want.x0) && near(actual.y1(), want.y0) &&
+                        near(actual.x2(), want.x1) && near(actual.y2(), want.y1) &&
+                        near(line->pen().widthF(), want.width)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    stopWith("P2-A Qt scene geometry/net/width differs from independent reference");
+                    return;
+                }
+            }
+            if (!panel->selectNet("NET_A") ||
+                !window.displayedProperties().contains("Selected net: NET_A")) {
+                stopWith("P2-A net selection/Properties callback unavailable"); return;
+            }
+            window.importPanel()->artworkTabs()->setCurrentIndex(0);
+            if (!window.artworkPanel()->selectNet("DATA_P0") ||
+                !window.displayedProperties().contains("Source: SYNTHETIC") ||
+                window.displayedProperties().contains("PCB candidate:") ||
+                window.displayedProperties().contains("Source: IMPORTED PARTIAL")) {
+                stopWith("P2-A synthetic Properties leaked imported provenance"); return;
+            }
+            window.importPanel()->artworkTabs()->setCurrentIndex(1);
+            if (!window.displayedProperties().contains("Source: IMPORTED PARTIAL") ||
+                !window.displayedProperties().contains("Selected net: NET_A")) {
+                stopWith("P2-A imported Properties not restored after tab switch"); return;
+            }
+            for (QGraphicsItem *item : scene->items()) {
+                if (item->data(0).toString() == "NET_B" && !near(item->opacity(), 0.12)) {
+                    stopWith("P2-A net highlight opacity mismatch"); return;
+                }
+            }
+            auto *toggle = window.findChild<QPushButton *>("importedLayerToggle");
+            auto *fit = window.findChild<QPushButton *>("importedFit");
+            auto *zoom = window.findChild<QPushButton *>("importedZoomIn");
+            if (!toggle || !fit || !zoom) {
+                stopWith("P2-A layer/zoom controls missing"); return;
+            }
+            toggle->click(); // The initially selected copper layer is Top (1).
+            if (!window.displayedProperties().contains("Visible: 1")) {
+                stopWith("P2-A imported layer change did not refresh Properties"); return;
+            }
+            if (panel->visibleSegments() != 1) {
+                stopWith("P2-A layer 1 hide does not leave only layer 4 visible"); return;
+            }
+            toggle->click();
+            if (panel->visibleSegments() != 3) {
+                stopWith("P2-A layer visibility restore failed"); return;
+            }
+            fit->click(); // Establish baseline after the tab has become visible.
+            const qreal fitScale = panel->scale();
+            zoom->click();
+            if (panel->scale() <= fitScale) {
+                stopWith("P2-A imported zoom did not change the canvas"); return;
+            }
+            fit->click();
+            if (fitScale <= 0 || qAbs(panel->scale() - fitScale) >
+                                  qMax(qreal(0.02), fitScale * qreal(0.01))) {
+                stopWith("P2-A imported Fit did not restore the canvas"); return;
+            }
+            importedGeometryVerified = true;
+            // Regression: a failed replacement must not retain the previous board
+            // under the misleading "NOTHING IMPORTED" status.
+            if (window.openCandidate(fixture + ".missing-board") ||
+                panel->segmentCount() != 0 || panel->visibleSegments() != 0 ||
+                !window.importPanel()->importStatus().contains("FILE_NOT_FOUND") ||
+                !window.displayedProperties().contains("NOTHING IMPORTED") ||
+                window.displayedProperties().contains("Source: IMPORTED PARTIAL")) {
+                stopWith("P2-A stale geometry or incorrect FILE_NOT_FOUND diagnostic"); return;
+            }
+            // A real but unrecognized source must fail closed too; it may not
+            // resurrect the previous geometry or claim vendor PADS fidelity.
+            const QString invalid = QFileInfo(fixture).absoluteDir().filePath("not_a_pcb.asc");
+            if (!window.openCandidate(invalid)) {
+                stopWith("P2-A invalid-header regression fixture unavailable"); return;
+            }
+            phase = 8; return;
+        }
+        if (phase == 6 && window.importPanel()->importStatus().startsWith("FAILED")) {
+            stopWith("P2-A initial parser returned failure"); return;
+        }
+        if (phase == 8 && window.importPanel()->importStatus().startsWith("PARTIAL")) {
+            stopWith("P2-A accepted invalid-header fixture as imported geometry"); return;
+        }
+        if (phase == 8 && window.importPanel()->importStatus().startsWith("FAILED")) {
+            if (window.importPanel()->imported()->segmentCount() != 0 ||
+                !window.displayedProperties().contains("NOTHING IMPORTED")) {
+                stopWith("P2-A invalid header retained stale geometry"); return;
+            }
+            if (!window.openCandidate(fixture)) {
+                stopWith("P2-A re-import after invalid header did not start"); return;
+            }
+            importFailureRecoveryVerified = true;
+            phase = 7; return;
+        }
+        if (phase == 7 && window.importPanel()->importStatus().startsWith("PARTIAL")) {
+            if (window.importPanel()->imported()->segmentCount() != 3 ||
+                !window.displayedProperties().contains("Source: IMPORTED PARTIAL") ||
+                !window.displayedProperties().contains(QFileInfo(fixture).fileName())) {
+                stopWith("P2-A re-import after failure has incorrect geometry"); return;
+            }
+            window.runControl()->trigger(); phase = 1; return;
+        }
+        if (phase == 7 && window.importPanel()->importStatus().startsWith("FAILED")) {
+            stopWith("P2-A re-import after failure returned FAILED"); return;
         }
         if (phase == 1 && engine->progressBar()->value() > 0 && window.stopControl()->isEnabled()) {
             window.stopControl()->trigger(); phase = 2; return;
@@ -377,6 +603,11 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         {"elapsed_ms", clock.elapsed()},
         {"asserted", "window raster; synthetic fixture/layers/net highlight/zoom; unsupported import; run; progress; cancel; restart; completion; error; Canonical A/B receipt"},
         {"p1_synthetic_artwork", phase >= 1},
+        {"p2a_imported_artwork", testImport && rc == 0 && phase == 5},
+        {"p2a_geometry_mm_width_y_net_verified", importedGeometryVerified},
+        {"p2a_import_summary_counts_verified", importSummaryVerified},
+        {"p2a_import_failure_recovery_verified", importFailureRecoveryVerified},
+        {"p2a_properties_source_isolation_verified", testImport && importedGeometryVerified && rc == 0 && phase == 5},
         {"p1_scope", "synthetic illustrative geometry only; no PCB file imported"}
     };
     QFile evidence("qt-preview-p0-results.json");
@@ -386,15 +617,73 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
     return rc == 0 && phase == 5 ? 0 : 1;
 }
 
+
+static int runViaSmoke(PreviewWindow &window, const QString &fixture) {
+    QElapsedTimer clock;
+    clock.start();
+    QString failure;
+    bool passed = false;
+    QEventLoop loop;
+    if (!window.openCandidate(fixture)) {
+        failure = "P2-B synthetic via fixture could not be opened";
+    } else {
+        QTimer tick;
+        QObject::connect(&tick, &QTimer::timeout, &loop, [&] {
+            const QString status = window.importPanel()->importStatus();
+            if (status.startsWith("FAILED") || status.startsWith("CANCELLED")) {
+                failure = "P2-B import failed: " + status;
+                loop.quit();
+            } else if (status.startsWith("PARTIAL")) {
+                auto *panel = window.importPanel()->imported();
+                const bool count = panel->viaCount() == 1 && panel->segmentCount() == 2;
+                const bool net = panel->selectNet("NET_A");
+                const bool selected = panel->selectVia(0);
+                const bool details = window.displayedProperties().contains(
+                    "Explicit round through vias: 1") &&
+                    window.displayedProperties().contains("Via SIMPLEVIA") &&
+                    window.displayedProperties().contains("outer 0.889000 mm") &&
+                    window.displayedProperties().contains("drill 0.381000 mm");
+                passed = count && net && selected && details;
+                if (!passed) failure = "Via/net/Properties scene mismatch";
+                loop.quit();
+            }
+        });
+        QTimer::singleShot(15000, &loop, &QEventLoop::quit);
+        tick.start(20);
+        loop.exec();
+        tick.stop();
+        if (!passed && failure.isEmpty()) failure = "Via smoke timed out";
+    }
+    QJsonObject report{
+        {"schema", "boardsi-preview-p2b-via-smoke-v1"},
+        {"pass", passed}, {"failure", failure},
+        {"elapsed_ms", clock.elapsed()},
+        {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"native_backend", QGuiApplication::platformName()},
+        {"host_arch", QSysInfo::currentCpuArchitecture()},
+        {"scope", "public synthetic explicit round through-via only; SI NOT_RUN"}
+    };
+    QFile receipt("qt-preview-p2b-via-results.json");
+    if (!receipt.open(QIODevice::WriteOnly) ||
+        receipt.write(QJsonDocument(report).toJson(QJsonDocument::Indented)) < 1)
+        return 2;
+    qInfo().noquote() << QJsonDocument(report).toJson(QJsonDocument::Compact);
+    return passed ? 0 : 1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
-    const bool testing = args.size() == 5 && args.at(1) == "--selftest";
-    QString worker, first, second;
+    const bool viaTesting = args.size() == 7 && args.at(1) == "--via-selftest";
+    const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
+                         viaTesting;
+    QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
-    } else if (args.size() == 4) {
+        if (args.size() == 7) { importer = args.at(5); fixture = args.at(6); }
+    } else if (args.size() == 4 || args.size() == 5) {
         worker = args.at(1); first = args.at(2); second = args.at(3);
+        if (args.size() == 5) importer = args.at(4);
     } else if (args.size() == 1) {
         const QString dir = QCoreApplication::applicationDirPath();
 #ifdef Q_OS_WIN
@@ -405,10 +694,11 @@ int main(int argc, char **argv) {
         first = dir + "/qt-model-a.frame";
         second = dir + "/qt-model-b.frame";
     } else {
-        qCritical("Usage: boardsi-preview-p0 [--selftest] [WORKER_ABSOLUTE FRAME_A FRAME_B]");
+        qCritical("Usage: boardsi-preview-p0 [--selftest] WORKER FRAME_A FRAME_B [IMPORTER [FIXTURE]]");
         return 2;
     }
-    PreviewWindow window(worker, first, second);
+    PreviewWindow window(worker, first, second, importer);
     window.show();
-    return testing ? runPreviewSmoke(app, window, worker) : app.exec();
+    return viaTesting ? runViaSmoke(window, fixture) :
+           testing ? runPreviewSmoke(app, window, worker, fixture) : app.exec();
 }

@@ -29,6 +29,7 @@ jobs:
         run: |
           rustup toolchain install 1.75.0 --profile minimal
           cargo +1.75.0 build --locked -p boardsi-worker
+          cargo +1.75.0 build --locked -p boardsi-import --bin boardsi-import-artwork
           mkdir -p build-qt
           cargo +1.75.0 run --locked -p boardsi-worker --example m0_model_snapshot_fixture -- build-qt/qt-model-a.frame build-qt/qt-model-b.frame
       - name: Build actual Widgets GUI and runtime harness
@@ -37,7 +38,7 @@ jobs:
           "$QT_PREFIX/bin/qmake" -query QT_VERSION
           cmake --version
           g++ --version
-          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DCMAKE_BUILD_TYPE=Release
+          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DCMAKE_BUILD_TYPE=Release -DBOARDSI_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork"
           cmake --build build-qt --parallel 2
       - name: Run real QApplication and independent Worker
         env:
@@ -132,6 +133,7 @@ jobs:
           rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
           rustc -vV
           cargo build --locked -p boardsi-worker
+          cargo build --locked -p boardsi-import --bin boardsi-import-artwork
           mkdir -p build-qt
           cargo run --locked -p boardsi-worker --example m0_model_snapshot_fixture -- build-qt/qt-model-a.frame build-qt/qt-model-b.frame
       - name: Build Windows target with installed MSVC toolset
@@ -177,13 +179,122 @@ jobs:
           ./boardsi-qt-runtime-validation$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$pythonPath" "$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests/fault_worker.py"
           ./boardsi-qt-model-v2$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame"
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame"
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc"
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --via-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc"
+          cat qt-preview-p2b-via-results.json
           cat qt-preview-p0-results.json
+      - name: Exercise Windows x64 developer desktop launcher
+        if: matrix.name == 'Windows x64'
+        shell: pwsh
+        env:
+          BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          $nativeReceipt = 'build-qt/qt-preview-p0-results.json'
+          $directReceipt = 'build-qt/qt-preview-native-direct.json'
+          if (-not (Test-Path -PathType Leaf $nativeReceipt)) {
+            throw 'Missing direct native GUI smoke receipt'
+          }
+          Move-Item -LiteralPath $nativeReceipt -Destination $directReceipt -Force
+          ./scripts/run-boardsi-preview-windows-x64.ps1 -SelfTest
+          if (-not (Test-Path -PathType Leaf $nativeReceipt)) {
+            throw 'Missing developer launcher GUI smoke receipt'
+          }
+          $receipt = Get-Content -LiteralPath $nativeReceipt -Raw | ConvertFrom-Json
+          if ($receipt.pass -ne $true -or $receipt.p2a_imported_artwork -ne $true -or
+              $receipt.p2a_properties_source_isolation_verified -ne $true -or
+              $receipt.p2a_import_summary_counts_verified -ne $true -or
+              $receipt.p2a_import_failure_recovery_verified -ne $true -or
+              $receipt.source_sha -ne $env:BOARDSI_SOURCE_HEAD_SHA) {
+            throw 'Developer launcher receipt does not prove current-HEAD P2-A source-isolation smoke'
+          }
+      - name: Stage Windows x64 Qt-bundled release test and license sources
+        if: matrix.name == 'Windows x64'
+        shell: pwsh
+        run: |
+          ./scripts/stage-boardsi-preview-windows-x64-qt.ps1 -StagePath 'build-qt/boardsi-preview-windows-x64-qt-bundled'
+      - name: Verify Qt-bundled artifact without separately installed Qt SDK
+        if: matrix.name == 'Windows x64'
+        shell: pwsh
+        env:
+          BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stage = 'build-qt/boardsi-preview-windows-x64-qt-bundled'
+          $copy = Join-Path $env:RUNNER_TEMP 'BoardSI Qt 한글 공백'
+          Copy-Item -LiteralPath $stage -Destination $copy -Recurse -Force
+          $runner = Join-Path $copy 'run-preview.ps1'
+          $oldQt = $env:QT_PREFIX
+          $oldPlugin = $env:QT_PLUGIN_PATH
+          $oldPath = $env:PATH
+          try {
+            $env:QT_PREFIX = $null
+            $env:QT_PLUGIN_PATH = $null
+            $qtBin = (Join-Path $oldQt 'bin').TrimEnd('\','/')
+            $env:PATH = (($oldPath -split ';') | Where-Object {$_.TrimEnd('\','/') -ine $qtBin}) -join ';'
+            & $runner -ValidateOnly
+            $receipt = 'build-qt/qt-preview-p0-results.json'
+            if (-not (Test-Path -LiteralPath $receipt -PathType Leaf)) {throw 'Missing source launcher receipt'}
+            Move-Item -LiteralPath $receipt -Destination 'build-qt/qt-preview-source-launcher.json' -Force
+            & $runner -SelfTest -EvidenceDirectory 'build-qt'
+            if (-not (Test-Path -LiteralPath $receipt -PathType Leaf)) {throw 'Missing Qt-bundled GUI smoke receipt'}
+            $e = Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
+            if ($e.pass -ne $true -or $e.p2a_imported_artwork -ne $true -or
+                $e.p2a_properties_source_isolation_verified -ne $true -or
+                $e.p2a_import_summary_counts_verified -ne $true -or
+                $e.p2a_import_failure_recovery_verified -ne $true -or
+                $e.source_sha -ne $env:BOARDSI_SOURCE_HEAD_SHA) {
+              throw 'Bundled Qt native smoke identity or import assertions failed'
+            }
+            Copy-Item -LiteralPath $receipt -Destination 'build-qt/qt-preview-staged-package.json'
+            Push-Location 'build-qt'
+            try {
+              $exe=Join-Path $copy 'boardsi-preview-p0.exe'
+              $worker=Join-Path $copy 'boardsi-worker.exe'
+              $a=Join-Path $copy 'qt-model-a.frame'
+              $b=Join-Path $copy 'qt-model-b.frame'
+              $importer=Join-Path $copy 'boardsi-import-artwork.exe'
+              $fixture=Join-Path $copy 'public-pads-v94-synthetic.asc'
+              & $exe --selftest $worker $a $b $importer $fixture
+              if ($LASTEXITCODE -ne 0) {throw 'Direct Windows executable bundled Qt smoke failed'}
+            } finally {Pop-Location}
+            $direct=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
+            if ($direct.pass -ne $true -or $direct.source_sha -ne $env:BOARDSI_SOURCE_HEAD_SHA) {
+              throw 'Direct Qt EXE smoke did not prove exact source HEAD'
+            }
+            Copy-Item -LiteralPath $receipt -Destination 'build-qt/qt-preview-standalone-direct.json'
+          } finally {
+            $env:PATH=$oldPath
+            $env:QT_PREFIX=$oldQt
+            $env:QT_PLUGIN_PATH=$oldPlugin
+          }
+          $entries = @(Get-Content -LiteralPath (Join-Path $copy 'SHA256SUMS.txt'))
+          if ($entries.Count -lt 17) {throw 'Bundled manifest too short'}
+          foreach ($line in $entries) {
+            $pair=$line -split '  ',2
+            if ($pair.Count -ne 2 -or $pair[0] -notmatch '^[A-Fa-f0-9]{64}$') {throw 'Invalid bundled manifest'}
+            $actual=(Get-FileHash -LiteralPath (Join-Path $copy $pair[1]) -Algorithm SHA256).Hash
+            if ($actual -ne $pair[0]) {throw ('Bundled checksum mismatch: '+$pair[1])}
+          }
+      - name: Upload Windows x64 Qt-bundled test archive
+        if: matrix.name == 'Windows x64'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: boardsi-preview-p2a-windows-x64-qt-bundled-test
+          path: build-qt/boardsi-preview-windows-x64-qt-bundled/
+          if-no-files-found: error
+          retention-days: 7
       - name: Preserve developer Preview P0 native execution evidence (not a distributable binary)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: boardsi-preview-p0-native-${{ matrix.name }}
-          path: build-qt/qt-preview-p0-results.json
+          path: |
+            build-qt/qt-preview-p0-results.json
+            build-qt/qt-preview-p2b-via-results.json
+            build-qt/qt-preview-native-direct.json
+            build-qt/qt-preview-source-launcher.json
+            build-qt/qt-preview-staged-package.json
+            build-qt/qt-preview-standalone-direct.json
           if-no-files-found: warn
       - name: Exercise adversarial F1 verifier tests
         id: f1_adversarial_tests
