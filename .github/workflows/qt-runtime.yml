@@ -182,6 +182,8 @@ jobs:
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc"
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --via-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc"
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --pad-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_component_simple_v94.asc"
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --rect-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_rf_rectangle_v94.asc"
+          cat qt-preview-p2d-rect-results.json
           cat qt-preview-p2c-pad-results.json
           cat qt-preview-p2b-via-results.json
           cat qt-preview-p0-results.json
@@ -293,6 +295,8 @@ jobs:
           path: |
             build-qt/qt-preview-p0-results.json
             build-qt/qt-preview-p2b-via-results.json
+            build-qt/qt-preview-p2d-rect-results.json
+            build-qt/qt-preview-p2c-pad-results.json
             build-qt/qt-preview-native-direct.json
             build-qt/qt-preview-source-launcher.json
             build-qt/qt-preview-staged-package.json

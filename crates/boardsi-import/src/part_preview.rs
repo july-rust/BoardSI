@@ -1,6 +1,7 @@
 //! A_011 P2-C: deliberately narrow, fail-closed V9.4 MILS component-pad preview.
 //! Accepts zero-outline I-unit decals with explicit T terminals and 3-layer
-//! drill-free round or square SMD padstacks. Does NOT infer connectivity.
+//! drill-free round, square, or limited zero-offset rectangular SMD padstacks.
+//! No mirrored placement, arbitrary finger rotation, or inferred connectivity.
 use boardsi_model::*;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -17,6 +18,9 @@ pub struct ComponentPad {
     pub layer: u32,
     pub size_ticks: i64,
     pub square: bool,
+    pub rectangular: bool,
+    pub width_ticks: i64,
+    pub height_ticks: i64,
 }
 
 #[derive(Clone)]
@@ -26,8 +30,10 @@ struct Terminal {
 }
 #[derive(Clone, Copy)]
 struct Stack {
-    size: i64,
+    width: i64,
+    height: i64,
     square: bool,
+    rectangular: bool,
 }
 struct Decal {
     terminals: Vec<Terminal>,
@@ -186,10 +192,13 @@ fn decals(lines: &[String]) -> BTreeMap<String, Decal> {
             for _ in 0..3 {
                 let row = words(&lines[i]);
                 i += 1;
-                if row.len() != 4
-                    || !matches!(row[2], "R" | "S")
-                    || row[3] != "0"
+                let finger = row.get(2) == Some(&"RF");
+                if !matches!(row.get(2), Some(&"R" | &"S" | &"RF"))
+                    || (finger && row.len() != 7)
+                    || (!finger && row.len() != 4)
+                    || (!finger && row[3] != "0")
                     || !matches!(row[0], "-2" | "-1" | "0")
+                    || (finger && row[0] != "-2")
                 {
                     good = false;
                     continue;
@@ -198,7 +207,31 @@ fn decals(lines: &[String]) -> BTreeMap<String, Decal> {
                     good = false;
                     continue;
                 };
-                if rows.insert(row[0].to_owned(), (size, row[2])).is_some() {
+                // PADS V9.4: level size RF finori finlength finoffset corner.
+                // Inner diameter is omitted for the non-annular RF shape.
+                // Only orthogonal, zero-offset, sharp-corner rectangular SMD
+                // fingerprints are currently independently renderable.
+                let (length, finger_turn) = if finger {
+                    if fixed(row[5]) != Some(0) || fixed(row[6]) != Some(0) {
+                        good = false;
+                        continue;
+                    }
+                    let (Some(length), Some(angle)) = (fixed(row[4]), turn(row[3])) else {
+                        good = false;
+                        continue;
+                    };
+                    if !(100..=100_000).contains(&length) || angle > 1 {
+                        good = false;
+                        continue;
+                    }
+                    (length, angle)
+                } else {
+                    (size, 0)
+                };
+                if rows
+                    .insert(row[0].to_owned(), (size, row[2], length, finger_turn))
+                    .is_some()
+                {
                     good = false;
                 }
             }
@@ -210,7 +243,7 @@ fn decals(lines: &[String]) -> BTreeMap<String, Decal> {
                 good = false;
                 continue;
             }
-            let Some(&(size, shape)) = rows.get("-2") else {
+            let Some(&(size, shape, length, finger_turn)) = rows.get("-2") else {
                 good = false;
                 continue;
             };
@@ -219,8 +252,10 @@ fn decals(lines: &[String]) -> BTreeMap<String, Decal> {
                     .insert(
                         head[1].to_owned(),
                         Stack {
-                            size,
+                            width: if finger_turn == 1 { size } else { length },
+                            height: if finger_turn == 1 { length } else { size },
                             square: shape == "S",
+                            rectangular: shape == "RF",
                         },
                     )
                     .is_some()
@@ -380,8 +415,19 @@ pub fn parse(source: &[u8], max_layer: u32) -> PadImport {
                 component_origin: [x, y],
                 rotation: rot,
                 layer: 1.min(max_layer),
-                size_ticks: stack.size,
+                size_ticks: stack.width,
                 square: stack.square,
+                rectangular: stack.rectangular,
+                width_ticks: if rot % 2 == 0 {
+                    stack.width
+                } else {
+                    stack.height
+                },
+                height_ticks: if rot % 2 == 0 {
+                    stack.height
+                } else {
+                    stack.width
+                },
             });
         }
     }
@@ -437,14 +483,16 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
         let key = format!("p2c-{}-{}", pad.reference, pad.pin);
         let stack_key = format!("p2c-padstack-{}", key);
         let stack_id = ObjectId::new(&source, ObjectKind::Padstack, &stack_key, "");
-        let length = Rational::new(i128::from(pad.size_ticks) * 127, 500_000_000)
+        let width = Rational::new(i128::from(pad.width_ticks) * 127, 500_000_000)
             .map_err(|_| "PAD_SIZE_OVERFLOW")?;
-        let shape = if pad.square {
+        let height = Rational::new(i128::from(pad.height_ticks) * 127, 500_000_000)
+            .map_err(|_| "PAD_SIZE_OVERFLOW")?;
+        let shape = if pad.square || pad.rectangular {
             PadShape::Rectangle {
-                size_m: [length, length],
+                size_m: [width, height],
             }
         } else {
-            PadShape::Circle { diameter_m: length }
+            PadShape::Circle { diameter_m: width }
         };
         let layer = ObjectId::new(
             &source,
@@ -457,7 +505,7 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
                 &source,
                 ObjectKind::Padstack,
                 &stack_key,
-                "PADS PARTDECAL top-only SMD round/square",
+                "PADS PARTDECAL top-only SMD round/square/restricted RF",
             ),
             entries: vec![PadstackLayer {
                 layer,
@@ -500,7 +548,7 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
     }
     board.sources[0].capability.pin_pad = CapabilityState::Partial;
     board.sources[0].capability.object_coverage.push(
-        "PARTDECAL/PARTTYPE/PART: top only drill-free round/square SMD; net NOT_VERIFIED".into(),
+        "PARTDECAL/PARTTYPE/PART: top-only drill-free round/square/restricted RF SMD; net NOT_VERIFIED".into(),
     );
     if board.validate().has_errors() {
         return Err("PAD_CANONICAL_INVALID");
@@ -667,6 +715,58 @@ mod tests {
         assert!(model.pins.iter().all(|p| p.net.is_none()));
         assert!(model.pads.iter().all(|p| p.net.is_none()));
         assert!(!model.validate().has_errors());
+    }
+    #[test]
+    fn restricted_rf_all_component_turns_and_finger_orientations() {
+        let fixture = SAMPLE.replace("-2 40 R 0", "-2 30 RF 0 80 0 0");
+        for (rotation, expected) in [
+            ("0", (8000, 3000)),
+            ("90", (3000, 8000)),
+            ("180", (8000, 3000)),
+            ("270", (3000, 8000)),
+        ] {
+            let source = fixture.replace("300 90 U N 0", &format!("300 {rotation} U N 0"));
+            let parsed = parse(source.as_bytes(), 4);
+            assert_eq!(parsed.pads.len(), 2);
+            let pad = &parsed.pads[0];
+            assert!(pad.rectangular);
+            assert_eq!((pad.width_ticks, pad.height_ticks), expected);
+            assert_eq!(pad.size_ticks, 8000);
+        }
+        let source = fixture.replace("-2 30 RF 0 80 0 0", "-2 30 RF 90 80 0 0");
+        let parsed = parse(source.as_bytes(), 4);
+        assert_eq!(parsed.pads.len(), 2);
+        assert_eq!(
+            (parsed.pads[0].width_ticks, parsed.pads[0].height_ticks),
+            (8000, 3000)
+        );
+    }
+    #[test]
+    fn rejects_unmodeled_rf_extensions_and_preserves_other_pads() {
+        let valid = SAMPLE.replace("-2 40 R 0", "-2 30 RF 0 80 0 0");
+        for replacement in [
+            "-2 30 RF 45 80 0 0",
+            "-2 30 RF 180 80 0 0",
+            "-2 30 RF 0 80 1 0",
+            "-2 30 RF 0 80 0 1",
+            "-2 30 RF 0 80 0 0 0",
+            "-2 30 RF 0 0 0 0",
+            "-2 30 RF 0 1001 0 0",
+            "-2 30 RF 0 80 0",
+        ] {
+            let source = valid.replace("-2 30 RF 0 80 0 0", replacement);
+            assert!(
+                parse(source.as_bytes(), 4).pads.is_empty(),
+                "invalid: {replacement}"
+            );
+        }
+        // Canonical construction requires a real declared copper-layer count.
+        let source = valid.replacen("*PARTDECAL*", "*PCB*\nMAXLAYER 4\n*PARTDECAL*", 1);
+        let route = crate::route_preview::parse(source.as_bytes()).unwrap();
+        let mut board = crate::route_preview::into_canonical(source.as_bytes(), &route).unwrap();
+        augment(&mut board, &parse(source.as_bytes(), route.max_layer)).unwrap();
+        assert!(!board.validate().has_errors());
+        assert!(board.pins.iter().all(|pin| pin.net.is_none()));
     }
     #[test]
     fn square_only_not_unsupported_asymmetric_rectangle() {

@@ -35,6 +35,8 @@ fn run() -> Result<(), &'static str> {
     // records are actually emitted. Rejected PART rows are not P2C geometry.
     let mode = if pad_data.pads.is_empty() {
         "BOARDSI_P2A_PARTIAL_V1"
+    } else if pad_data.pads.iter().any(|pad| pad.rectangular) {
+        "BOARDSI_P2D_PARTIAL_V3"
     } else {
         "BOARDSI_P2C_PARTIAL_V2"
     };
@@ -90,19 +92,27 @@ fn run() -> Result<(), &'static str> {
         return Err("PAD_LIMIT");
     }
     for pad in &pad_data.pads {
-        // The only currently accepted rectangle is a square; no copper or net
-        // is fabricated for offset/custom footprint shapes.
+        // Geometry is restricted and axis-aligned after component rotation;
+        // unknown custom shapes are never interpreted as RF.
         writeln!(
             out,
             "P|{}|{}|{}|{}|{}|{}|{}|{}|NET_UNVERIFIED",
             pad.reference,
             pad.pin,
             pad.layer,
-            if pad.square { "S" } else { "R" },
+            if pad.rectangular {
+                "RF"
+            } else if pad.square {
+                "S"
+            } else {
+                "R"
+            },
             pad.point[0].checked_mul(NM).ok_or("PAD_COORD_OVERFLOW")?,
             pad.point[1].checked_mul(NM).ok_or("PAD_COORD_OVERFLOW")?,
-            pad.size_ticks.checked_mul(NM).ok_or("PAD_SIZE_OVERFLOW")?,
-            pad.size_ticks.checked_mul(NM).ok_or("PAD_SIZE_OVERFLOW")?
+            pad.width_ticks.checked_mul(NM).ok_or("PAD_SIZE_OVERFLOW")?,
+            pad.height_ticks
+                .checked_mul(NM)
+                .ok_or("PAD_SIZE_OVERFLOW")?
         )
         .map_err(|_| "FORMAT_ERROR")?;
     }

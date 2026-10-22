@@ -74,6 +74,37 @@ fn p2c_cli_emits_explicit_unverified_net_and_exact_simple_pad_geometry() {
 }
 
 #[test]
+fn p2d_cli_pad_only_board_has_independent_mm_geometry() {
+    let bin = env!("CARGO_BIN_EXE_boardsi-import-artwork");
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pads_rf_rectangle_v94.asc");
+    let output = Command::new(bin).arg(&fixture).output().expect("P2D CLI");
+    assert!(
+        output.status.success(),
+        "{:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let msg = String::from_utf8(output.stdout).unwrap();
+    assert!(msg.starts_with("BOARDSI_P2D_PARTIAL_V3|V9.4-MILS|4\n"));
+    let pads: Vec<_> = msg.lines().filter(|line| line.starts_with("P|")).collect();
+    assert_eq!(pads.len(), 8);
+    let expected = [
+        "P|U0|1|1|RF|5080000|7620000|2032000|762000|NET_UNVERIFIED",
+        "P|U0|2|1|RF|7620000|7620000|762000|2032000|NET_UNVERIFIED",
+        "P|U1|1|1|RF|10160000|7620000|762000|2032000|NET_UNVERIFIED",
+        "P|U1|2|1|RF|10160000|10160000|2032000|762000|NET_UNVERIFIED",
+        "P|U2|1|1|RF|15240000|7620000|2032000|762000|NET_UNVERIFIED",
+        "P|U2|2|1|RF|12700000|7620000|762000|2032000|NET_UNVERIFIED",
+        "P|U3|1|1|RF|20320000|7620000|762000|2032000|NET_UNVERIFIED",
+        "P|U3|2|1|RF|20320000|5080000|2032000|762000|NET_UNVERIFIED",
+    ];
+    for pad in expected {
+        assert!(pads.contains(&pad), "missing expected: {pad}");
+    }
+    assert!(msg.ends_with("END|0|0|8|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
+}
+
+#[test]
 fn v1_transport_remains_unchanged_when_unsupported_parts_emit_no_pads() {
     let bin = env!("CARGO_BIN_EXE_boardsi-import-artwork");
     let baseline = include_str!("fixtures/pads_route_straight_v94.asc");

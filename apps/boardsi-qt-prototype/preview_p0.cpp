@@ -75,7 +75,8 @@ class PreviewWindow : public QMainWindow {
         const QString candidate = chosenFile.isEmpty() ? QString("No PCB candidate selected") :
                                   QString("PCB candidate: ") + chosenFile;
         const bool loaded = importResultStatus.startsWith("PARTIAL") &&
-                            ((importUI->imported()->segmentCount() + importUI->imported()->viaCount()) > 0);
+                            ((importUI->imported()->segmentCount() + importUI->imported()->viaCount() +
+                              importUI->imported()->padCount()) > 0);
         if (!loaded) {
             properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
                                 candidate + "\nImport status: " + importResultStatus +
@@ -99,17 +100,17 @@ class PreviewWindow : public QMainWindow {
             (chosenFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
                 "PCB candidate: " + chosenFile +
                 (importResultStatus.startsWith("PARTIAL") ?
-                    " (PARTIAL STRAIGHT-ROUTE IMPORT)" : " (NOT IMPORTED)")) +
+                    " (PARTIAL ARTWORK IMPORT)" : " (NOT IMPORTED)")) +
             "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
-            "DEVELOPER PREVIEW P2-A - PARTIAL Import / NOT PCB SI\n\n"
+            "DEVELOPER PREVIEW P2-D - PARTIAL Import / NOT PCB SI\n\n"
             "Worker: independent Rust process\n" + status + "\n" +
             ipc->resultLabel()->text() +
             (error.isEmpty() ? QString() : "\nERROR: " + error) +
             "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n" +
             (importResultStatus.startsWith("PARTIAL") ?
-                "Imported PCB: PARTIAL straight-route segments and supported through vias ONLY; other padstack/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
+                "Imported PCB: PARTIAL accepted straight routes, through vias and restricted top SMD pads; other geometry/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
                 "Synthetic fixture only; no real PCB imported or physical SI analysis performed."));
         if (status != previousStatus) {
             log->appendPlainText("Worker: " + status);
@@ -131,7 +132,7 @@ public:
     PreviewWindow(const QString &workerPath, const QString &firstFrame = QString(),
                   const QString &secondFrame = QString(), const QString &importBinary = QString()) {
         setObjectName("boardsiPreviewP0");
-        setWindowTitle("BoardSI Developer Preview P2-A - PARTIAL IMPORT / NOT PCB SI");
+        setWindowTitle("BoardSI Developer Preview P2-D - PARTIAL IMPORT / NOT PCB SI");
         auto *bar = addToolBar("Preview controls");
         bar->setMovable(false);
         openAction = bar->addAction("Open PCB");
@@ -148,7 +149,7 @@ public:
         auto *root = new QWidget(this);
         auto *vertical = new QVBoxLayout(root);
         auto *header = new QLabel(
-            "BoardSI PREVIEW P2-A | Synthetic Demo / Imported Partial | NOT PCB SI | Developer build",
+            "BoardSI PREVIEW P2-D | Synthetic Demo / Imported Partial | NOT PCB SI | Developer build",
             root);
         header->setStyleSheet("font-weight: bold; padding: 8px; background: #2b3441; color: #ffffff;");
         vertical->addWidget(header);
@@ -203,7 +204,7 @@ public:
         auto *propBox = new QGroupBox("Properties", right);
         auto *propLayout = new QVBoxLayout(propBox);
         properties = new QLabel(
-            "Mode: Developer Preview P2-A\n"
+            "Mode: Developer Preview P2-D\n"
             "Source: synthetic or imported partial\n"
             "PCB: NOT LOADED\n"
             "Stackup: NOT LOADED\n"
@@ -692,6 +693,97 @@ static int runPadSmoke(PreviewWindow &window, const QString &fixture) {
     return passed ? 0 : 1;
 }
 
+
+static int runRectSmoke(PreviewWindow &window, const QString &fixture) {
+    QElapsedTimer clock;
+    clock.start();
+    bool passed = false;
+    QString failure;
+    QEventLoop loop;
+    if (!window.openCandidate(fixture)) {
+        failure = "P2-D RF synthetic fixture unavailable";
+    } else {
+        QTimer tick;
+        QObject::connect(&tick, &QTimer::timeout, &loop, [&] {
+            const QString status = window.importPanel()->importStatus();
+            if (status.startsWith("FAILED") || status.startsWith("CANCELLED")) {
+                failure = "RF import failed: " + status;
+                loop.quit();
+            } else if (status.startsWith("PARTIAL")) {
+                auto *panel = window.importPanel()->imported();
+                auto *scene = panel->findChild<QGraphicsScene *>();
+                const auto near = [](qreal a, qreal b) { return qAbs(a - b) < 0.000001; };
+                struct ExpectedPad { const char *label; qreal x, y, w, h; };
+                // Independent axis-aligned expectations in mm (not from the importer).
+                const ExpectedPad expected[] = {
+                    {"Pad U0.1",  5.08, -7.62, 2.032, 0.762},
+                    {"Pad U0.2",  7.62, -7.62, 0.762, 2.032},
+                    {"Pad U1.1", 10.16, -7.62, 0.762, 2.032},
+                    {"Pad U1.2", 10.16,-10.16, 2.032, 0.762},
+                    {"Pad U2.1", 15.24, -7.62, 2.032, 0.762},
+                    {"Pad U2.2", 12.70, -7.62, 0.762, 2.032},
+                    {"Pad U3.1", 20.32, -7.62, 0.762, 2.032},
+                    {"Pad U3.2", 20.32, -5.08, 2.032, 0.762}
+                };
+                bool geometry = scene && scene->items().size() == 8;
+                if (geometry) for (const auto &want : expected) {
+                    bool found = false;
+                    for (QGraphicsItem *item : scene->items()) {
+                        auto *rect = qgraphicsitem_cast<QGraphicsRectItem *>(item);
+                        if (!rect || !item->data(1).toString().contains(want.label)) continue;
+                        const QRectF actual = rect->rect();
+                        if (near(actual.center().x(), want.x) &&
+                            near(actual.center().y(), want.y) &&
+                            near(actual.width(), want.w) &&
+                            near(actual.height(), want.h) &&
+                            item->data(1).toString().contains("net NOT_VERIFIED")) found = true;
+                    }
+                    if (!found) { geometry = false; break; }
+                }
+                const bool counts = panel->padCount() == 8 &&
+                                    panel->segmentCount() == 0 && panel->viaCount() == 0;
+                const bool selected = panel->selectPad(0) &&
+                    window.displayedProperties().contains("Pad U0.1") &&
+                    window.displayedProperties().contains("Component SMD pads: 8") &&
+                    window.displayedProperties().contains("Source: IMPORTED PARTIAL") &&
+                    !window.displayedProperties().contains("NOTHING IMPORTED");
+                auto *toggle = window.findChild<QPushButton *>("importedLayerToggle");
+                bool visibility = false;
+                if (toggle && scene) {
+                    toggle->click();
+                    bool allHidden = true;
+                    for (QGraphicsItem *item : scene->items()) allHidden &= !item->isVisible();
+                    toggle->click();
+                    bool allShown = true;
+                    for (QGraphicsItem *item : scene->items()) allShown &= item->isVisible();
+                    visibility = allHidden && allShown;
+                }
+                passed = geometry && counts && selected && visibility;
+                if (!passed) failure = "RF geometry / pad-only Properties / layer visibility mismatch";
+                loop.quit();
+            }
+        });
+        QTimer::singleShot(15000, &loop, &QEventLoop::quit);
+        tick.start(20);
+        loop.exec();
+        tick.stop();
+        if (!passed && failure.isEmpty()) failure = "RF GUI smoke timed out";
+    }
+    QJsonObject report{
+        {"schema", "boardsi-preview-p2d-rect-smoke-v1"},
+        {"pass", passed}, {"failure", failure}, {"elapsed_ms", clock.elapsed()},
+        {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"native_backend", QGuiApplication::platformName()},
+        {"host_arch", QSysInfo::currentCpuArchitecture()},
+        {"scope", "public RF pad-only orthogonal 0/90 and part 0/90/180/270; SI NOT_RUN"}
+    };
+    QFile receipt("qt-preview-p2d-rect-results.json");
+    if (!receipt.open(QIODevice::WriteOnly) ||
+        receipt.write(QJsonDocument(report).toJson(QJsonDocument::Indented)) < 1) return 2;
+    qInfo().noquote() << QJsonDocument(report).toJson(QJsonDocument::Compact);
+    return passed ? 0 : 1;
+}
+
 static int runViaSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock;
     clock.start();
@@ -750,8 +842,9 @@ int main(int argc, char **argv) {
     const QStringList args = app.arguments();
     const bool viaTesting = args.size() == 7 && args.at(1) == "--via-selftest";
     const bool padTesting = args.size() == 7 && args.at(1) == "--pad-selftest";
+    const bool rectTesting = args.size() == 7 && args.at(1) == "--rect-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
-                         viaTesting || padTesting;
+                         viaTesting || padTesting || rectTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -774,7 +867,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return padTesting ? runPadSmoke(window, fixture) :
+    return rectTesting ? runRectSmoke(window, fixture) :
+           padTesting ? runPadSmoke(window, fixture) :
            viaTesting ? runViaSmoke(window, fixture) :
            testing ? runPreviewSmoke(app, window, worker, fixture) : app.exec();
 }
