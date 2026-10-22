@@ -32,6 +32,7 @@ pub struct ViaInstance {
     pub drill_ticks: i64,
     pub first_layer: u32,
     pub last_layer: u32,
+    pub inner_pad: bool,
     pub source_line: usize,
 }
 #[derive(Debug)]
@@ -45,6 +46,7 @@ pub struct Artwork {
 struct SimpleViaDef {
     drill_ticks: i64,
     diameter_ticks: i64,
+    inner_pad: bool,
 }
 // Deliberately narrow PADS 9.4 subset: only two or three explicit equal
 // round conductive pads (-2 = top, 0 = bottom, optional -1 = interior).
@@ -57,6 +59,11 @@ fn scan_simple_via_defs(source: &str) -> BTreeMap<String, SimpleViaDef> {
     while i < lines.len() {
         let line = lines[i].trim();
         let keyword = line.split_ascii_whitespace().next().unwrap_or("");
+        // A remark is not a section boundary; preserve VIA mode.
+        if keyword == "*REMARK*" {
+            i += 1;
+            continue;
+        }
         if line.starts_with('*') {
             in_via = keyword == "*VIA*";
             i += 1;
@@ -113,6 +120,7 @@ fn scan_simple_via_defs(source: &str) -> BTreeMap<String, SimpleViaDef> {
                 SimpleViaDef {
                     drill_ticks: drill,
                     diameter_ticks: top.unwrap_or_default(),
+                inner_pad: interior.is_some(),
                 },
             );
         }
@@ -361,6 +369,26 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
                     if vias.len() >= MAX_SEGMENTS {
                         return Err("VIA_LIMIT");
                     }
+                    // The explicit via vertex terminates the incoming copper on
+                    // the preceding layer and begins outgoing copper on the
+                    // newly declared layer. Never connect unrelated pin pairs.
+                    if let Some((before, old_layer, old_width)) = previous {
+                        if old_width == width && before != p {
+                            if segments.len() >= MAX_SEGMENTS {
+                                return Err("SEGMENT_LIMIT");
+                            }
+                            segments.push(Segment {
+                                layer: old_layer as u32,
+                                net: net.unwrap_or_default().to_string(),
+                                a: before,
+                                b: p,
+                                width_ticks: width,
+                                source_line: line_no + 1,
+                            });
+                        } else {
+                            skipped = skipped.saturating_add(1);
+                        }
+                    }
                     vias.push(ViaInstance {
                         name: fields[5].to_string(),
                         net: net.unwrap_or_default().to_string(),
@@ -369,9 +397,10 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
                         drill_ticks: definition.drill_ticks,
                         first_layer: 1,
                         last_layer: max_layer,
+                        inner_pad: definition.inner_pad,
                         source_line: line_no + 1,
                     });
-                    previous = None;
+                    previous = Some((p, layer, width));
                     continue;
                 }
             }
@@ -570,9 +599,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         if !board.padstacks.iter().any(|p| p.meta.id == padstack_id) {
             let diameter_m = Rational::new(i128::from(via.diameter_ticks) * 127, 500_000_000)
                 .map_err(|_| "VIA_DIMENSION_OVERFLOW")?;
-            board.padstacks.push(Padstack {
-                meta: meta(&source, ObjectKind::Padstack, &padstack_key),
-                entries: vec![
+            let mut entries = vec![
                     PadstackLayer {
                         layer: start.clone(),
                         role: PadRole::Conductive,
@@ -583,7 +610,19 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                         role: PadRole::Conductive,
                         shape: PadShape::Circle { diameter_m },
                     },
-                ],
+                ];
+            if via.inner_pad {
+                for n in 2..via.last_layer {
+                    entries.push(PadstackLayer {
+                        layer: ObjectId::new(&source, ObjectKind::Layer, &format!("layer-{n}"), ""),
+                        role: PadRole::Conductive,
+                        shape: PadShape::Circle { diameter_m },
+                    });
+                }
+            }
+            board.padstacks.push(Padstack {
+                meta: meta(&source, ObjectKind::Padstack, &padstack_key),
+                entries,
             });
             board.drills.push(Drill {
                 meta: meta(&source, ObjectKind::Drill, &drill_key),
@@ -892,11 +931,16 @@ mod tests {
 #[cfg(test)]
 mod p2b_via_tests {
     use super::*;
-    const VIA_SAMPLE: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0\n300 200 1 10 0 SIMPLEVIA\n400 200 2 10 0\n500 200 2 10 0\n*END*\n";
+    const VIA_SAMPLE: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 2 10 0 SIMPLEVIA\n500 200 2 10 0\n*END*\n";
     #[test]
     fn imports_named_through_via_without_inferred_contacts() {
         let artwork = parse(VIA_SAMPLE.as_bytes()).unwrap();
         assert_eq!(artwork.vias.len(), 1);
+        assert_eq!(artwork.segments.len(), 2);
+        assert_eq!(artwork.segments[0].layer, 1);
+        assert_eq!(artwork.segments[1].layer, 2);
+        assert_eq!(artwork.segments[0].b, artwork.vias[0].point);
+        assert_eq!(artwork.segments[1].a, artwork.vias[0].point);
         assert_eq!(artwork.vias[0].point, [30_000, 20_000]);
         assert_eq!(artwork.vias[0].diameter_ticks, 3500);
         assert_eq!(artwork.vias[0].drill_ticks, 1500);
@@ -916,5 +960,30 @@ mod p2b_via_tests {
         let artwork = parse(bad.as_bytes()).unwrap();
         assert!(artwork.vias.is_empty());
         assert!(artwork.skipped > 0);
+    }
+}
+
+#[cfg(test)]
+mod p2b_via_regressions {
+    use super::*;
+    const BASE: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\n*REMARK* keep section\nSIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 2 10 0 SIMPLEVIA\n500 200 2 10 0\n*END*\n";
+    #[test]
+    fn inner_pad_and_remark_are_preserved() {
+        let artwork = parse(BASE.as_bytes()).unwrap();
+        assert_eq!(artwork.vias.len(), 1);
+        assert!(artwork.vias[0].inner_pad);
+        let board = into_canonical(BASE.as_bytes(), &artwork).unwrap();
+        assert_eq!(board.padstacks[0].entries.len(), 4);
+        assert_eq!(board.vias[0].connected_layers.len(), 0);
+        assert!(!board.validate().has_errors());
+    }
+    #[test]
+    fn via_only_model_does_not_need_invented_trace() {
+        let source = BASE.replace("100 200 1 10 0\n", "")
+            .replace("500 200 2 10 0\n", "");
+        let artwork = parse(source.as_bytes()).unwrap();
+        assert!(artwork.segments.is_empty());
+        assert_eq!(artwork.vias.len(), 1);
+        assert_eq!(into_canonical(source.as_bytes(), &artwork).unwrap().vias.len(), 1);
     }
 }
