@@ -52,7 +52,13 @@ struct SimpleViaDef {
 // round conductive pads (-2 = top, 0 = bottom, optional -1 = interior).
 // No blind/buried/microvia, thermal, antipad or implicit pad geometry.
 fn scan_simple_via_defs(source: &str) -> BTreeMap<String, SimpleViaDef> {
-    let lines: Vec<&str> = source.lines().collect();
+    // Limit the entire definition reader to the database body FIRST.
+    // A malformed definition claiming missing rows must never consume *END*
+    // and then resume at a post-terminator *VIA* section.
+    let lines: Vec<&str> = source
+        .lines()
+        .take_while(|line| line.split_ascii_whitespace().next() != Some("*END*"))
+        .collect();
     let mut definitions = BTreeMap::new();
     let mut in_via = false;
     let mut i = 0;
@@ -991,6 +997,22 @@ mod p2b_via_regressions {
         assert_eq!(artwork.segments.len(), 1);
         assert_eq!(artwork.segments[0].a, [40_000, 20_000]);
         let board = into_canonical(TRAILING.as_bytes(), &artwork).unwrap();
+        assert!(board.vias.is_empty());
+        assert!(board.padstacks.is_empty());
+        assert!(board.drills.is_empty());
+        assert!(!board.validate().has_errors());
+    }
+
+    #[test]
+    fn truncated_via_definition_cannot_swallow_end_and_import_trailing_data() {
+        // A pre-END via header claims two round pad rows but only one exists.
+        // Definitions following the first END cannot satisfy an earlier route
+        // vertex, even when the malformed row count would jump over END.
+        const TRUNCATED: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0 POSTEND\n400 200 1 10 0\n500 200 1 10 0\n*VIA*\nTRUNC 15 2\n-2 35 R\n*END*\n*VIA*\nPOSTEND 15 2\n-2 35 R\n0 35 R\n*END*\n";
+        let artwork = parse(TRUNCATED.as_bytes()).unwrap();
+        assert!(artwork.vias.is_empty());
+        assert_eq!(artwork.segments.len(), 1);
+        let board = into_canonical(TRUNCATED.as_bytes(), &artwork).unwrap();
         assert!(board.vias.is_empty());
         assert!(board.padstacks.is_empty());
         assert!(board.drills.is_empty());
