@@ -20,7 +20,7 @@ fn run() -> Result<(), &'static str> {
     let bytes = fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
     let result = parse(&bytes)?;
     let board = into_canonical(&bytes, &result)?;
-    if board.traces.len() != result.segments.len() || board.validate().has_errors() {
+    if board.traces.len() != result.segments.len() || board.vias.len() != result.vias.len() || board.validate().has_errors() {
         return Err("CANONICAL_VALIDATION_FAILED");
     }
     let mut out = Vec::new();
@@ -53,6 +53,20 @@ fn run() -> Result<(), &'static str> {
                 .ok_or("WIDTH_OVERFLOW")?
         )
         .map_err(|_| "FORMAT_ERROR")?;
+    }
+    for via in &result.vias {
+        writeln!(
+            out,
+            "V|{}|{}|{}|{}|{}|{}|{}|{}",
+            via.net,
+            via.name,
+            via.point[0].checked_mul(NM).ok_or("COORD_OVERFLOW")?,
+            via.point[1].checked_mul(NM).ok_or("COORD_OVERFLOW")?,
+            via.diameter_ticks.checked_mul(NM).ok_or("VIA_DIMENSION_OVERFLOW")?,
+            via.drill_ticks.checked_mul(NM).ok_or("VIA_DIMENSION_OVERFLOW")?,
+            via.first_layer,
+            via.last_layer,
+        ).map_err(|_| "FORMAT_ERROR")?;
     }
     writeln!(
         out,
