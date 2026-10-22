@@ -957,9 +957,9 @@ mod p2b_via_tests {
         // The renamed definition and reference still match.
         assert_eq!(parse(source.as_bytes()).unwrap().vias.len(), 1);
         let bad = VIA_SAMPLE.replace("0 35 R", "0 35 S");
-        let artwork = parse(bad.as_bytes()).unwrap();
-        assert!(artwork.vias.is_empty());
-        assert!(artwork.skipped > 0);
+        // The one adjoining section is not enough to form a safe copper
+        // segment once the unsupported via breaks continuity.
+        assert_eq!(parse(bad.as_bytes()).unwrap_err(), "NO_SUPPORTED_TRACES");
     }
 }
 
