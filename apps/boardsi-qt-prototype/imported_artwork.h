@@ -4,6 +4,7 @@
 #include <QComboBox>
 #include <QGraphicsLineItem>
 #include <QGraphicsEllipseItem>
+#include <QGraphicsRectItem>
 #include <QLabel>
 #include <QPushButton>
 #include <QSet>
