@@ -494,8 +494,22 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             logical_path: "local/source.asc".into(),
             sha256: sha,
         }],
-        importer_version: "preview-p2a-straight-v2-centimil".into(),
-        conditions: vec![("route_subset".into(), "straight-same-layer".into())],
+        importer_version: if parsed.vias.is_empty() {
+            "preview-p2a-straight-v2-centimil"
+        } else {
+            "preview-p2b-round-through-via-v1"
+        }
+        .into(),
+        conditions: {
+            let mut conditions = vec![("route_subset".into(), "straight-same-layer".into())];
+            if !parsed.vias.is_empty() {
+                conditions.push((
+                    "via_subset".into(),
+                    "explicit-equal-round-through-pad-and-drill-no-connectivity".into(),
+                ));
+            }
+            conditions
+        },
     });
     let mut board = BoardModel::empty(BoardKind::Pcb);
     board.sources.push(ImportSource {
@@ -509,7 +523,19 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             stackup: CapabilityState::Missing,
             reference: CapabilityState::Missing,
             model: CapabilityState::Missing,
-            object_coverage: vec!["ROUTE straight copper segment only".into()],
+            object_coverage: {
+                let mut coverage = Vec::new();
+                if !parsed.segments.is_empty() {
+                    coverage.push("ROUTE straight copper segment only".into());
+                }
+                if !parsed.vias.is_empty() {
+                    coverage.push(
+                        "VIA explicit round through-hole padstack and drill geometry; contact not verified"
+                            .into(),
+                    );
+                }
+                coverage
+            },
         },
     });
     let frame_id = ObjectId::new(&source, ObjectKind::Frame, "xy", "");
@@ -958,6 +984,9 @@ mod p2b_via_tests {
         assert_eq!(artwork.vias[0].drill_ticks, 1500);
         let board = into_canonical(VIA_SAMPLE.as_bytes(), &artwork).unwrap();
         assert_eq!(board.vias.len(), 1);
+        let coverage = &board.sources[0].capability.object_coverage;
+        assert!(coverage.iter().any(|scope| scope.contains("ROUTE straight")));
+        assert!(coverage.iter().any(|scope| scope.contains("VIA explicit round")));
         assert_eq!(board.padstacks.len(), 1);
         assert_eq!(board.drills.len(), 1);
         assert!(board.vias[0].connected_layers.is_empty());
