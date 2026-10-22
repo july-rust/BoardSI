@@ -478,11 +478,15 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
                         ticks: pad.component_origin,
                     },
                     orientation: Orientation::Orthogonal {
-                        turn: match pad.rotation {
-                            0 => QuarterTurn::Zero,
-                            1 => QuarterTurn::One,
-                            2 => QuarterTurn::Two,
-                            _ => QuarterTurn::Three,
+                        // CoordinateFrame applies mirror_x before quarter-turn.
+                        // PART bottom geometry is rotate-then-mirror, therefore
+                        // R(-theta) * mirror_x == mirror_x * R(theta).
+                        turn: match (pad.bottom, pad.rotation) {
+                            (_, 0) => QuarterTurn::Zero,
+                            (false, 1) | (true, 3) => QuarterTurn::One,
+                            (_, 2) => QuarterTurn::Two,
+                            (false, 3) | (true, 1) => QuarterTurn::Three,
+                            _ => unreachable!("rotation was validated by parse"),
                         },
                         mirror_x: pad.bottom,
                     },
@@ -813,6 +817,28 @@ mod tests {
             augment(&mut model, &imported).unwrap();
             assert_eq!(model.components.len(), 1);
             assert!(model.components[0].placement.bottom_side);
+            // Independent canonical reconstruction: CoordinateFrame follows
+            // mirror-first conventions, unlike the source PART bottom geometry.
+            let mut local_frame = model.frames[0].clone();
+            local_frame.orientation = model.components[0].placement.orientation.clone();
+            let origin = model.components[0].placement.position.ticks;
+            local_frame.origin_m = [
+                Rational::new(i128::from(origin[0]) * 127, 500_000_000).unwrap(),
+                Rational::new(i128::from(origin[1]) * 127, 500_000_000).unwrap(),
+            ];
+            let canonical = local_frame.exact_m(&Point {
+                frame: local_frame.meta.id.clone(),
+                ticks: [10_000, 0],
+            }).unwrap();
+            let expected_point = imported.pads[1].point;
+            assert_eq!(
+                canonical,
+                [
+                    Rational::new(i128::from(expected_point[0]) * 127, 500_000_000).unwrap(),
+                    Rational::new(i128::from(expected_point[1]) * 127, 500_000_000).unwrap(),
+                ],
+                "canonical transform disagrees with imported bottom pad at {angle}"
+            );
             assert!(model.pins.iter().all(|p| p.net.is_none()));
             assert!(model.pads.iter().all(|p| p.net.is_none()));
             assert!(!model.validate().has_errors());
