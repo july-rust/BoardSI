@@ -758,7 +758,9 @@ static int runRectSmoke(PreviewWindow &window, const QString &fixture) {
                     for (QGraphicsItem *item : scene->items()) allShown &= item->isVisible();
                     visibility = allHidden && allShown;
                 }
-                passed = geometry && counts && selected && visibility;
+                const bool legacyRotationUnknown = panel->selectPad(2) &&
+                    window.displayedProperties().contains("rotation NOT_VERIFIED");
+                passed = geometry && counts && selected && visibility && legacyRotationUnknown;
                 if (!passed) failure = "RF geometry / pad-only Properties / layer visibility mismatch";
                 loop.quit();
             }
