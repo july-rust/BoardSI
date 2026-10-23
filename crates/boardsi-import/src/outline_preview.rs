@@ -3,7 +3,6 @@
 //! Straight CLOSED and BRDCLS polygons only; arcs/circles/reuse fail closed.
 //! Geometry is outline artwork ONLY: no copper, topology, drilling or SI proof.
 use boardsi_model::*;
-use std::sync::Arc;
 
 const MAX_CORNER_COUNT: usize = 256;
 const MAX_SHAPES: usize = 64;
