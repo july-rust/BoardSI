@@ -897,7 +897,9 @@ mod tests {
     const SAMPLE: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0\n300 400 1 10 0\n*END*\n";
     #[test]
     fn cp1252_ignored_rows_do_not_expand_raw_outline_file_limit() {
-        let mut bytes = b"!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n".to_vec();
+        let mut bytes =
+            b"!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n"
+                .to_vec();
         for _ in 0..720 {
             bytes.extend_from_slice(b"*REMARK* ");
             bytes.extend(std::iter::repeat(0xe9u8).take(4000));
