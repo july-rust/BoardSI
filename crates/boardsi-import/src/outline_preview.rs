@@ -377,14 +377,8 @@ mod tests {
             "UNSUPPORTED_OUTLINE_GET"
         );
         // A GET in an unrelated section is not a physical board reference.
-        let outside_lines = INPUT.replace(
-            "*PCB*",
-            "*PCB*\n*GET* UNRELATED",
-        );
-        assert_eq!(
-            parse(outside_lines.as_bytes()).unwrap().len(),
-            2
-        );
+        let outside_lines = INPUT.replace("*PCB*", "*PCB*\n*GET* UNRELATED");
+        assert_eq!(parse(outside_lines.as_bytes()).unwrap().len(), 2);
     }
     #[test]
     fn validates_envelope_even_when_called_without_route_parser() {
