@@ -185,3 +185,27 @@ fn p2g_cli_emits_exact_non_copper_board_and_cutout_edges() {
     assert_eq!(msg.lines().filter(|s| s.starts_with("O|")).count(), 8);
     assert!(msg.ends_with("END|1|0|0|0|1|1|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
 }
+
+#[test]
+fn p2g_cli_refuses_lines_get_instead_of_silently_losing_board_boundary() {
+    let bin = env!("CARGO_BIN_EXE_boardsi-import-artwork");
+    let original = include_str!("fixtures/pads_board_outline_cutout_v94.asc");
+    // A valid routed board with a library reference inside *LINES* must never
+    // succeed while silently dropping an explicit BOARD perimeter.
+    let with_get = original.replace(
+        "MAIN_BOARD BOARD",
+        "*GET* UNVERIFIED_LIBRARY_OUTLINE\\nMAIN_BOARD BOARD",
+    );
+    let path = std::env::temp_dir().join(format!(
+        "boardsi_p2g_get_fails_closed_{}.asc",
+        std::process::id()
+    ));
+    std::fs::write(&path, with_get).expect("write public synthetic board");
+    let result = Command::new(bin).arg(&path).output().expect("run P2G importer");
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(result.status.code(), Some(3));
+    assert_eq!(
+        String::from_utf8_lossy(&result.stderr).trim(),
+        "P2A_IMPORT_ERROR:UNSUPPORTED_OUTLINE_GET"
+    );
+}
