@@ -97,7 +97,8 @@ class SyntheticArtworkCanvas final : public QGraphicsView {
             ? QString::fromLatin1(reinterpret_cast<const char *>(rendererBytes))
             : QString();
         context.doneCurrent();
-        if (isSoftwareRendererLabel(rendererName_)) {
+        if (isSoftwareRendererLabel(rendererName_) ||
+            !isKnownHardwareRendererLabel(rendererName_)) {
             setRendererStatus("CPU_FALLBACK_SOFTWARE_GL_OR_UNKNOWN");
             return;
         }
@@ -134,7 +135,20 @@ public:
                label.contains("swiftshader") || label.contains("gdi generic") ||
                label.contains("microsoft basic render") ||
                label.contains("swrast") || label.contains("soft raster") ||
-               label.contains("warp rasterizer");
+               label.contains("openswr") || label.contains("warp rasterizer");
+    }
+    // A denylist alone is unsafe: unknown strings must not become "GPU".
+    // This is a conservative driver-name classification, not a cryptographic
+    // attestation. Unknown adapters correctly fall back to CPU.
+    static bool isKnownHardwareRendererLabel(const QString &renderer) {
+        const QString label = renderer.toLower();
+        return label.contains("nvidia") || label.contains("geforce") ||
+               label.contains("quadro") || label.contains("radeon") ||
+               label.contains("amd ") || label.contains("ati ") ||
+               label.contains("intel") || label.contains("iris") ||
+               label.contains("apple m") || label.contains("apple gpu") ||
+               label.contains("adreno") || label.contains("mali-") ||
+               label.contains("powervr") || label.contains("vivante");
     }
     explicit SyntheticArtworkCanvas(QGraphicsScene *scene, QWidget *parent = nullptr)
         : QGraphicsView(scene, parent) {
