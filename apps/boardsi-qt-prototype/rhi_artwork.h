@@ -24,6 +24,8 @@
 #include <cmath>
 #include <functional>
 #include <map>
+#include <limits>
+#include <QShowEvent>
 #include <vector>
 
 class BoardSiRhiItem final : public QQuickItem {
@@ -272,6 +274,22 @@ public:
 };
 
 class BoardSiRhiView final : public QWidget {
+    bool timeoutStarted_=false;
+protected:
+    void showEvent(QShowEvent *event) override {
+        QWidget::showEvent(event);
+        if (timeoutStarted_) return;
+        timeoutStarted_=true;
+        // A hidden import tab is not a failed GPU. Start the frame deadline
+        // only after the native window container is actually displayed.
+        QTimer::singleShot(3000,this,[this] {
+            if (!seenFrame_ && !failed()) {
+                status_="CPU_FALLBACK_RHI_NO_FRAME";
+                if (changed_) changed_();
+            }
+        });
+    }
+private:
     QQuickWindow *window_=nullptr;
     BoardSiRhiItem *artwork_=nullptr;
     QString status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
