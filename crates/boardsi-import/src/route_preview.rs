@@ -258,6 +258,7 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     // Do not decode high bytes into route grammar: the supported subset has
     // ASCII-only route/pin/net tokens. Non-UTF8 CP1252 bytes elsewhere are
     // explicitly ignored, never mapped into copper geometry.
+    let source_bytes = source; // Preserve CP1252 raw byte count for the outline parser.
     let source = String::from_utf8_lossy(source);
     let via_defs = scan_simple_via_defs(&source);
     let mut vias = Vec::new();
@@ -581,7 +582,7 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     let has_pad = !crate::part_preview::parse(source.as_bytes(), max_layer)
         .pads
         .is_empty();
-    let has_outline = !crate::outline_preview::parse(source.as_bytes())?.is_empty();
+    let has_outline = !crate::outline_preview::parse(source_bytes)?.is_empty();
     if !found_route && !has_pad && !has_outline {
         return Err("MISSING_ROUTE_SECTION");
     }
