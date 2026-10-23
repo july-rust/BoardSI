@@ -40,6 +40,7 @@
 #endif
 #include <limits>
 #include <QShowEvent>
+#include <QHideEvent>
 #include <vector>
 
 // Adapter check on Qt's render thread. DeviceResource access on the GUI
@@ -106,6 +107,8 @@ class BoardSiRhiItem final : public QQuickItem {
     int layers_ = 0;
     std::shared_ptr<std::atomic<int>> adapterProof_ =
         std::make_shared<std::atomic<int>>(0);
+    std::atomic<quint64> modelGeneration_{0};
+    std::atomic<quint64> lastSyncedGeneration_{0};
     std::function<void(int,int)> picked_;
 
     QPointF world(qint64 x, qint64 y) const {
@@ -163,6 +166,11 @@ protected:
     QSGNode *updatePaintNode(QSGNode *old, UpdatePaintNodeData *) override {
         delete old;
         auto *root = new QSGNode();
+        // Synchronization phase executes on the render thread. Capture the
+        // exact artwork generation installed in this scene graph update.
+        lastSyncedGeneration_.store(
+            modelGeneration_.load(std::memory_order_acquire),
+            std::memory_order_release);
         if (window())
             root->appendChildNode(new BoardSiRhiAdapterProbe(window(),adapterProof_));
         if (bounds_.isEmpty() || width() < 2 || height() < 2) return root;
@@ -353,7 +361,9 @@ public:
             add(c,std::max(p.width_nm,p.height_nm)/2e6);
         }
         bounds_=rect.adjusted(-1,-1,1,1);
-        pan_=QPointF();zoom_=1.0;update();
+        pan_=QPointF();zoom_=1.0;
+        modelGeneration_.fetch_add(1,std::memory_order_release);
+        update();
     }
     void filter(QVector<bool> layers,const QString &net) {
         visibility_=std::move(layers); net_=net; update();
@@ -371,6 +381,12 @@ public:
     // 0: pending; 2: platform other than Windows.
     int d3dAdapterProof() const {
         return adapterProof_->load(std::memory_order_acquire);
+    }
+    quint64 sourceGeneration() const {
+        return modelGeneration_.load(std::memory_order_acquire);
+    }
+    quint64 syncedGeneration() const {
+        return lastSyncedGeneration_.load(std::memory_order_acquire);
     }
     QPointF localPoint(qint64 x,qint64 y) const { return world(x,y); }
     // Read-only test seam: validate the actual GPU scene's imported source
@@ -402,15 +418,22 @@ class BoardSiRhiView final : public QWidget {
     bool seenFrame_=false;
     quint64 loadGeneration_=0;
     quint64 deadlineGeneration_=std::numeric_limits<quint64>::max();
+    quint64 deadlineEpoch_=0;
 
     void armFrameDeadline() {
         if (!isVisible() || seenFrame_ || failed() ||
             deadlineGeneration_ == loadGeneration_) return;
         const quint64 watched = loadGeneration_;
+        const quint64 epoch = ++deadlineEpoch_;
         deadlineGeneration_=watched;
-        QTimer::singleShot(3000,this,[this,watched] {
-            if (watched != loadGeneration_ || seenFrame_ || failed() || !isVisible())
+        QTimer::singleShot(3000,this,[this,watched,epoch] {
+            if (epoch != deadlineEpoch_ || watched != loadGeneration_ ||
+                seenFrame_ || failed()) return;
+            if (!isVisible()) {
+                // Re-arm after hidden tab is shown, not indefinitely pending.
+                deadlineGeneration_=std::numeric_limits<quint64>::max();
                 return;
+            }
             status_="CPU_FALLBACK_RHI_NO_FRAME";
             if (changed_) changed_();
         });
@@ -421,6 +444,13 @@ protected:
         // A hidden tab does not time out. A new load always arms a fresh
         // independent post-load frame proof when the tab becomes visible.
         armFrameDeadline();
+    }
+    void hideEvent(QHideEvent *event) override {
+        QWidget::hideEvent(event);
+        // Old timeouts were for a previously visible window. They cannot
+        // consume time while hidden or block the next showEvent deadline.
+        ++deadlineEpoch_;
+        deadlineGeneration_=std::numeric_limits<quint64>::max();
     }
 public:
     static bool softwareRendererRequested() {
@@ -450,7 +480,11 @@ public:
         QObject::connect(window_,&QQuickWindow::heightChanged,artwork_,
                          [this](int h){artwork_->setHeight(h);artwork_->update();});
         QObject::connect(window_,&QQuickWindow::frameSwapped,this,[this] {
-            if(seenFrame_ || failed()) return;
+            // Direct signal captures render-thread generation BEFORE queuing
+            // delivery; an older frame cannot verify newly loaded artwork.
+            const quint64 presented=artwork_->syncedGeneration();
+            QMetaObject::invokeMethod(this,[this,presented] {
+            if(presented != loadGeneration_ || seenFrame_ || failed()) return;
             seenFrame_=true;
             const auto api=window_->rendererInterface()->graphicsApi();
             QString backend="UNEXPECTED";
@@ -475,7 +509,8 @@ public:
                 status_="RHI_FRAME_"+backend+"_HARDWARE_NOT_VERIFIED";
             }
             if(changed_) changed_();
-        },Qt::QueuedConnection);
+            },Qt::QueuedConnection);
+        },Qt::DirectConnection);
         QObject::connect(window_,&QQuickWindow::sceneGraphError,this,
                          [this](QQuickWindow::SceneGraphError,const QString &) {
             status_="CPU_FALLBACK_RHI_SCENEGRAPH_ERROR";
@@ -489,10 +524,12 @@ public:
     void onPicked(std::function<void(int,int)> callback) {artwork_->onPicked(std::move(callback));}
     void load(int layers,const std::vector<ImportedTrack> &tracks,
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads) {
-        ++loadGeneration_;
         seenFrame_=false;
         status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
         artwork_->load(layers,tracks,vias,pads);
+        loadGeneration_=artwork_->sourceGeneration();
+        deadlineGeneration_=std::numeric_limits<quint64>::max();
+        ++deadlineEpoch_;
         armFrameDeadline();
         if (changed_) changed_();
     }
