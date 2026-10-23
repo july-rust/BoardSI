@@ -201,7 +201,10 @@ fn p2g_cli_refuses_lines_get_instead_of_silently_losing_board_boundary() {
         std::process::id()
     ));
     std::fs::write(&path, with_get).expect("write public synthetic board");
-    let result = Command::new(bin).arg(&path).output().expect("run P2G importer");
+    let result = Command::new(bin)
+        .arg(&path)
+        .output()
+        .expect("run P2G importer");
     let _ = std::fs::remove_file(&path);
     assert_eq!(result.status.code(), Some(3));
     assert_eq!(
