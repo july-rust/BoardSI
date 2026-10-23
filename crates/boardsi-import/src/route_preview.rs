@@ -48,6 +48,14 @@ pub struct ViaInstance {
     pub inner_pad: bool,
     pub source_line: usize,
 }
+#[derive(Clone, Copy)]
+struct PendingArc {
+    start: [i64; 2],
+    centre: [i64; 2],
+    layer: i64,
+    width: i64,
+    clockwise: bool,
+}
 #[derive(Debug)]
 pub struct Artwork {
     pub vias: Vec<ViaInstance>,
@@ -265,7 +273,7 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     let mut segments = Vec::new();
     let mut arcs = Vec::new();
     // A 0x1000 vertex is an arc centre, not an actual copper vertex.
-    let mut pending_arc: Option<([i64; 2], [i64; 2], i64, i64, bool)> = None;
+    let mut pending_arc: Option<PendingArc> = None;
     let mut skipped = 0u32;
     for (line_no, source_line) in source.lines().enumerate().skip(1) {
         if source_line.len() > 16_384 {
@@ -412,7 +420,10 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
             {
                 if let Some((start, old_layer, old_width)) = previous {
                     if old_layer == layer && old_width == width && start != p {
-                        pending_arc = Some((start, p, layer, width, fields[5] == "CW"));
+                        pending_arc = Some(PendingArc {
+                            start, centre: p, layer, width,
+                            clockwise: fields[5] == "CW",
+                        });
                         continue;
                     }
                 }
@@ -422,7 +433,8 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
             continue;
         }
         // A bad endpoint must not silently turn an arc into a straight chord.
-        if let Some((start, centre, arc_layer, arc_width, clockwise)) = pending_arc.take() {
+        if let Some(PendingArc { start, centre, layer: arc_layer,
+                                 width: arc_width, clockwise }) = pending_arc.take() {
             let effective_layer = if layer == 65 { arc_layer } else { layer };
             let radius_sq = |vertex: [i64; 2]| {
                 let dx = i128::from(vertex[0]) - i128::from(centre[0]);
@@ -853,6 +865,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
     }
     let report = board.validate();
     if report.has_errors() {
+        eprintln!("A015_CANONICAL_DIAGNOSTIC: {:?}", report.issues);
         return Err("CANONICAL_MODEL_INVALID");
     }
     Ok(board)
@@ -890,15 +903,10 @@ mod tests {
             parse(SAMPLE.replace("*END*", "").as_bytes()).unwrap_err(),
             "MISSING_END_MARKER"
         );
-        assert_eq!(
-            parse(
-                SAMPLE
-                    .replace("300 200 1 10 0", "300 200 1 10 4096 CW")
-                    .as_bytes()
-            )
-            .unwrap_err(),
-            "NO_SUPPORTED_TRACES"
-        );
+        // A strict CW centre with equal-radius endpoints is supported in A_015.
+        let arc = parse(SAMPLE.replace("300 200 1 10 0", "300 200 1 10 4096 CW").as_bytes()).unwrap();
+        assert_eq!(arc.arcs.len(), 1);
+        assert!(arc.segments.is_empty());
         assert_eq!(
             parse(
                 SAMPLE
