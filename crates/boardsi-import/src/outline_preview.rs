@@ -141,9 +141,8 @@ fn rings_touch(a: &[[i64; 2]], b: &[[i64; 2]]) -> bool {
     }
     a.windows(2).any(|aa| {
         let aa_box = ring_box(aa);
-        b.windows(2).any(|bb| {
-            boxes_overlap(aa_box, ring_box(bb)) && intersect(aa[0], aa[1], bb[0], bb[1])
-        })
+        b.windows(2)
+            .any(|bb| boxes_overlap(aa_box, ring_box(bb)) && intersect(aa[0], aa[1], bb[0], bb[1]))
     })
 }
 
@@ -438,9 +437,8 @@ mod tests {
     }
     #[test]
     fn ring_aabbs_keep_exact_contact_and_skip_disjoint_cutouts() {
-        let square = |x: i64, y: i64| {
-            vec![[x, y], [x + 10, y], [x + 10, y + 10], [x, y + 10], [x, y]]
-        };
+        let square =
+            |x: i64, y: i64| vec![[x, y], [x + 10, y], [x + 10, y + 10], [x, y + 10], [x, y]];
         assert!(!rings_touch(&square(0, 0), &square(100, 100)));
         assert!(rings_touch(&square(0, 0), &square(10, 10)));
         assert!(rings_touch(&square(0, 0), &square(5, 5)));
