@@ -993,9 +993,11 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
                     }
                     if (rhiGeometry) {
                         const QPointF at=item->screenPointForTest(2540000,7620000);
-                        QMouseEvent press(QEvent::MouseButtonPress,at,
+                        // Seven-argument Qt 6 constructor: explicit local,
+                        // scene and global positions, no deprecated overload.
+                        QMouseEvent press(QEvent::MouseButtonPress,at,at,at,
                                          Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);
-                        QMouseEvent release(QEvent::MouseButtonRelease,at,
+                        QMouseEvent release(QEvent::MouseButtonRelease,at,at,at,
                                            Qt::LeftButton,Qt::NoButton,Qt::NoModifier);
                         QCoreApplication::sendEvent(item,&press);
                         QCoreApplication::sendEvent(item,&release);
@@ -1196,8 +1198,8 @@ static int runRhiGeometrySmoke() {
 #else
     failure="Qt Quick module not installed in SDK";
 #endif
-    const bool pass=sourceGeometry &&
-        (backend=="HEADLESS_NOT_RUN" || frame || fallbackConfirmed);
+    // Geometry-only headless execution is NOT a native RHI frame PASS.
+    const bool pass=sourceGeometry && (frame || fallbackConfirmed);
     QJsonObject result{
         {"schema","boardsi-a014-rhi-smoke-v1"},
         {"pass",pass},{"source_geometry_check",sourceGeometry},
