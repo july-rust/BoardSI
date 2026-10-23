@@ -97,11 +97,7 @@ class SyntheticArtworkCanvas final : public QGraphicsView {
             ? QString::fromLatin1(reinterpret_cast<const char *>(rendererBytes))
             : QString();
         context.doneCurrent();
-        const QString label = rendererName_.toLower();
-        if (label.isEmpty() || label.contains("llvmpipe") ||
-            label.contains("softpipe") || label.contains("software rasterizer") ||
-            label.contains("swiftshader") || label.contains("gdi generic") ||
-            label.contains("swrast") || label.contains("soft raster")) {
+        if (isSoftwareRendererLabel(rendererName_)) {
             setRendererStatus("CPU_FALLBACK_SOFTWARE_GL_OR_UNKNOWN");
             return;
         }
@@ -128,6 +124,18 @@ class SyntheticArtworkCanvas final : public QGraphicsView {
     }
 
 public:
+    // Driver strings are not a general GPU certification API. Recognize
+    // well-known software OpenGL implementations and reject unknown strings.
+    static bool isSoftwareRendererLabel(const QString &renderer) {
+        const QString label = renderer.toLower();
+        return label.isEmpty() || label.contains("llvmpipe") ||
+               label.contains("softpipe") || label.contains("software rasterizer") ||
+               label.contains("software renderer") ||
+               label.contains("swiftshader") || label.contains("gdi generic") ||
+               label.contains("microsoft basic render") ||
+               label.contains("swrast") || label.contains("soft raster") ||
+               label.contains("warp rasterizer");
+    }
     explicit SyntheticArtworkCanvas(QGraphicsScene *scene, QWidget *parent = nullptr)
         : QGraphicsView(scene, parent) {
         setRenderHint(QPainter::Antialiasing);
