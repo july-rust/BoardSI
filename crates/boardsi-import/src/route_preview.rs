@@ -649,7 +649,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                 ));
             }
             // Stable source-condition order is part of the Canonical identity contract.
-            conditions.sort_by(|a, b| a.0.cmp(&b.0));
+            conditions.sort_by(|a: &(String, String), b| a.0.cmp(&b.0));
             conditions
         },
     });
