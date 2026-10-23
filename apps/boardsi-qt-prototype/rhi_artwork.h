@@ -106,6 +106,7 @@ class BoardSiRhiItem final : public QQuickItem {
     std::vector<ImportedPad> pads_;
     std::vector<ImportedArc> arcs_;
     std::vector<ImportedOutlineEdge> outlineEdges_;
+    std::vector<ImportedCircle> circles_;
     QVector<bool> visibility_;
     QString net_ = "All nets";
     qint64 originX_ = 0, originY_ = 0;
@@ -192,6 +193,16 @@ class BoardSiRhiItem final : public QQuickItem {
         }
         return -1;
     }
+    int circleIndexAt(const QPointF &pos) const {
+        for(size_t i=circles_.size();i>0;--i) {
+            const auto &a=circles_[i-1];
+            const QPointF c=pixel(world(a.cx_nm,a.cy_nm));
+            const qreal r=a.radius_nm/1e6*scaleFactor();
+            if (std::abs(std::hypot(pos.x()-c.x(),pos.y()-c.y())-r)<=3.5)
+                return static_cast<int>(i-1);
+        }
+        return -1;
+    }
     using Vertices = std::vector<QPointF>;
     static void triangle(Vertices &v, QPointF a, QPointF b, QPointF c) {
         v.push_back(a); v.push_back(b); v.push_back(c);
@@ -267,6 +278,30 @@ protected:
                     .intersects(QRectF(0,0,width(),height()))) continue;
             const QColor color(e.cutout ? "#e99f87" : "#e0e8ee");
             thickLine(groups[color.rgba()],a,b,0.85);
+        }
+        // Preserve analytical circles in IPC/Canonical. The following is
+        // display-only chord tessellation, bounded by the 64 shape parser cap.
+        constexpr qreal pi=3.14159265358979323846;
+        for (const auto &circle : circles_) {
+            const QPointF c=pixel(world(circle.cx_nm,circle.cy_nm));
+            const qreal r=circle.radius_nm/1e6*px;
+            if (!inView(c,r+2,width(),height())) continue;
+            const int steps=std::clamp(
+                static_cast<int>(std::ceil(pi*std::sqrt(std::max<qreal>(1,r)))),
+                24,512);
+            QColor color(circle.cutout ? "#e99f87" : "#e0e8ee");
+            auto &v=groups[color.rgba()];
+            for(int i=0;i<steps;++i) {
+                const qreal a=2*pi*i/steps, b=2*pi*(i+1)/steps;
+                const QPointF p0(c.x()+r*std::cos(a),c.y()-r*std::sin(a));
+                const QPointF p1(c.x()+r*std::cos(b),c.y()-r*std::sin(b));
+                const QPointF d=p1-p0;
+                const qreal len=std::hypot(d.x(),d.y());
+                if(len<=1e-9) continue;
+                const QPointF perp(-d.y()*0.85/len,d.x()*0.85/len);
+                triangle(v,p0+perp,p1+perp,p1-perp);
+                triangle(v,p0+perp,p1-perp,p0-perp);
+            }
         }
         size_t visibleArcCount=0;
         for (const auto &arc : arcs_) {
@@ -422,6 +457,10 @@ protected:
             if(arcIndex>=0) {
                 picked_(4,arcIndex); event->accept(); return;
             }
+            const int circleIndex=circleIndexAt(event->position());
+            if(circleIndex>=0) {
+                picked_(5,circleIndex); event->accept(); return;
+            }
             // Existing QGraphicsScene supports straight copper selection by
             // net and provenance. Mirror that behavior in the RHI viewport.
             for (size_t i=tracks_.size();i>0;--i) {
@@ -458,9 +497,10 @@ public:
     void load(int layers,const std::vector<ImportedTrack> &tracks,
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads,
               const std::vector<ImportedArc> &arcs = {},
-              const std::vector<ImportedOutlineEdge> &outlines = {}) {
+              const std::vector<ImportedOutlineEdge> &outlines = {},
+              const std::vector<ImportedCircle> &circles = {}) {
         tracks_=tracks; vias_=vias; pads_=pads; arcs_=arcs;
-        outlineEdges_=outlines; layers_=layers;
+        outlineEdges_=outlines; circles_=circles; layers_=layers;
         adapterProof_->store(0,std::memory_order_release);
         visibility_=QVector<bool>(layers+1,true);
         qint64 x=0,y=0; bool initialized=false;
@@ -477,6 +517,7 @@ public:
         for (const auto &e:outlineEdges_) {
             ingest(e.x0_nm,e.y0_nm);ingest(e.x1_nm,e.y1_nm);
         }
+        for (const auto &c:circles_) ingest(c.cx_nm-c.radius_nm,c.cy_nm-c.radius_nm);
         originX_=x;originY_=y;
         QRectF rect;
         bool first=true;
@@ -517,6 +558,8 @@ public:
             add(world(e.x0_nm,e.y0_nm),outlineExtentMm);
             add(world(e.x1_nm,e.y1_nm),outlineExtentMm);
         }
+        for (const auto &c:circles_)
+            add(world(c.cx_nm,c.cy_nm),c.radius_nm/1e6);
         bounds_=rect.adjusted(-1,-1,1,1);
         pan_=QPointF();zoom_=1.0;
         modelGeneration_.fetch_add(1,std::memory_order_release);
@@ -533,9 +576,32 @@ public:
     }
     int primitiveCount() const {
         return static_cast<int>(tracks_.size()+vias_.size()+pads_.size()+arcs_.size()+
-                                outlineEdges_.size());
+                                outlineEdges_.size()+circles_.size());
     }
     int outlineCountForTest() const { return static_cast<int>(outlineEdges_.size()); }
+    int circleCountForTest() const { return static_cast<int>(circles_.size()); }
+    bool circleFitBoundsForTest() const {
+        for (const auto &c:circles_) {
+            const QPointF centre=world(c.cx_nm,c.cy_nm);
+            const qreal r=c.radius_nm/1e6;
+            for (QPointF p : {QPointF(centre.x()-r,centre.y()),
+                              QPointF(centre.x()+r,centre.y()),
+                              QPointF(centre.x(),centre.y()-r),
+                              QPointF(centre.x(),centre.y()+r)})
+                if(!bounds_.contains(p)) return false;
+        }
+        return true;
+    }
+    bool dispatchCirclePickForTest(int index) {
+        if(!picked_ || width()<2 || height()<2 ||
+           index<0 || index>=static_cast<int>(circles_.size())) return false;
+        const auto &c=circles_[static_cast<size_t>(index)];
+        const QPointF center=pixel(world(c.cx_nm,c.cy_nm));
+        const QPointF edge(center.x()+c.radius_nm/1e6*scaleFactor(),center.y());
+        if(circleIndexAt(edge)!=index) return false;
+        picked_(5,index);
+        return true;
+    }
     bool outlineFitBoundsForTest() const {
         for (const auto &e : outlineEdges_) {
             if (!bounds_.contains(world(e.x0_nm,e.y0_nm)) ||
@@ -742,10 +808,11 @@ public:
     void load(int layers,const std::vector<ImportedTrack> &tracks,
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads,
               const std::vector<ImportedArc> &arcs = {},
-              const std::vector<ImportedOutlineEdge> &outlines = {}) {
+              const std::vector<ImportedOutlineEdge> &outlines = {},
+              const std::vector<ImportedCircle> &circles = {}) {
         seenFrame_=false;
         status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
-        artwork_->load(layers,tracks,vias,pads,arcs,outlines);
+        artwork_->load(layers,tracks,vias,pads,arcs,outlines,circles);
         loadGeneration_=artwork_->sourceGeneration();
         deadlineGeneration_=std::numeric_limits<quint64>::max();
         ++deadlineEpoch_;
