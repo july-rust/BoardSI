@@ -277,10 +277,11 @@ public:
                 if (tabs_->currentWidget() == imported_) imported_->fitArtwork();
             });
             status(QString("PARTIAL V9.4-MILS / %1 straight segments / %2 explicit vias"
-                           " / %3 SMD pads / %4 omitted / SI NOT_RUN")
+                           " / %3 SMD pads / %4 route arcs / %5 omitted / SI NOT_RUN")
                        .arg(static_cast<qlonglong>(tracks.size()))
                        .arg(static_cast<qlonglong>(vias.size()))
-                       .arg(static_cast<qlonglong>(pads.size())).arg(skipped));
+                       .arg(static_cast<qlonglong>(pads.size()))
+                       .arg(static_cast<qlonglong>(arcs.size())).arg(skipped));
         });
         connect(&process_, &QProcess::errorOccurred, this,
                 [this](QProcess::ProcessError code) {
