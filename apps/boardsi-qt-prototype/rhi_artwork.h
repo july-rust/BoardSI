@@ -38,6 +38,14 @@
 #if defined(max)
 #undef max
 #endif
+// Windows SDK also defines near/far compatibility macros; the existing
+// native Qt tests use a local lambda named near.
+#if defined(near)
+#undef near
+#endif
+#if defined(far)
+#undef far
+#endif
 #include <limits>
 #include <QShowEvent>
 #include <QHideEvent>
