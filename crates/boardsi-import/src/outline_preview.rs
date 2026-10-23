@@ -270,6 +270,12 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
         if shapes.len() >= MAX_SHAPES {
             return Err("OUTLINE_SHAPE_LIMIT");
         }
+        // V6 groups consecutive ring records by kind + source name. Two
+        // same-kind shapes reusing a name would conflate distinct rings.
+        // Until the wire format carries a per-object ID, reject explicitly.
+        if shapes.iter().any(|s: &Shape| s.cutout == cutout && s.name == f[0]) {
+            return Err("DUPLICATE_OUTLINE_NAME");
+        }
         shapes.push(Shape {
             name: f[0].into(),
             cutout,
@@ -445,6 +451,17 @@ mod tests {
         // Bounding boxes overlap, but the exact segments do not intersect.
         let triangle = vec![[0, 0], [20, 0], [0, 20], [0, 0]];
         assert!(!rings_touch(&triangle, &square(12, 12)));
+    }
+    #[test]
+    fn rejects_duplicate_cutout_names_before_v6_transport() {
+        let duplicated = INPUT.replace(
+            "*END*",
+            "HOLE1 BOARD 100 200 1 0\nBRDCLS 5 1 0 0\n100 100\n200 100\n200 200\n100 200\n100 100\n*END*",
+        );
+        assert_eq!(
+            parse(duplicated.as_bytes()).unwrap_err(),
+            "DUPLICATE_OUTLINE_NAME"
+        );
     }
     #[test]
     fn rejects_oversized_piece_headers_and_vertex_rows() {
