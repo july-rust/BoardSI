@@ -667,7 +667,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             board.nets.push(Net { meta: m, name: a.net.clone(), role: NetRole::Unknown });
         }
         let point = |ticks| Point { frame: frame_id.clone(), ticks };
-        board.arcs.push(Arc {
+        board.arcs.push(boardsi_model::Arc {
             meta: meta_with_provenance(
                 &source, ObjectKind::Arc,
                 &format!("route-arc-{}", a.source_line),
