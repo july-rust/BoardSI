@@ -300,6 +300,25 @@ public:
         return static_cast<int>(tracks_.size()+vias_.size()+pads_.size());
     }
     QPointF localPoint(qint64 x,qint64 y) const { return world(x,y); }
+    // Read-only test seam: validate the actual GPU scene's imported source
+    // coordinates/filters, not the parallel hidden QGraphicsScene mirror.
+    bool containsExactPad(const QString &ref,const QString &pin,int layer,
+                          int rotation,qint64 x,qint64 y,qint64 w,qint64 h) const {
+        for(const auto &p:pads_) {
+            if(p.reference==ref && p.pin==pin && p.layer==layer &&
+               p.rotation==rotation && p.x_nm==x && p.y_nm==y &&
+               p.width_nm==w && p.height_nm==h) return true;
+        }
+        return false;
+    }
+    int visiblePadCount() const {
+        int n=0;
+        for(const auto &p:pads_) if(visible(p.layer)) ++n;
+        return n;
+    }
+    QPointF screenPointForTest(qint64 x,qint64 y) const {
+        return pixel(world(x,y));
+    }
 };
 
 class BoardSiRhiView final : public QWidget {
@@ -326,6 +345,14 @@ private:
     std::function<void()> changed_;
     bool seenFrame_=false;
 public:
+    static bool softwareRendererRequested() {
+        const auto value = qEnvironmentVariable("QSG_RHI_PREFER_SOFTWARE_RENDERER")
+                               .trimmed().toLower();
+        // Covers Qt's explicit WARP/software-adapter request behind D3D11
+        // or Vulkan. A D3D11 backend name alone is never hardware proof.
+        return !value.isEmpty() && value != "0" && value != "false" &&
+               value != "off" && value != "no";
+    }
     explicit BoardSiRhiView(QWidget *parent=nullptr) : QWidget(parent) {
         auto *layout=new QVBoxLayout(this);
         layout->setContentsMargins(0,0,0,0);
