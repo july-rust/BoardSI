@@ -712,6 +712,107 @@ static int runRendererSmoke(PreviewWindow &window) {
     return passed ? 0 : 1;
 }
 
+
+// A_016 native GUI end-to-end: real Rust V6 transport -> CPU + optional RHI.
+// The outline/cutout is mechanical artwork, NEVER electrical connectivity.
+static int runOutlineSmoke(PreviewWindow &window, const QString &fixture) {
+    QElapsedTimer clock;
+    clock.start();
+    bool passed = false;
+    QString failure;
+    bool rhiChecked = false, rhiExact = false;
+    QEventLoop loop;
+    if (!window.openCandidate(fixture)) {
+        failure = "A_016 fixture/importer unavailable";
+    } else {
+        QTimer tick;
+        QObject::connect(&tick, &QTimer::timeout, &loop, [&] {
+            const QString status = window.importPanel()->importStatus();
+            if (status.startsWith("FAILED") || status.startsWith("CANCELLED")) {
+                failure = "A_016 import failed: " + status;
+                loop.quit();
+                return;
+            }
+            if (!status.startsWith("PARTIAL")) return;
+            auto *panel = window.importPanel()->imported();
+            auto *scene = panel->findChild<QGraphicsScene *>();
+            int boardEdges = 0, cutoutEdges = 0;
+            bool outerExact = false, cutExact = false;
+            const auto near = [](qreal a, qreal b) { return qAbs(a - b) < 0.000001; };
+            if (scene) for (QGraphicsItem *item : scene->items()) {
+                auto *line = qgraphicsitem_cast<QGraphicsLineItem *>(item);
+                if (!line) continue;
+                const QString kind = item->data(1).toString();
+                const QLineF p = line->line();
+                if (kind == "Board Outline (not copper)") {
+                    ++boardEdges;
+                    if (near(p.x1(), 2.54) && near(p.y1(), -5.08) &&
+                        near(p.x2(), 12.70) && near(p.y2(), -5.08))
+                        outerExact = true;
+                }
+                if (kind == "Board Cutout (not copper)") {
+                    ++cutoutEdges;
+                    if (near(p.x1(), 5.08) && near(p.y1(), -7.62) &&
+                        near(p.x2(), 7.62) && near(p.y2(), -7.62))
+                        cutExact = true;
+                }
+            }
+            const bool counts = panel->outlineCount() == 8 &&
+                panel->segmentCount() == 1 && boardEdges == 4 && cutoutEdges == 4 &&
+                status.contains("8 outline edges") &&
+                window.displayedProperties().contains("Board outline/cutout straight edges: 8");
+            // Net/layer filtering must not turn mechanical boundaries into copper.
+            const bool netSelected = panel->selectNet("NET_A");
+            auto *toggle = window.findChild<QPushButton *>("importedLayerToggle");
+            bool independent = netSelected && toggle;
+            if (independent) {
+                toggle->click();
+                for (QGraphicsItem *item : scene->items()) {
+                    if (item->data(1).toString().startsWith("Board "))
+                        independent &= item->isVisible();
+                }
+                toggle->click();
+            }
+#ifdef BOARDSI_RHI_ARTWORK
+            if (auto *rhi = panel->rhiViewForTest();
+                rhi && panel->rhiCanvasActiveForTest()) {
+                rhiChecked = true;
+                const auto *item = rhi->itemForTest();
+                rhiExact = item->outlineCountForTest() == 8 &&
+                    item->containsExactOutlineForTest(false,
+                        2540000, 5080000, 12700000, 5080000) &&
+                    item->containsExactOutlineForTest(true,
+                        5080000, 7620000, 7620000, 7620000);
+            }
+#endif
+            passed = counts && outerExact && cutExact && independent &&
+                (!rhiChecked || rhiExact);
+            if (!passed) failure = "A_016 outline geometry/count/RHI or filter mismatch";
+            loop.quit();
+        });
+        QTimer::singleShot(15000, &loop, &QEventLoop::quit);
+        tick.start(20);
+        loop.exec();
+        tick.stop();
+        if (!passed && failure.isEmpty()) failure = "A_016 outline smoke timeout";
+    }
+    const QJsonObject result{
+        {"schema", "boardsi-preview-p2g-outline-smoke-v1"},
+        {"pass", passed}, {"failure", failure}, {"elapsed_ms", clock.elapsed()},
+        {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"native_backend", QGuiApplication::platformName()},
+        {"host_arch", QSysInfo::currentCpuArchitecture()},
+        {"rhi_source_checked", rhiChecked},
+        {"rhi_exact_boundary_points", rhiExact},
+        {"scope", "public synthetic closed straight BOARD/CUTOUT; source and SI NOT_VERIFIED"}
+    };
+    QFile receipt("qt-preview-p2g-outline-results.json");
+    if (!receipt.open(QIODevice::WriteOnly) ||
+        receipt.write(QJsonDocument(result).toJson(QJsonDocument::Indented)) < 1) return 2;
+    qInfo().noquote() << QJsonDocument(result).toJson(QJsonDocument::Compact);
+    return passed ? 0 : 1;
+}
+
 // A_015 end-to-end imported PADS V9.4 arcs: Worker -> V5 -> CPU scene.
 static int runArcSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock; clock.start();
@@ -1334,8 +1435,10 @@ int main(int argc, char **argv) {
     const bool rectTesting = args.size() == 7 && args.at(1) == "--rect-selftest";
     const bool bottomTesting = args.size() == 7 && args.at(1) == "--bottom-selftest";
     const bool arcTesting = args.size() == 7 && args.at(1) == "--arc-selftest";
+    const bool outlineTesting = args.size() == 7 && args.at(1) == "--outline-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
-                         rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting || arcTesting;
+                         rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting ||
+                         arcTesting || outlineTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -1358,7 +1461,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return arcTesting ? runArcSmoke(window, fixture) :
+    return outlineTesting ? runOutlineSmoke(window, fixture) :
+           arcTesting ? runArcSmoke(window, fixture) :
            rendererTesting ? runRendererSmoke(window) :
            bottomTesting ? runBottomSmoke(window, fixture) :
            rectTesting ? runRectSmoke(window, fixture) :
