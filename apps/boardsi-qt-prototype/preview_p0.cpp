@@ -1129,6 +1129,7 @@ static int runRhiGeometrySmoke() {
     int count = 0;
     QString backend = "NOT_BUILT";
     bool frame = false;
+    bool postLoadFrameVerified = false;
     bool fallbackConfirmed = false;
     int adapterProof = 0;
     QString failure;
@@ -1192,6 +1193,25 @@ static int runRhiGeometrySmoke() {
         adapterProof=view.itemForTest()->d3dAdapterProof();
         if (!frame && !fallbackConfirmed)
             failure="No RHI frame or verified CPU fallback: "+backend;
+        if (frame) {
+            // A prior empty/success frame must NOT satisfy the next load.
+            // Require a pending transition and a distinct post-load swap.
+            view.load(4,tracks,vias,pads);
+            const bool becamePending =
+                view.status()=="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
+            QEventLoop reloaded;
+            QTimer recheck;
+            QObject::connect(&recheck,&QTimer::timeout,&reloaded,[&] {
+                if (view.status().startsWith("RHI_FRAME_") || view.failed())
+                    reloaded.quit();
+            });
+            QTimer::singleShot(4800,&reloaded,&QEventLoop::quit);
+            recheck.start(20);reloaded.exec();recheck.stop();
+            postLoadFrameVerified=becamePending && view.status().startsWith("RHI_FRAME_");
+            if (!postLoadFrameVerified)
+                failure="New artwork load did not produce a fresh verified frame: "+
+                        view.status();
+        }
     } else {
         backend="HEADLESS_NOT_RUN";
     }
@@ -1199,12 +1219,15 @@ static int runRhiGeometrySmoke() {
     failure="Qt Quick module not installed in SDK";
 #endif
     // Geometry-only headless execution is NOT a native RHI frame PASS.
-    const bool pass=sourceGeometry && (frame || fallbackConfirmed);
+    const bool pass=sourceGeometry && (fallbackConfirmed ||
+                                         (frame && postLoadFrameVerified));
     QJsonObject result{
         {"schema","boardsi-a014-rhi-smoke-v1"},
         {"pass",pass},{"source_geometry_check",sourceGeometry},
         {"source_objects",count},{"backend_status",backend},
-        {"rhi_frame_observed",frame},{"cpu_fallback_confirmed",fallbackConfirmed},
+        {"rhi_frame_observed",frame},
+        {"post_load_frame_verified",postLoadFrameVerified},
+        {"cpu_fallback_confirmed",fallbackConfirmed},
         {"d3d11_adapter_proof",adapterProof},
         {"hardware_adapter",adapterProof==1 ? "DXGI_NON_SOFTWARE_CONFIRMED" : "NOT_VERIFIED"},
         {"render_fps","NOT_MEASURED"},{"failure",failure},
