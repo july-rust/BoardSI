@@ -191,7 +191,12 @@ public:
         // CPU/OpenGL canvas and all established regression tests unchanged.
         const QString policy = qEnvironmentVariable("BOARDSI_ARTWORK_RENDERER")
                                    .trimmed().toLower();
-        if (QGuiApplication::platformName() != "offscreen" &&
+        // Qt may use software WARP behind a D3D11 graphicsApi(). Reject a
+        // request for that backend before creating the Qt Quick scene.
+        const bool softwareRhi = BoardSiRhiView::softwareRendererRequested();
+        if (softwareRhi) view_->forceCpuFallbackFromRhi();
+        if (!softwareRhi &&
+            QGuiApplication::platformName() != "offscreen" &&
             QGuiApplication::platformName() != "minimal" &&
             (policy.isEmpty() || policy == "auto" || policy == "gpu")) {
             rhi_ = new BoardSiRhiView(canvasStack_);
@@ -426,6 +431,12 @@ public:
     int segmentCount() const { return static_cast<int>(tracks_.size()); }
     int viaCount() const { return static_cast<int>(vias_.size()); }
     int padCount() const { return static_cast<int>(pads_.size()); }
+#ifdef BOARDSI_RHI_ARTWORK
+    BoardSiRhiView *rhiViewForTest() const { return rhi_; }
+    bool rhiCanvasActiveForTest() const {
+        return rhi_ && canvasStack_->currentWidget() == rhi_;
+    }
+#endif
     bool selectTrack(int index) {
         if (index < 0 || index >= static_cast<int>(tracks_.size())) return false;
         scene_->clearSelection();
