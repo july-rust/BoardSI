@@ -118,9 +118,33 @@ fn inside(p: [i64; 2], ring: &[[i64; 2]]) -> bool {
     }
     winding
 }
+// Conservative integer AABBs: touching boxes still require exact segment tests.
+fn ring_box(ring: &[[i64; 2]]) -> ([i64; 2], [i64; 2]) {
+    let mut lo = [i64::MAX; 2];
+    let mut hi = [i64::MIN; 2];
+    for p in ring {
+        for axis in 0..2 {
+            lo[axis] = lo[axis].min(p[axis]);
+            hi[axis] = hi[axis].max(p[axis]);
+        }
+    }
+    (lo, hi)
+}
+fn boxes_overlap(a: ([i64; 2], [i64; 2]), b: ([i64; 2], [i64; 2])) -> bool {
+    (0..2).all(|axis| a.0[axis] <= b.1[axis] && b.0[axis] <= a.1[axis])
+}
 fn rings_touch(a: &[[i64; 2]], b: &[[i64; 2]]) -> bool {
-    a.windows(2)
-        .any(|aa| b.windows(2).any(|bb| intersect(aa[0], aa[1], bb[0], bb[1])))
+    // Disjoint cutouts should cost O(vertices), not O(vertices^2).
+    // Exact geometry below remains authoritative if boxes overlap.
+    if !boxes_overlap(ring_box(a), ring_box(b)) {
+        return false;
+    }
+    a.windows(2).any(|aa| {
+        let aa_box = ring_box(aa);
+        b.windows(2).any(|bb| {
+            boxes_overlap(aa_box, ring_box(bb)) && intersect(aa[0], aa[1], bb[0], bb[1])
+        })
+    })
 }
 
 /// Does not use the file extension as evidence. Skips non-BOARD *LINES* items
@@ -411,6 +435,18 @@ mod tests {
             );
             assert_eq!(parse(with_suffix.as_bytes()).unwrap().len(), 2);
         }
+    }
+    #[test]
+    fn ring_aabbs_keep_exact_contact_and_skip_disjoint_cutouts() {
+        let square = |x: i64, y: i64| {
+            vec![[x, y], [x + 10, y], [x + 10, y + 10], [x, y + 10], [x, y]]
+        };
+        assert!(!rings_touch(&square(0, 0), &square(100, 100)));
+        assert!(rings_touch(&square(0, 0), &square(10, 10)));
+        assert!(rings_touch(&square(0, 0), &square(5, 5)));
+        // Bounding boxes overlap, but the exact segments do not intersect.
+        let triangle = vec![[0, 0], [20, 0], [0, 20], [0, 0]];
+        assert!(!rings_touch(&triangle, &square(12, 12)));
     }
     #[test]
     fn rejects_oversized_piece_headers_and_vertex_rows() {
