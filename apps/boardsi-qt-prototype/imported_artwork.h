@@ -562,6 +562,7 @@ public:
     }
     int segmentCount() const { return static_cast<int>(tracks_.size()); }
     int arcCount() const { return static_cast<int>(arcs_.size()); }
+    int outlineCount() const { return static_cast<int>(outlineEdges_.size()); }
     int viaCount() const { return static_cast<int>(vias_.size()); }
     int padCount() const { return static_cast<int>(pads_.size()); }
 #ifdef BOARDSI_RHI_ARTWORK
