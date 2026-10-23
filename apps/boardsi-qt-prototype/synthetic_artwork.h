@@ -161,6 +161,15 @@ public:
         // An inactive Imported tab must not fail its frame timeout while hidden.
     }
 
+    void forceCpuFallbackFromRhi() {
+#ifdef BOARDSI_OPENGL_VIEWPORT
+        if (qobject_cast<QOpenGLWidget *>(viewport()))
+            setViewport(new QWidget(this));
+#endif
+        setViewportUpdateMode(QGraphicsView::MinimalViewportUpdate);
+        setRendererStatus("CPU_FALLBACK_RHI_UNAVAILABLE");
+    }
+
     QString rendererStatus() const { return rendererStatus_; }
     QString rendererName() const { return rendererName_; }
     QString rendererPolicy() const { return "GPU_PREFERRED"; }
