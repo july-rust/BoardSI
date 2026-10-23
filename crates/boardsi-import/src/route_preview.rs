@@ -412,7 +412,11 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         // Only a PADS 9.4 centre flag plus CW/CCW is an arc centre.
         if flag & 0x1000 != 0 {
             if pending_arc.take().is_some() {
+                // Adjacent centres are malformed. Never re-use the previous
+                // start vertex to convert the second centre into valid copper.
                 skipped = skipped.saturating_add(1);
+                previous = None;
+                continue;
             }
             if fields.len() == 6
                 && flag & !(SUPPORTED_STRAIGHT_FLAGS | 0x1000) == 0
@@ -644,8 +648,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                     "explicit-equal-round-through-pad-and-drill-no-connectivity".into(),
                 ));
             }
-            conditions.sort_by(|a: &(String, String), b| a.0.cmp(&b.0));
-            // Model validation requires ordered provenance keys.
+            // Stable source-condition order is part of the Canonical identity contract.
             conditions.sort_by(|a, b| a.0.cmp(&b.0));
             conditions
         },
@@ -666,6 +669,11 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                 let mut coverage = Vec::new();
                 if !parsed.segments.is_empty() {
                     coverage.push("ROUTE straight copper segment only".into());
+                }
+                if !parsed.arcs.is_empty() {
+                    coverage.push(
+                        "ROUTE strict exact-radius CW/CCW Arc geometry; electrical contact not verified".into(),
+                    );
                 }
                 if !parsed.vias.is_empty() {
                     coverage.push(
@@ -1303,6 +1311,12 @@ mod p2b_via_regressions {
     }
 
     #[test]
+    fn a015_adjacent_centres_must_not_promote_copper() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n200 100 1 10 0\n100 100 1 10 4096 CCW\n200 200 1 10 4096 CW\n300 200 1 10 0\n*END*\n";
+        assert_eq!(parse(source.as_bytes()).unwrap_err(), "NO_SUPPORTED_TRACES");
+    }
+
+    #[test]
     fn a015_strict_arc_canonical_and_fail_closed() {
         let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* ARC_NET\nU1.1 U2.2\n200 100 1 10 0\n100 100 1 10 4096 CCW\n100 200 1 10 0\n*END*\n";
         let a = parse(source.as_bytes()).unwrap();
@@ -1313,6 +1327,8 @@ mod p2b_via_regressions {
         let model = into_canonical(source.as_bytes(), &a).unwrap();
         assert_eq!(model.arcs.len(), 1);
         assert!(model.traces.is_empty());
+        assert!(model.sources[0].capability.object_coverage
+            .iter().any(|item| item.contains("CW/CCW Arc")));
         assert!(!model.validate().has_errors());
         let cw = source.replace("4096 CCW", "4096 CW");
         assert!(parse(cw.as_bytes()).unwrap().arcs[0].clockwise);
