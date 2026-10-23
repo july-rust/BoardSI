@@ -148,7 +148,7 @@ The independent M0 F1/F6/F7 legal/hardware gates and the Qt binary
 redistribution restriction remain unchanged; no Qt executables are published.
 
 
-## GPU-first Artwork rendering policy (A_014 incremental implementation)
+## GPU-first Artwork rendering policy (A_013 OpenGL follow-up; PR #164)
 
 **Default: GPU preferred, not GPU guaranteed.** The existing Qt Widgets
 QGraphicsScene/QGraphicsView retained all Canonical artwork selection, layers,
