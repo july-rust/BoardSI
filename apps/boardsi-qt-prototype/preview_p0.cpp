@@ -884,6 +884,7 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
     bool passed = false;
     QString failure;
     bool rhiViewChecked = false, rhiFrame = false, softwareCpuFallback = false;
+    bool rhiCpuFallback = false;
     QEventLoop loop;
     if (!window.openCandidate(fixture)) {
         failure = "P2-E public bottom fixture unavailable";
@@ -905,17 +906,28 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
                     QGuiApplication::platformName() != "minimal";
                 auto *rhi = panel->rhiViewForTest();
                 if (nativeRhiTest) {
-                    if (!rhi || !panel->rhiCanvasActiveForTest()) {
-                        failure = "Imported artwork did not activate native RHI";
+                    if (!rhi) {
+                        failure = "Qt Quick-enabled imported artwork lacks RHI view";
                         loop.quit(); return;
                     }
                     const QString renderState = rhi->status();
                     if (renderState.startsWith("RHI_PENDING_FRAME")) return;
-                    if (!renderState.startsWith("RHI_FRAME_")) {
-                        failure = "Imported RHI has no native frame: " + renderState;
+                    if (renderState.startsWith("CPU_FALLBACK_RHI_")) {
+                        // CI may have only software D3D11 (WARP). It must
+                        // abandon the native RHI window and use CPU artwork.
+                        rhiCpuFallback = !panel->rhiCanvasActiveForTest() &&
+                            panel->rendererStatus().startsWith("CPU_");
+                        if (!rhiCpuFallback) {
+                            failure = "RHI software fallback did not activate CPU";
+                            loop.quit(); return;
+                        }
+                    } else if (renderState.startsWith("RHI_FRAME_") &&
+                               panel->rhiCanvasActiveForTest()) {
+                        rhiFrame = true;
+                    } else {
+                        failure = "Imported RHI has no valid frame: " + renderState;
                         loop.quit(); return;
                     }
-                    rhiFrame = true;
                 } else if (softwareRequest) {
                     softwareCpuFallback = !rhi && panel->rendererStatus().startsWith("CPU_");
                     if (!softwareCpuFallback) {
@@ -1035,6 +1047,7 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
         {"rhi_view_checked", rhiViewChecked},
         {"rhi_first_frame_confirmed", rhiFrame},
         {"software_rhi_cpu_fallback", softwareCpuFallback},
+        {"rhi_cpu_fallback", rhiCpuFallback},
         {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
         {"native_backend", QGuiApplication::platformName()},
         {"host_arch", QSysInfo::currentCpuArchitecture()},
@@ -1109,6 +1122,8 @@ static int runRhiGeometrySmoke() {
     int count = 0;
     QString backend = "NOT_BUILT";
     bool frame = false;
+    bool fallbackConfirmed = false;
+    int adapterProof = 0;
     QString failure;
 #ifdef BOARDSI_RHI_ARTWORK
     constexpr qint64 base = 90000000000LL;
@@ -1163,7 +1178,10 @@ static int runRhiGeometrySmoke() {
         poll.start(20);loop.exec();poll.stop();
         backend=view.status();
         frame=backend.startsWith("RHI_FRAME_");
-        if (!frame) failure="No native RHI frame observed: "+backend;
+        fallbackConfirmed=backend.startsWith("CPU_FALLBACK_RHI_");
+        adapterProof=view.itemForTest()->d3dAdapterProof();
+        if (!frame && !fallbackConfirmed)
+            failure="No RHI frame or verified CPU fallback: "+backend;
     } else {
         backend="HEADLESS_NOT_RUN";
     }
@@ -1171,12 +1189,14 @@ static int runRhiGeometrySmoke() {
     failure="Qt Quick module not installed in SDK";
 #endif
     const bool pass=sourceGeometry &&
-        (backend=="HEADLESS_NOT_RUN" || frame);
+        (backend=="HEADLESS_NOT_RUN" || frame || fallbackConfirmed);
     QJsonObject result{
         {"schema","boardsi-a014-rhi-smoke-v1"},
         {"pass",pass},{"source_geometry_check",sourceGeometry},
         {"source_objects",count},{"backend_status",backend},
-        {"rhi_frame_observed",frame},{"hardware_adapter","NOT_VERIFIED"},
+        {"rhi_frame_observed",frame},{"cpu_fallback_confirmed",fallbackConfirmed},
+        {"d3d11_adapter_proof",adapterProof},
+        {"hardware_adapter",adapterProof==1 ? "DXGI_NON_SOFTWARE_CONFIRMED" : "NOT_VERIFIED"},
         {"render_fps","NOT_MEASURED"},{"failure",failure},
         {"native_backend",QGuiApplication::platformName()},
         {"host_arch",QSysInfo::currentCpuArchitecture()},
