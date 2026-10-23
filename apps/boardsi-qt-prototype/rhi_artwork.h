@@ -531,6 +531,15 @@ public:
         return static_cast<int>(tracks_.size()+vias_.size()+pads_.size()+arcs_.size()+
                                 outlineEdges_.size());
     }
+    int outlineCountForTest() const { return static_cast<int>(outlineEdges_.size()); }
+    bool containsExactOutlineForTest(bool cutout, qint64 x0, qint64 y0,
+                                     qint64 x1, qint64 y1) const {
+        for (const auto &e : outlineEdges_) {
+            if (e.cutout==cutout && e.x0_nm==x0 && e.y0_nm==y0 &&
+                e.x1_nm==x1 && e.y1_nm==y1) return true;
+        }
+        return false;
+    }
     // Native test seams exercise the same sweep used by GPU tessellation and
     // the same arcIndexAt path used by real mouseReleaseEvent.
     bool arcSweepForTest(int index, bool clockwise) const {
