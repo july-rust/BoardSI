@@ -896,6 +896,23 @@ mod tests {
     use super::*;
     const SAMPLE: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0\n300 400 1 10 0\n*END*\n";
     #[test]
+    fn cp1252_ignored_rows_do_not_expand_raw_outline_file_limit() {
+        let mut bytes = b"!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n".to_vec();
+        for _ in 0..720 {
+            bytes.extend_from_slice(b"*REMARK* ");
+            bytes.extend(std::iter::repeat_n(0xe9u8, 4000));
+            bytes.push(b'\n');
+        }
+        bytes.extend_from_slice(
+            b"*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0\n*END*\n",
+        );
+        assert!(bytes.len() < MAX_FILE_BYTES);
+        assert!(String::from_utf8_lossy(&bytes).len() > MAX_FILE_BYTES);
+        let artwork = parse(&bytes).expect("valid raw CP1252 bytes in ignored remarks");
+        assert_eq!(artwork.segments.len(), 1);
+        assert!(crate::outline_preview::parse(&bytes).unwrap().is_empty());
+    }
+    #[test]
     fn parses_exact_partial_artwork_with_canonical_links() {
         let parsed = parse(SAMPLE.as_bytes()).unwrap();
         assert_eq!(parsed.segments.len(), 2);
