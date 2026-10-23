@@ -1,7 +1,7 @@
 //! Restricted PADS Layout 9.4 MILS ROUTE importer for the developer preview.
 //! This is a PARTIAL artwork view, never physical electrical connectivity or SI.
 //! Grammar basis: Mentor PADS Layout ASCII Format Specification 9.4 pp. 51-55.
-//! Only straight, same-copper-layer segments of equal vertex width are retained.
+//! Accepts straight traces and strict, analytically preserved PADS route arcs.
 use boardsi_model::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -26,6 +26,17 @@ pub struct Segment {
     pub source_line: usize,
 }
 #[derive(Debug)]
+pub struct RouteArc {
+    pub layer: u32,
+    pub net: String,
+    pub start: [i64; 2],
+    pub centre: [i64; 2],
+    pub end: [i64; 2],
+    pub clockwise: bool,
+    pub width_ticks: i64,
+    pub source_line: usize,
+}
+#[derive(Debug)]
 pub struct ViaInstance {
     pub name: String,
     pub net: String,
@@ -37,10 +48,19 @@ pub struct ViaInstance {
     pub inner_pad: bool,
     pub source_line: usize,
 }
+#[derive(Clone, Copy)]
+struct PendingArc {
+    start: [i64; 2],
+    centre: [i64; 2],
+    layer: i64,
+    width: i64,
+    clockwise: bool,
+}
 #[derive(Debug)]
 pub struct Artwork {
     pub vias: Vec<ViaInstance>,
     pub segments: Vec<Segment>,
+    pub arcs: Vec<RouteArc>,
     pub max_layer: u32,
     pub skipped: u32,
 }
@@ -251,6 +271,9 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     // A new SIGNAL or pin pair is an explicit break in the physical route path.
     let mut previous: Option<([i64; 2], i64, i64)> = None;
     let mut segments = Vec::new();
+    let mut arcs = Vec::new();
+    // A 0x1000 vertex is an arc centre, not an actual copper vertex.
+    let mut pending_arc: Option<PendingArc> = None;
     let mut skipped = 0u32;
     for (line_no, source_line) in source.lines().enumerate().skip(1) {
         if source_line.len() > 16_384 {
@@ -265,10 +288,16 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
             continue;
         }
         if keyword == "*END*" {
+            if pending_arc.take().is_some() {
+                skipped = skipped.saturating_add(1);
+            }
             found_end = true;
             break;
         }
         if line.starts_with('*') {
+            if pending_arc.take().is_some() {
+                skipped = skipped.saturating_add(1);
+            }
             if keyword == "*PCB*" {
                 in_pcb = true;
                 in_route = false;
@@ -330,6 +359,9 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
             continue;
         }
         if pin_pair(&fields) {
+            if pending_arc.take().is_some() {
+                skipped = skipped.saturating_add(1);
+            }
             if net.is_none() {
                 return Err("PIN_PAIR_WITHOUT_SIGNAL");
             }
@@ -377,6 +409,83 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         mul_nm(x)?;
         mul_nm(y)?;
         mul_nm(width)?;
+        // Only a PADS 9.4 centre flag plus CW/CCW is an arc centre.
+        if flag & 0x1000 != 0 {
+            if pending_arc.take().is_some() {
+                // Adjacent centres are malformed. Never re-use the previous
+                // start vertex to convert the second centre into valid copper.
+                skipped = skipped.saturating_add(1);
+                previous = None;
+                continue;
+            }
+            if fields.len() == 6
+                && flag & !(SUPPORTED_STRAIGHT_FLAGS | 0x1000) == 0
+                && (fields[5] == "CW" || fields[5] == "CCW")
+            {
+                if let Some((start, old_layer, old_width)) = previous {
+                    if old_layer == layer && old_width == width && start != p {
+                        pending_arc = Some(PendingArc {
+                            start,
+                            centre: p,
+                            layer,
+                            width,
+                            clockwise: fields[5] == "CW",
+                        });
+                        continue;
+                    }
+                }
+            }
+            skipped = skipped.saturating_add(1);
+            previous = None;
+            continue;
+        }
+        // A bad endpoint must not silently turn an arc into a straight chord.
+        if let Some(PendingArc {
+            start,
+            centre,
+            layer: arc_layer,
+            width: arc_width,
+            clockwise,
+        }) = pending_arc.take()
+        {
+            let effective_layer = if layer == 65 { arc_layer } else { layer };
+            let radius_sq = |vertex: [i64; 2]| {
+                let dx = i128::from(vertex[0]) - i128::from(centre[0]);
+                let dy = i128::from(vertex[1]) - i128::from(centre[1]);
+                dx * dx + dy * dy
+            };
+            if fields.len() == 5
+                && flag & !SUPPORTED_STRAIGHT_FLAGS == 0
+                && effective_layer == arc_layer
+                && width == arc_width
+                && start != p
+                && radius_sq(start) > 0
+                && radius_sq(start) == radius_sq(p)
+            {
+                if segments.len() + arcs.len() >= MAX_SEGMENTS {
+                    return Err("SEGMENT_LIMIT");
+                }
+                arcs.push(RouteArc {
+                    layer: arc_layer as u32,
+                    net: net.unwrap_or_default().to_string(),
+                    start,
+                    centre,
+                    end: p,
+                    clockwise,
+                    width_ticks: width,
+                    source_line: line_no + 1,
+                });
+                previous = if layer == 65 {
+                    None
+                } else {
+                    Some((p, arc_layer, width))
+                };
+                continue;
+            }
+            skipped = skipped.saturating_add(1);
+            previous = None;
+            continue;
+        }
         // A named via is a separate placement at this exact route vertex,
         // NOT proof of electrical contact with other copper layers.
         if fields.len() == 6 && flag & !SUPPORTED_STRAIGHT_FLAGS == 0 {
@@ -390,7 +499,7 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
                     // newly declared layer. Never connect unrelated pin pairs.
                     if let Some((before, old_layer, old_width)) = previous {
                         if old_width == width && before != p {
-                            if segments.len() >= MAX_SEGMENTS {
+                            if segments.len() + arcs.len() >= MAX_SEGMENTS {
                                 return Err("SEGMENT_LIMIT");
                             }
                             segments.push(Segment {
@@ -440,7 +549,7 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         }
         if let Some((before, prev_layer, prev_width)) = previous {
             if prev_layer == effective_layer && prev_width == width && before != p {
-                if segments.len() >= MAX_SEGMENTS {
+                if segments.len() + arcs.len() >= MAX_SEGMENTS {
                     return Err("SEGMENT_LIMIT");
                 }
                 segments.push(Segment {
@@ -475,12 +584,13 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     if !found_route && !has_pad {
         return Err("MISSING_ROUTE_SECTION");
     }
-    if segments.is_empty() && vias.is_empty() && !has_pad {
+    if segments.is_empty() && arcs.is_empty() && vias.is_empty() && !has_pad {
         return Err("NO_SUPPORTED_TRACES");
     }
     Ok(Artwork {
         vias,
         segments,
+        arcs,
         max_layer,
         skipped,
     })
@@ -516,7 +626,9 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             logical_path: "local/source.asc".into(),
             sha256: sha,
         }],
-        importer_version: if parsed.vias.is_empty() {
+        importer_version: if !parsed.arcs.is_empty() {
+            "preview-p2f-strict-route-arc-v1"
+        } else if parsed.vias.is_empty() {
             "preview-p2a-straight-v2-centimil"
         } else {
             "preview-p2b-round-through-via-v1"
@@ -524,12 +636,20 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         .into(),
         conditions: {
             let mut conditions = vec![("route_subset".into(), "straight-same-layer".into())];
+            if !parsed.arcs.is_empty() {
+                conditions.push((
+                    "arc_subset".into(),
+                    "strict-centre-cw-ccw-source-grid".into(),
+                ));
+            }
             if !parsed.vias.is_empty() {
                 conditions.push((
                     "via_subset".into(),
                     "explicit-equal-round-through-pad-and-drill-no-connectivity".into(),
                 ));
             }
+            // Stable source-condition order is part of the Canonical identity contract.
+            conditions.sort_by(|a: &(String, String), b| a.0.cmp(&b.0));
             conditions
         },
     });
@@ -549,6 +669,11 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                 let mut coverage = Vec::new();
                 if !parsed.segments.is_empty() {
                     coverage.push("ROUTE straight copper segment only".into());
+                }
+                if !parsed.arcs.is_empty() {
+                    coverage.push(
+                        "ROUTE strict exact-radius CW/CCW Arc geometry; electrical contact not verified".into(),
+                    );
                 }
                 if !parsed.vias.is_empty() {
                     coverage.push(
@@ -590,6 +715,42 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         });
     }
     let mut nets = BTreeMap::<String, ObjectId>::new();
+    for a in &parsed.arcs {
+        if !nets.contains_key(&a.net) {
+            let m = meta(&source, ObjectKind::Net, &a.net);
+            nets.insert(a.net.clone(), m.id.clone());
+            board.nets.push(Net {
+                meta: m,
+                name: a.net.clone(),
+                role: NetRole::Unknown,
+            });
+        }
+        let point = |ticks| Point {
+            frame: frame_id.clone(),
+            ticks,
+        };
+        board.arcs.push(boardsi_model::Arc {
+            meta: meta_with_provenance(
+                &source,
+                ObjectKind::Arc,
+                &format!("route-arc-{}", a.source_line),
+                "PADS Layout ROUTE strict centre/CCW/CW arc",
+            ),
+            layer: ObjectId::new(
+                &source,
+                ObjectKind::Layer,
+                &format!("layer-{}", a.layer),
+                "",
+            ),
+            net: nets.get(&a.net).cloned(),
+            centre: point(a.centre),
+            start: point(a.start),
+            end: point(a.end),
+            clockwise: a.clockwise,
+            width_m: Rational::new(i128::from(a.width_ticks) * 127, 500_000_000)
+                .map_err(|_| "WIDTH_OVERFLOW")?,
+        });
+    }
     for via in &parsed.vias {
         if !nets.contains_key(&via.net) {
             let m = meta(&source, ObjectKind::Net, &via.net);
@@ -761,15 +922,15 @@ mod tests {
             parse(SAMPLE.replace("*END*", "").as_bytes()).unwrap_err(),
             "MISSING_END_MARKER"
         );
-        assert_eq!(
-            parse(
-                SAMPLE
-                    .replace("300 200 1 10 0", "300 200 1 10 4096 CW")
-                    .as_bytes()
-            )
-            .unwrap_err(),
-            "NO_SUPPORTED_TRACES"
-        );
+        // A strict CW centre with equal-radius endpoints is supported in A_015.
+        let arc = parse(
+            SAMPLE
+                .replace("300 200 1 10 0", "300 200 1 10 4096 CW")
+                .as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(arc.arcs.len(), 1);
+        assert!(arc.segments.is_empty());
         assert_eq!(
             parse(
                 SAMPLE
@@ -1146,6 +1307,45 @@ mod p2b_via_regressions {
                 .vias
                 .len(),
             1
+        );
+    }
+
+    #[test]
+    fn a015_adjacent_centres_must_not_promote_copper() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n200 100 1 10 0\n100 100 1 10 4096 CCW\n200 200 1 10 4096 CW\n300 200 1 10 0\n*END*\n";
+        assert_eq!(parse(source.as_bytes()).unwrap_err(), "NO_SUPPORTED_TRACES");
+    }
+
+    #[test]
+    fn a015_strict_arc_canonical_and_fail_closed() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* ARC_NET\nU1.1 U2.2\n200 100 1 10 0\n100 100 1 10 4096 CCW\n100 200 1 10 0\n*END*\n";
+        let a = parse(source.as_bytes()).unwrap();
+        assert_eq!(a.arcs.len(), 1);
+        assert!(a.segments.is_empty());
+        assert_eq!(a.arcs[0].centre, [10000, 10000]);
+        assert!(!a.arcs[0].clockwise);
+        let model = into_canonical(source.as_bytes(), &a).unwrap();
+        assert_eq!(model.arcs.len(), 1);
+        assert!(model.traces.is_empty());
+        assert!(model.sources[0]
+            .capability
+            .object_coverage
+            .iter()
+            .any(|item| item.contains("CW/CCW Arc")));
+        assert!(!model.validate().has_errors());
+        let cw = source.replace("4096 CCW", "4096 CW");
+        assert!(parse(cw.as_bytes()).unwrap().arcs[0].clockwise);
+        let bad = source.replace("100 200 1 10 0", "100 201 1 10 0");
+        assert_eq!(parse(bad.as_bytes()).unwrap_err(), "NO_SUPPORTED_TRACES");
+        let dangling = source.replace("100 200 1 10 0\n", "");
+        assert_eq!(
+            parse(dangling.as_bytes()).unwrap_err(),
+            "NO_SUPPORTED_TRACES"
+        );
+        let unknown = source.replace("4096 CCW", "4096 UNKNOWN");
+        assert_eq!(
+            parse(unknown.as_bytes()).unwrap_err(),
+            "NO_SUPPORTED_TRACES"
         );
     }
 }

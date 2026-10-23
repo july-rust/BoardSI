@@ -23,7 +23,8 @@ fn run() -> Result<(), &'static str> {
     let mut board = into_canonical(&bytes, &result)?;
     let pad_data = part_preview::parse(&bytes, result.max_layer);
     part_preview::augment(&mut board, &pad_data)?;
-    if board.traces.len() != result.segments.len()
+    if board.arcs.len() != result.arcs.len()
+        || board.traces.len() != result.segments.len()
         || board.vias.len() != result.vias.len()
         || board.pads.len() != pad_data.pads.len()
         || board.validate().has_errors()
@@ -33,7 +34,9 @@ fn run() -> Result<(), &'static str> {
     let mut out = Vec::new();
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
     // records are actually emitted. Rejected PART rows are not P2C geometry.
-    let mode = if pad_data.pads.iter().any(|pad| pad.bottom) {
+    let mode = if !result.arcs.is_empty() {
+        "BOARDSI_P2F_PARTIAL_V5"
+    } else if pad_data.pads.iter().any(|pad| pad.bottom) {
         "BOARDSI_P2E_PARTIAL_V4"
     } else if pad_data.pads.is_empty() {
         "BOARDSI_P2A_PARTIAL_V1"
@@ -68,6 +71,25 @@ fn run() -> Result<(), &'static str> {
                 .width_ticks
                 .checked_mul(NM)
                 .ok_or("WIDTH_OVERFLOW")?
+        )
+        .map_err(|_| "FORMAT_ERROR")?;
+    }
+    for arc in &result.arcs {
+        let coord = |x: i64| x.checked_mul(NM).ok_or("ARC_COORD_OVERFLOW");
+        writeln!(
+            out,
+            "A|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+            arc.layer,
+            arc.net,
+            coord(arc.start[0])?,
+            coord(arc.start[1])?,
+            coord(arc.centre[0])?,
+            coord(arc.centre[1])?,
+            coord(arc.end[0])?,
+            coord(arc.end[1])?,
+            if arc.clockwise { "CW" } else { "CCW" },
+            coord(arc.width_ticks)?,
+            arc.source_line
         )
         .map_err(|_| "FORMAT_ERROR")?;
     }
@@ -115,7 +137,7 @@ fn run() -> Result<(), &'static str> {
             pad.height_ticks
                 .checked_mul(NM)
                 .ok_or("PAD_SIZE_OVERFLOW")?,
-            if mode == "BOARDSI_P2E_PARTIAL_V4" {
+            if mode == "BOARDSI_P2E_PARTIAL_V4" || mode == "BOARDSI_P2F_PARTIAL_V5" {
                 format!(
                     "|{}|{}",
                     if pad.bottom { "B" } else { "T" },
@@ -127,7 +149,16 @@ fn run() -> Result<(), &'static str> {
         )
         .map_err(|_| "FORMAT_ERROR")?;
     }
-    if mode == "BOARDSI_P2A_PARTIAL_V1" {
+    if mode == "BOARDSI_P2F_PARTIAL_V5" {
+        writeln!(
+            out,
+            "END|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+            result.segments.len(),
+            result.skipped.saturating_add(pad_data.skipped as u32),
+            pad_data.pads.len(),
+            result.arcs.len()
+        )
+    } else if mode == "BOARDSI_P2A_PARTIAL_V1" {
         writeln!(
             out,
             "END|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",

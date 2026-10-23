@@ -184,9 +184,11 @@ jobs:
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --pad-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_component_simple_v94.asc"
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --rect-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_rf_rectangle_v94.asc"
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --bottom-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_bottom_mirror_v94.asc"
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --arc-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_route_arc_v94.asc"
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --renderer-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame"
           cat qt-preview-renderer-results.json
           cat qt-preview-p2e-bottom-results.json
+          cat qt-preview-p2f-arc-results.json
           cat qt-preview-p2d-rect-results.json
           cat qt-preview-p2c-pad-results.json
           cat qt-preview-p2b-via-results.json
@@ -325,6 +327,15 @@ jobs:
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --bottom-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_bottom_mirror_v94.asc"
           cat qt-preview-p2e-bottom-results.json
           python -c 'import json,platform; r=json.load(open("qt-preview-p2e-bottom-results.json")); assert r["pass"] and ((r["rhi_view_checked"] and r["rhi_first_frame_confirmed"]) or (platform.system()=="Windows" and r["rhi_cpu_fallback"])), r'
+      - name: Validate A_015 native P2-F Arc import and RHI artwork path
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --arc-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_route_arc_v94.asc"
+          cat qt-preview-p2f-arc-results.json
+          python -c 'import json; r=json.load(open("qt-preview-p2f-arc-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-p2f-arc-smoke-v1", r'
       - name: Test Qt software RHI adapter request uses CPU artwork
         shell: bash
         run: |
@@ -352,6 +363,7 @@ jobs:
             build-qt/qt-preview-p2b-via-results.json
             build-qt/qt-preview-p2d-rect-results.json
             build-qt/qt-preview-p2e-bottom-results.json
+            build-qt/qt-preview-p2f-arc-results.json
             build-qt/qt-preview-renderer-results.json
             build-qt/qt-preview-a014-rhi-results.json
             build-qt/qt-preview-a014-software-fallback-results.json

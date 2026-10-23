@@ -76,7 +76,7 @@ class PreviewWindow : public QMainWindow {
                                   QString("PCB candidate: ") + chosenFile;
         const bool loaded = importResultStatus.startsWith("PARTIAL") &&
                             ((importUI->imported()->segmentCount() + importUI->imported()->viaCount() +
-                              importUI->imported()->padCount()) > 0);
+                              importUI->imported()->padCount() + importUI->imported()->arcCount()) > 0);
         if (!loaded) {
             properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
                                 candidate + "\nImport status: " + importResultStatus +
@@ -104,13 +104,13 @@ class PreviewWindow : public QMainWindow {
             "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
-            "DEVELOPER PREVIEW P2-D - PARTIAL Import / NOT PCB SI\n\n"
+            "DEVELOPER PREVIEW P2-F - PARTIAL Import / NOT PCB SI\n\n"
             "Worker: independent Rust process\n" + status + "\n" +
             ipc->resultLabel()->text() +
             (error.isEmpty() ? QString() : "\nERROR: " + error) +
             "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n" +
             (importResultStatus.startsWith("PARTIAL") ?
-                "Imported PCB: PARTIAL accepted straight routes, through vias and restricted top SMD pads; other geometry/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
+                "Imported PCB: PARTIAL accepted straight/arc routes, through vias and restricted top/bottom SMD pads; other geometry/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
                 "Synthetic fixture only; no real PCB imported or physical SI analysis performed."));
         if (status != previousStatus) {
             log->appendPlainText("Worker: " + status);
@@ -132,7 +132,7 @@ public:
     PreviewWindow(const QString &workerPath, const QString &firstFrame = QString(),
                   const QString &secondFrame = QString(), const QString &importBinary = QString()) {
         setObjectName("boardsiPreviewP0");
-        setWindowTitle("BoardSI Developer Preview P2-D - PARTIAL IMPORT / NOT PCB SI");
+        setWindowTitle("BoardSI Developer Preview P2-F - PARTIAL IMPORT / NOT PCB SI");
         auto *bar = addToolBar("Preview controls");
         bar->setMovable(false);
         openAction = bar->addAction("Open PCB");
@@ -149,7 +149,7 @@ public:
         auto *root = new QWidget(this);
         auto *vertical = new QVBoxLayout(root);
         auto *header = new QLabel(
-            "BoardSI PREVIEW P2-D | Synthetic Demo / Imported Partial | NOT PCB SI | Developer build",
+            "BoardSI PREVIEW P2-F | Synthetic Demo / Imported Partial | NOT PCB SI | Developer build",
             root);
         header->setStyleSheet("font-weight: bold; padding: 8px; background: #2b3441; color: #ffffff;");
         vertical->addWidget(header);
@@ -711,6 +711,76 @@ static int runRendererSmoke(PreviewWindow &window) {
     return passed ? 0 : 1;
 }
 
+// A_015 end-to-end imported PADS V9.4 arcs: Worker -> V5 -> CPU scene.
+static int runArcSmoke(PreviewWindow &window, const QString &fixture) {
+    QElapsedTimer clock; clock.start();
+    bool passed=false; QString failure;
+    bool rhiChecked=false, rhiSweepOk=false, rhiPickOk=false;
+    QEventLoop loop;
+    if(!window.openCandidate(fixture)) failure="A_015 public arc fixture unavailable";
+    else {
+        QTimer tick;
+        QObject::connect(&tick,&QTimer::timeout,&loop,[&] {
+            const QString status=window.importPanel()->importStatus();
+            if(status.startsWith("FAILED") || status.startsWith("CANCELLED")) {
+                failure="A_015 import failed: "+status; loop.quit(); return;
+            }
+            if(!status.startsWith("PARTIAL"))return;
+            const bool receiptHasArcs=status.contains("2 route arcs");
+            auto *panel=window.importPanel()->imported();
+            bool ccw=false,cw=false;
+            auto *scene=panel->findChild<QGraphicsScene *>();
+            if(scene) for(QGraphicsItem *item:scene->items()){
+                auto *path=qgraphicsitem_cast<QGraphicsPathItem *>(item);
+                if(!path)continue;
+                const QString p=path->data(1).toString();
+                if(p.contains("Arc trace") && p.contains("CCW") &&
+                   p.contains("centre (2.540000, 2.540000)"))ccw=true;
+                if(p.contains("Arc trace") && p.contains("CW") &&
+                   !p.contains("CCW"))cw=true;
+            }
+            const bool selected=panel->selectArc(0);
+            const bool props=window.displayedProperties().contains("Arc trace") &&
+                             window.displayedProperties().contains("SI NOT_RUN");
+#ifdef BOARDSI_RHI_ARTWORK
+            if(auto *rhi=panel->rhiViewForTest();
+               rhi && panel->rhiCanvasActiveForTest()) {
+                rhiChecked=true;
+                auto *item=rhi->itemForTest();
+                rhiSweepOk=item->arcSweepForTest(0,false) &&
+                            item->arcSweepForTest(1,true);
+                // This dispatch exercises the RHI item's real event hit-test
+                // and onPicked callback rather than selecting the hidden scene.
+                rhiPickOk=item->dispatchArcPickForTest(0) &&
+                          window.displayedProperties().contains("Arc trace");
+            }
+#endif
+            passed=panel->arcCount()==2 && panel->segmentCount()==1 &&
+                   receiptHasArcs && ccw && cw && selected && props &&
+                   (!rhiChecked || (rhiSweepOk && rhiPickOk));
+            if(!passed)failure="A_015 geometry/count/provenance/selection mismatch";
+            loop.quit();
+        });
+        QTimer::singleShot(15000,&loop,&QEventLoop::quit);
+        tick.start(20);loop.exec();tick.stop();
+        if(!passed && failure.isEmpty())failure="A_015 arc smoke timed out";
+    }
+    QJsonObject report{{"schema","boardsi-preview-p2f-arc-smoke-v1"},
+       {"pass",passed},{"failure",failure},{"elapsed_ms",clock.elapsed()},
+       {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+       {"native_backend",QGuiApplication::platformName()},
+       {"host_arch",QSysInfo::currentCpuArchitecture()},
+       {"rhi_arc_gate_checked",rhiChecked},
+       {"rhi_arc_sweep_pass",rhiSweepOk},
+       {"rhi_arc_pick_dispatch_pass",rhiPickOk},
+       {"scope","public synthetic exact route arcs; connectivity NOT_VERIFIED; SI NOT_RUN"}};
+    QFile receipt("qt-preview-p2f-arc-results.json");
+    if(!receipt.open(QIODevice::WriteOnly) ||
+       receipt.write(QJsonDocument(report).toJson(QJsonDocument::Indented))<1)return 2;
+    qInfo().noquote()<<QJsonDocument(report).toJson(QJsonDocument::Compact);
+    return passed?0:1;
+}
+
 static int runPadSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock;
     clock.start();
@@ -1161,20 +1231,28 @@ static int runRhiGeometrySmoke() {
     pads.push_back(p);
     auto *item = new BoardSiRhiItem();
     item->setWidth(800); item->setHeight(500);
-    item->load(4,tracks,vias,pads);
+    // A_015 exact quarter-circle in the same high-origin source domain.
+    ImportedArc arc;
+    arc.layer=1; arc.net="SYNTHETIC";
+    arc.x0_nm=base+100000; arc.y0_nm=base+100000;
+    arc.cx_nm=base+50000; arc.cy_nm=base+100000;
+    arc.x1_nm=base+50000; arc.y1_nm=base+150000;
+    arc.width_nm=10000; arc.clockwise=false; arc.sourceLine=1;
+    const std::vector<ImportedArc> arcs{arc};
+    item->load(4,tracks,vias,pads,arcs);
     const QPointF pointA=item->localPoint(base+25000,base+10000);
     const QPointF pointB=item->localPoint(base+50000,base+40000);
-    sourceGeometry=item->primitiveCount()==10002 &&
+    sourceGeometry=item->primitiveCount()==10003 &&
                    std::abs((pointB.x()-pointA.x())-0.025)<1e-9 &&
                    std::abs((pointB.y()-pointA.y())+0.030)<1e-9;
     delete item;
-    count=10002;
+    count=10003;
     // A visible native Qt Quick window is required to prove RHI frame delivery.
     // This does not establish a discrete or hardware GPU adapter.
     if (QGuiApplication::platformName() != "offscreen" &&
         QGuiApplication::platformName() != "minimal") {
         BoardSiRhiView view;
-        view.load(4,tracks,vias,pads);
+        view.load(4,tracks,vias,pads,arcs);
         view.resize(800,500);
         view.show();
         QEventLoop loop;
@@ -1188,7 +1266,7 @@ static int runRhiGeometrySmoke() {
         frame=backend.startsWith("RHI_FRAME_");
         // ONLY render-thread DXGI-proven WARP is an acceptable native
         // fallback. Frame timeout, scene graph error and missing adapter proof
-        // must fail the 10,002-object geometry integration test as well.
+        // must fail the 10,003-object geometry integration test as well.
         fallbackConfirmed=(backend=="CPU_FALLBACK_RHI_SOFTWARE_D3D11_ADAPTER");
         adapterProof=view.itemForTest()->d3dAdapterProof();
         if (!frame && !fallbackConfirmed)
@@ -1196,7 +1274,7 @@ static int runRhiGeometrySmoke() {
         if (frame) {
             // A prior empty/success frame must NOT satisfy the next load.
             // Require a pending transition and a distinct post-load swap.
-            view.load(4,tracks,vias,pads);
+            view.load(4,tracks,vias,pads,arcs);
             const bool becamePending =
                 view.status()=="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
             QEventLoop reloaded;
@@ -1235,7 +1313,7 @@ static int runRhiGeometrySmoke() {
         {"host_arch",QSysInfo::currentCpuArchitecture()},
         {"elapsed_ms",clock.elapsed()},
         {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
-        {"scope","Synthetic 10002 objects, integer nm local geometry and RHI frame; NOT PCB SI"}
+        {"scope","Synthetic 10003 objects including arc, integer nm local geometry and RHI frame; NOT PCB SI"}
     };
     QFile output("qt-preview-a014-rhi-results.json");
     if (!output.open(QIODevice::WriteOnly) ||
@@ -1254,8 +1332,9 @@ int main(int argc, char **argv) {
     const bool padTesting = args.size() == 7 && args.at(1) == "--pad-selftest";
     const bool rectTesting = args.size() == 7 && args.at(1) == "--rect-selftest";
     const bool bottomTesting = args.size() == 7 && args.at(1) == "--bottom-selftest";
+    const bool arcTesting = args.size() == 7 && args.at(1) == "--arc-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
-                         rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting;
+                         rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting || arcTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -1278,7 +1357,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return rendererTesting ? runRendererSmoke(window) :
+    return arcTesting ? runArcSmoke(window, fixture) :
+           rendererTesting ? runRendererSmoke(window) :
            bottomTesting ? runBottomSmoke(window, fixture) :
            rectTesting ? runRectSmoke(window, fixture) :
            padTesting ? runPadSmoke(window, fixture) :
