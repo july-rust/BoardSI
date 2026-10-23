@@ -37,6 +37,13 @@ struct ImportedArc {
     int sourceLine = 0;
 };
 
+struct ImportedOutlineEdge {
+    QString name;
+    bool cutout = false;
+    int sequence = 0;
+    qint64 x0_nm = 0, y0_nm = 0, x1_nm = 0, y1_nm = 0;
+};
+
 struct ImportedPad {
     QString reference, pin, shape;
     int layer = 0;
@@ -71,6 +78,7 @@ class ImportedArtworkPanel final : public QWidget {
     std::vector<std::pair<QGraphicsPathItem *, ImportedArc>> arcs_;
     std::vector<std::pair<QGraphicsEllipseItem *, ImportedVia>> vias_;
     std::vector<std::pair<QGraphicsItem *, ImportedPad>> pads_;
+    std::vector<std::pair<QGraphicsLineItem *, ImportedOutlineEdge>> outlineEdges_;
     std::function<void(const QString &)> detailsCallback_;
     int skipped_ = 0;
     void refresh() {
@@ -78,7 +86,8 @@ class ImportedArtworkPanel final : public QWidget {
         if (rhi_) rhi_->filter(layerVisible_, nets_->currentText());
 #endif
         // A GPU backend change must never fabricate a successful PCB import.
-        if (tracks_.empty() && arcs_.empty() && vias_.empty() && pads_.empty()) {
+        if (tracks_.empty() && arcs_.empty() && vias_.empty() && pads_.empty() &&
+            outlineEdges_.empty()) {
             summary_->setText("No imported PCB. Synthetic demo is a separate tab.\n"
                               "Artwork renderer: " + rendererStatus());
             if (detailsCallback_) detailsCallback_(summary_->text());
@@ -176,6 +185,9 @@ class ImportedArtworkPanel final : public QWidget {
                         "\nLayers with analytical arcs: %3  Nets with analytical arcs: %4")
                     .arg(static_cast<qlonglong>(arcs_.size())).arg(visibleArcs)
                     .arg(layersWithArcs.size()).arg(netsWithArcs.size());
+        line += QString("\nBoard outline/cutout straight edges: %1"
+                        " (artwork only; NOT electrical geometry)")
+                    .arg(static_cast<qlonglong>(outlineEdges_.size()));
         line += QString("\nTop SMD: %1  Bottom SMD: %2")
                     .arg(static_cast<qlonglong>(pads_.size()) - bottomPads).arg(bottomPads);
         const auto selected = scene_->selectedItems();
@@ -309,6 +321,7 @@ public:
         arcs_.clear();
         vias_.clear();
         pads_.clear();
+        outlineEdges_.clear();
         scene_->clear();
         layerVisible_.clear();
         layers_->clear();
@@ -326,11 +339,13 @@ public:
     bool load(int layerCount, int skipped, const std::vector<ImportedTrack> &input,
               const std::vector<ImportedVia> &viaInput = {},
               const std::vector<ImportedPad> &padInput = {},
-              const std::vector<ImportedArc> &arcInput = {}) {
+              const std::vector<ImportedArc> &arcInput = {},
+              const std::vector<ImportedOutlineEdge> &outlineInput = {}) {
         if (layerCount < 1 || layerCount > 64 ||
-            (input.empty() && viaInput.empty() && padInput.empty() && arcInput.empty()) ||
+            (input.empty() && viaInput.empty() && padInput.empty() &&
+             arcInput.empty() && outlineInput.empty()) ||
             input.size() + arcInput.size() > 10000 || viaInput.size() > 10000 ||
-            padInput.size() > 5000) return false;
+            padInput.size() > 5000 || outlineInput.size() > 16384) return false;
         // Keep the old artwork untouched if a candidate fails validation.
         for (const auto &t : input) {
             if (t.layer <= 0 || t.layer > layerCount || t.width_nm <= 0 ||
@@ -380,12 +395,38 @@ public:
                 pad.y_nm < -100000000000LL || pad.y_nm > 100000000000LL)
                 return false;
         }
+        // Strict transport continuity, distinct rings and exact source-grid bounds.
+        QString ringKey;
+        qint64 firstX=0,firstY=0,lastX=0,lastY=0;
+        int expectedSequence=0,outerRings=0;
+        auto closeRing=[&]() {
+            return expectedSequence==0 || (expectedSequence>=3 &&
+                firstX==lastX && firstY==lastY);
+        };
+        for (const auto &e : outlineInput) {
+            if (e.name.isEmpty() || e.name.size()>16 || e.sequence<0) return false;
+            for (auto v : {e.x0_nm,e.y0_nm,e.x1_nm,e.y1_nm}) {
+                if (v%254!=0 || v < -1422400000LL || v > 1422400000LL) return false;
+            }
+            const QString key=(e.cutout ? "CUT|" : "OUTER|")+e.name;
+            if (ringKey!=key) {
+                if (!closeRing() || e.sequence!=0) return false;
+                ringKey=key;expectedSequence=0;
+                firstX=e.x0_nm;firstY=e.y0_nm;
+                if (!e.cutout) ++outerRings;
+            } else if (e.x0_nm!=lastX || e.y0_nm!=lastY) return false;
+            if (e.sequence!=expectedSequence ||
+                (e.x0_nm==e.x1_nm && e.y0_nm==e.y1_nm)) return false;
+            ++expectedSequence;lastX=e.x1_nm;lastY=e.y1_nm;
+        }
+        if (!closeRing() || (!outlineInput.empty() && outerRings!=1)) return false;
         {
             const QSignalBlocker muteSelection(scene_);
             tracks_.clear();
             arcs_.clear();
             vias_.clear();
             pads_.clear();
+            outlineEdges_.clear();
             scene_->clear();
         }
         layerVisible_ = QVector<bool>(layerCount + 1, true);
@@ -489,9 +530,18 @@ public:
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             pads_.push_back({item, pad});
         }
+        for (const auto &e : outlineInput) {
+            const QLineF line(e.x0_nm/1e6,-e.y0_nm/1e6,
+                              e.x1_nm/1e6,-e.y1_nm/1e6);
+            const QColor color(e.cutout ? "#e99f87" : "#e0e8ee");
+            auto *item=scene_->addLine(line,QPen(color,0));
+            item->setData(1,e.cutout ? "Board Cutout (not copper)" :
+                                         "Board Outline (not copper)");
+            outlineEdges_.push_back({item,e});
+        }
         skipped_ = skipped;
 #ifdef BOARDSI_RHI_ARTWORK
-        if (rhi_) rhi_->load(layerCount,input,viaInput,padInput,arcInput);
+        if (rhi_) rhi_->load(layerCount,input,viaInput,padInput,arcInput,outlineInput);
 #endif
         scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-1, -1, 1, 1));
         refresh();
@@ -499,7 +549,8 @@ public:
         return true;
     }
     void fitArtwork() {
-        if (!tracks_.empty() || !arcs_.empty() || !vias_.empty() || !pads_.empty()) {
+        if (!tracks_.empty() || !arcs_.empty() || !vias_.empty() ||
+            !pads_.empty() || !outlineEdges_.empty()) {
             // Qt's Fit is cumulative with the existing view transform. Reset
             // first so a Fit after Zoom is repeatable and does not drift.
             view_->resetTransform();
@@ -511,6 +562,7 @@ public:
     }
     int segmentCount() const { return static_cast<int>(tracks_.size()); }
     int arcCount() const { return static_cast<int>(arcs_.size()); }
+    int outlineCount() const { return static_cast<int>(outlineEdges_.size()); }
     int viaCount() const { return static_cast<int>(vias_.size()); }
     int padCount() const { return static_cast<int>(pads_.size()); }
 #ifdef BOARDSI_RHI_ARTWORK

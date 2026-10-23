@@ -258,6 +258,7 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     // Do not decode high bytes into route grammar: the supported subset has
     // ASCII-only route/pin/net tokens. Non-UTF8 CP1252 bytes elsewhere are
     // explicitly ignored, never mapped into copper geometry.
+    let source_bytes = source; // Preserve CP1252 raw byte count for the outline parser.
     let source = String::from_utf8_lossy(source);
     let via_defs = scan_simple_via_defs(&source);
     let mut vias = Vec::new();
@@ -581,10 +582,11 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     let has_pad = !crate::part_preview::parse(source.as_bytes(), max_layer)
         .pads
         .is_empty();
-    if !found_route && !has_pad {
+    let has_outline = !crate::outline_preview::parse(source_bytes)?.is_empty();
+    if !found_route && !has_pad && !has_outline {
         return Err("MISSING_ROUTE_SECTION");
     }
-    if segments.is_empty() && arcs.is_empty() && vias.is_empty() && !has_pad {
+    if segments.is_empty() && arcs.is_empty() && vias.is_empty() && !has_pad && !has_outline {
         return Err("NO_SUPPORTED_TRACES");
     }
     Ok(Artwork {
@@ -893,6 +895,25 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
 mod tests {
     use super::*;
     const SAMPLE: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0\n300 400 1 10 0\n*END*\n";
+    #[test]
+    fn cp1252_ignored_rows_do_not_expand_raw_outline_file_limit() {
+        let mut bytes =
+            b"!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n"
+                .to_vec();
+        for _ in 0..720 {
+            bytes.extend_from_slice(b"*REMARK* ");
+            bytes.extend(std::iter::repeat(0xe9u8).take(4000));
+            bytes.push(b'\n');
+        }
+        bytes.extend_from_slice(
+            b"*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0\n*END*\n",
+        );
+        assert!(bytes.len() < MAX_FILE_BYTES);
+        assert!(String::from_utf8_lossy(&bytes).len() > MAX_FILE_BYTES);
+        let artwork = parse(&bytes).expect("valid raw CP1252 bytes in ignored remarks");
+        assert_eq!(artwork.segments.len(), 1);
+        assert!(crate::outline_preview::parse(&bytes).unwrap().is_empty());
+    }
     #[test]
     fn parses_exact_partial_artwork_with_canonical_links() {
         let parsed = parse(SAMPLE.as_bytes()).unwrap();
