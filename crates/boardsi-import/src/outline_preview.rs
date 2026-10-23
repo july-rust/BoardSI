@@ -385,7 +385,10 @@ mod tests {
         for bad in [
             INPUT.replace("!PADS-POWERPCB-V9.4-MILS!", "NON_PADS_FILE"),
             INPUT.replace("V9.4-MILS", "V9.5-MM"),
-            INPUT.replace("!PADS-POWERPCB-V9.4-MILS!", "!PADS-POWERPCB-V9.4-MILS-CP932!"),
+            INPUT.replace(
+                "!PADS-POWERPCB-V9.4-MILS!",
+                "!PADS-POWERPCB-V9.4-MILS-CP932!",
+            ),
         ] {
             assert_eq!(
                 parse(bad.as_bytes()).unwrap_err(),
