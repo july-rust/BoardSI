@@ -108,14 +108,16 @@ protected:
             if (!visible(t.layer)) continue;
             const QPointF a = pixel(world(t.x0_nm,t.y0_nm));
             const QPointF b = pixel(world(t.x1_nm,t.y1_nm));
-            if (!QRectF(a,b).normalized().adjusted(-20,-20,20,20)
+            const qreal halfWidth = t.width_nm / 2e6 * px;
+            const qreal extent = std::max<qreal>(20.0,halfWidth);
+            if (!QRectF(a,b).normalized().adjusted(-extent,-extent,extent,extent)
                     .intersects(QRectF(0,0,width(),height()))) continue;
             const QColor base = t.layer == 1 ? QColor("#f29d55") :
                  t.layer == layers_ ? QColor("#55b4e9") : QColor("#a9d48e");
             QColor color(base);
             if (net_ != "All nets" && net_ != t.net) color.setAlpha(40);
             thickLine(groups[color.rgba()],a,b,
-                      std::max<qreal>(0.1,t.width_nm / 2e6 * px));
+                      std::max<qreal>(0.1,halfWidth));
         }
         for (const auto &pad : pads_) {
             if (!visible(pad.layer)) continue;
@@ -352,7 +354,13 @@ public:
             else if(api==QSGRendererInterface::OpenGL) backend="OPENGL";
             else if(api==QSGRendererInterface::Vulkan) backend="VULKAN";
             else if(api==QSGRendererInterface::Software) backend="SOFTWARE";
-            status_="RHI_FRAME_"+backend+"_HARDWARE_NOT_VERIFIED";
+            // Qt's software Scene Graph must not count as GPU-accelerated.
+            // A recognized API without adapter identity is still NOT_VERIFIED.
+            if (backend=="SOFTWARE" || backend=="UNEXPECTED") {
+                status_="CPU_FALLBACK_RHI_SOFTWARE_OR_UNKNOWN";
+            } else {
+                status_="RHI_FRAME_"+backend+"_HARDWARE_NOT_VERIFIED";
+            }
             if(changed_) changed_();
         },Qt::QueuedConnection);
         QObject::connect(window_,&QQuickWindow::sceneGraphError,this,
