@@ -207,6 +207,7 @@ public:
             rhi_->onPicked([this](int kind,int index) {
                 if (kind == 1) selectVia(index);
                 else if (kind == 2) selectPad(index);
+                else if (kind == 3) selectTrack(index);
             });
         }
 #endif
@@ -425,6 +426,12 @@ public:
     int segmentCount() const { return static_cast<int>(tracks_.size()); }
     int viaCount() const { return static_cast<int>(vias_.size()); }
     int padCount() const { return static_cast<int>(pads_.size()); }
+    bool selectTrack(int index) {
+        if (index < 0 || index >= static_cast<int>(tracks_.size())) return false;
+        scene_->clearSelection();
+        tracks_[static_cast<size_t>(index)].first->setSelected(true);
+        return true;
+    }
     bool selectPad(int index) {
         if (index < 0 || index >= static_cast<int>(pads_.size())) return false;
         scene_->clearSelection();
