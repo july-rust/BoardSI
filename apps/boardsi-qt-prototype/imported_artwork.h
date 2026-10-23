@@ -37,6 +37,12 @@ struct ImportedArc {
     int sourceLine = 0;
 };
 
+struct ImportedCircle {
+    QString name;
+    bool cutout = false;
+    qint64 cx_nm = 0, cy_nm = 0, radius_nm = 0;
+};
+
 struct ImportedOutlineEdge {
     QString name;
     bool cutout = false;
@@ -79,6 +85,7 @@ class ImportedArtworkPanel final : public QWidget {
     std::vector<std::pair<QGraphicsEllipseItem *, ImportedVia>> vias_;
     std::vector<std::pair<QGraphicsItem *, ImportedPad>> pads_;
     std::vector<std::pair<QGraphicsLineItem *, ImportedOutlineEdge>> outlineEdges_;
+    std::vector<std::pair<QGraphicsEllipseItem *, ImportedCircle>> circles_;
     std::function<void(const QString &)> detailsCallback_;
     int skipped_ = 0;
     void refresh() {
@@ -87,7 +94,7 @@ class ImportedArtworkPanel final : public QWidget {
 #endif
         // A GPU backend change must never fabricate a successful PCB import.
         if (tracks_.empty() && arcs_.empty() && vias_.empty() && pads_.empty() &&
-            outlineEdges_.empty()) {
+            outlineEdges_.empty() && circles_.empty()) {
             summary_->setText("No imported PCB. Synthetic demo is a separate tab.\n"
                               "Artwork renderer: " + rendererStatus());
             if (detailsCallback_) detailsCallback_(summary_->text());
@@ -186,8 +193,9 @@ class ImportedArtworkPanel final : public QWidget {
                     .arg(static_cast<qlonglong>(arcs_.size())).arg(visibleArcs)
                     .arg(layersWithArcs.size()).arg(netsWithArcs.size());
         line += QString("\nBoard outline/cutout straight edges: %1"
-                        " (artwork only; NOT electrical geometry)")
-                    .arg(static_cast<qlonglong>(outlineEdges_.size()));
+                        " / analytical circles: %2 (artwork only; NOT electrical geometry)")
+                    .arg(static_cast<qlonglong>(outlineEdges_.size()))
+                    .arg(static_cast<qlonglong>(circles_.size()));
         line += QString("\nTop SMD: %1  Bottom SMD: %2")
                     .arg(static_cast<qlonglong>(pads_.size()) - bottomPads).arg(bottomPads);
         const auto selected = scene_->selectedItems();
@@ -258,6 +266,7 @@ public:
                 else if (kind == 2) selectPad(index);
                 else if (kind == 3) selectTrack(index);
                 else if (kind == 4) selectArc(index);
+                else if (kind == 5) selectCircle(index);
             });
         }
 #endif
@@ -322,6 +331,7 @@ public:
         vias_.clear();
         pads_.clear();
         outlineEdges_.clear();
+        circles_.clear();
         scene_->clear();
         layerVisible_.clear();
         layers_->clear();
@@ -340,12 +350,15 @@ public:
               const std::vector<ImportedVia> &viaInput = {},
               const std::vector<ImportedPad> &padInput = {},
               const std::vector<ImportedArc> &arcInput = {},
-              const std::vector<ImportedOutlineEdge> &outlineInput = {}) {
+              const std::vector<ImportedOutlineEdge> &outlineInput = {},
+              const std::vector<ImportedCircle> &circleInput = {}) {
         if (layerCount < 1 || layerCount > 64 ||
             (input.empty() && viaInput.empty() && padInput.empty() &&
-             arcInput.empty() && outlineInput.empty()) ||
+             arcInput.empty() && outlineInput.empty() && circleInput.empty()) ||
             input.size() + arcInput.size() > 10000 || viaInput.size() > 10000 ||
-            padInput.size() > 5000 || outlineInput.size() > 16384) return false;
+            padInput.size() > 5000 || outlineInput.size() > 16384 ||
+            circleInput.size() > 64 || outlineInput.size() + circleInput.size() > 16384)
+            return false;
         // Keep the old artwork untouched if a candidate fails validation.
         for (const auto &t : input) {
             if (t.layer <= 0 || t.layer > layerCount || t.width_nm <= 0 ||
@@ -419,7 +432,24 @@ public:
                 (e.x0_nm==e.x1_nm && e.y0_nm==e.y1_nm)) return false;
             ++expectedSequence;lastX=e.x1_nm;lastY=e.y1_nm;
         }
-        if (!closeRing() || (!outlineInput.empty() && outerRings!=1)) return false;
+        if (!closeRing()) return false;
+        int outerCircles=0;
+        QSet<QString> circleKeys;
+        for (const auto &c : circleInput) {
+            if (c.name.isEmpty() || c.name.size()>16 || c.radius_nm<=0 ||
+                c.cx_nm%254!=0 || c.cy_nm%254!=0 || c.radius_nm%254!=0)
+                return false;
+            for (const auto v : {c.cx_nm-c.radius_nm,c.cx_nm+c.radius_nm,
+                                 c.cy_nm-c.radius_nm,c.cy_nm+c.radius_nm}) {
+                if (v < -1422400000LL || v > 1422400000LL) return false;
+            }
+            const QString key=(c.cutout ? "CUT|" : "OUTER|")+c.name;
+            if(circleKeys.contains(key) || key==ringKey) return false;
+            circleKeys.insert(key);
+            if(!c.cutout) ++outerCircles;
+        }
+        if ((!outlineInput.empty() || !circleInput.empty()) &&
+            outerRings+outerCircles!=1) return false;
         {
             const QSignalBlocker muteSelection(scene_);
             tracks_.clear();
@@ -427,6 +457,7 @@ public:
             vias_.clear();
             pads_.clear();
             outlineEdges_.clear();
+            circles_.clear();
             scene_->clear();
         }
         layerVisible_ = QVector<bool>(layerCount + 1, true);
@@ -539,9 +570,22 @@ public:
                                          "Board Outline (not copper)");
             outlineEdges_.push_back({item,e});
         }
+        for (const auto &c : circleInput) {
+            const QColor color(c.cutout ? "#e99f87" : "#e0e8ee");
+            const qreal radius=c.radius_nm/1e6;
+            auto *item=scene_->addEllipse(
+                QRectF((c.cx_nm-c.radius_nm)/1e6,(-c.cy_nm-c.radius_nm)/1e6,
+                       2*radius,2*radius),QPen(color,0),Qt::NoBrush);
+            item->setData(1,QString("%1 %2 / centre (%3, %4) mm / radius %5 mm / not copper")
+                          .arg(c.cutout ? "Board Cutout" : "Board Outline")
+                          .arg(c.name).arg(c.cx_nm/1e6,0,'f',6)
+                          .arg(c.cy_nm/1e6,0,'f',6).arg(radius,0,'f',6));
+            item->setFlag(QGraphicsItem::ItemIsSelectable);
+            circles_.push_back({item,c});
+        }
         skipped_ = skipped;
 #ifdef BOARDSI_RHI_ARTWORK
-        if (rhi_) rhi_->load(layerCount,input,viaInput,padInput,arcInput,outlineInput);
+        if (rhi_) rhi_->load(layerCount,input,viaInput,padInput,arcInput,outlineInput,circleInput);
 #endif
         scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-1, -1, 1, 1));
         refresh();
@@ -550,7 +594,7 @@ public:
     }
     void fitArtwork() {
         if (!tracks_.empty() || !arcs_.empty() || !vias_.empty() ||
-            !pads_.empty() || !outlineEdges_.empty()) {
+            !pads_.empty() || !outlineEdges_.empty() || !circles_.empty()) {
             // Qt's Fit is cumulative with the existing view transform. Reset
             // first so a Fit after Zoom is repeatable and does not drift.
             view_->resetTransform();
@@ -563,6 +607,7 @@ public:
     int segmentCount() const { return static_cast<int>(tracks_.size()); }
     int arcCount() const { return static_cast<int>(arcs_.size()); }
     int outlineCount() const { return static_cast<int>(outlineEdges_.size()); }
+    int circleCount() const { return static_cast<int>(circles_.size()); }
     int viaCount() const { return static_cast<int>(vias_.size()); }
     int padCount() const { return static_cast<int>(pads_.size()); }
 #ifdef BOARDSI_RHI_ARTWORK
@@ -571,6 +616,12 @@ public:
         return rhi_ && canvasStack_->currentWidget() == rhi_;
     }
 #endif
+    bool selectCircle(int index) {
+        if (index < 0 || index >= static_cast<int>(circles_.size())) return false;
+        scene_->clearSelection();
+        circles_[static_cast<size_t>(index)].first->setSelected(true);
+        return true;
+    }
     bool selectArc(int index) {
         if (index < 0 || index >= static_cast<int>(arcs_.size())) return false;
         scene_->clearSelection();
