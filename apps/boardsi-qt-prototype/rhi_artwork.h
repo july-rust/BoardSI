@@ -610,7 +610,8 @@ public:
     void onChanged(std::function<void()> callback) {changed_=std::move(callback);}
     void onPicked(std::function<void(int,int)> callback) {artwork_->onPicked(std::move(callback));}
     void load(int layers,const std::vector<ImportedTrack> &tracks,
-              const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads) {
+              const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads,
+              const std::vector<ImportedArc> &arcs = {}) {
         seenFrame_=false;
         status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
         artwork_->load(layers,tracks,vias,pads,arcs);
