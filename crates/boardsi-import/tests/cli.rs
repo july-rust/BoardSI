@@ -194,7 +194,7 @@ fn p2g_cli_refuses_lines_get_instead_of_silently_losing_board_boundary() {
     // succeed while silently dropping an explicit BOARD perimeter.
     let with_get = original.replace(
         "MAIN_BOARD BOARD",
-        "*GET* UNVERIFIED_LIBRARY_OUTLINE\\nMAIN_BOARD BOARD",
+        "*GET* UNVERIFIED_LIBRARY_OUTLINE\nMAIN_BOARD BOARD",
     );
     let path = std::env::temp_dir().join(format!(
         "boardsi_p2g_get_fails_closed_{}.asc",
