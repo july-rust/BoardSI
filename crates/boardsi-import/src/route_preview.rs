@@ -581,10 +581,11 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     let has_pad = !crate::part_preview::parse(source.as_bytes(), max_layer)
         .pads
         .is_empty();
-    if !found_route && !has_pad {
+    let has_outline = !crate::outline_preview::parse(source.as_bytes())?.is_empty();
+    if !found_route && !has_pad && !has_outline {
         return Err("MISSING_ROUTE_SECTION");
     }
-    if segments.is_empty() && arcs.is_empty() && vias.is_empty() && !has_pad {
+    if segments.is_empty() && arcs.is_empty() && vias.is_empty() && !has_pad && !has_outline {
         return Err("NO_SUPPORTED_TRACES");
     }
     Ok(Artwork {
