@@ -39,16 +39,16 @@ try {
 } finally {$env:PATH=$priorPath}
 New-Item -ItemType Directory -Path (Join-Path $stage 'platforms') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $qt 'plugins/platforms/qwindows.dll') -Destination (Join-Path $stage 'platforms/qwindows.dll')
-$expected=@('Qt6Core.dll','Qt6Gui.dll','Qt6Network.dll','Qt6Widgets.dll') | Sort-Object
+$expected=@('Qt6Core.dll','Qt6Gui.dll','Qt6Network.dll','Qt6OpenGL.dll','Qt6OpenGLWidgets.dll','Qt6Widgets.dll') | Sort-Object
 $found=@(Get-ChildItem -LiteralPath $stage -File -Filter 'Qt6*.dll' | Select-Object -ExpandProperty Name | Sort-Object)
 if (@(Compare-Object $expected $found).Count -gt 0) { throw "Unexpected Qt module set: $($found -join ',')" }
 $crt=@(Get-ChildItem -LiteralPath $stage -Recurse -File | Where-Object {$_.Name -match '^(vcruntime|msvcp|concrt|ucrtbase|api-ms-win-).*\.dll$'})
 if ($crt.Count -gt 0) {throw 'Do not redistribute individual MSVC CRT DLL files'}
 
 # No 3rd-party DXC/DirectX/OpenSSL or compiler DLL may slip into a test
-# artifact without separate notices/provenance. Only four QtBase shared
-# libraries and the QtBase Windows platform plugin are approved.
-$allowedDlls=@('Qt6Core.dll','Qt6Gui.dll','Qt6Network.dll','Qt6Widgets.dll','platforms/qwindows.dll')
+# artifact without separate notices/provenance. Only the six explicit QtBase
+# shared libraries and the QtBase Windows platform plugin are approved.
+$allowedDlls=@('Qt6Core.dll','Qt6Gui.dll','Qt6Network.dll','Qt6OpenGL.dll','Qt6OpenGLWidgets.dll','Qt6Widgets.dll','platforms/qwindows.dll')
 $otherDlls=@(Get-ChildItem -LiteralPath $stage -Recurse -File -Filter '*.dll' | Where-Object {
     $relative=$_.FullName.Substring($stage.Length+1).Replace('\','/')
     $allowedDlls -cnotcontains $relative
@@ -115,7 +115,7 @@ BoardSI P2-A Windows x64 QT-BUNDLED TEST PACKAGE (NOT A RELEASE)
    Visual C++ 2015-2022 x64 Redistributable:
    https://aka.ms/vs/17/release/vc_redist.x64.exe
 
-Qt 6.8.3 Core, Gui, Network, Widgets and qwindows are dynamically linked
+Qt 6.8.3 Core, Gui, Network, OpenGL, OpenGLWidgets, Widgets and qwindows are dynamically linked
 and user-replaceable. Qt is copyright The Qt Company Ltd and contributors.
 Full LGPLv3 and GPLv3 texts: LICENSES/ directory.
 The COMPLETE EXACT QtBase 6.8.3 upstream source (including bundled
@@ -132,8 +132,8 @@ This is a development Preview only, NOT an SI analysis product.
 '@ | Set-Content -LiteralPath (Join-Path $stage 'README.txt') -Encoding utf8
 @'
 NOTICE: BoardSI uses Qt 6.8.3 under LGPLv3. The Windows x64 test
-package includes unmodified dynamically linked QtCore, QtGui, QtNetwork, QtWidgets
-and the Windows qwindows platform plugin. Qt and other license terms,
+package includes unmodified dynamically linked QtCore, QtGui, QtNetwork,
+QtOpenGL, QtOpenGLWidgets, QtWidgets and the Windows qwindows platform plugin. Qt and other license terms,
 attributions and the complete upstream QtBase source code are included
 in the same package. Qt DLLs can be replaced with ABI-compatible
 modified versions. Read ../README.txt and the full LGPLv3/GPLv3 texts.

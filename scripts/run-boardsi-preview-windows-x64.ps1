@@ -36,7 +36,7 @@ $bundled = $packed -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'Qt6Cor
 if ($bundled) {
     $qtBin = $PSScriptRoot
     $platformDll = Join-Path $PSScriptRoot 'platforms/qwindows.dll'
-    foreach ($file in @('Qt6Core.dll','Qt6Gui.dll','Qt6Network.dll','Qt6Widgets.dll','platforms/qwindows.dll',
+    foreach ($file in @('Qt6Core.dll','Qt6Gui.dll','Qt6Network.dll','Qt6OpenGL.dll','Qt6OpenGLWidgets.dll','Qt6Widgets.dll','platforms/qwindows.dll',
                        'qt.conf','LICENSES/LGPL-3.0-only.txt','LICENSES/GPL-3.0-only.txt',
                        'source/qtbase-v6.8.3-source.zip', 'SHA256SUMS.txt')) {
         $expected = Join-Path $PSScriptRoot $file
@@ -125,6 +125,12 @@ foreach ($native in @($preview, $worker, $importer,
                        (Join-Path $qtBin 'Qt6Network.dll'),
                        (Join-Path $qtBin 'Qt6Widgets.dll'), $platformDll)) {
     Assert-Amd64PeFile $native
+}
+# The bundled GPU-enabled package must include both extra Qt DLLs, while
+# source developer builds without Qt OpenGLWidgets remain runnable via CPU.
+if ($bundled) {
+    Assert-Amd64PeFile (Join-Path $qtBin 'Qt6OpenGL.dll')
+    Assert-Amd64PeFile (Join-Path $qtBin 'Qt6OpenGLWidgets.dll')
 }
 if ([string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
     $workingDirectory = $defaultWorkingDirectory

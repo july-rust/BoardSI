@@ -146,3 +146,51 @@ P1 is a narrow runnable UI slice of the existing [M1 Artwork issue](https://gith
 It does NOT close that issue's full real-board U08/T03/T34 acceptance contract.
 The independent M0 F1/F6/F7 legal/hardware gates and the Qt binary
 redistribution restriction remain unchanged; no Qt executables are published.
+
+
+## GPU-first Artwork rendering policy (A_014 incremental implementation)
+
+**Default: GPU preferred, not GPU guaranteed.** The existing Qt Widgets
+QGraphicsScene/QGraphicsView retained all Canonical artwork selection, layers,
+pan/zoom and Properties behavior. The common `SyntheticArtworkCanvas` now
+checks real OpenGL context/surface capability on first visible display and,
+when the renderer matches a known hardware adapter and is not a software driver, switches to a QOpenGLWidget
+viewport. Qt frameSwapped is required before reporting `GPU_OPENGL_ACTIVE`.
+This is an initial acceleration path, **not** evidence of batching, FPS, or
+whole-scene GPU rasterization: individual QGraphicsItem/QPainter primitives may
+remain CPU constrained.
+
+- `BOARDSI_ARTWORK_RENDERER=auto` or unset: GPU preferred (default);
+  hardware unavailable, invalid context or headless => explicit CPU fallback.
+- `BOARDSI_ARTWORK_RENDERER=gpu`: same GPU-first *request*; still fails safely
+  to CPU when no usable hardware can be verified, without falsely claiming GPU.
+- `BOARDSI_ARTWORK_RENDERER=cpu`: deterministic software viewport for
+  troubleshooting and CI. Unsupported setting fails to CPU.
+- Qt OpenGLWidgets is an optional CMake component for build compatibility:
+  module missing => explicit CPU fallback, never silently claim GPU.
+- Properties include `Artwork renderer` actual state. The
+  `--renderer-selftest` receipt `qt-preview-renderer-results.json` includes
+  configured policy, backend, adapter, first confirmed GL frame and source SHA.
+  Offscreen CI asserts CPU fallback; native desktop CI records real backend.
+- `GPU_OPENGL_PENDING_FRAME` does not count as GPU acceleration. A 3-second
+  no-frame timeout reverts to CPU. Hidden/imported tabs are probed only when
+  first displayed rather than timing out while inactive.
+- `QGraphicsView` uses FullViewportUpdate with QOpenGLWidget per Qt guidance.
+
+**Future high-volume PCB renderer:** do not use a QOpenGLWidget as a permanent
+cross-platform Metal/Direct3D engine. Preserve the Canonical source and Qt
+Widgets UI while isolating a renderer interface, then profile 10k/100k/1M
+synthetic geometry for first render, pan/zoom, memory, selection, culling and
+frame times on Windows x64/ARM64 and macOS ARM64. Compare Qt Quick Scene Graph
+/ Qt RHI (Metal on macOS, Direct3D on Windows) to current CPU/GL paths, with
+LOD/tiling/batching/spatial indexes. A tentative target of 60 FPS is a goal,
+**not** an acceptance measurement. Qt Quick 3D exists but BoardSI does not
+implement 3D PCB visualization or 3D EM analysis in this change.
+
+Documentation:
+- Qt QGraphicsView OpenGL viewport: https://doc.qt.io/qt-6/qgraphicsview.html
+- Qt Graphics/RHI and Quick 3D: https://doc.qt.io/qt-6/topics-graphics.html
+- Qt Quick embedding Widgets caveats:
+  https://doc.qt.io/qt-6/qtquick-embeddedinwidgets-example.html
+- Reuses BoardSI Qt 6.8.3 deployment LGPLv3 prototype policy; all distribution
+  obligations and dependencies require separate verification.

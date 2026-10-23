@@ -620,6 +620,97 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
 
 
 
+
+static int runRendererSmoke(PreviewWindow &window) {
+    QElapsedTimer clock;
+    clock.start();
+    QEventLoop loop;
+    auto *canvas = window.artworkPanel()->canvas();
+    const bool validCanvas = canvas != nullptr;
+    QTimer monitor;
+    QObject::connect(&monitor, &QTimer::timeout, &loop, [&] {
+        if (!validCanvas) { loop.quit(); return; }
+        const QString status = canvas->rendererStatus();
+        if (status.startsWith("CPU_") || status == "GPU_OPENGL_ACTIVE")
+            loop.quit();
+    });
+    // The GPU path is only verified after a real frameSwapped signal.
+    // Allow the renderer's 3000 ms no-frame fallback before time-out.
+    QTimer::singleShot(3900, &loop, &QEventLoop::quit);
+    monitor.start(20);
+    loop.exec();
+    monitor.stop();
+    const QString status = validCanvas ? canvas->rendererStatus() : "MISSING_CANVAS";
+    const QString requested = qEnvironmentVariable("BOARDSI_ARTWORK_RENDERER")
+                                 .trimmed().toLower();
+    const bool forcedCpu = requested == "cpu";
+    bool actualGlViewport = false;
+#ifdef BOARDSI_OPENGL_VIEWPORT
+    if (validCanvas)
+        actualGlViewport = qobject_cast<QOpenGLWidget *>(canvas->viewport()) != nullptr;
+#endif
+    const bool policy = validCanvas && canvas->rendererPolicy() == "GPU_PREFERRED" &&
+                        window.importPanel()->imported()->rendererPolicy() == "GPU_PREFERRED";
+    const bool softwareClassifier =
+        SyntheticArtworkCanvas::isSoftwareRendererLabel("Apple Software Renderer") &&
+        SyntheticArtworkCanvas::isSoftwareRendererLabel("llvmpipe (LLVM 15)") &&
+        SyntheticArtworkCanvas::isSoftwareRendererLabel("SwiftShader Device") &&
+        SyntheticArtworkCanvas::isSoftwareRendererLabel("Microsoft Basic Render Driver") &&
+        !SyntheticArtworkCanvas::isSoftwareRendererLabel("Apple M3") &&
+        !SyntheticArtworkCanvas::isSoftwareRendererLabel("Mesa Intel(R) Graphics") &&
+        !SyntheticArtworkCanvas::isSoftwareRendererLabel("NVIDIA GeForce RTX 4070") &&
+        SyntheticArtworkCanvas::isSoftwareRendererLabel("OpenSWR") &&
+        !SyntheticArtworkCanvas::isKnownHardwareRendererLabel("OpenSWR") &&
+        !SyntheticArtworkCanvas::isKnownHardwareRendererLabel("Unknown adapter") &&
+        !SyntheticArtworkCanvas::isKnownHardwareRendererLabel("Apple Software Renderer") &&
+        SyntheticArtworkCanvas::isKnownHardwareRendererLabel("Apple M3") &&
+        SyntheticArtworkCanvas::isKnownHardwareRendererLabel("NVIDIA GeForce RTX 4070") &&
+        SyntheticArtworkCanvas::isKnownHardwareRendererLabel("Mesa Intel(R) Graphics");
+    const bool mode = forcedCpu ? (status == "CPU_FORCED" && !actualGlViewport) :
+        ((status.startsWith("CPU_FALLBACK_") && !actualGlViewport) ||
+         (status == "GPU_OPENGL_ACTIVE" && actualGlViewport));
+    // Force first display of the empty Imported tab; the renderer update
+    // must not turn an empty view into a false "IMPORTED PARTIAL" state.
+    auto *imported = window.importPanel()->imported();
+    auto *tabs = window.importPanel()->artworkTabs();
+    tabs->setCurrentWidget(imported);
+    QEventLoop emptyLoop;
+    QTimer::singleShot(120, &emptyLoop, &QEventLoop::quit);
+    emptyLoop.exec();
+    const bool emptyImportStatus = imported->summaryText().contains("No imported PCB") &&
+        !imported->summaryText().contains("IMPORTED PARTIAL") &&
+        imported->padCount() == 0 && imported->segmentCount() == 0 &&
+        imported->viaCount() == 0;
+    tabs->setCurrentIndex(0);
+    // Pending contexts are NOT GPU results, regardless of GL availability.
+    const bool completed = status == "GPU_OPENGL_ACTIVE" ||
+                           status.startsWith("CPU_");
+    const bool passed = policy && mode && completed && softwareClassifier && emptyImportStatus;
+    QJsonObject record{
+        {"schema", "boardsi-preview-renderer-policy-v1"},
+        {"pass", passed},
+        {"default_renderer_policy", "GPU_PREFERRED"},
+        {"renderer_setting", requested.isEmpty() ? QString("auto") : requested},
+        {"synthetic_renderer_status", status},
+        {"imported_renderer_status", window.importPanel()->imported()->rendererStatus()},
+        {"actual_gl_viewport", actualGlViewport},
+        {"gpu_frame_confirmed", status == "GPU_OPENGL_ACTIVE"},
+        {"software_driver_classification_verified", softwareClassifier},
+        {"empty_imported_view_preserved", emptyImportStatus},
+        {"gpu_adapter", validCanvas ? canvas->rendererName() : QString()},
+        {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"native_backend", QGuiApplication::platformName()},
+        {"host_arch", QSysInfo::currentCpuArchitecture()},
+        {"elapsed_ms", clock.elapsed()},
+        {"scope", "GPU-first Qt OpenGL viewport policy only, no GPU throughput or SI claims"}
+    };
+    QFile evidence("qt-preview-renderer-results.json");
+    if (!evidence.open(QIODevice::WriteOnly) ||
+        evidence.write(QJsonDocument(record).toJson(QJsonDocument::Indented)) < 1) return 2;
+    qInfo().noquote() << QJsonDocument(record).toJson(QJsonDocument::Compact);
+    return passed ? 0 : 1;
+}
+
 static int runPadSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock;
     clock.start();
@@ -942,12 +1033,13 @@ static int runViaSmoke(PreviewWindow &window, const QString &fixture) {
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    const bool rendererTesting = args.size() == 5 && args.at(1) == "--renderer-selftest";
     const bool viaTesting = args.size() == 7 && args.at(1) == "--via-selftest";
     const bool padTesting = args.size() == 7 && args.at(1) == "--pad-selftest";
     const bool rectTesting = args.size() == 7 && args.at(1) == "--rect-selftest";
     const bool bottomTesting = args.size() == 7 && args.at(1) == "--bottom-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
-                         viaTesting || padTesting || rectTesting || bottomTesting;
+                         rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -970,7 +1062,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return bottomTesting ? runBottomSmoke(window, fixture) :
+    return rendererTesting ? runRendererSmoke(window) :
+           bottomTesting ? runBottomSmoke(window, fixture) :
            rectTesting ? runRectSmoke(window, fixture) :
            padTesting ? runPadSmoke(window, fixture) :
            viaTesting ? runViaSmoke(window, fixture) :

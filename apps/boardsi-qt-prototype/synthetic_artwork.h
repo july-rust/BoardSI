@@ -13,6 +13,15 @@
 #include <QLineF>
 #include <QLabel>
 #include <QPainter>
+#include <QGuiApplication>
+#include <QOffscreenSurface>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
+#include <QPointer>
+#include <QShowEvent>
+#ifdef BOARDSI_OPENGL_VIEWPORT
+#include <QOpenGLWidget>
+#endif
 #include <QPen>
 #include <QPointF>
 #include <QRectF>
@@ -27,8 +36,120 @@
 #include <vector>
 #include <utility>
 
+
+// GPU-first is an artwork *viewport* policy, not a promise that all QPainter
+// items are batched or hardware rasterized. Do not confuse OpenGL/Mesa software
+// contexts with hardware GPU acceleration. The default is GPU-preferred.
+// BOARDSI_ARTWORK_RENDERER=cpu is a stable, documented CPU fallback / test mode.
 class SyntheticArtworkCanvas final : public QGraphicsView {
+    QString rendererStatus_ = "GPU_PREFERRED_NOT_PROBED";
+    QString rendererName_;
+    std::function<void()> rendererChanged_;
+#ifdef BOARDSI_OPENGL_VIEWPORT
+    QPointer<QOpenGLWidget> gpuViewport_;
+#endif
+
+    void setRendererStatus(const QString &status) {
+        if (rendererStatus_ == status) return;
+        rendererStatus_ = status;
+        if (rendererChanged_) {
+            QTimer::singleShot(0, this, [this] {
+                if (rendererChanged_) rendererChanged_();
+            });
+        }
+    }
+
+    void chooseRenderer() {
+        const QString setting = qEnvironmentVariable("BOARDSI_ARTWORK_RENDERER")
+                                    .trimmed().toLower();
+        if (setting == "cpu") {
+            setRendererStatus("CPU_FORCED");
+            return;
+        }
+        if (!setting.isEmpty() && setting != "auto" && setting != "gpu") {
+            setRendererStatus("CPU_FALLBACK_INVALID_SETTING");
+            return;
+        }
+        if (QGuiApplication::platformName() == "offscreen" ||
+            QGuiApplication::platformName() == "minimal") {
+            setRendererStatus("CPU_FALLBACK_HEADLESS");
+            return;
+        }
+#ifndef BOARDSI_OPENGL_VIEWPORT
+        setRendererStatus("CPU_FALLBACK_OPENGL_WIDGETS_UNAVAILABLE");
+#else
+        // One bounded, native GUI-thread probe. An offscreen GL context alone
+        // is insufficient proof of hardware execution: inspect GL_RENDERER.
+        QOpenGLContext context;
+        if (!context.create()) {
+            setRendererStatus("CPU_FALLBACK_NO_GL_CONTEXT");
+            return;
+        }
+        QOffscreenSurface surface;
+        surface.setFormat(context.format());
+        surface.create();
+        if (!surface.isValid() || !context.makeCurrent(&surface)) {
+            setRendererStatus("CPU_FALLBACK_NO_GL_SURFACE");
+            return;
+        }
+        const auto rendererBytes = context.functions()->glGetString(GL_RENDERER);
+        rendererName_ = rendererBytes
+            ? QString::fromLatin1(reinterpret_cast<const char *>(rendererBytes))
+            : QString();
+        context.doneCurrent();
+        if (isSoftwareRendererLabel(rendererName_) ||
+            !isKnownHardwareRendererLabel(rendererName_)) {
+            setRendererStatus("CPU_FALLBACK_SOFTWARE_GL_OR_UNKNOWN");
+            return;
+        }
+        auto *gpu = new QOpenGLWidget(this);
+        gpuViewport_ = gpu;
+        // QOpenGLWidget requires complete viewport repaints in Graphics View.
+        setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
+        setViewport(gpu);
+        setRendererStatus("GPU_OPENGL_PENDING_FRAME");
+        connect(gpu, &QOpenGLWidget::frameSwapped, this, [this] {
+            if (rendererStatus_ == "GPU_OPENGL_PENDING_FRAME")
+                setRendererStatus("GPU_OPENGL_ACTIVE");
+        });
+        // Context creation is not a successful *draw*. If the viewport never
+        // produces a frame, fail closed instead of claiming GPU acceleration.
+        QTimer::singleShot(3000, this, [this] {
+            if (rendererStatus_ != "GPU_OPENGL_PENDING_FRAME") return;
+            setRendererStatus("CPU_FALLBACK_GL_NO_FRAME");
+            gpuViewport_.clear();
+            setViewport(new QWidget(this));
+            setViewportUpdateMode(QGraphicsView::MinimalViewportUpdate);
+        });
+#endif
+    }
+
 public:
+    // Driver strings are not a general GPU certification API. Recognize
+    // well-known software OpenGL implementations and reject unknown strings.
+    static bool isSoftwareRendererLabel(const QString &renderer) {
+        const QString label = renderer.toLower();
+        return label.isEmpty() || label.contains("llvmpipe") ||
+               label.contains("softpipe") || label.contains("software rasterizer") ||
+               label.contains("software renderer") ||
+               label.contains("swiftshader") || label.contains("gdi generic") ||
+               label.contains("microsoft basic render") ||
+               label.contains("swrast") || label.contains("soft raster") ||
+               label.contains("openswr") || label.contains("warp rasterizer");
+    }
+    // A denylist alone is unsafe: unknown strings must not become "GPU".
+    // This is a conservative driver-name classification, not a cryptographic
+    // attestation. Unknown adapters correctly fall back to CPU.
+    static bool isKnownHardwareRendererLabel(const QString &renderer) {
+        const QString label = renderer.toLower();
+        return label.contains("nvidia") || label.contains("geforce") ||
+               label.contains("quadro") || label.contains("radeon") ||
+               label.contains("amd ") || label.contains("ati ") ||
+               label.contains("intel") || label.contains("iris") ||
+               label.contains("apple m") || label.contains("apple gpu") ||
+               label.contains("adreno") || label.contains("mali-") ||
+               label.contains("powervr") || label.contains("vivante");
+    }
     explicit SyntheticArtworkCanvas(QGraphicsScene *scene, QWidget *parent = nullptr)
         : QGraphicsView(scene, parent) {
         setRenderHint(QPainter::Antialiasing);
@@ -36,9 +157,25 @@ public:
         setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
         setBackgroundBrush(QColor("#111923"));
         setMinimumHeight(220);
+        // GPU probing is deferred to showEvent, when the tab is actually visible.
+        // An inactive Imported tab must not fail its frame timeout while hidden.
+    }
+
+    QString rendererStatus() const { return rendererStatus_; }
+    QString rendererName() const { return rendererName_; }
+    QString rendererPolicy() const { return "GPU_PREFERRED"; }
+    void setRendererChangedCallback(std::function<void()> callback) {
+        rendererChanged_ = std::move(callback);
     }
 
 protected:
+    void showEvent(QShowEvent *event) override {
+        QGraphicsView::showEvent(event);
+        if (rendererStatus_ != "GPU_PREFERRED_NOT_PROBED") return;
+        rendererStatus_ = "GPU_PROBING";
+        QTimer::singleShot(0, this, [this] { chooseRenderer(); });
+    }
+
     void wheelEvent(QWheelEvent *event) override {
         const int delta = event->angleDelta().y();
         if (delta == 0) {
@@ -146,7 +283,7 @@ class SyntheticArtworkPanel final : public QWidget {
                 if (net != "All nets" && primitive.net == net) ++highlighted;
             }
         }
-        const QString state = QString(
+        QString state = QString(
             "SYNTHETIC FIXTURE ONLY / NOT IMPORTED\n"
             "Net: %1\nTop: %2  Bottom: %3\n"
             "Visible primitives: %4  Highlighted: %5\n"
@@ -155,6 +292,7 @@ class SyntheticArtworkPanel final : public QWidget {
             .arg(top_->isChecked() ? "shown" : "hidden")
             .arg(bottom_->isChecked() ? "shown" : "hidden")
             .arg(visible).arg(highlighted);
+        state += "\nArtwork renderer: " + canvas_->rendererStatus();
         summary_->setText(state);
         if (detailsCallback_) detailsCallback_(state);
     }
@@ -196,6 +334,7 @@ public:
         summary_->setWordWrap(true);
         layout->addWidget(summary_);
         createFixture();
+        canvas_->setRendererChangedCallback([this] { refreshArtwork(); });
 
         connect(top_, &QCheckBox::toggled, this, [this] { refreshArtwork(); });
         connect(bottom_, &QCheckBox::toggled, this, [this] { refreshArtwork(); });
@@ -264,4 +403,7 @@ public:
         return count;
     }
     qreal canvasScale() const { return canvas_->transform().m11(); }
+    QString rendererStatus() const { return canvas_->rendererStatus(); }
+    QString rendererPolicy() const { return canvas_->rendererPolicy(); }
+    SyntheticArtworkCanvas *canvas() const { return canvas_; }
 };
