@@ -1327,8 +1327,11 @@ mod p2b_via_regressions {
         let model = into_canonical(source.as_bytes(), &a).unwrap();
         assert_eq!(model.arcs.len(), 1);
         assert!(model.traces.is_empty());
-        assert!(model.sources[0].capability.object_coverage
-            .iter().any(|item| item.contains("CW/CCW Arc")));
+        assert!(model.sources[0]
+            .capability
+            .object_coverage
+            .iter()
+            .any(|item| item.contains("CW/CCW Arc")));
         assert!(!model.validate().has_errors());
         let cw = source.replace("4096 CCW", "4096 CW");
         assert!(parse(cw.as_bytes()).unwrap().arcs[0].clockwise);
