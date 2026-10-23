@@ -421,7 +421,10 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
                 if let Some((start, old_layer, old_width)) = previous {
                     if old_layer == layer && old_width == width && start != p {
                         pending_arc = Some(PendingArc {
-                            start, centre: p, layer, width,
+                            start,
+                            centre: p,
+                            layer,
+                            width,
                             clockwise: fields[5] == "CW",
                         });
                         continue;
@@ -433,8 +436,14 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
             continue;
         }
         // A bad endpoint must not silently turn an arc into a straight chord.
-        if let Some(PendingArc { start, centre, layer: arc_layer,
-                                 width: arc_width, clockwise }) = pending_arc.take() {
+        if let Some(PendingArc {
+            start,
+            centre,
+            layer: arc_layer,
+            width: arc_width,
+            clockwise,
+        }) = pending_arc.take()
+        {
             let effective_layer = if layer == 65 { arc_layer } else { layer };
             let radius_sq = |vertex: [i64; 2]| {
                 let dx = i128::from(vertex[0]) - i128::from(centre[0]);
@@ -906,7 +915,12 @@ mod tests {
             "MISSING_END_MARKER"
         );
         // A strict CW centre with equal-radius endpoints is supported in A_015.
-        let arc = parse(SAMPLE.replace("300 200 1 10 0", "300 200 1 10 4096 CW").as_bytes()).unwrap();
+        let arc = parse(
+            SAMPLE
+                .replace("300 200 1 10 0", "300 200 1 10 4096 CW")
+                .as_bytes(),
+        )
+        .unwrap();
         assert_eq!(arc.arcs.len(), 1);
         assert!(arc.segments.is_empty());
         assert_eq!(
