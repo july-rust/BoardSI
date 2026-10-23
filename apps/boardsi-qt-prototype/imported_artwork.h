@@ -50,6 +50,13 @@ class ImportedArtworkPanel final : public QWidget {
     std::function<void(const QString &)> detailsCallback_;
     int skipped_ = 0;
     void refresh() {
+        // A GPU backend change must never fabricate a successful PCB import.
+        if (tracks_.empty() && vias_.empty() && pads_.empty()) {
+            summary_->setText("No imported PCB. Synthetic demo is a separate tab.\n"
+                              "Artwork renderer: " + view_->rendererStatus());
+            if (detailsCallback_) detailsCallback_(summary_->text());
+            return;
+        }
         const QString net = nets_->currentText();
         int visible = 0;
         int highlighted = 0;
@@ -220,7 +227,8 @@ public:
         nets_->addItem("All nets");
         skipped_ = 0;
         scene_->setSceneRect(QRectF());
-        summary_->setText("No imported PCB. Synthetic demo is a separate tab.");
+        summary_->setText("No imported PCB. Synthetic demo is a separate tab.\n"
+                          "Artwork renderer: " + view_->rendererStatus());
         if (detailsCallback_) detailsCallback_(summary_->text());
     }
     bool load(int layerCount, int skipped, const std::vector<ImportedTrack> &input,
@@ -385,4 +393,5 @@ public:
     qreal scale() const { return view_->transform().m11(); }
     QString rendererStatus() const { return view_->rendererStatus(); }
     QString rendererPolicy() const { return view_->rendererPolicy(); }
+    QString summaryText() const { return summary_->text(); }
 };
