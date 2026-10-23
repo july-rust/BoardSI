@@ -283,10 +283,11 @@ protected:
         // A hidden import tab is not a failed GPU. Start the frame deadline
         // only after the native window container is actually displayed.
         QTimer::singleShot(3000,this,[this] {
-            if (!seenFrame_ && !failed()) {
-                status_="CPU_FALLBACK_RHI_NO_FRAME";
-                if (changed_) changed_();
-            }
+            if (seenFrame_ || failed()) return;
+            // Inactive tabs must not time out while hidden.
+            if (!isVisible()) { timeoutStarted_=false; return; }
+            status_="CPU_FALLBACK_RHI_NO_FRAME";
+            if (changed_) changed_();
         });
     }
 private:
