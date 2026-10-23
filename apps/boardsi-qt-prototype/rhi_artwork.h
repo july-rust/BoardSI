@@ -462,7 +462,7 @@ public:
         }
     }
     int primitiveCount() const {
-        return static_cast<int>(tracks_.size()+vias_.size()+pads_.size());
+        return static_cast<int>(tracks_.size()+vias_.size()+pads_.size()+arcs_.size());
     }
     // 1: D3D11 non-software adapter; -1: WARP; -2: unavailable;
     // 0: pending; 2: platform other than Windows.
