@@ -135,10 +135,10 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
     let mut in_lines = false;
     let mut i = 1usize; // Header checked by the existing route parser.
     while i < lines.len() {
-        let raw = lines[i].trim();
-        if raw.len() > 16_384 {
+        if lines[i].len() > 16_384 {
             return Err("OVERLONG_LINE");
         }
+        let raw = lines[i].trim();
         let f: Vec<&str> = raw.split_ascii_whitespace().collect();
         if f.is_empty() || f[0] == "*REMARK*" || f[0] == "REMARK" {
             i += 1;
@@ -178,11 +178,11 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
         }
         let source_line = i + 1;
         i += 1;
-        let p: Vec<&str> = lines
-            .get(i)
-            .ok_or("TRUNCATED_OUTLINE")?
-            .split_ascii_whitespace()
-            .collect();
+        let piece_line = lines.get(i).ok_or("TRUNCATED_OUTLINE")?;
+        if piece_line.len() > 16_384 {
+            return Err("OVERLONG_LINE");
+        }
+        let p: Vec<&str> = piece_line.split_ascii_whitespace().collect();
         if p.len() != 5 || !matches!(p[0], "CLOSED" | "BRDCLS") || p[3] != "0" || p[4] != "0" {
             return Err("UNSUPPORTED_OUTLINE_PIECE");
         }
@@ -199,6 +199,9 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
         let mut vertices = Vec::with_capacity(count);
         for _ in 0..count {
             let row = lines.get(i).ok_or("TRUNCATED_OUTLINE")?;
+            if row.len() > 16_384 {
+                return Err("OVERLONG_LINE");
+            }
             let pts: Vec<_> = row.split_ascii_whitespace().collect();
             if pts.len() != 2 {
                 return Err("UNSUPPORTED_OUTLINE_ARC_OR_POINT");
@@ -333,6 +336,13 @@ mod tests {
         assert_eq!(model.outlines.len(), 1);
         assert_eq!(model.outlines[0].outer.segments.len(), 4);
         assert_eq!(model.outlines[0].cutouts.len(), 1);
+    }
+    #[test]
+    fn rejects_oversized_piece_headers_and_vertex_rows() {
+        let piece = INPUT.replace("CLOSED 5 1 0 0", &format!("CLOSED 5 1 0 0{}", " ".repeat(16_385)));
+        let vertex = INPUT.replace("400 300", &format!("400 300{}", " ".repeat(16_385)));
+        assert_eq!(parse(piece.as_bytes()).unwrap_err(), "OVERLONG_LINE");
+        assert_eq!(parse(vertex.as_bytes()).unwrap_err(), "OVERLONG_LINE");
     }
     #[test]
     fn rejects_broken_shapes_and_unsupported_arcs() {
