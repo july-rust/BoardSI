@@ -715,6 +715,7 @@ static int runRendererSmoke(PreviewWindow &window) {
 static int runArcSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock; clock.start();
     bool passed=false; QString failure;
+    bool rhiChecked=false, rhiSweepOk=false, rhiPickOk=false;
     QEventLoop loop;
     if(!window.openCandidate(fixture)) failure="A_015 public arc fixture unavailable";
     else {
@@ -740,8 +741,22 @@ static int runArcSmoke(PreviewWindow &window, const QString &fixture) {
             const bool selected=panel->selectArc(0);
             const bool props=window.displayedProperties().contains("Arc trace") &&
                              window.displayedProperties().contains("SI NOT_RUN");
+#ifdef BOARDSI_RHI_ARTWORK
+            if(auto *rhi=panel->rhiViewForTest();
+               rhi && panel->rhiCanvasActiveForTest()) {
+                rhiChecked=true;
+                auto *item=rhi->itemForTest();
+                rhiSweepOk=item->arcSweepForTest(0,false) &&
+                            item->arcSweepForTest(1,true);
+                // This dispatch exercises the RHI item's real event hit-test
+                // and onPicked callback rather than selecting the hidden scene.
+                rhiPickOk=item->dispatchArcPickForTest(0) &&
+                          window.displayedProperties().contains("Arc trace");
+            }
+#endif
             passed=panel->arcCount()==2 && panel->segmentCount()==1 &&
-                   ccw && cw && selected && props;
+                   ccw && cw && selected && props &&
+                   (!rhiChecked || (rhiSweepOk && rhiPickOk));
             if(!passed)failure="A_015 geometry/count/provenance/selection mismatch";
             loop.quit();
         });
@@ -754,6 +769,9 @@ static int runArcSmoke(PreviewWindow &window, const QString &fixture) {
        {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
        {"native_backend",QGuiApplication::platformName()},
        {"host_arch",QSysInfo::currentCpuArchitecture()},
+       {"rhi_arc_gate_checked",rhiChecked},
+       {"rhi_arc_sweep_pass",rhiSweepOk},
+       {"rhi_arc_pick_dispatch_pass",rhiPickOk},
        {"scope","public synthetic exact route arcs; connectivity NOT_VERIFIED; SI NOT_RUN"}};
     QFile receipt("qt-preview-p2f-arc-results.json");
     if(!receipt.open(QIODevice::WriteOnly) ||
