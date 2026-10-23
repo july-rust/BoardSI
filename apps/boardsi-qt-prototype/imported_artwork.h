@@ -5,6 +5,9 @@
 #include <QGraphicsLineItem>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsRectItem>
+#include <QGraphicsPathItem>
+#include <QPainterPath>
+#include <cmath>
 #include <QLabel>
 #include <QPushButton>
 #include <QSet>
@@ -21,6 +24,17 @@ struct ImportedTrack {
     int layer = 0;
     QString net;
     qint64 x0_nm = 0, y0_nm = 0, x1_nm = 0, y1_nm = 0, width_nm = 0;
+};
+
+struct ImportedArc {
+    int layer = 0;
+    QString net;
+    qint64 x0_nm = 0, y0_nm = 0;
+    qint64 cx_nm = 0, cy_nm = 0;
+    qint64 x1_nm = 0, y1_nm = 0;
+    qint64 width_nm = 0;
+    bool clockwise = false;
+    int sourceLine = 0;
 };
 
 struct ImportedPad {
@@ -54,6 +68,7 @@ class ImportedArtworkPanel final : public QWidget {
     QLabel *summary_;
     QVector<bool> layerVisible_;
     std::vector<std::pair<QGraphicsLineItem *, ImportedTrack>> tracks_;
+    std::vector<std::pair<QGraphicsPathItem *, ImportedArc>> arcs_;
     std::vector<std::pair<QGraphicsEllipseItem *, ImportedVia>> vias_;
     std::vector<std::pair<QGraphicsItem *, ImportedPad>> pads_;
     std::function<void(const QString &)> detailsCallback_;
@@ -63,7 +78,7 @@ class ImportedArtworkPanel final : public QWidget {
         if (rhi_) rhi_->filter(layerVisible_, nets_->currentText());
 #endif
         // A GPU backend change must never fabricate a successful PCB import.
-        if (tracks_.empty() && vias_.empty() && pads_.empty()) {
+        if (tracks_.empty() && arcs_.empty() && vias_.empty() && pads_.empty()) {
             summary_->setText("No imported PCB. Synthetic demo is a separate tab.\n"
                               "Artwork renderer: " + rendererStatus());
             if (detailsCallback_) detailsCallback_(summary_->text());
@@ -84,6 +99,17 @@ class ImportedArtworkPanel final : public QWidget {
             const bool active = net == "All nets" || net == t.net;
             entry.first->setOpacity(active ? 1.0 : 0.12);
             if (shown) { ++visible; if (net != "All nets" && active) ++highlighted; }
+        }
+        int visibleArcs = 0;
+        for (const auto &entry : arcs_) {
+            const auto &arc = entry.second;
+            layersWithTraces.insert(arc.layer);
+            netsWithTraces.insert(arc.net);
+            const bool shown = arc.layer > 0 && arc.layer < layerVisible_.size() &&
+                               layerVisible_[arc.layer];
+            entry.first->setVisible(shown);
+            entry.first->setOpacity(net == "All nets" || net == arc.net ? 1.0 : 0.12);
+            if (shown) ++visibleArcs;
         }
         int visibleVias = 0;
         int highlightedVias = 0;
@@ -144,6 +170,8 @@ class ImportedArtworkPanel final : public QWidget {
                 .arg(highlighted).arg(static_cast<qlonglong>(vias_.size()))
                 .arg(visibleVias).arg(highlightedVias).arg(skipped_)
                 .arg(static_cast<qlonglong>(pads_.size())).arg(visiblePads);
+        line += QString("\nAnalytical route arcs: %1  Visible: %2")
+                    .arg(static_cast<qlonglong>(arcs_.size())).arg(visibleArcs);
         line += QString("\nTop SMD: %1  Bottom SMD: %2")
                     .arg(static_cast<qlonglong>(pads_.size()) - bottomPads).arg(bottomPads);
         const auto selected = scene_->selectedItems();
@@ -213,6 +241,7 @@ public:
                 if (kind == 1) selectVia(index);
                 else if (kind == 2) selectPad(index);
                 else if (kind == 3) selectTrack(index);
+                else if (kind == 4) selectArc(index);
             });
         }
 #endif
@@ -273,6 +302,7 @@ public:
         // selectionChanged. Prevent callbacks from iterating freed pointers.
         const QSignalBlocker muteSelection(scene_);
         tracks_.clear();
+        arcs_.clear();
         vias_.clear();
         pads_.clear();
         scene_->clear();
@@ -291,10 +321,11 @@ public:
     }
     bool load(int layerCount, int skipped, const std::vector<ImportedTrack> &input,
               const std::vector<ImportedVia> &viaInput = {},
-              const std::vector<ImportedPad> &padInput = {}) {
+              const std::vector<ImportedPad> &padInput = {},
+              const std::vector<ImportedArc> &arcInput = {}) {
         if (layerCount < 1 || layerCount > 64 ||
-            (input.empty() && viaInput.empty() && padInput.empty()) ||
-            input.size() > 10000 || viaInput.size() > 10000 ||
+            (input.empty() && viaInput.empty() && padInput.empty() && arcInput.empty()) ||
+            input.size() + arcInput.size() > 10000 || viaInput.size() > 10000 ||
             padInput.size() > 5000) return false;
         // Keep the old artwork untouched if a candidate fails validation.
         for (const auto &t : input) {
@@ -304,6 +335,21 @@ public:
                 if (coordinate < -100000000000LL || coordinate > 100000000000LL)
                     return false;
             }
+        }
+        for (const auto &a : arcInput) {
+            if (a.layer < 1 || a.layer > layerCount || a.width_nm <= 0 ||
+                a.net.isEmpty() || a.net.size() > 64 || a.sourceLine <= 0) return false;
+            for (auto v : {a.x0_nm,a.y0_nm,a.cx_nm,a.cy_nm,a.x1_nm,a.y1_nm,a.width_nm}) {
+                if (v % 254 != 0 || v < -1422400000LL || v > 1422400000LL)
+                    return false;
+            }
+            const auto r2 = [&](qint64 x,qint64 y) {
+                const qint64 dx=(x-a.cx_nm)/254,dy=(y-a.cy_nm)/254;
+                return dx*dx+dy*dy;
+            };
+            if (a.x0_nm == a.x1_nm && a.y0_nm == a.y1_nm) return false;
+            if (r2(a.x0_nm,a.y0_nm) == 0 ||
+                r2(a.x0_nm,a.y0_nm) != r2(a.x1_nm,a.y1_nm)) return false;
         }
         for (const auto &via : viaInput) {
             if (via.net.isEmpty() || via.net.size() > 64 || via.name.isEmpty() ||
@@ -333,6 +379,7 @@ public:
         {
             const QSignalBlocker muteSelection(scene_);
             tracks_.clear();
+            arcs_.clear();
             vias_.clear();
             pads_.clear();
             scene_->clear();
@@ -358,6 +405,36 @@ public:
                                  .arg(t.layer).arg(t.width_nm / 1e6, 0, 'f', 6));
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             tracks_.push_back({item, t});
+        }
+        for (const auto &a : arcInput) {
+            if (nets_->findText(a.net) < 0) nets_->addItem(a.net);
+            constexpr qreal pi = 3.14159265358979323846;
+            const qreal cx = a.cx_nm/1e6, cy = -a.cy_nm/1e6;
+            const qreal dx = (a.x0_nm-a.cx_nm)/1e6;
+            const qreal dy = (a.y0_nm-a.cy_nm)/1e6;
+            const qreal r = std::hypot(dx,dy);
+            const qreal first = std::atan2(dy,dx)*180.0/pi;
+            const qreal end = std::atan2(
+                static_cast<qreal>(a.y1_nm-a.cy_nm),
+                static_cast<qreal>(a.x1_nm-a.cx_nm))*180.0/pi;
+            qreal sweep = end - first;
+            if (a.clockwise) { while (sweep >= 0) sweep -= 360.0; }
+            else { while (sweep <= 0) sweep += 360.0; }
+            QPainterPath path;
+            path.moveTo(a.x0_nm/1e6,-a.y0_nm/1e6);
+            path.arcTo(QRectF(cx-r,cy-r,2*r,2*r),first,sweep);
+            const QColor color(a.layer == 1 ? "#f29d55" :
+                               a.layer == layerCount ? "#55b4e9" : "#a9d48e");
+            auto *item=scene_->addPath(path,QPen(color,a.width_nm/1e6,
+                                   Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
+            item->setData(0,a.net);
+            item->setData(1,QString("Arc trace / layer %1 / width %2 mm / centre (%3, %4) mm"
+                                   " / %5 / source line %6 / SI NOT_RUN")
+                               .arg(a.layer).arg(a.width_nm/1e6,0,'f',6)
+                               .arg(a.cx_nm/1e6,0,'f',6).arg(a.cy_nm/1e6,0,'f',6)
+                               .arg(a.clockwise ? "CW" : "CCW").arg(a.sourceLine));
+            item->setFlag(QGraphicsItem::ItemIsSelectable);
+            arcs_.push_back({item,a});
         }
         for (const auto &via : viaInput) {
             if (nets_->findText(via.net) < 0) nets_->addItem(via.net);
@@ -410,7 +487,7 @@ public:
         }
         skipped_ = skipped;
 #ifdef BOARDSI_RHI_ARTWORK
-        if (rhi_) rhi_->load(layerCount,input,viaInput,padInput);
+        if (rhi_) rhi_->load(layerCount,input,viaInput,padInput,arcInput);
 #endif
         scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-1, -1, 1, 1));
         refresh();
@@ -418,7 +495,7 @@ public:
         return true;
     }
     void fitArtwork() {
-        if (!tracks_.empty() || !vias_.empty() || !pads_.empty()) {
+        if (!tracks_.empty() || !arcs_.empty() || !vias_.empty() || !pads_.empty()) {
             // Qt's Fit is cumulative with the existing view transform. Reset
             // first so a Fit after Zoom is repeatable and does not drift.
             view_->resetTransform();
@@ -429,6 +506,7 @@ public:
         }
     }
     int segmentCount() const { return static_cast<int>(tracks_.size()); }
+    int arcCount() const { return static_cast<int>(arcs_.size()); }
     int viaCount() const { return static_cast<int>(vias_.size()); }
     int padCount() const { return static_cast<int>(pads_.size()); }
 #ifdef BOARDSI_RHI_ARTWORK
@@ -437,6 +515,12 @@ public:
         return rhi_ && canvasStack_->currentWidget() == rhi_;
     }
 #endif
+    bool selectArc(int index) {
+        if (index < 0 || index >= static_cast<int>(arcs_.size())) return false;
+        scene_->clearSelection();
+        arcs_[static_cast<size_t>(index)].first->setSelected(true);
+        return true;
+    }
     bool selectTrack(int index) {
         if (index < 0 || index >= static_cast<int>(tracks_.size())) return false;
         scene_->clearSelection();
@@ -458,6 +542,7 @@ public:
     int visibleSegments() const {
         int count = 0;
         for (const auto &t : tracks_) if (t.first->isVisible()) ++count;
+        for (const auto &a : arcs_) if (a.first->isVisible()) ++count;
         return count;
     }
     bool selectNet(const QString &net) {
