@@ -1030,9 +1030,102 @@ static int runViaSmoke(PreviewWindow &window, const QString &fixture) {
     return passed ? 0 : 1;
 }
 
+// A_014 stand-alone native Qt Quick exercise. This runs no Rust Worker or
+// physical SI. Hardware ownership is explicitly NOT certified by a RHI frame.
+static int runRhiGeometrySmoke() {
+    QElapsedTimer clock;
+    clock.start();
+    bool sourceGeometry = false;
+    int count = 0;
+    QString backend = "NOT_BUILT";
+    bool frame = false;
+    QString failure;
+#ifdef BOARDSI_RHI_ARTWORK
+    constexpr qint64 base = 90000000000LL;
+    std::vector<ImportedTrack> tracks;
+    tracks.reserve(10000);
+    for (int i=0;i<10000;++i) {
+        ImportedTrack t;
+        t.layer=1; t.net="SYNTHETIC";
+        t.x0_nm=base+static_cast<qint64>(i)*5000;
+        t.x1_nm=t.x0_nm+25000;
+        t.y0_nm=base+10000;
+        t.y1_nm=base+10000;
+        t.width_nm=10000;
+        tracks.push_back(t);
+    }
+    std::vector<ImportedVia> vias;
+    ImportedVia via;
+    via.name="TEST";via.net="SYNTHETIC";via.firstLayer=1;via.lastLayer=4;
+    via.x_nm=base+25000;via.y_nm=base+10000;
+    via.diameter_nm=700000;via.drill_nm=300000;
+    vias.push_back(via);
+    std::vector<ImportedPad> pads;
+    ImportedPad p;
+    p.reference="U1";p.pin="1";p.shape="RF";p.side="B";p.layer=4;
+    p.rotation=90;p.x_nm=base+50000;p.y_nm=base+40000;
+    p.width_nm=160000;p.height_nm=80000;
+    pads.push_back(p);
+    auto *item = new BoardSiRhiItem();
+    item->setWidth(800); item->setHeight(500);
+    item->load(4,tracks,vias,pads);
+    const QPointF pointA=item->localPoint(base+25000,base+10000);
+    const QPointF pointB=item->localPoint(base+50000,base+40000);
+    sourceGeometry=item->primitiveCount()==10002 &&
+                   std::abs((pointB.x()-pointA.x())-0.025)<1e-9 &&
+                   std::abs((pointB.y()-pointA.y())+0.030)<1e-9;
+    delete item;
+    count=10002;
+    // A visible native Qt Quick window is required to prove RHI frame delivery.
+    // This does not establish a discrete or hardware GPU adapter.
+    if (QGuiApplication::platformName() != "offscreen" &&
+        QGuiApplication::platformName() != "minimal") {
+        BoardSiRhiView view;
+        view.load(4,tracks,vias,pads);
+        view.resize(800,500);
+        view.show();
+        QEventLoop loop;
+        QTimer poll;
+        QObject::connect(&poll,&QTimer::timeout,&loop,[&] {
+            if (view.status().startsWith("RHI_FRAME_") || view.failed()) loop.quit();
+        });
+        QTimer::singleShot(4800,&loop,&QEventLoop::quit);
+        poll.start(20);loop.exec();poll.stop();
+        backend=view.status();
+        frame=backend.startsWith("RHI_FRAME_");
+        if (!frame) failure="No native RHI frame observed: "+backend;
+    } else {
+        backend="HEADLESS_NOT_RUN";
+    }
+#else
+    failure="Qt Quick module not installed in SDK";
+#endif
+    const bool pass=sourceGeometry &&
+        (backend=="HEADLESS_NOT_RUN" || frame);
+    QJsonObject result{
+        {"schema","boardsi-a014-rhi-smoke-v1"},
+        {"pass",pass},{"source_geometry_check",sourceGeometry},
+        {"source_objects",count},{"backend_status",backend},
+        {"rhi_frame_observed",frame},{"hardware_adapter","NOT_VERIFIED"},
+        {"render_fps","NOT_MEASURED"},{"failure",failure},
+        {"native_backend",QGuiApplication::platformName()},
+        {"host_arch",QSysInfo::currentCpuArchitecture()},
+        {"elapsed_ms",clock.elapsed()},
+        {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"scope","Synthetic 10002 objects, integer nm local geometry and RHI frame; NOT PCB SI"}
+    };
+    QFile output("qt-preview-a014-rhi-results.json");
+    if (!output.open(QIODevice::WriteOnly) ||
+        output.write(QJsonDocument(result).toJson(QJsonDocument::Indented)) < 1) return 2;
+    qInfo().noquote() << QJsonDocument(result).toJson(QJsonDocument::Compact);
+    return pass?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if (args.size() == 2 && args.at(1) == "--rhi-geometry-selftest")
+        return runRhiGeometrySmoke();
     const bool rendererTesting = args.size() == 5 && args.at(1) == "--renderer-selftest";
     const bool viaTesting = args.size() == 7 && args.at(1) == "--via-selftest";
     const bool padTesting = args.size() == 7 && args.at(1) == "--pad-selftest";
