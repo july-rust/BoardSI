@@ -658,7 +658,14 @@ static int runRendererSmoke(PreviewWindow &window) {
         SyntheticArtworkCanvas::isSoftwareRendererLabel("Microsoft Basic Render Driver") &&
         !SyntheticArtworkCanvas::isSoftwareRendererLabel("Apple M3") &&
         !SyntheticArtworkCanvas::isSoftwareRendererLabel("Mesa Intel(R) Graphics") &&
-        !SyntheticArtworkCanvas::isSoftwareRendererLabel("NVIDIA GeForce RTX 4070");
+        !SyntheticArtworkCanvas::isSoftwareRendererLabel("NVIDIA GeForce RTX 4070") &&
+        SyntheticArtworkCanvas::isSoftwareRendererLabel("OpenSWR") &&
+        !SyntheticArtworkCanvas::isKnownHardwareRendererLabel("OpenSWR") &&
+        !SyntheticArtworkCanvas::isKnownHardwareRendererLabel("Unknown adapter") &&
+        !SyntheticArtworkCanvas::isKnownHardwareRendererLabel("Apple Software Renderer") &&
+        SyntheticArtworkCanvas::isKnownHardwareRendererLabel("Apple M3") &&
+        SyntheticArtworkCanvas::isKnownHardwareRendererLabel("NVIDIA GeForce RTX 4070") &&
+        SyntheticArtworkCanvas::isKnownHardwareRendererLabel("Mesa Intel(R) Graphics");
     const bool mode = forcedCpu ? (status == "CPU_FORCED" && !actualGlViewport) :
         ((status.startsWith("CPU_FALLBACK_") && !actualGlViewport) ||
          (status == "GPU_OPENGL_ACTIVE" && actualGlViewport));
