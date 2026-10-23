@@ -782,7 +782,8 @@ static int runOutlineSmoke(PreviewWindow &window, const QString &fixture) {
                     item->containsExactOutlineForTest(false,
                         2540000, 5080000, 12700000, 5080000) &&
                     item->containsExactOutlineForTest(true,
-                        5080000, 7620000, 7620000, 7620000);
+                        5080000, 7620000, 7620000, 7620000) &&
+                    item->outlineFitBoundsForTest();
             }
 #endif
             passed = counts && outerExact && cutExact && independent &&
