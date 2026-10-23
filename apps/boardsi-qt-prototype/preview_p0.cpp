@@ -651,13 +651,21 @@ static int runRendererSmoke(PreviewWindow &window) {
 #endif
     const bool policy = validCanvas && canvas->rendererPolicy() == "GPU_PREFERRED" &&
                         window.importPanel()->imported()->rendererPolicy() == "GPU_PREFERRED";
+    const bool softwareClassifier =
+        SyntheticArtworkCanvas::isSoftwareRendererLabel("Apple Software Renderer") &&
+        SyntheticArtworkCanvas::isSoftwareRendererLabel("llvmpipe (LLVM 15)") &&
+        SyntheticArtworkCanvas::isSoftwareRendererLabel("SwiftShader Device") &&
+        SyntheticArtworkCanvas::isSoftwareRendererLabel("Microsoft Basic Render Driver") &&
+        !SyntheticArtworkCanvas::isSoftwareRendererLabel("Apple M3") &&
+        !SyntheticArtworkCanvas::isSoftwareRendererLabel("Mesa Intel(R) Graphics") &&
+        !SyntheticArtworkCanvas::isSoftwareRendererLabel("NVIDIA GeForce RTX 4070");
     const bool mode = forcedCpu ? (status == "CPU_FORCED" && !actualGlViewport) :
         ((status.startsWith("CPU_FALLBACK_") && !actualGlViewport) ||
          (status == "GPU_OPENGL_ACTIVE" && actualGlViewport));
     // Pending contexts are NOT GPU results, regardless of GL availability.
     const bool completed = status == "GPU_OPENGL_ACTIVE" ||
                            status.startsWith("CPU_");
-    const bool passed = policy && mode && completed;
+    const bool passed = policy && mode && completed && softwareClassifier;
     QJsonObject record{
         {"schema", "boardsi-preview-renderer-policy-v1"},
         {"pass", passed},
@@ -667,6 +675,7 @@ static int runRendererSmoke(PreviewWindow &window) {
         {"imported_renderer_status", window.importPanel()->imported()->rendererStatus()},
         {"actual_gl_viewport", actualGlViewport},
         {"gpu_frame_confirmed", status == "GPU_OPENGL_ACTIVE"},
+        {"software_driver_classification_verified", softwareClassifier},
         {"gpu_adapter", validCanvas ? canvas->rendererName() : QString()},
         {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
         {"native_backend", QGuiApplication::platformName()},
