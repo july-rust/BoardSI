@@ -883,6 +883,8 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
     clock.start();
     bool passed = false;
     QString failure;
+    bool rhiViewChecked = false, rhiFrame = false, softwareCpuFallback = false;
+    bool rhiCpuFallback = false;
     QEventLoop loop;
     if (!window.openCandidate(fixture)) {
         failure = "P2-E public bottom fixture unavailable";
@@ -895,6 +897,50 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
                 loop.quit();
             } else if (status.startsWith("PARTIAL")) {
                 auto *panel = window.importPanel()->imported();
+#ifdef BOARDSI_RHI_ARTWORK
+                const bool softwareRequest = BoardSiRhiView::softwareRendererRequested();
+                const bool cpuRequest =
+                    qEnvironmentVariable("BOARDSI_ARTWORK_RENDERER").trimmed().toLower()=="cpu";
+                const bool nativeRhiTest = !softwareRequest && !cpuRequest &&
+                    QGuiApplication::platformName() != "offscreen" &&
+                    QGuiApplication::platformName() != "minimal";
+                auto *rhi = panel->rhiViewForTest();
+                if (nativeRhiTest) {
+                    if (!rhi) {
+                        failure = "Qt Quick-enabled imported artwork lacks RHI view";
+                        loop.quit(); return;
+                    }
+                    const QString renderState = rhi->status();
+                    if (renderState.startsWith("RHI_PENDING_FRAME")) return;
+                    if (renderState == "CPU_FALLBACK_RHI_SOFTWARE_D3D11_ADAPTER") {
+                        // This is the ONLY acceptable native GPU test fallback:
+                        // render-thread DXGI proved the actual D3D11 adapter
+                        // was software (e.g. WARP). No-frame, device error and
+                        // missing adapter proof are real integration failures.
+                        rhiCpuFallback = !panel->rhiCanvasActiveForTest() &&
+                            panel->rendererStatus().startsWith("CPU_");
+                        if (!rhiCpuFallback) {
+                            failure = "Confirmed WARP did not activate CPU artwork";
+                            loop.quit(); return;
+                        }
+                    } else if (renderState.startsWith("CPU_FALLBACK_RHI_")) {
+                        failure = "Uncertified RHI failure may not PASS: " + renderState;
+                        loop.quit(); return;
+                    } else if (renderState.startsWith("RHI_FRAME_") &&
+                               panel->rhiCanvasActiveForTest()) {
+                        rhiFrame = true;
+                    } else {
+                        failure = "Imported RHI has no valid frame: " + renderState;
+                        loop.quit(); return;
+                    }
+                } else if (softwareRequest) {
+                    softwareCpuFallback = !rhi && panel->rendererStatus().startsWith("CPU_");
+                    if (!softwareCpuFallback) {
+                        failure = "Qt software RHI request did not force CPU";
+                        loop.quit(); return;
+                    }
+                }
+#endif
                 auto *scene = panel->findChild<QGraphicsScene *>();
                 const auto near = [](qreal a, qreal b) { return qAbs(a - b) < 0.000001; };
                 struct Expected { const char *label; qreal x,y,w,h; int layer,rotation; };
@@ -929,6 +975,37 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
                     }
                     if (!found) { geometry = false; break; }
                 }
+                bool rhiGeometry = true, rhiPicking = true;
+#ifdef BOARDSI_RHI_ARTWORK
+                if (rhiFrame) {
+                    auto *item = panel->rhiViewForTest()->itemForTest();
+                    rhiViewChecked = item && item->primitiveCount()==10 &&
+                                     item->visiblePadCount()==10;
+                    rhiGeometry = rhiViewChecked;
+                    if (rhiGeometry) for (const auto &want : expected) {
+                        const QStringList id=QString::fromLatin1(want.label).mid(4).split('.');
+                        if (id.size()!=2 || !item->containsExactPad(id.at(0),id.at(1),
+                                want.layer,want.rotation,qRound64(want.x*1e6),
+                                qRound64(-want.y*1e6),qRound64(want.w*1e6),
+                                qRound64(want.h*1e6))) {
+                            rhiGeometry=false; break;
+                        }
+                    }
+                    if (rhiGeometry) {
+                        const QPointF at=item->screenPointForTest(2540000,7620000);
+                        // Seven-argument Qt 6 constructor: explicit local,
+                        // scene and global positions, no deprecated overload.
+                        QMouseEvent press(QEvent::MouseButtonPress,at,at,at,
+                                         Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);
+                        QMouseEvent release(QEvent::MouseButtonRelease,at,at,at,
+                                           Qt::LeftButton,Qt::NoButton,Qt::NoModifier);
+                        QCoreApplication::sendEvent(item,&press);
+                        QCoreApplication::sendEvent(item,&release);
+                        rhiPicking=window.displayedProperties().contains("Pad U0.2") &&
+                                   window.displayedProperties().contains("side Bottom");
+                    }
+                }
+#endif
                 const bool selected = panel->selectPad(1) &&
                     window.displayedProperties().contains("Pad U0.2") &&
                     window.displayedProperties().contains("side Bottom") &&
@@ -944,14 +1021,23 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
                         int count = 0;
                         for (auto *item : scene->items()) if (item->isVisible()) ++count;
                         const bool onlyTop = count == 2;
+#ifdef BOARDSI_RHI_ARTWORK
+                        if (rhiFrame) rhiGeometry = rhiGeometry &&
+                            panel->rhiViewForTest()->itemForTest()->visiblePadCount()==2;
+#endif
                         toggle->click();
                         count = 0;
                         for (auto *item : scene->items()) if (item->isVisible()) ++count;
                         visibility = onlyTop && count == 10;
+#ifdef BOARDSI_RHI_ARTWORK
+                        if (rhiFrame) rhiGeometry = rhiGeometry &&
+                            panel->rhiViewForTest()->itemForTest()->visiblePadCount()==10;
+#endif
                     }
                 }
-                passed = geometry && selected && visibility && panel->padCount() == 10 &&
-                         panel->segmentCount() == 0 && panel->viaCount() == 0;
+                passed = geometry && selected && visibility && rhiGeometry && rhiPicking &&
+                         panel->padCount() == 10 && panel->segmentCount() == 0 &&
+                         panel->viaCount() == 0;
                 if (!passed) failure = "P2-E geometry/side/selection/visibility mismatch";
                 loop.quit();
             }
@@ -965,6 +1051,10 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
     QJsonObject report{
         {"schema", "boardsi-preview-p2e-bottom-smoke-v1"},
         {"pass", passed}, {"failure", failure}, {"elapsed_ms", clock.elapsed()},
+        {"rhi_view_checked", rhiViewChecked},
+        {"rhi_first_frame_confirmed", rhiFrame},
+        {"software_rhi_cpu_fallback", softwareCpuFallback},
+        {"rhi_cpu_fallback", rhiCpuFallback},
         {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
         {"native_backend", QGuiApplication::platformName()},
         {"host_arch", QSysInfo::currentCpuArchitecture()},
@@ -1030,9 +1120,135 @@ static int runViaSmoke(PreviewWindow &window, const QString &fixture) {
     return passed ? 0 : 1;
 }
 
+// A_014 stand-alone native Qt Quick exercise. This runs no Rust Worker or
+// physical SI. Hardware ownership is explicitly NOT certified by a RHI frame.
+static int runRhiGeometrySmoke() {
+    QElapsedTimer clock;
+    clock.start();
+    bool sourceGeometry = false;
+    int count = 0;
+    QString backend = "NOT_BUILT";
+    bool frame = false;
+    bool postLoadFrameVerified = false;
+    bool fallbackConfirmed = false;
+    int adapterProof = 0;
+    QString failure;
+#ifdef BOARDSI_RHI_ARTWORK
+    constexpr qint64 base = 90000000000LL;
+    std::vector<ImportedTrack> tracks;
+    tracks.reserve(10000);
+    for (int i=0;i<10000;++i) {
+        ImportedTrack t;
+        t.layer=1; t.net="SYNTHETIC";
+        t.x0_nm=base+static_cast<qint64>(i)*5000;
+        t.x1_nm=t.x0_nm+25000;
+        t.y0_nm=base+10000;
+        t.y1_nm=base+10000;
+        t.width_nm=10000;
+        tracks.push_back(t);
+    }
+    std::vector<ImportedVia> vias;
+    ImportedVia via;
+    via.name="TEST";via.net="SYNTHETIC";via.firstLayer=1;via.lastLayer=4;
+    via.x_nm=base+25000;via.y_nm=base+10000;
+    via.diameter_nm=700000;via.drill_nm=300000;
+    vias.push_back(via);
+    std::vector<ImportedPad> pads;
+    ImportedPad p;
+    p.reference="U1";p.pin="1";p.shape="RF";p.side="B";p.layer=4;
+    p.rotation=90;p.x_nm=base+50000;p.y_nm=base+40000;
+    p.width_nm=160000;p.height_nm=80000;
+    pads.push_back(p);
+    auto *item = new BoardSiRhiItem();
+    item->setWidth(800); item->setHeight(500);
+    item->load(4,tracks,vias,pads);
+    const QPointF pointA=item->localPoint(base+25000,base+10000);
+    const QPointF pointB=item->localPoint(base+50000,base+40000);
+    sourceGeometry=item->primitiveCount()==10002 &&
+                   std::abs((pointB.x()-pointA.x())-0.025)<1e-9 &&
+                   std::abs((pointB.y()-pointA.y())+0.030)<1e-9;
+    delete item;
+    count=10002;
+    // A visible native Qt Quick window is required to prove RHI frame delivery.
+    // This does not establish a discrete or hardware GPU adapter.
+    if (QGuiApplication::platformName() != "offscreen" &&
+        QGuiApplication::platformName() != "minimal") {
+        BoardSiRhiView view;
+        view.load(4,tracks,vias,pads);
+        view.resize(800,500);
+        view.show();
+        QEventLoop loop;
+        QTimer poll;
+        QObject::connect(&poll,&QTimer::timeout,&loop,[&] {
+            if (view.status().startsWith("RHI_FRAME_") || view.failed()) loop.quit();
+        });
+        QTimer::singleShot(4800,&loop,&QEventLoop::quit);
+        poll.start(20);loop.exec();poll.stop();
+        backend=view.status();
+        frame=backend.startsWith("RHI_FRAME_");
+        // ONLY render-thread DXGI-proven WARP is an acceptable native
+        // fallback. Frame timeout, scene graph error and missing adapter proof
+        // must fail the 10,002-object geometry integration test as well.
+        fallbackConfirmed=(backend=="CPU_FALLBACK_RHI_SOFTWARE_D3D11_ADAPTER");
+        adapterProof=view.itemForTest()->d3dAdapterProof();
+        if (!frame && !fallbackConfirmed)
+            failure="No RHI frame or verified CPU fallback: "+backend;
+        if (frame) {
+            // A prior empty/success frame must NOT satisfy the next load.
+            // Require a pending transition and a distinct post-load swap.
+            view.load(4,tracks,vias,pads);
+            const bool becamePending =
+                view.status()=="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
+            QEventLoop reloaded;
+            QTimer recheck;
+            QObject::connect(&recheck,&QTimer::timeout,&reloaded,[&] {
+                if (view.status().startsWith("RHI_FRAME_") || view.failed())
+                    reloaded.quit();
+            });
+            QTimer::singleShot(4800,&reloaded,&QEventLoop::quit);
+            recheck.start(20);reloaded.exec();recheck.stop();
+            postLoadFrameVerified=becamePending && view.status().startsWith("RHI_FRAME_");
+            if (!postLoadFrameVerified)
+                failure="New artwork load did not produce a fresh verified frame: "+
+                        view.status();
+        }
+    } else {
+        backend="HEADLESS_NOT_RUN";
+    }
+#else
+    failure="Qt Quick module not installed in SDK";
+#endif
+    // Geometry-only headless execution is NOT a native RHI frame PASS.
+    const bool pass=sourceGeometry && (fallbackConfirmed ||
+                                         (frame && postLoadFrameVerified));
+    QJsonObject result{
+        {"schema","boardsi-a014-rhi-smoke-v1"},
+        {"pass",pass},{"source_geometry_check",sourceGeometry},
+        {"source_objects",count},{"backend_status",backend},
+        {"rhi_frame_observed",frame},
+        {"post_load_frame_verified",postLoadFrameVerified},
+        {"cpu_fallback_confirmed",fallbackConfirmed},
+        {"d3d11_adapter_proof",adapterProof},
+        {"hardware_adapter",adapterProof==1 ? "DXGI_NON_SOFTWARE_CONFIRMED" : "NOT_VERIFIED"},
+        {"render_fps","NOT_MEASURED"},{"failure",failure},
+        {"native_backend",QGuiApplication::platformName()},
+        {"host_arch",QSysInfo::currentCpuArchitecture()},
+        {"elapsed_ms",clock.elapsed()},
+        {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"scope","Synthetic 10002 objects, integer nm local geometry and RHI frame; NOT PCB SI"}
+    };
+    QFile output("qt-preview-a014-rhi-results.json");
+    if (!output.open(QIODevice::WriteOnly) ||
+        output.write(QJsonDocument(result).toJson(QJsonDocument::Indented)) < 1) return 2;
+    qInfo().noquote() << QJsonDocument(result).toJson(QJsonDocument::Compact);
+    return pass?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if (args.size() == 2 && args.at(1) == "--rhi-geometry-selftest")
+        return runRhiGeometrySmoke();
     const bool rendererTesting = args.size() == 5 && args.at(1) == "--renderer-selftest";
     const bool viaTesting = args.size() == 7 && args.at(1) == "--via-selftest";
     const bool padTesting = args.size() == 7 && args.at(1) == "--pad-selftest";

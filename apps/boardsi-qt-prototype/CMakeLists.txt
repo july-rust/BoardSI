@@ -13,6 +13,16 @@ target_link_libraries(boardsi-preview-p0 PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets
 # GPU-first Artwork Viewer uses the stable Qt Graphics View OpenGL viewport.
 # Optional at build time so machines without OpenGLWidgets can compile CPU fallback.
 # This does NOT change the Rust Worker, Canonical data or SI capabilities.
+# A_014: Qt Quick scene-graph / QRhi backend is opt-in at build capability.
+# A CPU/OpenGL-only SDK continues to build the exact existing Preview target.
+find_package(Qt6 6.5 QUIET COMPONENTS Quick)
+if(TARGET Qt6::Quick)
+  target_link_libraries(boardsi-preview-p0 PRIVATE Qt6::Quick)
+  target_compile_definitions(boardsi-preview-p0 PRIVATE BOARDSI_RHI_ARTWORK=1)
+  message(STATUS "BoardSI Qt Quick / RHI artwork renderer: AVAILABLE (runtime verification required)")
+else()
+  message(WARNING "BoardSI Qt Quick / RHI unavailable, retaining existing artwork renderer")
+endif()
 find_package(Qt6 6.5 QUIET COMPONENTS OpenGLWidgets)
 if(TARGET Qt6::OpenGLWidgets)
   target_link_libraries(boardsi-preview-p0 PRIVATE Qt6::OpenGLWidgets)

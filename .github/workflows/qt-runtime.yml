@@ -291,6 +291,57 @@ jobs:
           path: build-qt/boardsi-preview-windows-x64-qt-bundled/
           if-no-files-found: error
           retention-days: 7
+      # A_014 builds the Qt Quick variant only AFTER the six-Qt-DLL legacy
+      # package gate. This keeps existing M0/F7 packaging compliance intact.
+      - name: Install additional Qt Quick modules for source-only RHI validation
+        shell: bash
+        run: |
+          python -m aqt install-qt '${{ matrix.host }}' desktop 6.8.3 '${{ matrix.qt_arch }}' --archives qtdeclarative qtshadertools -O "$RUNNER_TEMP/qt-native"
+          if test -n "$QT_HOST_PREFIX"; then
+            python -m aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 --archives qtdeclarative qtshadertools -O "$RUNNER_TEMP/qt-native"
+          fi
+      - name: Rebuild source-only Qt Quick variant on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & cmd /c (Join-Path $env:RUNNER_TEMP 'boardsi-build-qt.cmd')
+          if ($LASTEXITCODE -ne 0) {throw 'Qt Quick rebuild failed'}
+          if (-not (Select-String -LiteralPath 'build-qt/CMakeCache.txt' -Pattern 'Qt6Quick_DIR:' -Quiet)) {
+            throw 'Qt Quick was not found by the native source build'
+          }
+      - name: Rebuild source-only Qt Quick variant on macOS
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker"
+          cmake --build build-qt --parallel 2
+          grep -q '^Qt6Quick_DIR:' build-qt/CMakeCache.txt
+      - name: Validate A_014 Qt Quick in real P2-E imported Artwork Viewer
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --bottom-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_bottom_mirror_v94.asc"
+          cat qt-preview-p2e-bottom-results.json
+          python -c 'import json,platform; r=json.load(open("qt-preview-p2e-bottom-results.json")); assert r["pass"] and ((r["rhi_view_checked"] and r["rhi_first_frame_confirmed"]) or (platform.system()=="Windows" and r["rhi_cpu_fallback"])), r'
+      - name: Test Qt software RHI adapter request uses CPU artwork
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          QSG_RHI_PREFER_SOFTWARE_RENDERER=1 BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --bottom-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_bottom_mirror_v94.asc"
+          python -c 'import json; r=json.load(open("qt-preview-p2e-bottom-results.json")); assert r["pass"] and r["software_rhi_cpu_fallback"] and not r["rhi_first_frame_confirmed"], r'
+          cp qt-preview-p2e-bottom-results.json qt-preview-a014-software-fallback-results.json
+      - name: Run A_014 native Qt Quick / RHI geometry and first-frame smoke
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --rhi-geometry-selftest
+          cat qt-preview-a014-rhi-results.json
       - name: Preserve developer Preview P0 native execution evidence (not a distributable binary)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -302,6 +353,8 @@ jobs:
             build-qt/qt-preview-p2d-rect-results.json
             build-qt/qt-preview-p2e-bottom-results.json
             build-qt/qt-preview-renderer-results.json
+            build-qt/qt-preview-a014-rhi-results.json
+            build-qt/qt-preview-a014-software-fallback-results.json
             build-qt/qt-preview-p2c-pad-results.json
             build-qt/qt-preview-native-direct.json
             build-qt/qt-preview-source-launcher.json
