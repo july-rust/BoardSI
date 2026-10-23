@@ -662,10 +662,23 @@ static int runRendererSmoke(PreviewWindow &window) {
     const bool mode = forcedCpu ? (status == "CPU_FORCED" && !actualGlViewport) :
         ((status.startsWith("CPU_FALLBACK_") && !actualGlViewport) ||
          (status == "GPU_OPENGL_ACTIVE" && actualGlViewport));
+    // Force first display of the empty Imported tab; the renderer update
+    // must not turn an empty view into a false "IMPORTED PARTIAL" state.
+    auto *imported = window.importPanel()->imported();
+    auto *tabs = window.importPanel()->artworkTabs();
+    tabs->setCurrentWidget(imported);
+    QEventLoop emptyLoop;
+    QTimer::singleShot(120, &emptyLoop, &QEventLoop::quit);
+    emptyLoop.exec();
+    const bool emptyImportStatus = imported->summaryText().contains("No imported PCB") &&
+        !imported->summaryText().contains("IMPORTED PARTIAL") &&
+        imported->padCount() == 0 && imported->segmentCount() == 0 &&
+        imported->viaCount() == 0;
+    tabs->setCurrentIndex(0);
     // Pending contexts are NOT GPU results, regardless of GL availability.
     const bool completed = status == "GPU_OPENGL_ACTIVE" ||
                            status.startsWith("CPU_");
-    const bool passed = policy && mode && completed && softwareClassifier;
+    const bool passed = policy && mode && completed && softwareClassifier && emptyImportStatus;
     QJsonObject record{
         {"schema", "boardsi-preview-renderer-policy-v1"},
         {"pass", passed},
@@ -676,6 +689,7 @@ static int runRendererSmoke(PreviewWindow &window) {
         {"actual_gl_viewport", actualGlViewport},
         {"gpu_frame_confirmed", status == "GPU_OPENGL_ACTIVE"},
         {"software_driver_classification_verified", softwareClassifier},
+        {"empty_imported_view_preserved", emptyImportStatus},
         {"gpu_adapter", validCanvas ? canvas->rendererName() : QString()},
         {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
         {"native_backend", QGuiApplication::platformName()},
