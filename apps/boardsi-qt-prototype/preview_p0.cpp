@@ -912,15 +912,20 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
                     }
                     const QString renderState = rhi->status();
                     if (renderState.startsWith("RHI_PENDING_FRAME")) return;
-                    if (renderState.startsWith("CPU_FALLBACK_RHI_")) {
-                        // CI may have only software D3D11 (WARP). It must
-                        // abandon the native RHI window and use CPU artwork.
+                    if (renderState == "CPU_FALLBACK_RHI_SOFTWARE_D3D11_ADAPTER") {
+                        // This is the ONLY acceptable native GPU test fallback:
+                        // render-thread DXGI proved the actual D3D11 adapter
+                        // was software (e.g. WARP). No-frame, device error and
+                        // missing adapter proof are real integration failures.
                         rhiCpuFallback = !panel->rhiCanvasActiveForTest() &&
                             panel->rendererStatus().startsWith("CPU_");
                         if (!rhiCpuFallback) {
-                            failure = "RHI software fallback did not activate CPU";
+                            failure = "Confirmed WARP did not activate CPU artwork";
                             loop.quit(); return;
                         }
+                    } else if (renderState.startsWith("CPU_FALLBACK_RHI_")) {
+                        failure = "Uncertified RHI failure may not PASS: " + renderState;
+                        loop.quit(); return;
                     } else if (renderState.startsWith("RHI_FRAME_") &&
                                panel->rhiCanvasActiveForTest()) {
                         rhiFrame = true;
