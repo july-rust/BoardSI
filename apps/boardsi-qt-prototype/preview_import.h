@@ -55,18 +55,20 @@ class PreviewImportPanel final : public QWidget {
     static bool decode(const QByteArray &bytes, int &layers, int &skipped,
                        std::vector<ImportedTrack> &tracks,
                        std::vector<ImportedVia> &vias,
-                       std::vector<ImportedPad> &pads) {
+                       std::vector<ImportedPad> &pads,
+                       std::vector<ImportedArc> &arcs) {
         if (bytes.size() > 2 * 1024 * 1024 || !bytes.endsWith('\n')) return false;
         const auto lines = QString::fromUtf8(bytes).split('\n', Qt::SkipEmptyParts);
         if (lines.size() < 4 || lines.size() > 25100) return false;
         const auto header = lines.first().split('|');
         bool ok = false;
+        const bool p2f = header.size() == 3 && header[0] == "BOARDSI_P2F_PARTIAL_V5";
         const bool p2e = header.size() == 3 && header[0] == "BOARDSI_P2E_PARTIAL_V4";
         const bool p2d = header.size() == 3 && header[0] == "BOARDSI_P2D_PARTIAL_V3";
         const bool p2c = header.size() == 3 &&
                          header[0] == "BOARDSI_P2C_PARTIAL_V2";
         if (header.size() != 3 ||
-            (!p2c && !p2d && !p2e && header[0] != "BOARDSI_P2A_PARTIAL_V1") ||
+            (!p2c && !p2d && !p2e && !p2f && header[0] != "BOARDSI_P2A_PARTIAL_V1") ||
             header[1] != "V9.4-MILS") return false;
         layers = header[2].toInt(&ok);
         if (!ok || layers < 1 || layers > 64) return false;
@@ -90,6 +92,27 @@ class PreviewImportPanel final : public QWidget {
                 }
                 if (tracks.size() >= 10000) return false;
                 tracks.push_back(std::move(t));
+            } else if (p2f && parts.size() == 12 && parts[0] == "A" &&
+                       layerRecords == layers) {
+                ImportedArc a;
+                a.layer=parts[1].toInt(&ok);
+                if(!ok || a.layer<1 || a.layer>layers) return false;
+                a.net=parts[2];
+                if(a.net.isEmpty() || a.net.size()>64) return false;
+                qint64 *coordinates[]={&a.x0_nm,&a.y0_nm,&a.cx_nm,&a.cy_nm,
+                                       &a.x1_nm,&a.y1_nm};
+                for(int j=0;j<6;++j) {
+                    *coordinates[j]=parts[j+3].toLongLong(&ok);
+                    if(!ok) return false;
+                }
+                if(parts[9]!="CW" && parts[9]!="CCW") return false;
+                a.clockwise=parts[9]=="CW";
+                a.width_nm=parts[10].toLongLong(&ok);
+                if(!ok) return false;
+                a.sourceLine=parts[11].toInt(&ok);
+                if(!ok || a.sourceLine<=0 || arcs.size()>=10000 ||
+                    tracks.size()+arcs.size()>=10000) return false;
+                arcs.push_back(std::move(a));
             } else if (parts.size() == 9 && parts[0] == "V" && layerRecords == layers) {
                 ImportedVia via;
                 via.net = parts[1];
@@ -105,23 +128,23 @@ class PreviewImportPanel final : public QWidget {
                 via.lastLayer = parts[8].toInt(&ok);
                 if (!ok || vias.size() >= 10000) return false;
                 vias.push_back(std::move(via));
-            } else if ((p2c || p2d || p2e) && parts.size() == (p2e ? 12 : 10) &&
+            } else if ((p2c || p2d || p2e || p2f) && parts.size() == ((p2e || p2f) ? 12 : 10) &&
                        parts[0] == "P" && layerRecords == layers &&
                        parts[9] == "NET_UNVERIFIED") {
                 ImportedPad pad;
                 pad.reference = parts[1]; pad.pin = parts[2];
                 pad.layer = parts[3].toInt(&ok);
                 if (!ok) return false;
-                pad.side = p2e ? parts[10] : "T";
-                pad.rotation = p2e ? parts[11].toInt(&ok) : -1;
-                if (!ok || (p2e && pad.rotation != 0 && pad.rotation != 90 &&
+                pad.side = (p2e || p2f) ? parts[10] : "T";
+                pad.rotation = (p2e || p2f) ? parts[11].toInt(&ok) : -1;
+                if (!ok || ((p2e || p2f) && pad.rotation != 0 && pad.rotation != 90 &&
                             pad.rotation != 180 && pad.rotation != 270) ||
                     !((pad.side == "T" && pad.layer == 1) ||
-                      (p2e && pad.side == "B" && layers >= 2 && pad.layer == layers)))
+                      ((p2e || p2f) && pad.side == "B" && layers >= 2 && pad.layer == layers)))
                     return false;
                 pad.shape = parts[4];
                 if (pad.shape != "R" && pad.shape != "S" &&
-                    !((p2d || p2e) && pad.shape == "RF")) return false;
+                    !((p2d || p2e || p2f) && pad.shape == "RF")) return false;
                 qint64 *v[] = {&pad.x_nm, &pad.y_nm, &pad.width_nm, &pad.height_nm};
                 for (int j = 0; j < 4; ++j) {
                     *v[j] = parts[j+5].toLongLong(&ok);
@@ -131,23 +154,28 @@ class PreviewImportPanel final : public QWidget {
                 pads.push_back(std::move(pad));
             } else if (parts[0] == "END" && i == lines.size()-1 &&
                        layerRecords == layers &&
-                       (((p2c || p2d || p2e) && parts.size() == 6) ||
-                        (!p2c && !p2d && !p2e && parts.size() == 5))) {
+                       (((p2c || p2d || p2e || p2f) && parts.size() == (p2f ? 7 : 6)) ||
+                        (!p2c && !p2d && !p2e && !p2f && parts.size() == 5))) {
                 const int count = parts[1].toInt(&ok);
                 if (!ok || count != static_cast<int>(tracks.size())) return false;
                 skipped = parts[2].toInt(&ok);
                 if (!ok || skipped < 0) return false;
-                if (p2c || p2d || p2e) {
+                if (p2c || p2d || p2e || p2f) {
                     const int padCount = parts[3].toInt(&ok);
-                    if (!ok || padCount != static_cast<int>(pads.size()) ||
-                        parts[4] != "CANONICAL_PARTIAL" ||
-                        parts[5] != "SI_NOT_RUN") return false;
+                    if (!ok || padCount != static_cast<int>(pads.size())) return false;
+                    if (p2f) {
+                        const int arcCount=parts[4].toInt(&ok);
+                        if(!ok || arcCount!=static_cast<int>(arcs.size()) ||
+                           arcCount<1 || parts[5]!="CANONICAL_PARTIAL" ||
+                           parts[6]!="SI_NOT_RUN") return false;
+                    } else if(parts[4] != "CANONICAL_PARTIAL" ||
+                              parts[5] != "SI_NOT_RUN") return false;
                 } else if (parts[3] != "CANONICAL_PARTIAL" ||
                            parts[4] != "SI_NOT_RUN" || !pads.empty()) return false;
                 end = true;
             } else return false;
         }
-        return end && (!tracks.empty() || !vias.empty() || !pads.empty());
+        return end && (!tracks.empty() || !arcs.empty() || !vias.empty() || !pads.empty());
     }
 public:
     explicit PreviewImportPanel(const QString &importBinary = QString(), QWidget *parent = nullptr)
@@ -232,11 +260,12 @@ public:
             std::vector<ImportedTrack> tracks;
             std::vector<ImportedVia> vias;
             std::vector<ImportedPad> pads;
-            if (!decode(data_, layers, skipped, tracks, vias, pads)) {
+            std::vector<ImportedArc> arcs;
+            if (!decode(data_, layers, skipped, tracks, vias, pads, arcs)) {
                 status("FAILED / INVALID_TRANSPORT / NOTHING IMPORTED");
                 return;
             }
-            if (!imported_->load(layers, skipped, tracks, vias, pads)) {
+            if (!imported_->load(layers, skipped, tracks, vias, pads, arcs)) {
                 status("FAILED / INVALID_GEOMETRY / NOTHING IMPORTED");
                 return;
             }
