@@ -726,6 +726,7 @@ static int runArcSmoke(PreviewWindow &window, const QString &fixture) {
                 failure="A_015 import failed: "+status; loop.quit(); return;
             }
             if(!status.startsWith("PARTIAL"))return;
+            const bool receiptHasArcs=status.contains("2 route arcs");
             auto *panel=window.importPanel()->imported();
             bool ccw=false,cw=false;
             auto *scene=panel->findChild<QGraphicsScene *>();
@@ -755,7 +756,7 @@ static int runArcSmoke(PreviewWindow &window, const QString &fixture) {
             }
 #endif
             passed=panel->arcCount()==2 && panel->segmentCount()==1 &&
-                   ccw && cw && selected && props &&
+                   receiptHasArcs && ccw && cw && selected && props &&
                    (!rhiChecked || (rhiSweepOk && rhiPickOk));
             if(!passed)failure="A_015 geometry/count/provenance/selection mismatch";
             loop.quit();
