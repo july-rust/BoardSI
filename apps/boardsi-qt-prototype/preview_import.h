@@ -60,10 +60,14 @@ class PreviewImportPanel final : public QWidget {
                        std::vector<ImportedOutlineEdge> &outlines) {
         if (bytes.size() > 2 * 1024 * 1024 || !bytes.endsWith('\n')) return false;
         const auto lines = QString::fromUtf8(bytes).split('\n', Qt::SkipEmptyParts);
-        if (lines.size() < 4 || lines.size() > 25100) return false;
+        // V6 can carry 16,320 BOARD perimeter edges in addition to existing
+        // 10,000 route segments/arcs, 10,000 vias and 5,000 pads. Byte cap
+        // remains 2 MiB; preserve the narrower legacy V1-V5 record ceiling.
+        if (lines.size() < 4 || lines.size() > 45000) return false;
         const auto header = lines.first().split('|');
         bool ok = false;
         const bool p2g = header.size() == 3 && header[0] == "BOARDSI_P2G_PARTIAL_V6";
+        if (!p2g && lines.size() > 25100) return false;
         const bool p2f = header.size() == 3 && header[0] == "BOARDSI_P2F_PARTIAL_V5";
         const bool p2e = header.size() == 3 && header[0] == "BOARDSI_P2E_PARTIAL_V4";
         const bool p2d = header.size() == 3 && header[0] == "BOARDSI_P2D_PARTIAL_V3";
