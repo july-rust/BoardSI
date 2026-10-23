@@ -316,6 +316,14 @@ jobs:
           cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker"
           cmake --build build-qt --parallel 2
           grep -q '^Qt6Quick_DIR:' build-qt/CMakeCache.txt
+      - name: Validate A_014 Qt Quick in real P2-E imported Artwork Viewer
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --bottom-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_bottom_mirror_v94.asc"
+          cat qt-preview-p2e-bottom-results.json
       - name: Run A_014 native Qt Quick / RHI geometry and first-frame smoke
         shell: bash
         run: |
