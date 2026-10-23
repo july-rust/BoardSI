@@ -273,7 +273,10 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
         // V6 groups consecutive ring records by kind + source name. Two
         // same-kind shapes reusing a name would conflate distinct rings.
         // Until the wire format carries a per-object ID, reject explicitly.
-        if shapes.iter().any(|s: &Shape| s.cutout == cutout && s.name == f[0]) {
+        if shapes
+            .iter()
+            .any(|s: &Shape| s.cutout == cutout && s.name == f[0])
+        {
             return Err("DUPLICATE_OUTLINE_NAME");
         }
         shapes.push(Shape {
