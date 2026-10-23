@@ -900,7 +900,7 @@ mod tests {
         let mut bytes = b"!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n".to_vec();
         for _ in 0..720 {
             bytes.extend_from_slice(b"*REMARK* ");
-            bytes.extend(std::iter::repeat_n(0xe9u8, 4000));
+            bytes.extend(std::iter::repeat(0xe9u8).take(4000));
             bytes.push(b'\n');
         }
         bytes.extend_from_slice(
