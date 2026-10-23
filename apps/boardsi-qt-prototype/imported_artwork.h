@@ -198,7 +198,10 @@ public:
             canvasStack_->addWidget(rhi_);
             canvasStack_->setCurrentWidget(rhi_);
             rhi_->onChanged([this] {
-                if (rhi_->failed()) canvasStack_->setCurrentWidget(view_);
+                if (rhi_->failed()) {
+                    view_->forceCpuFallbackFromRhi();
+                    canvasStack_->setCurrentWidget(view_);
+                }
                 refresh();
             });
             rhi_->onPicked([this](int kind,int index) {
