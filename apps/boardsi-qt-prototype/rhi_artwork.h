@@ -105,6 +105,7 @@ class BoardSiRhiItem final : public QQuickItem {
     std::vector<ImportedVia> vias_;
     std::vector<ImportedPad> pads_;
     std::vector<ImportedArc> arcs_;
+    std::vector<ImportedOutlineEdge> outlineEdges_;
     QVector<bool> visibility_;
     QString net_ = "All nets";
     qint64 originX_ = 0, originY_ = 0;
@@ -256,6 +257,16 @@ protected:
             if (net_ != "All nets" && net_ != t.net) color.setAlpha(40);
             thickLine(groups[color.rgba()],a,b,
                       std::max<qreal>(0.1,halfWidth));
+        }
+        // Mechanical boundaries are net- and layer-independent, never copper.
+        // One batched color group per outline kind; no per-edge scene nodes.
+        for (const auto &e : outlineEdges_) {
+            const QPointF a=pixel(world(e.x0_nm,e.y0_nm));
+            const QPointF b=pixel(world(e.x1_nm,e.y1_nm));
+            if (!QRectF(a,b).normalized().adjusted(-4,-4,4,4)
+                    .intersects(QRectF(0,0,width(),height()))) continue;
+            const QColor color(e.cutout ? "#e99f87" : "#e0e8ee");
+            thickLine(groups[color.rgba()],a,b,0.85);
         }
         size_t visibleArcCount=0;
         for (const auto &arc : arcs_) {
@@ -446,8 +457,10 @@ public:
     void onPicked(std::function<void(int,int)> callback) { picked_=std::move(callback); }
     void load(int layers,const std::vector<ImportedTrack> &tracks,
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads,
-              const std::vector<ImportedArc> &arcs = {}) {
-        tracks_=tracks; vias_=vias; pads_=pads; arcs_=arcs; layers_=layers;
+              const std::vector<ImportedArc> &arcs = {},
+              const std::vector<ImportedOutlineEdge> &outlines = {}) {
+        tracks_=tracks; vias_=vias; pads_=pads; arcs_=arcs;
+        outlineEdges_=outlines; layers_=layers;
         adapterProof_->store(0,std::memory_order_release);
         visibility_=QVector<bool>(layers+1,true);
         qint64 x=0,y=0; bool initialized=false;
@@ -461,6 +474,9 @@ public:
         }
         for (const auto &v:vias_) ingest(v.x_nm,v.y_nm);
         for (const auto &p:pads_) ingest(p.x_nm,p.y_nm);
+        for (const auto &e:outlineEdges_) {
+            ingest(e.x0_nm,e.y0_nm);ingest(e.x1_nm,e.y1_nm);
+        }
         originX_=x;originY_=y;
         QRectF rect;
         bool first=true;
@@ -493,6 +509,10 @@ public:
             const QPointF c=world(p.x_nm,p.y_nm);
             add(c,std::max(p.width_nm,p.height_nm)/2e6);
         }
+        for (const auto &e:outlineEdges_) {
+            add(world(e.x0_nm,e.y0_nm),0.0);
+            add(world(e.x1_nm,e.y1_nm),0.0);
+        }
         bounds_=rect.adjusted(-1,-1,1,1);
         pan_=QPointF();zoom_=1.0;
         modelGeneration_.fetch_add(1,std::memory_order_release);
@@ -508,7 +528,8 @@ public:
         }
     }
     int primitiveCount() const {
-        return static_cast<int>(tracks_.size()+vias_.size()+pads_.size()+arcs_.size());
+        return static_cast<int>(tracks_.size()+vias_.size()+pads_.size()+arcs_.size()+
+                                outlineEdges_.size());
     }
     // Native test seams exercise the same sweep used by GPU tessellation and
     // the same arcIndexAt path used by real mouseReleaseEvent.
@@ -700,10 +721,11 @@ public:
     void onPicked(std::function<void(int,int)> callback) {artwork_->onPicked(std::move(callback));}
     void load(int layers,const std::vector<ImportedTrack> &tracks,
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads,
-              const std::vector<ImportedArc> &arcs = {}) {
+              const std::vector<ImportedArc> &arcs = {},
+              const std::vector<ImportedOutlineEdge> &outlines = {}) {
         seenFrame_=false;
         status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
-        artwork_->load(layers,tracks,vias,pads,arcs);
+        artwork_->load(layers,tracks,vias,pads,arcs,outlines);
         loadGeneration_=artwork_->sourceGeneration();
         deadlineGeneration_=std::numeric_limits<quint64>::max();
         ++deadlineEpoch_;
