@@ -104,6 +104,7 @@ class BoardSiRhiItem final : public QQuickItem {
     std::vector<ImportedTrack> tracks_;
     std::vector<ImportedVia> vias_;
     std::vector<ImportedPad> pads_;
+    std::vector<ImportedArc> arcs_;
     QVector<bool> visibility_;
     QString net_ = "All nets";
     qint64 originX_ = 0, originY_ = 0;
@@ -135,6 +136,20 @@ class BoardSiRhiItem final : public QQuickItem {
         const qreal scale = scaleFactor();
         return QPointF((p.x() - bounds_.center().x()) * scale + width() / 2 + pan_.x(),
                        (p.y() - bounds_.center().y()) * scale + height() / 2 + pan_.y());
+    }
+    struct ArcAngles {
+        qreal start, sweep;
+    };
+    static ArcAngles arcAngles(const ImportedArc &a) {
+        constexpr qreal pi=3.14159265358979323846;
+        const qreal first=std::atan2(static_cast<qreal>(a.y0_nm-a.cy_nm),
+                                     static_cast<qreal>(a.x0_nm-a.cx_nm));
+        const qreal last=std::atan2(static_cast<qreal>(a.y1_nm-a.cy_nm),
+                                    static_cast<qreal>(a.x1_nm-a.cx_nm));
+        qreal sweep=last-first;
+        if (a.clockwise) { while (sweep >= 0) sweep -= 2*pi; }
+        else { while (sweep <= 0) sweep += 2*pi; }
+        return {first,sweep};
     }
     using Vertices = std::vector<QPointF>;
     static void triangle(Vertices &v, QPointF a, QPointF b, QPointF c) {
@@ -201,6 +216,35 @@ protected:
             if (net_ != "All nets" && net_ != t.net) color.setAlpha(40);
             thickLine(groups[color.rgba()],a,b,
                       std::max<qreal>(0.1,halfWidth));
+        }
+        for (const auto &a : arcs_) {
+            if (!visible(a.layer)) continue;
+            const QPointF c=pixel(world(a.cx_nm,a.cy_nm));
+            const qreal rad=std::hypot(static_cast<qreal>(a.x0_nm-a.cx_nm),
+                                       static_cast<qreal>(a.y0_nm-a.cy_nm))/1e6*px;
+            const qreal halfWidth=a.width_nm/2e6*px;
+            if (!inView(c,rad+halfWidth,width(),height())) continue;
+            const QColor base=a.layer==1 ? QColor("#f29d55") :
+                   a.layer==layers_ ? QColor("#55b4e9") : QColor("#a9d48e");
+            QColor color(base);
+            if(net_!="All nets" && net_!=a.net) color.setAlpha(40);
+            auto &v=groups[color.rgba()];
+            const auto angles=arcAngles(a);
+            // Display-only bounded tessellation; Canonical Arc remains exact.
+            const int steps=std::clamp(
+                static_cast<int>(std::ceil(std::abs(angles.sweep)*
+                                          std::sqrt(std::max<qreal>(1,rad)/4.0))),
+                4,512);
+            QPointF prev=pixel(world(a.x0_nm,a.y0_nm));
+            for(int i=1;i<=steps;++i) {
+                const qreal phi=angles.start+angles.sweep*i/steps;
+                QPointF next;
+                if(i==steps) next=pixel(world(a.x1_nm,a.y1_nm));
+                else next=QPointF(c.x()+rad*std::cos(phi),
+                                  c.y()-rad*std::sin(phi));
+                thickLine(v,prev,next,std::max<qreal>(0.1,halfWidth));
+                prev=next;
+            }
         }
         for (const auto &pad : pads_) {
             if (!visible(pad.layer)) continue;
@@ -306,6 +350,32 @@ protected:
                     picked_(1,static_cast<int>(i)); event->accept(); return;
                 }
             }
+            // Arc hit test uses centre/radius/sweep, not a fabricated chord.
+            for(size_t i=arcs_.size();i>0;--i) {
+                const auto &a=arcs_[i-1];
+                if(!visible(a.layer))continue;
+                const QPointF centre=pixel(world(a.cx_nm,a.cy_nm));
+                const QPointF delta=event->position()-centre;
+                const qreal radius=std::hypot(
+                    static_cast<qreal>(a.x0_nm-a.cx_nm),
+                    static_cast<qreal>(a.y0_nm-a.cy_nm))/1e6*scaleFactor();
+                const qreal distance=std::hypot(delta.x(),delta.y());
+                if(std::abs(distance-radius)>
+                   std::max<qreal>(3.0,a.width_nm/2e6*scaleFactor()+2))continue;
+                // Qt scene screen Y is down; invert it for PADS angle.
+                qreal phi=std::atan2(-delta.y(),delta.x());
+                const auto angles=arcAngles(a);
+                constexpr qreal twoPi=6.28318530717958647692;
+                qreal travel=phi-angles.start;
+                if(a.clockwise) {while(travel>0) travel-=twoPi;
+                                 while(travel<=-twoPi) travel+=twoPi;}
+                else {while(travel<0) travel+=twoPi;
+                      while(travel>=twoPi) travel-=twoPi;}
+                if((a.clockwise && travel>=angles.sweep) ||
+                   (!a.clockwise && travel<=angles.sweep)) {
+                    picked_(4,static_cast<int>(i-1)); event->accept();return;
+                }
+            }
             // Existing QGraphicsScene supports straight copper selection by
             // net and provenance. Mirror that behavior in the RHI viewport.
             for (size_t i=tracks_.size();i>0;--i) {
@@ -340,8 +410,9 @@ public:
     }
     void onPicked(std::function<void(int,int)> callback) { picked_=std::move(callback); }
     void load(int layers,const std::vector<ImportedTrack> &tracks,
-              const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads) {
-        tracks_=tracks; vias_=vias; pads_=pads; layers_=layers;
+              const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads,
+              const std::vector<ImportedArc> &arcs = {}) {
+        tracks_=tracks; vias_=vias; pads_=pads; arcs_=arcs; layers_=layers;
         adapterProof_->store(0,std::memory_order_release);
         visibility_=QVector<bool>(layers+1,true);
         qint64 x=0,y=0; bool initialized=false;
@@ -350,6 +421,9 @@ public:
             else { x=std::min(x,a);y=std::min(y,b); }
         };
         for (const auto &t:tracks_) { ingest(t.x0_nm,t.y0_nm);ingest(t.x1_nm,t.y1_nm); }
+        for (const auto &a:arcs_) {
+            ingest(a.x0_nm,a.y0_nm); ingest(a.x1_nm,a.y1_nm); ingest(a.cx_nm,a.cy_nm);
+        }
         for (const auto &v:vias_) ingest(v.x_nm,v.y_nm);
         for (const auto &p:pads_) ingest(p.x_nm,p.y_nm);
         originX_=x;originY_=y;
@@ -362,6 +436,11 @@ public:
         for(const auto &t:tracks_) {
             add(world(t.x0_nm,t.y0_nm),t.width_nm/2e6);
             add(world(t.x1_nm,t.y1_nm),t.width_nm/2e6);
+        }
+        for(const auto &a:arcs_) {
+            const qreal rad=std::hypot(static_cast<qreal>(a.x0_nm-a.cx_nm),
+                                       static_cast<qreal>(a.y0_nm-a.cy_nm))/1e6;
+            add(world(a.cx_nm,a.cy_nm),rad+a.width_nm/2e6);
         }
         for(const auto &v:vias_) add(world(v.x_nm,v.y_nm),v.diameter_nm/2e6);
         for(const auto &p:pads_) {
@@ -534,7 +613,7 @@ public:
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads) {
         seenFrame_=false;
         status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
-        artwork_->load(layers,tracks,vias,pads);
+        artwork_->load(layers,tracks,vias,pads,arcs);
         loadGeneration_=artwork_->sourceGeneration();
         deadlineGeneration_=std::numeric_limits<quint64>::max();
         ++deadlineEpoch_;
