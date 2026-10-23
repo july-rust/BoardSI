@@ -156,6 +156,9 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
             i += 1;
             continue;
         }
+        if f.len() >= 2 && f[1] == "BOARD" && f.len() < 6 {
+            return Err("UNSUPPORTED_OUTLINE_HEADER");
+        }
         if f.len() < 6 || !matches!(f[1], "BOARD" | "LINES" | "COPPER" | "COPCUT" | "KEEPOUT") {
             // Unsupported text/reuse is not granted board-outline semantics.
             i += 1;
@@ -339,7 +342,10 @@ mod tests {
     }
     #[test]
     fn rejects_oversized_piece_headers_and_vertex_rows() {
-        let piece = INPUT.replace("CLOSED 5 1 0 0", &format!("CLOSED 5 1 0 0{}", " ".repeat(16_385)));
+        let piece = INPUT.replace(
+            "CLOSED 5 1 0 0",
+            &format!("CLOSED 5 1 0 0{}", " ".repeat(16_385)),
+        );
         let vertex = INPUT.replace("400 300", &format!("400 300{}", " ".repeat(16_385)));
         assert_eq!(parse(piece.as_bytes()).unwrap_err(), "OVERLONG_LINE");
         assert_eq!(parse(vertex.as_bytes()).unwrap_err(), "OVERLONG_LINE");
