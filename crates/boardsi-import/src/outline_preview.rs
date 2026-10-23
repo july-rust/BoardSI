@@ -337,7 +337,7 @@ mod tests {
     #[test]
     fn rejects_broken_shapes_and_unsupported_arcs() {
         for bad in [
-            INPUT.replace("0 0\n*END*", "0 1\n*END*"),
+            INPUT.replace("100 100\n*END*", "100 101\n*END*"),
             INPUT.replace("CLOSED 5 1 0 0", "CIRCLE 5 1 0 0"),
             INPUT.replace("BRDCLS 5 1 0 0", "BRDCIR 5 1 0 0"),
             INPUT.replace("100 100\n200 100", "-100 -100\n200 100"),
