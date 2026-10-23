@@ -151,6 +151,32 @@ class BoardSiRhiItem final : public QQuickItem {
         else { while (sweep <= 0) sweep += 2*pi; }
         return {first,sweep};
     }
+    int arcIndexAt(const QPointF &pos) const {
+        // No invented straight chord: hit testing follows actual circle sweep.
+        constexpr qreal twoPi=6.28318530717958647692;
+        for(size_t i=arcs_.size();i>0;--i) {
+            const auto &a=arcs_[i-1];
+            if(!visible(a.layer)) continue;
+            const QPointF centre=pixel(world(a.cx_nm,a.cy_nm));
+            const QPointF delta=pos-centre;
+            const qreal radius=std::hypot(
+                static_cast<qreal>(a.x0_nm-a.cx_nm),
+                static_cast<qreal>(a.y0_nm-a.cy_nm))/1e6*scaleFactor();
+            if(std::abs(std::hypot(delta.x(),delta.y())-radius)>
+               std::max<qreal>(3.0,a.width_nm/2e6*scaleFactor()+2)) continue;
+            const qreal phi=std::atan2(-delta.y(),delta.x());
+            const auto angles=arcAngles(a);
+            qreal travel=phi-angles.start;
+            if(a.clockwise) {while(travel>0) travel-=twoPi;
+                             while(travel<=-twoPi) travel+=twoPi;}
+            else {while(travel<0) travel+=twoPi;
+                  while(travel>=twoPi) travel-=twoPi;}
+            if((a.clockwise && travel>=angles.sweep) ||
+               (!a.clockwise && travel<=angles.sweep))
+                return static_cast<int>(i-1);
+        }
+        return -1;
+    }
     using Vertices = std::vector<QPointF>;
     static void triangle(Vertices &v, QPointF a, QPointF b, QPointF c) {
         v.push_back(a); v.push_back(b); v.push_back(c);
@@ -350,31 +376,10 @@ protected:
                     picked_(1,static_cast<int>(i)); event->accept(); return;
                 }
             }
-            // Arc hit test uses centre/radius/sweep, not a fabricated chord.
-            for(size_t i=arcs_.size();i>0;--i) {
-                const auto &a=arcs_[i-1];
-                if(!visible(a.layer))continue;
-                const QPointF centre=pixel(world(a.cx_nm,a.cy_nm));
-                const QPointF delta=event->position()-centre;
-                const qreal radius=std::hypot(
-                    static_cast<qreal>(a.x0_nm-a.cx_nm),
-                    static_cast<qreal>(a.y0_nm-a.cy_nm))/1e6*scaleFactor();
-                const qreal distance=std::hypot(delta.x(),delta.y());
-                if(std::abs(distance-radius)>
-                   std::max<qreal>(3.0,a.width_nm/2e6*scaleFactor()+2))continue;
-                // Qt scene screen Y is down; invert it for PADS angle.
-                qreal phi=std::atan2(-delta.y(),delta.x());
-                const auto angles=arcAngles(a);
-                constexpr qreal twoPi=6.28318530717958647692;
-                qreal travel=phi-angles.start;
-                if(a.clockwise) {while(travel>0) travel-=twoPi;
-                                 while(travel<=-twoPi) travel+=twoPi;}
-                else {while(travel<0) travel+=twoPi;
-                      while(travel>=twoPi) travel-=twoPi;}
-                if((a.clockwise && travel>=angles.sweep) ||
-                   (!a.clockwise && travel<=angles.sweep)) {
-                    picked_(4,static_cast<int>(i-1)); event->accept();return;
-                }
+            // Mouse input and the native smoke use the same RHI arc hit-test.
+            const int arcIndex=arcIndexAt(event->position());
+            if(arcIndex>=0) {
+                picked_(4,arcIndex); event->accept(); return;
             }
             // Existing QGraphicsScene supports straight copper selection by
             // net and provenance. Mirror that behavior in the RHI viewport.
@@ -464,6 +469,35 @@ public:
     int primitiveCount() const {
         return static_cast<int>(tracks_.size()+vias_.size()+pads_.size()+arcs_.size());
     }
+    // Native test seams exercise the same sweep used by GPU tessellation and
+    // the same arcIndexAt path used by real mouseReleaseEvent.
+    bool arcSweepForTest(int index, bool clockwise) const {
+        if(index<0 || index>=static_cast<int>(arcs_.size())) return false;
+        const auto &a=arcs_[static_cast<size_t>(index)];
+        const auto sweep=arcAngles(a).sweep;
+        constexpr qreal twoPi=6.28318530717958647692;
+        return a.clockwise==clockwise && std::isfinite(sweep) &&
+               (clockwise ? sweep<0 : sweep>0) &&
+               std::abs(sweep)>0.001 && std::abs(sweep)<twoPi;
+    }
+    bool dispatchArcPickForTest(int index) {
+        if(!picked_ || width()<2 || height()<2 ||
+           index<0 || index>=static_cast<int>(arcs_.size())) return false;
+        const auto &a=arcs_[static_cast<size_t>(index)];
+        if(!visible(a.layer)) return false;
+        const auto angles=arcAngles(a);
+        const QPointF centre=pixel(world(a.cx_nm,a.cy_nm));
+        const qreal radius=std::hypot(
+            static_cast<qreal>(a.x0_nm-a.cx_nm),
+            static_cast<qreal>(a.y0_nm-a.cy_nm))/1e6*scaleFactor();
+        const qreal middle=angles.start+angles.sweep/2;
+        const QPointF point(centre.x()+radius*std::cos(middle),
+                            centre.y()-radius*std::sin(middle));
+        if(arcIndexAt(point)!=index) return false;
+        picked_(4,index);
+        return true;
+    }
+
     // 1: D3D11 non-software adapter; -1: WARP; -2: unavailable;
     // 0: pending; 2: platform other than Windows.
     int d3dAdapterProof() const {
