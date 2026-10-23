@@ -883,6 +883,7 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
     clock.start();
     bool passed = false;
     QString failure;
+    bool rhiViewChecked = false, rhiFrame = false, softwareCpuFallback = false;
     QEventLoop loop;
     if (!window.openCandidate(fixture)) {
         failure = "P2-E public bottom fixture unavailable";
@@ -895,6 +896,34 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
                 loop.quit();
             } else if (status.startsWith("PARTIAL")) {
                 auto *panel = window.importPanel()->imported();
+#ifdef BOARDSI_RHI_ARTWORK
+                const bool softwareRequest = BoardSiRhiView::softwareRendererRequested();
+                const bool cpuRequest =
+                    qEnvironmentVariable("BOARDSI_ARTWORK_RENDERER").trimmed().toLower()=="cpu";
+                const bool nativeRhiTest = !softwareRequest && !cpuRequest &&
+                    QGuiApplication::platformName() != "offscreen" &&
+                    QGuiApplication::platformName() != "minimal";
+                auto *rhi = panel->rhiViewForTest();
+                if (nativeRhiTest) {
+                    if (!rhi || !panel->rhiCanvasActiveForTest()) {
+                        failure = "Imported artwork did not activate native RHI";
+                        loop.quit(); return;
+                    }
+                    const QString renderState = rhi->status();
+                    if (renderState.startsWith("RHI_PENDING_FRAME")) return;
+                    if (!renderState.startsWith("RHI_FRAME_")) {
+                        failure = "Imported RHI has no native frame: " + renderState;
+                        loop.quit(); return;
+                    }
+                    rhiFrame = true;
+                } else if (softwareRequest) {
+                    softwareCpuFallback = !rhi && panel->rendererStatus().startsWith("CPU_");
+                    if (!softwareCpuFallback) {
+                        failure = "Qt software RHI request did not force CPU";
+                        loop.quit(); return;
+                    }
+                }
+#endif
                 auto *scene = panel->findChild<QGraphicsScene *>();
                 const auto near = [](qreal a, qreal b) { return qAbs(a - b) < 0.000001; };
                 struct Expected { const char *label; qreal x,y,w,h; int layer,rotation; };
@@ -929,6 +958,35 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
                     }
                     if (!found) { geometry = false; break; }
                 }
+                bool rhiGeometry = true, rhiPicking = true;
+#ifdef BOARDSI_RHI_ARTWORK
+                if (rhiFrame) {
+                    auto *item = panel->rhiViewForTest()->itemForTest();
+                    rhiViewChecked = item && item->primitiveCount()==10 &&
+                                     item->visiblePadCount()==10;
+                    rhiGeometry = rhiViewChecked;
+                    if (rhiGeometry) for (const auto &want : expected) {
+                        const QStringList id=QString::fromLatin1(want.label).mid(4).split('.');
+                        if (id.size()!=2 || !item->containsExactPad(id.at(0),id.at(1),
+                                want.layer,want.rotation,qRound64(want.x*1e6),
+                                qRound64(-want.y*1e6),qRound64(want.w*1e6),
+                                qRound64(want.h*1e6))) {
+                            rhiGeometry=false; break;
+                        }
+                    }
+                    if (rhiGeometry) {
+                        const QPointF at=item->screenPointForTest(2540000,7620000);
+                        QMouseEvent press(QEvent::MouseButtonPress,at,
+                                         Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);
+                        QMouseEvent release(QEvent::MouseButtonRelease,at,
+                                           Qt::LeftButton,Qt::NoButton,Qt::NoModifier);
+                        QCoreApplication::sendEvent(item,&press);
+                        QCoreApplication::sendEvent(item,&release);
+                        rhiPicking=window.displayedProperties().contains("Pad U0.2") &&
+                                   window.displayedProperties().contains("side Bottom");
+                    }
+                }
+#endif
                 const bool selected = panel->selectPad(1) &&
                     window.displayedProperties().contains("Pad U0.2") &&
                     window.displayedProperties().contains("side Bottom") &&
@@ -944,14 +1002,23 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
                         int count = 0;
                         for (auto *item : scene->items()) if (item->isVisible()) ++count;
                         const bool onlyTop = count == 2;
+#ifdef BOARDSI_RHI_ARTWORK
+                        if (rhiFrame) rhiGeometry = rhiGeometry &&
+                            panel->rhiViewForTest()->itemForTest()->visiblePadCount()==2;
+#endif
                         toggle->click();
                         count = 0;
                         for (auto *item : scene->items()) if (item->isVisible()) ++count;
                         visibility = onlyTop && count == 10;
+#ifdef BOARDSI_RHI_ARTWORK
+                        if (rhiFrame) rhiGeometry = rhiGeometry &&
+                            panel->rhiViewForTest()->itemForTest()->visiblePadCount()==10;
+#endif
                     }
                 }
-                passed = geometry && selected && visibility && panel->padCount() == 10 &&
-                         panel->segmentCount() == 0 && panel->viaCount() == 0;
+                passed = geometry && selected && visibility && rhiGeometry && rhiPicking &&
+                         panel->padCount() == 10 && panel->segmentCount() == 0 &&
+                         panel->viaCount() == 0;
                 if (!passed) failure = "P2-E geometry/side/selection/visibility mismatch";
                 loop.quit();
             }
@@ -965,6 +1032,9 @@ static int runBottomSmoke(PreviewWindow &window, const QString &fixture) {
     QJsonObject report{
         {"schema", "boardsi-preview-p2e-bottom-smoke-v1"},
         {"pass", passed}, {"failure", failure}, {"elapsed_ms", clock.elapsed()},
+        {"rhi_view_checked", rhiViewChecked},
+        {"rhi_first_frame_confirmed", rhiFrame},
+        {"software_rhi_cpu_fallback", softwareCpuFallback},
         {"source_sha", qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
         {"native_backend", QGuiApplication::platformName()},
         {"host_arch", QSysInfo::currentCpuArchitecture()},
