@@ -71,7 +71,6 @@ if ($bundled) {
     $qmake = Join-Path $qtBin 'qmake.exe'
     foreach ($required in @(
         (Join-Path $qtBin 'Qt6Core.dll'),(Join-Path $qtBin 'Qt6Gui.dll'),
-        (Join-Path $qtBin 'Qt6OpenGL.dll'),(Join-Path $qtBin 'Qt6OpenGLWidgets.dll'),
         (Join-Path $qtBin 'Qt6Widgets.dll'),$platformDll,$qmake
     )) {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
@@ -124,10 +123,14 @@ foreach ($native in @($preview, $worker, $importer,
                        (Join-Path $qtBin 'Qt6Core.dll'),
                        (Join-Path $qtBin 'Qt6Gui.dll'),
                        (Join-Path $qtBin 'Qt6Network.dll'),
-                       (Join-Path $qtBin 'Qt6OpenGL.dll'),
-                       (Join-Path $qtBin 'Qt6OpenGLWidgets.dll'),
                        (Join-Path $qtBin 'Qt6Widgets.dll'), $platformDll)) {
     Assert-Amd64PeFile $native
+}
+# The bundled GPU-enabled package must include both extra Qt DLLs, while
+# source developer builds without Qt OpenGLWidgets remain runnable via CPU.
+if ($bundled) {
+    Assert-Amd64PeFile (Join-Path $qtBin 'Qt6OpenGL.dll')
+    Assert-Amd64PeFile (Join-Path $qtBin 'Qt6OpenGLWidgets.dll')
 }
 if ([string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
     $workingDirectory = $defaultWorkingDirectory
