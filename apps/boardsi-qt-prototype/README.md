@@ -154,7 +154,7 @@ redistribution restriction remain unchanged; no Qt executables are published.
 QGraphicsScene/QGraphicsView retained all Canonical artwork selection, layers,
 pan/zoom and Properties behavior. The common `SyntheticArtworkCanvas` now
 checks real OpenGL context/surface capability on first visible display and,
-when the driver is not reported as software, switches to a QOpenGLWidget
+when the renderer matches a known hardware adapter and is not a software driver, switches to a QOpenGLWidget
 viewport. Qt frameSwapped is required before reporting `GPU_OPENGL_ACTIVE`.
 This is an initial acceleration path, **not** evidence of batching, FPS, or
 whole-scene GPU rasterization: individual QGraphicsItem/QPainter primitives may
