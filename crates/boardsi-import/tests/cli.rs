@@ -166,3 +166,19 @@ fn p2e_cli_bottom_mirror_top_mixed_explicit_side_and_no_net() {
     }
     assert!(msg.ends_with("END|0|0|10|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
 }
+
+
+#[test]
+fn p2g_cli_emits_exact_non_copper_board_and_cutout_edges() {
+    let bin=env!("CARGO_BIN_EXE_boardsi-import-artwork");
+    let fixture=std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pads_board_outline_cutout_v94.asc");
+    let output=Command::new(bin).arg(fixture).output().expect("P2G CLI");
+    assert!(output.status.success(),"stderr: {}",String::from_utf8_lossy(&output.stderr));
+    let msg=String::from_utf8(output.stdout).unwrap();
+    assert!(msg.starts_with("BOARDSI_P2G_PARTIAL_V6|V9.4-MILS|4\n"));
+    assert!(msg.contains("O|OUTER|MAIN_BOARD|0|2540000|5080000|12700000|5080000\n"));
+    assert!(msg.contains("O|CUT|INNER_CUT|0|5080000|7620000|7620000|7620000\n"));
+    assert_eq!(msg.lines().filter(|s|s.starts_with("O|")).count(),8);
+    assert!(msg.ends_with("END|1|0|0|0|1|1|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
+}
