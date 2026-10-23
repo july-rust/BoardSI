@@ -1183,7 +1183,10 @@ static int runRhiGeometrySmoke() {
         poll.start(20);loop.exec();poll.stop();
         backend=view.status();
         frame=backend.startsWith("RHI_FRAME_");
-        fallbackConfirmed=backend.startsWith("CPU_FALLBACK_RHI_");
+        // ONLY render-thread DXGI-proven WARP is an acceptable native
+        // fallback. Frame timeout, scene graph error and missing adapter proof
+        // must fail the 10,002-object geometry integration test as well.
+        fallbackConfirmed=(backend=="CPU_FALLBACK_RHI_SOFTWARE_D3D11_ADAPTER");
         adapterProof=view.itemForTest()->d3dAdapterProof();
         if (!frame && !fallbackConfirmed)
             failure="No RHI frame or verified CPU fallback: "+backend;
