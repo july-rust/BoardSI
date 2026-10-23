@@ -281,7 +281,7 @@ public:
 #endif
         scene_->setSceneRect(QRectF());
         summary_->setText("No imported PCB. Synthetic demo is a separate tab.\n"
-                          "Artwork renderer: " + view_->rendererStatus());
+                          "Artwork renderer: " + rendererStatus());
         if (detailsCallback_) detailsCallback_(summary_->text());
     }
     bool load(int layerCount, int skipped, const std::vector<ImportedTrack> &input,
