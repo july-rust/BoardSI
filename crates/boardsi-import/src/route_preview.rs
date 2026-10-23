@@ -280,12 +280,16 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
             continue;
         }
         if keyword == "*END*" {
-            if pending_arc.take().is_some() { skipped = skipped.saturating_add(1); }
+            if pending_arc.take().is_some() {
+                skipped = skipped.saturating_add(1);
+            }
             found_end = true;
             break;
         }
         if line.starts_with('*') {
-            if pending_arc.take().is_some() { skipped = skipped.saturating_add(1); }
+            if pending_arc.take().is_some() {
+                skipped = skipped.saturating_add(1);
+            }
             if keyword == "*PCB*" {
                 in_pcb = true;
                 in_route = false;
@@ -347,7 +351,9 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
             continue;
         }
         if pin_pair(&fields) {
-            if pending_arc.take().is_some() { skipped = skipped.saturating_add(1); }
+            if pending_arc.take().is_some() {
+                skipped = skipped.saturating_add(1);
+            }
             if net.is_none() {
                 return Err("PIN_PAIR_WITHOUT_SIGNAL");
             }
@@ -397,7 +403,9 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         mul_nm(width)?;
         // Only a PADS 9.4 centre flag plus CW/CCW is an arc centre.
         if flag & 0x1000 != 0 {
-            if pending_arc.take().is_some() { skipped = skipped.saturating_add(1); }
+            if pending_arc.take().is_some() {
+                skipped = skipped.saturating_add(1);
+            }
             if fields.len() == 6
                 && flag & !(SUPPORTED_STRAIGHT_FLAGS | 0x1000) == 0
                 && (fields[5] == "CW" || fields[5] == "CCW")
@@ -423,18 +431,30 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
             };
             if fields.len() == 5
                 && flag & !SUPPORTED_STRAIGHT_FLAGS == 0
-                && effective_layer == arc_layer && width == arc_width
-                && start != p && radius_sq(start) > 0
+                && effective_layer == arc_layer
+                && width == arc_width
+                && start != p
+                && radius_sq(start) > 0
                 && radius_sq(start) == radius_sq(p)
             {
-                if segments.len() + arcs.len() >= MAX_SEGMENTS { return Err("SEGMENT_LIMIT"); }
+                if segments.len() + arcs.len() >= MAX_SEGMENTS {
+                    return Err("SEGMENT_LIMIT");
+                }
                 arcs.push(RouteArc {
                     layer: arc_layer as u32,
                     net: net.unwrap_or_default().to_string(),
-                    start, centre, end: p, clockwise, width_ticks: width,
+                    start,
+                    centre,
+                    end: p,
+                    clockwise,
+                    width_ticks: width,
                     source_line: line_no + 1,
                 });
-                previous = if layer == 65 { None } else { Some((p, arc_layer, width)) };
+                previous = if layer == 65 {
+                    None
+                } else {
+                    Some((p, arc_layer, width))
+                };
                 continue;
             }
             skipped = skipped.saturating_add(1);
@@ -592,7 +612,10 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         conditions: {
             let mut conditions = vec![("route_subset".into(), "straight-same-layer".into())];
             if !parsed.arcs.is_empty() {
-                conditions.push(("arc_subset".into(), "strict-centre-cw-ccw-source-grid".into()));
+                conditions.push((
+                    "arc_subset".into(),
+                    "strict-centre-cw-ccw-source-grid".into(),
+                ));
             }
             if !parsed.vias.is_empty() {
                 conditions.push((
@@ -664,17 +687,28 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         if !nets.contains_key(&a.net) {
             let m = meta(&source, ObjectKind::Net, &a.net);
             nets.insert(a.net.clone(), m.id.clone());
-            board.nets.push(Net { meta: m, name: a.net.clone(), role: NetRole::Unknown });
+            board.nets.push(Net {
+                meta: m,
+                name: a.net.clone(),
+                role: NetRole::Unknown,
+            });
         }
-        let point = |ticks| Point { frame: frame_id.clone(), ticks };
+        let point = |ticks| Point {
+            frame: frame_id.clone(),
+            ticks,
+        };
         board.arcs.push(boardsi_model::Arc {
             meta: meta_with_provenance(
-                &source, ObjectKind::Arc,
+                &source,
+                ObjectKind::Arc,
                 &format!("route-arc-{}", a.source_line),
                 "PADS Layout ROUTE strict centre/CCW/CW arc",
             ),
             layer: ObjectId::new(
-                &source, ObjectKind::Layer, &format!("layer-{}", a.layer), "",
+                &source,
+                ObjectKind::Layer,
+                &format!("layer-{}", a.layer),
+                "",
             ),
             net: nets.get(&a.net).cloned(),
             centre: point(a.centre),
@@ -1250,7 +1284,7 @@ mod p2b_via_regressions {
         let a = parse(source.as_bytes()).unwrap();
         assert_eq!(a.arcs.len(), 1);
         assert!(a.segments.is_empty());
-        assert_eq!(a.arcs[0].centre, [10000,10000]);
+        assert_eq!(a.arcs[0].centre, [10000, 10000]);
         assert!(!a.arcs[0].clockwise);
         let model = into_canonical(source.as_bytes(), &a).unwrap();
         assert_eq!(model.arcs.len(), 1);
@@ -1261,8 +1295,14 @@ mod p2b_via_regressions {
         let bad = source.replace("100 200 1 10 0", "100 201 1 10 0");
         assert_eq!(parse(bad.as_bytes()).unwrap_err(), "NO_SUPPORTED_TRACES");
         let dangling = source.replace("100 200 1 10 0\n", "");
-        assert_eq!(parse(dangling.as_bytes()).unwrap_err(), "NO_SUPPORTED_TRACES");
+        assert_eq!(
+            parse(dangling.as_bytes()).unwrap_err(),
+            "NO_SUPPORTED_TRACES"
+        );
         let unknown = source.replace("4096 CCW", "4096 UNKNOWN");
-        assert_eq!(parse(unknown.as_bytes()).unwrap_err(), "NO_SUPPORTED_TRACES");
+        assert_eq!(
+            parse(unknown.as_bytes()).unwrap_err(),
+            "NO_SUPPORTED_TRACES"
+        );
     }
 }
