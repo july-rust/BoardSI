@@ -1,6 +1,7 @@
 //! Offline local PADS ASC (V9.4 MILS only) -> partial Canonical Model -> Qt line protocol.
 //! Standard output is a bounded transport, never an SI simulation or full CAD import.
 use boardsi_import::part_preview::{self, MAX_PADS};
+use boardsi_import::outline_preview;
 use boardsi_import::route_preview::{into_canonical, parse, MAX_FILE_BYTES};
 use std::{
     env, fs,
@@ -20,13 +21,16 @@ fn run() -> Result<(), &'static str> {
     }
     let bytes = fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
     let result = parse(&bytes)?;
+    let outlines = outline_preview::parse(&bytes)?;
     let mut board = into_canonical(&bytes, &result)?;
     let pad_data = part_preview::parse(&bytes, result.max_layer);
     part_preview::augment(&mut board, &pad_data)?;
+    outline_preview::augment(&mut board, &outlines)?;
     if board.arcs.len() != result.arcs.len()
         || board.traces.len() != result.segments.len()
         || board.vias.len() != result.vias.len()
         || board.pads.len() != pad_data.pads.len()
+        || board.outlines.len() != usize::from(!outlines.is_empty())
         || board.validate().has_errors()
     {
         return Err("CANONICAL_VALIDATION_FAILED");
@@ -34,7 +38,9 @@ fn run() -> Result<(), &'static str> {
     let mut out = Vec::new();
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
     // records are actually emitted. Rejected PART rows are not P2C geometry.
-    let mode = if !result.arcs.is_empty() {
+    let mode = if !outlines.is_empty() {
+        "BOARDSI_P2G_PARTIAL_V6"
+    } else if !result.arcs.is_empty() {
         "BOARDSI_P2F_PARTIAL_V5"
     } else if pad_data.pads.iter().any(|pad| pad.bottom) {
         "BOARDSI_P2E_PARTIAL_V4"
@@ -137,7 +143,7 @@ fn run() -> Result<(), &'static str> {
             pad.height_ticks
                 .checked_mul(NM)
                 .ok_or("PAD_SIZE_OVERFLOW")?,
-            if mode == "BOARDSI_P2E_PARTIAL_V4" || mode == "BOARDSI_P2F_PARTIAL_V5" {
+            if mode == "BOARDSI_P2E_PARTIAL_V4" || mode == "BOARDSI_P2F_PARTIAL_V5" || mode == "BOARDSI_P2G_PARTIAL_V6" {
                 format!(
                     "|{}|{}",
                     if pad.bottom { "B" } else { "T" },
@@ -149,7 +155,28 @@ fn run() -> Result<(), &'static str> {
         )
         .map_err(|_| "FORMAT_ERROR")?;
     }
-    if mode == "BOARDSI_P2F_PARTIAL_V5" {
+    if mode == "BOARDSI_P2G_PARTIAL_V6" {
+        // Non-electrical BOARD perimeter edges. Never mix them with copper T/A.
+        for shape in &outlines {
+            for (n,pair) in shape.vertices.windows(2).enumerate() {
+                writeln!(out, "O|{}|{}|{}|{}|{}|{}|{}",
+                    if shape.cutout { "CUT" } else { "OUTER" },
+                    shape.name, n,
+                    outline_preview::wire_nm(pair[0][0])?,
+                    outline_preview::wire_nm(pair[0][1])?,
+                    outline_preview::wire_nm(pair[1][0])?,
+                    outline_preview::wire_nm(pair[1][1])?,
+                ).map_err(|_| "FORMAT_ERROR")?;
+            }
+        }
+        writeln!(
+            out, "END|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+            result.segments.len(), result.skipped.saturating_add(pad_data.skipped as u32),
+            pad_data.pads.len(), result.arcs.len(),
+            outlines.iter().filter(|s|!s.cutout).count(),
+            outlines.iter().filter(|s|s.cutout).count()
+        )
+    } else if mode == "BOARDSI_P2F_PARTIAL_V5" {
         writeln!(
             out,
             "END|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
