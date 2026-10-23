@@ -11,6 +11,7 @@
 #include <QSGGeometry>
 #include <QSGGeometryNode>
 #include <QSGRendererInterface>
+#include <QSGRenderNode>
 #include <QTimer>
 #include <QWheelEvent>
 #include <QWidget>
@@ -24,9 +25,56 @@
 #include <cmath>
 #include <functional>
 #include <map>
+#include <atomic>
+#include <memory>
+#ifdef Q_OS_WIN
+#include <d3d11.h>
+#include <dxgi.h>
+#endif
 #include <limits>
 #include <QShowEvent>
 #include <vector>
+
+// Adapter check on Qt's render thread. DeviceResource access on the GUI
+// thread is forbidden; inside QSGRenderNode::render it is supported.
+class BoardSiRhiAdapterProbe final : public QSGRenderNode {
+    QQuickWindow *win_;
+    std::shared_ptr<std::atomic<int>> proof_;
+public:
+    BoardSiRhiAdapterProbe(QQuickWindow *win,std::shared_ptr<std::atomic<int>> proof)
+      : win_(win),proof_(std::move(proof)) {}
+    RenderingFlags flags() const override { return {}; }
+    StateFlags changedStates() const override { return {}; }
+    QRectF rect() const override { return QRectF(0,0,1,1); }
+    void render(const RenderState *) override {
+#ifdef Q_OS_WIN
+        if (!win_ || win_->rendererInterface()->graphicsApi()!=
+                         QSGRendererInterface::Direct3D11) {
+            proof_->store(-2,std::memory_order_release); return;
+        }
+        auto *device=static_cast<ID3D11Device *>(
+            win_->rendererInterface()->getResource(win_,QSGRendererInterface::DeviceResource));
+        if (!device) {proof_->store(-2,std::memory_order_release);return;}
+        IDXGIDevice *dxgi=nullptr;
+        if (FAILED(device->QueryInterface(__uuidof(IDXGIDevice),
+                                         reinterpret_cast<void **>(&dxgi))) || !dxgi) {
+            proof_->store(-2,std::memory_order_release);return;
+        }
+        IDXGIAdapter *adapter=nullptr;
+        const HRESULT h=dxgi->GetAdapter(&adapter);
+        dxgi->Release();
+        if (FAILED(h) || !adapter) {proof_->store(-2,std::memory_order_release);return;}
+        DXGI_ADAPTER_DESC desc{};
+        const HRESULT got=adapter->GetDesc(&desc);
+        adapter->Release();
+        if (FAILED(got)) {proof_->store(-2,std::memory_order_release);return;}
+        proof_->store((desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) ? -1 : 1,
+                      std::memory_order_release);
+#else
+        proof_->store(2,std::memory_order_release);
+#endif
+    }
+};
 
 class BoardSiRhiItem final : public QQuickItem {
     std::vector<ImportedTrack> tracks_;
@@ -41,6 +89,8 @@ class BoardSiRhiItem final : public QQuickItem {
     bool dragging_ = false;
     qreal zoom_ = 1.0;
     int layers_ = 0;
+    std::shared_ptr<std::atomic<int>> adapterProof_ =
+        std::make_shared<std::atomic<int>>(0);
     std::function<void(int,int)> picked_;
 
     QPointF world(qint64 x, qint64 y) const {
@@ -98,6 +148,8 @@ protected:
     QSGNode *updatePaintNode(QSGNode *old, UpdatePaintNodeData *) override {
         delete old;
         auto *root = new QSGNode();
+        if (window())
+            root->appendChildNode(new BoardSiRhiAdapterProbe(window(),adapterProof_));
         if (bounds_.isEmpty() || width() < 2 || height() < 2) return root;
         // Batch by color: O(number of color groups) scene graph nodes, not one
         // QPainter/QGraphicsItem draw call per CAD primitive.
@@ -299,6 +351,11 @@ public:
     int primitiveCount() const {
         return static_cast<int>(tracks_.size()+vias_.size()+pads_.size());
     }
+    // 1: D3D11 non-software adapter; -1: WARP; -2: unavailable;
+    // 0: pending; 2: platform other than Windows.
+    int d3dAdapterProof() const {
+        return adapterProof_->load(std::memory_order_acquire);
+    }
     QPointF localPoint(qint64 x,qint64 y) const { return world(x,y); }
     // Read-only test seam: validate the actual GPU scene's imported source
     // coordinates/filters, not the parallel hidden QGraphicsScene mirror.
@@ -385,6 +442,14 @@ public:
             // A recognized API without adapter identity is still NOT_VERIFIED.
             if (backend=="SOFTWARE" || backend=="UNEXPECTED") {
                 status_="CPU_FALLBACK_RHI_SOFTWARE_OR_UNKNOWN";
+            } else if (backend=="DIRECT3D11") {
+                const int proof=artwork_->d3dAdapterProof();
+                if (proof==1)
+                    status_="RHI_FRAME_DIRECT3D11_HARDWARE_CONFIRMED";
+                else if (proof==-1)
+                    status_="CPU_FALLBACK_RHI_SOFTWARE_D3D11_ADAPTER";
+                else
+                    status_="CPU_FALLBACK_RHI_D3D11_ADAPTER_NOT_VERIFIED";
             } else {
                 status_="RHI_FRAME_"+backend+"_HARDWARE_NOT_VERIFIED";
             }
