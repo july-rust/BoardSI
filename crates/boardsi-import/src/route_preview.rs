@@ -636,6 +636,8 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                 ));
             }
             conditions.sort_by(|a: &(String, String), b| a.0.cmp(&b.0));
+            // Model validation requires ordered provenance keys.
+            conditions.sort_by(|a, b| a.0.cmp(&b.0));
             conditions
         },
     });
