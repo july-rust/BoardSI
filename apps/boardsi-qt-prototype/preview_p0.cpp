@@ -711,6 +711,57 @@ static int runRendererSmoke(PreviewWindow &window) {
     return passed ? 0 : 1;
 }
 
+// A_015 end-to-end imported PADS V9.4 arcs: Worker -> V5 -> CPU scene.
+static int runArcSmoke(PreviewWindow &window, const QString &fixture) {
+    QElapsedTimer clock; clock.start();
+    bool passed=false; QString failure;
+    QEventLoop loop;
+    if(!window.openCandidate(fixture)) failure="A_015 public arc fixture unavailable";
+    else {
+        QTimer tick;
+        QObject::connect(&tick,&QTimer::timeout,&loop,[&] {
+            const QString status=window.importPanel()->importStatus();
+            if(status.startsWith("FAILED") || status.startsWith("CANCELLED")) {
+                failure="A_015 import failed: "+status; loop.quit(); return;
+            }
+            if(!status.startsWith("PARTIAL"))return;
+            auto *panel=window.importPanel()->imported();
+            bool ccw=false,cw=false;
+            auto *scene=panel->findChild<QGraphicsScene *>();
+            if(scene) for(QGraphicsItem *item:scene->items()){
+                auto *path=qgraphicsitem_cast<QGraphicsPathItem *>(item);
+                if(!path)continue;
+                const QString p=path->data(1).toString();
+                if(p.contains("Arc trace") && p.contains("CCW") &&
+                   p.contains("centre (2.540000, 2.540000)"))ccw=true;
+                if(p.contains("Arc trace") && p.contains("CW") &&
+                   !p.contains("CCW"))cw=true;
+            }
+            const bool selected=panel->selectArc(0);
+            const bool props=window.displayedProperties().contains("Arc trace") &&
+                             window.displayedProperties().contains("SI NOT_RUN");
+            passed=panel->arcCount()==2 && panel->segmentCount()==1 &&
+                   ccw && cw && selected && props;
+            if(!passed)failure="A_015 geometry/count/provenance/selection mismatch";
+            loop.quit();
+        });
+        QTimer::singleShot(15000,&loop,&QEventLoop::quit);
+        tick.start(20);loop.exec();tick.stop();
+        if(!passed && failure.isEmpty())failure="A_015 arc smoke timed out";
+    }
+    QJsonObject report{{"schema","boardsi-preview-p2f-arc-smoke-v1"},
+       {"pass",passed},{"failure",failure},{"elapsed_ms",clock.elapsed()},
+       {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+       {"native_backend",QGuiApplication::platformName()},
+       {"host_arch",QSysInfo::currentCpuArchitecture()},
+       {"scope","public synthetic exact route arcs; connectivity NOT_VERIFIED; SI NOT_RUN"}};
+    QFile receipt("qt-preview-p2f-arc-results.json");
+    if(!receipt.open(QIODevice::WriteOnly) ||
+       receipt.write(QJsonDocument(report).toJson(QJsonDocument::Indented))<1)return 2;
+    qInfo().noquote()<<QJsonDocument(report).toJson(QJsonDocument::Compact);
+    return passed?0:1;
+}
+
 static int runPadSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock;
     clock.start();
@@ -1254,8 +1305,9 @@ int main(int argc, char **argv) {
     const bool padTesting = args.size() == 7 && args.at(1) == "--pad-selftest";
     const bool rectTesting = args.size() == 7 && args.at(1) == "--rect-selftest";
     const bool bottomTesting = args.size() == 7 && args.at(1) == "--bottom-selftest";
+    const bool arcTesting = args.size() == 7 && args.at(1) == "--arc-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
-                         rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting;
+                         rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting || arcTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -1278,7 +1330,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return rendererTesting ? runRendererSmoke(window) :
+    return arcTesting ? runArcSmoke(window, fixture) :
+           rendererTesting ? runRendererSmoke(window) :
            bottomTesting ? runBottomSmoke(window, fixture) :
            rectTesting ? runRectSmoke(window, fixture) :
            padTesting ? runPadSmoke(window, fixture) :
