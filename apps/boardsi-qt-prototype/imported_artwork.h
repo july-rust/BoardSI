@@ -9,6 +9,7 @@
 #include <QPushButton>
 #include <QSet>
 #include <QSignalBlocker>
+#include <QStackedWidget>
 #include <QVector>
 #include <QVBoxLayout>
 #include <limits>
@@ -37,9 +38,17 @@ struct ImportedVia {
     int firstLayer = 0, lastLayer = 0;
 };
 
+#ifdef BOARDSI_RHI_ARTWORK
+#include "rhi_artwork.h"
+#endif
+
 class ImportedArtworkPanel final : public QWidget {
     QGraphicsScene *scene_;
     SyntheticArtworkCanvas *view_;
+    QStackedWidget *canvasStack_;
+#ifdef BOARDSI_RHI_ARTWORK
+    BoardSiRhiView *rhi_ = nullptr;
+#endif
     QComboBox *layers_;
     QComboBox *nets_;
     QLabel *summary_;
@@ -50,10 +59,13 @@ class ImportedArtworkPanel final : public QWidget {
     std::function<void(const QString &)> detailsCallback_;
     int skipped_ = 0;
     void refresh() {
+#ifdef BOARDSI_RHI_ARTWORK
+        if (rhi_) rhi_->filter(layerVisible_, nets_->currentText());
+#endif
         // A GPU backend change must never fabricate a successful PCB import.
         if (tracks_.empty() && vias_.empty() && pads_.empty()) {
             summary_->setText("No imported PCB. Synthetic demo is a separate tab.\n"
-                              "Artwork renderer: " + view_->rendererStatus());
+                              "Artwork renderer: " + rendererStatus());
             if (detailsCallback_) detailsCallback_(summary_->text());
             return;
         }
@@ -137,7 +149,7 @@ class ImportedArtworkPanel final : public QWidget {
         const auto selected = scene_->selectedItems();
         if (!selected.isEmpty() && !selected.first()->data(1).toString().isEmpty())
             line += "\nSelected object: " + selected.first()->data(1).toString();
-        line += "\nArtwork renderer: " + view_->rendererStatus();
+        line += "\nArtwork renderer: " + rendererStatus();
         summary_->setText(line);
         if (detailsCallback_) detailsCallback_(line);
     }
@@ -145,6 +157,7 @@ public:
     explicit ImportedArtworkPanel(QWidget *parent = nullptr)
         : QWidget(parent), scene_(new QGraphicsScene(this)),
           view_(new SyntheticArtworkCanvas(scene_, this)),
+          canvasStack_(new QStackedWidget(this)),
           layers_(new QComboBox(this)), nets_(new QComboBox(this)),
           summary_(new QLabel("No imported PCB. Synthetic demo is a separate tab.", this)) {
         setObjectName("importedArtworkP2A");
@@ -171,7 +184,30 @@ public:
         bar->addWidget(zoomIn);
         bar->addWidget(zoomOut);
         layout->addLayout(bar);
-        layout->addWidget(view_, 1);
+        canvasStack_->addWidget(view_);
+#ifdef BOARDSI_RHI_ARTWORK
+        // A native Qt Quick window avoids QQuickWidget's extra offscreen render
+        // pass. A missing Qt Quick module or a headless platform keeps the old
+        // CPU/OpenGL canvas and all established regression tests unchanged.
+        const QString policy = qEnvironmentVariable("BOARDSI_ARTWORK_RENDERER")
+                                   .trimmed().toLower();
+        if (QGuiApplication::platformName() != "offscreen" &&
+            QGuiApplication::platformName() != "minimal" &&
+            (policy.isEmpty() || policy == "auto" || policy == "gpu")) {
+            rhi_ = new BoardSiRhiView(canvasStack_);
+            canvasStack_->addWidget(rhi_);
+            canvasStack_->setCurrentWidget(rhi_);
+            rhi_->onChanged([this] {
+                if (rhi_->failed()) canvasStack_->setCurrentWidget(view_);
+                refresh();
+            });
+            rhi_->onPicked([this](int kind,int index) {
+                if (kind == 1) selectVia(index);
+                else if (kind == 2) selectPad(index);
+            });
+        }
+#endif
+        layout->addWidget(canvasStack_, 1);
         summary_->setWordWrap(true);
         layout->addWidget(summary_);
         connect(toggle, &QPushButton::clicked, this, [this] {
@@ -186,9 +222,19 @@ public:
         connect(nets_, &QComboBox::currentTextChanged, this, [this] { refresh(); });
         connect(fit, &QPushButton::clicked, this, [this] { fitArtwork(); });
         connect(zoomIn, &QPushButton::clicked, this, [this] {
+#ifdef BOARDSI_RHI_ARTWORK
+            if (rhi_ && canvasStack_->currentWidget() == rhi_) {
+                rhi_->zoom(1.2); return;
+            }
+#endif
             if (view_->transform().m11() * 1.2 <= 120) view_->scale(1.2, 1.2);
         });
         connect(zoomOut, &QPushButton::clicked, this, [this] {
+#ifdef BOARDSI_RHI_ARTWORK
+            if (rhi_ && canvasStack_->currentWidget() == rhi_) {
+                rhi_->zoom(1.0/1.2); return;
+            }
+#endif
             if (view_->transform().m11() / 1.2 >= 0.03) view_->scale(1.0/1.2, 1.0/1.2);
         });
         connect(scene_, &QGraphicsScene::selectionChanged, this, [this] {
@@ -226,6 +272,9 @@ public:
         nets_->clear();
         nets_->addItem("All nets");
         skipped_ = 0;
+#ifdef BOARDSI_RHI_ARTWORK
+        if (rhi_) rhi_->load(0, {}, {}, {});
+#endif
         scene_->setSceneRect(QRectF());
         summary_->setText("No imported PCB. Synthetic demo is a separate tab.\n"
                           "Artwork renderer: " + view_->rendererStatus());
@@ -351,6 +400,9 @@ public:
             pads_.push_back({item, pad});
         }
         skipped_ = skipped;
+#ifdef BOARDSI_RHI_ARTWORK
+        if (rhi_) rhi_->load(layerCount,input,viaInput,padInput);
+#endif
         scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-1, -1, 1, 1));
         refresh();
         fitArtwork();
@@ -362,6 +414,9 @@ public:
             // first so a Fit after Zoom is repeatable and does not drift.
             view_->resetTransform();
             view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
+#ifdef BOARDSI_RHI_ARTWORK
+            if (rhi_) rhi_->fit();
+#endif
         }
     }
     int segmentCount() const { return static_cast<int>(tracks_.size()); }
@@ -391,7 +446,12 @@ public:
         return true;
     }
     qreal scale() const { return view_->transform().m11(); }
-    QString rendererStatus() const { return view_->rendererStatus(); }
+    QString rendererStatus() const {
+#ifdef BOARDSI_RHI_ARTWORK
+        if (rhi_ && canvasStack_->currentWidget() == rhi_) return rhi_->status();
+#endif
+        return view_->rendererStatus();
+    }
     QString rendererPolicy() const { return view_->rendererPolicy(); }
     QString summaryText() const { return summary_->text(); }
 };
