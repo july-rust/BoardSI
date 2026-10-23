@@ -129,11 +129,27 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
     if bytes.len() > crate::route_preview::MAX_FILE_BYTES {
         return Err("INPUT_TOO_LARGE");
     }
+    // Public parser: validate the complete source envelope independently of
+    // route_preview::parse. An arbitrary file with an embedded *LINES* section
+    // must never be promoted to a physical board outline.
+    let first = bytes.split(|&b| b == b'\n').next().ok_or("EMPTY_FILE")?;
+    let header = std::str::from_utf8(first).map_err(|_| "INVALID_HEADER_ENCODING")?;
+    let tag = header.split_ascii_whitespace().next().unwrap_or("");
+    if !matches!(
+        tag,
+        "!PADS-POWERPCB-V9.4-MILS!"
+            | "!PADS-POWERPCB-V9.4-MILS-CP1252!"
+            | "!PADS-POWERPCB-V9.4-MILS-250L!"
+            | "!PADS-POWERPCB-V9.4-MILS-250L-CP1252!"
+    ) {
+        return Err("UNSUPPORTED_REVISION_OR_UNIT");
+    }
     let source = String::from_utf8_lossy(bytes);
     let lines: Vec<&str> = source.lines().collect();
     let mut shapes = Vec::new();
     let mut in_lines = false;
-    let mut i = 1usize; // Header checked by the existing route parser.
+    let mut found_end = false;
+    let mut i = 1usize; // This public parser independently checked the header.
     while i < lines.len() {
         if lines[i].len() > 16_384 {
             return Err("OVERLONG_LINE");
@@ -145,7 +161,14 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
             continue;
         }
         if f[0] == "*END*" {
+            found_end = true;
             break;
+        }
+        // *GET* is a library-reference statement INSIDE *LINES*, not a
+        // new section. Reuse geometry is unsupported: reject explicitly
+        // instead of dropping a later BOARD record without warning.
+        if in_lines && f[0] == "*GET*" {
+            return Err("UNSUPPORTED_OUTLINE_GET");
         }
         if f[0].starts_with('*') {
             in_lines = f[0] == "*LINES*";
@@ -230,6 +253,9 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
             vertices,
             source_line,
         });
+    }
+    if !found_end {
+        return Err("MISSING_END_MARKER");
     }
     if shapes.is_empty() {
         return Ok(shapes);
@@ -339,6 +365,55 @@ mod tests {
         assert_eq!(model.outlines.len(), 1);
         assert_eq!(model.outlines[0].outer.segments.len(), 4);
         assert_eq!(model.outlines[0].cutouts.len(), 1);
+    }
+    #[test]
+    fn rejects_get_inside_lines_instead_of_silently_dropping_later_board() {
+        let with_get = INPUT.replace(
+            "BOARD1 BOARD 100 200 1 0",
+            "*GET* LIBRARY_SHAPE\nBOARD1 BOARD 100 200 1 0",
+        );
+        assert_eq!(
+            parse(with_get.as_bytes()).unwrap_err(),
+            "UNSUPPORTED_OUTLINE_GET"
+        );
+        // A GET in an unrelated section is not a physical board reference.
+        let outside_lines = INPUT.replace(
+            "*PCB*",
+            "*PCB*\n*GET* UNRELATED",
+        );
+        assert_eq!(
+            parse(outside_lines.as_bytes()).unwrap().len(),
+            2
+        );
+    }
+    #[test]
+    fn validates_envelope_even_when_called_without_route_parser() {
+        for bad in [
+            INPUT.replace("!PADS-POWERPCB-V9.4-MILS!", "NON_PADS_FILE"),
+            INPUT.replace("V9.4-MILS", "V9.5-MM"),
+            INPUT.replace("!PADS-POWERPCB-V9.4-MILS!", "!PADS-POWERPCB-V9.4-MILS-CP932!"),
+        ] {
+            assert_eq!(
+                parse(bad.as_bytes()).unwrap_err(),
+                "UNSUPPORTED_REVISION_OR_UNIT"
+            );
+        }
+        assert_eq!(
+            parse(INPUT.replace("*END*", "").as_bytes()).unwrap_err(),
+            "MISSING_END_MARKER"
+        );
+        // Requiring *END* also applies when a file has no accepted outlines.
+        assert_eq!(
+            parse(b"!PADS-POWERPCB-V9.4-MILS!\n*PCB*\nMAXLAYER 4\n").unwrap_err(),
+            "MISSING_END_MARKER"
+        );
+        for suffix in ["-CP1252", "-250L", "-250L-CP1252"] {
+            let with_suffix = INPUT.replace(
+                "!PADS-POWERPCB-V9.4-MILS!",
+                &format!("!PADS-POWERPCB-V9.4-MILS{}!", suffix),
+            );
+            assert_eq!(parse(with_suffix.as_bytes()).unwrap().len(), 2);
+        }
     }
     #[test]
     fn rejects_oversized_piece_headers_and_vertex_rows() {
