@@ -76,15 +76,22 @@ fn run() -> Result<(), &'static str> {
     }
     for arc in &result.arcs {
         let coord = |x: i64| x.checked_mul(NM).ok_or("ARC_COORD_OVERFLOW");
-        writeln!(out, "A|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
-            arc.layer, arc.net,
-            coord(arc.start[0])?, coord(arc.start[1])?,
-            coord(arc.centre[0])?, coord(arc.centre[1])?,
-            coord(arc.end[0])?, coord(arc.end[1])?,
+        writeln!(
+            out,
+            "A|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+            arc.layer,
+            arc.net,
+            coord(arc.start[0])?,
+            coord(arc.start[1])?,
+            coord(arc.centre[0])?,
+            coord(arc.centre[1])?,
+            coord(arc.end[0])?,
+            coord(arc.end[1])?,
             if arc.clockwise { "CW" } else { "CCW" },
             coord(arc.width_ticks)?,
             arc.source_line
-        ).map_err(|_| "FORMAT_ERROR")?;
+        )
+        .map_err(|_| "FORMAT_ERROR")?;
     }
     for via in &result.vias {
         writeln!(
@@ -146,8 +153,10 @@ fn run() -> Result<(), &'static str> {
         writeln!(
             out,
             "END|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
-            result.segments.len(), result.skipped.saturating_add(pad_data.skipped as u32),
-            pad_data.pads.len(), result.arcs.len()
+            result.segments.len(),
+            result.skipped.saturating_add(pad_data.skipped as u32),
+            pad_data.pads.len(),
+            result.arcs.len()
         )
     } else if mode == "BOARDSI_P2A_PARTIAL_V1" {
         writeln!(
