@@ -635,6 +635,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                     "explicit-equal-round-through-pad-and-drill-no-connectivity".into(),
                 ));
             }
+            conditions.sort_by(|a: &(String, String), b| a.0.cmp(&b.0));
             conditions
         },
     });
@@ -865,7 +866,6 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
     }
     let report = board.validate();
     if report.has_errors() {
-        eprintln!("A015_CANONICAL_DIAGNOSTIC: {:?}", report.issues);
         return Err("CANONICAL_MODEL_INVALID");
     }
     Ok(board)
