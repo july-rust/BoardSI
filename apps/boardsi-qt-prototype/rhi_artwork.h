@@ -199,17 +199,44 @@ protected:
                 const auto &p=pads_[i];
                 if (!visible(p.layer)) continue;
                 const QPointF c=pixel(world(p.x_nm,p.y_nm));
-                if (std::abs(event->position().x()-c.x()) <= p.width_nm / 2e6 * scaleFactor()+3 &&
-                    std::abs(event->position().y()-c.y()) <= p.height_nm / 2e6 * scaleFactor()+3) {
+                const qreal dx=event->position().x()-c.x();
+                const qreal dy=event->position().y()-c.y();
+                const qreal hw=p.width_nm / 2e6 * scaleFactor()+3;
+                const qreal hh=p.height_nm / 2e6 * scaleFactor()+3;
+                const bool hit=p.shape=="R" ? std::hypot(dx,dy)<=hw :
+                                            std::abs(dx)<=hw && std::abs(dy)<=hh;
+                if (hit) {
                     picked_(2,static_cast<int>(i)); event->accept(); return;
                 }
             }
             for (size_t i=0;i<vias_.size();++i) {
                 const auto &v=vias_[i];
+                bool shown=false;
+                for(int layer=v.firstLayer;layer<=v.lastLayer;++layer)
+                    if(visible(layer)) {shown=true;break;}
+                if(!shown) continue;
                 const QPointF c=pixel(world(v.x_nm,v.y_nm));
                 if (std::hypot(event->position().x()-c.x(),event->position().y()-c.y()) <=
                     v.diameter_nm / 2e6 * scaleFactor()+3) {
                     picked_(1,static_cast<int>(i)); event->accept(); return;
+                }
+            }
+            // Existing QGraphicsScene supports straight copper selection by
+            // net and provenance. Mirror that behavior in the RHI viewport.
+            for (size_t i=tracks_.size();i>0;--i) {
+                const auto &t=tracks_[i-1];
+                if (!visible(t.layer)) continue;
+                const QPointF a=pixel(world(t.x0_nm,t.y0_nm));
+                const QPointF b=pixel(world(t.x1_nm,t.y1_nm));
+                const QPointF v=b-a, m=event->position()-a;
+                const qreal length2=v.x()*v.x()+v.y()*v.y();
+                const qreal u=length2>0 ?
+                    std::clamp((m.x()*v.x()+m.y()*v.y())/length2,0.0,1.0) : 0.0;
+                const QPointF nearest=a+v*u;
+                if(std::hypot(event->position().x()-nearest.x(),
+                              event->position().y()-nearest.y()) <=
+                              std::max<qreal>(3.0,t.width_nm/2e6*scaleFactor()+2)) {
+                    picked_(3,static_cast<int>(i-1));event->accept();return;
                 }
             }
         }
