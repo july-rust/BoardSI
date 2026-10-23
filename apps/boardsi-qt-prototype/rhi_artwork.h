@@ -510,8 +510,12 @@ public:
             add(c,std::max(p.width_nm,p.height_nm)/2e6);
         }
         for (const auto &e:outlineEdges_) {
-            add(world(e.x0_nm,e.y0_nm),0.0);
-            add(world(e.x1_nm,e.y1_nm),0.0);
+            // QRectF::united ignores a zero-area rectangle. Use a tiny
+            // display-only non-null extent so outline-only boards and
+            // boundaries wider than the copper contribute to Fit.
+            constexpr qreal outlineExtentMm=0.000001;
+            add(world(e.x0_nm,e.y0_nm),outlineExtentMm);
+            add(world(e.x1_nm,e.y1_nm),outlineExtentMm);
         }
         bounds_=rect.adjusted(-1,-1,1,1);
         pan_=QPointF();zoom_=1.0;
@@ -532,6 +536,13 @@ public:
                                 outlineEdges_.size());
     }
     int outlineCountForTest() const { return static_cast<int>(outlineEdges_.size()); }
+    bool outlineFitBoundsForTest() const {
+        for (const auto &e : outlineEdges_) {
+            if (!bounds_.contains(world(e.x0_nm,e.y0_nm)) ||
+                !bounds_.contains(world(e.x1_nm,e.y1_nm))) return false;
+        }
+        return true;
+    }
     bool containsExactOutlineForTest(bool cutout, qint64 x0, qint64 y0,
                                      qint64 x1, qint64 y1) const {
         for (const auto &e : outlineEdges_) {
