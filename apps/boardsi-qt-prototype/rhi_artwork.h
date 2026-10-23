@@ -326,6 +326,7 @@ public:
     void load(int layers,const std::vector<ImportedTrack> &tracks,
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads) {
         tracks_=tracks; vias_=vias; pads_=pads; layers_=layers;
+        adapterProof_->store(0,std::memory_order_release);
         visibility_=QVector<bool>(layers+1,true);
         qint64 x=0,y=0; bool initialized=false;
         auto ingest=[&](qint64 a,qint64 b) {
@@ -394,28 +395,33 @@ public:
 };
 
 class BoardSiRhiView final : public QWidget {
-    bool timeoutStarted_=false;
-protected:
-    void showEvent(QShowEvent *event) override {
-        QWidget::showEvent(event);
-        if (timeoutStarted_) return;
-        timeoutStarted_=true;
-        // A hidden import tab is not a failed GPU. Start the frame deadline
-        // only after the native window container is actually displayed.
-        QTimer::singleShot(3000,this,[this] {
-            if (seenFrame_ || failed()) return;
-            // Inactive tabs must not time out while hidden.
-            if (!isVisible()) { timeoutStarted_=false; return; }
-            status_="CPU_FALLBACK_RHI_NO_FRAME";
-            if (changed_) changed_();
-        });
-    }
-private:
     QQuickWindow *window_=nullptr;
     BoardSiRhiItem *artwork_=nullptr;
     QString status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
     std::function<void()> changed_;
     bool seenFrame_=false;
+    quint64 loadGeneration_=0;
+    quint64 deadlineGeneration_=std::numeric_limits<quint64>::max();
+
+    void armFrameDeadline() {
+        if (!isVisible() || seenFrame_ || failed() ||
+            deadlineGeneration_ == loadGeneration_) return;
+        const quint64 watched = loadGeneration_;
+        deadlineGeneration_=watched;
+        QTimer::singleShot(3000,this,[this,watched] {
+            if (watched != loadGeneration_ || seenFrame_ || failed() || !isVisible())
+                return;
+            status_="CPU_FALLBACK_RHI_NO_FRAME";
+            if (changed_) changed_();
+        });
+    }
+protected:
+    void showEvent(QShowEvent *event) override {
+        QWidget::showEvent(event);
+        // A hidden tab does not time out. A new load always arms a fresh
+        // independent post-load frame proof when the tab becomes visible.
+        armFrameDeadline();
+    }
 public:
     static bool softwareRendererRequested() {
         const auto value = qEnvironmentVariable("QSG_RHI_PREFER_SOFTWARE_RENDERER")
@@ -444,7 +450,7 @@ public:
         QObject::connect(window_,&QQuickWindow::heightChanged,artwork_,
                          [this](int h){artwork_->setHeight(h);artwork_->update();});
         QObject::connect(window_,&QQuickWindow::frameSwapped,this,[this] {
-            if(seenFrame_) return;
+            if(seenFrame_ || failed()) return;
             seenFrame_=true;
             const auto api=window_->rendererInterface()->graphicsApi();
             QString backend="UNEXPECTED";
@@ -483,7 +489,12 @@ public:
     void onPicked(std::function<void(int,int)> callback) {artwork_->onPicked(std::move(callback));}
     void load(int layers,const std::vector<ImportedTrack> &tracks,
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads) {
+        ++loadGeneration_;
+        seenFrame_=false;
+        status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
         artwork_->load(layers,tracks,vias,pads);
+        armFrameDeadline();
+        if (changed_) changed_();
     }
     void filter(QVector<bool> layers,const QString &net) {artwork_->filter(std::move(layers),net);}
     void fit() {artwork_->fit();}
