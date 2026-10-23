@@ -183,6 +183,6 @@ mod tests {
 }
 
 pub mod digest;
+pub mod outline_preview;
 pub mod part_preview;
 pub mod route_preview;
-pub mod outline_preview;
