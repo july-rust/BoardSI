@@ -29,7 +29,14 @@
 #include <memory>
 #ifdef Q_OS_WIN
 #include <d3d11.h>
-#include <dxgi.h>
+#include <dxgi1_2.h>
+#endif
+// Win32 headers may publish min/max macros which invalidate std::min/max.
+#if defined(min)
+#undef min
+#endif
+#if defined(max)
+#undef max
 #endif
 #include <limits>
 #include <QShowEvent>
@@ -47,6 +54,7 @@ public:
     StateFlags changedStates() const override { return {}; }
     QRectF rect() const override { return QRectF(0,0,1,1); }
     void render(const RenderState *) override {
+        if (!win_) { proof_->store(-2,std::memory_order_release); return; }
 #ifdef Q_OS_WIN
         if (!win_ || win_->rendererInterface()->graphicsApi()!=
                          QSGRendererInterface::Direct3D11) {
@@ -64,9 +72,16 @@ public:
         const HRESULT h=dxgi->GetAdapter(&adapter);
         dxgi->Release();
         if (FAILED(h) || !adapter) {proof_->store(-2,std::memory_order_release);return;}
-        DXGI_ADAPTER_DESC desc{};
-        const HRESULT got=adapter->GetDesc(&desc);
+        IDXGIAdapter1 *adapter1=nullptr;
+        const HRESULT qi=adapter->QueryInterface(
+            __uuidof(IDXGIAdapter1),reinterpret_cast<void **>(&adapter1));
         adapter->Release();
+        if (FAILED(qi) || !adapter1) {
+            proof_->store(-2,std::memory_order_release);return;
+        }
+        DXGI_ADAPTER_DESC1 desc{};
+        const HRESULT got=adapter1->GetDesc1(&desc);
+        adapter1->Release();
         if (FAILED(got)) {proof_->store(-2,std::memory_order_release);return;}
         proof_->store((desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) ? -1 : 1,
                       std::memory_order_release);
