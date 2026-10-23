@@ -89,6 +89,8 @@ class ImportedArtworkPanel final : public QWidget {
         int highlighted = 0;
         QSet<int> layersWithTraces;
         QSet<QString> netsWithTraces;
+        QSet<int> layersWithArcs;
+        QSet<QString> netsWithArcs;
         QSet<QString> netsWithVias;
         for (const auto &entry : tracks_) {
             layersWithTraces.insert(entry.second.layer);
@@ -103,8 +105,8 @@ class ImportedArtworkPanel final : public QWidget {
         int visibleArcs = 0;
         for (const auto &entry : arcs_) {
             const auto &arc = entry.second;
-            layersWithTraces.insert(arc.layer);
-            netsWithTraces.insert(arc.net);
+            layersWithArcs.insert(arc.layer);
+            netsWithArcs.insert(arc.net);
             const bool shown = arc.layer > 0 && arc.layer < layerVisible_.size() &&
                                layerVisible_[arc.layer];
             entry.first->setVisible(shown);
@@ -170,8 +172,10 @@ class ImportedArtworkPanel final : public QWidget {
                 .arg(highlighted).arg(static_cast<qlonglong>(vias_.size()))
                 .arg(visibleVias).arg(highlightedVias).arg(skipped_)
                 .arg(static_cast<qlonglong>(pads_.size())).arg(visiblePads);
-        line += QString("\nAnalytical route arcs: %1  Visible: %2")
-                    .arg(static_cast<qlonglong>(arcs_.size())).arg(visibleArcs);
+        line += QString("\nAnalytical route arcs: %1  Visible: %2"
+                        "\nLayers with analytical arcs: %3  Nets with analytical arcs: %4")
+                    .arg(static_cast<qlonglong>(arcs_.size())).arg(visibleArcs)
+                    .arg(layersWithArcs.size()).arg(netsWithArcs.size());
         line += QString("\nTop SMD: %1  Bottom SMD: %2")
                     .arg(static_cast<qlonglong>(pads_.size()) - bottomPads).arg(bottomPads);
         const auto selected = scene_->selectedItems();
