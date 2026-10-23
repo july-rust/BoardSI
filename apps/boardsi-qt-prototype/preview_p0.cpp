@@ -1212,20 +1212,28 @@ static int runRhiGeometrySmoke() {
     pads.push_back(p);
     auto *item = new BoardSiRhiItem();
     item->setWidth(800); item->setHeight(500);
-    item->load(4,tracks,vias,pads);
+    // A_015 exact quarter-circle in the same high-origin source domain.
+    ImportedArc arc;
+    arc.layer=1; arc.net="SYNTHETIC";
+    arc.x0_nm=base+100000; arc.y0_nm=base+100000;
+    arc.cx_nm=base+50000; arc.cy_nm=base+100000;
+    arc.x1_nm=base+50000; arc.y1_nm=base+150000;
+    arc.width_nm=10000; arc.clockwise=false; arc.sourceLine=1;
+    const std::vector<ImportedArc> arcs{arc};
+    item->load(4,tracks,vias,pads,arcs);
     const QPointF pointA=item->localPoint(base+25000,base+10000);
     const QPointF pointB=item->localPoint(base+50000,base+40000);
-    sourceGeometry=item->primitiveCount()==10002 &&
+    sourceGeometry=item->primitiveCount()==10003 &&
                    std::abs((pointB.x()-pointA.x())-0.025)<1e-9 &&
                    std::abs((pointB.y()-pointA.y())+0.030)<1e-9;
     delete item;
-    count=10002;
+    count=10003;
     // A visible native Qt Quick window is required to prove RHI frame delivery.
     // This does not establish a discrete or hardware GPU adapter.
     if (QGuiApplication::platformName() != "offscreen" &&
         QGuiApplication::platformName() != "minimal") {
         BoardSiRhiView view;
-        view.load(4,tracks,vias,pads);
+        view.load(4,tracks,vias,pads,arcs);
         view.resize(800,500);
         view.show();
         QEventLoop loop;
@@ -1239,7 +1247,7 @@ static int runRhiGeometrySmoke() {
         frame=backend.startsWith("RHI_FRAME_");
         // ONLY render-thread DXGI-proven WARP is an acceptable native
         // fallback. Frame timeout, scene graph error and missing adapter proof
-        // must fail the 10,002-object geometry integration test as well.
+        // must fail the 10,003-object geometry integration test as well.
         fallbackConfirmed=(backend=="CPU_FALLBACK_RHI_SOFTWARE_D3D11_ADAPTER");
         adapterProof=view.itemForTest()->d3dAdapterProof();
         if (!frame && !fallbackConfirmed)
@@ -1247,7 +1255,7 @@ static int runRhiGeometrySmoke() {
         if (frame) {
             // A prior empty/success frame must NOT satisfy the next load.
             // Require a pending transition and a distinct post-load swap.
-            view.load(4,tracks,vias,pads);
+            view.load(4,tracks,vias,pads,arcs);
             const bool becamePending =
                 view.status()=="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
             QEventLoop reloaded;
@@ -1286,7 +1294,7 @@ static int runRhiGeometrySmoke() {
         {"host_arch",QSysInfo::currentCpuArchitecture()},
         {"elapsed_ms",clock.elapsed()},
         {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
-        {"scope","Synthetic 10002 objects, integer nm local geometry and RHI frame; NOT PCB SI"}
+        {"scope","Synthetic 10003 objects including arc, integer nm local geometry and RHI frame; NOT PCB SI"}
     };
     QFile output("qt-preview-a014-rhi-results.json");
     if (!output.open(QIODevice::WriteOnly) ||
