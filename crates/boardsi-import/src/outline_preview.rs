@@ -439,7 +439,8 @@ pub fn augment(board: &mut BoardModel, shapes: &[Shape]) -> Result<(), &'static 
     let meta = |kind: ObjectKind, key: &str| ObjectMeta {
         id: ObjectId::new(&source, kind, key, ""),
         provenance: GeometryProvenance {
-            source_object_type: "PADS V9.4 MILS *LINES* BOARD outline/cutout (strict subset)".into(),
+            source_object_type: "PADS V9.4 MILS *LINES* BOARD outline/cutout (strict subset)"
+                .into(),
             history: vec![],
         },
     };
@@ -599,12 +600,21 @@ mod tests {
     #[test]
     fn exact_circle_polygon_cross_shape_topology() {
         let outer = vec![[0, 0], [400, 0], [400, 300], [0, 300], [0, 0]];
-        let hole = Circle { centre: [200, 150], radius: 50 };
+        let hole = Circle {
+            centre: [200, 150],
+            radius: 50,
+        };
         assert!(circle_in_polygon(hole, &outer));
-        let tangent = Circle { centre: [200, 50], radius: 50 };
+        let tangent = Circle {
+            centre: [200, 50],
+            radius: 50,
+        };
         assert!(!circle_in_polygon(tangent, &outer));
         let inner = vec![[150, -50], [250, -50], [250, 50], [150, 50], [150, -50]];
-        let circle_outer = Circle { centre: [200, 0], radius: 200 };
+        let circle_outer = Circle {
+            centre: [200, 0],
+            radius: 200,
+        };
         assert!(polygon_in_circle(&inner, circle_outer));
         let outside = vec![[0, 0], [450, 0], [450, 30], [0, 30], [0, 0]];
         assert!(!polygon_in_circle(&outside, circle_outer));
