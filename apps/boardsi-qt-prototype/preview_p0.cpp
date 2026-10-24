@@ -1560,7 +1560,12 @@ static int runRhiScaleSmoke() {
         const bool mesh = item.lineVertexCountForTest(0.25)==6 &&
                           item.lineVertexCountForTest(1.0)==78 &&
                           (projected<=0.5 ? vertices==6 : vertices==78);
-        const bool casePass=item.primitiveCount()==count && exact && mesh &&
+        // Regression: physical display resolution, not logical Qt pixels,
+        // determines whether an otherwise subpixel cap may be omitted.
+        const bool highDpi = item.lineVertexCountForTest(0.25,2.0)==6 &&
+                             item.lineVertexCountForTest(0.26,2.0)==78 &&
+                             item.lineVertexCountForTest(0.5,2.0)==78;
+        const bool casePass=item.primitiveCount()==count && exact && mesh && highDpi &&
                             std::isfinite(projected) && projected>0;
         if(!casePass) {
             pass=false;
@@ -1572,6 +1577,7 @@ static int runRhiScaleSmoke() {
             {"screen_half_width_px",projected},
             {"nondegenerate_line_vertices",vertices},
             {"baseline_line_vertices",78},
+            {"high_dpi_physical_cap_gate",highDpi},
             {"pass",casePass}
         });
     }
