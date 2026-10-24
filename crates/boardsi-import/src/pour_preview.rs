@@ -175,6 +175,19 @@ mod tests {
     }
 
     #[test]
+    fn literal_net_name_is_not_an_absent_net() {
+        let literal = SAMPLE.replace("PLANE1 GND", "PLANE1 NET_NOT_DECLARED");
+        let parsed = parse(literal.as_bytes(), 2).unwrap();
+        assert_eq!(parsed[0].net_label.as_deref(), Some("NET_NOT_DECLARED"));
+        let absent = SAMPLE.replace(" PLANE1 GND", "");
+        let parsed = parse(absent.as_bytes(), 2).unwrap();
+        assert!(parsed[0].net_label.is_none());
+        // The V9 transport reserves '-' for absence, a token which this
+        // parser never permits as a valid declared PADS net name.
+        assert!(!token("-", 47));
+    }
+
+    #[test]
     fn empty_section_is_not_fabricated_copper() {
         assert!(parse(b"!PADS-POWERPCB-V9.4-MILS!\n*ROUTE*\n*END*\n", 2)
             .unwrap()
