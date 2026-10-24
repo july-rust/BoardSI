@@ -242,13 +242,25 @@ fn a018_mixed_line_arc_outline_cli_emits_versioned_analytical_v8() {
         .arg(source)
         .output()
         .expect("restricted PADS artwork importer must start");
-    assert!(output.status.success(),
-        "mixed arc Import: {:?}", String::from_utf8_lossy(&output.stderr));
-    let wire=String::from_utf8(output.stdout).unwrap();
+    assert!(
+        output.status.success(),
+        "mixed arc Import: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let wire = String::from_utf8(output.stdout).unwrap();
     assert!(wire.starts_with("BOARDSI_P2I_PARTIAL_V8|V9.4-MILS|4\\n"));
-    assert_eq!(wire.lines().filter(|line| line.starts_with("B|")).count(),8);
-    assert_eq!(wire.lines().filter(|line| line.starts_with("B|OUTER|MAIN_MIX|") && line.contains("|A|")).count(),4);
-    assert!(wire.contains("B|OUTER|MAIN_MIX|1|A|10160000|5080000|10160000|7620000|12700000|7620000|CCW"));
+    assert_eq!(
+        wire.lines().filter(|line| line.starts_with("B|")).count(),
+        8
+    );
+    assert_eq!(
+        wire.lines()
+            .filter(|line| line.starts_with("B|OUTER|MAIN_MIX|") && line.contains("|A|"))
+            .count(),
+        4
+    );
+    assert!(wire
+        .contains("B|OUTER|MAIN_MIX|1|A|10160000|5080000|10160000|7620000|12700000|7620000|CCW"));
     assert!(wire.ends_with("END|0|0|0|0|1|0|0|4|CANONICAL_PARTIAL|SI_NOT_RUN\\n"));
 }
 
