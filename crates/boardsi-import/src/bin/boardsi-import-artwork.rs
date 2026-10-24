@@ -275,8 +275,8 @@ fn run() -> Result<(), &'static str> {
                 pad_data.pads.len(),
                 result.arcs.len(),
                 outlines.iter().filter(|s| !s.cutout).count(),
-                outlines.iter().filter(|s| s.circle.is_some()).count(),
                 outlines.iter().filter(|s| s.cutout).count(),
+                outlines.iter().filter(|s| s.circle.is_some()).count(),
                 mixed_arcs,
                 pours.len()
             )
