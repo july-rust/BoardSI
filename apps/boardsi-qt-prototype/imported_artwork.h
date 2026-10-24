@@ -530,6 +530,7 @@ public:
                 else if (kind == 6) selectBoundary(index);
                 else if (kind == 7) selectOutline(index);
                 else if (kind == 8) selectPour(index);
+                else if (kind == 9) selectCopper(index);
             });
         }
 #endif
