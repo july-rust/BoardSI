@@ -85,7 +85,8 @@ class PreviewWindow : public QMainWindow {
                               importUI->imported()->outlineCount() +
                               importUI->imported()->circleCount() +
                               importUI->imported()->boundaryCount() +
-                              importUI->imported()->pourEdgeCount()) > 0);
+                              importUI->imported()->pourEdgeCount()+
+                              importUI->imported()->copperCount()) > 0);
         if (!loaded) {
             properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
                                 candidate + "\nImport status: " + importResultStatus +
@@ -1742,6 +1743,98 @@ static int runRhiGeometrySmoke() {
     return pass?0:1;
 }
 
+
+// A_022 V10: real Rust synthetic COPCLS/COPCIR -> strict Qt decoder ->
+// CPU/RHI filled geometry, selection/filter parity and state clearing.
+static int runCopperSmoke(PreviewWindow &window,const QString &fixture) {
+    bool pass=false,imported=false,properties=false,filtered=false;
+    bool malformed=false,reset=false,rhiSource=false;
+    QString failure;
+    if(!window.openCandidate(fixture)) failure="A022 fixture unavailable";
+    else {
+        QEventLoop loop;
+        QTimer tick;
+        QObject::connect(&tick,&QTimer::timeout,&loop,[&] {
+            const auto state=window.importPanel()->importStatus();
+            if(state.startsWith("FAILED") || state.startsWith("CANCELLED")) {
+                failure="A022 import failed: "+state;loop.quit();return;
+            }
+            if(!state.startsWith("PARTIAL")) return;
+            auto *panel=window.importPanel()->imported();
+            imported=panel->copperCount()==2 && panel->outlineCount()==4 &&
+                     panel->segmentCount()==1 && state.contains("2 filled source copper areas");
+            properties=panel->selectCopper(0) &&
+                window.displayedProperties().contains("COPPER COP_A") &&
+                window.displayedProperties().contains("COPCLS") &&
+                window.displayedProperties().contains("source line") &&
+                window.displayedProperties().contains("connectivity NOT_VERIFIED");
+            auto *hide=panel->findChild<QPushButton *>("importedHideAllLayers");
+            auto *show=panel->findChild<QPushButton *>("importedShowAllLayers");
+            auto *netOnly=panel->findChild<QCheckBox *>("importedNetOnly");
+            auto *scene=panel->findChild<QGraphicsScene *>();
+            auto countVisible=[&] {
+                int count=0;
+                if(scene) for(auto *item:scene->items())
+                    if(item->isVisible() && item->data(2).toString().startsWith("COPPER "))
+                        ++count;
+                return count;
+            };
+            if(hide && show && netOnly) {
+                const bool initial=countVisible()==2;
+                hide->click(); const bool hidden=countVisible()==0;
+                show->click(); const bool restored=countVisible()==2;
+                const bool picked=panel->selectNet("GND");
+                netOnly->setChecked(true);
+                const bool one=countVisible()==1;
+                netOnly->setChecked(false);
+                filtered=initial && hidden && restored && picked && one &&
+                         countVisible()==2;
+            }
+            const QByteArray bad="BOARDSI_P2M_PARTIAL_V10|V9.4-MILS|4\nL|1|Top\n";
+            malformed=!PreviewImportPanel::validTransportForTest(bad);
+            // Test the same production validation independent of the importer:
+            // self-crossing polygon may never become Qt/RHI filled copper.
+            ImportedCopperArea invalid;
+            invalid.name="SELF_CROSS";invalid.net="-";invalid.layer=1;invalid.sourceLine=1;
+            invalid.ring={{0,0},{25400,25400},{25400,0},{0,25400},{0,0}};
+            malformed=malformed && !validateCopperArea(invalid);
+#ifdef BOARDSI_RHI_ARTWORK
+            if(auto *rhi=panel->rhiViewForTest()) {
+                auto *item=rhi->itemForTest();
+                rhiSource=item && item->copperCountForTest()==2 &&
+                          item->dispatchCopperPickForTest(0);
+            }else rhiSource=true;
+#else
+            rhiSource=true;
+#endif
+            panel->clearArtwork();
+            reset=panel->copperCount()==0 && panel->segmentCount()==0;
+            pass=imported && properties && filtered && malformed && reset && rhiSource;
+            if(!pass) failure="A022 source-filled import, properties, filters, decoder or RHI mismatch";
+            loop.quit();
+        });
+        QTimer::singleShot(15000,&loop,&QEventLoop::quit);
+        tick.start(20);loop.exec();tick.stop();
+        if(!pass && failure.isEmpty()) failure="A022 native import timed out";
+    }
+    const QJsonObject report{
+        {"schema","boardsi-preview-a022-copper-v1"},
+        {"pass",pass},{"fixture_import",imported},
+        {"source_properties",properties},{"filter_parity",filtered},
+        {"malformed_rejected",malformed},{"clear_resets",reset},
+        {"rhi_source_checked",rhiSource},
+        {"fabricated_copper","NOT_VERIFIED"},
+        {"electrical_connectivity","NOT_VERIFIED"},
+        {"physical_si","NOT_RUN"},
+        {"failure",failure}
+    };
+    QFile output("qt-preview-a022-copper-results.json");
+    if(!output.open(QIODevice::WriteOnly) ||
+       output.write(QJsonDocument(report).toJson(QJsonDocument::Indented))<1) return 2;
+    qInfo().noquote()<<QJsonDocument(report).toJson(QJsonDocument::Compact);
+    return pass?0:1;
+}
+
 // A_021: full public PADS fixture -> Rust importer -> Qt V9 decoder ->
 // CPU model / RHI source geometry and exact Layer/Net/Properties regression.
 static int runPourSmoke(PreviewWindow &window, const QString &fixture) {
@@ -1868,9 +1961,10 @@ int main(int argc, char **argv) {
     const bool circleTesting = args.size() == 7 && args.at(1) == "--circle-selftest";
     const bool mixedTesting = args.size() == 7 && args.at(1) == "--mixed-outline-selftest";
     const bool pourTesting = args.size() == 7 && args.at(1) == "--pour-selftest";
+    const bool copperTesting = args.size() == 7 && args.at(1) == "--copper-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
                          rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting ||
-                         arcTesting || outlineTesting || circleTesting || mixedTesting || pourTesting;
+                         arcTesting || outlineTesting || circleTesting || mixedTesting || pourTesting || copperTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -1893,7 +1987,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return pourTesting ? runPourSmoke(window, fixture) :
+    return copperTesting ? runCopperSmoke(window, fixture) :
+           pourTesting ? runPourSmoke(window, fixture) :
            mixedTesting ? runMixedOutlineSmoke(window, fixture) :
            circleTesting ? runCircleSmoke(window, fixture) :
            outlineTesting ? runOutlineSmoke(window, fixture) :
