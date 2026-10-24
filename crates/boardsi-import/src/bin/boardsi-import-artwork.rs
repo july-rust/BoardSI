@@ -1,6 +1,6 @@
 //! Offline local PADS ASC (V9.4 MILS only) -> partial Canonical Model -> Qt line protocol.
 //! Standard output is a bounded transport, never an SI simulation or full CAD import.
-use boardsi_import::outline_preview;
+use boardsi_import::{outline_preview, pour_preview};
 use boardsi_import::part_preview::{self, MAX_PADS};
 use boardsi_import::route_preview::{into_canonical, parse, MAX_FILE_BYTES};
 use std::{
@@ -22,6 +22,7 @@ fn run() -> Result<(), &'static str> {
     let bytes = fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
     let result = parse(&bytes)?;
     let outlines = outline_preview::parse(&bytes)?;
+    let pours = pour_preview::parse(&bytes, result.max_layer)?;
     let mut board = into_canonical(&bytes, &result)?;
     let pad_data = part_preview::parse(&bytes, result.max_layer);
     part_preview::augment(&mut board, &pad_data)?;
@@ -39,7 +40,9 @@ fn run() -> Result<(), &'static str> {
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
     // records are actually emitted. Rejected PART rows are not P2C geometry.
     let mixed = outlines.iter().any(|s| s.segments.is_some());
-    let mode = if mixed {
+    let mode = if !pours.is_empty() {
+        "BOARDSI_P2L_PARTIAL_V9"
+    } else if mixed {
         "BOARDSI_P2I_PARTIAL_V8"
     } else if outlines.iter().any(|s| s.circle.is_some()) {
         "BOARDSI_P2H_PARTIAL_V7"
@@ -153,6 +156,7 @@ fn run() -> Result<(), &'static str> {
                 || mode == "BOARDSI_P2G_PARTIAL_V6"
                 || mode == "BOARDSI_P2H_PARTIAL_V7"
                 || mode == "BOARDSI_P2I_PARTIAL_V8"
+                || mode == "BOARDSI_P2L_PARTIAL_V9"
             {
                 format!(
                     "|{}|{}",
@@ -168,6 +172,7 @@ fn run() -> Result<(), &'static str> {
     if mode == "BOARDSI_P2G_PARTIAL_V6"
         || mode == "BOARDSI_P2H_PARTIAL_V7"
         || mode == "BOARDSI_P2I_PARTIAL_V8"
+        || mode == "BOARDSI_P2L_PARTIAL_V9"
     {
         // Non-electrical BOARD geometry. A circle is analytical (C), while
         // straight polygon segments retain the unchanged O record.
@@ -235,7 +240,47 @@ fn run() -> Result<(), &'static str> {
                 .map_err(|_| "FORMAT_ERROR")?;
             }
         }
-        if mode == "BOARDSI_P2I_PARTIAL_V8" {
+        if mode == "BOARDSI_P2L_PARTIAL_V9" {
+            for pour in &pours {
+                for (sequence, pair) in pour.vertices.windows(2).enumerate() {
+                    // Q is a source-authored UNFILLED boundary, not copper fill.
+                    writeln!(
+                        out,
+                        "Q|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+                        pour.layer,
+                        pour.name,
+                        pour.net_label.as_deref().unwrap_or("NET_NOT_DECLARED"),
+                        sequence,
+                        outline_preview::wire_nm(pair[0][0])?,
+                        outline_preview::wire_nm(pair[0][1])?,
+                        outline_preview::wire_nm(pair[1][0])?,
+                        outline_preview::wire_nm(pair[1][1])?,
+                        pour.source_line
+                    )
+                    .map_err(|_| "FORMAT_ERROR")?;
+                }
+            }
+            let mixed_arcs: usize = outlines
+                .iter()
+                .filter_map(|s| s.segments.as_ref())
+                .map(|v| v.iter().filter(|seg| matches!(
+                    seg, boardsi_import::outline_topology::Segment::Arc(_)
+                )).count())
+                .sum();
+            writeln!(
+                out,
+                "END|{}|{}|{}|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+                result.segments.len(),
+                result.skipped.saturating_add(pad_data.skipped as u32),
+                pad_data.pads.len(),
+                result.arcs.len(),
+                outlines.iter().filter(|s| !s.cutout).count(),
+                outlines.iter().filter(|s| s.circle.is_some()).count(),
+                outlines.iter().filter(|s| s.cutout).count(),
+                mixed_arcs,
+                pours.len()
+            )
+        } else if mode == "BOARDSI_P2I_PARTIAL_V8" {
             let mixed_arcs: usize = outlines
                 .iter()
                 .filter_map(|s| s.segments.as_ref())
