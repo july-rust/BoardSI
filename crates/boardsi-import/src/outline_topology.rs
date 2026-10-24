@@ -94,7 +94,7 @@ fn arc_line_touch(arc: CardinalArcCorner, a: [i64; 2], b: [i64; 2],
                 && (i128::from(p[1]) - i128::from(a[1])) * t.d == vy * t.n
         }).unwrap_or(false)
     };
-    if lower == upper { return f(lower) == 0 && !point_is_shared(lower); }
+    if !lower.lt(upper) { return f(lower) == 0 && !point_is_shared(lower); }
     let left = f(lower);
     let right = f(upper);
     if left < 0 && right < 0 { return false; }
