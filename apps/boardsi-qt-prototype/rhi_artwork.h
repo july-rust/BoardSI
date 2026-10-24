@@ -254,22 +254,25 @@ class BoardSiRhiItem final : public QQuickItem {
                      c + QPointF(r*std::cos(b),r*std::sin(b)));
         }
     }
-    // A_019 P2-J: a subpixel-radius trace cap costs 72 additional vertices
-    // but cannot be resolved by the screen at normal raster sampling. Keep
-    // analytic centreline/picking unchanged and preserve round caps as soon
-    // as their screen-space radius exceeds half a pixel.
+    // A_019 P2-J: only omit caps below the PHYSICAL half-pixel threshold.
+    // Item dimensions and scaleFactor() use logical pixels; high-DPI displays
+    // need QWindow devicePixelRatio() to preserve visibly rounded endpoints.
+    // Source centreline, width and picking remain exact and unchanged.
     static constexpr qreal subpixelCapRadius = 0.5;
-    static int nonDegenerateLineVerticesForTest(qreal halfWidthPx) {
-        return halfWidthPx <= subpixelCapRadius ? 6 : 78;
+    static int nonDegenerateLineVerticesForTest(qreal halfWidthLogicalPx,
+                                                qreal devicePixelRatio) {
+        const qreal dpr=std::max<qreal>(1.0,devicePixelRatio);
+        return halfWidthLogicalPx*dpr <= subpixelCapRadius ? 6 : 78;
     }
-    static void thickLine(Vertices &v, QPointF a, QPointF b, qreal halfWidth) {
+    static void thickLine(Vertices &v, QPointF a, QPointF b, qreal halfWidth,
+                          qreal devicePixelRatio) {
         const QPointF diff = b-a;
         const qreal len = std::hypot(diff.x(),diff.y());
         if (len <= 1e-9) { disk(v,a,halfWidth); return; }
         const QPointF d(-diff.y() * halfWidth / len,
                          diff.x() * halfWidth / len);
         triangle(v,a+d,b+d,b-d); triangle(v,a+d,b-d,a-d);
-        if (halfWidth > subpixelCapRadius) {
+        if (halfWidth*std::max<qreal>(1.0,devicePixelRatio) > subpixelCapRadius) {
             disk(v,a,halfWidth,12); disk(v,b,halfWidth,12);
         }
     }
@@ -297,6 +300,10 @@ protected:
         std::map<QRgb,Vertices> groups;
         Vertices holes;
         const qreal px = scaleFactor();
+        // Scene Graph sync is on the render thread. The window DPR is used
+        // only to decide the raster LOD, never to alter Canonical geometry.
+        const qreal deviceRatio = window() ?
+            std::max<qreal>(1.0,window()->devicePixelRatio()) : 1.0;
         for (const auto &t : tracks_) {
             if (!visible(t.layer)) continue;
             const QPointF a = pixel(world(t.x0_nm,t.y0_nm));
@@ -310,7 +317,7 @@ protected:
             QColor color(base);
             if (net_ != "All nets" && net_ != t.net) color.setAlpha(40);
             thickLine(groups[color.rgba()],a,b,
-                      std::max<qreal>(0.1,halfWidth));
+                      std::max<qreal>(0.1,halfWidth),deviceRatio);
         }
         // Mechanical boundaries are net- and layer-independent, never copper.
         // One batched color group per outline kind; no per-edge scene nodes.
@@ -320,7 +327,7 @@ protected:
             if (!QRectF(a,b).normalized().adjusted(-4,-4,4,4)
                     .intersects(QRectF(0,0,width(),height()))) continue;
             const QColor color(e.cutout ? "#e99f87" : "#e0e8ee");
-            thickLine(groups[color.rgba()],a,b,0.85);
+            thickLine(groups[color.rgba()],a,b,0.85,deviceRatio);
         }
         // Analytical mixed mechanical outline arcs. GPU chords exist only
         // as screen-space triangles; source/Canonical/IPC remain exact.
@@ -337,7 +344,7 @@ protected:
             if(!b.isArc) {
                 if(QRectF(start,end).normalized().adjusted(-4,-4,4,4)
                     .intersects(QRectF(0,0,width(),height())))
-                    thickLine(dst,start,end,0.85);
+                    thickLine(dst,start,end,0.85,deviceRatio);
                 continue;
             }
             const QPointF centre=pixel(world(b.cx_nm,b.cy_nm));
@@ -796,8 +803,8 @@ public:
     qreal projectedHalfWidthForTest(qint64 sourceWidthNm) const {
         return sourceWidthNm / 2e6 * scaleFactor();
     }
-    int lineVertexCountForTest(qreal halfWidthPx) const {
-        return nonDegenerateLineVerticesForTest(halfWidthPx);
+    int lineVertexCountForTest(qreal halfWidthLogicalPx,qreal devicePixelRatio=1.0) const {
+        return nonDegenerateLineVerticesForTest(halfWidthLogicalPx,devicePixelRatio);
     }
     // Read-only test seam: validate the actual GPU scene's imported source
     // coordinates/filters, not the parallel hidden QGraphicsScene mirror.
