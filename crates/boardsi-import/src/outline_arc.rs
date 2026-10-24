@@ -134,6 +134,60 @@ pub fn preflight_closed(
     Ok(arcs)
 }
 
+/// Build analytical Canonical segments for *preflight tests only*.
+/// This does not establish exact curved-ring intersection or containment;
+/// the production importer must not accept this boundary until those gates
+/// and versioned IPC/CPU/RHI rendering have passed independent validation.
+pub fn build_preflight_boundary(
+    board: &boardsi_model::BoardModel,
+    rows: &[Vec<&str>],
+    origin: [i64; 2],
+) -> Result<boardsi_model::Boundary, &'static str> {
+    use boardsi_model::{Boundary, BoundarySegment, Point};
+    let arcs = preflight_closed(rows, origin)?;
+    let frame = board
+        .frames
+        .first()
+        .ok_or("MISSING_FRAME")?
+        .meta
+        .id
+        .clone();
+    let mut points = Vec::with_capacity(rows.len());
+    for row in rows {
+        points.push([
+            origin[0]
+                .checked_add(fixed(row[0])?)
+                .ok_or("OUTLINE_COORD_OVERFLOW")
+                .and_then(bounded)?,
+            origin[1]
+                .checked_add(fixed(row[1])?)
+                .ok_or("OUTLINE_COORD_OVERFLOW")
+                .and_then(bounded)?,
+        ]);
+    }
+    let to_point = |ticks: [i64; 2]| Point {
+        frame: frame.clone(),
+        ticks,
+    };
+    let mut segments = Vec::with_capacity(arcs.len());
+    for (index, arc) in arcs.iter().enumerate() {
+        segments.push(if let Some(a) = arc {
+            BoundarySegment::Arc {
+                centre: to_point(a.centre),
+                start: to_point(a.start),
+                end: to_point(a.end),
+                clockwise: a.clockwise,
+            }
+        } else {
+            BoundarySegment::Line {
+                start: to_point(points[index]),
+                end: to_point(points[index + 1]),
+            }
+        });
+    }
+    Ok(Boundary { segments })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -210,6 +264,28 @@ mod tests {
         assert_eq!(
             preflight_closed(&bad_rows, [0, 0]).unwrap_err(),
             "OUTLINE_ARC_ENDPOINT_MISMATCH"
+        );
+    }
+
+    #[test]
+    fn canonical_preflight_keeps_analytical_arcs_not_display_chords() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\\n*PCB*\\nMAXLAYER 4\\n*END*\\n";
+        let parsed = crate::route_preview::parse(source.as_bytes()).unwrap();
+        let board = crate::route_preview::into_canonical(source.as_bytes(), &parsed).unwrap();
+        let text = "100 0\\n300 0 2700 900 200 0 400 200\\n400 100\\n400 200 0 900 200 100 400 300\\n300 300\\n100 300 900 900 0 100 200 300\\n0 200\\n0 100 1800 900 0 0 200 200\\n100 0";
+        let rows: Vec<Vec<&str>> = text
+            .lines()
+            .map(|line| line.split_ascii_whitespace().collect())
+            .collect();
+        let boundary = build_preflight_boundary(&board, &rows, [0, 0]).unwrap();
+        assert_eq!(boundary.segments.len(), 8);
+        assert_eq!(
+            boundary
+                .segments
+                .iter()
+                .filter(|segment| matches!(segment, boardsi_model::BoundarySegment::Arc { .. }))
+                .count(),
+            4
         );
     }
 
