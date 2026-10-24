@@ -30,7 +30,18 @@ static int runA020ExplorerSmoke() {
     pad.layer=1; pad.side="T"; pad.width_nm=400000; pad.height_nm=400000;
     pad.x_nm=0; pad.y_nm=0;
 
-    bool imported=panel.load(4,0,{top,bottom},{via},{pad});
+    std::vector<ImportedOutlineEdge> outline;
+    const qint64 xy[5][2]={{-2540000,-2540000},{5080000,-2540000},
+                           {5080000,5080000},{-2540000,5080000},
+                           {-2540000,-2540000}};
+    for(int i=0;i<4;++i) {
+        ImportedOutlineEdge e;
+        e.name="OUTER"; e.sequence=i;
+        e.x0_nm=xy[i][0]; e.y0_nm=xy[i][1];
+        e.x1_nm=xy[i+1][0]; e.y1_nm=xy[i+1][1];
+        outline.push_back(e);
+    }
+    bool imported=panel.load(4,0,{top,bottom},{via},{pad},{},outline);
     auto *layers=panel.findChild<QComboBox *>("importedLayerSelect");
     auto *solo=panel.findChild<QPushButton *>("importedSoloLayer");
     auto *restore=panel.findChild<QPushButton *>("importedRestoreLayers");
@@ -43,6 +54,7 @@ static int runA020ExplorerSmoke() {
                         search && find && netOnly;
     bool layersPass=false, searchPass=false, netOnlyPass=false;
     bool propertiesPass=false, resetPass=false, malformedRejected=false;
+    bool outlineSelected=false, caseIdentity=false;
     bool rhiChecked=false, rhiNetOnlyParity=true;
 
     if(imported && controls) {
@@ -97,7 +109,12 @@ static int runA020ExplorerSmoke() {
         const bool padDetail=panel.selectPad(0) &&
             details.contains("Pad U1.1") &&
             details.contains("net NOT_VERIFIED");
-        propertiesPass=trace && viaDetail && padDetail;
+        const bool outlineDetail=panel.selectOutline(0) &&
+            details.contains("Board Outline OUTER") &&
+            details.contains("segment 0") &&
+            details.contains("not copper");
+        outlineSelected=outlineDetail;
+        propertiesPass=trace && viaDetail && padDetail && outlineDetail;
 
         ImportedTrack broken=top;
         broken.width_nm=0;
@@ -110,10 +127,20 @@ static int runA020ExplorerSmoke() {
                   panel.visibleSegments()==0 &&
                   !netOnly->isChecked() &&
                   panel.findChild<QComboBox *>("importedNetSelect")->count()==1;
+        ImportedTrack lower=top;
+        lower.net="net_a"; // Source labels can differ only by ASCII case.
+        if(panel.load(4,0,{top,lower})) {
+            search->setText("net_a"); find->click();
+            const bool exact=details.contains("Selected net: net_a");
+            search->setText("NeT_A"); find->click();
+            caseIdentity=exact && details.contains("Selected net: net_a") &&
+                         panel.selectNet("NET_A") &&
+                         details.contains("Selected net: NET_A");
+        }
     }
     const bool pass=imported && controls && layersPass && searchPass &&
                     netOnlyPass && propertiesPass && resetPass &&
-                    malformedRejected && rhiNetOnlyParity;
+                    malformedRejected && outlineSelected && caseIdentity && rhiNetOnlyParity;
     const QJsonObject report{
         {"schema","boardsi-preview-a020-explorer-v1"},
         {"pass",pass},
@@ -123,6 +150,8 @@ static int runA020ExplorerSmoke() {
         {"case_insensitive_net_search",searchPass},
         {"net_only_unverified_pad_excluded",netOnlyPass},
         {"source_properties",propertiesPass},
+        {"straight_outline_selection",outlineSelected},
+        {"case_sensitive_exact_net_identity",caseIdentity},
         {"malformed_import_preserves_source",malformedRejected},
         {"clear_resets_filter_and_model",resetPass},
         {"rhi_source_checked",rhiChecked},
