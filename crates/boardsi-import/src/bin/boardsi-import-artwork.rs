@@ -2,7 +2,7 @@
 //! Standard output is a bounded transport, never an SI simulation or full CAD import.
 use boardsi_import::part_preview::{self, MAX_PADS};
 use boardsi_import::route_preview::{into_canonical, parse, MAX_FILE_BYTES};
-use boardsi_import::{outline_preview, pour_preview};
+use boardsi_import::{copper_preview, outline_preview, pour_preview};
 use std::{
     env, fs,
     io::{self, Write},
@@ -23,15 +23,18 @@ fn run() -> Result<(), &'static str> {
     let result = parse(&bytes)?;
     let outlines = outline_preview::parse(&bytes)?;
     let pours = pour_preview::parse(&bytes, result.max_layer)?;
+    let coppers = copper_preview::parse(&bytes, result.max_layer)?;
     let mut board = into_canonical(&bytes, &result)?;
     let pad_data = part_preview::parse(&bytes, result.max_layer);
     part_preview::augment(&mut board, &pad_data)?;
     outline_preview::augment(&mut board, &outlines)?;
+    copper_preview::augment(&mut board, &coppers)?;
     if board.arcs.len() != result.arcs.len()
         || board.traces.len() != result.segments.len()
         || board.vias.len() != result.vias.len()
         || board.pads.len() != pad_data.pads.len()
         || board.outlines.len() != usize::from(!outlines.is_empty())
+        || board.areas.len() != coppers.len()
         || board.validate().has_errors()
     {
         return Err("CANONICAL_VALIDATION_FAILED");
@@ -40,7 +43,9 @@ fn run() -> Result<(), &'static str> {
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
     // records are actually emitted. Rejected PART rows are not P2C geometry.
     let mixed = outlines.iter().any(|s| s.segments.is_some());
-    let mode = if !pours.is_empty() {
+    let mode = if !coppers.is_empty() {
+        "BOARDSI_P2M_PARTIAL_V10"
+    } else if !pours.is_empty() {
         "BOARDSI_P2L_PARTIAL_V9"
     } else if mixed {
         "BOARDSI_P2I_PARTIAL_V8"
@@ -157,6 +162,7 @@ fn run() -> Result<(), &'static str> {
                 || mode == "BOARDSI_P2H_PARTIAL_V7"
                 || mode == "BOARDSI_P2I_PARTIAL_V8"
                 || mode == "BOARDSI_P2L_PARTIAL_V9"
+                || mode == "BOARDSI_P2M_PARTIAL_V10"
             {
                 format!(
                     "|{}|{}",
@@ -173,6 +179,7 @@ fn run() -> Result<(), &'static str> {
         || mode == "BOARDSI_P2H_PARTIAL_V7"
         || mode == "BOARDSI_P2I_PARTIAL_V8"
         || mode == "BOARDSI_P2L_PARTIAL_V9"
+        || mode == "BOARDSI_P2M_PARTIAL_V10"
     {
         // Non-electrical BOARD geometry. A circle is analytical (C), while
         // straight polygon segments retain the unchanged O record.
@@ -240,7 +247,7 @@ fn run() -> Result<(), &'static str> {
                 .map_err(|_| "FORMAT_ERROR")?;
             }
         }
-        if mode == "BOARDSI_P2L_PARTIAL_V9" {
+        if mode == "BOARDSI_P2L_PARTIAL_V9" || mode == "BOARDSI_P2M_PARTIAL_V10" {
             for pour in &pours {
                 for (sequence, pair) in pour.vertices.windows(2).enumerate() {
                     // Q is a source-authored UNFILLED boundary, not copper fill.
@@ -260,6 +267,51 @@ fn run() -> Result<(), &'static str> {
                     .map_err(|_| "FORMAT_ERROR")?;
                 }
             }
+            // V10 emits only explicit source-filled *LINES* COPPER geometry.
+            // G record is a non-electrical preview shape, never an invented flood.
+            if mode == "BOARDSI_P2M_PARTIAL_V10" {
+                for copper in &coppers {
+                    use copper_preview::CopperGeometry;
+                    match &copper.geometry {
+                        CopperGeometry::Polygon(vertices) => {
+                            write!(
+                                out,
+                                "G|P|{}|{}|{}|{}|{}",
+                                copper.layer,
+                                copper.name,
+                                copper.net_label.as_deref().unwrap_or("-"),
+                                copper.source_line,
+                                vertices.len()
+                            )
+                            .map_err(|_| "FORMAT_ERROR")?;
+                            for v in vertices {
+                                write!(
+                                    out,
+                                    "|{}|{}",
+                                    outline_preview::wire_nm(v[0])?,
+                                    outline_preview::wire_nm(v[1])?
+                                )
+                                .map_err(|_| "FORMAT_ERROR")?;
+                            }
+                            writeln!(out).map_err(|_| "FORMAT_ERROR")?;
+                        }
+                        CopperGeometry::Circle { centre, radius } => {
+                            writeln!(
+                                out,
+                                "G|C|{}|{}|{}|{}|{}|{}|{}",
+                                copper.layer,
+                                copper.name,
+                                copper.net_label.as_deref().unwrap_or("-"),
+                                copper.source_line,
+                                outline_preview::wire_nm(centre[0])?,
+                                outline_preview::wire_nm(centre[1])?,
+                                outline_preview::wire_nm(*radius)?
+                            )
+                            .map_err(|_| "FORMAT_ERROR")?;
+                        }
+                    }
+                }
+            }
             let mixed_arcs: usize = outlines
                 .iter()
                 .filter_map(|s| s.segments.as_ref())
@@ -271,6 +323,30 @@ fn run() -> Result<(), &'static str> {
                         .count()
                 })
                 .sum();
+            if mode == "BOARDSI_P2M_PARTIAL_V10" {
+                writeln!(
+                    out,
+                    "END|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+                    result.segments.len(),
+                    result.skipped.saturating_add(pad_data.skipped as u32),
+                    pad_data.pads.len(),
+                    result.arcs.len(),
+                    outlines.iter().filter(|s| !s.cutout).count(),
+                    outlines.iter().filter(|s| s.cutout).count(),
+                    outlines.iter().filter(|s| s.circle.is_some()).count(),
+                    mixed_arcs,
+                    pours.len(),
+                    coppers.len()
+                )
+                .map_err(|_| "FORMAT_ERROR")?;
+                // All END records are emitted by their own protocol version.
+                // Avoid emitting V9 END a second time.
+                if out.len() > 2 * 1024 * 1024 {
+                    return Err("OUTPUT_LIMIT");
+                }
+                io::stdout().write_all(&out).map_err(|_| "STDOUT_FAILED")?;
+                return Ok(());
+            }
             writeln!(
                 out,
                 "END|{}|{}|{}|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",

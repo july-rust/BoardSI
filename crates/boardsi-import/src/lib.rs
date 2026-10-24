@@ -182,6 +182,7 @@ mod tests {
     }
 }
 
+pub mod copper_preview;
 pub mod digest;
 pub mod outline_arc;
 pub mod outline_preview;

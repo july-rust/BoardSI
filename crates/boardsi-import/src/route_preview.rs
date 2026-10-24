@@ -586,7 +586,8 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     // A valid POUROUT boundary is preview geometry even without routed copper.
     // This never marks the poured interior as an actual conductive plane.
     let has_pour = !crate::pour_preview::parse(source_bytes, max_layer)?.is_empty();
-    if !found_route && !has_pad && !has_outline && !has_pour {
+    let has_copper = !crate::copper_preview::parse(source_bytes, max_layer)?.is_empty();
+    if !found_route && !has_pad && !has_outline && !has_pour && !has_copper {
         return Err("MISSING_ROUTE_SECTION");
     }
     if segments.is_empty()
@@ -595,6 +596,7 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         && !has_pad
         && !has_outline
         && !has_pour
+        && !has_copper
     {
         return Err("NO_SUPPORTED_TRACES");
     }

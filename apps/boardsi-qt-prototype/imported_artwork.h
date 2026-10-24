@@ -19,6 +19,9 @@
 #include <QVBoxLayout>
 #include <limits>
 #include <vector>
+#include <array>
+#include <cstddef>
+#include <algorithm>
 #include <functional>
 #include <utility>
 
@@ -63,6 +66,98 @@ struct ImportedBoundarySegment {
 };
 
 struct ImportedPourEdge { QString name,net; int layer=0,sequence=0,sourceLine=0; qint64 x0_nm=0,y0_nm=0,x1_nm=0,y1_nm=0; };
+
+// Exact-grid filled COPCLS/COPCIR source shapes, not reconstructed flooded copper.
+// Triangle indices are CPU-validated and reused by the RHI GPU batch.
+struct ImportedCopperArea {
+    QString name, net;
+    int layer=0, sourceLine=0;
+    bool circle=false;
+    qint64 cx_nm=0,cy_nm=0,radius_nm=0;
+    std::vector<std::pair<qint64,qint64>> ring;
+    std::vector<std::array<int,3>> triangles;
+};
+inline bool validateCopperArea(ImportedCopperArea &a) {
+    constexpr qint64 bound=1422400000LL;
+    if(a.layer<1 || a.layer>64 || a.sourceLine<=0 ||
+       a.name.isEmpty() || a.name.size()>16 || a.net.isEmpty() || a.net.size()>47)
+        return false;
+    auto coord=[&](qint64 v) {return v%254==0 && v>=-bound && v<=bound;};
+    a.triangles.clear();
+    if(a.circle) {
+        if(!a.ring.empty() || !coord(a.cx_nm) || !coord(a.cy_nm) ||
+           !coord(a.radius_nm) || a.radius_nm<=0) return false;
+        for(const auto v:{a.cx_nm-a.radius_nm,a.cx_nm+a.radius_nm,
+                          a.cy_nm-a.radius_nm,a.cy_nm+a.radius_nm})
+            if(!coord(v)) return false;
+        return true;
+    }
+    if(a.ring.size()<4 || a.ring.size()>256 || a.ring.front()!=a.ring.back()) return false;
+    const int n=static_cast<int>(a.ring.size())-1;
+    for(auto p:a.ring) if(!coord(p.first) || !coord(p.second)) return false;
+    // Work in integer source ticks: |cross| < 2.6e14, no MSVC __int128 needed.
+    auto cross=[&](int i,int j,int k)->qint64 {
+        const auto &a0=a.ring[static_cast<size_t>(i)];
+        const auto &b0=a.ring[static_cast<size_t>(j)];
+        const auto &c0=a.ring[static_cast<size_t>(k)];
+        const qint64 x=(b0.first-a0.first)/254,y=(b0.second-a0.second)/254;
+        const qint64 u=(c0.first-a0.first)/254,v=(c0.second-a0.second)/254;
+        return x*v-y*u;
+    };
+    auto onseg=[&](int i,int j,int k) {
+        auto p=a.ring[static_cast<size_t>(k)];
+        auto x=a.ring[static_cast<size_t>(i)],y=a.ring[static_cast<size_t>(j)];
+        return cross(i,j,k)==0 &&
+               p.first>=std::min(x.first,y.first) && p.first<=std::max(x.first,y.first) &&
+               p.second>=std::min(x.second,y.second) && p.second<=std::max(x.second,y.second);
+    };
+    qint64 twiceArea=0;
+    for(int i=0;i<n;++i) {
+        int j=(i+1)%n;
+        if(a.ring[static_cast<size_t>(i)]==a.ring[static_cast<size_t>(j)]) return false;
+        const auto &x=a.ring[static_cast<size_t>(i)];
+        const auto &y=a.ring[static_cast<size_t>(j)];
+        twiceArea+=(x.first/254)*(y.second/254)-(y.first/254)*(x.second/254);
+        for(int k=i+1;k<n;++k) {
+            int l=(k+1)%n;
+            if(k==i+1 || (i==0 && k==n-1)) continue;
+            const auto x1=cross(i,j,k),x2=cross(i,j,l);
+            const auto y1=cross(k,l,i),y2=cross(k,l,j);
+            if(onseg(i,j,k)||onseg(i,j,l)||onseg(k,l,i)||onseg(k,l,j)||
+               ((x1>0)!=(x2>0) && (y1>0)!=(y2>0))) return false;
+        }
+    }
+    if(twiceArea==0) return false;
+    const int winding=twiceArea>0?1:-1;
+    std::vector<int> ids;
+    for(int i=0;i<n;++i) ids.push_back(i);
+    // Ear clipping is bounded (max 255 vertices and 64 objects). Refuse if
+    // a degenerate/ambiguous ring cannot be triangulated without inventing fill.
+    while(ids.size()>3) {
+        bool clipped=false;
+        for(size_t i=0;i<ids.size();++i) {
+            const int p=ids[(i+ids.size()-1)%ids.size()];
+            const int c=ids[i],q=ids[(i+1)%ids.size()];
+            if(cross(p,c,q)*winding<=0) continue;
+            bool occupied=false;
+            for(int vertex:ids) {
+                if(vertex==p||vertex==c||vertex==q) continue;
+                const qint64 a1=cross(p,c,vertex)*winding;
+                const qint64 a2=cross(c,q,vertex)*winding;
+                const qint64 a3=cross(q,p,vertex)*winding;
+                if(a1>=0 && a2>=0 && a3>=0){occupied=true;break;}
+            }
+            if(occupied) continue;
+            a.triangles.push_back({p,c,q});
+            ids.erase(ids.begin()+static_cast<std::ptrdiff_t>(i));
+            clipped=true;break;
+        }
+        if(!clipped) return false;
+    }
+    if(ids.size()!=3 || cross(ids[0],ids[1],ids[2])*winding<=0) return false;
+    a.triangles.push_back({ids[0],ids[1],ids[2]});
+    return a.triangles.size()==static_cast<size_t>(n-2);
+}
 struct ImportedPad {
     QString reference, pin, shape;
     int layer = 0;
@@ -104,6 +199,7 @@ class ImportedArtworkPanel final : public QWidget {
     std::vector<std::pair<QGraphicsItem *, ImportedPad>> pads_;
     std::vector<std::pair<QGraphicsLineItem *, ImportedOutlineEdge>> outlineEdges_;
     std::vector<std::pair<QGraphicsLineItem *, ImportedPourEdge>> pours_;
+    std::vector<std::pair<QGraphicsItem *, ImportedCopperArea>> copper_;
     std::vector<std::pair<QGraphicsEllipseItem *, ImportedCircle>> circles_;
     std::vector<std::pair<QGraphicsPathItem *, ImportedBoundarySegment>> boundaries_;
     std::function<void(const QString &)> detailsCallback_;
@@ -114,7 +210,7 @@ class ImportedArtworkPanel final : public QWidget {
 #endif
         // A GPU backend change must never fabricate a successful PCB import.
         if (tracks_.empty() && arcs_.empty() && vias_.empty() && pads_.empty() &&
-            outlineEdges_.empty() && circles_.empty() && boundaries_.empty() && pours_.empty()) {
+            outlineEdges_.empty() && circles_.empty() && boundaries_.empty() && pours_.empty() && copper_.empty()) {
             summary_->setText("No imported PCB. Synthetic demo is a separate tab.\n"
                               "Artwork renderer: " + rendererStatus());
             if (detailsCallback_) detailsCallback_(summary_->text());
@@ -194,6 +290,15 @@ class ImportedArtworkPanel final : public QWidget {
             entry.first->setOpacity(net=="All nets" || net==e.net ? 1.0 : 0.12);
             if(shown) ++visiblePours;
         }
+        int visibleCopper=0;
+        for(const auto &entry:copper_) {
+            const auto &e=entry.second;
+            const bool shown=e.layer>0 && e.layer<layerVisible_.size() &&
+                layerVisible_[e.layer] && (!netOnly || (e.net!="-" && e.net==net));
+            entry.first->setVisible(shown);
+            entry.first->setOpacity(net=="All nets" || net==e.net ? 1.0 : 0.12);
+            if(shown) ++visibleCopper;
+        }
         // Declared layers are NOT necessarily copper layers with accepted traces.
         // Counts below describe only rendered straight-route data, not inferred geometry.
         const int layerId = layers_->currentData().toInt();
@@ -232,6 +337,9 @@ class ImportedArtworkPanel final : public QWidget {
         line += QString("\nPOUROUT unfilled boundary edges: %1  Visible: %2"
                         " / actual flood and connectivity NOT_VERIFIED")
                     .arg(static_cast<qlonglong>(pours_.size())).arg(visiblePours);
+        line += QString("\nExplicit source filled COPCLS/COPCIR: %1  Visible: %2"
+                        " / fabricated copper and connectivity NOT_VERIFIED")
+                    .arg(static_cast<qlonglong>(copper_.size())).arg(visibleCopper);
         line += QString("\nTop SMD: %1  Bottom SMD: %2")
                     .arg(static_cast<qlonglong>(pads_.size()) - bottomPads).arg(bottomPads);
         const auto selected = scene_->selectedItems();
@@ -247,6 +355,7 @@ class ImportedArtworkPanel final : public QWidget {
         for (const auto &e: vias_) { if(e.second.firstLayer<=layerId && layerId<=e.second.lastLayer) ++selectedLayerCount; if(e.second.net==net) ++selectedNetCount; }
         for (const auto &e: pads_) if(e.second.layer==layerId) ++selectedLayerCount;
         for (const auto &e: pours_) if(e.second.layer==layerId) ++selectedLayerCount;
+        for (const auto &e: copper_) if(e.second.layer==layerId) ++selectedLayerCount;
         line += QString("\nLayer selected imported copper objects: %1"
                         "\nSelected net declared route/via objects: %2"
                         "\nNet connectivity: NOT_VERIFIED"
@@ -421,6 +530,7 @@ public:
                 else if (kind == 6) selectBoundary(index);
                 else if (kind == 7) selectOutline(index);
                 else if (kind == 8) selectPour(index);
+                else if (kind == 9) selectCopper(index);
             });
         }
 #endif
@@ -488,6 +598,7 @@ public:
         circles_.clear();
         boundaries_.clear();
         pours_.clear();
+        copper_.clear();
         scene_->clear();
         layerVisible_.clear();
         layers_->clear();
@@ -513,14 +624,15 @@ public:
               const std::vector<ImportedOutlineEdge> &outlineInput = {},
               const std::vector<ImportedCircle> &circleInput = {},
               const std::vector<ImportedBoundarySegment> &boundaryInput = {},
-              const std::vector<ImportedPourEdge> &pourInput = {}) {
+              const std::vector<ImportedPourEdge> &pourInput = {},
+              const std::vector<ImportedCopperArea> &copperInput = {}) {
         if (layerCount < 1 || layerCount > 64 ||
             (input.empty() && viaInput.empty() && padInput.empty() &&
-             arcInput.empty() && outlineInput.empty() && circleInput.empty() && boundaryInput.empty() && pourInput.empty()) ||
+             arcInput.empty() && outlineInput.empty() && circleInput.empty() && boundaryInput.empty() && pourInput.empty() && copperInput.empty()) ||
             input.size() + arcInput.size() > 10000 || viaInput.size() > 10000 ||
             padInput.size() > 5000 || outlineInput.size() > 16384 ||
             circleInput.size() > 64 || boundaryInput.size() > 16384 ||
-            pourInput.size() > 16384 ||
+            pourInput.size() > 16384 || copperInput.size() > 64 ||
             outlineInput.size() + circleInput.size() + boundaryInput.size() > 16384)
             return false;
         // Keep the old artwork untouched if a candidate fails validation.
@@ -679,6 +791,13 @@ public:
         }
         if(!pourInput.empty() &&
            (pourSeq<3 || lastPX!=firstPX || lastPY!=firstPY)) return false;
+        auto copperChecked=copperInput;
+        QSet<QString> copperNames;
+        for(auto &c:copperChecked) {
+            if(c.layer>layerCount || !validateCopperArea(c) || copperNames.contains(c.name))
+                return false;
+            copperNames.insert(c.name);
+        }
         if ((!outlineInput.empty() || !circleInput.empty() || !boundaryInput.empty()) &&
             outerRings+outerCircles+boundaryOuter!=1) return false;
         {
@@ -691,6 +810,7 @@ public:
             circles_.clear();
             boundaries_.clear();
             pours_.clear();
+            copper_.clear();
             scene_->clear();
         }
         layerVisible_ = QVector<bool>(layerCount + 1, true);
@@ -817,6 +937,35 @@ public:
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             pads_.push_back({item, pad});
         }
+        for(const auto &c:copperChecked) {
+            if(c.net!="-" && nets_->findText(c.net)<0) nets_->addItem(c.net);
+            const QColor color(c.layer==1 ? "#e6aa55" :
+                               c.layer==layerCount ? "#509fca" : "#8fb66f");
+            QGraphicsItem *item=nullptr;
+            if(c.circle) {
+                const qreal r=c.radius_nm/1e6;
+                item=scene_->addEllipse(QRectF((c.cx_nm-c.radius_nm)/1e6,
+                    (-c.cy_nm-c.radius_nm)/1e6,2*r,2*r),
+                    QPen(color.darker(135),0),QBrush(color));
+            }else{
+                QPainterPath path;
+                path.moveTo(c.ring[0].first/1e6,-c.ring[0].second/1e6);
+                for(size_t i=1;i<c.ring.size();++i)
+                    path.lineTo(c.ring[i].first/1e6,-c.ring[i].second/1e6);
+                path.closeSubpath();
+                item=scene_->addPath(path,QPen(color.darker(135),0),QBrush(color));
+            }
+            item->setZValue(-1); // Beneath trace/pad/POUROUT outlines.
+            item->setData(0,c.net=="-" ? QString() : c.net);
+            item->setData(2,QString("COPPER %1 / %2 filled SOURCE geometry / layer %3"
+                " / source line %4 / declared net %5 / vertices %6"
+                " / connectivity NOT_VERIFIED / fabricated copper NOT_VERIFIED / SI NOT_RUN")
+                .arg(c.name).arg(c.circle ? "COPCIR" : "COPCLS")
+                .arg(c.layer).arg(c.sourceLine).arg(c.net)
+                .arg(c.circle ? 0 : static_cast<int>(c.ring.size())));
+            item->setFlag(QGraphicsItem::ItemIsSelectable);
+            copper_.push_back({item,c});
+        }
         for(const auto &e:pourInput) {
             if(e.net!="-" && nets_->findText(e.net)<0) nets_->addItem(e.net);
             const QLineF line(e.x0_nm/1e6,-e.y0_nm/1e6,e.x1_nm/1e6,-e.y1_nm/1e6);
@@ -887,7 +1036,7 @@ public:
         }
         skipped_ = skipped;
 #ifdef BOARDSI_RHI_ARTWORK
-        if (rhi_) rhi_->load(layerCount,input,viaInput,padInput,arcInput,outlineInput,circleInput,boundaryInput,pourInput);
+        if (rhi_) rhi_->load(layerCount,input,viaInput,padInput,arcInput,outlineInput,circleInput,boundaryInput,pourInput,copperChecked);
 #endif
         scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-1, -1, 1, 1));
         refresh();
@@ -896,7 +1045,7 @@ public:
     }
     void fitArtwork() {
         if (!tracks_.empty() || !arcs_.empty() || !vias_.empty() ||
-            !pads_.empty() || !outlineEdges_.empty() || !circles_.empty() || !boundaries_.empty() || !pours_.empty()) {
+            !pads_.empty() || !outlineEdges_.empty() || !circles_.empty() || !boundaries_.empty() || !pours_.empty() || !copper_.empty()) {
             // Qt's Fit is cumulative with the existing view transform. Reset
             // first so a Fit after Zoom is repeatable and does not drift.
             view_->resetTransform();
@@ -912,6 +1061,13 @@ public:
     int circleCount() const { return static_cast<int>(circles_.size()); }
     int boundaryCount() const { return static_cast<int>(boundaries_.size()); }
     int pourEdgeCount() const { return static_cast<int>(pours_.size()); }
+    int copperCount() const {return static_cast<int>(copper_.size());}
+    bool selectCopper(int index) {
+        if(index<0 || index>=static_cast<int>(copper_.size())) return false;
+        scene_->clearSelection();
+        copper_[static_cast<size_t>(index)].first->setSelected(true);
+        return true;
+    }
     bool selectPour(int index) {
         if(index<0 || index>=static_cast<int>(pours_.size())) return false;
         scene_->clearSelection();
