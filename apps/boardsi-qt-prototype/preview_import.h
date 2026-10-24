@@ -298,14 +298,14 @@ class PreviewImportPanel final : public QWidget {
                             for(size_t idx=0;idx<boundary.size();) {
                                 const auto &first=boundary[idx];
                                 const QString key=(first.cutout ? "CUT|" : "OUTER|")+first.name;
-                                size_t end=idx+1;
-                                while(end<boundary.size() &&
-                                      ((boundary[end].cutout ? "CUT|" : "OUTER|")+boundary[end].name)==key)
-                                    ++end;
-                                if(end-idx<3 ||
-                                   boundary[end-1].x1_nm!=first.x0_nm ||
-                                   boundary[end-1].y1_nm!=first.y0_nm) return false;
-                                idx=end;
+                                size_t ringEnd=idx+1;
+                                while(ringEnd<boundary.size() &&
+                                      ((boundary[ringEnd].cutout ? "CUT|" : "OUTER|")+boundary[ringEnd].name)==key)
+                                    ++ringEnd;
+                                if(ringEnd-idx<3 ||
+                                   boundary[ringEnd-1].x1_nm!=first.x0_nm ||
+                                   boundary[ringEnd-1].y1_nm!=first.y0_nm) return false;
+                                idx=ringEnd;
                             }
                             if(boundary.empty()) return false;
                         } else if (p2h) {
