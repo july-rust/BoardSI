@@ -314,6 +314,11 @@ protected:
         }
         // Analytical mixed mechanical outline arcs. GPU chords exist only
         // as screen-space triangles; source/Canonical/IPC remain exact.
+        // Bound total mixed mechanical arc tessellation across the scene.
+        // Source geometry remains exact; only GPU display polygons are bounded.
+        size_t mixedArcCount=0;
+        for(const auto &b : boundaries_) if(b.isArc) ++mixedArcCount;
+        const int maxMixedSegments=arcSegmentBudgetPerVisibleArc(mixedArcCount);
         for(const auto &b : boundaries_) {
             const QColor color(b.cutout ? "#e99f87" : "#e0e8ee");
             auto &dst=groups[color.rgba()];
@@ -331,8 +336,8 @@ protected:
             const qreal a0=std::atan2(static_cast<qreal>(b.y0_nm-b.cy_nm),
                                       static_cast<qreal>(b.x0_nm-b.cx_nm));
             const qreal sweep=(b.clockwise?-1.0:1.0)*1.57079632679489661923;
-            const int steps=std::clamp(static_cast<int>(
-                std::ceil(std::abs(sweep)*std::sqrt(std::max<qreal>(1,rad)/4.0))),4,512);
+            const int steps=std::min(maxMixedSegments,std::clamp(static_cast<int>(
+                std::ceil(std::abs(sweep)*std::sqrt(std::max<qreal>(1,rad)/4.0))),4,512));
             const qreal inner=std::max<qreal>(0,rad-0.85),outer=rad+0.85;
             auto at=[&](qreal angle,qreal radius) {
                 return QPointF(centre.x()+radius*std::cos(angle),
