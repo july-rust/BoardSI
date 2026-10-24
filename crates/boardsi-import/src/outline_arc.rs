@@ -145,13 +145,7 @@ pub fn build_preflight_boundary(
 ) -> Result<boardsi_model::Boundary, &'static str> {
     use boardsi_model::{Boundary, BoundarySegment, Point};
     let arcs = preflight_closed(rows, origin)?;
-    let frame = board
-        .frames
-        .first()
-        .ok_or("MISSING_FRAME")?
-        .meta
-        .id
-        .clone();
+    let frame = board.frames.first().ok_or("MISSING_FRAME")?.meta.id.clone();
     let mut points = Vec::with_capacity(rows.len());
     for row in rows {
         points.push([
@@ -269,7 +263,8 @@ mod tests {
 
     #[test]
     fn canonical_preflight_keeps_analytical_arcs_not_display_chords() {
-        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*END*\n";
+        let source =
+            "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0\n*END*\n";
         let parsed = crate::route_preview::parse(source.as_bytes()).unwrap();
         let board = crate::route_preview::into_canonical(source.as_bytes(), &parsed).unwrap();
         let text = "100 0\n300 0 2700 900 200 0 400 200\n400 100\n400 200 0 900 200 100 400 300\n300 300\n100 300 900 900 0 100 200 300\n0 200\n0 100 1800 900 0 0 200 200\n100 0";
