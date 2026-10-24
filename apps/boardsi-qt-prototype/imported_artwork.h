@@ -219,8 +219,12 @@ class ImportedArtworkPanel final : public QWidget {
         line += QString("\nTop SMD: %1  Bottom SMD: %2")
                     .arg(static_cast<qlonglong>(pads_.size()) - bottomPads).arg(bottomPads);
         const auto selected = scene_->selectedItems();
-        if (!selected.isEmpty() && !selected.first()->data(1).toString().isEmpty())
-            line += "\nSelected object: " + selected.first()->data(1).toString();
+        if (!selected.isEmpty()) {
+            const auto *item = selected.first();
+            const QString text = item->data(2).toString().isEmpty() ?
+                                 item->data(1).toString() : item->data(2).toString();
+            if (!text.isEmpty()) line += "\nSelected object: " + text;
+        }
         int selectedLayerCount=0, selectedNetCount=0;
         for (const auto &e: tracks_) { if(e.second.layer==layerId) ++selectedLayerCount; if(e.second.net==net) ++selectedNetCount; }
         for (const auto &e: arcs_) { if(e.second.layer==layerId) ++selectedLayerCount; if(e.second.net==net) ++selectedNetCount; }
@@ -654,8 +658,15 @@ public:
             auto *item = scene_->addLine(line, QPen(color, t.width_nm / 1e6,
                                                    Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             item->setData(0, t.net);
-            item->setData(1, QString("Straight trace / layer %1 / width %2 mm")
-                                 .arg(t.layer).arg(t.width_nm / 1e6, 0, 'f', 6));
+            item->setData(1, QString("Straight trace / layer %1 / width %2 mm"
+                                     " / start (%3, %4) mm / end (%5, %6) mm"
+                                     " / length %7 mm / net %8 / connectivity NOT_VERIFIED")
+                                 .arg(t.layer).arg(t.width_nm / 1e6, 0, 'f', 6)
+                                 .arg(t.x0_nm/1e6,0,'f',6).arg(t.y0_nm/1e6,0,'f',6)
+                                 .arg(t.x1_nm/1e6,0,'f',6).arg(t.y1_nm/1e6,0,'f',6)
+                                 .arg(std::hypot(static_cast<double>(t.x1_nm-t.x0_nm),
+                                                 static_cast<double>(t.y1_nm-t.y0_nm))/1e6,0,'f',6)
+                                 .arg(t.net));
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             tracks_.push_back({item, t});
         }
@@ -685,7 +696,14 @@ public:
                                    " / %5 / source line %6 / SI NOT_RUN")
                                .arg(a.layer).arg(a.width_nm/1e6,0,'f',6)
                                .arg(a.cx_nm/1e6,0,'f',6).arg(a.cy_nm/1e6,0,'f',6)
-                               .arg(a.clockwise ? "CW" : "CCW").arg(a.sourceLine));
+                               .arg(a.clockwise ? "CW" : "CCW").arg(a.sourceLine)
+                               + QString(" / start (%1, %2) mm / end (%3, %4) mm"
+                                         " / radius %5 mm / net %6 / connectivity NOT_VERIFIED")
+                                   .arg(a.x0_nm/1e6,0,'f',6).arg(a.y0_nm/1e6,0,'f',6)
+                                   .arg(a.x1_nm/1e6,0,'f',6).arg(a.y1_nm/1e6,0,'f',6)
+                                   .arg(std::hypot(static_cast<double>(a.x0_nm-a.cx_nm),
+                                                   static_cast<double>(a.y0_nm-a.cy_nm))/1e6,0,'f',6)
+                                   .arg(a.net));
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             arcs_.push_back({item,a});
         }
@@ -708,7 +726,11 @@ public:
                                    .arg(via.name)
                                    .arg(via.diameter_nm / 1e6, 0, 'f', 6)
                                    .arg(via.drill_nm / 1e6, 0, 'f', 6)
-                                   .arg(via.firstLayer).arg(via.lastLayer));
+                                   .arg(via.firstLayer).arg(via.lastLayer)
+                                   + QString(" / centre (%1, %2) mm / declared net %3"
+                                             " / connectivity NOT_VERIFIED")
+                                       .arg(via.x_nm/1e6,0,'f',6).arg(via.y_nm/1e6,0,'f',6)
+                                       .arg(via.net));
             outer->setFlag(QGraphicsItem::ItemIsSelectable);
             vias_.push_back({outer, via});
         }
@@ -745,6 +767,13 @@ public:
             auto *item=scene_->addLine(line,QPen(color,0));
             item->setData(1,e.cutout ? "Board Cutout (not copper)" :
                                          "Board Outline (not copper)");
+            item->setData(2,QString("%1 %2 / segment %3 / start (%4, %5) mm"
+                                    " / end (%6, %7) mm / not copper")
+                             .arg(e.cutout ? "Board Cutout" : "Board Outline")
+                             .arg(e.name).arg(e.sequence)
+                             .arg(e.x0_nm/1e6,0,'f',6).arg(e.y0_nm/1e6,0,'f',6)
+                             .arg(e.x1_nm/1e6,0,'f',6).arg(e.y1_nm/1e6,0,'f',6));
+            item->setFlag(QGraphicsItem::ItemIsSelectable);
             outlineEdges_.push_back({item,e});
         }
         for (const auto &c : circleInput) {
