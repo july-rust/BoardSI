@@ -254,6 +254,14 @@ class BoardSiRhiItem final : public QQuickItem {
                      c + QPointF(r*std::cos(b),r*std::sin(b)));
         }
     }
+    // A_019 P2-J: a subpixel-radius trace cap costs 72 additional vertices
+    // but cannot be resolved by the screen at normal raster sampling. Keep
+    // analytic centreline/picking unchanged and preserve round caps as soon
+    // as their screen-space radius exceeds half a pixel.
+    static constexpr qreal subpixelCapRadius = 0.5;
+    static int nonDegenerateLineVerticesForTest(qreal halfWidthPx) {
+        return halfWidthPx <= subpixelCapRadius ? 6 : 78;
+    }
     static void thickLine(Vertices &v, QPointF a, QPointF b, qreal halfWidth) {
         const QPointF diff = b-a;
         const qreal len = std::hypot(diff.x(),diff.y());
@@ -261,7 +269,9 @@ class BoardSiRhiItem final : public QQuickItem {
         const QPointF d(-diff.y() * halfWidth / len,
                          diff.x() * halfWidth / len);
         triangle(v,a+d,b+d,b-d); triangle(v,a+d,b-d,a-d);
-        disk(v,a,halfWidth,12); disk(v,b,halfWidth,12);
+        if (halfWidth > subpixelCapRadius) {
+            disk(v,a,halfWidth,12); disk(v,b,halfWidth,12);
+        }
     }
     bool visible(int layer) const {
         return layer > 0 && layer < visibility_.size() && visibility_[layer];
@@ -783,6 +793,12 @@ public:
         return lastSyncedGeneration_.load(std::memory_order_acquire);
     }
     QPointF localPoint(qint64 x,qint64 y) const { return world(x,y); }
+    qreal projectedHalfWidthForTest(qint64 sourceWidthNm) const {
+        return sourceWidthNm / 2e6 * scaleFactor();
+    }
+    int lineVertexCountForTest(qreal halfWidthPx) const {
+        return nonDegenerateLineVerticesForTest(halfWidthPx);
+    }
     // Read-only test seam: validate the actual GPU scene's imported source
     // coordinates/filters, not the parallel hidden QGraphicsScene mirror.
     bool containsExactPad(const QString &ref,const QString &pin,int layer,
