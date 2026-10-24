@@ -487,6 +487,7 @@ public:
         outlineEdges_.clear();
         circles_.clear();
         boundaries_.clear();
+        pours_.clear();
         scene_->clear();
         layerVisible_.clear();
         layers_->clear();
