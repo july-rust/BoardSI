@@ -78,7 +78,7 @@ static int runA019NativeRhiBenchmark() {
                     v.name="V";v.net="SYNTHETIC";
                     v.x_nm=x;v.y_nm=y;v.diameter_nm=75000;v.drill_nm=25000;
                     v.firstLayer=1;v.lastLayer=4;vias.push_back(v);
-                } else if(i%25==0) {
+                } else if(i%100<5) {
                     ImportedPad p;
                     p.reference="U";p.pin="1";p.shape="RF";p.side="T";
                     p.layer=1;p.x_nm=x;p.y_nm=y;
@@ -96,7 +96,10 @@ static int runA019NativeRhiBenchmark() {
             view.show();
             view.load(4,tracks,vias,pads);
             const qint64 sourceLoadMs=loadTimer.elapsed();
-            const bool countOkay=view.primitiveCount()==count;
+            const bool countOkay=view.primitiveCount()==count &&
+                vias.size()==static_cast<size_t>(count/100) &&
+                pads.size()==static_cast<size_t>(count*4/100) &&
+                tracks.size()==static_cast<size_t>(count*95/100);
             // Require the generation-aware native frame receipt to become
             // available. No previous frame can qualify a later artwork load.
             QEventLoop firstLoop;
