@@ -929,6 +929,89 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
     return passed?0:1;
 }
 
+// A_018 P2-I: actual V8 Import -> CPU/RHI analytical mechanical quarter-arcs.
+static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
+    QElapsedTimer clock; clock.start();
+    bool passed=false,rhiChecked=false,rhiOk=false;
+    QString failure;
+    QEventLoop loop;
+    if(!window.openCandidate(fixture)) {
+        failure="A_018 public mixed-outline fixture unavailable";
+    } else {
+        QTimer tick;
+        QObject::connect(&tick,&QTimer::timeout,&loop,[&] {
+            const QString status=window.importPanel()->importStatus();
+            if(status.startsWith("FAILED") || status.startsWith("CANCELLED")) {
+                failure="A_018 import failed: "+status;loop.quit();return;
+            }
+            if(!status.startsWith("PARTIAL")) return;
+            auto *panel=window.importPanel()->imported();
+            auto *scene=panel->findChild<QGraphicsScene *>();
+            int arcs=0,lines=0;
+            bool coordinatesOk=true;
+            if(scene) {
+                for(QGraphicsItem *obj:scene->items()) {
+                    auto *path=qgraphicsitem_cast<QGraphicsPathItem *>(obj);
+                    if(!path || !obj->data(1).toString().contains("MAIN_MIX")) continue;
+                    const QString kind=obj->data(1).toString();
+                    if(kind.contains("Arc")) {
+                        ++arcs;
+                        coordinatesOk &= path->path().elementCount()>2;
+                    } else if(kind.contains("Line")) {
+                        ++lines;
+                        coordinatesOk &= path->path().elementCount()==2;
+                    }
+                }
+            }
+            const bool counts=scene && panel->boundaryCount()==8 && arcs==4 &&
+                lines==4 && coordinatesOk &&
+                status.contains("8 mixed boundary parts") &&
+                window.displayedProperties().contains("mixed segments: 8");
+            auto *toggle=window.findChild<QPushButton *>("importedLayerToggle");
+            bool mechanicalVisible=toggle!=nullptr;
+            if(toggle && scene) {
+                toggle->click();
+                for(auto *obj:scene->items()) {
+                    if(obj->data(1).toString().contains("MAIN_MIX"))
+                        mechanicalVisible &= obj->isVisible();
+                }
+                toggle->click();
+            }
+#ifdef BOARDSI_RHI_ARTWORK
+            if(auto *rhi=panel->rhiViewForTest();
+               rhi && panel->rhiCanvasActiveForTest()) {
+                rhiChecked=true;
+                auto *item=rhi->itemForTest();
+                rhiOk=item->boundaryCountForTest()==8 &&
+                    item->boundaryFitBoundsForTest() &&
+                    item->dispatchBoundaryPickForTest(1) &&
+                    window.displayedProperties().contains("MAIN_MIX");
+            }
+#endif
+            passed=counts && mechanicalVisible && (!rhiChecked || rhiOk);
+            if(!passed) failure="A_018 V8/CPU/RHI geometry, Fit or picking mismatch";
+            loop.quit();
+        });
+        QTimer::singleShot(15000,&loop,&QEventLoop::quit);
+        tick.start(20);loop.exec();tick.stop();
+        if(!passed && failure.isEmpty()) failure="A_018 mixed outline smoke timeout";
+    }
+    const QJsonObject result{
+        {"schema","boardsi-preview-p2i-mixed-outline-smoke-v1"},
+        {"pass",passed},{"failure",failure},{"elapsed_ms",clock.elapsed()},
+        {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"host_arch",QSysInfo::currentCpuArchitecture()},
+        {"native_backend",QGuiApplication::platformName()},
+        {"rhi_checked",rhiChecked},{"rhi_fit_pick",rhiOk},
+        {"scope","PADS V9.4 quarter-circle BOARD synthetic fixture; SI NOT_RUN"}
+    };
+    QFile receipt("qt-preview-p2i-mixed-outline-results.json");
+    if(!receipt.open(QIODevice::WriteOnly) ||
+       receipt.write(QJsonDocument(result).toJson(QJsonDocument::Indented))<1) return 2;
+    qInfo().noquote()<<QJsonDocument(result).toJson(QJsonDocument::Compact);
+    return passed?0:1;
+}
+
 // A_015 end-to-end imported PADS V9.4 arcs: Worker -> V5 -> CPU scene.
 static int runArcSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock; clock.start();
@@ -1553,6 +1636,7 @@ int main(int argc, char **argv) {
     const bool arcTesting = args.size() == 7 && args.at(1) == "--arc-selftest";
     const bool outlineTesting = args.size() == 7 && args.at(1) == "--outline-selftest";
     const bool circleTesting = args.size() == 7 && args.at(1) == "--circle-selftest";
+    const bool mixedTesting = args.size() == 7 && args.at(1) == "--mixed-outline-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
                          rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting ||
                          arcTesting || outlineTesting || circleTesting;
@@ -1578,7 +1662,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return circleTesting ? runCircleSmoke(window, fixture) :
+    return mixedTesting ? runMixedOutlineSmoke(window, fixture) :
+           circleTesting ? runCircleSmoke(window, fixture) :
            outlineTesting ? runOutlineSmoke(window, fixture) :
            arcTesting ? runArcSmoke(window, fixture) :
            rendererTesting ? runRendererSmoke(window) :
