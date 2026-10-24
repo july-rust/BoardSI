@@ -119,6 +119,7 @@ class BoardSiRhiItem final : public QQuickItem {
     std::vector<ImportedPad> pads_;
     std::vector<ImportedArc> arcs_;
     std::vector<ImportedOutlineEdge> outlineEdges_;
+    std::vector<ImportedPourEdge> pours_;
     std::vector<ImportedCircle> circles_;
     std::vector<ImportedBoundarySegment> boundaries_;
     QVector<bool> visibility_;
@@ -305,6 +306,24 @@ class BoardSiRhiItem final : public QQuickItem {
         }
         return -1;
     }
+    int pourIndexAt(const QPointF &pos) const {
+        for(size_t i=pours_.size();i>0;--i) {
+            const auto &e=pours_[i-1];
+            if(!visible(e.layer) || !includedNet(e.net) ||
+               (netOnly_ && net_!="All nets" && e.net=="NET_NOT_DECLARED"))
+                continue;
+            const QPointF a=pixel(world(e.x0_nm,e.y0_nm));
+            const QPointF b=pixel(world(e.x1_nm,e.y1_nm));
+            const QPointF delta=b-a, offset=pos-a;
+            const qreal length2=delta.x()*delta.x()+delta.y()*delta.y();
+            const qreal u=length2>0 ? std::clamp(
+                (delta.x()*offset.x()+delta.y()*offset.y())/length2,0.0,1.0):0.0;
+            const QPointF nearest=a+delta*u;
+            if(std::hypot(pos.x()-nearest.x(),pos.y()-nearest.y())<=3.5)
+                return static_cast<int>(i-1);
+        }
+        return -1;
+    }
     int boundaryIndexAt(const QPointF &pos) const {
         for(size_t i=boundaries_.size();i>0;--i) {
             const auto &b=boundaries_[i-1];
@@ -435,6 +454,20 @@ protected:
             if (net_ != "All nets" && net_ != t.net) color.setAlpha(40);
             thickLine(groups[color.rgba()],a,b,
                       std::max<qreal>(0.1,halfWidth),deviceRatio);
+        }
+        // POUROUT is a declared unfilled boundary. Batch on RHI; never
+        // tessellate the polygon interior into invented copper triangles.
+        for(const auto &e:pours_) {
+            if(!visible(e.layer) || !includedNet(e.net) ||
+               (netOnly_ && net_!="All nets" && e.net=="NET_NOT_DECLARED"))
+                continue;
+            const QPointF a=pixel(world(e.x0_nm,e.y0_nm));
+            const QPointF b=pixel(world(e.x1_nm,e.y1_nm));
+            if(!QRectF(a,b).normalized().adjusted(-4,-4,4,4)
+                   .intersects(QRectF(0,0,width(),height()))) continue;
+            QColor color("#8be1c6");
+            if(net_!="All nets" && net_!=e.net) color.setAlpha(40);
+            thickLine(groups[color.rgba()],a,b,0.85,deviceRatio);
         }
         // Mechanical boundaries are net- and layer-independent, never copper.
         // One batched color group per outline kind; no per-edge scene nodes.
@@ -671,6 +704,10 @@ protected:
             if(boundaryIndex>=0) {
                 picked_(6,boundaryIndex);event->accept();return;
             }
+            const int pourIndex=pourIndexAt(event->position());
+            if(pourIndex>=0) {
+                picked_(8,pourIndex);event->accept();return;
+            }
             const int outlineIndex=outlineIndexAt(event->position());
             if(outlineIndex>=0) {
                 picked_(7,outlineIndex); event->accept(); return;
@@ -699,9 +736,10 @@ public:
               const std::vector<ImportedArc> &arcs = {},
               const std::vector<ImportedOutlineEdge> &outlines = {},
               const std::vector<ImportedCircle> &circles = {},
-               const std::vector<ImportedBoundarySegment> &boundary = {}) {
+               const std::vector<ImportedBoundarySegment> &boundary = {},
+               const std::vector<ImportedPourEdge> &pours = {}) {
         tracks_=tracks; vias_=vias; pads_=pads; arcs_=arcs;
-        outlineEdges_=outlines; circles_=circles; boundaries_=boundary; layers_=layers;
+        outlineEdges_=outlines; circles_=circles; boundaries_=boundary; pours_=pours; layers_=layers;
         adapterProof_->store(0,std::memory_order_release);
         visibility_=QVector<bool>(layers+1,true);
         qint64 x=0,y=0; bool initialized=false;
@@ -716,6 +754,9 @@ public:
         for (const auto &v:vias_) ingest(v.x_nm,v.y_nm);
         for (const auto &p:pads_) ingest(p.x_nm,p.y_nm);
         for (const auto &e:outlineEdges_) {
+            ingest(e.x0_nm,e.y0_nm);ingest(e.x1_nm,e.y1_nm);
+        }
+        for(const auto &e:pours_) {
             ingest(e.x0_nm,e.y0_nm);ingest(e.x1_nm,e.y1_nm);
         }
         for (const auto &c:circles_) ingest(c.cx_nm-c.radius_nm,c.cy_nm-c.radius_nm);
@@ -760,6 +801,10 @@ public:
             add(world(e.x0_nm,e.y0_nm),outlineExtentMm);
             add(world(e.x1_nm,e.y1_nm),outlineExtentMm);
         }
+        for(const auto &e:pours_) {
+            add(world(e.x0_nm,e.y0_nm),0.000001);
+            add(world(e.x1_nm,e.y1_nm),0.000001);
+        }
         for (const auto &c:circles_)
             add(world(c.cx_nm,c.cy_nm),c.radius_nm/1e6);
         for(const auto &b:boundaries_) {
@@ -794,7 +839,7 @@ public:
     }
     int primitiveCount() const {
         return static_cast<int>(tracks_.size()+vias_.size()+pads_.size()+arcs_.size()+
-                                outlineEdges_.size()+circles_.size()+boundaries_.size());
+                                outlineEdges_.size()+circles_.size()+boundaries_.size()+pours_.size());
     }
     int outlineCountForTest() const { return static_cast<int>(outlineEdges_.size()); }
     int circleCountForTest() const { return static_cast<int>(circles_.size()); }
@@ -1128,10 +1173,11 @@ public:
               const std::vector<ImportedArc> &arcs = {},
               const std::vector<ImportedOutlineEdge> &outlines = {},
               const std::vector<ImportedCircle> &circles = {},
-               const std::vector<ImportedBoundarySegment> &boundary = {}) {
+               const std::vector<ImportedBoundarySegment> &boundary = {},
+               const std::vector<ImportedPourEdge> &pours = {}) {
         seenFrame_=false;
         status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
-        artwork_->load(layers,tracks,vias,pads,arcs,outlines,circles,boundary);
+        artwork_->load(layers,tracks,vias,pads,arcs,outlines,circles,boundary,pours);
         loadGeneration_=artwork_->sourceGeneration();
         requiredSceneRevision_=artwork_->requestedSceneRevision();
         deadlineGeneration_=std::numeric_limits<quint64>::max();
