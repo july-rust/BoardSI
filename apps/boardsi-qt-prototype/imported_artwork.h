@@ -62,6 +62,7 @@ struct ImportedBoundarySegment {
     qint64 x1_nm = 0, y1_nm = 0;
 };
 
+struct ImportedPourEdge { QString name,net; int layer=0,sequence=0,sourceLine=0; qint64 x0_nm=0,y0_nm=0,x1_nm=0,y1_nm=0; };
 struct ImportedPad {
     QString reference, pin, shape;
     int layer = 0;
@@ -102,6 +103,7 @@ class ImportedArtworkPanel final : public QWidget {
     std::vector<std::pair<QGraphicsEllipseItem *, ImportedVia>> vias_;
     std::vector<std::pair<QGraphicsItem *, ImportedPad>> pads_;
     std::vector<std::pair<QGraphicsLineItem *, ImportedOutlineEdge>> outlineEdges_;
+    std::vector<std::pair<QGraphicsLineItem *, ImportedPourEdge>> pours_;
     std::vector<std::pair<QGraphicsEllipseItem *, ImportedCircle>> circles_;
     std::vector<std::pair<QGraphicsPathItem *, ImportedBoundarySegment>> boundaries_;
     std::function<void(const QString &)> detailsCallback_;
@@ -112,7 +114,7 @@ class ImportedArtworkPanel final : public QWidget {
 #endif
         // A GPU backend change must never fabricate a successful PCB import.
         if (tracks_.empty() && arcs_.empty() && vias_.empty() && pads_.empty() &&
-            outlineEdges_.empty() && circles_.empty() && boundaries_.empty()) {
+            outlineEdges_.empty() && circles_.empty() && boundaries_.empty() && pours_.empty()) {
             summary_->setText("No imported PCB. Synthetic demo is a separate tab.\n"
                               "Artwork renderer: " + rendererStatus());
             if (detailsCallback_) detailsCallback_(summary_->text());
@@ -182,6 +184,16 @@ class ImportedArtworkPanel final : public QWidget {
             entry.first->setOpacity(net == "All nets" ? 1.0 : 0.12);
             if (shown && !netOnly) ++visiblePads;
         }
+        int visiblePours=0;
+        for(const auto &entry:pours_) {
+            const auto &e=entry.second;
+            const bool shown=e.layer>0 && e.layer<layerVisible_.size() &&
+                layerVisible_[e.layer] &&
+                (!netOnly || (e.net!="NET_NOT_DECLARED" && e.net==net));
+            entry.first->setVisible(shown);
+            entry.first->setOpacity(net=="All nets" || net==e.net ? 1.0 : 0.12);
+            if(shown) ++visiblePours;
+        }
         // Declared layers are NOT necessarily copper layers with accepted traces.
         // Counts below describe only rendered straight-route data, not inferred geometry.
         const int layerId = layers_->currentData().toInt();
@@ -217,6 +229,9 @@ class ImportedArtworkPanel final : public QWidget {
                     .arg(static_cast<qlonglong>(outlineEdges_.size()))
                     .arg(static_cast<qlonglong>(circles_.size()))
                     .arg(static_cast<qlonglong>(boundaries_.size()));
+        line += QString("\nPOUROUT unfilled boundary edges: %1  Visible: %2"
+                        " / actual flood and connectivity NOT_VERIFIED")
+                    .arg(static_cast<qlonglong>(pours_.size())).arg(visiblePours);
         line += QString("\nTop SMD: %1  Bottom SMD: %2")
                     .arg(static_cast<qlonglong>(pads_.size()) - bottomPads).arg(bottomPads);
         const auto selected = scene_->selectedItems();
@@ -231,6 +246,7 @@ class ImportedArtworkPanel final : public QWidget {
         for (const auto &e: arcs_) { if(e.second.layer==layerId) ++selectedLayerCount; if(e.second.net==net) ++selectedNetCount; }
         for (const auto &e: vias_) { if(e.second.firstLayer<=layerId && layerId<=e.second.lastLayer) ++selectedLayerCount; if(e.second.net==net) ++selectedNetCount; }
         for (const auto &e: pads_) if(e.second.layer==layerId) ++selectedLayerCount;
+        for (const auto &e: pours_) if(e.second.layer==layerId) ++selectedLayerCount;
         line += QString("\nLayer selected imported copper objects: %1"
                         "\nSelected net declared route/via objects: %2"
                         "\nNet connectivity: NOT_VERIFIED"
@@ -404,6 +420,7 @@ public:
                 else if (kind == 5) selectCircle(index);
                 else if (kind == 6) selectBoundary(index);
                 else if (kind == 7) selectOutline(index);
+                else if (kind == 8) selectPour(index);
             });
         }
 #endif
@@ -494,13 +511,15 @@ public:
               const std::vector<ImportedArc> &arcInput = {},
               const std::vector<ImportedOutlineEdge> &outlineInput = {},
               const std::vector<ImportedCircle> &circleInput = {},
-              const std::vector<ImportedBoundarySegment> &boundaryInput = {}) {
+              const std::vector<ImportedBoundarySegment> &boundaryInput = {},
+              const std::vector<ImportedPourEdge> &pourInput = {}) {
         if (layerCount < 1 || layerCount > 64 ||
             (input.empty() && viaInput.empty() && padInput.empty() &&
-             arcInput.empty() && outlineInput.empty() && circleInput.empty() && boundaryInput.empty()) ||
+             arcInput.empty() && outlineInput.empty() && circleInput.empty() && boundaryInput.empty() && pourInput.empty()) ||
             input.size() + arcInput.size() > 10000 || viaInput.size() > 10000 ||
             padInput.size() > 5000 || outlineInput.size() > 16384 ||
             circleInput.size() > 64 || boundaryInput.size() > 16384 ||
+            pourInput.size() > 16384 ||
             outlineInput.size() + circleInput.size() + boundaryInput.size() > 16384)
             return false;
         // Keep the old artwork untouched if a candidate fails validation.
@@ -636,6 +655,29 @@ public:
         }
         if(!boundaryInput.empty() &&
            (lastBX!=firstBX || lastBY!=firstBY || seq<3)) return false;
+        QString pourKey;
+        QSet<QString> pourNames;
+        qint64 firstPX=0,firstPY=0,lastPX=0,lastPY=0;
+        int pourSeq=0;
+        for(const auto &e:pourInput) {
+            if(e.layer<1 || e.layer>layerCount || e.name.isEmpty() ||
+               e.name.size()>16 || e.net.isEmpty() || e.net.size()>47 ||
+               e.sourceLine<=0 || e.sequence<0) return false;
+            for(auto v:{e.x0_nm,e.y0_nm,e.x1_nm,e.y1_nm})
+                if(v%254!=0 || v<-1422400000LL || v>1422400000LL) return false;
+            if(e.name!=pourKey) {
+                if(!pourKey.isEmpty() &&
+                   (pourSeq<3 || lastPX!=firstPX || lastPY!=firstPY)) return false;
+                if(pourNames.contains(e.name) || e.sequence!=0) return false;
+                pourNames.insert(e.name);pourKey=e.name;pourSeq=0;
+                firstPX=e.x0_nm;firstPY=e.y0_nm;
+            } else if(e.x0_nm!=lastPX || e.y0_nm!=lastPY) return false;
+            if(e.sequence!=pourSeq || (e.x0_nm==e.x1_nm && e.y0_nm==e.y1_nm))
+                return false;
+            ++pourSeq;lastPX=e.x1_nm;lastPY=e.y1_nm;
+        }
+        if(!pourInput.empty() &&
+           (pourSeq<3 || lastPX!=firstPX || lastPY!=firstPY)) return false;
         if ((!outlineInput.empty() || !circleInput.empty() || !boundaryInput.empty()) &&
             outerRings+outerCircles+boundaryOuter!=1) return false;
         {
@@ -647,6 +689,7 @@ public:
             outlineEdges_.clear();
             circles_.clear();
             boundaries_.clear();
+            pours_.clear();
             scene_->clear();
         }
         layerVisible_ = QVector<bool>(layerCount + 1, true);
@@ -773,6 +816,20 @@ public:
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             pads_.push_back({item, pad});
         }
+        for(const auto &e:pourInput) {
+            if(e.net!="NET_NOT_DECLARED" && nets_->findText(e.net)<0) nets_->addItem(e.net);
+            const QLineF line(e.x0_nm/1e6,-e.y0_nm/1e6,e.x1_nm/1e6,-e.y1_nm/1e6);
+            auto *item=scene_->addLine(line,QPen(QColor("#8be1c6"),0,Qt::DashLine));
+            item->setData(0,e.net=="NET_NOT_DECLARED" ? QString() : e.net);
+            item->setData(2,QString("POUROUT %1 / unfilled boundary / layer %2"
+                " / source line %3 / segment %4 / start (%5, %6) mm"
+                " / end (%7, %8) mm / declared net %9 / flood NOT_VERIFIED / SI NOT_RUN")
+                .arg(e.name).arg(e.layer).arg(e.sourceLine).arg(e.sequence)
+                .arg(e.x0_nm/1e6,0,'f',6).arg(e.y0_nm/1e6,0,'f',6)
+                .arg(e.x1_nm/1e6,0,'f',6).arg(e.y1_nm/1e6,0,'f',6).arg(e.net));
+            item->setFlag(QGraphicsItem::ItemIsSelectable);
+            pours_.push_back({item,e});
+        }
         for (const auto &e : outlineInput) {
             const QLineF line(e.x0_nm/1e6,-e.y0_nm/1e6,
                               e.x1_nm/1e6,-e.y1_nm/1e6);
@@ -829,7 +886,7 @@ public:
         }
         skipped_ = skipped;
 #ifdef BOARDSI_RHI_ARTWORK
-        if (rhi_) rhi_->load(layerCount,input,viaInput,padInput,arcInput,outlineInput,circleInput,boundaryInput);
+        if (rhi_) rhi_->load(layerCount,input,viaInput,padInput,arcInput,outlineInput,circleInput,boundaryInput,pourInput);
 #endif
         scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-1, -1, 1, 1));
         refresh();
@@ -838,7 +895,7 @@ public:
     }
     void fitArtwork() {
         if (!tracks_.empty() || !arcs_.empty() || !vias_.empty() ||
-            !pads_.empty() || !outlineEdges_.empty() || !circles_.empty() || !boundaries_.empty()) {
+            !pads_.empty() || !outlineEdges_.empty() || !circles_.empty() || !boundaries_.empty() || !pours_.empty()) {
             // Qt's Fit is cumulative with the existing view transform. Reset
             // first so a Fit after Zoom is repeatable and does not drift.
             view_->resetTransform();
@@ -853,6 +910,13 @@ public:
     int outlineCount() const { return static_cast<int>(outlineEdges_.size()); }
     int circleCount() const { return static_cast<int>(circles_.size()); }
     int boundaryCount() const { return static_cast<int>(boundaries_.size()); }
+    int pourEdgeCount() const { return static_cast<int>(pours_.size()); }
+    bool selectPour(int index) {
+        if(index<0 || index>=static_cast<int>(pours_.size())) return false;
+        scene_->clearSelection();
+        pours_[static_cast<size_t>(index)].first->setSelected(true);
+        return true;
+    }
     bool selectOutline(int index) {
         if(index<0 || index>=static_cast<int>(outlineEdges_.size())) return false;
         scene_->clearSelection();
