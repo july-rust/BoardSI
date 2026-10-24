@@ -38,7 +38,9 @@ fn run() -> Result<(), &'static str> {
     let mut out = Vec::new();
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
     // records are actually emitted. Rejected PART rows are not P2C geometry.
-    let mode = if !outlines.is_empty() {
+    let mode = if outlines.iter().any(|s| s.circle.is_some()) {
+        "BOARDSI_P2H_PARTIAL_V7"
+    } else if !outlines.is_empty() {
         "BOARDSI_P2G_PARTIAL_V6"
     } else if !result.arcs.is_empty() {
         "BOARDSI_P2F_PARTIAL_V5"
@@ -146,6 +148,7 @@ fn run() -> Result<(), &'static str> {
             if mode == "BOARDSI_P2E_PARTIAL_V4"
                 || mode == "BOARDSI_P2F_PARTIAL_V5"
                 || mode == "BOARDSI_P2G_PARTIAL_V6"
+                || mode == "BOARDSI_P2H_PARTIAL_V7"
             {
                 format!(
                     "|{}|{}",
@@ -158,9 +161,22 @@ fn run() -> Result<(), &'static str> {
         )
         .map_err(|_| "FORMAT_ERROR")?;
     }
-    if mode == "BOARDSI_P2G_PARTIAL_V6" {
-        // Non-electrical BOARD perimeter edges. Never mix them with copper T/A.
+    if mode == "BOARDSI_P2G_PARTIAL_V6" || mode == "BOARDSI_P2H_PARTIAL_V7" {
+        // Non-electrical BOARD geometry. A circle is analytical (C), while
+        // straight polygon segments retain the unchanged O record.
         for shape in &outlines {
+            if let Some(circle) = shape.circle {
+                writeln!(
+                    out,
+                    "C|{}|{}|{}|{}|{}",
+                    if shape.cutout { "CUT" } else { "OUTER" },
+                    shape.name,
+                    outline_preview::wire_nm(circle.centre[0])?,
+                    outline_preview::wire_nm(circle.centre[1])?,
+                    outline_preview::wire_nm(circle.radius)?,
+                )
+                .map_err(|_| "FORMAT_ERROR")?;
+            }
             for (n, pair) in shape.vertices.windows(2).enumerate() {
                 writeln!(
                     out,
@@ -176,16 +192,30 @@ fn run() -> Result<(), &'static str> {
                 .map_err(|_| "FORMAT_ERROR")?;
             }
         }
-        writeln!(
-            out,
-            "END|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
-            result.segments.len(),
-            result.skipped.saturating_add(pad_data.skipped as u32),
-            pad_data.pads.len(),
-            result.arcs.len(),
-            outlines.iter().filter(|s| !s.cutout).count(),
-            outlines.iter().filter(|s| s.cutout).count()
-        )
+        if mode == "BOARDSI_P2H_PARTIAL_V7" {
+            writeln!(
+                out,
+                "END|{}|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+                result.segments.len(),
+                result.skipped.saturating_add(pad_data.skipped as u32),
+                pad_data.pads.len(),
+                result.arcs.len(),
+                outlines.iter().filter(|s| !s.cutout).count(),
+                outlines.iter().filter(|s| s.cutout).count(),
+                outlines.iter().filter(|s| s.circle.is_some()).count(),
+            )
+        } else {
+            writeln!(
+                out,
+                "END|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+                result.segments.len(),
+                result.skipped.saturating_add(pad_data.skipped as u32),
+                pad_data.pads.len(),
+                result.arcs.len(),
+                outlines.iter().filter(|s| !s.cutout).count(),
+                outlines.iter().filter(|s| s.cutout).count()
+            )
+        }
     } else if mode == "BOARDSI_P2F_PARTIAL_V5" {
         writeln!(
             out,

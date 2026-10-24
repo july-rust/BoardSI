@@ -77,7 +77,8 @@ class PreviewWindow : public QMainWindow {
         const bool loaded = importResultStatus.startsWith("PARTIAL") &&
                             ((importUI->imported()->segmentCount() + importUI->imported()->viaCount() +
                               importUI->imported()->padCount() + importUI->imported()->arcCount() +
-                              importUI->imported()->outlineCount()) > 0);
+                              importUI->imported()->outlineCount() +
+                              importUI->imported()->circleCount()) > 0);
         if (!loaded) {
             properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
                                 candidate + "\nImport status: " + importResultStatus +
@@ -814,6 +815,120 @@ static int runOutlineSmoke(PreviewWindow &window, const QString &fixture) {
     return passed ? 0 : 1;
 }
 
+
+// P2-H: independent native import -> V7 -> Qt CPU/RHI circle acceptance.
+static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
+    QElapsedTimer clock; clock.start();
+    bool passed=false, rhiChecked=false, rhiExact=false;
+    QString failure;
+    // Real strict decoder must refuse truncated V7 trailers before indexing.
+    const QByteArray transportPrefix=
+        "BOARDSI_P2H_PARTIAL_V7|V9.4-MILS|1\n"
+        "L|1|TOP\n"
+        "C|OUTER|BOARD|0|0|2540\n";
+    const bool malformedTransportRejected=
+        PreviewImportPanel::validTransportForTest(
+            transportPrefix+"END|0|0|0|0|1|0|1|CANONICAL_PARTIAL|SI_NOT_RUN\n") &&
+        !PreviewImportPanel::validTransportForTest(
+            transportPrefix+"END|0|0|0|0\n");
+    bool overflowCircleRejected=false;
+    QEventLoop loop;
+    if (!window.openCandidate(fixture)) {
+        failure="A_017 fixture/importer unavailable";
+    } else {
+        QTimer tick;
+        QObject::connect(&tick,&QTimer::timeout,&loop,[&] {
+            const QString status=window.importPanel()->importStatus();
+            if(status.startsWith("FAILED") || status.startsWith("CANCELLED")) {
+                failure="A_017 import failed: "+status;loop.quit();return;
+            }
+            if(!status.startsWith("PARTIAL")) return;
+            auto *panel=window.importPanel()->imported();
+            auto *scene=panel->findChild<QGraphicsScene *>();
+            int outer=0,cut=0; bool outerExact=false,cutExact=false;
+            if(scene) for(QGraphicsItem *obj:scene->items()) {
+                auto *ellipse=qgraphicsitem_cast<QGraphicsEllipseItem *>(obj);
+                if(!ellipse) continue;
+                const auto kind=obj->data(1).toString();
+                const QRectF box=ellipse->rect();
+                const auto nearPoint=[](qreal x,qreal y) {
+                    return qAbs(x-y)<0.000001;
+                };
+                if(kind.contains("Board Outline MAIN_CIRCLE")) {
+                    ++outer;
+                    outerExact=nearPoint(box.x(),2.54) &&
+                               nearPoint(box.y(),-10.16) &&
+                               nearPoint(box.width(),10.16) &&
+                               nearPoint(box.height(),10.16);
+                }
+                if(kind.contains("Board Cutout INNER_CIRCLE")) {
+                    ++cut;
+                    cutExact=nearPoint(box.x(),6.35) &&
+                             nearPoint(box.y(),-6.35) &&
+                             nearPoint(box.width(),2.54) &&
+                             nearPoint(box.height(),2.54);
+                }
+            }
+            ImportedCircle overflowCircle;
+            overflowCircle.name="BAD_OVERFLOW"; overflowCircle.radius_nm=9223372036854775680LL;
+            overflowCircle.cx_nm=9223372036854775680LL;
+            overflowCircle.cy_nm=9223372036854775680LL;
+            overflowCircleRejected=!panel->load(1,0,{}, {}, {}, {}, {},
+                                                {overflowCircle}) &&
+                                   panel->circleCount()==2;
+            const bool counts=panel->circleCount()==2 && panel->outlineCount()==0 &&
+                panel->segmentCount()==0 && outer==1 && cut==1 &&
+                status.contains("2 circles") &&
+                window.displayedProperties().contains("analytical circles: 2");
+            // Mechanical artwork cannot disappear with no nets or hidden copper.
+            auto *toggle=window.findChild<QPushButton *>("importedLayerToggle");
+            bool independent=(toggle!=nullptr);
+            if(independent) {
+                toggle->click();
+                for(auto *obj:scene->items())
+                    if(obj->data(1).toString().startsWith("Board "))
+                        independent &= obj->isVisible();
+                toggle->click();
+            }
+#ifdef BOARDSI_RHI_ARTWORK
+            if(auto *rhi=panel->rhiViewForTest();
+               rhi && panel->rhiCanvasActiveForTest()) {
+                rhiChecked=true;
+                auto *item=rhi->itemForTest();
+                rhiExact=item->circleCountForTest()==2 &&
+                         item->circleFitBoundsForTest() &&
+                         item->dispatchCirclePickForTest(0) &&
+                         window.displayedProperties().contains("MAIN_CIRCLE");
+            }
+#endif
+            passed=counts && outerExact && cutExact && independent &&
+                   malformedTransportRejected && overflowCircleRejected &&
+                   (!rhiChecked || rhiExact);
+            if(!passed) failure="A_017 circle geometry/count/RHI/pick mismatch";
+            loop.quit();
+        });
+        QTimer::singleShot(15000,&loop,&QEventLoop::quit);
+        tick.start(20);loop.exec();tick.stop();
+        if(!passed && failure.isEmpty()) failure="A_017 circle smoke timeout";
+    }
+    const QJsonObject result{
+        {"schema","boardsi-preview-p2h-circle-smoke-v1"},
+        {"pass",passed},{"failure",failure},{"elapsed_ms",clock.elapsed()},
+        {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"native_backend",QGuiApplication::platformName()},
+        {"host_arch",QSysInfo::currentCpuArchitecture()},
+        {"rhi_source_checked",rhiChecked},{"rhi_circle_fit_and_pick",rhiExact},
+        {"v7_truncated_end_rejected",malformedTransportRejected},
+        {"v7_overflow_circle_rejected",overflowCircleRejected},
+        {"scope","public synthetic V9.4 even-grid circular BOARD and BRDCIR; SI NOT_RUN"}
+    };
+    QFile receipt("qt-preview-p2h-circle-results.json");
+    if(!receipt.open(QIODevice::WriteOnly) ||
+       receipt.write(QJsonDocument(result).toJson(QJsonDocument::Indented))<1) return 2;
+    qInfo().noquote()<<QJsonDocument(result).toJson(QJsonDocument::Compact);
+    return passed?0:1;
+}
+
 // A_015 end-to-end imported PADS V9.4 arcs: Worker -> V5 -> CPU scene.
 static int runArcSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock; clock.start();
@@ -1437,9 +1552,10 @@ int main(int argc, char **argv) {
     const bool bottomTesting = args.size() == 7 && args.at(1) == "--bottom-selftest";
     const bool arcTesting = args.size() == 7 && args.at(1) == "--arc-selftest";
     const bool outlineTesting = args.size() == 7 && args.at(1) == "--outline-selftest";
+    const bool circleTesting = args.size() == 7 && args.at(1) == "--circle-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
                          rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting ||
-                         arcTesting || outlineTesting;
+                         arcTesting || outlineTesting || circleTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -1462,7 +1578,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return outlineTesting ? runOutlineSmoke(window, fixture) :
+    return circleTesting ? runCircleSmoke(window, fixture) :
+           outlineTesting ? runOutlineSmoke(window, fixture) :
            arcTesting ? runArcSmoke(window, fixture) :
            rendererTesting ? runRendererSmoke(window) :
            bottomTesting ? runBottomSmoke(window, fixture) :

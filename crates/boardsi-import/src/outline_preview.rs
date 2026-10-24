@@ -1,6 +1,6 @@
 //! A_016 P2-G: deliberately restricted PADS V9.4 MILS *LINES* BOARD parser.
 //! Basis: PADS Layout ASCII Format Specification 9.4, pp. 27-31.
-//! Straight CLOSED and BRDCLS polygons only; arcs/circles/reuse fail closed.
+//! Straight polygon and axis-aligned exact-grid diameter circles; polygon arcs/reuse fail closed.
 //! Geometry is outline artwork ONLY: no copper, topology, drilling or SI proof.
 use boardsi_model::*;
 
@@ -13,8 +13,14 @@ const NM_PER_TICK: i64 = 254;
 pub struct Shape {
     pub name: String,
     pub cutout: bool,
-    pub vertices: Vec<[i64; 2]>, // First point repeated last; source orientation retained.
+    pub vertices: Vec<[i64; 2]>, // For polygon only: first point repeated last.
+    pub circle: Option<Circle>,  // Analytical circle, never a display-only polygon.
     pub source_line: usize,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Circle {
+    pub centre: [i64; 2],
+    pub radius: i64, // Source ticks. A non-integral source-grid centre is unsupported.
 }
 fn fixed(s: &str) -> Result<i64, &'static str> {
     let (negative, digits) = match s.strip_prefix('-') {
@@ -146,6 +152,83 @@ fn rings_touch(a: &[[i64; 2]], b: &[[i64; 2]]) -> bool {
     })
 }
 
+fn distance2(a: [i64; 2], b: [i64; 2]) -> i128 {
+    let dx = i128::from(a[0]) - i128::from(b[0]);
+    let dy = i128::from(a[1]) - i128::from(b[1]);
+    dx * dx + dy * dy
+}
+// Avoid floating point and division in strict circle-to-polygon topology checks.
+fn disk_reaches_segment(c: Circle, a: [i64; 2], b: [i64; 2]) -> bool {
+    let x = i128::from(b[0]) - i128::from(a[0]);
+    let y = i128::from(b[1]) - i128::from(a[1]);
+    let px = i128::from(c.centre[0]) - i128::from(a[0]);
+    let py = i128::from(c.centre[1]) - i128::from(a[1]);
+    let len2 = x * x + y * y;
+    let r2 = i128::from(c.radius) * i128::from(c.radius);
+    let dot = px * x + py * y;
+    if dot <= 0 {
+        return distance2(c.centre, a) <= r2;
+    }
+    if dot >= len2 {
+        return distance2(c.centre, b) <= r2;
+    }
+    let cross = px * y - py * x;
+    cross * cross <= r2 * len2
+}
+fn circle_in_polygon(c: Circle, p: &[[i64; 2]]) -> bool {
+    inside(c.centre, p) && !p.windows(2).any(|w| disk_reaches_segment(c, w[0], w[1]))
+}
+fn polygon_in_circle(p: &[[i64; 2]], c: Circle) -> bool {
+    let r2 = i128::from(c.radius) * i128::from(c.radius);
+    // A disk is convex, so every straight polygon edge stays inside when
+    // both vertices are strictly inside.
+    p[..p.len() - 1]
+        .iter()
+        .all(|&v| distance2(v, c.centre) < r2)
+}
+fn circle_in_circle(inner: Circle, outer: Circle) -> bool {
+    outer.radius > inner.radius && {
+        let dr = i128::from(outer.radius - inner.radius);
+        distance2(inner.centre, outer.centre) < dr * dr
+    }
+}
+fn circle_overlaps_polygon(c: Circle, p: &[[i64; 2]]) -> bool {
+    let r2 = i128::from(c.radius) * i128::from(c.radius);
+    inside(c.centre, p)
+        || p[..p.len() - 1]
+            .iter()
+            .any(|&v| distance2(v, c.centre) <= r2)
+        || p.windows(2).any(|w| disk_reaches_segment(c, w[0], w[1]))
+}
+fn cutout_within(cut: &Shape, outer: &Shape) -> bool {
+    match (cut.circle, outer.circle) {
+        (Some(c), Some(o)) => circle_in_circle(c, o),
+        (Some(c), None) => circle_in_polygon(c, &outer.vertices),
+        (None, Some(o)) => polygon_in_circle(&cut.vertices, o),
+        (None, None) => {
+            !rings_touch(&outer.vertices, &cut.vertices)
+                && cut.vertices[..cut.vertices.len() - 1]
+                    .iter()
+                    .all(|&p| inside(p, &outer.vertices))
+        }
+    }
+}
+fn cutouts_overlap(a: &Shape, b: &Shape) -> bool {
+    match (a.circle, b.circle) {
+        (Some(c), Some(d)) => {
+            let sum = i128::from(c.radius) + i128::from(d.radius);
+            distance2(c.centre, d.centre) <= sum * sum
+        }
+        (Some(c), None) => circle_overlaps_polygon(c, &b.vertices),
+        (None, Some(c)) => circle_overlaps_polygon(c, &a.vertices),
+        (None, None) => {
+            rings_touch(&a.vertices, &b.vertices)
+                || inside(a.vertices[0], &b.vertices)
+                || inside(b.vertices[0], &a.vertices)
+        }
+    }
+}
+
 /// Does not use the file extension as evidence. Skips non-BOARD *LINES* items
 /// structurally; never interprets COPPER/KEEPOUT as a physical board boundary.
 pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
@@ -232,18 +315,23 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
             return Err("OVERLONG_LINE");
         }
         let p: Vec<&str> = piece_line.split_ascii_whitespace().collect();
-        if p.len() != 5 || !matches!(p[0], "CLOSED" | "BRDCLS") || p[3] != "0" || p[4] != "0" {
+        if p.len() != 5
+            || !matches!(p[0], "CLOSED" | "BRDCLS" | "CIRCLE" | "BRDCIR")
+            || p[3] != "0"
+            || p[4] != "0"
+        {
             return Err("UNSUPPORTED_OUTLINE_PIECE");
         }
         let count = p[1].parse::<usize>().map_err(|_| "INVALID_OUTLINE_COUNT")?;
-        if !(4..=MAX_CORNER_COUNT).contains(&count) {
+        let is_circle = matches!(p[0], "CIRCLE" | "BRDCIR");
+        if (is_circle && count != 2) || (!is_circle && !(4..=MAX_CORNER_COUNT).contains(&count)) {
             return Err("OUTLINE_COUNT_RANGE");
         }
         let width = fixed(p[2])?;
         if !(1..=25_000).contains(&width) {
             return Err("OUTLINE_WIDTH_RANGE");
         }
-        let cutout = p[0] == "BRDCLS";
+        let cutout = matches!(p[0], "BRDCLS" | "BRDCIR");
         i += 1;
         let mut vertices = Vec::with_capacity(count);
         for _ in 0..count {
@@ -264,9 +352,38 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
             vertices.push([bounded(x)?, bounded(y)?]);
             i += 1;
         }
-        if !valid_ring(&vertices) {
-            return Err("INVALID_OUTLINE_RING");
-        }
+        let circle = if is_circle {
+            // PADS circle uses two opposing diameter endpoints. The exact
+            // Canonical arc model stores tick-grid integer centres, so only
+            // horizontal/vertical even-tick diameters are supported.
+            let a = vertices[0];
+            let b = vertices[1];
+            if (a[0] == b[0]) == (a[1] == b[1]) {
+                return Err("UNSUPPORTED_CIRCLE_DIAMETER");
+            }
+            let diameter = (b[0] - a[0]).abs().max((b[1] - a[1]).abs());
+            if diameter < 2 || diameter % 2 != 0 {
+                return Err("UNSUPPORTED_CIRCLE_PRECISION");
+            }
+            let centre = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+            let radius = diameter / 2;
+            for coord in [
+                [centre[0] - radius, centre[1]],
+                [centre[0] + radius, centre[1]],
+                [centre[0], centre[1] - radius],
+                [centre[0], centre[1] + radius],
+            ] {
+                bounded(coord[0])?;
+                bounded(coord[1])?;
+            }
+            vertices.clear();
+            Some(Circle { centre, radius })
+        } else {
+            if !valid_ring(&vertices) {
+                return Err("INVALID_OUTLINE_RING");
+            }
+            None
+        };
         if shapes.len() >= MAX_SHAPES {
             return Err("OUTLINE_SHAPE_LIMIT");
         }
@@ -283,6 +400,7 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
             name: f[0].into(),
             cutout,
             vertices,
+            circle,
             source_line,
         });
     }
@@ -296,23 +414,16 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
     if outers.len() != 1 {
         return Err("OUTLINE_OUTER_COUNT");
     }
-    let outer = &outers[0].vertices;
+    let outer = outers[0];
     let cuts: Vec<_> = shapes.iter().filter(|s| s.cutout).collect();
     for cut in &cuts {
-        if rings_touch(outer, &cut.vertices)
-            || !cut.vertices[..cut.vertices.len() - 1]
-                .iter()
-                .all(|&p| inside(p, outer))
-        {
+        if !cutout_within(cut, outer) {
             return Err("CUTOUT_NOT_CONTAINED");
         }
     }
     for (i, a) in cuts.iter().enumerate() {
         for b in &cuts[i + 1..] {
-            if rings_touch(&a.vertices, &b.vertices)
-                || inside(a.vertices[0], &b.vertices)
-                || inside(b.vertices[0], &a.vertices)
-            {
+            if cutouts_overlap(a, b) {
                 return Err("CUTOUT_OVERLAP");
             }
         }
@@ -328,25 +439,43 @@ pub fn augment(board: &mut BoardModel, shapes: &[Shape]) -> Result<(), &'static 
     let meta = |kind: ObjectKind, key: &str| ObjectMeta {
         id: ObjectId::new(&source, kind, key, ""),
         provenance: GeometryProvenance {
-            source_object_type: "PADS V9.4 MILS *LINES* BOARD polygon (strict subset)".into(),
+            source_object_type: "PADS V9.4 MILS *LINES* BOARD outline/cutout (strict subset)"
+                .into(),
             history: vec![],
         },
     };
-    let boundary = |s: &Shape| Boundary {
-        segments: s
-            .vertices
-            .windows(2)
-            .map(|pair| BoundarySegment::Line {
-                start: Point {
-                    frame: frame.clone(),
-                    ticks: pair[0],
-                },
-                end: Point {
-                    frame: frame.clone(),
-                    ticks: pair[1],
-                },
-            })
-            .collect(),
+    let boundary = |s: &Shape| -> Boundary {
+        let point = |ticks: [i64; 2]| Point {
+            frame: frame.clone(),
+            ticks,
+        };
+        if let Some(c) = s.circle {
+            let [x, y] = c.centre;
+            let r = c.radius;
+            let compass = [[x + r, y], [x, y + r], [x - r, y], [x, y - r], [x + r, y]];
+            Boundary {
+                segments: compass
+                    .windows(2)
+                    .map(|pair| BoundarySegment::Arc {
+                        centre: point(c.centre),
+                        start: point(pair[0]),
+                        end: point(pair[1]),
+                        clockwise: false,
+                    })
+                    .collect(),
+            }
+        } else {
+            Boundary {
+                segments: s
+                    .vertices
+                    .windows(2)
+                    .map(|pair| BoundarySegment::Line {
+                        start: point(pair[0]),
+                        end: point(pair[1]),
+                    })
+                    .collect(),
+            }
+        }
     };
     let outer = shapes.iter().find(|s| !s.cutout).ok_or("MISSING_OUTER")?;
     let cuts = shapes
@@ -370,7 +499,7 @@ pub fn augment(board: &mut BoardModel, shapes: &[Shape]) -> Result<(), &'static 
     });
     let coverage = &mut board.sources[0].capability.object_coverage;
     coverage.push(
-        "LINES BOARD CLOSED/BRDCLS exact straight boundaries; no arcs or circle support".into(),
+        "LINES BOARD CLOSED/BRDCLS and axis-aligned even-grid CIRCLE/BRDCIR; polygon arcs not supported".into(),
     );
     if board.validate().has_errors() {
         return Err("CANONICAL_OUTLINE_INVALID");
@@ -397,6 +526,99 @@ mod tests {
         assert_eq!(model.outlines.len(), 1);
         assert_eq!(model.outlines[0].outer.segments.len(), 4);
         assert_eq!(model.outlines[0].cutouts.len(), 1);
+    }
+
+    #[test]
+    fn circular_outer_and_circle_cutout_use_exact_analytical_arcs() {
+        let source = INPUT
+            .replace(
+                "CLOSED 5 1 0 0\n0 0\n400 0\n400 300\n0 300\n0 0",
+                "CIRCLE 2 1 0 0\n0 0\n400 0",
+            )
+            .replace(
+                "BRDCLS 5 1 0 0\n100 100\n200 100\n200 200\n100 200\n100 100",
+                "BRDCIR 2 1 0 0\n150 0\n250 0",
+            );
+        let shapes = parse(source.as_bytes()).unwrap();
+        assert_eq!(
+            shapes[0].circle,
+            Some(Circle {
+                centre: [30_000, 20_000],
+                radius: 20_000,
+            })
+        );
+        assert_eq!(
+            shapes[1].circle,
+            Some(Circle {
+                centre: [30_000, 20_000],
+                radius: 5_000,
+            })
+        );
+        let parsed = crate::route_preview::parse(source.as_bytes()).unwrap();
+        let mut model = crate::route_preview::into_canonical(source.as_bytes(), &parsed).unwrap();
+        augment(&mut model, &shapes).unwrap();
+        assert_eq!(model.outlines[0].outer.segments.len(), 4);
+        assert_eq!(model.outlines[0].cutouts[0].boundary.segments.len(), 4);
+        assert!(model.outlines[0]
+            .outer
+            .segments
+            .iter()
+            .all(|x| matches!(x, BoundarySegment::Arc { .. })));
+    }
+    #[test]
+    fn circle_rejects_diameter_precision_and_malformed_geometry() {
+        for (a, b, code) in [
+            ("0 0", "400.01 0", "UNSUPPORTED_CIRCLE_PRECISION"),
+            ("0 0", "200 200", "UNSUPPORTED_CIRCLE_DIAMETER"),
+            ("0 0", "0 0", "UNSUPPORTED_CIRCLE_DIAMETER"),
+        ] {
+            let source = INPUT.replace(
+                "CLOSED 5 1 0 0\n0 0\n400 0\n400 300\n0 300\n0 0",
+                &format!("CIRCLE 2 1 0 0\n{a}\n{b}"),
+            );
+            assert_eq!(parse(source.as_bytes()).unwrap_err(), code);
+        }
+    }
+    #[test]
+    fn circle_cutout_tangency_and_overlap_fail_closed() {
+        let source = INPUT.replace(
+            "BRDCLS 5 1 0 0\n100 100\n200 100\n200 200\n100 200\n100 100",
+            "BRDCIR 2 1 0 0\n100 0\n200 0",
+        );
+        // Circle centre x=150, y=0, radius=50 touches bottom edge of
+        // outer polygon (y=0): forbidden strict containment.
+        assert_eq!(
+            parse(source.as_bytes()).unwrap_err(),
+            "CUTOUT_NOT_CONTAINED"
+        );
+        let source = INPUT.replace(
+            "BRDCLS 5 1 0 0\n100 100\n200 100\n200 200\n100 200\n100 100",
+            "BRDCIR 2 1 0 0\n100 150\n200 150\nHOLE2 BOARD 100 200 1 0\nBRDCIR 2 1 0 0\n190 150\n290 150",
+        );
+        assert_eq!(parse(source.as_bytes()).unwrap_err(), "CUTOUT_OVERLAP");
+    }
+    #[test]
+    fn exact_circle_polygon_cross_shape_topology() {
+        let outer = vec![[0, 0], [400, 0], [400, 300], [0, 300], [0, 0]];
+        let hole = Circle {
+            centre: [200, 150],
+            radius: 50,
+        };
+        assert!(circle_in_polygon(hole, &outer));
+        let tangent = Circle {
+            centre: [200, 50],
+            radius: 50,
+        };
+        assert!(!circle_in_polygon(tangent, &outer));
+        let inner = vec![[150, -50], [250, -50], [250, 50], [150, 50], [150, -50]];
+        let circle_outer = Circle {
+            centre: [200, 0],
+            radius: 200,
+        };
+        assert!(polygon_in_circle(&inner, circle_outer));
+        let outside = vec![[0, 0], [450, 0], [450, 30], [0, 30], [0, 0]];
+        assert!(!polygon_in_circle(&outside, circle_outer));
+        assert!(circle_overlaps_polygon(hole, &outer));
     }
     #[test]
     fn rejects_get_inside_lines_instead_of_silently_dropping_later_board() {
