@@ -915,6 +915,12 @@ class BoardSiRhiView final : public QWidget {
     quint64 deadlineGeneration_=std::numeric_limits<quint64>::max();
     quint64 deadlineEpoch_=0;
 
+    void enterCpuFallback(const QString &reason) {
+        if(failed()) return;
+        ++deadlineEpoch_;
+        status_="CPU_FALLBACK_RHI_"+reason;
+        if(changed_) changed_();
+    }
     void armFrameDeadline() {
         if (!isVisible() || seenFrame_ || failed() ||
             deadlineGeneration_ == loadGeneration_) return;
@@ -929,8 +935,7 @@ class BoardSiRhiView final : public QWidget {
                 deadlineGeneration_=std::numeric_limits<quint64>::max();
                 return;
             }
-            status_="CPU_FALLBACK_RHI_NO_FRAME";
-            if (changed_) changed_();
+            enterCpuFallback("NO_FRAME");
         });
     }
 protected:
@@ -1016,9 +1021,18 @@ public:
         },Qt::DirectConnection);
         QObject::connect(window_,&QQuickWindow::sceneGraphError,this,
                          [this](QQuickWindow::SceneGraphError,const QString &) {
-            status_="CPU_FALLBACK_RHI_SCENEGRAPH_ERROR";
-            if(changed_) changed_();
+            enterCpuFallback("SCENEGRAPH_ERROR");
         },Qt::QueuedConnection);
+        // Device/scene graph invalidation arrives from the render thread.
+        // Hidden or not-yet-presented tabs are NOT automatically device loss.
+        // Always marshal the final UI fallback to the GUI event loop.
+        QObject::connect(window_,&QQuickWindow::sceneGraphInvalidated,window_,
+                         [this] {
+            QMetaObject::invokeMethod(this,[this] {
+                if(isVisible() && seenFrame_)
+                    enterCpuFallback("SCENEGRAPH_INVALIDATED");
+            },Qt::QueuedConnection);
+        },Qt::DirectConnection);
         auto *container=QWidget::createWindowContainer(window_,this);
         container->setMinimumHeight(220);
         layout->addWidget(container);
@@ -1044,6 +1058,9 @@ public:
     void fit() {artwork_->fit();}
     void zoom(qreal factor) {artwork_->zoom(factor);}
     QQuickWindow *quickWindowForTest() const {return window_;}
+    // Fault injection drives precisely the same fallback code, but does not
+    // claim to emulate a hardware driver reset on hosted CI.
+    void injectSceneGraphFailureForTest() {enterCpuFallback("SCENEGRAPH_ERROR");}
     QString status() const {return status_;}
     bool failed() const {return status_.startsWith("CPU_FALLBACK");}
     int primitiveCount() const {return artwork_->primitiveCount();}
