@@ -185,5 +185,6 @@ mod tests {
 pub mod digest;
 pub mod outline_arc;
 pub mod outline_preview;
+pub mod outline_topology;
 pub mod part_preview;
 pub mod route_preview;
