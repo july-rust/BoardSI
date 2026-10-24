@@ -204,7 +204,7 @@ fn run() -> Result<(), &'static str> {
         } else {
             writeln!(
                 out,
-                "END|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+                "END|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
                 result.segments.len(),
                 result.skipped.saturating_add(pad_data.skipped as u32),
                 pad_data.pads.len(),
