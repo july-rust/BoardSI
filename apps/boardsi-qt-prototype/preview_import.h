@@ -58,7 +58,8 @@ class PreviewImportPanel final : public QWidget {
                        std::vector<ImportedPad> &pads,
                        std::vector<ImportedArc> &arcs,
                        std::vector<ImportedOutlineEdge> &outlines,
-                       std::vector<ImportedCircle> &circles) {
+                       std::vector<ImportedCircle> &circles,
+                       std::vector<ImportedBoundarySegment> &boundary) {
         if (bytes.size() > 2 * 1024 * 1024 || !bytes.endsWith('\n')) return false;
         const auto lines = QString::fromUtf8(bytes).split('\n', Qt::SkipEmptyParts);
         // V6 can carry 16,320 BOARD perimeter edges in addition to existing
@@ -69,14 +70,15 @@ class PreviewImportPanel final : public QWidget {
         bool ok = false;
         const bool p2g = header.size() == 3 && header[0] == "BOARDSI_P2G_PARTIAL_V6";
         const bool p2h = header.size() == 3 && header[0] == "BOARDSI_P2H_PARTIAL_V7";
-        if (!p2g && !p2h && lines.size() > 25100) return false;
+        const bool p2i = header.size() == 3 && header[0] == "BOARDSI_P2I_PARTIAL_V8";
+        if (!p2g && !p2h && !p2i && lines.size() > 25100) return false;
         const bool p2f = header.size() == 3 && header[0] == "BOARDSI_P2F_PARTIAL_V5";
         const bool p2e = header.size() == 3 && header[0] == "BOARDSI_P2E_PARTIAL_V4";
         const bool p2d = header.size() == 3 && header[0] == "BOARDSI_P2D_PARTIAL_V3";
         const bool p2c = header.size() == 3 &&
                          header[0] == "BOARDSI_P2C_PARTIAL_V2";
         if (header.size() != 3 ||
-            (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h &&
+            (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h && !p2i &&
              header[0] != "BOARDSI_P2A_PARTIAL_V1") ||
             header[1] != "V9.4-MILS") return false;
         layers = header[2].toInt(&ok);
@@ -101,7 +103,7 @@ class PreviewImportPanel final : public QWidget {
                 }
                 if (tracks.size() >= 10000) return false;
                 tracks.push_back(std::move(t));
-            } else if ((p2f || p2g || p2h) && parts.size() == 12 && parts[0] == "A" &&
+            } else if ((p2f || p2g || p2h || p2i) && parts.size() == 12 && parts[0] == "A" &&
                        layerRecords == layers) {
                 ImportedArc a;
                 a.layer=parts[1].toInt(&ok);
@@ -122,7 +124,7 @@ class PreviewImportPanel final : public QWidget {
                 if(!ok || a.sourceLine<=0 || arcs.size()>=10000 ||
                     tracks.size()+arcs.size()>=10000) return false;
                 arcs.push_back(std::move(a));
-            } else if ((p2g || p2h) && parts.size() == 8 && parts[0] == "O" &&
+            } else if ((p2g || p2h || p2i) && parts.size() == 8 && parts[0] == "O" &&
                        layerRecords == layers) {
                 ImportedOutlineEdge e;
                 if (parts[1] != "OUTER" && parts[1] != "CUT") return false;
@@ -136,7 +138,7 @@ class PreviewImportPanel final : public QWidget {
                     if(!ok) return false;
                 }
                 outlines.push_back(std::move(e));
-            } else if (p2h && parts.size() == 6 && parts[0] == "C" &&
+            } else if ((p2h || p2i) && parts.size() == 6 && parts[0] == "C" &&
                        layerRecords == layers) {
                 ImportedCircle c;
                 if (parts[1] != "OUTER" && parts[1] != "CUT") return false;
@@ -149,6 +151,55 @@ class PreviewImportPanel final : public QWidget {
                     if(!ok) return false;
                 }
                 circles.push_back(std::move(c));
+            } else if (p2i && parts[0] == "B" && layerRecords == layers &&
+                       (parts.size() == 9 || parts.size() == 12)) {
+                ImportedBoundarySegment b;
+                if(parts[1] != "OUTER" && parts[1] != "CUT") return false;
+                b.cutout = parts[1] == "CUT";
+                b.name = parts[2];
+                b.sequence = parts[3].toInt(&ok);
+                if(!ok || b.sequence < 0 || b.name.isEmpty() ||
+                   b.name.size() > 16 || boundary.size() >= 16384) return false;
+                b.isArc = parts[4] == "A";
+                if(!b.isArc && parts[4] != "L") return false;
+                if(parts.size() != (b.isArc ? 12 : 9)) return false;
+                qint64 *coords[] = {&b.x0_nm,&b.y0_nm,&b.cx_nm,&b.cy_nm,
+                                   &b.x1_nm,&b.y1_nm};
+                const int count = b.isArc ? 6 : 4;
+                for(int j=0;j<count;++j) {
+                    qint64 *target = b.isArc ? coords[j] :
+                        (j<2 ? coords[j] : coords[j+2]);
+                    *target = parts[j+5].toLongLong(&ok);
+                    if(!ok || *target % 254 != 0 ||
+                       *target < -1422400000LL || *target > 1422400000LL)
+                        return false;
+                }
+                if(b.isArc) {
+                    if(parts[11] != "CW" && parts[11] != "CCW") return false;
+                    b.clockwise = parts[11] == "CW";
+                    const qint64 dx0=(b.x0_nm-b.cx_nm)/254;
+                    const qint64 dy0=(b.y0_nm-b.cy_nm)/254;
+                    const qint64 dx1=(b.x1_nm-b.cx_nm)/254;
+                    const qint64 dy1=(b.y1_nm-b.cy_nm)/254;
+                    if(dx0*dx0+dy0*dy0 == 0 ||
+                       dx0*dx0+dy0*dy0 != dx1*dx1+dy1*dy1 ||
+                       (dx0==0)==(dy0==0) || (dx1==0)==(dy1==0) ||
+                       (dx0*dx1 + dy0*dy1)!=0) return false;
+                    const qint64 cross = dx0*dy1-dy0*dx1;
+                    if((cross<0) != b.clockwise) return false;
+                } else if(b.x0_nm==b.x1_nm && b.y0_nm==b.y1_nm) return false;
+                // Decode must itself reject broken mixed paths before load().
+                if(!boundary.empty()) {
+                    const auto &prev=boundary.back();
+                    const QString old=(prev.cutout ? "CUT|" : "OUTER|")+prev.name;
+                    const QString next=(b.cutout ? "CUT|" : "OUTER|")+b.name;
+                    if(old==next) {
+                        if(b.sequence!=prev.sequence+1 ||
+                           b.x0_nm!=prev.x1_nm || b.y0_nm!=prev.y1_nm)
+                            return false;
+                    } else if(b.sequence!=0) return false;
+                } else if(b.sequence!=0) return false;
+                boundary.push_back(std::move(b));
             } else if (parts.size() == 9 && parts[0] == "V" && layerRecords == layers) {
                 ImportedVia via;
                 via.net = parts[1];
@@ -164,24 +215,24 @@ class PreviewImportPanel final : public QWidget {
                 via.lastLayer = parts[8].toInt(&ok);
                 if (!ok || vias.size() >= 10000) return false;
                 vias.push_back(std::move(via));
-            } else if ((p2c || p2d || p2e || p2f || p2g || p2h) &&
-                       parts.size() == ((p2e || p2f || p2g || p2h) ? 12 : 10) &&
+            } else if ((p2c || p2d || p2e || p2f || p2g || p2h || p2i) &&
+                       parts.size() == ((p2e || p2f || p2g || p2h || p2i) ? 12 : 10) &&
                        parts[0] == "P" && layerRecords == layers &&
                        parts[9] == "NET_UNVERIFIED") {
                 ImportedPad pad;
                 pad.reference = parts[1]; pad.pin = parts[2];
                 pad.layer = parts[3].toInt(&ok);
                 if (!ok) return false;
-                pad.side = (p2e || p2f || p2g || p2h) ? parts[10] : "T";
-                pad.rotation = (p2e || p2f || p2g || p2h) ? parts[11].toInt(&ok) : -1;
-                if (!ok || ((p2e || p2f || p2g || p2h) && pad.rotation != 0 && pad.rotation != 90 &&
+                pad.side = (p2e || p2f || p2g || p2h || p2i) ? parts[10] : "T";
+                pad.rotation = (p2e || p2f || p2g || p2h || p2i) ? parts[11].toInt(&ok) : -1;
+                if (!ok || ((p2e || p2f || p2g || p2h || p2i) && pad.rotation != 0 && pad.rotation != 90 &&
                             pad.rotation != 180 && pad.rotation != 270) ||
                     !((pad.side == "T" && pad.layer == 1) ||
-                      ((p2e || p2f || p2g || p2h) && pad.side == "B" && layers >= 2 && pad.layer == layers)))
+                      ((p2e || p2f || p2g || p2h || p2i) && pad.side == "B" && layers >= 2 && pad.layer == layers)))
                     return false;
                 pad.shape = parts[4];
                 if (pad.shape != "R" && pad.shape != "S" &&
-                    !((p2d || p2e || p2f || p2g || p2h) && pad.shape == "RF")) return false;
+                    !((p2d || p2e || p2f || p2g || p2h || p2i) && pad.shape == "RF")) return false;
                 qint64 *v[] = {&pad.x_nm, &pad.y_nm, &pad.width_nm, &pad.height_nm};
                 for (int j = 0; j < 4; ++j) {
                     *v[j] = parts[j+5].toLongLong(&ok);
@@ -191,18 +242,18 @@ class PreviewImportPanel final : public QWidget {
                 pads.push_back(std::move(pad));
             } else if (parts[0] == "END" && i == lines.size()-1 &&
                        layerRecords == layers &&
-                       (((p2c || p2d || p2e || p2f || p2g || p2h) &&
-                         parts.size() == (p2h ? 10 : (p2g ? 9 : (p2f ? 7 : 6)))) ||
-                        (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h &&
+                       (((p2c || p2d || p2e || p2f || p2g || p2h || p2i) &&
+                         parts.size() == (p2i ? 11 : (p2h ? 10 : (p2g ? 9 : (p2f ? 7 : 6))))) ||
+                        (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h && !p2i &&
                          parts.size() == 5))) {
                 const int count = parts[1].toInt(&ok);
                 if (!ok || count != static_cast<int>(tracks.size())) return false;
                 skipped = parts[2].toInt(&ok);
                 if (!ok || skipped < 0) return false;
-                if (p2c || p2d || p2e || p2f || p2g || p2h) {
+                if (p2c || p2d || p2e || p2f || p2g || p2h || p2i) {
                     const int padCount = parts[3].toInt(&ok);
                     if (!ok || padCount != static_cast<int>(pads.size())) return false;
-                    if (p2g || p2h) {
+                    if (p2g || p2h || p2i) {
                         const int arcCount=parts[4].toInt(&ok);
                         if(!ok || arcCount!=static_cast<int>(arcs.size())) return false;
                         int outerCount=0,cutCount=0;
@@ -218,10 +269,46 @@ class PreviewImportPanel final : public QWidget {
                             if(c.cutout) ++cutCount;
                             else ++outerCount;
                         }
+                        if(p2i) {
+                            QString last;
+                            for(const auto &b:boundary) {
+                                const QString key=(b.cutout ? "CUT|" : "OUTER|")+b.name;
+                                if(key!=last) {
+                                    if(b.cutout) ++cutCount;
+                                    else ++outerCount;
+                                    last=key;
+                                }
+                            }
+                        }
                         if(outerCount!=1 || parts[5].toInt(&ok)!=outerCount ||
                            !ok || parts[6].toInt(&ok)!=cutCount || !ok)
                             return false;
-                        if (p2h) {
+                        if (p2i) {
+                            const int circleCount=parts[7].toInt(&ok);
+                            if(!ok || circleCount != static_cast<int>(circles.size()))
+                                return false;
+                            const int arcCountB=parts[8].toInt(&ok);
+                            if(!ok || arcCountB<1 || parts[9]!="CANONICAL_PARTIAL" ||
+                               parts[10]!="SI_NOT_RUN") return false;
+                            int countB=0;
+                            for(const auto &b : boundary) if(b.isArc) ++countB;
+                            if(countB!=arcCountB) return false;
+                            // Every B ring must close; transport cannot count an
+                            // unclosed ring as a valid physical outline.
+                            for(size_t idx=0;idx<boundary.size();) {
+                                const auto &first=boundary[idx];
+                                const QString key=(first.cutout ? "CUT|" : "OUTER|")+first.name;
+                                size_t ringEnd=idx+1;
+                                while(ringEnd<boundary.size() &&
+                                      ((boundary[ringEnd].cutout ? "CUT|" : "OUTER|")+boundary[ringEnd].name)==key)
+                                    ++ringEnd;
+                                if(ringEnd-idx<3 ||
+                                   boundary[ringEnd-1].x1_nm!=first.x0_nm ||
+                                   boundary[ringEnd-1].y1_nm!=first.y0_nm) return false;
+                                idx=ringEnd;
+                            }
+                            if(boundary.empty()) return false;
+                        } else if (p2h) {
                             if(parts[7].toInt(&ok)!=static_cast<int>(circles.size()) ||
                                !ok || parts[8]!="CANONICAL_PARTIAL" ||
                                parts[9]!="SI_NOT_RUN" || circles.empty()) return false;
@@ -240,7 +327,8 @@ class PreviewImportPanel final : public QWidget {
             } else return false;
         }
         return end && (!tracks.empty() || !arcs.empty() || !vias.empty() ||
-                       !pads.empty() || !outlines.empty() || !circles.empty());
+                       !pads.empty() || !outlines.empty() || !circles.empty() ||
+                       !boundary.empty());
     }
 public:
     // Exercise the production decoder from native tests, especially malformed
@@ -253,7 +341,8 @@ public:
         std::vector<ImportedArc> arcs;
         std::vector<ImportedOutlineEdge> outlines;
         std::vector<ImportedCircle> circles;
-        return decode(bytes,layers,skipped,tracks,vias,pads,arcs,outlines,circles);
+        std::vector<ImportedBoundarySegment> boundary;
+        return decode(bytes,layers,skipped,tracks,vias,pads,arcs,outlines,circles,boundary);
     }
     explicit PreviewImportPanel(const QString &importBinary = QString(), QWidget *parent = nullptr)
         : QWidget(parent), tabs_(new QTabWidget(this)),
@@ -340,11 +429,12 @@ public:
             std::vector<ImportedArc> arcs;
             std::vector<ImportedOutlineEdge> outlines;
             std::vector<ImportedCircle> circles;
-            if (!decode(data_, layers, skipped, tracks, vias, pads, arcs, outlines, circles)) {
+            std::vector<ImportedBoundarySegment> boundary;
+            if (!decode(data_, layers, skipped, tracks, vias, pads, arcs, outlines, circles, boundary)) {
                 status("FAILED / INVALID_TRANSPORT / NOTHING IMPORTED");
                 return;
             }
-            if (!imported_->load(layers, skipped, tracks, vias, pads, arcs, outlines, circles)) {
+            if (!imported_->load(layers, skipped, tracks, vias, pads, arcs, outlines, circles, boundary)) {
                 status("FAILED / INVALID_GEOMETRY / NOTHING IMPORTED");
                 return;
             }
@@ -356,13 +446,14 @@ public:
                 if (tabs_->currentWidget() == imported_) imported_->fitArtwork();
             });
             status(QString("PARTIAL V9.4-MILS / %1 straight segments / %2 explicit vias"
-                           " / %3 SMD pads / %4 route arcs / %5 omitted / %6 outline edges / %7 circles / SI NOT_RUN")
+                           " / %3 SMD pads / %4 route arcs / %5 omitted / %6 outline edges / %7 circles / %8 mixed boundary parts / SI NOT_RUN")
                        .arg(static_cast<qlonglong>(tracks.size()))
                        .arg(static_cast<qlonglong>(vias.size()))
                        .arg(static_cast<qlonglong>(pads.size()))
                        .arg(static_cast<qlonglong>(arcs.size())).arg(skipped)
                        .arg(static_cast<qlonglong>(outlines.size()))
-                       .arg(static_cast<qlonglong>(circles.size())));
+                       .arg(static_cast<qlonglong>(circles.size()))
+                       .arg(static_cast<qlonglong>(boundary.size())));
         });
         connect(&process_, &QProcess::errorOccurred, this,
                 [this](QProcess::ProcessError code) {

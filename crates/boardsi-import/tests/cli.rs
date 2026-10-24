@@ -232,3 +232,60 @@ fn p2h_cli_emits_exact_analytical_circles_with_versioned_end() {
     assert_eq!(msg.lines().filter(|s| s.starts_with("O|")).count(), 0);
     assert!(msg.ends_with("END|0|0|0|0|1|1|2|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
 }
+
+#[test]
+fn a018_mixed_line_arc_outline_cli_emits_versioned_analytical_v8() {
+    let bin = env!("CARGO_BIN_EXE_boardsi-import-artwork");
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pads_board_mixed_quarter_arc_v94.asc");
+    let output = Command::new(bin)
+        .arg(source)
+        .output()
+        .expect("restricted PADS artwork importer must start");
+    assert!(
+        output.status.success(),
+        "mixed arc Import: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let wire = String::from_utf8(output.stdout).unwrap();
+    assert!(wire.starts_with("BOARDSI_P2I_PARTIAL_V8|V9.4-MILS|4\n"));
+    assert_eq!(
+        wire.lines().filter(|line| line.starts_with("B|")).count(),
+        8
+    );
+    assert_eq!(
+        wire.lines()
+            .filter(|line| line.starts_with("B|OUTER|MAIN_MIX|") && line.contains("|A|"))
+            .count(),
+        4
+    );
+    assert!(wire
+        .contains("B|OUTER|MAIN_MIX|1|A|10160000|5080000|10160000|7620000|12700000|7620000|CCW"));
+    assert!(wire.ends_with("END|0|0|0|0|1|0|0|4|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
+}
+
+#[test]
+fn a018_rounded_outer_and_rounded_cutout_emit_exact_v8() {
+    let bin = env!("CARGO_BIN_EXE_boardsi-import-artwork");
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pads_board_mixed_cutout_v94.asc");
+    let output = Command::new(bin)
+        .arg(fixture)
+        .output()
+        .expect("P2I importer");
+    assert!(
+        output.status.success(),
+        "{:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let wire = String::from_utf8(output.stdout).unwrap();
+    assert!(wire.starts_with("BOARDSI_P2I_PARTIAL_V8|V9.4-MILS|4\n"));
+    assert_eq!(wire.lines().filter(|x| x.starts_with("B|")).count(), 16);
+    assert_eq!(
+        wire.lines()
+            .filter(|x| x.starts_with("B|CUT|HOLE_MIX|") && x.contains("|A|"))
+            .count(),
+        4
+    );
+    assert!(wire.ends_with("END|0|0|0|0|1|1|0|8|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
+}

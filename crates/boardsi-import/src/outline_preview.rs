@@ -15,6 +15,7 @@ pub struct Shape {
     pub cutout: bool,
     pub vertices: Vec<[i64; 2]>, // For polygon only: first point repeated last.
     pub circle: Option<Circle>,  // Analytical circle, never a display-only polygon.
+    pub segments: Option<Vec<crate::outline_topology::Segment>>, // Mixed-arc source geometry.
     pub source_line: usize,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,7 +23,7 @@ pub struct Circle {
     pub centre: [i64; 2],
     pub radius: i64, // Source ticks. A non-integral source-grid centre is unsupported.
 }
-fn fixed(s: &str) -> Result<i64, &'static str> {
+pub(crate) fn fixed(s: &str) -> Result<i64, &'static str> {
     let (negative, digits) = match s.strip_prefix('-') {
         Some(v) => (true, v),
         None => (false, s.strip_prefix('+').unwrap_or(s)),
@@ -51,7 +52,7 @@ fn fixed(s: &str) -> Result<i64, &'static str> {
         Ok(v)
     }
 }
-fn bounded(v: i64) -> Result<i64, &'static str> {
+pub(crate) fn bounded(v: i64) -> Result<i64, &'static str> {
     if (-MAX_COORD..=MAX_COORD).contains(&v) {
         Ok(v)
     } else {
@@ -84,7 +85,7 @@ fn intersect(a: [i64; 2], b: [i64; 2], c: [i64; 2], d: [i64; 2]) -> bool {
     }
     (u > 0) != (v > 0) && (w > 0) != (x > 0)
 }
-fn valid_ring(p: &[[i64; 2]]) -> bool {
+pub(crate) fn valid_ring(p: &[[i64; 2]]) -> bool {
     if p.len() < 4 || p.first() != p.last() {
         return false;
     }
@@ -200,7 +201,47 @@ fn circle_overlaps_polygon(c: Circle, p: &[[i64; 2]]) -> bool {
             .any(|&v| distance2(v, c.centre) <= r2)
         || p.windows(2).any(|w| disk_reaches_segment(c, w[0], w[1]))
 }
+fn ring_segments(s: &Shape) -> Vec<crate::outline_topology::Segment> {
+    use crate::outline_arc::CardinalArcCorner;
+    use crate::outline_topology::Segment;
+    if let Some(c) = s.circle {
+        let [x, y] = c.centre;
+        let r = c.radius;
+        let pts = [[x + r, y], [x, y + r], [x - r, y], [x, y - r], [x + r, y]];
+        return pts
+            .windows(2)
+            .map(|pair| {
+                Segment::Arc(CardinalArcCorner {
+                    start: pair[0],
+                    end: pair[1],
+                    centre: c.centre,
+                    clockwise: false,
+                })
+            })
+            .collect();
+    }
+    if let Some(segments) = &s.segments {
+        return segments.clone();
+    }
+    s.vertices
+        .windows(2)
+        .map(|pair| Segment::Line(pair[0], pair[1]))
+        .collect()
+}
+fn has_mixed_arcs(s: &Shape) -> bool {
+    s.segments.as_ref().is_some_and(|segments| {
+        segments
+            .iter()
+            .any(|s| matches!(s, crate::outline_topology::Segment::Arc(_)))
+    })
+}
 fn cutout_within(cut: &Shape, outer: &Shape) -> bool {
+    if has_mixed_arcs(cut) || has_mixed_arcs(outer) {
+        return crate::outline_topology::strictly_contains(
+            &ring_segments(outer),
+            &ring_segments(cut),
+        );
+    }
     match (cut.circle, outer.circle) {
         (Some(c), Some(o)) => circle_in_circle(c, o),
         (Some(c), None) => circle_in_polygon(c, &outer.vertices),
@@ -214,6 +255,9 @@ fn cutout_within(cut: &Shape, outer: &Shape) -> bool {
     }
 }
 fn cutouts_overlap(a: &Shape, b: &Shape) -> bool {
+    if has_mixed_arcs(a) || has_mixed_arcs(b) {
+        return crate::outline_topology::overlap_or_contain(&ring_segments(a), &ring_segments(b));
+    }
     match (a.circle, b.circle) {
         (Some(c), Some(d)) => {
             let sum = i128::from(c.radius) + i128::from(d.radius);
@@ -334,15 +378,20 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
         let cutout = matches!(p[0], "BRDCLS" | "BRDCIR");
         i += 1;
         let mut vertices = Vec::with_capacity(count);
+        let mut rows = Vec::with_capacity(count);
         for _ in 0..count {
             let row = lines.get(i).ok_or("TRUNCATED_OUTLINE")?;
             if row.len() > 16_384 {
                 return Err("OVERLONG_LINE");
             }
             let pts: Vec<_> = row.split_ascii_whitespace().collect();
-            if pts.len() != 2 {
+            if pts.len() != 2 && (is_circle || pts.len() != 8) {
                 return Err("UNSUPPORTED_OUTLINE_ARC_OR_POINT");
             }
+            if pts.len() == 8 {
+                let _ = crate::outline_arc::parse_cardinal(&pts, origin)?;
+            }
+            rows.push(pts.clone());
             let x = origin[0]
                 .checked_add(fixed(pts[0])?)
                 .ok_or("OUTLINE_COORD_OVERFLOW")?;
@@ -352,6 +401,7 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
             vertices.push([bounded(x)?, bounded(y)?]);
             i += 1;
         }
+        let mut segments = None;
         let circle = if is_circle {
             // PADS circle uses two opposing diameter endpoints. The exact
             // Canonical arc model stores tick-grid integer centres, so only
@@ -382,6 +432,26 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
             if !valid_ring(&vertices) {
                 return Err("INVALID_OUTLINE_RING");
             }
+            if rows.iter().any(|row| row.len() == 8) {
+                let arcs = crate::outline_arc::preflight_closed(&rows, origin)?;
+                let mixed: Vec<_> = arcs
+                    .iter()
+                    .enumerate()
+                    .map(|(index, arc)| {
+                        arc.map(crate::outline_topology::Segment::Arc)
+                            .unwrap_or_else(|| {
+                                crate::outline_topology::Segment::Line(
+                                    vertices[index],
+                                    vertices[index + 1],
+                                )
+                            })
+                    })
+                    .collect();
+                if !crate::outline_topology::ring_valid(&mixed) {
+                    return Err("INVALID_OUTLINE_ARC_TOPOLOGY");
+                }
+                segments = Some(mixed);
+            }
             None
         };
         if shapes.len() >= MAX_SHAPES {
@@ -401,6 +471,7 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
             cutout,
             vertices,
             circle,
+            segments,
             source_line,
         });
     }
@@ -464,6 +535,24 @@ pub fn augment(board: &mut BoardModel, shapes: &[Shape]) -> Result<(), &'static 
                     })
                     .collect(),
             }
+        } else if let Some(mixed) = &s.segments {
+            Boundary {
+                segments: mixed
+                    .iter()
+                    .map(|segment| match segment {
+                        crate::outline_topology::Segment::Line(a, b) => BoundarySegment::Line {
+                            start: point(*a),
+                            end: point(*b),
+                        },
+                        crate::outline_topology::Segment::Arc(a) => BoundarySegment::Arc {
+                            centre: point(a.centre),
+                            start: point(a.start),
+                            end: point(a.end),
+                            clockwise: a.clockwise,
+                        },
+                    })
+                    .collect(),
+            }
         } else {
             Boundary {
                 segments: s
@@ -499,7 +588,7 @@ pub fn augment(board: &mut BoardModel, shapes: &[Shape]) -> Result<(), &'static 
     });
     let coverage = &mut board.sources[0].capability.object_coverage;
     coverage.push(
-        "LINES BOARD CLOSED/BRDCLS and axis-aligned even-grid CIRCLE/BRDCIR; polygon arcs not supported".into(),
+        "LINES BOARD CLOSED/BRDCLS (strict cardinal quarter-arc subset) and axis-aligned even-grid CIRCLE/BRDCIR; other arcs unsupported".into(),
     );
     if board.validate().has_errors() {
         return Err("CANONICAL_OUTLINE_INVALID");

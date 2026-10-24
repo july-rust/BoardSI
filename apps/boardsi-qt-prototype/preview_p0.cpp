@@ -78,7 +78,8 @@ class PreviewWindow : public QMainWindow {
                             ((importUI->imported()->segmentCount() + importUI->imported()->viaCount() +
                               importUI->imported()->padCount() + importUI->imported()->arcCount() +
                               importUI->imported()->outlineCount() +
-                              importUI->imported()->circleCount()) > 0);
+                              importUI->imported()->circleCount() +
+                              importUI->imported()->boundaryCount()) > 0);
         if (!loaded) {
             properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
                                 candidate + "\nImport status: " + importResultStatus +
@@ -929,6 +930,113 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
     return passed?0:1;
 }
 
+// A_018 P2-I: actual V8 Import -> CPU/RHI analytical mechanical quarter-arcs.
+static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
+    QElapsedTimer clock; clock.start();
+    const QByteArray malformed=
+        "BOARDSI_P2I_PARTIAL_V8|V9.4-MILS|1\n"
+        "L|1|TOP\n"
+        "B|OUTER|TEST|0|L|0|0|2540|0\n"
+        "B|OUTER|TEST|1|L|2540|0|2540|2540\n"
+        "B|OUTER|TEST|2|L|2540|2540|0|0\n"
+        "END|0|0|0|0\n";
+    const bool truncatedV8Rejected=
+        !PreviewImportPanel::validTransportForTest(malformed);
+    bool passed=false,rhiChecked=false,rhiOk=false;
+    bool pathOk=true, sourceCountOk=false, statusOk=false, propertiesOk=false,
+         visibilityOk=false, scenePresent=false;
+    int observedArcs=0,observedLines=0;
+    QString failure;
+    QEventLoop loop;
+    if(!window.openCandidate(fixture)) {
+        failure="A_018 public mixed-outline fixture unavailable";
+    } else {
+        QTimer tick;
+        QObject::connect(&tick,&QTimer::timeout,&loop,[&] {
+            const QString status=window.importPanel()->importStatus();
+            if(status.startsWith("FAILED") || status.startsWith("CANCELLED")) {
+                failure="A_018 import failed: "+status;loop.quit();return;
+            }
+            if(!status.startsWith("PARTIAL")) return;
+            auto *panel=window.importPanel()->imported();
+            auto *scene=panel->findChild<QGraphicsScene *>();
+            int arcs=0,lines=0;
+            bool coordinatesOk=true;
+            if(scene) {
+                for(QGraphicsItem *obj:scene->items()) {
+                    auto *path=qgraphicsitem_cast<QGraphicsPathItem *>(obj);
+                    if(!path || !(obj->data(1).toString().contains("MAIN_MIX") ||
+                                obj->data(1).toString().contains("HOLE_MIX"))) continue;
+                    const QString kind=obj->data(1).toString();
+                    if(kind.contains("Arc")) {
+                        ++arcs;
+                        coordinatesOk &= path->path().elementCount()>2;
+                    } else if(kind.contains("Line")) {
+                        ++lines;
+                        coordinatesOk &= path->path().elementCount()==2;
+                    }
+                }
+            }
+            observedArcs=arcs;observedLines=lines;pathOk=coordinatesOk;
+            scenePresent=scene!=nullptr;
+            sourceCountOk=panel->boundaryCount()==16;
+            statusOk=status.contains("16 mixed boundary parts");
+            propertiesOk=window.displayedProperties().contains("mixed segments: 16");
+            const bool counts=scenePresent && sourceCountOk && arcs==8 &&
+                lines==8 && pathOk && statusOk && propertiesOk;
+            auto *toggle=window.findChild<QPushButton *>("importedLayerToggle");
+            bool mechanicalVisible=toggle!=nullptr;
+            if(toggle && scene) {
+                toggle->click();
+                for(auto *obj:scene->items()) {
+                    if(obj->data(1).toString().contains("MAIN_MIX") ||
+                       obj->data(1).toString().contains("HOLE_MIX"))
+                        mechanicalVisible &= obj->isVisible();
+                }
+                toggle->click();
+            }
+            visibilityOk=mechanicalVisible;
+#ifdef BOARDSI_RHI_ARTWORK
+            if(auto *rhi=panel->rhiViewForTest();
+               rhi && panel->rhiCanvasActiveForTest()) {
+                rhiChecked=true;
+                auto *item=rhi->itemForTest();
+                rhiOk=item->boundaryCountForTest()==16 &&
+                    item->boundaryFitBoundsForTest() &&
+                    item->dispatchBoundaryPickForTest(1) &&
+                    window.displayedProperties().contains("MAIN_MIX");
+            }
+#endif
+            passed=counts && mechanicalVisible && truncatedV8Rejected &&
+                   (!rhiChecked || rhiOk);
+            if(!passed) failure="A_018 V8/CPU/RHI geometry, Fit or picking mismatch";
+            loop.quit();
+        });
+        QTimer::singleShot(15000,&loop,&QEventLoop::quit);
+        tick.start(20);loop.exec();tick.stop();
+        if(!passed && failure.isEmpty()) failure="A_018 mixed outline smoke timeout";
+    }
+    const QJsonObject result{
+        {"schema","boardsi-preview-p2i-mixed-outline-smoke-v1"},
+        {"pass",passed},{"failure",failure},{"elapsed_ms",clock.elapsed()},
+        {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"host_arch",QSysInfo::currentCpuArchitecture()},
+        {"native_backend",QGuiApplication::platformName()},
+        {"rhi_checked",rhiChecked},{"rhi_fit_pick",rhiOk},
+        {"source_count_ok",sourceCountOk},{"status_ok",statusOk},
+        {"properties_ok",propertiesOk},{"scene_present",scenePresent},
+        {"cpu_path_ok",pathOk},{"mechanical_visible",visibilityOk},
+        {"cpu_arc_count",observedArcs},{"cpu_line_count",observedLines},
+        {"truncated_v8_rejected",truncatedV8Rejected},
+        {"scope","PADS V9.4 mixed quarter-arc BOARD and BRDCLS cutout; SI NOT_RUN"}
+    };
+    QFile receipt("qt-preview-p2i-mixed-outline-results.json");
+    if(!receipt.open(QIODevice::WriteOnly) ||
+       receipt.write(QJsonDocument(result).toJson(QJsonDocument::Indented))<1) return 2;
+    qInfo().noquote()<<QJsonDocument(result).toJson(QJsonDocument::Compact);
+    return passed?0:1;
+}
+
 // A_015 end-to-end imported PADS V9.4 arcs: Worker -> V5 -> CPU scene.
 static int runArcSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock; clock.start();
@@ -1553,9 +1661,10 @@ int main(int argc, char **argv) {
     const bool arcTesting = args.size() == 7 && args.at(1) == "--arc-selftest";
     const bool outlineTesting = args.size() == 7 && args.at(1) == "--outline-selftest";
     const bool circleTesting = args.size() == 7 && args.at(1) == "--circle-selftest";
+    const bool mixedTesting = args.size() == 7 && args.at(1) == "--mixed-outline-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
                          rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting ||
-                         arcTesting || outlineTesting || circleTesting;
+                         arcTesting || outlineTesting || circleTesting || mixedTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -1578,7 +1687,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return circleTesting ? runCircleSmoke(window, fixture) :
+    return mixedTesting ? runMixedOutlineSmoke(window, fixture) :
+           circleTesting ? runCircleSmoke(window, fixture) :
            outlineTesting ? runOutlineSmoke(window, fixture) :
            arcTesting ? runArcSmoke(window, fixture) :
            rendererTesting ? runRendererSmoke(window) :

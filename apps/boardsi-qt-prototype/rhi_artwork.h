@@ -107,6 +107,7 @@ class BoardSiRhiItem final : public QQuickItem {
     std::vector<ImportedArc> arcs_;
     std::vector<ImportedOutlineEdge> outlineEdges_;
     std::vector<ImportedCircle> circles_;
+    std::vector<ImportedBoundarySegment> boundaries_;
     QVector<bool> visibility_;
     QString net_ = "All nets";
     qint64 originX_ = 0, originY_ = 0;
@@ -190,6 +191,38 @@ class BoardSiRhiItem final : public QQuickItem {
             if((a.clockwise && travel>=angles.sweep) ||
                (!a.clockwise && travel<=angles.sweep))
                 return static_cast<int>(i-1);
+        }
+        return -1;
+    }
+    int boundaryIndexAt(const QPointF &pos) const {
+        for(size_t i=boundaries_.size();i>0;--i) {
+            const auto &b=boundaries_[i-1];
+            const QPointF start=pixel(world(b.x0_nm,b.y0_nm));
+            const QPointF end=pixel(world(b.x1_nm,b.y1_nm));
+            if(!b.isArc) {
+                const QPointF delta=end-start,offset=pos-start;
+                const qreal length2=delta.x()*delta.x()+delta.y()*delta.y();
+                const qreal u=length2>0 ? std::clamp(
+                    (delta.x()*offset.x()+delta.y()*offset.y())/length2,0.0,1.0):0.0;
+                const QPointF nearest=start+delta*u;
+                if(std::hypot(pos.x()-nearest.x(),pos.y()-nearest.y())<=3.5)
+                    return static_cast<int>(i-1);
+                continue;
+            }
+            ImportedArc arc;
+            arc.x0_nm=b.x0_nm;arc.y0_nm=b.y0_nm;
+            arc.cx_nm=b.cx_nm;arc.cy_nm=b.cy_nm;
+            arc.x1_nm=b.x1_nm;arc.y1_nm=b.y1_nm;
+            arc.clockwise=b.clockwise;
+            const QPointF c=pixel(world(b.cx_nm,b.cy_nm));
+            const qreal radius=std::hypot(static_cast<qreal>(b.x0_nm-b.cx_nm),
+                                           static_cast<qreal>(b.y0_nm-b.cy_nm))
+                                /1e6*scaleFactor();
+            const QPointF delta=pos-c;
+            if(std::abs(std::hypot(delta.x(),delta.y())-radius)>3.5)
+                continue;
+            const qreal phi=std::atan2(-delta.y(),delta.x());
+            if(angleOnSweep(arcAngles(arc),phi)) return static_cast<int>(i-1);
         }
         return -1;
     }
@@ -278,6 +311,45 @@ protected:
                     .intersects(QRectF(0,0,width(),height()))) continue;
             const QColor color(e.cutout ? "#e99f87" : "#e0e8ee");
             thickLine(groups[color.rgba()],a,b,0.85);
+        }
+        // Analytical mixed mechanical outline arcs. GPU chords exist only
+        // as screen-space triangles; source/Canonical/IPC remain exact.
+        // Bound total mixed mechanical arc tessellation across the scene.
+        // Source geometry remains exact; only GPU display polygons are bounded.
+        size_t mixedArcCount=0;
+        for(const auto &b : boundaries_) if(b.isArc) ++mixedArcCount;
+        const int maxMixedSegments=arcSegmentBudgetPerVisibleArc(mixedArcCount);
+        for(const auto &b : boundaries_) {
+            const QColor color(b.cutout ? "#e99f87" : "#e0e8ee");
+            auto &dst=groups[color.rgba()];
+            const QPointF start=pixel(world(b.x0_nm,b.y0_nm));
+            const QPointF end=pixel(world(b.x1_nm,b.y1_nm));
+            if(!b.isArc) {
+                if(QRectF(start,end).normalized().adjusted(-4,-4,4,4)
+                    .intersects(QRectF(0,0,width(),height())))
+                    thickLine(dst,start,end,0.85);
+                continue;
+            }
+            const QPointF centre=pixel(world(b.cx_nm,b.cy_nm));
+            const qreal rad=std::hypot(start.x()-centre.x(),start.y()-centre.y());
+            if(!inView(centre,rad+2,width(),height())) continue;
+            const qreal a0=std::atan2(static_cast<qreal>(b.y0_nm-b.cy_nm),
+                                      static_cast<qreal>(b.x0_nm-b.cx_nm));
+            const qreal sweep=(b.clockwise?-1.0:1.0)*1.57079632679489661923;
+            const int steps=std::min(maxMixedSegments,std::clamp(static_cast<int>(
+                std::ceil(std::abs(sweep)*std::sqrt(std::max<qreal>(1,rad)/4.0))),4,512));
+            const qreal inner=std::max<qreal>(0,rad-0.85),outer=rad+0.85;
+            auto at=[&](qreal angle,qreal radius) {
+                return QPointF(centre.x()+radius*std::cos(angle),
+                               centre.y()-radius*std::sin(angle));
+            };
+            for(int j=0;j<steps;++j) {
+                const qreal p=a0+sweep*j/steps;
+                const qreal q=a0+sweep*(j+1)/steps;
+                const QPointF o0=at(p,outer),o1=at(q,outer);
+                const QPointF i0=at(p,inner),i1=at(q,inner);
+                triangle(dst,o0,o1,i0);triangle(dst,i0,o1,i1);
+            }
         }
         // Preserve analytical circles in IPC/Canonical. The following is
         // display-only chord tessellation, bounded by the 64 shape parser cap.
@@ -461,6 +533,10 @@ protected:
             if(circleIndex>=0) {
                 picked_(5,circleIndex); event->accept(); return;
             }
+            const int boundaryIndex=boundaryIndexAt(event->position());
+            if(boundaryIndex>=0) {
+                picked_(6,boundaryIndex);event->accept();return;
+            }
             // Existing QGraphicsScene supports straight copper selection by
             // net and provenance. Mirror that behavior in the RHI viewport.
             for (size_t i=tracks_.size();i>0;--i) {
@@ -498,9 +574,10 @@ public:
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads,
               const std::vector<ImportedArc> &arcs = {},
               const std::vector<ImportedOutlineEdge> &outlines = {},
-              const std::vector<ImportedCircle> &circles = {}) {
+              const std::vector<ImportedCircle> &circles = {},
+               const std::vector<ImportedBoundarySegment> &boundary = {}) {
         tracks_=tracks; vias_=vias; pads_=pads; arcs_=arcs;
-        outlineEdges_=outlines; circles_=circles; layers_=layers;
+        outlineEdges_=outlines; circles_=circles; boundaries_=boundary; layers_=layers;
         adapterProof_->store(0,std::memory_order_release);
         visibility_=QVector<bool>(layers+1,true);
         qint64 x=0,y=0; bool initialized=false;
@@ -518,6 +595,7 @@ public:
             ingest(e.x0_nm,e.y0_nm);ingest(e.x1_nm,e.y1_nm);
         }
         for (const auto &c:circles_) ingest(c.cx_nm-c.radius_nm,c.cy_nm-c.radius_nm);
+        for(const auto &b:boundaries_) {ingest(b.x0_nm,b.y0_nm);ingest(b.x1_nm,b.y1_nm);}
         originX_=x;originY_=y;
         QRectF rect;
         bool first=true;
@@ -560,6 +638,10 @@ public:
         }
         for (const auto &c:circles_)
             add(world(c.cx_nm,c.cy_nm),c.radius_nm/1e6);
+        for(const auto &b:boundaries_) {
+            add(world(b.x0_nm,b.y0_nm),0.000001);
+            add(world(b.x1_nm,b.y1_nm),0.000001);
+        }
         bounds_=rect.adjusted(-1,-1,1,1);
         pan_=QPointF();zoom_=1.0;
         modelGeneration_.fetch_add(1,std::memory_order_release);
@@ -576,10 +658,39 @@ public:
     }
     int primitiveCount() const {
         return static_cast<int>(tracks_.size()+vias_.size()+pads_.size()+arcs_.size()+
-                                outlineEdges_.size()+circles_.size());
+                                outlineEdges_.size()+circles_.size()+boundaries_.size());
     }
     int outlineCountForTest() const { return static_cast<int>(outlineEdges_.size()); }
     int circleCountForTest() const { return static_cast<int>(circles_.size()); }
+    int boundaryCountForTest() const { return static_cast<int>(boundaries_.size()); }
+    bool boundaryFitBoundsForTest() const {
+        for(const auto &b:boundaries_) {
+            if(!bounds_.contains(world(b.x0_nm,b.y0_nm)) ||
+               !bounds_.contains(world(b.x1_nm,b.y1_nm))) return false;
+        }
+        return !boundaries_.empty();
+    }
+    bool dispatchBoundaryPickForTest(int index) {
+        if(!picked_ || width()<2 || height()<2 ||
+           index<0 || index>=static_cast<int>(boundaries_.size())) return false;
+        const auto &b=boundaries_[static_cast<size_t>(index)];
+        QPointF p=pixel(world(b.x0_nm,b.y0_nm));
+        if(b.isArc) {
+            const QPointF c=pixel(world(b.cx_nm,b.cy_nm));
+            const QPointF arcDelta=p-c;
+            const qreal angle=std::atan2(-arcDelta.y(),arcDelta.x())+
+                (b.clockwise?-1.0:1.0)*3.14159265358979323846/4.0;
+            const qreal radius=std::hypot(arcDelta.x(),arcDelta.y());
+            p=QPointF(c.x()+radius*std::cos(angle),
+                      c.y()-radius*std::sin(angle));
+        } else {
+            p=(p+pixel(world(b.x1_nm,b.y1_nm)))/2;
+        }
+        const bool ok=boundaryIndexAt(p)==index;
+        if(ok) picked_(6,index);
+        return ok;
+    }
+
     bool circleFitBoundsForTest() const {
         for (const auto &c:circles_) {
             const QPointF centre=world(c.cx_nm,c.cy_nm);
@@ -809,10 +920,11 @@ public:
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads,
               const std::vector<ImportedArc> &arcs = {},
               const std::vector<ImportedOutlineEdge> &outlines = {},
-              const std::vector<ImportedCircle> &circles = {}) {
+              const std::vector<ImportedCircle> &circles = {},
+               const std::vector<ImportedBoundarySegment> &boundary = {}) {
         seenFrame_=false;
         status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
-        artwork_->load(layers,tracks,vias,pads,arcs,outlines,circles);
+        artwork_->load(layers,tracks,vias,pads,arcs,outlines,circles,boundary);
         loadGeneration_=artwork_->sourceGeneration();
         deadlineGeneration_=std::numeric_limits<quint64>::max();
         ++deadlineEpoch_;
