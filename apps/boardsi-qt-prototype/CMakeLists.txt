@@ -69,6 +69,13 @@ if(BUILD_TESTING)
     "${CMAKE_CURRENT_BINARY_DIR}/qt-model-b.frame")
   set_tests_properties(qt-preview-gpu-first-cpu-fallback PROPERTIES TIMEOUT 20
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  if(TARGET Qt6::Quick)
+    # A_019 is a model-only capacity and source-precision check, not GPU FPS.
+    add_test(NAME qt-preview-a019-rhi-model-scale
+      COMMAND boardsi-preview-p0 --rhi-scale-selftest)
+    set_tests_properties(qt-preview-a019-rhi-model-scale PROPERTIES TIMEOUT 120
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  endif()
   # Optional P2-A import smoke: actual Rust binary and a public synthetic fixture.
   set(BOARDSI_IMPORTER "" CACHE FILEPATH "Absolute built PADS route importer")
   if(BOARDSI_IMPORTER)
