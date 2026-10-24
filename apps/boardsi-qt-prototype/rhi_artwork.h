@@ -858,7 +858,7 @@ public:
         if(!picked_ || width()<2 || height()<2 ||
            index<0 || index>=static_cast<int>(arcs_.size())) return false;
         const auto &a=arcs_[static_cast<size_t>(index)];
-        if(!visible(a.layer)) return false;
+        if(!visible(a.layer) || !includedNet(a.net)) return false;
         const auto angles=arcAngles(a);
         const QPointF centre=pixel(world(a.cx_nm,a.cy_nm));
         const qreal radius=std::hypot(
@@ -917,7 +917,7 @@ public:
     }
     int visiblePadCount() const {
         int n=0;
-        for(const auto &p:pads_) if(visible(p.layer)) ++n;
+        for(const auto &p:pads_) if(visible(p.layer) && (!netOnly_ || net_=="All nets")) ++n;
         return n;
     }
     QPointF screenPointForTest(qint64 x,qint64 y) const {
