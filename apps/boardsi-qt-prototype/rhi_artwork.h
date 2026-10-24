@@ -914,6 +914,7 @@ class BoardSiRhiView final : public QWidget {
     quint64 loadGeneration_=0;
     quint64 deadlineGeneration_=std::numeric_limits<quint64>::max();
     quint64 deadlineEpoch_=0;
+    std::atomic<bool> visibleDuringFrame_{false};
 
     void enterCpuFallback(const QString &reason) {
         if(failed()) return;
@@ -941,11 +942,13 @@ class BoardSiRhiView final : public QWidget {
 protected:
     void showEvent(QShowEvent *event) override {
         QWidget::showEvent(event);
+        visibleDuringFrame_.store(true,std::memory_order_release);
         // A hidden tab does not time out. A new load always arms a fresh
         // independent post-load frame proof when the tab becomes visible.
         armFrameDeadline();
     }
     void hideEvent(QHideEvent *event) override {
+        visibleDuringFrame_.store(false,std::memory_order_release);
         QWidget::hideEvent(event);
         // Old timeouts were for a previously visible window. They cannot
         // consume time while hidden or block the next showEvent deadline.
@@ -1028,8 +1031,9 @@ public:
         // Always marshal the final UI fallback to the GUI event loop.
         QObject::connect(window_,&QQuickWindow::sceneGraphInvalidated,window_,
                          [this] {
-            QMetaObject::invokeMethod(this,[this] {
-                if(isVisible() && seenFrame_)
+            const bool visibleAtSignal=visibleDuringFrame_.load(std::memory_order_acquire);
+            QMetaObject::invokeMethod(this,[this,visibleAtSignal] {
+                if(visibleAtSignal && isVisible() && seenFrame_)
                     enterCpuFallback("SCENEGRAPH_INVALIDATED");
             },Qt::QueuedConnection);
         },Qt::DirectConnection);
