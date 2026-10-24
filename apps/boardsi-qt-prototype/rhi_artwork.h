@@ -329,8 +329,8 @@ class BoardSiRhiItem final : public QQuickItem {
                     auto p=c.ring[static_cast<size_t>(n)];
                     return pixel(world(p.first,p.second));
                 };
-                const QPointF a=point(indices[0]),b=point(indices[1]),d=point(indices[2]);
-                const auto x=side(a,b,pos),y=side(b,d,pos),z=side(d,a,pos);
+                const QPointF a=point(indices[0]),b=point(indices[1]),p2=point(indices[2]);
+                const auto x=side(a,b,pos),y=side(b,p2,pos),z=side(p2,a,pos);
                 if((x>=0 && y>=0 && z>=0)||(x<=0 && y<=0 && z<=0))
                     return static_cast<int>(i-1);
             }
@@ -517,11 +517,11 @@ protected:
                         const auto p=c.ring[static_cast<size_t>(n)];
                         return pixel(world(p.first,p.second));
                     };
-                    const auto a=point(tri[0]),b=point(tri[1]),d=point(tri[2]);
-                    if(QRectF(a,b).normalized().united(QRectF(b,d).normalized())
-                        .united(QRectF(d,a).normalized())
+                    const auto a=point(tri[0]),b=point(tri[1]),p2=point(tri[2]);
+                    if(QRectF(a,b).normalized().united(QRectF(b,p2).normalized())
+                        .united(QRectF(p2,a).normalized())
                         .intersects(QRectF(0,0,width(),height())))
-                        triangle(v,a,b,d);
+                        triangle(v,a,b,p2);
                 }
             }
         }
