@@ -160,10 +160,11 @@ class ImportedArtworkPanel final : public QWidget {
                     break;
                 }
             }
-            entry.first->setVisible(shown && (!netOnly || net == via.net));
+            const bool visibleVia = shown && (!netOnly || net == via.net);
+            entry.first->setVisible(visibleVia);
             const bool active = net == "All nets" || net == via.net;
             entry.first->setOpacity(active ? 1.0 : 0.12);
-            if (shown) {
+            if (visibleVia) {
                 ++visibleVias;
                 if (net != "All nets" && active) ++highlightedVias;
             }
@@ -179,7 +180,7 @@ class ImportedArtworkPanel final : public QWidget {
             // Pad net ownership has not been verified. Never highlight pads
             // as electrically connected to a selected route net.
             entry.first->setOpacity(net == "All nets" ? 1.0 : 0.12);
-            if (shown) ++visiblePads;
+            if (shown && !netOnly) ++visiblePads;
         }
         // Declared layers are NOT necessarily copper layers with accepted traces.
         // Counts below describe only rendered straight-route data, not inferred geometry.
@@ -262,6 +263,7 @@ public:
         toggle->setObjectName("importedLayerToggle");
         bar->addWidget(toggle);
         auto *all = new QPushButton("Show all", this);
+        all->setObjectName("importedShowAllLayers");
         bar->addWidget(all);
         bar->addWidget(new QLabel("Net:", this));
         nets_->setObjectName("importedNetSelect");
