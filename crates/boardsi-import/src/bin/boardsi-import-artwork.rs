@@ -22,12 +22,6 @@ fn run() -> Result<(), &'static str> {
     let bytes = fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
     let result = parse(&bytes)?;
     let outlines = outline_preview::parse(&bytes)?;
-    // Guard independent Canonical acceptance until a versioned UI transport
-    // can preserve outline arcs. Never serialize their chords as straight O records.
-    if outlines.iter().any(|s| s.segments.as_ref().is_some_and(|v|
-        v.iter().any(|seg| matches!(seg, boardsi_import::outline_topology::Segment::Arc(_))))) {
-        return Err("UNSUPPORTED_OUTLINE_ARC_OR_POINT");
-    }
     let mut board = into_canonical(&bytes, &result)?;
     let pad_data = part_preview::parse(&bytes, result.max_layer);
     part_preview::augment(&mut board, &pad_data)?;
@@ -44,7 +38,10 @@ fn run() -> Result<(), &'static str> {
     let mut out = Vec::new();
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
     // records are actually emitted. Rejected PART rows are not P2C geometry.
-    let mode = if outlines.iter().any(|s| s.circle.is_some()) {
+    let mixed = outlines.iter().any(|s| s.segments.is_some());
+    let mode = if mixed {
+        "BOARDSI_P2I_PARTIAL_V8"
+    } else if outlines.iter().any(|s| s.circle.is_some()) {
         "BOARDSI_P2H_PARTIAL_V7"
     } else if !outlines.is_empty() {
         "BOARDSI_P2G_PARTIAL_V6"
@@ -155,6 +152,7 @@ fn run() -> Result<(), &'static str> {
                 || mode == "BOARDSI_P2F_PARTIAL_V5"
                 || mode == "BOARDSI_P2G_PARTIAL_V6"
                 || mode == "BOARDSI_P2H_PARTIAL_V7"
+                || mode == "BOARDSI_P2I_PARTIAL_V8"
             {
                 format!(
                     "|{}|{}",
@@ -167,7 +165,8 @@ fn run() -> Result<(), &'static str> {
         )
         .map_err(|_| "FORMAT_ERROR")?;
     }
-    if mode == "BOARDSI_P2G_PARTIAL_V6" || mode == "BOARDSI_P2H_PARTIAL_V7" {
+    if mode == "BOARDSI_P2G_PARTIAL_V6" || mode == "BOARDSI_P2H_PARTIAL_V7"
+        || mode == "BOARDSI_P2I_PARTIAL_V8" {
         // Non-electrical BOARD geometry. A circle is analytical (C), while
         // straight polygon segments retain the unchanged O record.
         for shape in &outlines {
@@ -182,6 +181,27 @@ fn run() -> Result<(), &'static str> {
                     outline_preview::wire_nm(circle.radius)?,
                 )
                 .map_err(|_| "FORMAT_ERROR")?;
+            }
+            if let Some(segments) = &shape.segments {
+                for (n, segment) in segments.iter().enumerate() {
+                    use boardsi_import::outline_topology::Segment;
+                    let kind = if shape.cutout { "CUT" } else { "OUTER" };
+                    match segment {
+                        Segment::Line(a, b) => writeln!(out,
+                            "B|{}|{}|{}|L|{}|{}|{}|{}", kind, shape.name, n,
+                            outline_preview::wire_nm(a[0])?, outline_preview::wire_nm(a[1])?,
+                            outline_preview::wire_nm(b[0])?, outline_preview::wire_nm(b[1])?
+                        ).map_err(|_| "FORMAT_ERROR")?,
+                        Segment::Arc(a) => writeln!(out,
+                            "B|{}|{}|{}|A|{}|{}|{}|{}|{}|{}|{}", kind, shape.name, n,
+                            outline_preview::wire_nm(a.start[0])?, outline_preview::wire_nm(a.start[1])?,
+                            outline_preview::wire_nm(a.centre[0])?, outline_preview::wire_nm(a.centre[1])?,
+                            outline_preview::wire_nm(a.end[0])?, outline_preview::wire_nm(a.end[1])?,
+                            if a.clockwise { "CW" } else { "CCW" }
+                        ).map_err(|_| "FORMAT_ERROR")?,
+                    }
+                }
+                continue;
             }
             for (n, pair) in shape.vertices.windows(2).enumerate() {
                 writeln!(
@@ -198,7 +218,21 @@ fn run() -> Result<(), &'static str> {
                 .map_err(|_| "FORMAT_ERROR")?;
             }
         }
-        if mode == "BOARDSI_P2H_PARTIAL_V7" {
+        if mode == "BOARDSI_P2I_PARTIAL_V8" {
+            let mixed_arcs: usize = outlines.iter().filter_map(|s| s.segments.as_ref())
+                .map(|v| v.iter().filter(|seg|
+                    matches!(seg, boardsi_import::outline_topology::Segment::Arc(_))).count())
+                .sum();
+            writeln!(out,
+                "END|{}|{}|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+                result.segments.len(),
+                result.skipped.saturating_add(pad_data.skipped as u32),
+                pad_data.pads.len(), result.arcs.len(),
+                outlines.iter().filter(|s| !s.cutout).count(),
+                outlines.iter().filter(|s| s.cutout).count(),
+                outlines.iter().filter(|s| s.circle.is_some()).count(), mixed_arcs
+            )
+        } else if mode == "BOARDSI_P2H_PARTIAL_V7" {
             writeln!(
                 out,
                 "END|{}|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
