@@ -1,8 +1,8 @@
 //! Offline local PADS ASC (V9.4 MILS only) -> partial Canonical Model -> Qt line protocol.
 //! Standard output is a bounded transport, never an SI simulation or full CAD import.
-use boardsi_import::{outline_preview, pour_preview};
 use boardsi_import::part_preview::{self, MAX_PADS};
 use boardsi_import::route_preview::{into_canonical, parse, MAX_FILE_BYTES};
+use boardsi_import::{outline_preview, pour_preview};
 use std::{
     env, fs,
     io::{self, Write},
@@ -263,9 +263,13 @@ fn run() -> Result<(), &'static str> {
             let mixed_arcs: usize = outlines
                 .iter()
                 .filter_map(|s| s.segments.as_ref())
-                .map(|v| v.iter().filter(|seg| matches!(
-                    seg, boardsi_import::outline_topology::Segment::Arc(_)
-                )).count())
+                .map(|v| {
+                    v.iter()
+                        .filter(|seg| {
+                            matches!(seg, boardsi_import::outline_topology::Segment::Arc(_))
+                        })
+                        .count()
+                })
                 .sum();
             writeln!(
                 out,
