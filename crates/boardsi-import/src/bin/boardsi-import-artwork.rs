@@ -160,7 +160,7 @@ fn run() -> Result<(), &'static str> {
                 || mode == "BOARDSI_P2H_PARTIAL_V7"
                 || mode == "BOARDSI_P2I_PARTIAL_V8"
                 || mode == "BOARDSI_P2L_PARTIAL_V9"
-        || mode == "BOARDSI_P2M_PARTIAL_V10"
+                || mode == "BOARDSI_P2M_PARTIAL_V10"
             {
                 format!(
                     "|{}|{}",
@@ -271,26 +271,40 @@ fn run() -> Result<(), &'static str> {
                     use copper_preview::CopperGeometry;
                     match &copper.geometry {
                         CopperGeometry::Polygon(vertices) => {
-                            write!(out, "G|P|{}|{}|{}|{}|{}", copper.layer, copper.name,
+                            write!(
+                                out,
+                                "G|P|{}|{}|{}|{}|{}",
+                                copper.layer,
+                                copper.name,
                                 copper.net_label.as_deref().unwrap_or("-"),
-                                copper.source_line, vertices.len())
-                                .map_err(|_| "FORMAT_ERROR")?;
+                                copper.source_line,
+                                vertices.len()
+                            )
+                            .map_err(|_| "FORMAT_ERROR")?;
                             for v in vertices {
-                                write!(out, "|{}|{}", outline_preview::wire_nm(v[0])?,
-                                    outline_preview::wire_nm(v[1])?)
-                                    .map_err(|_| "FORMAT_ERROR")?;
+                                write!(
+                                    out,
+                                    "|{}|{}",
+                                    outline_preview::wire_nm(v[0])?,
+                                    outline_preview::wire_nm(v[1])?
+                                )
+                                .map_err(|_| "FORMAT_ERROR")?;
                             }
                             writeln!(out).map_err(|_| "FORMAT_ERROR")?;
                         }
                         CopperGeometry::Circle { centre, radius } => {
-                            writeln!(out, "G|C|{}|{}|{}|{}|{}|{}|{}",
-                                copper.layer, copper.name,
+                            writeln!(
+                                out,
+                                "G|C|{}|{}|{}|{}|{}|{}|{}",
+                                copper.layer,
+                                copper.name,
                                 copper.net_label.as_deref().unwrap_or("-"),
                                 copper.source_line,
                                 outline_preview::wire_nm(centre[0])?,
                                 outline_preview::wire_nm(centre[1])?,
-                                outline_preview::wire_nm(*radius)?)
-                                .map_err(|_| "FORMAT_ERROR")?;
+                                outline_preview::wire_nm(*radius)?
+                            )
+                            .map_err(|_| "FORMAT_ERROR")?;
                         }
                     }
                 }
@@ -320,10 +334,13 @@ fn run() -> Result<(), &'static str> {
                     mixed_arcs,
                     pours.len(),
                     coppers.len()
-                ).map_err(|_| "FORMAT_ERROR")?;
+                )
+                .map_err(|_| "FORMAT_ERROR")?;
                 // All END records are emitted by their own protocol version.
                 // Avoid emitting V9 END a second time.
-                if out.len() > 2 * 1024 * 1024 { return Err("OUTPUT_LIMIT"); }
+                if out.len() > 2 * 1024 * 1024 {
+                    return Err("OUTPUT_LIMIT");
+                }
                 io::stdout().write_all(&out).map_err(|_| "STDOUT_FAILED")?;
                 return Ok(());
             }
