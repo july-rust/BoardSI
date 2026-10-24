@@ -212,7 +212,10 @@ mod tests {
         assert!(parsed.segments.is_empty());
         assert!(parsed.arcs.is_empty());
         assert!(parsed.vias.is_empty());
-        assert_eq!(parse(POUR_ONLY.as_bytes(), parsed.max_layer).unwrap().len(), 1);
+        assert_eq!(
+            parse(POUR_ONLY.as_bytes(), parsed.max_layer).unwrap().len(),
+            1
+        );
     }
 
     #[test]
