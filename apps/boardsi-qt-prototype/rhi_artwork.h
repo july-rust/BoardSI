@@ -310,7 +310,7 @@ class BoardSiRhiItem final : public QQuickItem {
         for(size_t i=pours_.size();i>0;--i) {
             const auto &e=pours_[i-1];
             if(!visible(e.layer) || !includedNet(e.net) ||
-               (netOnly_ && net_!="All nets" && e.net=="NET_NOT_DECLARED"))
+               (netOnly_ && net_!="All nets" && e.net=="-"))
                 continue;
             const QPointF a=pixel(world(e.x0_nm,e.y0_nm));
             const QPointF b=pixel(world(e.x1_nm,e.y1_nm));
@@ -459,7 +459,7 @@ protected:
         // tessellate the polygon interior into invented copper triangles.
         for(const auto &e:pours_) {
             if(!visible(e.layer) || !includedNet(e.net) ||
-               (netOnly_ && net_!="All nets" && e.net=="NET_NOT_DECLARED"))
+               (netOnly_ && net_!="All nets" && e.net=="-"))
                 continue;
             const QPointF a=pixel(world(e.x0_nm,e.y0_nm));
             const QPointF b=pixel(world(e.x1_nm,e.y1_nm));
