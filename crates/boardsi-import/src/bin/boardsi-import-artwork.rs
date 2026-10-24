@@ -22,6 +22,12 @@ fn run() -> Result<(), &'static str> {
     let bytes = fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
     let result = parse(&bytes)?;
     let outlines = outline_preview::parse(&bytes)?;
+    // Guard independent Canonical acceptance until a versioned UI transport
+    // can preserve outline arcs. Never serialize their chords as straight O records.
+    if outlines.iter().any(|s| s.segments.as_ref().is_some_and(|v|
+        v.iter().any(|seg| matches!(seg, boardsi_import::outline_topology::Segment::Arc(_))))) {
+        return Err("UNSUPPORTED_OUTLINE_ARC_OR_POINT");
+    }
     let mut board = into_canonical(&bytes, &result)?;
     let pad_data = part_preview::parse(&bytes, result.max_layer);
     part_preview::augment(&mut board, &pad_data)?;
