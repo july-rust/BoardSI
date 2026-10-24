@@ -288,6 +288,23 @@ class BoardSiRhiItem final : public QQuickItem {
         }
         return -1;
     }
+    // Mechanical straight outlines are independent of copper/net visibility.
+    // Use source-nm geometry projected to screen space, identical to CPU artwork.
+    int outlineIndexAt(const QPointF &pos) const {
+        for(size_t i=outlineEdges_.size();i>0;--i) {
+            const auto &e=outlineEdges_[i-1];
+            const QPointF a=pixel(world(e.x0_nm,e.y0_nm));
+            const QPointF b=pixel(world(e.x1_nm,e.y1_nm));
+            const QPointF delta=b-a,offset=pos-a;
+            const qreal length2=delta.x()*delta.x()+delta.y()*delta.y();
+            const qreal u=length2>0 ? std::clamp(
+                (delta.x()*offset.x()+delta.y()*offset.y())/length2,0.0,1.0):0.0;
+            const QPointF nearest=a+delta*u;
+            if(std::hypot(pos.x()-nearest.x(),pos.y()-nearest.y())<=3.5)
+                return static_cast<int>(i-1);
+        }
+        return -1;
+    }
     int boundaryIndexAt(const QPointF &pos) const {
         for(size_t i=boundaries_.size();i>0;--i) {
             const auto &b=boundaries_[i-1];
@@ -654,6 +671,10 @@ protected:
             if(boundaryIndex>=0) {
                 picked_(6,boundaryIndex);event->accept();return;
             }
+            const int outlineIndex=outlineIndexAt(event->position());
+            if(outlineIndex>=0) {
+                picked_(7,outlineIndex); event->accept(); return;
+            }
             const int pickedTrack=trackIndexAt(event->position());
             if(pickedTrack>=0) {
                 picked_(3,pickedTrack);event->accept();return;
@@ -872,6 +893,17 @@ public:
         return true;
     }
 
+    // The native GPU path and this test seam share the same hit test.
+    bool dispatchOutlinePickForTest(int index) {
+        if(!picked_ || width()<2 || height()<2 ||
+           index<0 || index>=static_cast<int>(outlineEdges_.size())) return false;
+        const auto &e=outlineEdges_[static_cast<size_t>(index)];
+        const QPointF a=pixel(world(e.x0_nm,e.y0_nm));
+        const QPointF b=pixel(world(e.x1_nm,e.y1_nm));
+        if(outlineIndexAt((a+b)/2)!=index) return false;
+        picked_(7,index);
+        return true;
+    }
     bool arcBudgetBoundedForTest() const {
         // 10k near-full arcs cannot produce an unbounded GPU vertex upload.
         const int perArc=arcSegmentBudgetPerVisibleArc(10000);
