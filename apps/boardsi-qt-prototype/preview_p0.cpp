@@ -84,7 +84,8 @@ class PreviewWindow : public QMainWindow {
                               importUI->imported()->padCount() + importUI->imported()->arcCount() +
                               importUI->imported()->outlineCount() +
                               importUI->imported()->circleCount() +
-                              importUI->imported()->boundaryCount()) > 0);
+                              importUI->imported()->boundaryCount() +
+                              importUI->imported()->pourEdgeCount()) > 0);
         if (!loaded) {
             properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
                                 candidate + "\nImport status: " + importResultStatus +
@@ -112,7 +113,7 @@ class PreviewWindow : public QMainWindow {
             "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
-            "DEVELOPER PREVIEW P2-K - PARTIAL Import / NOT PCB SI\n\n"
+            "DEVELOPER PREVIEW P2-L - PARTIAL Import / NOT PCB SI\n\n"
             "Worker: independent Rust process\n" + status + "\n" +
             ipc->resultLabel()->text() +
             (error.isEmpty() ? QString() : "\nERROR: " + error) +
@@ -140,7 +141,7 @@ public:
     PreviewWindow(const QString &workerPath, const QString &firstFrame = QString(),
                   const QString &secondFrame = QString(), const QString &importBinary = QString()) {
         setObjectName("boardsiPreviewP0");
-        setWindowTitle("BoardSI Developer Preview P2-K - PARTIAL IMPORT / NOT PCB SI");
+        setWindowTitle("BoardSI Developer Preview P2-L - PARTIAL IMPORT / NOT PCB SI");
         auto *bar = addToolBar("Preview controls");
         bar->setMovable(false);
         openAction = bar->addAction("Open PCB");
@@ -1741,6 +1742,109 @@ static int runRhiGeometrySmoke() {
     return pass?0:1;
 }
 
+// A_021: full public PADS fixture -> Rust importer -> Qt V9 decoder ->
+// CPU model / RHI source geometry and exact Layer/Net/Properties regression.
+static int runPourSmoke(PreviewWindow &window, const QString &fixture) {
+    QElapsedTimer clock; clock.start();
+    bool pass=false, imported=false, properties=false, filtered=false;
+    bool malformedRejected=false, reset=false, rhiSource=false;
+    QString failure;
+    QEventLoop loop;
+    if (!window.openCandidate(fixture)) {
+        failure="A021 synthetic PADS fixture unavailable";
+    } else {
+        QTimer tick;
+        QObject::connect(&tick,&QTimer::timeout,&loop,[&] {
+            const auto state=window.importPanel()->importStatus();
+            if(state.startsWith("FAILED") || state.startsWith("CANCELLED")) {
+                failure="A021 source import failed: "+state;
+                loop.quit(); return;
+            }
+            if(!state.startsWith("PARTIAL")) return;
+            auto *panel=window.importPanel()->imported();
+            imported=panel->pourEdgeCount()==4 && panel->segmentCount()==1 &&
+                     panel->outlineCount()==4 &&
+                     state.contains("4 POUROUT edges");
+            properties=panel->selectPour(0) &&
+                window.displayedProperties().contains("POUROUT GND_ZONE") &&
+                window.displayedProperties().contains("source line") &&
+                window.displayedProperties().contains("flood NOT_VERIFIED") &&
+                window.displayedProperties().contains("SI NOT_RUN");
+            auto *layers=panel->findChild<QComboBox *>("importedLayerSelect");
+            auto *hide=panel->findChild<QPushButton *>("importedHideAllLayers");
+            auto *show=panel->findChild<QPushButton *>("importedShowAllLayers");
+            auto *netOnly=panel->findChild<QCheckBox *>("importedNetOnly");
+            auto *scene=panel->findChild<QGraphicsScene *>();
+            auto countVisible=[&]() {
+                int n=0;
+                if(scene) for(auto *item:scene->items())
+                    if(item->isVisible() &&
+                       item->data(2).toString().startsWith("POUROUT "))
+                        ++n;
+                return n;
+            };
+            if(layers && hide && show && netOnly) {
+                const bool initial=countVisible()==4;
+                hide->click();
+                const bool hidden=countVisible()==0;
+                show->click();
+                const bool restored=countVisible()==4;
+                const bool net=panel->selectNet("NET_A");
+                netOnly->setChecked(true);
+                const bool visibleExact=countVisible()==4;
+                netOnly->setChecked(false);
+                filtered=initial && hidden && restored && net && visibleExact;
+            }
+            // Production decoder: reject incomplete or malformed transport.
+            QByteArray invalid="BOARDSI_P2L_PARTIAL_V9|V9.4-MILS|4\nL|1|Top\n";
+            malformedRejected=!PreviewImportPanel::validTransportForTest(invalid);
+#ifdef BOARDSI_RHI_ARTWORK
+            if(auto *rhi=panel->rhiViewForTest()) {
+                auto *item=rhi->itemForTest();
+                rhiSource=item && item->primitiveCount()==9;
+            } else {
+                // Some headless software-only builds intentionally omit RHI.
+                rhiSource=true;
+            }
+#else
+            rhiSource=true;
+#endif
+            panel->clearArtwork();
+            reset=panel->pourEdgeCount()==0 && panel->segmentCount()==0;
+            pass=imported && properties && filtered && malformedRejected &&
+                 reset && rhiSource;
+            if(!pass) failure="A021 imported geometry, properties, filters, decoder, reset or RHI source mismatch";
+            loop.quit();
+        });
+        QTimer::singleShot(15000,&loop,&QEventLoop::quit);
+        tick.start(20);loop.exec();tick.stop();
+        if(!pass && failure.isEmpty()) failure="A021 import timed out";
+    }
+    const QJsonObject report{
+        {"schema","boardsi-preview-a021-pour-v1"},
+        {"pass",pass},{"fixture_import",imported},
+        {"source_properties",properties},
+        {"layer_net_filter_restore",filtered},
+        {"malformed_v9_rejected",malformedRejected},
+        {"clear_resets_pour",reset},
+        {"rhi_source_geometry_count",rhiSource},
+        {"actual_flood","NOT_VERIFIED"},
+        {"electrical_connectivity","NOT_VERIFIED"},
+        {"physical_si","NOT_RUN"},
+        {"gpu_fps","NOT_MEASURED"},
+        {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"native_backend",QGuiApplication::platformName()},
+        {"host_arch",QSysInfo::currentCpuArchitecture()},
+        {"elapsed_ms",clock.elapsed()},{"failure",failure}
+    };
+    QFile receipt("qt-preview-a021-pour-results.json");
+    if(!receipt.open(QIODevice::WriteOnly) ||
+       receipt.write(QJsonDocument(report).toJson(QJsonDocument::Indented))<1)
+        return 2;
+    qInfo().noquote()<<QJsonDocument(report).toJson(QJsonDocument::Compact);
+    return pass?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
@@ -1763,9 +1867,10 @@ int main(int argc, char **argv) {
     const bool outlineTesting = args.size() == 7 && args.at(1) == "--outline-selftest";
     const bool circleTesting = args.size() == 7 && args.at(1) == "--circle-selftest";
     const bool mixedTesting = args.size() == 7 && args.at(1) == "--mixed-outline-selftest";
+    const bool pourTesting = args.size() == 7 && args.at(1) == "--pour-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
                          rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting ||
-                         arcTesting || outlineTesting || circleTesting || mixedTesting;
+                         arcTesting || outlineTesting || circleTesting || mixedTesting || pourTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -1788,7 +1893,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return mixedTesting ? runMixedOutlineSmoke(window, fixture) :
+    return pourTesting ? runPourSmoke(window, fixture) :
+           mixedTesting ? runMixedOutlineSmoke(window, fixture) :
            circleTesting ? runCircleSmoke(window, fixture) :
            outlineTesting ? runOutlineSmoke(window, fixture) :
            arcTesting ? runArcSmoke(window, fixture) :

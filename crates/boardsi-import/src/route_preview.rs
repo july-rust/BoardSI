@@ -583,10 +583,19 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         .pads
         .is_empty();
     let has_outline = !crate::outline_preview::parse(source_bytes)?.is_empty();
-    if !found_route && !has_pad && !has_outline {
+    // A valid POUROUT boundary is preview geometry even without routed copper.
+    // This never marks the poured interior as an actual conductive plane.
+    let has_pour = !crate::pour_preview::parse(source_bytes, max_layer)?.is_empty();
+    if !found_route && !has_pad && !has_outline && !has_pour {
         return Err("MISSING_ROUTE_SECTION");
     }
-    if segments.is_empty() && arcs.is_empty() && vias.is_empty() && !has_pad && !has_outline {
+    if segments.is_empty()
+        && arcs.is_empty()
+        && vias.is_empty()
+        && !has_pad
+        && !has_outline
+        && !has_pour
+    {
         return Err("NO_SUPPORTED_TRACES");
     }
     Ok(Artwork {
