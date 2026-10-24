@@ -677,10 +677,10 @@ public:
         QPointF p=pixel(world(b.x0_nm,b.y0_nm));
         if(b.isArc) {
             const QPointF c=pixel(world(b.cx_nm,b.cy_nm));
-            const QPointF d=p-c;
-            const qreal angle=std::atan2(-d.y(),d.x())+
+            const QPointF arcDelta=p-c;
+            const qreal angle=std::atan2(-arcDelta.y(),arcDelta.x())+
                 (b.clockwise?-1.0:1.0)*3.14159265358979323846/4.0;
-            const qreal radius=std::hypot(d.x(),d.y());
+            const qreal radius=std::hypot(arcDelta.x(),arcDelta.y());
             p=QPointF(c.x()+radius*std::cos(angle),
                       c.y()-radius*std::sin(angle));
         } else {
