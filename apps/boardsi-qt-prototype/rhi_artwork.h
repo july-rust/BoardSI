@@ -134,6 +134,12 @@ class BoardSiRhiItem final : public QQuickItem {
         std::make_shared<std::atomic<int>>(0);
     std::atomic<quint64> modelGeneration_{0};
     std::atomic<quint64> lastSyncedGeneration_{0};
+    std::atomic<quint64> sceneRevision_{0};
+    std::atomic<quint64> lastSyncedSceneRevision_{0};
+    void requestSceneUpdate() {
+        sceneRevision_.fetch_add(1,std::memory_order_release);
+        update();
+    }
     std::function<void(int,int)> picked_;
     // Coarse source-nm bins, not rasterized polygons; long routes are indexed
     // separately so that an unusually long trace cannot explode the index.
@@ -379,6 +385,9 @@ protected:
         lastSyncedGeneration_.store(
             modelGeneration_.load(std::memory_order_acquire),
             std::memory_order_release);
+        lastSyncedSceneRevision_.store(
+            sceneRevision_.load(std::memory_order_acquire),
+            std::memory_order_release);
         if (window())
             root->appendChildNode(new BoardSiRhiAdapterProbe(window(),adapterProof_));
         if (bounds_.isEmpty() || width() < 2 || height() < 2) return root;
@@ -597,7 +606,7 @@ protected:
         if (!(event->buttons() & Qt::LeftButton)) return;
         QPointF delta = event->position() - pressed_;
         if (std::hypot(delta.x(),delta.y()) >= 1) dragging_ = true;
-        pan_ += delta; pressed_ = event->position(); update(); event->accept();
+        pan_ += delta; pressed_ = event->position(); requestSceneUpdate(); event->accept();
     }
     void mouseReleaseEvent(QMouseEvent *event) override {
         if (!dragging_ && picked_) {
@@ -652,7 +661,7 @@ protected:
         const qreal factor=event->angleDelta().y()>0?1.2:1.0/1.2;
         if (zoom_*factor >= 0.03 && zoom_*factor <= 120.0)
             zoom_*=factor;
-        update(); event->accept();
+        requestSceneUpdate(); event->accept();
     }
 public:
     explicit BoardSiRhiItem(QQuickItem *parent=nullptr) : QQuickItem(parent) {
@@ -736,16 +745,26 @@ public:
         rebuildTrackBins();
         pan_=QPointF();zoom_=1.0;
         modelGeneration_.fetch_add(1,std::memory_order_release);
-        update();
+        requestSceneUpdate();
     }
     void filter(QVector<bool> layers,const QString &net) {
-        visibility_=std::move(layers); net_=net; update();
+        visibility_=std::move(layers); net_=net; requestSceneUpdate();
     }
-    void fit() { pan_=QPointF();zoom_=1.0;update(); }
+    void fit() { pan_=QPointF();zoom_=1.0;requestSceneUpdate(); }
     void zoom(qreal factor) {
         if(zoom_*factor >= 0.03 && zoom_*factor <= 120.0) {
-            zoom_*=factor; update();
+            zoom_*=factor; requestSceneUpdate();
         }
+    }
+    quint64 requestedSceneRevision() const {
+        return sceneRevision_.load(std::memory_order_acquire);
+    }
+    quint64 syncedSceneRevision() const {
+        return lastSyncedSceneRevision_.load(std::memory_order_acquire);
+    }
+    quint64 requestFreshFrame() {
+        requestSceneUpdate();
+        return requestedSceneRevision();
     }
     int primitiveCount() const {
         return static_cast<int>(tracks_.size()+vias_.size()+pads_.size()+arcs_.size()+
@@ -902,7 +921,7 @@ public:
     int trackAtForTest(QPointF screen) const {return trackIndexAt(screen);}
     size_t indexBucketsForTest() const {return trackBins_.size();}
     size_t spanningTracksForTest() const {return spanningTracks_.size();}
-    void panByForTest(QPointF delta) {pan_+=delta;update();}
+    void panByForTest(QPointF delta) {pan_+=delta;requestSceneUpdate();}
 };
 
 class BoardSiRhiView final : public QWidget {
@@ -912,6 +931,7 @@ class BoardSiRhiView final : public QWidget {
     std::function<void()> changed_;
     bool seenFrame_=false;
     quint64 loadGeneration_=0;
+    quint64 requiredSceneRevision_=0;
     quint64 deadlineGeneration_=std::numeric_limits<quint64>::max();
     quint64 deadlineEpoch_=0;
     std::atomic<bool> visibleDuringFrame_{false};
@@ -943,9 +963,17 @@ protected:
     void showEvent(QShowEvent *event) override {
         QWidget::showEvent(event);
         visibleDuringFrame_.store(true,std::memory_order_release);
-        // A hidden tab does not time out. A new load always arms a fresh
-        // independent post-load frame proof when the tab becomes visible.
-        armFrameDeadline();
+        // A previously presented frame cannot certify this tab activation.
+        // Hidden-tab device-loss races must therefore produce a new frame or
+        // hit the normal bounded CPU fallback deadline on re-exposure.
+        if(!failed()) {
+            seenFrame_=false;
+            status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
+            requiredSceneRevision_=artwork_->requestFreshFrame();
+            deadlineGeneration_=std::numeric_limits<quint64>::max();
+            ++deadlineEpoch_;
+            armFrameDeadline();
+        }
     }
     void hideEvent(QHideEvent *event) override {
         visibleDuringFrame_.store(false,std::memory_order_release);
@@ -954,6 +982,10 @@ protected:
         // consume time while hidden or block the next showEvent deadline.
         ++deadlineEpoch_;
         deadlineGeneration_=std::numeric_limits<quint64>::max();
+        if(!failed()) {
+            seenFrame_=false;
+            status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
+        }
     }
 public:
     static bool softwareRendererRequested() {
@@ -986,8 +1018,10 @@ public:
             // Direct signal captures render-thread generation BEFORE queuing
             // delivery; an older frame cannot verify newly loaded artwork.
             const quint64 presented=artwork_->syncedGeneration();
-            QMetaObject::invokeMethod(this,[this,presented] {
-            if(presented != loadGeneration_ || seenFrame_ || failed()) return;
+            const quint64 revision=artwork_->syncedSceneRevision();
+            QMetaObject::invokeMethod(this,[this,presented,revision] {
+            if(presented != loadGeneration_ || revision < requiredSceneRevision_ ||
+               seenFrame_ || failed() || !isVisible()) return;
             seenFrame_=true;
             const auto api=window_->rendererInterface()->graphicsApi();
             QString backend="UNEXPECTED";
@@ -1033,8 +1067,17 @@ public:
                          [this] {
             const bool visibleAtSignal=visibleDuringFrame_.load(std::memory_order_acquire);
             QMetaObject::invokeMethod(this,[this,visibleAtSignal] {
-                if(visibleAtSignal && isVisible() && seenFrame_)
+                if(!visibleAtSignal || failed()) return;
+                if(!isVisible()) {
+                    // Preserve invalidation across a concurrent hide; on show
+                    // an explicitly new revision and deadline are mandatory.
+                    seenFrame_=false;
+                    status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
+                    ++deadlineEpoch_;
+                    deadlineGeneration_=std::numeric_limits<quint64>::max();
+                } else if(seenFrame_) {
                     enterCpuFallback("SCENEGRAPH_INVALIDATED");
+                }
             },Qt::QueuedConnection);
         },Qt::DirectConnection);
         auto *container=QWidget::createWindowContainer(window_,this);
@@ -1053,6 +1096,7 @@ public:
         status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
         artwork_->load(layers,tracks,vias,pads,arcs,outlines,circles,boundary);
         loadGeneration_=artwork_->sourceGeneration();
+        requiredSceneRevision_=artwork_->requestedSceneRevision();
         deadlineGeneration_=std::numeric_limits<quint64>::max();
         ++deadlineEpoch_;
         armFrameDeadline();
