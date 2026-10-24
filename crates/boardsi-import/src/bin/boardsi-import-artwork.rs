@@ -28,11 +28,13 @@ fn run() -> Result<(), &'static str> {
     let pad_data = part_preview::parse(&bytes, result.max_layer);
     part_preview::augment(&mut board, &pad_data)?;
     outline_preview::augment(&mut board, &outlines)?;
+    copper_preview::augment(&mut board, &coppers)?;
     if board.arcs.len() != result.arcs.len()
         || board.traces.len() != result.segments.len()
         || board.vias.len() != result.vias.len()
         || board.pads.len() != pad_data.pads.len()
         || board.outlines.len() != usize::from(!outlines.is_empty())
+        || board.areas.len() != coppers.len()
         || board.validate().has_errors()
     {
         return Err("CANONICAL_VALIDATION_FAILED");
