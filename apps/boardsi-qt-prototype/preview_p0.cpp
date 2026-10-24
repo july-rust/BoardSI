@@ -77,7 +77,8 @@ class PreviewWindow : public QMainWindow {
         const bool loaded = importResultStatus.startsWith("PARTIAL") &&
                             ((importUI->imported()->segmentCount() + importUI->imported()->viaCount() +
                               importUI->imported()->padCount() + importUI->imported()->arcCount() +
-                              importUI->imported()->outlineCount()) > 0);
+                              importUI->imported()->outlineCount() +
+                              importUI->imported()->circleCount()) > 0);
         if (!loaded) {
             properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
                                 candidate + "\nImport status: " + importResultStatus +
