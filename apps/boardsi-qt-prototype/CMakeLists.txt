@@ -10,6 +10,9 @@ add_executable(boardsi-qt-model-v2 model_v2.cpp)
 target_link_libraries(boardsi-qt-model-v2 PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
 add_executable(boardsi-preview-p0 preview_p0.cpp)
 target_link_libraries(boardsi-preview-p0 PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+if(WIN32)
+  target_link_libraries(boardsi-preview-p0 PRIVATE psapi)
+endif()
 # GPU-first Artwork Viewer uses the stable Qt Graphics View OpenGL viewport.
 # Optional at build time so machines without OpenGLWidgets can compile CPU fallback.
 # This does NOT change the Rust Worker, Canonical data or SI capabilities.
