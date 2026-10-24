@@ -40,8 +40,13 @@ static qint64 a019RenderActionToSwap(BoardSiRhiView &view,
     QElapsedTimer clock;
     qint64 latencyNs=-1;
     clock.start();
+    const quint64 requiredRevision=
+        view.itemForTest()->requestedSceneRevision()+1;
     const auto connection=QObject::connect(
         view.quickWindowForTest(),&QQuickWindow::frameSwapped,&loop,[&] {
+            // Reject swaps from a frame already in flight before this action.
+            if(view.itemForTest()->syncedSceneRevision()<requiredRevision)
+                return;
             const qint64 measured=clock.nsecsElapsed();
             QMetaObject::invokeMethod(&loop,[&loop,&latencyNs,measured] {
                 if(latencyNs<0) {latencyNs=measured;loop.quit();}
@@ -134,8 +139,14 @@ static int runA019NativeInteractionValidation() {
             view.hide();
             QCoreApplication::processEvents();
             view.show();
+            const bool postShowPending=
+                view.status()=="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
+            const quint64 postShowRevision=item->requestedSceneRevision();
+            const bool postShowFrame=a019WaitForFrame(view,6000) &&
+                item->syncedSceneRevision()>=postShowRevision;
             QCoreApplication::processEvents();
-            const bool tabSurvived=!view.failed() && query()==count-1;
+            const bool tabSurvived=postShowPending && postShowFrame &&
+                !view.failed() && query()==count-1;
 
             int fallbackEvents=0;
             view.onChanged([&] {++fallbackEvents;});
@@ -172,6 +183,7 @@ static int runA019NativeInteractionValidation() {
                 {"zoom_action_to_first_swap_ms",zoomToSwap},
                 {"picking_exact",picked && panPick && zoomPick && fitPick},
                 {"layer_filter_restored",filtered && restored},
+                {"post_show_new_frame_verified",postShowFrame},
                 {"repeated_tab_survived",tabSurvived},
                 {"injected_error_cpu_fallback",failClosed && noRepeatedCallback},
                 {"actual_gpu_driver_reset","NOT_RUN"}
