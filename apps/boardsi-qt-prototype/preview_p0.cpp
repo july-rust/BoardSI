@@ -1717,8 +1717,12 @@ static int runRhiGeometrySmoke() {
         {"rhi_frame_observed",frame},
         {"post_load_frame_verified",postLoadFrameVerified},
         {"cpu_fallback_confirmed",fallbackConfirmed},
-        {"d3d11_adapter_proof",adapterProof},
-        {"hardware_adapter",adapterProof==1 ? "DXGI_NON_SOFTWARE_CONFIRMED" : "NOT_VERIFIED"},
+        {"d3d11_adapter_proof",backend.contains("DIRECT3D11") ? adapterProof : 0},
+        {"metal_device_proof",backend.contains("METAL") ? adapterProof : 0},
+        {"hardware_adapter",adapterProof==1 ?
+            (backend.contains("METAL") ? "METAL_MTLDEVICE_CONFIRMED" :
+             backend.contains("DIRECT3D11") ? "DXGI_NON_SOFTWARE_CONFIRMED" :
+             "NOT_VERIFIED") : "NOT_VERIFIED"},
         {"render_fps","NOT_MEASURED"},{"failure",failure},
         {"native_backend",QGuiApplication::platformName()},
         {"host_arch",QSysInfo::currentCpuArchitecture()},
