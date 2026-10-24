@@ -18,9 +18,7 @@ pub struct PourBoundary {
 }
 
 fn token(s: &str, max: usize) -> bool {
-    !s.is_empty()
-        && s.len() <= max
-        && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+    !s.is_empty() && s.len() <= max && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
 }
 
 /// Parses only straight POUROUT boundary records. Does NOT return copper fill.
@@ -79,8 +77,7 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<PourBoundary>, &'static
             || parts[1] != "POUROUT"
             || !token(parts[0], 16)
             || (parts.len() == 8
-                && (!token(parts[6], 16) || !token(parts[7], 47)
-                    || parts[6] != parts[0]))
+                && (!token(parts[6], 16) || !token(parts[7], 47) || parts[6] != parts[0]))
         {
             return Err("UNSUPPORTED_POUR_HEADER");
         }
@@ -126,8 +123,12 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<PourBoundary>, &'static
             if xy.len() != 2 {
                 return Err("UNSUPPORTED_POUR_ARC_OR_POINT");
             }
-            let x = origin[0].checked_add(fixed(xy[0])?).ok_or("POUR_COORD_OVERFLOW")?;
-            let y = origin[1].checked_add(fixed(xy[1])?).ok_or("POUR_COORD_OVERFLOW")?;
+            let x = origin[0]
+                .checked_add(fixed(xy[0])?)
+                .ok_or("POUR_COORD_OVERFLOW")?;
+            let y = origin[1]
+                .checked_add(fixed(xy[1])?)
+                .ok_or("POUR_COORD_OVERFLOW")?;
             vertices.push([bounded(x)?, bounded(y)?]);
             i += 1;
         }
@@ -161,15 +162,23 @@ mod tests {
         assert_eq!(p[0].name, "PLANE1");
         assert_eq!(p[0].net_label.as_deref(), Some("GND"));
         assert_eq!(p[0].layer, 2);
-        assert_eq!(p[0].vertices, vec![
-            [10000, 20000], [11000, 20000], [11000, 22000],
-            [10000, 22000], [10000, 20000],
-        ]);
+        assert_eq!(
+            p[0].vertices,
+            vec![
+                [10000, 20000],
+                [11000, 20000],
+                [11000, 22000],
+                [10000, 22000],
+                [10000, 20000],
+            ]
+        );
     }
 
     #[test]
     fn empty_section_is_not_fabricated_copper() {
-        assert!(parse(b"!PADS-POWERPCB-V9.4-MILS!\n*ROUTE*\n*END*\n", 2).unwrap().is_empty());
+        assert!(parse(b"!PADS-POWERPCB-V9.4-MILS!\n*ROUTE*\n*END*\n", 2)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -201,7 +210,10 @@ mod tests {
         assert!(parse(SAMPLE.as_bytes(), 1).is_err());
         assert!(parse(SAMPLE.replace("10 0", "10.001 0").as_bytes(), 2).is_err());
         assert!(parse(SAMPLE.trim_end_matches("*END*\n").as_bytes(), 2).is_err());
-        let duplicate = SAMPLE.replace("*END*", "PLANE1 POUROUT 0 0 1 0\nPOLY 4 0 0.01 1\n0 0\n1 0\n0 1\n0 0\n*END*");
+        let duplicate = SAMPLE.replace(
+            "*END*",
+            "PLANE1 POUROUT 0 0 1 0\nPOLY 4 0 0.01 1\n0 0\n1 0\n0 1\n0 0\n*END*",
+        );
         assert!(parse(duplicate.as_bytes(), 2).is_err());
     }
 }
