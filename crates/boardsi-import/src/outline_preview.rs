@@ -567,7 +567,7 @@ mod tests {
     #[test]
     fn circle_rejects_diameter_precision_and_malformed_geometry() {
         for (a, b, code) in [
-            ("0 0", "401 0", "UNSUPPORTED_CIRCLE_PRECISION"),
+            ("0 0", "400.01 0", "UNSUPPORTED_CIRCLE_PRECISION"),
             ("0 0", "200 200", "UNSUPPORTED_CIRCLE_DIAMETER"),
             ("0 0", "0 0", "UNSUPPORTED_CIRCLE_DIAMETER"),
         ] {
