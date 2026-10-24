@@ -11,6 +11,8 @@
 #include <QSysInfo>
 #include <QTimer>
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <numeric>
 #include <cmath>
 #ifdef Q_OS_WIN
@@ -122,19 +124,44 @@ static int runA019NativeRhiBenchmark() {
             std::vector<qint64> intervals;
             if(firstFrame) {
                 QEventLoop loop;
-                QElapsedTimer frameClock;frameClock.start();
+                QElapsedTimer frameClock;
+                frameClock.start(); // read-only monotonic epoch shared by threads
+                std::array<std::atomic<qint64>,9> swapTimes{};
+                std::atomic<int> swapped{0};
                 auto *item=view.itemForTest();
+                // Direct connection stamps the RENDER-THREAD signal emission.
+                // A queued handler stamps GUI delivery instead and introduces
+                // false near-zero samples when GUI callbacks are clustered.
                 const auto connection=QObject::connect(
                     view.quickWindowForTest(),&QQuickWindow::frameSwapped,
                     &loop,[&] {
-                        intervals.push_back(frameClock.restart());
-                        if(intervals.size()>=8) {loop.quit();return;}
-                        QTimer::singleShot(0,item,[item]{item->update();});
-                    },Qt::QueuedConnection);
+                        const int index=swapped.fetch_add(1,std::memory_order_acq_rel);
+                        if(index<9)
+                            swapTimes[static_cast<size_t>(index)].store(
+                                frameClock.nsecsElapsed(),std::memory_order_release);
+                        // Only schedule GUI operations on the GUI thread.
+                        QMetaObject::invokeMethod(&loop,[&] {
+                            if(swapped.load(std::memory_order_acquire)>=9)
+                                loop.quit();
+                            else
+                                item->update();
+                        },Qt::QueuedConnection);
+                    },Qt::DirectConnection);
                 QTimer::singleShot(10000,&loop,&QEventLoop::quit);
                 item->update();
                 loop.exec();
                 QObject::disconnect(connection);
+                const int observed=std::min(swapped.load(std::memory_order_acquire),9);
+                // Exclude the initial unpaired frame. Each sample is the
+                // interval between TWO actual consecutive swap emissions.
+                for(int i=1;i<observed;++i) {
+                    const qint64 t0=swapTimes[static_cast<size_t>(i-1)]
+                                         .load(std::memory_order_acquire);
+                    const qint64 t1=swapTimes[static_cast<size_t>(i)]
+                                         .load(std::memory_order_acquire);
+                    if(t1>t0)
+                        intervals.push_back((t1-t0+500000)/1000000);
+                }
             }
             std::sort(intervals.begin(),intervals.end());
             const qint64 p50=intervals.empty() ? -1 :
