@@ -22,7 +22,7 @@ pub struct Circle {
     pub centre: [i64; 2],
     pub radius: i64, // Source ticks. A non-integral source-grid centre is unsupported.
 }
-fn fixed(s: &str) -> Result<i64, &'static str> {
+pub(crate) fn fixed(s: &str) -> Result<i64, &'static str> {
     let (negative, digits) = match s.strip_prefix('-') {
         Some(v) => (true, v),
         None => (false, s.strip_prefix('+').unwrap_or(s)),
@@ -51,7 +51,7 @@ fn fixed(s: &str) -> Result<i64, &'static str> {
         Ok(v)
     }
 }
-fn bounded(v: i64) -> Result<i64, &'static str> {
+pub(crate) fn bounded(v: i64) -> Result<i64, &'static str> {
     if (-MAX_COORD..=MAX_COORD).contains(&v) {
         Ok(v)
     } else {
@@ -341,6 +341,12 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
             }
             let pts: Vec<_> = row.split_ascii_whitespace().collect();
             if pts.len() != 2 {
+                // Preflight 8-field PADS arc corners using exact source ticks.
+                // Do not admit them as board geometry until topology, IPC and
+                // both Qt viewers can preserve the analytical Arc.
+                if pts.len() == 8 {
+                    let _ = crate::outline_arc::parse_cardinal(&pts, origin)?;
+                }
                 return Err("UNSUPPORTED_OUTLINE_ARC_OR_POINT");
             }
             let x = origin[0]
