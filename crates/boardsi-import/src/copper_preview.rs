@@ -195,7 +195,6 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
     Ok(found)
 }
 
-
 /// Append exact-grid source-filled geometry to the canonical artwork model.
 /// A claimed PADS net label is NOT promoted to an electrical Net ID.
 pub fn augment(
@@ -203,8 +202,8 @@ pub fn augment(
     areas: &[CopperArea],
 ) -> Result<(), &'static str> {
     use boardsi_model::{
-        Boundary, BoundarySegment, CopperArea as ModelCopperArea, GeometryProvenance,
-        ObjectId, ObjectKind, ObjectMeta, Point,
+        Boundary, BoundarySegment, CopperArea as ModelCopperArea, GeometryProvenance, ObjectId,
+        ObjectKind, ObjectMeta, Point,
     };
     if areas.is_empty() {
         return Ok(());
@@ -274,10 +273,9 @@ pub fn augment(
             cutouts: vec![], // COPCUT/holes are rejected by the parser.
         });
     }
-    board.sources[0]
-        .capability
-        .object_coverage
-        .push("PADS COPCLS/COPCIR explicitly filled source artwork; net/contact NOT_VERIFIED".into());
+    board.sources[0].capability.object_coverage.push(
+        "PADS COPCLS/COPCIR explicitly filled source artwork; net/contact NOT_VERIFIED".into(),
+    );
     Ok(())
 }
 
