@@ -120,6 +120,7 @@ class BoardSiRhiItem final : public QQuickItem {
     std::vector<ImportedArc> arcs_;
     std::vector<ImportedOutlineEdge> outlineEdges_;
     std::vector<ImportedPourEdge> pours_;
+    std::vector<ImportedCopperArea> copper_;
     std::vector<ImportedCircle> circles_;
     std::vector<ImportedBoundarySegment> boundaries_;
     QVector<bool> visibility_;
@@ -306,6 +307,36 @@ class BoardSiRhiItem final : public QQuickItem {
         }
         return -1;
     }
+    int copperIndexAt(const QPointF &pos) const {
+        // Use the same validated triangles as the Scene Graph, in screen
+        // coordinates. Source nm remains integer and never roundtrips via GPU.
+        auto side=[](QPointF a,QPointF b,QPointF p) {
+            return (b.x()-a.x())*(p.y()-a.y())-
+                   (b.y()-a.y())*(p.x()-a.x());
+        };
+        for(size_t i=copper_.size();i>0;--i) {
+            const auto &c=copper_[i-1];
+            if(!visible(c.layer) || !includedNet(c.net) ||
+               (netOnly_ && net_!="All nets" && c.net=="-")) continue;
+            if(c.circle) {
+                const QPointF center=pixel(world(c.cx_nm,c.cy_nm));
+                if(std::hypot(pos.x()-center.x(),pos.y()-center.y())<=
+                   c.radius_nm/1e6*scaleFactor()) return static_cast<int>(i-1);
+                continue;
+            }
+            for(const auto &indices:c.triangles) {
+                const auto point=[&](int n) {
+                    auto p=c.ring[static_cast<size_t>(n)];
+                    return pixel(world(p.first,p.second));
+                };
+                const QPointF a=point(indices[0]),b=point(indices[1]),d=point(indices[2]);
+                const auto x=side(a,b,pos),y=side(b,d,pos),z=side(d,a,pos);
+                if((x>=0 && y>=0 && z>=0)||(x<=0 && y<=0 && z<=0))
+                    return static_cast<int>(i-1);
+            }
+        }
+        return -1;
+    }
     int pourIndexAt(const QPointF &pos) const {
         for(size_t i=pours_.size();i>0;--i) {
             const auto &e=pours_[i-1];
@@ -434,6 +465,7 @@ protected:
         // Batch by color: O(number of color groups) scene graph nodes, not one
         // QPainter/QGraphicsItem draw call per CAD primitive.
         std::map<QRgb,Vertices> groups;
+        std::map<QRgb,Vertices> copperGroups;
         Vertices holes;
         const qreal px = scaleFactor();
         // Scene Graph sync is on the render thread. The window DPR is used
@@ -454,6 +486,39 @@ protected:
             if (net_ != "All nets" && net_ != t.net) color.setAlpha(40);
             thickLine(groups[color.rgba()],a,b,
                       std::max<qreal>(0.1,halfWidth),deviceRatio);
+        }
+        // Explicit source-filled copper. The user-authored polygon is
+        // triangulated once on import, NOT reconstructed from POUROUT.
+        // Keep fills in separate batched nodes behind tracks/vias/outline.
+        for(const auto &c:copper_) {
+            if(!visible(c.layer) || !includedNet(c.net) ||
+               (netOnly_ && net_!="All nets" && c.net=="-")) continue;
+            const QColor base(c.layer==1 ? "#e6aa55" :
+                              c.layer==layers_ ? "#509fca" : "#8fb66f");
+            QColor color(base);
+            if(net_!="All nets" && net_!=c.net) color.setAlpha(40);
+            auto &v=copperGroups[color.rgba()];
+            if(c.circle) {
+                const auto center=pixel(world(c.cx_nm,c.cy_nm));
+                const qreal radius=c.radius_nm/1e6*px;
+                if(!inView(center,radius,width(),height())) continue;
+                const int steps=std::clamp(static_cast<int>(
+                    std::ceil(3.14159265358979323846 *
+                              std::sqrt(std::max<qreal>(1,radius)))),24,256);
+                disk(v,center,radius,steps);
+            } else {
+                for(const auto &tri:c.triangles) {
+                    auto point=[&](int n){
+                        const auto p=c.ring[static_cast<size_t>(n)];
+                        return pixel(world(p.first,p.second));
+                    };
+                    const auto a=point(tri[0]),b=point(tri[1]),d=point(tri[2]);
+                    if(QRectF(a,b).normalized().united(QRectF(b,d).normalized())
+                        .united(QRectF(d,a).normalized())
+                        .intersects(QRectF(0,0,width(),height())))
+                        triangle(v,a,b,d);
+                }
+            }
         }
         // POUROUT is a declared unfilled boundary. Batch on RHI; never
         // tessellate the polygon interior into invented copper triangles.
@@ -614,6 +679,26 @@ protected:
             disk(groups[color.rgba()],c,outer);
             disk(holes,c,via.drill_nm / 2e6 * px);
         }
+        // Filled copper batches precede line/route layers in the scene
+        // graph's child order, matching CPU artwork Z=-1.
+        for(auto &entry:copperGroups) {
+            if(entry.second.empty() ||
+               entry.second.size()>static_cast<size_t>(std::numeric_limits<int>::max())) continue;
+            auto *node=new QSGGeometryNode();
+            auto *geometry=new QSGGeometry(QSGGeometry::defaultAttributes_Point2D(),
+                                          static_cast<int>(entry.second.size()));
+            geometry->setDrawingMode(QSGGeometry::DrawTriangles);
+            auto *dst=geometry->vertexDataAsPoint2D();
+            for(size_t i=0;i<entry.second.size();++i)
+                dst[i].set(static_cast<float>(entry.second[i].x()),
+                           static_cast<float>(entry.second[i].y()));
+            auto *material=new QSGFlatColorMaterial();
+            material->setColor(QColor::fromRgba(entry.first));
+            node->setGeometry(geometry);node->setMaterial(material);
+            node->setFlag(QSGNode::OwnsGeometry);
+            node->setFlag(QSGNode::OwnsMaterial);
+            root->appendChildNode(node);
+        }
         // Bounded batch nodes. No private QRhi APIs or per-object GPU nodes.
         for (auto &entry : groups) {
             if (entry.second.empty()) continue;
@@ -716,6 +801,10 @@ protected:
             if(pickedTrack>=0) {
                 picked_(3,pickedTrack);event->accept();return;
             }
+            const int copperIndex=copperIndexAt(event->position());
+            if(copperIndex>=0) {
+                picked_(9,copperIndex);event->accept();return;
+            }
         }
         event->accept();
     }
@@ -737,9 +826,10 @@ public:
               const std::vector<ImportedOutlineEdge> &outlines = {},
               const std::vector<ImportedCircle> &circles = {},
                const std::vector<ImportedBoundarySegment> &boundary = {},
-               const std::vector<ImportedPourEdge> &pours = {}) {
+               const std::vector<ImportedPourEdge> &pours = {},
+               const std::vector<ImportedCopperArea> &copper = {}) {
         tracks_=tracks; vias_=vias; pads_=pads; arcs_=arcs;
-        outlineEdges_=outlines; circles_=circles; boundaries_=boundary; pours_=pours; layers_=layers;
+        outlineEdges_=outlines; circles_=circles; boundaries_=boundary; pours_=pours; copper_=copper; layers_=layers;
         adapterProof_->store(0,std::memory_order_release);
         visibility_=QVector<bool>(layers+1,true);
         qint64 x=0,y=0; bool initialized=false;
@@ -758,6 +848,10 @@ public:
         }
         for(const auto &e:pours_) {
             ingest(e.x0_nm,e.y0_nm);ingest(e.x1_nm,e.y1_nm);
+        }
+        for(const auto &c:copper_) {
+            if(c.circle) ingest(c.cx_nm-c.radius_nm,c.cy_nm-c.radius_nm);
+            else for(const auto &p:c.ring) ingest(p.first,p.second);
         }
         for (const auto &c:circles_) ingest(c.cx_nm-c.radius_nm,c.cy_nm-c.radius_nm);
         for(const auto &b:boundaries_) {ingest(b.x0_nm,b.y0_nm);ingest(b.x1_nm,b.y1_nm);}
@@ -805,6 +899,10 @@ public:
             add(world(e.x0_nm,e.y0_nm),0.000001);
             add(world(e.x1_nm,e.y1_nm),0.000001);
         }
+        for(const auto &c:copper_) {
+            if(c.circle) add(world(c.cx_nm,c.cy_nm),c.radius_nm/1e6);
+            else for(const auto &p:c.ring) add(world(p.first,p.second),0.000001);
+        }
         for (const auto &c:circles_)
             add(world(c.cx_nm,c.cy_nm),c.radius_nm/1e6);
         for(const auto &b:boundaries_) {
@@ -839,7 +937,22 @@ public:
     }
     int primitiveCount() const {
         return static_cast<int>(tracks_.size()+vias_.size()+pads_.size()+arcs_.size()+
-                                outlineEdges_.size()+circles_.size()+boundaries_.size()+pours_.size());
+                                outlineEdges_.size()+circles_.size()+boundaries_.size()+pours_.size()+copper_.size());
+    }
+    int copperCountForTest() const {return static_cast<int>(copper_.size());}
+    bool dispatchCopperPickForTest(int index) const {
+        if(index<0 || index>=static_cast<int>(copper_.size())) return false;
+        const auto &c=copper_[static_cast<size_t>(index)];
+        if(c.circle) return copperIndexAt(pixel(world(c.cx_nm,c.cy_nm)))==index;
+        // Test the centroid of an actual emitted triangle, not the bounding box.
+        if(c.triangles.empty()) return false;
+        const auto &t=c.triangles.front();
+        QPointF centroid;
+        for(const int j:t) {
+            const auto p=c.ring[static_cast<size_t>(j)];
+            centroid+=pixel(world(p.first,p.second))/3.0;
+        }
+        return copperIndexAt(centroid)==index;
     }
     int outlineCountForTest() const { return static_cast<int>(outlineEdges_.size()); }
     int circleCountForTest() const { return static_cast<int>(circles_.size()); }
@@ -1174,10 +1287,11 @@ public:
               const std::vector<ImportedOutlineEdge> &outlines = {},
               const std::vector<ImportedCircle> &circles = {},
                const std::vector<ImportedBoundarySegment> &boundary = {},
-               const std::vector<ImportedPourEdge> &pours = {}) {
+               const std::vector<ImportedPourEdge> &pours = {},
+               const std::vector<ImportedCopperArea> &copper = {}) {
         seenFrame_=false;
         status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
-        artwork_->load(layers,tracks,vias,pads,arcs,outlines,circles,boundary,pours);
+        artwork_->load(layers,tracks,vias,pads,arcs,outlines,circles,boundary,pours,copper);
         loadGeneration_=artwork_->sourceGeneration();
         requiredSceneRevision_=artwork_->requestedSceneRevision();
         deadlineGeneration_=std::numeric_limits<quint64>::max();
