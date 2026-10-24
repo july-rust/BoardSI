@@ -312,17 +312,27 @@ public:
                 explorerStatus_->setText("Enter an imported net name");
                 return;
             }
+            // PADS net labels are case-sensitive. Never silently change the
+            // selected electrical label when two names differ only by case.
             int found = -1;
-            for (int i=1; i<nets_->count(); ++i) {
-                if (nets_->itemText(i).compare(term,Qt::CaseInsensitive)==0) {
-                    found=i; break;
+            for (int i=1; i<nets_->count(); ++i)
+                if (nets_->itemText(i) == term) { found=i; break; }
+            if (found < 0) {
+                for (int i=1; i<nets_->count(); ++i) {
+                    if (nets_->itemText(i).compare(term,Qt::CaseInsensitive)==0) {
+                        if (found >= 0) {
+                            explorerStatus_->setText("Ambiguous case-folded net; use exact case");
+                            return;
+                        }
+                        found=i;
+                    }
                 }
             }
             if (found < 0) {
                 for (int i=1; i<nets_->count(); ++i) {
                     if (nets_->itemText(i).contains(term,Qt::CaseInsensitive)) {
                         if (found >= 0) {
-                            explorerStatus_->setText("Ambiguous net; use an exact name");
+                            explorerStatus_->setText("Ambiguous partial net; use exact name");
                             return;
                         }
                         found=i;
