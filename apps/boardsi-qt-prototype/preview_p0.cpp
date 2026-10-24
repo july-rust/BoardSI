@@ -212,7 +212,7 @@ public:
         auto *propBox = new QGroupBox("Properties", right);
         auto *propLayout = new QVBoxLayout(propBox);
         properties = new QLabel(
-            "Mode: Developer Preview P2-D\n"
+            "Mode: Developer Preview P2-K\n"
             "Source: synthetic or imported partial\n"
             "PCB: NOT LOADED\n"
             "Stackup: NOT LOADED\n"
@@ -784,8 +784,10 @@ static int runOutlineSmoke(PreviewWindow &window, const QString &fixture) {
             if (auto *rhi = panel->rhiViewForTest();
                 rhi && panel->rhiCanvasActiveForTest()) {
                 rhiChecked = true;
-                const auto *item = rhi->itemForTest();
+                auto *item = rhi->itemForTest();
                 rhiExact = item->outlineCountForTest() == 8 &&
+                    item->dispatchOutlinePickForTest(0) &&
+                    window.displayedProperties().contains("Board Outline") &&
                     item->containsExactOutlineForTest(false,
                         2540000, 5080000, 12700000, 5080000) &&
                     item->containsExactOutlineForTest(true,
