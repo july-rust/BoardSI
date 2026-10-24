@@ -78,7 +78,8 @@ class PreviewWindow : public QMainWindow {
                             ((importUI->imported()->segmentCount() + importUI->imported()->viaCount() +
                               importUI->imported()->padCount() + importUI->imported()->arcCount() +
                               importUI->imported()->outlineCount() +
-                              importUI->imported()->circleCount()) > 0);
+                              importUI->imported()->circleCount() +
+                              importUI->imported()->boundaryCount()) > 0);
         if (!loaded) {
             properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
                                 candidate + "\nImport status: " + importResultStatus +
