@@ -7,6 +7,7 @@
 #include "model_v2.cpp"
 #include "synthetic_artwork.h"
 #include "preview_import.h"
+#include "a019_gpu_benchmark.h"
 
 #include <QAction>
 #include <QCloseEvent>
@@ -1716,8 +1717,12 @@ static int runRhiGeometrySmoke() {
         {"rhi_frame_observed",frame},
         {"post_load_frame_verified",postLoadFrameVerified},
         {"cpu_fallback_confirmed",fallbackConfirmed},
-        {"d3d11_adapter_proof",adapterProof},
-        {"hardware_adapter",adapterProof==1 ? "DXGI_NON_SOFTWARE_CONFIRMED" : "NOT_VERIFIED"},
+        {"d3d11_adapter_proof",(backend.contains("DIRECT3D11") || backend.contains("D3D11")) ? adapterProof : 0},
+        {"metal_device_proof",backend.contains("METAL") ? adapterProof : 0},
+        {"hardware_adapter",adapterProof==1 ?
+            (backend.contains("METAL") ? "METAL_MTLDEVICE_CONFIRMED" :
+             backend.contains("DIRECT3D11") ? "DXGI_NON_SOFTWARE_CONFIRMED" :
+             "NOT_VERIFIED") : "NOT_VERIFIED"},
         {"render_fps","NOT_MEASURED"},{"failure",failure},
         {"native_backend",QGuiApplication::platformName()},
         {"host_arch",QSysInfo::currentCpuArchitecture()},
@@ -1739,6 +1744,8 @@ int main(int argc, char **argv) {
         return runRhiGeometrySmoke();
     if (args.size() == 2 && args.at(1) == "--rhi-scale-selftest")
         return runRhiScaleSmoke();
+    if (args.size() == 2 && args.at(1) == "--rhi-native-benchmark")
+        return runA019NativeRhiBenchmark();
     const bool rendererTesting = args.size() == 5 && args.at(1) == "--renderer-selftest";
     const bool viaTesting = args.size() == 7 && args.at(1) == "--via-selftest";
     const bool padTesting = args.size() == 7 && args.at(1) == "--pad-selftest";

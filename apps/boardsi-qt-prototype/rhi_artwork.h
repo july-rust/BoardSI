@@ -27,6 +27,9 @@
 #include <map>
 #include <atomic>
 #include <memory>
+#ifdef Q_OS_MACOS
+extern "C" bool boardSiMetalDeviceConfirmed(void *opaqueDevice);
+#endif
 #ifdef Q_OS_WIN
 #include <d3d11.h>
 #include <dxgi1_2.h>
@@ -93,6 +96,15 @@ public:
         adapter1->Release();
         if (FAILED(got)) {proof_->store(-2,std::memory_order_release);return;}
         proof_->store((desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) ? -1 : 1,
+                      std::memory_order_release);
+#elif defined(Q_OS_MACOS)
+        if (win_->rendererInterface()->graphicsApi()!=QSGRendererInterface::Metal) {
+            proof_->store(-2,std::memory_order_release); return;
+        }
+        // The renderer's actual Metal device, not just a Metal API enum.
+        void *resource=win_->rendererInterface()->getResource(
+            win_,QSGRendererInterface::DeviceResource);
+        proof_->store(boardSiMetalDeviceConfirmed(resource) ? 1 : -2,
                       std::memory_order_release);
 #else
         proof_->store(2,std::memory_order_release);
@@ -922,6 +934,14 @@ public:
                     status_="CPU_FALLBACK_RHI_SOFTWARE_D3D11_ADAPTER";
                 else
                     status_="CPU_FALLBACK_RHI_D3D11_ADAPTER_NOT_VERIFIED";
+            } else if (backend=="METAL") {
+#ifdef Q_OS_MACOS
+                const int proof=artwork_->d3dAdapterProof();
+                status_=proof==1 ? "RHI_FRAME_METAL_HARDWARE_CONFIRMED" :
+                                   "RHI_FRAME_METAL_HARDWARE_NOT_VERIFIED";
+#else
+                status_="RHI_FRAME_METAL_HARDWARE_NOT_VERIFIED";
+#endif
             } else {
                 status_="RHI_FRAME_"+backend+"_HARDWARE_NOT_VERIFIED";
             }
@@ -957,6 +977,7 @@ public:
     void filter(QVector<bool> layers,const QString &net) {artwork_->filter(std::move(layers),net);}
     void fit() {artwork_->fit();}
     void zoom(qreal factor) {artwork_->zoom(factor);}
+    QQuickWindow *quickWindowForTest() const {return window_;}
     QString status() const {return status_;}
     bool failed() const {return status_.startsWith("CPU_FALLBACK");}
     int primitiveCount() const {return artwork_->primitiveCount();}
