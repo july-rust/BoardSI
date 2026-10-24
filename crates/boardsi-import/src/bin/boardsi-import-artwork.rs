@@ -177,6 +177,7 @@ fn run() -> Result<(), &'static str> {
         || mode == "BOARDSI_P2H_PARTIAL_V7"
         || mode == "BOARDSI_P2I_PARTIAL_V8"
         || mode == "BOARDSI_P2L_PARTIAL_V9"
+        || mode == "BOARDSI_P2M_PARTIAL_V10"
     {
         // Non-electrical BOARD geometry. A circle is analytical (C), while
         // straight polygon segments retain the unchanged O record.
