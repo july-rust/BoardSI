@@ -166,13 +166,16 @@ fn run() -> Result<(), &'static str> {
         // straight polygon segments retain the unchanged O record.
         for shape in &outlines {
             if let Some(circle) = shape.circle {
-                writeln!(out, "C|{}|{}|{}|{}|{}",
+                writeln!(
+                    out,
+                    "C|{}|{}|{}|{}|{}",
                     if shape.cutout { "CUT" } else { "OUTER" },
                     shape.name,
                     outline_preview::wire_nm(circle.centre[0])?,
                     outline_preview::wire_nm(circle.centre[1])?,
                     outline_preview::wire_nm(circle.radius)?,
-                ).map_err(|_| "FORMAT_ERROR")?;
+                )
+                .map_err(|_| "FORMAT_ERROR")?;
             }
             for (n, pair) in shape.vertices.windows(2).enumerate() {
                 writeln!(
