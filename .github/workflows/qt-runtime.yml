@@ -369,6 +369,15 @@ jobs:
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --rhi-scale-selftest
           cat qt-preview-a019-rhi-scale-results.json
           python -c 'import json; r=json.load(open("qt-preview-a019-rhi-scale-results.json")); assert r["pass"] and [s["objects"] for s in r["samples"]] == [10000,100000,1000000] and r["rendered_frames"]=="NOT_RUN" and r["gpu_fps"]=="NOT_MEASURED" and all(s["pass"] for s in r["samples"]), r'
+      - name: A_019 native Metal and Direct3D 10k-1M RHI frame benchmark
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --rhi-native-benchmark
+          cat qt-preview-a019-native-benchmark.json
+          python -c 'import json; r=json.load(open("qt-preview-a019-native-benchmark.json")); assert r["pass"] and [s["objects"] for s in r["cases"]]==[10000,100000,1000000] and all(s["pass"] and s["hardware_adapter_confirmed"] and s["presented_frame_samples"]>=4 for s in r["cases"]), r'
       - name: Run A_014 native Qt Quick / RHI geometry and first-frame smoke
         shell: bash
         run: |
@@ -392,6 +401,7 @@ jobs:
             build-qt/qt-preview-renderer-results.json
             build-qt/qt-preview-a014-rhi-results.json
             build-qt/qt-preview-a019-rhi-scale-results.json
+            build-qt/qt-preview-a019-native-benchmark.json
             build-qt/qt-preview-a014-software-fallback-results.json
             build-qt/qt-preview-p2c-pad-results.json
             build-qt/qt-preview-native-direct.json
