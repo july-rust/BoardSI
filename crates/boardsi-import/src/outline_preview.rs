@@ -208,20 +208,39 @@ fn ring_segments(s: &Shape) -> Vec<crate::outline_topology::Segment> {
         let [x, y] = c.centre;
         let r = c.radius;
         let pts = [[x + r, y], [x, y + r], [x - r, y], [x, y - r], [x + r, y]];
-        return pts.windows(2).map(|pair| Segment::Arc(CardinalArcCorner {
-            start: pair[0], end: pair[1], centre: c.centre, clockwise: false,
-        })).collect();
+        return pts
+            .windows(2)
+            .map(|pair| {
+                Segment::Arc(CardinalArcCorner {
+                    start: pair[0],
+                    end: pair[1],
+                    centre: c.centre,
+                    clockwise: false,
+                })
+            })
+            .collect();
     }
-    if let Some(segments) = &s.segments { return segments.clone(); }
-    s.vertices.windows(2).map(|pair| Segment::Line(pair[0], pair[1])).collect()
+    if let Some(segments) = &s.segments {
+        return segments.clone();
+    }
+    s.vertices
+        .windows(2)
+        .map(|pair| Segment::Line(pair[0], pair[1]))
+        .collect()
 }
 fn has_mixed_arcs(s: &Shape) -> bool {
-    s.segments.as_ref().is_some_and(|segments|
-        segments.iter().any(|s| matches!(s, crate::outline_topology::Segment::Arc(_))))
+    s.segments.as_ref().is_some_and(|segments| {
+        segments
+            .iter()
+            .any(|s| matches!(s, crate::outline_topology::Segment::Arc(_)))
+    })
 }
 fn cutout_within(cut: &Shape, outer: &Shape) -> bool {
     if has_mixed_arcs(cut) || has_mixed_arcs(outer) {
-        return crate::outline_topology::strictly_contains(&ring_segments(outer), &ring_segments(cut));
+        return crate::outline_topology::strictly_contains(
+            &ring_segments(outer),
+            &ring_segments(cut),
+        );
     }
     match (cut.circle, outer.circle) {
         (Some(c), Some(o)) => circle_in_circle(c, o),
@@ -410,14 +429,24 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
             vertices.clear();
             Some(Circle { centre, radius })
         } else {
-            if !valid_ring(&vertices) { return Err("INVALID_OUTLINE_RING"); }
+            if !valid_ring(&vertices) {
+                return Err("INVALID_OUTLINE_RING");
+            }
             if rows.iter().any(|row| row.len() == 8) {
                 let arcs = crate::outline_arc::preflight_closed(&rows, origin)?;
-                let mixed: Vec<_> = arcs.iter().enumerate().map(|(index, arc)| {
-                    arc.map(crate::outline_topology::Segment::Arc).unwrap_or_else(|| {
-                        crate::outline_topology::Segment::Line(vertices[index], vertices[index + 1])
+                let mixed: Vec<_> = arcs
+                    .iter()
+                    .enumerate()
+                    .map(|(index, arc)| {
+                        arc.map(crate::outline_topology::Segment::Arc)
+                            .unwrap_or_else(|| {
+                                crate::outline_topology::Segment::Line(
+                                    vertices[index],
+                                    vertices[index + 1],
+                                )
+                            })
                     })
-                }).collect();
+                    .collect();
                 if !crate::outline_topology::ring_valid(&mixed) {
                     return Err("INVALID_OUTLINE_ARC_TOPOLOGY");
                 }
@@ -508,15 +537,21 @@ pub fn augment(board: &mut BoardModel, shapes: &[Shape]) -> Result<(), &'static 
             }
         } else if let Some(mixed) = &s.segments {
             Boundary {
-                segments: mixed.iter().map(|segment| match segment {
-                    crate::outline_topology::Segment::Line(a, b) => BoundarySegment::Line {
-                        start: point(*a), end: point(*b),
-                    },
-                    crate::outline_topology::Segment::Arc(a) => BoundarySegment::Arc {
-                        centre: point(a.centre), start: point(a.start),
-                        end: point(a.end), clockwise: a.clockwise,
-                    },
-                }).collect(),
+                segments: mixed
+                    .iter()
+                    .map(|segment| match segment {
+                        crate::outline_topology::Segment::Line(a, b) => BoundarySegment::Line {
+                            start: point(*a),
+                            end: point(*b),
+                        },
+                        crate::outline_topology::Segment::Arc(a) => BoundarySegment::Arc {
+                            centre: point(a.centre),
+                            start: point(a.start),
+                            end: point(a.end),
+                            clockwise: a.clockwise,
+                        },
+                    })
+                    .collect(),
             }
         } else {
             Boundary {
