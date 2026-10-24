@@ -823,14 +823,14 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
     QString failure;
     // Real strict decoder must refuse truncated V7 trailers before indexing.
     const QByteArray transportPrefix=
-        "BOARDSI_P2H_PARTIAL_V7|V9.4-MILS|1\\n"
-        "L|1|TOP\\n"
-        "C|OUTER|BOARD|0|0|2540\\n";
+        "BOARDSI_P2H_PARTIAL_V7|V9.4-MILS|1\n"
+        "L|1|TOP\n"
+        "C|OUTER|BOARD|0|0|2540\n";
     const bool malformedTransportRejected=
         PreviewImportPanel::validTransportForTest(
-            transportPrefix+"END|0|0|0|0|1|0|1|CANONICAL_PARTIAL|SI_NOT_RUN\\n") &&
+            transportPrefix+"END|0|0|0|0|1|0|1|CANONICAL_PARTIAL|SI_NOT_RUN\n") &&
         !PreviewImportPanel::validTransportForTest(
-            transportPrefix+"END|0|0|0|0\\n");
+            transportPrefix+"END|0|0|0|0\n");
     bool overflowCircleRejected=false;
     QEventLoop loop;
     if (!window.openCandidate(fixture)) {
