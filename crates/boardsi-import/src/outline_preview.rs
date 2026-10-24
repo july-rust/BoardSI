@@ -385,7 +385,7 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
                 return Err("OVERLONG_LINE");
             }
             let pts: Vec<_> = row.split_ascii_whitespace().collect();
-            if pts.len() != 2 && !(pts.len() == 8 && !is_circle) {
+            if pts.len() != 2 && (is_circle || pts.len() != 8) {
                 return Err("UNSUPPORTED_OUTLINE_ARC_OR_POINT");
             }
             if pts.len() == 8 {
