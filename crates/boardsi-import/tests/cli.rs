@@ -232,3 +232,22 @@ fn p2h_cli_emits_exact_analytical_circles_with_versioned_end() {
     assert_eq!(msg.lines().filter(|s| s.starts_with("O|")).count(), 0);
     assert!(msg.ends_with("END|0|0|0|0|1|1|2|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
 }
+
+#[test]
+fn a018_mixed_line_arc_outline_remains_fail_closed_until_full_geometry_and_ipc() {
+    let bin = env!("CARGO_BIN_EXE_boardsi-import-artwork");
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pads_board_mixed_quarter_arc_v94.asc");
+    let output = Command::new(bin)
+        .arg(source)
+        .output()
+        .expect("restricted PADS artwork importer must start");
+    // PADS arc source is now independently preflighted but not promoted to
+    // incomplete board geometry or a misleading V7 straight-edge transport.
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr).trim(),
+        "P2A_IMPORT_ERROR:UNSUPPORTED_OUTLINE_ARC_OR_POINT"
+    );
+}
