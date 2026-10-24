@@ -772,35 +772,6 @@ public:
         QSet<QString> pourNames;
         qint64 firstPX=0,firstPY=0,lastPX=0,lastPY=0;
         int pourSeq=0;
-        for(const auto &c:copperChecked) {
-            if(c.net!="-" && nets_->findText(c.net)<0) nets_->addItem(c.net);
-            const QColor color(c.layer==1 ? "#e6aa55" :
-                               c.layer==layerCount ? "#509fca" : "#8fb66f");
-            QGraphicsItem *item=nullptr;
-            if(c.circle) {
-                const qreal r=c.radius_nm/1e6;
-                item=scene_->addEllipse(QRectF((c.cx_nm-c.radius_nm)/1e6,
-                    (-c.cy_nm-c.radius_nm)/1e6,2*r,2*r),
-                    QPen(color.darker(135),0),QBrush(color));
-            }else{
-                QPainterPath path;
-                path.moveTo(c.ring[0].first/1e6,-c.ring[0].second/1e6);
-                for(size_t i=1;i<c.ring.size();++i)
-                    path.lineTo(c.ring[i].first/1e6,-c.ring[i].second/1e6);
-                path.closeSubpath();
-                item=scene_->addPath(path,QPen(color.darker(135),0),QBrush(color));
-            }
-            item->setZValue(-1); // Beneath trace/pad/POUROUT outlines.
-            item->setData(0,c.net=="-" ? QString() : c.net);
-            item->setData(2,QString("COPPER %1 / %2 filled SOURCE geometry / layer %3"
-                " / source line %4 / declared net %5 / vertices %6"
-                " / connectivity NOT_VERIFIED / fabricated copper NOT_VERIFIED / SI NOT_RUN")
-                .arg(c.name).arg(c.circle ? "COPCIR" : "COPCLS")
-                .arg(c.layer).arg(c.sourceLine).arg(c.net)
-                .arg(c.circle ? 0 : static_cast<int>(c.ring.size())));
-            item->setFlag(QGraphicsItem::ItemIsSelectable);
-            copper_.push_back({item,c});
-        }
         for(const auto &e:pourInput) {
             if(e.layer<1 || e.layer>layerCount || e.name.isEmpty() ||
                e.name.size()>16 || e.net.isEmpty() || e.net.size()>47 ||
@@ -965,6 +936,35 @@ public:
                                        QString("%1 deg").arg(pad.rotation)));
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             pads_.push_back({item, pad});
+        }
+        for(const auto &c:copperChecked) {
+            if(c.net!="-" && nets_->findText(c.net)<0) nets_->addItem(c.net);
+            const QColor color(c.layer==1 ? "#e6aa55" :
+                               c.layer==layerCount ? "#509fca" : "#8fb66f");
+            QGraphicsItem *item=nullptr;
+            if(c.circle) {
+                const qreal r=c.radius_nm/1e6;
+                item=scene_->addEllipse(QRectF((c.cx_nm-c.radius_nm)/1e6,
+                    (-c.cy_nm-c.radius_nm)/1e6,2*r,2*r),
+                    QPen(color.darker(135),0),QBrush(color));
+            }else{
+                QPainterPath path;
+                path.moveTo(c.ring[0].first/1e6,-c.ring[0].second/1e6);
+                for(size_t i=1;i<c.ring.size();++i)
+                    path.lineTo(c.ring[i].first/1e6,-c.ring[i].second/1e6);
+                path.closeSubpath();
+                item=scene_->addPath(path,QPen(color.darker(135),0),QBrush(color));
+            }
+            item->setZValue(-1); // Beneath trace/pad/POUROUT outlines.
+            item->setData(0,c.net=="-" ? QString() : c.net);
+            item->setData(2,QString("COPPER %1 / %2 filled SOURCE geometry / layer %3"
+                " / source line %4 / declared net %5 / vertices %6"
+                " / connectivity NOT_VERIFIED / fabricated copper NOT_VERIFIED / SI NOT_RUN")
+                .arg(c.name).arg(c.circle ? "COPCIR" : "COPCLS")
+                .arg(c.layer).arg(c.sourceLine).arg(c.net)
+                .arg(c.circle ? 0 : static_cast<int>(c.ring.size())));
+            item->setFlag(QGraphicsItem::ItemIsSelectable);
+            copper_.push_back({item,c});
         }
         for(const auto &e:pourInput) {
             if(e.net!="-" && nets_->findText(e.net)<0) nets_->addItem(e.net);
