@@ -658,6 +658,34 @@ public:
     int outlineCountForTest() const { return static_cast<int>(outlineEdges_.size()); }
     int circleCountForTest() const { return static_cast<int>(circles_.size()); }
     int boundaryCountForTest() const { return static_cast<int>(boundaries_.size()); }
+    bool boundaryFitBoundsForTest() const {
+        for(const auto &b:boundaries_) {
+            if(!bounds_.contains(world(b.x0_nm,b.y0_nm)) ||
+               !bounds_.contains(world(b.x1_nm,b.y1_nm))) return false;
+        }
+        return !boundaries_.empty();
+    }
+    bool dispatchBoundaryPickForTest(int index) {
+        if(!picked_ || width()<2 || height()<2 ||
+           index<0 || index>=static_cast<int>(boundaries_.size())) return false;
+        const auto &b=boundaries_[static_cast<size_t>(index)];
+        QPointF p=pixel(world(b.x0_nm,b.y0_nm));
+        if(b.isArc) {
+            const QPointF c=pixel(world(b.cx_nm,b.cy_nm));
+            const QPointF d=p-c;
+            const qreal angle=std::atan2(-d.y(),d.x())+
+                (b.clockwise?-1.0:1.0)*3.14159265358979323846/4.0;
+            const qreal radius=std::hypot(d.x(),d.y());
+            p=QPointF(c.x()+radius*std::cos(angle),
+                      c.y()-radius*std::sin(angle));
+        } else {
+            p=(p+pixel(world(b.x1_nm,b.y1_nm)))/2;
+        }
+        const bool ok=boundaryIndexAt(p)==index;
+        if(ok) picked_(6,index);
+        return ok;
+    }
+
     bool circleFitBoundsForTest() const {
         for (const auto &c:circles_) {
             const QPointF centre=world(c.cx_nm,c.cy_nm);
