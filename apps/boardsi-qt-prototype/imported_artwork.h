@@ -189,7 +189,7 @@ class ImportedArtworkPanel final : public QWidget {
             const auto &e=entry.second;
             const bool shown=e.layer>0 && e.layer<layerVisible_.size() &&
                 layerVisible_[e.layer] &&
-                (!netOnly || (e.net!="NET_NOT_DECLARED" && e.net==net));
+                (!netOnly || (e.net!="-" && e.net==net));
             entry.first->setVisible(shown);
             entry.first->setOpacity(net=="All nets" || net==e.net ? 1.0 : 0.12);
             if(shown) ++visiblePours;
@@ -818,10 +818,10 @@ public:
             pads_.push_back({item, pad});
         }
         for(const auto &e:pourInput) {
-            if(e.net!="NET_NOT_DECLARED" && nets_->findText(e.net)<0) nets_->addItem(e.net);
+            if(e.net!="-" && nets_->findText(e.net)<0) nets_->addItem(e.net);
             const QLineF line(e.x0_nm/1e6,-e.y0_nm/1e6,e.x1_nm/1e6,-e.y1_nm/1e6);
             auto *item=scene_->addLine(line,QPen(QColor("#8be1c6"),0,Qt::DashLine));
-            item->setData(0,e.net=="NET_NOT_DECLARED" ? QString() : e.net);
+            item->setData(0,e.net=="-" ? QString() : e.net);
             item->setData(2,QString("POUROUT %1 / unfilled boundary / layer %2"
                 " / source line %3 / segment %4 / start (%5, %6) mm"
                 " / end (%7, %8) mm / declared net %9 / flood NOT_VERIFIED / SI NOT_RUN")
