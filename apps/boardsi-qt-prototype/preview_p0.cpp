@@ -821,6 +821,17 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock; clock.start();
     bool passed=false, rhiChecked=false, rhiExact=false;
     QString failure;
+    // Real strict decoder must refuse truncated V7 trailers before indexing.
+    const QByteArray transportPrefix=
+        "BOARDSI_P2H_PARTIAL_V7|V9.4-MILS|1\\n"
+        "L|1|TOP\\n"
+        "C|OUTER|BOARD|0|0|2540\\n";
+    const bool malformedTransportRejected=
+        PreviewImportPanel::validTransportForTest(
+            transportPrefix+"END|0|0|0|0|1|0|1|CANONICAL_PARTIAL|SI_NOT_RUN\\n") &&
+        !PreviewImportPanel::validTransportForTest(
+            transportPrefix+"END|0|0|0|0\\n");
+    bool overflowCircleRejected=false;
     QEventLoop loop;
     if (!window.openCandidate(fixture)) {
         failure="A_017 fixture/importer unavailable";
@@ -858,6 +869,13 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
                              nearPoint(box.height(),2.54);
                 }
             }
+            ImportedCircle overflowCircle;
+            overflowCircle.name="BAD_OVERFLOW"; overflowCircle.radius_nm=9223372036854775680LL;
+            overflowCircle.cx_nm=9223372036854775680LL;
+            overflowCircle.cy_nm=9223372036854775680LL;
+            overflowCircleRejected=!panel->load(1,0,{}, {}, {}, {}, {},
+                                                {overflowCircle}) &&
+                                   panel->circleCount()==2;
             const bool counts=panel->circleCount()==2 && panel->outlineCount()==0 &&
                 panel->segmentCount()==0 && outer==1 && cut==1 &&
                 status.contains("2 circles") &&
@@ -884,6 +902,7 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
             }
 #endif
             passed=counts && outerExact && cutExact && independent &&
+                   malformedTransportRejected && overflowCircleRejected &&
                    (!rhiChecked || rhiExact);
             if(!passed) failure="A_017 circle geometry/count/RHI/pick mismatch";
             loop.quit();
@@ -899,6 +918,8 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
         {"native_backend",QGuiApplication::platformName()},
         {"host_arch",QSysInfo::currentCpuArchitecture()},
         {"rhi_source_checked",rhiChecked},{"rhi_circle_fit_and_pick",rhiExact},
+        {"v7_truncated_end_rejected",malformedTransportRejected},
+        {"v7_overflow_circle_rejected",overflowCircleRejected},
         {"scope","public synthetic V9.4 even-grid circular BOARD and BRDCIR; SI NOT_RUN"}
     };
     QFile receipt("qt-preview-p2h-circle-results.json");
