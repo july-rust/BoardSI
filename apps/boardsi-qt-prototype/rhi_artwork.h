@@ -295,10 +295,10 @@ protected:
                 const qreal a=2*pi*i/steps, b=2*pi*(i+1)/steps;
                 const QPointF p0(c.x()+r*std::cos(a),c.y()-r*std::sin(a));
                 const QPointF p1(c.x()+r*std::cos(b),c.y()-r*std::sin(b));
-                const QPointF d=p1-p0;
-                const qreal len=std::hypot(d.x(),d.y());
+                const QPointF chord=p1-p0;
+                const qreal len=std::hypot(chord.x(),chord.y());
                 if(len<=1e-9) continue;
-                const QPointF perp(-d.y()*0.85/len,d.x()*0.85/len);
+                const QPointF perp(-chord.y()*0.85/len,chord.x()*0.85/len);
                 triangle(v,p0+perp,p1+perp,p1-perp);
                 triangle(v,p0+perp,p1-perp,p0-perp);
             }
