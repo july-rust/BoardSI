@@ -403,6 +403,7 @@ public:
                 else if (kind == 4) selectArc(index);
                 else if (kind == 5) selectCircle(index);
                 else if (kind == 6) selectBoundary(index);
+                else if (kind == 7) selectOutline(index);
             });
         }
 #endif
@@ -852,6 +853,12 @@ public:
     int outlineCount() const { return static_cast<int>(outlineEdges_.size()); }
     int circleCount() const { return static_cast<int>(circles_.size()); }
     int boundaryCount() const { return static_cast<int>(boundaries_.size()); }
+    bool selectOutline(int index) {
+        if(index<0 || index>=static_cast<int>(outlineEdges_.size())) return false;
+        scene_->clearSelection();
+        outlineEdges_[static_cast<size_t>(index)].first->setSelected(true);
+        return true;
+    }
     void selectBoundary(int index) {
         if (index < 0 || index >= static_cast<int>(boundaries_.size())) return;
         scene_->clearSelection();
