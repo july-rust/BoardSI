@@ -252,6 +252,6 @@ mod tests {
         let square = [Segment::Line([15,10],[25,10]),Segment::Line([25,10],[25,20]),
                       Segment::Line([25,20],[15,20]),Segment::Line([15,20],[15,10])];
         assert!(strictly_contains(&ring,&square));
-        assert!(!overlap_or_contain(&ring,&square));
+        assert!(overlap_or_contain(&ring,&square));
     }
 }
