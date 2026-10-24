@@ -234,7 +234,7 @@ fn p2h_cli_emits_exact_analytical_circles_with_versioned_end() {
 }
 
 #[test]
-fn a018_mixed_line_arc_outline_remains_fail_closed_until_full_geometry_and_ipc() {
+fn a018_mixed_line_arc_outline_cli_emits_versioned_analytical_v8() {
     let bin = env!("CARGO_BIN_EXE_boardsi-import-artwork");
     let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/pads_board_mixed_quarter_arc_v94.asc");
@@ -242,12 +242,12 @@ fn a018_mixed_line_arc_outline_remains_fail_closed_until_full_geometry_and_ipc()
         .arg(source)
         .output()
         .expect("restricted PADS artwork importer must start");
-    // PADS arc source is now independently preflighted but not promoted to
-    // incomplete board geometry or a misleading V7 straight-edge transport.
-    assert_eq!(output.status.code(), Some(3));
-    assert!(output.stdout.is_empty());
-    assert_eq!(
-        String::from_utf8_lossy(&output.stderr).trim(),
-        "P2A_IMPORT_ERROR:UNSUPPORTED_OUTLINE_ARC_OR_POINT"
-    );
+    assert!(output.status.success(),
+        "mixed arc Import: {:?}", String::from_utf8_lossy(&output.stderr));
+    let wire=String::from_utf8(output.stdout).unwrap();
+    assert!(wire.starts_with("BOARDSI_P2I_PARTIAL_V8|V9.4-MILS|4\\n"));
+    assert_eq!(wire.lines().filter(|line| line.starts_with("B|")).count(),8);
+    assert_eq!(wire.lines().filter(|line| line.starts_with("B|OUTER|MAIN_MIX|") && line.contains("|A|")).count(),4);
+    assert!(wire.contains("B|OUTER|MAIN_MIX|1|A|10160000|5080000|10160000|7620000|12700000|7620000|CCW"));
+    assert!(wire.ends_with("END|0|0|0|0|1|0|0|4|CANONICAL_PARTIAL|SI_NOT_RUN\\n"));
 }
