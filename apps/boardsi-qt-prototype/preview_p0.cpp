@@ -1717,7 +1717,7 @@ static int runRhiGeometrySmoke() {
         {"rhi_frame_observed",frame},
         {"post_load_frame_verified",postLoadFrameVerified},
         {"cpu_fallback_confirmed",fallbackConfirmed},
-        {"d3d11_adapter_proof",backend.contains("DIRECT3D11") ? adapterProof : 0},
+        {"d3d11_adapter_proof",(backend.contains("DIRECT3D11") || backend.contains("D3D11")) ? adapterProof : 0},
         {"metal_device_proof",backend.contains("METAL") ? adapterProof : 0},
         {"hardware_adapter",adapterProof==1 ?
             (backend.contains("METAL") ? "METAL_MTLDEVICE_CONFIRMED" :
