@@ -50,6 +50,16 @@ struct ImportedOutlineEdge {
     qint64 x0_nm = 0, y0_nm = 0, x1_nm = 0, y1_nm = 0;
 };
 
+struct ImportedBoundarySegment {
+    QString name;
+    bool cutout = false;
+    bool isArc = false;
+    bool clockwise = false;
+    int sequence = 0;
+    qint64 x0_nm = 0, y0_nm = 0, cx_nm = 0, cy_nm = 0;
+    qint64 x1_nm = 0, y1_nm = 0;
+};
+
 struct ImportedPad {
     QString reference, pin, shape;
     int layer = 0;
