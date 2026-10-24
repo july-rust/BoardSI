@@ -360,6 +360,15 @@ jobs:
           QSG_RHI_PREFER_SOFTWARE_RENDERER=1 BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --bottom-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_bottom_mirror_v94.asc"
           python -c 'import json; r=json.load(open("qt-preview-p2e-bottom-results.json")); assert r["pass"] and r["software_rhi_cpu_fallback"] and not r["rhi_first_frame_confirmed"], r'
           cp qt-preview-p2e-bottom-results.json qt-preview-a014-software-fallback-results.json
+      - name: A_019 bounded RHI synthetic model scale and subpixel mesh gate
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --rhi-scale-selftest
+          cat qt-preview-a019-rhi-scale-results.json
+          python -c 'import json; r=json.load(open("qt-preview-a019-rhi-scale-results.json")); assert r["pass"] and [s["objects"] for s in r["samples"]] == [10000,100000,1000000] and r["rendered_frames"]=="NOT_RUN" and r["gpu_fps"]=="NOT_MEASURED" and all(s["pass"] for s in r["samples"]), r'
       - name: Run A_014 native Qt Quick / RHI geometry and first-frame smoke
         shell: bash
         run: |
@@ -382,6 +391,7 @@ jobs:
             build-qt/qt-preview-p2h-circle-results.json
             build-qt/qt-preview-renderer-results.json
             build-qt/qt-preview-a014-rhi-results.json
+            build-qt/qt-preview-a019-rhi-scale-results.json
             build-qt/qt-preview-a014-software-fallback-results.json
             build-qt/qt-preview-p2c-pad-results.json
             build-qt/qt-preview-native-direct.json

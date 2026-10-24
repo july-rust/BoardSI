@@ -18,6 +18,8 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QJsonDocument>
+#include <QJsonArray>
+#include <QElapsedTimer>
 #include <QMainWindow>
 #include <QPlainTextEdit>
 #include <QSplitter>
@@ -1518,6 +1520,88 @@ static int runViaSmoke(PreviewWindow &window, const QString &fixture) {
 
 // A_014 stand-alone native Qt Quick exercise. This runs no Rust Worker or
 // physical SI. Hardware ownership is explicitly NOT certified by a RHI frame.
+// A_019 P2-J bounded source-model scale probe. This intentionally does NOT
+// measure GPU FPS, VRAM, actual frame latency, or shipped-board throughput.
+// Heavy CI runners can validate 10k/100k/1M synthetic source primitives without
+// needing a physical GPU, while the native RHI smoke remains a separate gate.
+static int runRhiScaleSmoke() {
+    QJsonArray samples;
+    bool pass = true;
+    QString failure;
+#ifdef BOARDSI_RHI_ARTWORK
+    constexpr qint64 base = 90000000000LL;
+    BoardSiRhiItem item;
+    item.setWidth(800);
+    item.setHeight(500);
+    for (const int count : {10000, 100000, 1000000}) {
+        std::vector<ImportedTrack> tracks;
+        tracks.reserve(static_cast<size_t>(count));
+        for (int i=0;i<count;++i) {
+            ImportedTrack t;
+            t.layer=1;
+            t.net="SYNTHETIC";
+            t.x0_nm=base+static_cast<qint64>(i%1000)*100000;
+            t.y0_nm=base+static_cast<qint64>(i/1000)*100000;
+            t.x1_nm=t.x0_nm+25000;
+            t.y1_nm=t.y0_nm;
+            t.width_nm=10000;
+            tracks.push_back(t);
+        }
+        QElapsedTimer clock;
+        clock.start();
+        item.load(4,tracks,{},{});
+        const qint64 loadMs=clock.elapsed();
+        const QPointF a=item.localPoint(base,base);
+        const QPointF b=item.localPoint(base+25000,base+50000);
+        const bool exact = std::abs((b.x()-a.x())-0.025)<1e-9 &&
+                           std::abs((b.y()-a.y())+0.050)<1e-9;
+        const qreal projected = item.projectedHalfWidthForTest(10000);
+        const int vertices = item.lineVertexCountForTest(projected);
+        const bool mesh = item.lineVertexCountForTest(0.25)==6 &&
+                          item.lineVertexCountForTest(1.0)==78 &&
+                          (projected<=0.5 ? vertices==6 : vertices==78);
+        // Regression: physical display resolution, not logical Qt pixels,
+        // determines whether an otherwise subpixel cap may be omitted.
+        const bool highDpi = item.lineVertexCountForTest(0.25,2.0)==6 &&
+                             item.lineVertexCountForTest(0.26,2.0)==78 &&
+                             item.lineVertexCountForTest(0.5,2.0)==78;
+        const bool casePass=item.primitiveCount()==count && exact && mesh && highDpi &&
+                            std::isfinite(projected) && projected>0;
+        if(!casePass) {
+            pass=false;
+            failure=QString("A_019 scale source/mesh check failed at %1 objects").arg(count);
+        }
+        samples.append(QJsonObject{
+            {"objects",count}, {"source_model_load_ms",loadMs},
+            {"exact_local_coordinate",exact},
+            {"screen_half_width_px",projected},
+            {"nondegenerate_line_vertices",vertices},
+            {"baseline_line_vertices",78},
+            {"high_dpi_physical_cap_gate",highDpi},
+            {"pass",casePass}
+        });
+    }
+#else
+    pass=false;
+    failure="Qt Quick module not available; scale probe NOT_RUN";
+#endif
+    QJsonObject result{
+        {"schema","boardsi-a019-rhi-model-scale-v1"},
+        {"pass",pass},{"samples",samples},
+        {"scope","Offline synthetic RHI model ingestion and screen-space vertex policy ONLY"},
+        {"rendered_frames","NOT_RUN"}, {"gpu_fps","NOT_MEASURED"},
+        {"gpu_adapter","NOT_VERIFIED"}, {"peak_rss","NOT_MEASURED"},
+        {"gpu_vram","NOT_MEASURED"}, {"pick_latency_p95","NOT_MEASURED"},
+        {"failure",failure}, {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"host_arch",QSysInfo::currentCpuArchitecture()}
+    };
+    QFile output("qt-preview-a019-rhi-scale-results.json");
+    if(!output.open(QIODevice::WriteOnly) ||
+       output.write(QJsonDocument(result).toJson(QJsonDocument::Indented))<1) return 2;
+    qInfo().noquote() << QJsonDocument(result).toJson(QJsonDocument::Compact);
+    return pass?0:1;
+}
+
 static int runRhiGeometrySmoke() {
     QElapsedTimer clock;
     clock.start();
@@ -1653,6 +1737,8 @@ int main(int argc, char **argv) {
     const QStringList args = app.arguments();
     if (args.size() == 2 && args.at(1) == "--rhi-geometry-selftest")
         return runRhiGeometrySmoke();
+    if (args.size() == 2 && args.at(1) == "--rhi-scale-selftest")
+        return runRhiScaleSmoke();
     const bool rendererTesting = args.size() == 5 && args.at(1) == "--renderer-selftest";
     const bool viaTesting = args.size() == 7 && args.at(1) == "--via-selftest";
     const bool padTesting = args.size() == 7 && args.at(1) == "--pad-selftest";
