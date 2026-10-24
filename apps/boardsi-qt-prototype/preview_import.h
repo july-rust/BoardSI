@@ -78,7 +78,7 @@ class PreviewImportPanel final : public QWidget {
         const bool p2c = header.size() == 3 &&
                          header[0] == "BOARDSI_P2C_PARTIAL_V2";
         if (header.size() != 3 ||
-            (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h && !p2i && !p2i &&
+            (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h && !p2i &&
              header[0] != "BOARDSI_P2A_PARTIAL_V1") ||
             header[1] != "V9.4-MILS") return false;
         layers = header[2].toInt(&ok);
@@ -244,7 +244,7 @@ class PreviewImportPanel final : public QWidget {
                        layerRecords == layers &&
                        (((p2c || p2d || p2e || p2f || p2g || p2h || p2i) &&
                          parts.size() == (p2i ? 11 : (p2h ? 10 : (p2g ? 9 : (p2f ? 7 : 6))))) ||
-                        (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h &&
+                        (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h && !p2i &&
                          parts.size() == 5))) {
                 const int count = parts[1].toInt(&ok);
                 if (!ok || count != static_cast<int>(tracks.size())) return false;
