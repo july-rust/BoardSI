@@ -25,6 +25,7 @@
 #include <cmath>
 #include <functional>
 #include <map>
+#include <unordered_map>
 #include <atomic>
 #include <memory>
 #ifdef Q_OS_MACOS
@@ -134,6 +135,80 @@ class BoardSiRhiItem final : public QQuickItem {
     std::atomic<quint64> modelGeneration_{0};
     std::atomic<quint64> lastSyncedGeneration_{0};
     std::function<void(int,int)> picked_;
+    // Coarse source-nm bins, not rasterized polygons; long routes are indexed
+    // separately so that an unusually long trace cannot explode the index.
+    std::unordered_map<quint64,std::vector<int>> trackBins_;
+    std::vector<int> spanningTracks_;
+    qint64 trackBinNm_ = 1;
+    static qint64 floorBin(qint64 value,qint64 step) {
+        return value>=0 ? value/step : -((-value+step-1)/step);
+    }
+    static quint64 binKey(qint64 x,qint64 y) {
+        return (static_cast<quint64>(x)<<32) | static_cast<quint32>(y);
+    }
+    void rebuildTrackBins() {
+        trackBins_.clear(); spanningTracks_.clear();
+        trackBinNm_=std::max<qint64>(1,static_cast<qint64>(
+            std::ceil(std::max(bounds_.width(),bounds_.height())*1e6/128.0)));
+        for(size_t i=0;i<tracks_.size();++i) {
+            const auto &t=tracks_[i];
+            const qint64 r=(t.width_nm+1)/2;
+            const qint64 x0=floorBin(std::min(t.x0_nm,t.x1_nm)-r-originX_,trackBinNm_);
+            const qint64 x1=floorBin(std::max(t.x0_nm,t.x1_nm)+r-originX_,trackBinNm_);
+            const qint64 y0=floorBin(std::min(t.y0_nm,t.y1_nm)-r-originY_,trackBinNm_);
+            const qint64 y1=floorBin(std::max(t.y0_nm,t.y1_nm)+r-originY_,trackBinNm_);
+            if(x1-x0>15 || y1-y0>15 || (x1-x0+1)*(y1-y0+1)>256) {
+                spanningTracks_.push_back(static_cast<int>(i)); continue;
+            }
+            for(qint64 x=x0;x<=x1;++x)
+                for(qint64 y=y0;y<=y1;++y)
+                    trackBins_[binKey(x,y)].push_back(static_cast<int>(i));
+        }
+    }
+    int trackIndexAt(const QPointF &pos) const {
+        if(tracks_.empty()) return -1;
+        const qreal scale=scaleFactor();
+        if(!(scale>0) || !std::isfinite(scale)) return -1;
+        const qreal mmX=(pos.x()-width()/2-pan_.x())/scale+bounds_.center().x();
+        const qreal mmY=(pos.y()-height()/2-pan_.y())/scale+bounds_.center().y();
+        const qint64 nx=originX_+static_cast<qint64>(std::llround(mmX*1e6));
+        const qint64 ny=originY_-static_cast<qint64>(std::llround(mmY*1e6));
+        const qint64 tolerance=static_cast<qint64>(std::ceil(3e6/scale))+1;
+        const qint64 x0=floorBin(nx-tolerance-originX_,trackBinNm_);
+        const qint64 x1=floorBin(nx+tolerance-originX_,trackBinNm_);
+        const qint64 y0=floorBin(ny-tolerance-originY_,trackBinNm_);
+        const qint64 y1=floorBin(ny+tolerance-originY_,trackBinNm_);
+        std::vector<int> candidates(spanningTracks_);
+        if(x1-x0>256 || y1-y0>256 || (x1-x0+1)*(y1-y0+1)>512) {
+            candidates.clear(); candidates.reserve(tracks_.size());
+            for(size_t i=0;i<tracks_.size();++i)
+                candidates.push_back(static_cast<int>(i));
+        } else {
+            for(qint64 x=x0;x<=x1;++x)
+                for(qint64 y=y0;y<=y1;++y) {
+                    const auto it=trackBins_.find(binKey(x,y));
+                    if(it!=trackBins_.end())
+                        candidates.insert(candidates.end(),it->second.begin(),it->second.end());
+                }
+        }
+        std::sort(candidates.begin(),candidates.end(),std::greater<int>());
+        candidates.erase(std::unique(candidates.begin(),candidates.end()),candidates.end());
+        for(const int index:candidates) {
+            const auto &t=tracks_[static_cast<size_t>(index)];
+            if(!visible(t.layer)) continue;
+            const QPointF a=pixel(world(t.x0_nm,t.y0_nm));
+            const QPointF b=pixel(world(t.x1_nm,t.y1_nm));
+            const QPointF v=b-a,delta=pos-a;
+            const qreal len2=v.x()*v.x()+v.y()*v.y();
+            const qreal u=len2>0 ? std::clamp(
+                (delta.x()*v.x()+delta.y()*v.y())/len2,0.0,1.0) : 0.0;
+            const QPointF nearest=a+v*u;
+            if(std::hypot(pos.x()-nearest.x(),pos.y()-nearest.y()) <=
+               std::max<qreal>(3.0,t.width_nm/2e6*scale+2))
+                return index;
+        }
+        return -1;
+    }
 
     QPointF world(qint64 x, qint64 y) const {
         // Subtract before converting to floating point: prevents GPU precision
@@ -566,23 +641,9 @@ protected:
             if(boundaryIndex>=0) {
                 picked_(6,boundaryIndex);event->accept();return;
             }
-            // Existing QGraphicsScene supports straight copper selection by
-            // net and provenance. Mirror that behavior in the RHI viewport.
-            for (size_t i=tracks_.size();i>0;--i) {
-                const auto &t=tracks_[i-1];
-                if (!visible(t.layer)) continue;
-                const QPointF a=pixel(world(t.x0_nm,t.y0_nm));
-                const QPointF b=pixel(world(t.x1_nm,t.y1_nm));
-                const QPointF v=b-a, m=event->position()-a;
-                const qreal length2=v.x()*v.x()+v.y()*v.y();
-                const qreal u=length2>0 ?
-                    std::clamp((m.x()*v.x()+m.y()*v.y())/length2,0.0,1.0) : 0.0;
-                const QPointF nearest=a+v*u;
-                if(std::hypot(event->position().x()-nearest.x(),
-                              event->position().y()-nearest.y()) <=
-                              std::max<qreal>(3.0,t.width_nm/2e6*scaleFactor()+2)) {
-                    picked_(3,static_cast<int>(i-1));event->accept();return;
-                }
+            const int pickedTrack=trackIndexAt(event->position());
+            if(pickedTrack>=0) {
+                picked_(3,pickedTrack);event->accept();return;
             }
         }
         event->accept();
@@ -672,6 +733,7 @@ public:
             add(world(b.x1_nm,b.y1_nm),0.000001);
         }
         bounds_=rect.adjusted(-1,-1,1,1);
+        rebuildTrackBins();
         pan_=QPointF();zoom_=1.0;
         modelGeneration_.fetch_add(1,std::memory_order_release);
         update();
@@ -837,6 +899,10 @@ public:
     QPointF screenPointForTest(qint64 x,qint64 y) const {
         return pixel(world(x,y));
     }
+    int trackAtForTest(QPointF screen) const {return trackIndexAt(screen);}
+    size_t indexBucketsForTest() const {return trackBins_.size();}
+    size_t spanningTracksForTest() const {return spanningTracks_.size();}
+    void panByForTest(QPointF delta) {pan_+=delta;update();}
 };
 
 class BoardSiRhiView final : public QWidget {
