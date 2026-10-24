@@ -942,6 +942,9 @@ static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
     const bool truncatedV8Rejected=
         !PreviewImportPanel::validTransportForTest(malformed);
     bool passed=false,rhiChecked=false,rhiOk=false;
+    bool pathOk=true, sourceCountOk=false, statusOk=false, propertiesOk=false,
+         visibilityOk=false, scenePresent=false;
+    int observedArcs=0,observedLines=0;
     QString failure;
     QEventLoop loop;
     if(!window.openCandidate(fixture)) {
@@ -973,10 +976,13 @@ static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
                     }
                 }
             }
-            const bool counts=scene && panel->boundaryCount()==16 && arcs==8 &&
-                lines==8 && coordinatesOk &&
-                status.contains("16 mixed boundary parts") &&
-                window.displayedProperties().contains("mixed segments: 16");
+            observedArcs=arcs;observedLines=lines;pathOk=coordinatesOk;
+            scenePresent=scene!=nullptr;
+            sourceCountOk=panel->boundaryCount()==16;
+            statusOk=status.contains("16 mixed boundary parts");
+            propertiesOk=window.displayedProperties().contains("mixed segments: 16");
+            const bool counts=scenePresent && sourceCountOk && arcs==8 &&
+                lines==8 && pathOk && statusOk && propertiesOk;
             auto *toggle=window.findChild<QPushButton *>("importedLayerToggle");
             bool mechanicalVisible=toggle!=nullptr;
             if(toggle && scene) {
@@ -988,6 +994,7 @@ static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
                 }
                 toggle->click();
             }
+            visibilityOk=mechanicalVisible;
 #ifdef BOARDSI_RHI_ARTWORK
             if(auto *rhi=panel->rhiViewForTest();
                rhi && panel->rhiCanvasActiveForTest()) {
@@ -1015,6 +1022,10 @@ static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
         {"host_arch",QSysInfo::currentCpuArchitecture()},
         {"native_backend",QGuiApplication::platformName()},
         {"rhi_checked",rhiChecked},{"rhi_fit_pick",rhiOk},
+        {"source_count_ok",sourceCountOk},{"status_ok",statusOk},
+        {"properties_ok",propertiesOk},{"scene_present",scenePresent},
+        {"cpu_path_ok",pathOk},{"mechanical_visible",visibilityOk},
+        {"cpu_arc_count",observedArcs},{"cpu_line_count",observedLines},
         {"truncated_v8_rejected",truncatedV8Rejected},
         {"scope","PADS V9.4 mixed quarter-arc BOARD and BRDCLS cutout; SI NOT_RUN"}
     };
