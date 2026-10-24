@@ -9,6 +9,7 @@
 #include "preview_import.h"
 #include "a019_gpu_benchmark.h"
 #include "a019_interaction_validation.h"
+#include "a020_explorer_validation.h"
 
 #include <QAction>
 #include <QCloseEvent>
@@ -111,13 +112,13 @@ class PreviewWindow : public QMainWindow {
             "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
-            "DEVELOPER PREVIEW P2-G - PARTIAL Import / NOT PCB SI\n\n"
+            "DEVELOPER PREVIEW P2-K - PARTIAL Import / NOT PCB SI\n\n"
             "Worker: independent Rust process\n" + status + "\n" +
             ipc->resultLabel()->text() +
             (error.isEmpty() ? QString() : "\nERROR: " + error) +
             "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n" +
             (importResultStatus.startsWith("PARTIAL") ?
-                "Imported PCB: PARTIAL accepted straight/arc routes, through vias, restricted SMD pads and straight board outline/cutout; other geometry/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
+                "Imported PCB: PARTIAL accepted straight/arc routes, through vias, restricted SMD pads and restricted straight/arc/circular board artwork; other geometry/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
                 "Synthetic fixture only; no real PCB imported or physical SI analysis performed."));
         if (status != previousStatus) {
             log->appendPlainText("Worker: " + status);
@@ -139,7 +140,7 @@ public:
     PreviewWindow(const QString &workerPath, const QString &firstFrame = QString(),
                   const QString &secondFrame = QString(), const QString &importBinary = QString()) {
         setObjectName("boardsiPreviewP0");
-        setWindowTitle("BoardSI Developer Preview P2-G - PARTIAL IMPORT / NOT PCB SI");
+        setWindowTitle("BoardSI Developer Preview P2-K - PARTIAL IMPORT / NOT PCB SI");
         auto *bar = addToolBar("Preview controls");
         bar->setMovable(false);
         openAction = bar->addAction("Open PCB");
@@ -156,7 +157,7 @@ public:
         auto *root = new QWidget(this);
         auto *vertical = new QVBoxLayout(root);
         auto *header = new QLabel(
-            "BoardSI PREVIEW P2-G | Synthetic Demo / Imported Partial | NOT PCB SI | Developer build",
+            "BoardSI PREVIEW P2-K | Layer/Net Explorer / Imported Partial | NOT PCB SI | Developer build",
             root);
         header->setStyleSheet("font-weight: bold; padding: 8px; background: #2b3441; color: #ffffff;");
         vertical->addWidget(header);
@@ -166,8 +167,8 @@ public:
         tree->setHeaderLabel("Project / Workflow");
         tree->setMinimumWidth(185);
         auto *project = new QTreeWidgetItem(tree, {"Project"});
-        for (const auto &name : {"PCB - select file (P2-A partial)", "Substrate - UNSUPPORTED",
-                                 "Synthetic Layers - UI ONLY", "Synthetic Nets - UI ONLY"})
+        for (const auto &name : {"PCB - PADS V9.4 partial", "Substrate - UNSUPPORTED",
+                                 "Imported Layers - PARTIAL", "Imported Nets - DECLARED ONLY"})
             new QTreeWidgetItem(project, {QString::fromLatin1(name)});
         auto *workflow = new QTreeWidgetItem(tree, {"Workflow"});
         for (const auto &name : {"Select PCB file", "Import - PADS V9.4-MILS partial",
@@ -1741,6 +1742,8 @@ static int runRhiGeometrySmoke() {
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if (args.size() == 2 && args.at(1) == "--explorer-selftest")
+        return runA020ExplorerSmoke();
     if (args.size() == 2 && args.at(1) == "--rhi-geometry-selftest")
         return runRhiGeometrySmoke();
     if (args.size() == 2 && args.at(1) == "--rhi-scale-selftest")
