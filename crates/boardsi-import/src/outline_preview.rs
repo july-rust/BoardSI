@@ -531,12 +531,12 @@ mod tests {
     fn circular_outer_and_circle_cutout_use_exact_analytical_arcs() {
         let source = INPUT
             .replace(
-                "CLOSED 5 1 0 0\\n0 0\\n400 0\\n400 300\\n0 300\\n0 0",
-                "CIRCLE 2 1 0 0\\n0 0\\n400 0",
+                "CLOSED 5 1 0 0\n0 0\n400 0\n400 300\n0 300\n0 0",
+                "CIRCLE 2 1 0 0\n0 0\n400 0",
             )
             .replace(
-                "BRDCLS 5 1 0 0\\n100 100\\n200 100\\n200 200\\n100 200\\n100 100",
-                "BRDCIR 2 1 0 0\\n150 0\\n250 0",
+                "BRDCLS 5 1 0 0\n100 100\n200 100\n200 200\n100 200\n100 100",
+                "BRDCIR 2 1 0 0\n150 0\n250 0",
             );
         let shapes = parse(source.as_bytes()).unwrap();
         assert_eq!(
@@ -572,8 +572,8 @@ mod tests {
             ("0 0", "0 0", "UNSUPPORTED_CIRCLE_DIAMETER"),
         ] {
             let source = INPUT.replace(
-                "CLOSED 5 1 0 0\\n0 0\\n400 0\\n400 300\\n0 300\\n0 0",
-                &format!("CIRCLE 2 1 0 0\\n{a}\\n{b}"),
+                "CLOSED 5 1 0 0\n0 0\n400 0\n400 300\n0 300\n0 0",
+                &format!("CIRCLE 2 1 0 0\n{a}\n{b}"),
             );
             assert_eq!(parse(source.as_bytes()).unwrap_err(), code);
         }
@@ -581,8 +581,8 @@ mod tests {
     #[test]
     fn circle_cutout_tangency_and_overlap_fail_closed() {
         let source = INPUT.replace(
-            "BRDCLS 5 1 0 0\\n100 100\\n200 100\\n200 200\\n100 200\\n100 100",
-            "BRDCIR 2 1 0 0\\n100 0\\n200 0",
+            "BRDCLS 5 1 0 0\n100 100\n200 100\n200 200\n100 200\n100 100",
+            "BRDCIR 2 1 0 0\n100 0\n200 0",
         );
         // Circle centre x=150, y=0, radius=50 touches bottom edge of
         // outer polygon (y=0): forbidden strict containment.
@@ -591,8 +591,8 @@ mod tests {
             "CUTOUT_NOT_CONTAINED"
         );
         let source = INPUT.replace(
-            "BRDCLS 5 1 0 0\\n100 100\\n200 100\\n200 200\\n100 200\\n100 100",
-            "BRDCIR 2 1 0 0\\n100 150\\n200 150\\nHOLE2 BOARD 100 200 1 0\\nBRDCIR 2 1 0 0\\n190 150\\n290 150",
+            "BRDCLS 5 1 0 0\n100 100\n200 100\n200 200\n100 200\n100 100",
+            "BRDCIR 2 1 0 0\n100 150\n200 150\nHOLE2 BOARD 100 200 1 0\nBRDCIR 2 1 0 0\n190 150\n290 150",
         );
         assert_eq!(parse(source.as_bytes()).unwrap_err(), "CUTOUT_OVERLAP");
     }
