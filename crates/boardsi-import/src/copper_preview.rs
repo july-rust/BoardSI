@@ -235,11 +235,11 @@ pub fn augment(
                 vec![[x + r, y], [x, y + r], [x - r, y], [x, y - r], [x + r, y]]
             }
         };
-        let segments = match a.geometry {
+        let segments = match &a.geometry {
             CopperGeometry::Circle { centre, .. } => vertices
                 .windows(2)
                 .map(|pair| BoundarySegment::Arc {
-                    centre: point(centre),
+                    centre: point(*centre),
                     start: point(pair[0]),
                     end: point(pair[1]),
                     clockwise: false,
