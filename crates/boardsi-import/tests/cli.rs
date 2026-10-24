@@ -213,20 +213,22 @@ fn p2g_cli_refuses_lines_get_instead_of_silently_losing_board_boundary() {
     );
 }
 
-
 #[test]
 fn p2h_cli_emits_exact_analytical_circles_with_versioned_end() {
     let bin = env!("CARGO_BIN_EXE_boardsi-import-artwork");
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/pads_board_circle_cutout_v94.asc");
     let output = Command::new(bin).arg(fixture).output().expect("P2H CLI");
-    assert!(output.status.success(),
-        "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let msg = String::from_utf8(output.stdout).unwrap();
     assert!(msg.starts_with("BOARDSI_P2H_PARTIAL_V7|V9.4-MILS|4\n"));
     assert!(msg.contains("C|OUTER|MAIN_CIRCLE|7620000|5080000|5080000\n"));
     assert!(msg.contains("C|CUT|INNER_CIRCLE|7620000|5080000|1270000\n"));
-    assert_eq!(msg.lines().filter(|s| s.starts_with("C|")).count(),2);
-    assert_eq!(msg.lines().filter(|s| s.starts_with("O|")).count(),0);
+    assert_eq!(msg.lines().filter(|s| s.starts_with("C|")).count(), 2);
+    assert_eq!(msg.lines().filter(|s| s.starts_with("O|")).count(), 0);
     assert!(msg.ends_with("END|0|0|0|0|1|1|2|CANONICAL_PARTIAL|SI_NOT_RUN\n"));
 }
