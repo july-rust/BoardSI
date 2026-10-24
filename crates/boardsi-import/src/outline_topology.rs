@@ -102,10 +102,11 @@ fn arc_line_touch(arc: CardinalArcCorner, a: [i64; 2], b: [i64; 2],
     if norm == 0 { return left == 0 && !point_is_shared(lower); }
     let tmin = Rat::new(-(x * vx + y * vy), norm);
     let min_inside = tmin.gt(lower) && tmin.lt(upper);
-    let min_negative = min_inside && f(tmin) < 0;
+    let fmin = (x * x + y * y - r * r) * norm - (x * vx + y * vy) * (x * vx + y * vy);
+    let min_negative = min_inside && fmin < 0;
     if left > 0 && right > 0 {
         if min_negative { return true; }
-        return min_inside && f(tmin) == 0 && !point_is_shared(tmin);
+        return min_inside && fmin == 0 && !point_is_shared(tmin);
     }
     if left == 0 && right == 0 { return true; }
     if left == 0 && right > 0 { return min_negative || !point_is_shared(lower); }
