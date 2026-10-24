@@ -933,12 +933,12 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
 static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock; clock.start();
     const QByteArray malformed=
-        "BOARDSI_P2I_PARTIAL_V8|V9.4-MILS|1\\n"
-        "L|1|TOP\\n"
-        "B|OUTER|TEST|0|L|0|0|2540|0\\n"
-        "B|OUTER|TEST|1|L|2540|0|2540|2540\\n"
-        "B|OUTER|TEST|2|L|2540|2540|0|0\\n"
-        "END|0|0|0|0\\n";
+        "BOARDSI_P2I_PARTIAL_V8|V9.4-MILS|1\n"
+        "L|1|TOP\n"
+        "B|OUTER|TEST|0|L|0|0|2540|0\n"
+        "B|OUTER|TEST|1|L|2540|0|2540|2540\n"
+        "B|OUTER|TEST|2|L|2540|2540|0|0\n"
+        "END|0|0|0|0\n";
     const bool truncatedV8Rejected=
         !PreviewImportPanel::validTransportForTest(malformed);
     bool passed=false,rhiChecked=false,rhiOk=false;
