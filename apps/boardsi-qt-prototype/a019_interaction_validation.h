@@ -12,6 +12,7 @@
 #include <cmath>
 #include <vector>
 
+#ifdef BOARDSI_RHI_ARTWORK
 static qint64 a019Percentile(std::vector<qint64> values,int numerator) {
     if(values.empty()) return -1;
     std::sort(values.begin(),values.end());
@@ -52,6 +53,7 @@ static qint64 a019RenderActionToSwap(BoardSiRhiView &view,
     QObject::disconnect(connection);
     return latencyNs<0 ? -1 : (latencyNs+500000)/1000000;
 }
+#endif // BOARDSI_RHI_ARTWORK
 
 static int runA019NativeInteractionValidation() {
     QJsonArray records;
