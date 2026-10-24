@@ -465,7 +465,10 @@ protected:
         // Batch by color: O(number of color groups) scene graph nodes, not one
         // QPainter/QGraphicsItem draw call per CAD primitive.
         std::map<QRgb,Vertices> groups;
-        std::map<QRgb,Vertices> copperGroups;
+        // Preserve the source stacking order of overlapping copper fills.
+        // Merge adjacent same-color areas only; never reorder by RGB key.
+        // Bounded by at most 64 explicit source copper areas.
+        std::vector<std::pair<QRgb,Vertices>> copperGroups;
         Vertices holes;
         const qreal px = scaleFactor();
         // Scene Graph sync is on the render thread. The window DPR is used
@@ -497,7 +500,9 @@ protected:
                               c.layer==layers_ ? "#509fca" : "#8fb66f");
             QColor color(base);
             if(net_!="All nets" && net_!=c.net) color.setAlpha(40);
-            auto &v=copperGroups[color.rgba()];
+            if(copperGroups.empty() || copperGroups.back().first!=color.rgba())
+                copperGroups.emplace_back(color.rgba(),Vertices{});
+            auto &v=copperGroups.back().second;
             if(c.circle) {
                 const auto center=pixel(world(c.cx_nm,c.cy_nm));
                 const qreal radius=c.radius_nm/1e6*px;
@@ -679,7 +684,7 @@ protected:
             disk(groups[color.rgba()],c,outer);
             disk(holes,c,via.drill_nm / 2e6 * px);
         }
-        // Filled copper batches precede line/route layers in the scene
+        // Source-order-preserving filled copper batches precede line/route layers in the scene
         // graph's child order, matching CPU artwork Z=-1.
         for(auto &entry:copperGroups) {
             if(entry.second.empty() ||
