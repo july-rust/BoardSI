@@ -1641,7 +1641,7 @@ int main(int argc, char **argv) {
     const bool mixedTesting = args.size() == 7 && args.at(1) == "--mixed-outline-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
                          rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting ||
-                         arcTesting || outlineTesting || circleTesting;
+                         arcTesting || outlineTesting || circleTesting || mixedTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
