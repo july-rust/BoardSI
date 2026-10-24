@@ -7,6 +7,7 @@
 #include "model_v2.cpp"
 #include "synthetic_artwork.h"
 #include "preview_import.h"
+#include "a019_gpu_benchmark.h"
 
 #include <QAction>
 #include <QCloseEvent>
@@ -1739,6 +1740,8 @@ int main(int argc, char **argv) {
         return runRhiGeometrySmoke();
     if (args.size() == 2 && args.at(1) == "--rhi-scale-selftest")
         return runRhiScaleSmoke();
+    if (args.size() == 2 && args.at(1) == "--rhi-native-benchmark")
+        return runA019NativeRhiBenchmark();
     const bool rendererTesting = args.size() == 5 && args.at(1) == "--renderer-selftest";
     const bool viaTesting = args.size() == 7 && args.at(1) == "--via-selftest";
     const bool padTesting = args.size() == 7 && args.at(1) == "--pad-selftest";
