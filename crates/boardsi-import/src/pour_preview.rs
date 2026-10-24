@@ -206,6 +206,16 @@ mod tests {
     }
 
     #[test]
+    fn pour_only_board_passes_artwork_presence_without_inventing_route() {
+        const POUR_ONLY: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 2\n*POUR*\nPLANE1 POUROUT 100 200 1 0 PLANE1 GND\nPOLY 5 0 0.01 2\n0 0\n10 0\n10 20\n0 20\n0 0\n*END*\n";
+        let parsed = crate::route_preview::parse(POUR_ONLY.as_bytes()).unwrap();
+        assert!(parsed.segments.is_empty());
+        assert!(parsed.arcs.is_empty());
+        assert!(parsed.vias.is_empty());
+        assert_eq!(parse(POUR_ONLY.as_bytes(), parsed.max_layer).unwrap().len(), 1);
+    }
+
+    #[test]
     fn rejects_truncation_wrong_layer_precision_and_duplicate_name() {
         assert!(parse(SAMPLE.as_bytes(), 1).is_err());
         assert!(parse(SAMPLE.replace("10 0", "10.001 0").as_bytes(), 2).is_err());
