@@ -9,6 +9,8 @@
 #include <QPainterPath>
 #include <cmath>
 #include <QLabel>
+#include <QLineEdit>
+#include <QCheckBox>
 #include <QPushButton>
 #include <QSet>
 #include <QSignalBlocker>
@@ -89,7 +91,12 @@ class ImportedArtworkPanel final : public QWidget {
     QComboBox *layers_;
     QComboBox *nets_;
     QLabel *summary_;
+    QLabel *explorerStatus_ = nullptr;
+    QLineEdit *netSearch_ = nullptr;
+    QCheckBox *netOnly_ = nullptr;
     QVector<bool> layerVisible_;
+    QVector<bool> savedLayerVisibility_;
+    bool hasSavedVisibility_ = false;
     std::vector<std::pair<QGraphicsLineItem *, ImportedTrack>> tracks_;
     std::vector<std::pair<QGraphicsPathItem *, ImportedArc>> arcs_;
     std::vector<std::pair<QGraphicsEllipseItem *, ImportedVia>> vias_;
@@ -101,7 +108,7 @@ class ImportedArtworkPanel final : public QWidget {
     int skipped_ = 0;
     void refresh() {
 #ifdef BOARDSI_RHI_ARTWORK
-        if (rhi_) rhi_->filter(layerVisible_, nets_->currentText());
+        if (rhi_) rhi_->filter(layerVisible_, nets_->currentText(), netOnly_ && netOnly_->isChecked());
 #endif
         // A GPU backend change must never fabricate a successful PCB import.
         if (tracks_.empty() && arcs_.empty() && vias_.empty() && pads_.empty() &&
@@ -112,6 +119,7 @@ class ImportedArtworkPanel final : public QWidget {
             return;
         }
         const QString net = nets_->currentText();
+        const bool netOnly = netOnly_ && netOnly_->isChecked() && net != "All nets";
         int visible = 0;
         int highlighted = 0;
         QSet<int> layersWithTraces;
@@ -123,7 +131,7 @@ class ImportedArtworkPanel final : public QWidget {
             layersWithTraces.insert(entry.second.layer);
             netsWithTraces.insert(entry.second.net);
             const ImportedTrack &t = entry.second;
-            const bool shown = t.layer > 0 && t.layer < layerVisible_.size() && layerVisible_[t.layer];
+            const bool shown = t.layer > 0 && t.layer < layerVisible_.size() && layerVisible_[t.layer] && (!netOnly || net == t.net);
             entry.first->setVisible(shown);
             const bool active = net == "All nets" || net == t.net;
             entry.first->setOpacity(active ? 1.0 : 0.12);
@@ -135,7 +143,7 @@ class ImportedArtworkPanel final : public QWidget {
             layersWithArcs.insert(arc.layer);
             netsWithArcs.insert(arc.net);
             const bool shown = arc.layer > 0 && arc.layer < layerVisible_.size() &&
-                               layerVisible_[arc.layer];
+                               layerVisible_[arc.layer] && (!netOnly || net == arc.net);
             entry.first->setVisible(shown);
             entry.first->setOpacity(net == "All nets" || net == arc.net ? 1.0 : 0.12);
             if (shown) ++visibleArcs;
@@ -152,10 +160,11 @@ class ImportedArtworkPanel final : public QWidget {
                     break;
                 }
             }
-            entry.first->setVisible(shown);
+            const bool visibleVia = shown && (!netOnly || net == via.net);
+            entry.first->setVisible(visibleVia);
             const bool active = net == "All nets" || net == via.net;
             entry.first->setOpacity(active ? 1.0 : 0.12);
-            if (shown) {
+            if (visibleVia) {
                 ++visibleVias;
                 if (net != "All nets" && active) ++highlightedVias;
             }
@@ -167,11 +176,11 @@ class ImportedArtworkPanel final : public QWidget {
             const ImportedPad &pad = entry.second;
             const bool shown = pad.layer > 0 && pad.layer < layerVisible_.size() &&
                                layerVisible_[pad.layer];
-            entry.first->setVisible(shown);
+            entry.first->setVisible(shown && !netOnly);
             // Pad net ownership has not been verified. Never highlight pads
             // as electrically connected to a selected route net.
             entry.first->setOpacity(net == "All nets" ? 1.0 : 0.12);
-            if (shown) ++visiblePads;
+            if (shown && !netOnly) ++visiblePads;
         }
         // Declared layers are NOT necessarily copper layers with accepted traces.
         // Counts below describe only rendered straight-route data, not inferred geometry.
@@ -211,8 +220,28 @@ class ImportedArtworkPanel final : public QWidget {
         line += QString("\nTop SMD: %1  Bottom SMD: %2")
                     .arg(static_cast<qlonglong>(pads_.size()) - bottomPads).arg(bottomPads);
         const auto selected = scene_->selectedItems();
-        if (!selected.isEmpty() && !selected.first()->data(1).toString().isEmpty())
-            line += "\nSelected object: " + selected.first()->data(1).toString();
+        if (!selected.isEmpty()) {
+            const auto *item = selected.first();
+            const QString text = item->data(2).toString().isEmpty() ?
+                                 item->data(1).toString() : item->data(2).toString();
+            if (!text.isEmpty()) line += "\nSelected object: " + text;
+        }
+        int selectedLayerCount=0, selectedNetCount=0;
+        for (const auto &e: tracks_) { if(e.second.layer==layerId) ++selectedLayerCount; if(e.second.net==net) ++selectedNetCount; }
+        for (const auto &e: arcs_) { if(e.second.layer==layerId) ++selectedLayerCount; if(e.second.net==net) ++selectedNetCount; }
+        for (const auto &e: vias_) { if(e.second.firstLayer<=layerId && layerId<=e.second.lastLayer) ++selectedLayerCount; if(e.second.net==net) ++selectedNetCount; }
+        for (const auto &e: pads_) if(e.second.layer==layerId) ++selectedLayerCount;
+        line += QString("\nLayer selected imported copper objects: %1"
+                        "\nSelected net declared route/via objects: %2"
+                        "\nNet connectivity: NOT_VERIFIED"
+                        "\nShow selected net only: %3")
+                    .arg(selectedLayerCount)
+                    .arg(net=="All nets" ? QString("ALL") : QString::number(selectedNetCount))
+                    .arg(netOnly ? "YES" : "NO");
+        if(explorerStatus_) explorerStatus_->setText(
+            QString("Layer %1: %2 objects | Net %3: %4 route/via objects | Electrical connectivity NOT_VERIFIED")
+                .arg(layerId).arg(selectedLayerCount).arg(net)
+                .arg(net=="All nets" ? QString("ALL") : QString::number(selectedNetCount)));
         line += "\nArtwork renderer: " + rendererStatus();
         summary_->setText(line);
         if (detailsCallback_) detailsCallback_(line);
@@ -234,6 +263,7 @@ public:
         toggle->setObjectName("importedLayerToggle");
         bar->addWidget(toggle);
         auto *all = new QPushButton("Show all", this);
+        all->setObjectName("importedShowAllLayers");
         bar->addWidget(all);
         bar->addWidget(new QLabel("Net:", this));
         nets_->setObjectName("importedNetSelect");
@@ -248,6 +278,99 @@ public:
         bar->addWidget(zoomIn);
         bar->addWidget(zoomOut);
         layout->addLayout(bar);
+
+        // A_020 P2-K: explorer operations use already-imported source objects.
+        auto *explorer = new QHBoxLayout();
+        auto *hideAll = new QPushButton("Hide all layers", this);
+        hideAll->setObjectName("importedHideAllLayers");
+        auto *solo = new QPushButton("Solo layer", this);
+        solo->setObjectName("importedSoloLayer");
+        auto *restore = new QPushButton("Restore layers", this);
+        restore->setObjectName("importedRestoreLayers");
+        explorer->addWidget(hideAll);
+        explorer->addWidget(solo);
+        explorer->addWidget(restore);
+        netSearch_ = new QLineEdit(this);
+        netSearch_->setObjectName("importedNetSearch");
+        netSearch_->setPlaceholderText("Find imported net (exact/unique)");
+        netSearch_->setMaxLength(128);
+        auto *findNet = new QPushButton("Find net", this);
+        findNet->setObjectName("importedNetFind");
+        explorer->addWidget(netSearch_, 2);
+        explorer->addWidget(findNet);
+        netOnly_ = new QCheckBox("Show selected net only", this);
+        netOnly_->setObjectName("importedNetOnly");
+        explorer->addWidget(netOnly_);
+        layout->addLayout(explorer);
+        explorerStatus_ = new QLabel("No imported copper objects / SI NOT_RUN", this);
+        explorerStatus_->setObjectName("importedExplorerStatus");
+        explorerStatus_->setWordWrap(true);
+        layout->addWidget(explorerStatus_);
+        const auto findNetName = [this] {
+            const QString term = netSearch_->text().trimmed();
+            if (term.isEmpty()) {
+                explorerStatus_->setText("Enter an imported net name");
+                return;
+            }
+            // PADS net labels are case-sensitive. Never silently change the
+            // selected electrical label when two names differ only by case.
+            int found = -1;
+            for (int i=1; i<nets_->count(); ++i)
+                if (nets_->itemText(i) == term) { found=i; break; }
+            if (found < 0) {
+                for (int i=1; i<nets_->count(); ++i) {
+                    if (nets_->itemText(i).compare(term,Qt::CaseInsensitive)==0) {
+                        if (found >= 0) {
+                            explorerStatus_->setText("Ambiguous case-folded net; use exact case");
+                            return;
+                        }
+                        found=i;
+                    }
+                }
+            }
+            if (found < 0) {
+                for (int i=1; i<nets_->count(); ++i) {
+                    if (nets_->itemText(i).contains(term,Qt::CaseInsensitive)) {
+                        if (found >= 0) {
+                            explorerStatus_->setText("Ambiguous partial net; use exact name");
+                            return;
+                        }
+                        found=i;
+                    }
+                }
+            }
+            if (found < 0) {
+                explorerStatus_->setText("Net not found in accepted imported objects");
+                return;
+            }
+            nets_->setCurrentIndex(found);
+            refresh();
+        };
+        connect(findNet,&QPushButton::clicked,this,findNetName);
+        connect(netSearch_,&QLineEdit::returnPressed,this,findNetName);
+        connect(hideAll,&QPushButton::clicked,this,[this] {
+            for (int i=1;i<layerVisible_.size();++i) layerVisible_[i]=false;
+            refresh();
+        });
+        connect(solo,&QPushButton::clicked,this,[this] {
+            const int selected=layers_->currentData().toInt();
+            if(selected<1 || selected>=layerVisible_.size()) return;
+            if(!hasSavedVisibility_) {
+                savedLayerVisibility_=layerVisible_;
+                hasSavedVisibility_=true;
+            }
+            for(int i=1;i<layerVisible_.size();++i) layerVisible_[i]=(i==selected);
+            refresh();
+        });
+        connect(restore,&QPushButton::clicked,this,[this] {
+            if(!hasSavedVisibility_ ||
+               savedLayerVisibility_.size()!=layerVisible_.size()) return;
+            layerVisible_=savedLayerVisibility_;
+            savedLayerVisibility_.clear();
+            hasSavedVisibility_=false;
+            refresh();
+        });
+        connect(netOnly_,&QCheckBox::toggled,this,[this](bool) { refresh(); });
         canvasStack_->addWidget(view_);
 #ifdef BOARDSI_RHI_ARTWORK
         // A native Qt Quick window avoids QQuickWidget's extra offscreen render
@@ -280,6 +403,7 @@ public:
                 else if (kind == 4) selectArc(index);
                 else if (kind == 5) selectCircle(index);
                 else if (kind == 6) selectBoundary(index);
+                else if (kind == 7) selectOutline(index);
             });
         }
 #endif
@@ -351,6 +475,10 @@ public:
         layers_->clear();
         nets_->clear();
         nets_->addItem("All nets");
+        if(netSearch_) netSearch_->clear();
+        if(netOnly_) netOnly_->setChecked(false);
+        savedLayerVisibility_.clear(); hasSavedVisibility_=false;
+        if(explorerStatus_) explorerStatus_->setText("No imported copper objects / SI NOT_RUN");
         skipped_ = 0;
 #ifdef BOARDSI_RHI_ARTWORK
         if (rhi_) rhi_->load(0, {}, {}, {});
@@ -522,6 +650,11 @@ public:
             scene_->clear();
         }
         layerVisible_ = QVector<bool>(layerCount + 1, true);
+        savedLayerVisibility_.clear(); hasSavedVisibility_=false;
+        if(netSearch_) netSearch_->clear();
+        if(netOnly_) netOnly_->setChecked(false);
+        const QSignalBlocker muteLayers(layers_);
+        const QSignalBlocker muteNets(nets_);
         layers_->clear();
         nets_->clear();
         nets_->addItem("All nets");
@@ -538,8 +671,15 @@ public:
             auto *item = scene_->addLine(line, QPen(color, t.width_nm / 1e6,
                                                    Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             item->setData(0, t.net);
-            item->setData(1, QString("Straight trace / layer %1 / width %2 mm")
-                                 .arg(t.layer).arg(t.width_nm / 1e6, 0, 'f', 6));
+            item->setData(1, QString("Straight trace / layer %1 / width %2 mm"
+                                     " / start (%3, %4) mm / end (%5, %6) mm"
+                                     " / length %7 mm / net %8 / connectivity NOT_VERIFIED")
+                                 .arg(t.layer).arg(t.width_nm / 1e6, 0, 'f', 6)
+                                 .arg(t.x0_nm/1e6,0,'f',6).arg(t.y0_nm/1e6,0,'f',6)
+                                 .arg(t.x1_nm/1e6,0,'f',6).arg(t.y1_nm/1e6,0,'f',6)
+                                 .arg(std::hypot(static_cast<double>(t.x1_nm-t.x0_nm),
+                                                 static_cast<double>(t.y1_nm-t.y0_nm))/1e6,0,'f',6)
+                                 .arg(t.net));
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             tracks_.push_back({item, t});
         }
@@ -569,7 +709,14 @@ public:
                                    " / %5 / source line %6 / SI NOT_RUN")
                                .arg(a.layer).arg(a.width_nm/1e6,0,'f',6)
                                .arg(a.cx_nm/1e6,0,'f',6).arg(a.cy_nm/1e6,0,'f',6)
-                               .arg(a.clockwise ? "CW" : "CCW").arg(a.sourceLine));
+                               .arg(a.clockwise ? "CW" : "CCW").arg(a.sourceLine)
+                               + QString(" / start (%1, %2) mm / end (%3, %4) mm"
+                                         " / radius %5 mm / net %6 / connectivity NOT_VERIFIED")
+                                   .arg(a.x0_nm/1e6,0,'f',6).arg(a.y0_nm/1e6,0,'f',6)
+                                   .arg(a.x1_nm/1e6,0,'f',6).arg(a.y1_nm/1e6,0,'f',6)
+                                   .arg(std::hypot(static_cast<double>(a.x0_nm-a.cx_nm),
+                                                   static_cast<double>(a.y0_nm-a.cy_nm))/1e6,0,'f',6)
+                                   .arg(a.net));
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             arcs_.push_back({item,a});
         }
@@ -592,7 +739,11 @@ public:
                                    .arg(via.name)
                                    .arg(via.diameter_nm / 1e6, 0, 'f', 6)
                                    .arg(via.drill_nm / 1e6, 0, 'f', 6)
-                                   .arg(via.firstLayer).arg(via.lastLayer));
+                                   .arg(via.firstLayer).arg(via.lastLayer)
+                                   + QString(" / centre (%1, %2) mm / declared net %3"
+                                             " / connectivity NOT_VERIFIED")
+                                       .arg(via.x_nm/1e6,0,'f',6).arg(via.y_nm/1e6,0,'f',6)
+                                       .arg(via.net));
             outer->setFlag(QGraphicsItem::ItemIsSelectable);
             vias_.push_back({outer, via});
         }
@@ -629,6 +780,13 @@ public:
             auto *item=scene_->addLine(line,QPen(color,0));
             item->setData(1,e.cutout ? "Board Cutout (not copper)" :
                                          "Board Outline (not copper)");
+            item->setData(2,QString("%1 %2 / segment %3 / start (%4, %5) mm"
+                                    " / end (%6, %7) mm / not copper")
+                             .arg(e.cutout ? "Board Cutout" : "Board Outline")
+                             .arg(e.name).arg(e.sequence)
+                             .arg(e.x0_nm/1e6,0,'f',6).arg(e.y0_nm/1e6,0,'f',6)
+                             .arg(e.x1_nm/1e6,0,'f',6).arg(e.y1_nm/1e6,0,'f',6));
+            item->setFlag(QGraphicsItem::ItemIsSelectable);
             outlineEdges_.push_back({item,e});
         }
         for (const auto &c : circleInput) {
@@ -695,6 +853,12 @@ public:
     int outlineCount() const { return static_cast<int>(outlineEdges_.size()); }
     int circleCount() const { return static_cast<int>(circles_.size()); }
     int boundaryCount() const { return static_cast<int>(boundaries_.size()); }
+    bool selectOutline(int index) {
+        if(index<0 || index>=static_cast<int>(outlineEdges_.size())) return false;
+        scene_->clearSelection();
+        outlineEdges_[static_cast<size_t>(index)].first->setSelected(true);
+        return true;
+    }
     void selectBoundary(int index) {
         if (index < 0 || index >= static_cast<int>(boundaries_.size())) return;
         scene_->clearSelection();

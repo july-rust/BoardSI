@@ -387,6 +387,15 @@ jobs:
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --rhi-interaction-selftest
           cat qt-preview-a019-interaction-results.json
           python -c 'import json; r=json.load(open("qt-preview-a019-interaction-results.json")); assert r["pass"] and [s["objects"] for s in r["cases"]]==[10000,100000,1000000] and all(s["pass"] and s["picking_exact"] and s["layer_filter_restored"] and s["repeated_tab_survived"] and s["injected_error_cpu_fallback"] for s in r["cases"]) and r["gpu_vram"]=="NOT_MEASURED", r'
+      - name: A_020 native imported explorer and source-properties regression
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --explorer-selftest
+          cat qt-preview-a020-explorer-results.json
+          python -c 'import json; r=json.load(open("qt-preview-a020-explorer-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a020-explorer-v1" and r["case_sensitive_exact_net_identity"] and r["net_only_unverified_pad_excluded"] and r["straight_outline_selection"] and r["source_properties"] and r["physical_si"]=="NOT_RUN", r'
       - name: Run A_014 native Qt Quick / RHI geometry and first-frame smoke
         shell: bash
         run: |
@@ -412,6 +421,7 @@ jobs:
             build-qt/qt-preview-a019-rhi-scale-results.json
             build-qt/qt-preview-a019-native-benchmark.json
             build-qt/qt-preview-a019-interaction-results.json
+            build-qt/qt-preview-a020-explorer-results.json
             build-qt/qt-preview-a014-software-fallback-results.json
             build-qt/qt-preview-p2c-pad-results.json
             build-qt/qt-preview-native-direct.json

@@ -123,6 +123,7 @@ class BoardSiRhiItem final : public QQuickItem {
     std::vector<ImportedBoundarySegment> boundaries_;
     QVector<bool> visibility_;
     QString net_ = "All nets";
+    bool netOnly_ = false; // Declared labels, not verified connectivity.
     qint64 originX_ = 0, originY_ = 0;
     QRectF bounds_;
     QPointF pan_;
@@ -201,7 +202,7 @@ class BoardSiRhiItem final : public QQuickItem {
         candidates.erase(std::unique(candidates.begin(),candidates.end()),candidates.end());
         for(const int index:candidates) {
             const auto &t=tracks_[static_cast<size_t>(index)];
-            if(!visible(t.layer)) continue;
+            if(!visible(t.layer) || !includedNet(t.net)) continue;
             const QPointF a=pixel(world(t.x0_nm,t.y0_nm));
             const QPointF b=pixel(world(t.x1_nm,t.y1_nm));
             const QPointF v=b-a,delta=pos-a;
@@ -266,7 +267,7 @@ class BoardSiRhiItem final : public QQuickItem {
         constexpr qreal twoPi=6.28318530717958647692;
         for(size_t i=arcs_.size();i>0;--i) {
             const auto &a=arcs_[i-1];
-            if(!visible(a.layer)) continue;
+            if(!visible(a.layer) || !includedNet(a.net)) continue;
             const QPointF centre=pixel(world(a.cx_nm,a.cy_nm));
             const QPointF delta=pos-centre;
             const qreal radius=std::hypot(
@@ -283,6 +284,23 @@ class BoardSiRhiItem final : public QQuickItem {
                   while(travel>=twoPi) travel-=twoPi;}
             if((a.clockwise && travel>=angles.sweep) ||
                (!a.clockwise && travel<=angles.sweep))
+                return static_cast<int>(i-1);
+        }
+        return -1;
+    }
+    // Mechanical straight outlines are independent of copper/net visibility.
+    // Use source-nm geometry projected to screen space, identical to CPU artwork.
+    int outlineIndexAt(const QPointF &pos) const {
+        for(size_t i=outlineEdges_.size();i>0;--i) {
+            const auto &e=outlineEdges_[i-1];
+            const QPointF a=pixel(world(e.x0_nm,e.y0_nm));
+            const QPointF b=pixel(world(e.x1_nm,e.y1_nm));
+            const QPointF delta=b-a,offset=pos-a;
+            const qreal length2=delta.x()*delta.x()+delta.y()*delta.y();
+            const qreal u=length2>0 ? std::clamp(
+                (delta.x()*offset.x()+delta.y()*offset.y())/length2,0.0,1.0):0.0;
+            const QPointF nearest=a+delta*u;
+            if(std::hypot(pos.x()-nearest.x(),pos.y()-nearest.y())<=3.5)
                 return static_cast<int>(i-1);
         }
         return -1;
@@ -372,6 +390,9 @@ class BoardSiRhiItem final : public QQuickItem {
     bool visible(int layer) const {
         return layer > 0 && layer < visibility_.size() && visibility_[layer];
     }
+    bool includedNet(const QString &name) const {
+        return !netOnly_ || net_ == "All nets" || name == net_;
+    }
     static bool inView(QPointF p, qreal radius, qreal w, qreal h) {
         return p.x()+radius >= -24 && p.y()+radius >= -24 &&
                p.x()-radius <= w+24 && p.y()-radius <= h+24;
@@ -401,7 +422,7 @@ protected:
         const qreal deviceRatio = window() ?
             std::max<qreal>(1.0,window()->devicePixelRatio()) : 1.0;
         for (const auto &t : tracks_) {
-            if (!visible(t.layer)) continue;
+            if (!visible(t.layer) || !includedNet(t.net)) continue;
             const QPointF a = pixel(world(t.x0_nm,t.y0_nm));
             const QPointF b = pixel(world(t.x1_nm,t.y1_nm));
             const qreal halfWidth = t.width_nm / 2e6 * px;
@@ -490,7 +511,7 @@ protected:
         }
         size_t visibleArcCount=0;
         for (const auto &arc : arcs_) {
-            if(!visible(arc.layer)) continue;
+            if(!visible(arc.layer) || !includedNet(arc.net)) continue;
             const QPointF c=pixel(world(arc.cx_nm,arc.cy_nm));
             const qreal r=std::hypot(static_cast<qreal>(arc.x0_nm-arc.cx_nm),
                                      static_cast<qreal>(arc.y0_nm-arc.cy_nm))/1e6*px;
@@ -498,7 +519,7 @@ protected:
         }
         const int arcSegmentsPerObject=arcSegmentBudgetPerVisibleArc(visibleArcCount);
         for (const auto &a : arcs_) {
-            if (!visible(a.layer)) continue;
+            if (!visible(a.layer) || !includedNet(a.net)) continue;
             const QPointF c=pixel(world(a.cx_nm,a.cy_nm));
             const qreal rad=std::hypot(static_cast<qreal>(a.x0_nm-a.cx_nm),
                                        static_cast<qreal>(a.y0_nm-a.cy_nm))/1e6*px;
@@ -534,7 +555,7 @@ protected:
             disk(v,pixel(world(a.x1_nm,a.y1_nm)),std::max<qreal>(0.1,halfWidth),12);
         }
         for (const auto &pad : pads_) {
-            if (!visible(pad.layer)) continue;
+            if (!visible(pad.layer) || (netOnly_ && net_ != "All nets")) continue;
             const QPointF c = pixel(world(pad.x_nm,pad.y_nm));
             const qreal w = pad.width_nm / 1e6 * px;
             const qreal h = pad.height_nm / 1e6 * px;
@@ -551,7 +572,7 @@ protected:
             bool shown = false;
             for (int l=via.firstLayer; l<=via.lastLayer; ++l)
                 if (visible(l)) { shown=true; break; }
-            if (!shown) continue;
+            if (!shown || !includedNet(via.net)) continue;
             const QPointF c = pixel(world(via.x_nm,via.y_nm));
             const qreal outer = via.diameter_nm / 2e6 * px;
             if (!inView(c,outer,width(),height())) continue;
@@ -613,7 +634,7 @@ protected:
             // Screen-space picking is independent of float GPU coordinates.
             for (size_t i=0;i<pads_.size();++i) {
                 const auto &p=pads_[i];
-                if (!visible(p.layer)) continue;
+                if (!visible(p.layer) || (netOnly_ && net_ != "All nets")) continue;
                 const QPointF c=pixel(world(p.x_nm,p.y_nm));
                 const qreal dx=event->position().x()-c.x();
                 const qreal dy=event->position().y()-c.y();
@@ -630,7 +651,7 @@ protected:
                 bool shown=false;
                 for(int layer=v.firstLayer;layer<=v.lastLayer;++layer)
                     if(visible(layer)) {shown=true;break;}
-                if(!shown) continue;
+                if(!shown || !includedNet(v.net)) continue;
                 const QPointF c=pixel(world(v.x_nm,v.y_nm));
                 if (std::hypot(event->position().x()-c.x(),event->position().y()-c.y()) <=
                     v.diameter_nm / 2e6 * scaleFactor()+3) {
@@ -649,6 +670,10 @@ protected:
             const int boundaryIndex=boundaryIndexAt(event->position());
             if(boundaryIndex>=0) {
                 picked_(6,boundaryIndex);event->accept();return;
+            }
+            const int outlineIndex=outlineIndexAt(event->position());
+            if(outlineIndex>=0) {
+                picked_(7,outlineIndex); event->accept(); return;
             }
             const int pickedTrack=trackIndexAt(event->position());
             if(pickedTrack>=0) {
@@ -747,8 +772,9 @@ public:
         modelGeneration_.fetch_add(1,std::memory_order_release);
         requestSceneUpdate();
     }
-    void filter(QVector<bool> layers,const QString &net) {
-        visibility_=std::move(layers); net_=net; requestSceneUpdate();
+    void filter(QVector<bool> layers,const QString &net,bool onlySelectedNet=false) {
+        visibility_=std::move(layers); net_=net; netOnly_=onlySelectedNet;
+        requestSceneUpdate();
     }
     void fit() { pan_=QPointF();zoom_=1.0;requestSceneUpdate(); }
     void zoom(qreal factor) {
@@ -853,7 +879,7 @@ public:
         if(!picked_ || width()<2 || height()<2 ||
            index<0 || index>=static_cast<int>(arcs_.size())) return false;
         const auto &a=arcs_[static_cast<size_t>(index)];
-        if(!visible(a.layer)) return false;
+        if(!visible(a.layer) || !includedNet(a.net)) return false;
         const auto angles=arcAngles(a);
         const QPointF centre=pixel(world(a.cx_nm,a.cy_nm));
         const qreal radius=std::hypot(
@@ -867,6 +893,17 @@ public:
         return true;
     }
 
+    // The native GPU path and this test seam share the same hit test.
+    bool dispatchOutlinePickForTest(int index) {
+        if(!picked_ || width()<2 || height()<2 ||
+           index<0 || index>=static_cast<int>(outlineEdges_.size())) return false;
+        const auto &e=outlineEdges_[static_cast<size_t>(index)];
+        const QPointF a=pixel(world(e.x0_nm,e.y0_nm));
+        const QPointF b=pixel(world(e.x1_nm,e.y1_nm));
+        if(outlineIndexAt((a+b)/2)!=index) return false;
+        picked_(7,index);
+        return true;
+    }
     bool arcBudgetBoundedForTest() const {
         // 10k near-full arcs cannot produce an unbounded GPU vertex upload.
         const int perArc=arcSegmentBudgetPerVisibleArc(10000);
@@ -912,7 +949,7 @@ public:
     }
     int visiblePadCount() const {
         int n=0;
-        for(const auto &p:pads_) if(visible(p.layer)) ++n;
+        for(const auto &p:pads_) if(visible(p.layer) && (!netOnly_ || net_=="All nets")) ++n;
         return n;
     }
     QPointF screenPointForTest(qint64 x,qint64 y) const {
@@ -1102,7 +1139,7 @@ public:
         armFrameDeadline();
         if (changed_) changed_();
     }
-    void filter(QVector<bool> layers,const QString &net) {artwork_->filter(std::move(layers),net);}
+    void filter(QVector<bool> layers,const QString &net,bool onlySelectedNet=false) {artwork_->filter(std::move(layers),net,onlySelectedNet);}
     void fit() {artwork_->fit();}
     void zoom(qreal factor) {artwork_->zoom(factor);}
     QQuickWindow *quickWindowForTest() const {return window_;}
