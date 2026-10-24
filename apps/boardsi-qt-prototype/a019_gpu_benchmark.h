@@ -16,6 +16,20 @@
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <psapi.h>
+// Win32 compatibility aliases otherwise erase existing C++ variables called
+// near/far in the preview tests, and may hijack std::min/std::max.
+#if defined(near)
+#undef near
+#endif
+#if defined(far)
+#undef far
+#endif
+#if defined(min)
+#undef min
+#endif
+#if defined(max)
+#undef max
+#endif
 #elif defined(Q_OS_MACOS)
 #include <sys/resource.h>
 #endif
