@@ -195,6 +195,92 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
     Ok(found)
 }
 
+
+/// Append exact-grid source-filled geometry to the canonical artwork model.
+/// A claimed PADS net label is NOT promoted to an electrical Net ID.
+pub fn augment(
+    board: &mut boardsi_model::BoardModel,
+    areas: &[CopperArea],
+) -> Result<(), &'static str> {
+    use boardsi_model::{
+        Boundary, BoundarySegment, CopperArea as ModelCopperArea, GeometryProvenance,
+        ObjectId, ObjectKind, ObjectMeta, Point,
+    };
+    if areas.is_empty() {
+        return Ok(());
+    }
+    let source = board.sources.first().ok_or("MISSING_SOURCE")?.id.clone();
+    let frame = board.frames.first().ok_or("MISSING_FRAME")?.meta.id.clone();
+    let point = |ticks: [i64; 2]| Point {
+        frame: frame.clone(),
+        ticks,
+    };
+    for a in areas {
+        let layer_index = (a.layer as usize)
+            .checked_sub(1)
+            .ok_or("COPPER_LAYER_RANGE")?;
+        let layer = board
+            .stackup
+            .layers
+            .get(layer_index)
+            .ok_or("COPPER_LAYER_RANGE")?
+            .meta
+            .id
+            .clone();
+        let vertices = match &a.geometry {
+            CopperGeometry::Polygon(v) => v.clone(),
+            CopperGeometry::Circle { centre, radius } => {
+                let [x, y] = *centre;
+                let r = *radius;
+                vec![[x + r, y], [x, y + r], [x - r, y], [x, y - r], [x + r, y]]
+            }
+        };
+        let segments = match a.geometry {
+            CopperGeometry::Circle { centre, .. } => vertices
+                .windows(2)
+                .map(|pair| BoundarySegment::Arc {
+                    centre: point(centre),
+                    start: point(pair[0]),
+                    end: point(pair[1]),
+                    clockwise: false,
+                })
+                .collect(),
+            CopperGeometry::Polygon(_) => vertices
+                .windows(2)
+                .map(|pair| BoundarySegment::Line {
+                    start: point(pair[0]),
+                    end: point(pair[1]),
+                })
+                .collect(),
+        };
+        board.areas.push(ModelCopperArea {
+            meta: ObjectMeta {
+                id: ObjectId::new(
+                    &source,
+                    ObjectKind::Area,
+                    &format!("source-copper-{}-{}", a.name, a.source_line),
+                    "",
+                ),
+                provenance: GeometryProvenance {
+                    source_object_type:
+                        "PADS V9.4 MILS *LINES* explicit COPCLS/COPCIR source-filled (restricted)"
+                            .into(),
+                    history: vec![],
+                },
+            },
+            layer,
+            net: None, // Explicitly unverified electrical ownership.
+            outer: Boundary { segments },
+            cutouts: vec![], // COPCUT/holes are rejected by the parser.
+        });
+    }
+    board.sources[0]
+        .capability
+        .object_coverage
+        .push("PADS COPCLS/COPCIR explicitly filled source artwork; net/contact NOT_VERIFIED".into());
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
