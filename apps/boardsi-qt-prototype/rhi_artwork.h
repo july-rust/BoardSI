@@ -25,6 +25,7 @@
 #include <cmath>
 #include <functional>
 #include <map>
+#include <unordered_map>
 #include <atomic>
 #include <memory>
 #ifdef Q_OS_MACOS
@@ -133,7 +134,87 @@ class BoardSiRhiItem final : public QQuickItem {
         std::make_shared<std::atomic<int>>(0);
     std::atomic<quint64> modelGeneration_{0};
     std::atomic<quint64> lastSyncedGeneration_{0};
+    std::atomic<quint64> sceneRevision_{0};
+    std::atomic<quint64> lastSyncedSceneRevision_{0};
+    void requestSceneUpdate() {
+        sceneRevision_.fetch_add(1,std::memory_order_release);
+        update();
+    }
     std::function<void(int,int)> picked_;
+    // Coarse source-nm bins, not rasterized polygons; long routes are indexed
+    // separately so that an unusually long trace cannot explode the index.
+    std::unordered_map<quint64,std::vector<int>> trackBins_;
+    std::vector<int> spanningTracks_;
+    qint64 trackBinNm_ = 1;
+    static qint64 floorBin(qint64 value,qint64 step) {
+        return value>=0 ? value/step : -((-value+step-1)/step);
+    }
+    static quint64 binKey(qint64 x,qint64 y) {
+        return (static_cast<quint64>(x)<<32) | static_cast<quint32>(y);
+    }
+    void rebuildTrackBins() {
+        trackBins_.clear(); spanningTracks_.clear();
+        trackBinNm_=std::max<qint64>(1,static_cast<qint64>(
+            std::ceil(std::max(bounds_.width(),bounds_.height())*1e6/128.0)));
+        for(size_t i=0;i<tracks_.size();++i) {
+            const auto &t=tracks_[i];
+            const qint64 r=(t.width_nm+1)/2;
+            const qint64 x0=floorBin(std::min(t.x0_nm,t.x1_nm)-r-originX_,trackBinNm_);
+            const qint64 x1=floorBin(std::max(t.x0_nm,t.x1_nm)+r-originX_,trackBinNm_);
+            const qint64 y0=floorBin(std::min(t.y0_nm,t.y1_nm)-r-originY_,trackBinNm_);
+            const qint64 y1=floorBin(std::max(t.y0_nm,t.y1_nm)+r-originY_,trackBinNm_);
+            if(x1-x0>15 || y1-y0>15 || (x1-x0+1)*(y1-y0+1)>256) {
+                spanningTracks_.push_back(static_cast<int>(i)); continue;
+            }
+            for(qint64 x=x0;x<=x1;++x)
+                for(qint64 y=y0;y<=y1;++y)
+                    trackBins_[binKey(x,y)].push_back(static_cast<int>(i));
+        }
+    }
+    int trackIndexAt(const QPointF &pos) const {
+        if(tracks_.empty()) return -1;
+        const qreal scale=scaleFactor();
+        if(!(scale>0) || !std::isfinite(scale)) return -1;
+        const qreal mmX=(pos.x()-width()/2-pan_.x())/scale+bounds_.center().x();
+        const qreal mmY=(pos.y()-height()/2-pan_.y())/scale+bounds_.center().y();
+        const qint64 nx=originX_+static_cast<qint64>(std::llround(mmX*1e6));
+        const qint64 ny=originY_-static_cast<qint64>(std::llround(mmY*1e6));
+        const qint64 tolerance=static_cast<qint64>(std::ceil(3e6/scale))+1;
+        const qint64 x0=floorBin(nx-tolerance-originX_,trackBinNm_);
+        const qint64 x1=floorBin(nx+tolerance-originX_,trackBinNm_);
+        const qint64 y0=floorBin(ny-tolerance-originY_,trackBinNm_);
+        const qint64 y1=floorBin(ny+tolerance-originY_,trackBinNm_);
+        std::vector<int> candidates(spanningTracks_);
+        if(x1-x0>256 || y1-y0>256 || (x1-x0+1)*(y1-y0+1)>512) {
+            candidates.clear(); candidates.reserve(tracks_.size());
+            for(size_t i=0;i<tracks_.size();++i)
+                candidates.push_back(static_cast<int>(i));
+        } else {
+            for(qint64 x=x0;x<=x1;++x)
+                for(qint64 y=y0;y<=y1;++y) {
+                    const auto it=trackBins_.find(binKey(x,y));
+                    if(it!=trackBins_.end())
+                        candidates.insert(candidates.end(),it->second.begin(),it->second.end());
+                }
+        }
+        std::sort(candidates.begin(),candidates.end(),std::greater<int>());
+        candidates.erase(std::unique(candidates.begin(),candidates.end()),candidates.end());
+        for(const int index:candidates) {
+            const auto &t=tracks_[static_cast<size_t>(index)];
+            if(!visible(t.layer)) continue;
+            const QPointF a=pixel(world(t.x0_nm,t.y0_nm));
+            const QPointF b=pixel(world(t.x1_nm,t.y1_nm));
+            const QPointF v=b-a,delta=pos-a;
+            const qreal len2=v.x()*v.x()+v.y()*v.y();
+            const qreal u=len2>0 ? std::clamp(
+                (delta.x()*v.x()+delta.y()*v.y())/len2,0.0,1.0) : 0.0;
+            const QPointF nearest=a+v*u;
+            if(std::hypot(pos.x()-nearest.x(),pos.y()-nearest.y()) <=
+               std::max<qreal>(3.0,t.width_nm/2e6*scale+2))
+                return index;
+        }
+        return -1;
+    }
 
     QPointF world(qint64 x, qint64 y) const {
         // Subtract before converting to floating point: prevents GPU precision
@@ -303,6 +384,9 @@ protected:
         // exact artwork generation installed in this scene graph update.
         lastSyncedGeneration_.store(
             modelGeneration_.load(std::memory_order_acquire),
+            std::memory_order_release);
+        lastSyncedSceneRevision_.store(
+            sceneRevision_.load(std::memory_order_acquire),
             std::memory_order_release);
         if (window())
             root->appendChildNode(new BoardSiRhiAdapterProbe(window(),adapterProof_));
@@ -522,7 +606,7 @@ protected:
         if (!(event->buttons() & Qt::LeftButton)) return;
         QPointF delta = event->position() - pressed_;
         if (std::hypot(delta.x(),delta.y()) >= 1) dragging_ = true;
-        pan_ += delta; pressed_ = event->position(); update(); event->accept();
+        pan_ += delta; pressed_ = event->position(); requestSceneUpdate(); event->accept();
     }
     void mouseReleaseEvent(QMouseEvent *event) override {
         if (!dragging_ && picked_) {
@@ -566,23 +650,9 @@ protected:
             if(boundaryIndex>=0) {
                 picked_(6,boundaryIndex);event->accept();return;
             }
-            // Existing QGraphicsScene supports straight copper selection by
-            // net and provenance. Mirror that behavior in the RHI viewport.
-            for (size_t i=tracks_.size();i>0;--i) {
-                const auto &t=tracks_[i-1];
-                if (!visible(t.layer)) continue;
-                const QPointF a=pixel(world(t.x0_nm,t.y0_nm));
-                const QPointF b=pixel(world(t.x1_nm,t.y1_nm));
-                const QPointF v=b-a, m=event->position()-a;
-                const qreal length2=v.x()*v.x()+v.y()*v.y();
-                const qreal u=length2>0 ?
-                    std::clamp((m.x()*v.x()+m.y()*v.y())/length2,0.0,1.0) : 0.0;
-                const QPointF nearest=a+v*u;
-                if(std::hypot(event->position().x()-nearest.x(),
-                              event->position().y()-nearest.y()) <=
-                              std::max<qreal>(3.0,t.width_nm/2e6*scaleFactor()+2)) {
-                    picked_(3,static_cast<int>(i-1));event->accept();return;
-                }
+            const int pickedTrack=trackIndexAt(event->position());
+            if(pickedTrack>=0) {
+                picked_(3,pickedTrack);event->accept();return;
             }
         }
         event->accept();
@@ -591,7 +661,7 @@ protected:
         const qreal factor=event->angleDelta().y()>0?1.2:1.0/1.2;
         if (zoom_*factor >= 0.03 && zoom_*factor <= 120.0)
             zoom_*=factor;
-        update(); event->accept();
+        requestSceneUpdate(); event->accept();
     }
 public:
     explicit BoardSiRhiItem(QQuickItem *parent=nullptr) : QQuickItem(parent) {
@@ -672,18 +742,29 @@ public:
             add(world(b.x1_nm,b.y1_nm),0.000001);
         }
         bounds_=rect.adjusted(-1,-1,1,1);
+        rebuildTrackBins();
         pan_=QPointF();zoom_=1.0;
         modelGeneration_.fetch_add(1,std::memory_order_release);
-        update();
+        requestSceneUpdate();
     }
     void filter(QVector<bool> layers,const QString &net) {
-        visibility_=std::move(layers); net_=net; update();
+        visibility_=std::move(layers); net_=net; requestSceneUpdate();
     }
-    void fit() { pan_=QPointF();zoom_=1.0;update(); }
+    void fit() { pan_=QPointF();zoom_=1.0;requestSceneUpdate(); }
     void zoom(qreal factor) {
         if(zoom_*factor >= 0.03 && zoom_*factor <= 120.0) {
-            zoom_*=factor; update();
+            zoom_*=factor; requestSceneUpdate();
         }
+    }
+    quint64 requestedSceneRevision() const {
+        return sceneRevision_.load(std::memory_order_acquire);
+    }
+    quint64 syncedSceneRevision() const {
+        return lastSyncedSceneRevision_.load(std::memory_order_acquire);
+    }
+    quint64 requestFreshFrame() {
+        requestSceneUpdate();
+        return requestedSceneRevision();
     }
     int primitiveCount() const {
         return static_cast<int>(tracks_.size()+vias_.size()+pads_.size()+arcs_.size()+
@@ -837,6 +918,10 @@ public:
     QPointF screenPointForTest(qint64 x,qint64 y) const {
         return pixel(world(x,y));
     }
+    int trackAtForTest(QPointF screen) const {return trackIndexAt(screen);}
+    size_t indexBucketsForTest() const {return trackBins_.size();}
+    size_t spanningTracksForTest() const {return spanningTracks_.size();}
+    void panByForTest(QPointF delta) {pan_+=delta;requestSceneUpdate();}
 };
 
 class BoardSiRhiView final : public QWidget {
@@ -846,9 +931,17 @@ class BoardSiRhiView final : public QWidget {
     std::function<void()> changed_;
     bool seenFrame_=false;
     quint64 loadGeneration_=0;
+    quint64 requiredSceneRevision_=0;
     quint64 deadlineGeneration_=std::numeric_limits<quint64>::max();
     quint64 deadlineEpoch_=0;
+    std::atomic<bool> visibleDuringFrame_{false};
 
+    void enterCpuFallback(const QString &reason) {
+        if(failed()) return;
+        ++deadlineEpoch_;
+        status_="CPU_FALLBACK_RHI_"+reason;
+        if(changed_) changed_();
+    }
     void armFrameDeadline() {
         if (!isVisible() || seenFrame_ || failed() ||
             deadlineGeneration_ == loadGeneration_) return;
@@ -863,23 +956,36 @@ class BoardSiRhiView final : public QWidget {
                 deadlineGeneration_=std::numeric_limits<quint64>::max();
                 return;
             }
-            status_="CPU_FALLBACK_RHI_NO_FRAME";
-            if (changed_) changed_();
+            enterCpuFallback("NO_FRAME");
         });
     }
 protected:
     void showEvent(QShowEvent *event) override {
         QWidget::showEvent(event);
-        // A hidden tab does not time out. A new load always arms a fresh
-        // independent post-load frame proof when the tab becomes visible.
-        armFrameDeadline();
+        visibleDuringFrame_.store(true,std::memory_order_release);
+        // A previously presented frame cannot certify this tab activation.
+        // Hidden-tab device-loss races must therefore produce a new frame or
+        // hit the normal bounded CPU fallback deadline on re-exposure.
+        if(!failed()) {
+            seenFrame_=false;
+            status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
+            requiredSceneRevision_=artwork_->requestFreshFrame();
+            deadlineGeneration_=std::numeric_limits<quint64>::max();
+            ++deadlineEpoch_;
+            armFrameDeadline();
+        }
     }
     void hideEvent(QHideEvent *event) override {
+        visibleDuringFrame_.store(false,std::memory_order_release);
         QWidget::hideEvent(event);
         // Old timeouts were for a previously visible window. They cannot
         // consume time while hidden or block the next showEvent deadline.
         ++deadlineEpoch_;
         deadlineGeneration_=std::numeric_limits<quint64>::max();
+        if(!failed()) {
+            seenFrame_=false;
+            status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
+        }
     }
 public:
     static bool softwareRendererRequested() {
@@ -912,8 +1018,10 @@ public:
             // Direct signal captures render-thread generation BEFORE queuing
             // delivery; an older frame cannot verify newly loaded artwork.
             const quint64 presented=artwork_->syncedGeneration();
-            QMetaObject::invokeMethod(this,[this,presented] {
-            if(presented != loadGeneration_ || seenFrame_ || failed()) return;
+            const quint64 revision=artwork_->syncedSceneRevision();
+            QMetaObject::invokeMethod(this,[this,presented,revision] {
+            if(presented != loadGeneration_ || revision < requiredSceneRevision_ ||
+               seenFrame_ || failed() || !isVisible()) return;
             seenFrame_=true;
             const auto api=window_->rendererInterface()->graphicsApi();
             QString backend="UNEXPECTED";
@@ -950,9 +1058,28 @@ public:
         },Qt::DirectConnection);
         QObject::connect(window_,&QQuickWindow::sceneGraphError,this,
                          [this](QQuickWindow::SceneGraphError,const QString &) {
-            status_="CPU_FALLBACK_RHI_SCENEGRAPH_ERROR";
-            if(changed_) changed_();
+            enterCpuFallback("SCENEGRAPH_ERROR");
         },Qt::QueuedConnection);
+        // Device/scene graph invalidation arrives from the render thread.
+        // Hidden or not-yet-presented tabs are NOT automatically device loss.
+        // Always marshal the final UI fallback to the GUI event loop.
+        QObject::connect(window_,&QQuickWindow::sceneGraphInvalidated,window_,
+                         [this] {
+            const bool visibleAtSignal=visibleDuringFrame_.load(std::memory_order_acquire);
+            QMetaObject::invokeMethod(this,[this,visibleAtSignal] {
+                if(!visibleAtSignal || failed()) return;
+                if(!isVisible()) {
+                    // Preserve invalidation across a concurrent hide; on show
+                    // an explicitly new revision and deadline are mandatory.
+                    seenFrame_=false;
+                    status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
+                    ++deadlineEpoch_;
+                    deadlineGeneration_=std::numeric_limits<quint64>::max();
+                } else if(seenFrame_) {
+                    enterCpuFallback("SCENEGRAPH_INVALIDATED");
+                }
+            },Qt::QueuedConnection);
+        },Qt::DirectConnection);
         auto *container=QWidget::createWindowContainer(window_,this);
         container->setMinimumHeight(220);
         layout->addWidget(container);
@@ -969,6 +1096,7 @@ public:
         status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
         artwork_->load(layers,tracks,vias,pads,arcs,outlines,circles,boundary);
         loadGeneration_=artwork_->sourceGeneration();
+        requiredSceneRevision_=artwork_->requestedSceneRevision();
         deadlineGeneration_=std::numeric_limits<quint64>::max();
         ++deadlineEpoch_;
         armFrameDeadline();
@@ -978,6 +1106,9 @@ public:
     void fit() {artwork_->fit();}
     void zoom(qreal factor) {artwork_->zoom(factor);}
     QQuickWindow *quickWindowForTest() const {return window_;}
+    // Fault injection drives precisely the same fallback code, but does not
+    // claim to emulate a hardware driver reset on hosted CI.
+    void injectSceneGraphFailureForTest() {enterCpuFallback("SCENEGRAPH_ERROR");}
     QString status() const {return status_;}
     bool failed() const {return status_.startsWith("CPU_FALLBACK");}
     int primitiveCount() const {return artwork_->primitiveCount();}

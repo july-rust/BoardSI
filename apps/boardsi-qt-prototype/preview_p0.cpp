@@ -8,6 +8,7 @@
 #include "synthetic_artwork.h"
 #include "preview_import.h"
 #include "a019_gpu_benchmark.h"
+#include "a019_interaction_validation.h"
 
 #include <QAction>
 #include <QCloseEvent>
@@ -1746,6 +1747,8 @@ int main(int argc, char **argv) {
         return runRhiScaleSmoke();
     if (args.size() == 2 && args.at(1) == "--rhi-native-benchmark")
         return runA019NativeRhiBenchmark();
+    if (args.size() == 2 && args.at(1) == "--rhi-interaction-selftest")
+        return runA019NativeInteractionValidation();
     const bool rendererTesting = args.size() == 5 && args.at(1) == "--renderer-selftest";
     const bool viaTesting = args.size() == 7 && args.at(1) == "--via-selftest";
     const bool padTesting = args.size() == 7 && args.at(1) == "--pad-selftest";
