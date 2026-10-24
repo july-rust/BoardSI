@@ -76,7 +76,7 @@ class PreviewImportPanel final : public QWidget {
         const bool p2c = header.size() == 3 &&
                          header[0] == "BOARDSI_P2C_PARTIAL_V2";
         if (header.size() != 3 ||
-            (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h && !p2h &&
+            (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h &&
              header[0] != "BOARDSI_P2A_PARTIAL_V1") ||
             header[1] != "V9.4-MILS") return false;
         layers = header[2].toInt(&ok);
@@ -193,7 +193,7 @@ class PreviewImportPanel final : public QWidget {
                        layerRecords == layers &&
                        (((p2c || p2d || p2e || p2f || p2g || p2h) &&
                          parts.size() == (p2h ? 10 : (p2g ? 9 : (p2f ? 7 : 6)))) ||
-                        (!p2c && !p2d && !p2e && !p2f && !p2g &&
+                        (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h &&
                          parts.size() == 5))) {
                 const int count = parts[1].toInt(&ok);
                 if (!ok || count != static_cast<int>(tracks.size())) return false;
@@ -243,6 +243,18 @@ class PreviewImportPanel final : public QWidget {
                        !pads.empty() || !outlines.empty() || !circles.empty());
     }
 public:
+    // Exercise the production decoder from native tests, especially malformed
+    // V7 END trailers. No bypass of the real parser/validation logic.
+    static bool validTransportForTest(const QByteArray &bytes) {
+        int layers=0, skipped=0;
+        std::vector<ImportedTrack> tracks;
+        std::vector<ImportedVia> vias;
+        std::vector<ImportedPad> pads;
+        std::vector<ImportedArc> arcs;
+        std::vector<ImportedOutlineEdge> outlines;
+        std::vector<ImportedCircle> circles;
+        return decode(bytes,layers,skipped,tracks,vias,pads,arcs,outlines,circles);
+    }
     explicit PreviewImportPanel(const QString &importBinary = QString(), QWidget *parent = nullptr)
         : QWidget(parent), tabs_(new QTabWidget(this)),
           synthetic_(new SyntheticArtworkPanel(tabs_)),
