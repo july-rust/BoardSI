@@ -952,7 +952,8 @@ static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
             if(scene) {
                 for(QGraphicsItem *obj:scene->items()) {
                     auto *path=qgraphicsitem_cast<QGraphicsPathItem *>(obj);
-                    if(!path || !obj->data(1).toString().contains("MAIN_MIX")) continue;
+                    if(!path || !(obj->data(1).toString().contains("MAIN_MIX") ||
+                                obj->data(1).toString().contains("HOLE_MIX"))) continue;
                     const QString kind=obj->data(1).toString();
                     if(kind.contains("Arc")) {
                         ++arcs;
@@ -963,16 +964,17 @@ static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
                     }
                 }
             }
-            const bool counts=scene && panel->boundaryCount()==8 && arcs==4 &&
-                lines==4 && coordinatesOk &&
-                status.contains("8 mixed boundary parts") &&
-                window.displayedProperties().contains("mixed segments: 8");
+            const bool counts=scene && panel->boundaryCount()==16 && arcs==8 &&
+                lines==8 && coordinatesOk &&
+                status.contains("16 mixed boundary parts") &&
+                window.displayedProperties().contains("mixed segments: 16");
             auto *toggle=window.findChild<QPushButton *>("importedLayerToggle");
             bool mechanicalVisible=toggle!=nullptr;
             if(toggle && scene) {
                 toggle->click();
                 for(auto *obj:scene->items()) {
-                    if(obj->data(1).toString().contains("MAIN_MIX"))
+                    if(obj->data(1).toString().contains("MAIN_MIX") ||
+                       obj->data(1).toString().contains("HOLE_MIX"))
                         mechanicalVisible &= obj->isVisible();
                 }
                 toggle->click();
@@ -982,7 +984,7 @@ static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
                rhi && panel->rhiCanvasActiveForTest()) {
                 rhiChecked=true;
                 auto *item=rhi->itemForTest();
-                rhiOk=item->boundaryCountForTest()==8 &&
+                rhiOk=item->boundaryCountForTest()==16 &&
                     item->boundaryFitBoundsForTest() &&
                     item->dispatchBoundaryPickForTest(1) &&
                     window.displayedProperties().contains("MAIN_MIX");
@@ -1003,7 +1005,7 @@ static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
         {"host_arch",QSysInfo::currentCpuArchitecture()},
         {"native_backend",QGuiApplication::platformName()},
         {"rhi_checked",rhiChecked},{"rhi_fit_pick",rhiOk},
-        {"scope","PADS V9.4 quarter-circle BOARD synthetic fixture; SI NOT_RUN"}
+        {"scope","PADS V9.4 mixed quarter-arc BOARD and BRDCLS cutout; SI NOT_RUN"}
     };
     QFile receipt("qt-preview-p2i-mixed-outline-results.json");
     if(!receipt.open(QIODevice::WriteOnly) ||
