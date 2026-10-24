@@ -272,6 +272,89 @@ public:
         bar->addWidget(zoomIn);
         bar->addWidget(zoomOut);
         layout->addLayout(bar);
+
+        // A_020 P2-K: explorer operations use already-imported source objects.
+        auto *explorer = new QHBoxLayout();
+        auto *hideAll = new QPushButton("Hide all layers", this);
+        hideAll->setObjectName("importedHideAllLayers");
+        auto *solo = new QPushButton("Solo layer", this);
+        solo->setObjectName("importedSoloLayer");
+        auto *restore = new QPushButton("Restore layers", this);
+        restore->setObjectName("importedRestoreLayers");
+        explorer->addWidget(hideAll);
+        explorer->addWidget(solo);
+        explorer->addWidget(restore);
+        netSearch_ = new QLineEdit(this);
+        netSearch_->setObjectName("importedNetSearch");
+        netSearch_->setPlaceholderText("Find imported net (exact/unique)");
+        netSearch_->setMaxLength(128);
+        auto *findNet = new QPushButton("Find net", this);
+        findNet->setObjectName("importedNetFind");
+        explorer->addWidget(netSearch_, 2);
+        explorer->addWidget(findNet);
+        netOnly_ = new QCheckBox("Show selected net only", this);
+        netOnly_->setObjectName("importedNetOnly");
+        explorer->addWidget(netOnly_);
+        layout->addLayout(explorer);
+        explorerStatus_ = new QLabel("No imported copper objects / SI NOT_RUN", this);
+        explorerStatus_->setObjectName("importedExplorerStatus");
+        explorerStatus_->setWordWrap(true);
+        layout->addWidget(explorerStatus_);
+        const auto findNetName = [this] {
+            const QString term = netSearch_->text().trimmed();
+            if (term.isEmpty()) {
+                explorerStatus_->setText("Enter an imported net name");
+                return;
+            }
+            int found = -1;
+            for (int i=1; i<nets_->count(); ++i) {
+                if (nets_->itemText(i).compare(term,Qt::CaseInsensitive)==0) {
+                    found=i; break;
+                }
+            }
+            if (found < 0) {
+                for (int i=1; i<nets_->count(); ++i) {
+                    if (nets_->itemText(i).contains(term,Qt::CaseInsensitive)) {
+                        if (found >= 0) {
+                            explorerStatus_->setText("Ambiguous net; use an exact name");
+                            return;
+                        }
+                        found=i;
+                    }
+                }
+            }
+            if (found < 0) {
+                explorerStatus_->setText("Net not found in accepted imported objects");
+                return;
+            }
+            nets_->setCurrentIndex(found);
+            refresh();
+        };
+        connect(findNet,&QPushButton::clicked,this,findNetName);
+        connect(netSearch_,&QLineEdit::returnPressed,this,findNetName);
+        connect(hideAll,&QPushButton::clicked,this,[this] {
+            for (int i=1;i<layerVisible_.size();++i) layerVisible_[i]=false;
+            refresh();
+        });
+        connect(solo,&QPushButton::clicked,this,[this] {
+            const int selected=layers_->currentData().toInt();
+            if(selected<1 || selected>=layerVisible_.size()) return;
+            if(!hasSavedVisibility_) {
+                savedLayerVisibility_=layerVisible_;
+                hasSavedVisibility_=true;
+            }
+            for(int i=1;i<layerVisible_.size();++i) layerVisible_[i]=(i==selected);
+            refresh();
+        });
+        connect(restore,&QPushButton::clicked,this,[this] {
+            if(!hasSavedVisibility_ ||
+               savedLayerVisibility_.size()!=layerVisible_.size()) return;
+            layerVisible_=savedLayerVisibility_;
+            savedLayerVisibility_.clear();
+            hasSavedVisibility_=false;
+            refresh();
+        });
+        connect(netOnly_,&QCheckBox::toggled,this,[this](bool) { refresh(); });
         canvasStack_->addWidget(view_);
 #ifdef BOARDSI_RHI_ARTWORK
         // A native Qt Quick window avoids QQuickWidget's extra offscreen render
