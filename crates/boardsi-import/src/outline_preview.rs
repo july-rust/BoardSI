@@ -84,7 +84,7 @@ fn intersect(a: [i64; 2], b: [i64; 2], c: [i64; 2], d: [i64; 2]) -> bool {
     }
     (u > 0) != (v > 0) && (w > 0) != (x > 0)
 }
-fn valid_ring(p: &[[i64; 2]]) -> bool {
+pub(crate) fn valid_ring(p: &[[i64; 2]]) -> bool {
     if p.len() < 4 || p.first() != p.last() {
         return false;
     }
