@@ -79,6 +79,61 @@ pub fn parse_cardinal(
     })
 }
 
+/// Validate a closed PADS line/arc piece without promoting it to BoardModel.
+/// The last source row must repeat the first point, just as the PADS format
+/// requires. Chord topology is only a preflight: exact arc intersections and
+/// cutout containment still must be certified before import is enabled.
+pub fn preflight_closed(
+    rows: &[Vec<&str>],
+    origin: [i64; 2],
+) -> Result<Vec<Option<CardinalArcCorner>>, &'static str> {
+    if !(4..=256).contains(&rows.len()) {
+        return Err("OUTLINE_COUNT_RANGE");
+    }
+    let mut vertices = Vec::with_capacity(rows.len());
+    let mut arcs = Vec::with_capacity(rows.len() - 1);
+    for (index, row) in rows.iter().enumerate() {
+        if row.len() != 2 && row.len() != 8 {
+            return Err("INVALID_OUTLINE_ARC_FIELDS");
+        }
+        if index == rows.len() - 1 && row.len() != 2 {
+            return Err("INVALID_OUTLINE_ARC_CLOSURE");
+        }
+        let point = [
+            origin[0]
+                .checked_add(fixed(row[0])?)
+                .ok_or("OUTLINE_COORD_OVERFLOW")
+                .and_then(bounded)?,
+            origin[1]
+                .checked_add(fixed(row[1])?)
+                .ok_or("OUTLINE_COORD_OVERFLOW")
+                .and_then(bounded)?,
+        ];
+        vertices.push(point);
+        if index < rows.len() - 1 {
+            arcs.push(if row.len() == 8 {
+                Some(parse_cardinal(row, origin)?)
+            } else {
+                None
+            });
+        }
+    }
+    if vertices.first() != vertices.last() {
+        return Err("INVALID_OUTLINE_RING");
+    }
+    for (i, arc) in arcs.iter().enumerate() {
+        if let Some(arc) = arc {
+            if arc.start != vertices[i] || arc.end != vertices[i + 1] {
+                return Err("OUTLINE_ARC_ENDPOINT_MISMATCH");
+            }
+        }
+    }
+    if !crate::outline_preview::valid_ring(&vertices) {
+        return Err("INVALID_OUTLINE_RING");
+    }
+    Ok(arcs)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,6 +189,30 @@ mod tests {
             assert_eq!(parse_cardinal(&fields, [0, 0]).unwrap_err(), expected);
         }
     }
+    #[test]
+    fn preflight_mixed_rounded_rectangle_preserves_four_exact_arcs() {
+        let source = "100 0\n300 0 2700 900 200 0 400 200\n400 100\n400 200 0 900 200 100 400 300\n300 300\n100 300 900 900 0 100 200 300\n0 200\n0 100 1800 900 0 0 200 200\n100 0";
+        let rows: Vec<Vec<&str>> = source
+            .lines()
+            .map(|line| line.split_ascii_whitespace().collect())
+            .collect();
+        let arcs = preflight_closed(&rows, [0, 0]).unwrap();
+        assert_eq!(arcs.len(), 8);
+        assert_eq!(arcs.iter().filter(|a| a.is_some()).count(), 4);
+        assert_eq!(arcs[1].unwrap().end, [40_000, 10_000]);
+        assert_eq!(arcs[7].unwrap().end, [10_000, 0]);
+
+        let malformed = source.replace("400 100", "400 101");
+        let bad_rows: Vec<Vec<&str>> = malformed
+            .lines()
+            .map(|line| line.split_ascii_whitespace().collect())
+            .collect();
+        assert_eq!(
+            preflight_closed(&bad_rows, [0, 0]).unwrap_err(),
+            "OUTLINE_ARC_ENDPOINT_MISMATCH"
+        );
+    }
+
     #[test]
     fn rejects_non_square_and_missing_fields_and_out_of_range() {
         assert_eq!(
