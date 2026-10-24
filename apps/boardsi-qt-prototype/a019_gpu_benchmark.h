@@ -20,7 +20,7 @@
 #include <sys/resource.h>
 #endif
 
-static qint64 boardSiPeakResidentBytes() {
+[[maybe_unused]] static qint64 boardSiPeakResidentBytes() {
 #ifdef Q_OS_WIN
     PROCESS_MEMORY_COUNTERS c{};
     c.cb=sizeof(c);
