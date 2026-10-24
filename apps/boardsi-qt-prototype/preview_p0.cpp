@@ -932,6 +932,15 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
 // A_018 P2-I: actual V8 Import -> CPU/RHI analytical mechanical quarter-arcs.
 static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock; clock.start();
+    const QByteArray malformed=
+        "BOARDSI_P2I_PARTIAL_V8|V9.4-MILS|1\\n"
+        "L|1|TOP\\n"
+        "B|OUTER|TEST|0|L|0|0|2540|0\\n"
+        "B|OUTER|TEST|1|L|2540|0|2540|2540\\n"
+        "B|OUTER|TEST|2|L|2540|2540|0|0\\n"
+        "END|0|0|0|0\\n";
+    const bool truncatedV8Rejected=
+        !PreviewImportPanel::validTransportForTest(malformed);
     bool passed=false,rhiChecked=false,rhiOk=false;
     QString failure;
     QEventLoop loop;
@@ -990,7 +999,8 @@ static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
                     window.displayedProperties().contains("MAIN_MIX");
             }
 #endif
-            passed=counts && mechanicalVisible && (!rhiChecked || rhiOk);
+            passed=counts && mechanicalVisible && truncatedV8Rejected &&
+                   (!rhiChecked || rhiOk);
             if(!passed) failure="A_018 V8/CPU/RHI geometry, Fit or picking mismatch";
             loop.quit();
         });
@@ -1005,6 +1015,7 @@ static int runMixedOutlineSmoke(PreviewWindow &window, const QString &fixture) {
         {"host_arch",QSysInfo::currentCpuArchitecture()},
         {"native_backend",QGuiApplication::platformName()},
         {"rhi_checked",rhiChecked},{"rhi_fit_pick",rhiOk},
+        {"truncated_v8_rejected",truncatedV8Rejected},
         {"scope","PADS V9.4 mixed quarter-arc BOARD and BRDCLS cutout; SI NOT_RUN"}
     };
     QFile receipt("qt-preview-p2i-mixed-outline-results.json");
