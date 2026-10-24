@@ -249,7 +249,7 @@ fn run() -> Result<(), &'static str> {
                         "Q|{}|{}|{}|{}|{}|{}|{}|{}|{}",
                         pour.layer,
                         pour.name,
-                        pour.net_label.as_deref().unwrap_or("NET_NOT_DECLARED"),
+                        pour.net_label.as_deref().unwrap_or("-"),
                         sequence,
                         outline_preview::wire_nm(pair[0][0])?,
                         outline_preview::wire_nm(pair[0][1])?,
