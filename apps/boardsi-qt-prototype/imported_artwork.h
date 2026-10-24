@@ -436,7 +436,13 @@ public:
         int outerCircles=0;
         QSet<QString> circleKeys;
         for (const auto &c : circleInput) {
-            if (c.name.isEmpty() || c.name.size()>16 || c.radius_nm<=0 ||
+            constexpr qint64 limit_nm = 1422400000LL;
+            // Validate individual operands before any signed additions:
+            // an untrusted V7 circle must never overflow qint64 extrema.
+            if (c.name.isEmpty() || c.name.size()>16 ||
+                c.radius_nm<=0 || c.radius_nm>limit_nm ||
+                c.cx_nm < -limit_nm || c.cx_nm > limit_nm ||
+                c.cy_nm < -limit_nm || c.cy_nm > limit_nm ||
                 c.cx_nm%254!=0 || c.cy_nm%254!=0 || c.radius_nm%254!=0)
                 return false;
             for (const auto v : {c.cx_nm-c.radius_nm,c.cx_nm+c.radius_nm,
