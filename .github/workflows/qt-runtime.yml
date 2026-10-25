@@ -414,6 +414,16 @@ jobs:
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --copper-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_copper_filled_v94.asc"
           cat qt-preview-a022-copper-results.json
           python -c 'import json; r=json.load(open("qt-preview-a022-copper-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a022-copper-v1" and r["fixture_import"] and r["source_properties"] and r["filter_parity"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_source_checked"] and r["fabricated_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
+      - name: A_023 native combined COPPER/COPCUT V11 hollow artwork regression
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --cutout-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_copper_cutout_v94.asc"
+          cat qt-preview-a023-cutout-results.json
+          python -c 'import json; r=json.load(open("qt-preview-a023-cutout-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a023-cutout-v1" and r["fixture_import"] and r["cpu_hollow_fill"] and r["source_properties"] and r["layer_filter"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_hole_pick"] and r["rhi_imported_frame_confirmed"] and r["physical_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
+
       - name: Run A_014 native Qt Quick / RHI geometry and first-frame smoke
         shell: bash
         run: |
@@ -442,6 +452,7 @@ jobs:
             build-qt/qt-preview-a020-explorer-results.json
             build-qt/qt-preview-a021-pour-results.json
             build-qt/qt-preview-a022-copper-results.json
+            build-qt/qt-preview-a023-cutout-results.json
             build-qt/qt-preview-a014-software-fallback-results.json
             build-qt/qt-preview-p2c-pad-results.json
             build-qt/qt-preview-native-direct.json

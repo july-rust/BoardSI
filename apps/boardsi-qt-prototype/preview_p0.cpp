@@ -1744,6 +1744,104 @@ static int runRhiGeometrySmoke() {
 }
 
 
+// A_023 V11: real Rust combined COPPER/COPCUT -> Qt decoder ->
+// CPU even-odd hollow path, RHI exact hollow pick, layers/cleanup.
+static int runCutoutSmoke(PreviewWindow &window,const QString &fixture) {
+    bool pass=false,loaded=false,hollow=false,properties=false,filtered=false;
+    bool malformed=false,reset=false,rhiPick=false,rhiFrame=false;
+    QString failure;
+    if(!window.openCandidate(fixture))failure="A023 fixture unavailable";
+    else {
+        QEventLoop loop;QTimer tick;
+        QObject::connect(&tick,&QTimer::timeout,&loop,[&]{
+            const auto state=window.importPanel()->importStatus();
+            if(state.startsWith("FAILED")||state.startsWith("CANCELLED")) {
+                failure="A023 import failed: "+state;loop.quit();return;
+            }
+            if(!state.startsWith("PARTIAL"))return;
+            auto *panel=window.importPanel()->imported();
+#ifdef BOARDSI_RHI_ARTWORK
+            // Qt Quick source frame must have been presented for THIS import;
+            // a stale RHI instance can survive a CPU fallback.
+            auto *nativeRhi=panel->rhiViewForTest();
+            if(!nativeRhi || !panel->rhiCanvasActiveForTest() || nativeRhi->failed()) {
+                failure="A023 RHI unavailable / CPU fallback / NOT_RUN";
+                loop.quit();return;
+            }
+            if(!nativeRhi->status().startsWith("RHI_FRAME_"))return;
+            rhiFrame=true;
+#else
+            failure="A023 CPU-only build / imported RHI frame NOT_RUN";
+            loop.quit();return;
+#endif
+            loaded=panel->copperCount()==1 && state.contains("1 filled source copper areas");
+            properties=panel->selectCopper(0) &&
+                window.displayedProperties().contains("COPPER COP_HOLE") &&
+                window.displayedProperties().contains("cutouts 2") &&
+                window.displayedProperties().contains("connectivity NOT_VERIFIED");
+            auto *scene=panel->findChild<QGraphicsScene *>();
+            QGraphicsPathItem *copper=nullptr;
+            if(scene)for(QGraphicsItem *it:scene->items()) {
+                if(it->data(2).toString().startsWith("COPPER COP_HOLE")) {
+                    copper=qgraphicsitem_cast<QGraphicsPathItem *>(it);break;
+                }
+            }
+            constexpr qreal mil=0.0254;
+            if(copper) {
+                const auto path=copper->path();
+                hollow=path.contains(QPointF(50*mil,-50*mil)) &&
+                       !path.contains(QPointF(70*mil,-70*mil)) &&
+                       !path.contains(QPointF(110*mil,-90*mil));
+            }
+            auto *hide=panel->findChild<QPushButton *>("importedHideAllLayers");
+            auto *show=panel->findChild<QPushButton *>("importedShowAllLayers");
+            if(hide&&show&&copper) {
+                hide->click();const bool hidden=!copper->isVisible();
+                show->click();const bool restored=copper->isVisible();
+                filtered=hidden&&restored;
+            }
+            ImportedCopperArea bad;
+            bad.name="BAD";bad.net="-";bad.layer=1;bad.sourceLine=1;
+            bad.ring={{0,0},{25400,0},{25400,25400},{0,25400},{0,0}};
+            bad.cutouts.push_back({{0,2540},{5080,2540},{5080,5080},{0,5080},{0,2540}});
+            malformed=!validateCopperArea(bad) &&
+                !PreviewImportPanel::validTransportForTest(
+                    "BOARDSI_P2N_PARTIAL_V11|V9.4-MILS|4\nL|1|Top\n");
+#ifdef BOARDSI_RHI_ARTWORK
+            if(auto *rhi=panel->rhiViewForTest()) {
+                auto *item=rhi->itemForTest();
+                rhiPick=item && item->copperCountForTest()==1 &&
+                    item->dispatchCopperPickForTest(0) &&
+                    item->rejectCopperHolePickForTest(0);
+            }else rhiPick=false; // No RHI object: never certify an unrun RHI test.
+#else
+            rhiPick=false; // CPU-only build cannot claim Qt Quick/RHI validation.
+#endif
+            panel->clearArtwork();
+            reset=panel->copperCount()==0;
+            pass=loaded&&hollow&&properties&&filtered&&malformed&&reset&&rhiFrame&&rhiPick;
+            if(!pass)failure="A023 hollow copper source, CPU/RHI, filter or decoder mismatch";
+            loop.quit();
+        });
+        QTimer::singleShot(15000,&loop,&QEventLoop::quit);
+        tick.start(20);loop.exec();tick.stop();
+        if(!pass&&failure.isEmpty())failure="A023 native cutout smoke timed out";
+    }
+    const QJsonObject report{
+        {"schema","boardsi-preview-a023-cutout-v1"},
+        {"pass",pass},{"fixture_import",loaded},{"cpu_hollow_fill",hollow},
+        {"source_properties",properties},{"layer_filter",filtered},
+        {"malformed_rejected",malformed},{"clear_resets",reset},
+        {"rhi_hole_pick",rhiPick},{"rhi_imported_frame_confirmed",rhiFrame},
+        {"physical_copper","NOT_VERIFIED"},{"physical_si","NOT_RUN"},{"failure",failure}
+    };
+    QFile output("qt-preview-a023-cutout-results.json");
+    if(!output.open(QIODevice::WriteOnly)||
+       output.write(QJsonDocument(report).toJson(QJsonDocument::Indented))<1)return 2;
+    qInfo().noquote()<<QJsonDocument(report).toJson(QJsonDocument::Compact);
+    return pass?0:1;
+}
+
 // A_022 V10: real Rust synthetic COPCLS/COPCIR -> strict Qt decoder ->
 // CPU/RHI filled geometry, selection/filter parity and state clearing.
 static int runCopperSmoke(PreviewWindow &window,const QString &fixture) {
@@ -1962,9 +2060,10 @@ int main(int argc, char **argv) {
     const bool mixedTesting = args.size() == 7 && args.at(1) == "--mixed-outline-selftest";
     const bool pourTesting = args.size() == 7 && args.at(1) == "--pour-selftest";
     const bool copperTesting = args.size() == 7 && args.at(1) == "--copper-selftest";
+    const bool cutoutTesting = args.size() == 7 && args.at(1) == "--cutout-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
                          rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting ||
-                         arcTesting || outlineTesting || circleTesting || mixedTesting || pourTesting || copperTesting;
+                         arcTesting || outlineTesting || circleTesting || mixedTesting || pourTesting || copperTesting || cutoutTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -1987,7 +2086,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return copperTesting ? runCopperSmoke(window, fixture) :
+    return cutoutTesting ? runCutoutSmoke(window, fixture) :
+           copperTesting ? runCopperSmoke(window, fixture) :
            pourTesting ? runPourSmoke(window, fixture) :
            mixedTesting ? runMixedOutlineSmoke(window, fixture) :
            circleTesting ? runCircleSmoke(window, fixture) :

@@ -1,4 +1,5 @@
-//! A_022 P2-M: restricted, read-only PADS V9.4 MILS *LINES* COPPER artwork.
+//! A_023 P2-N: bounded *LINES* explicitly combined rectangular COPCUT holes.
+//! A_022 standalone COPCLS/COPCIR geometry remains backward compatible.
 //! This records explicit filled COPCLS/COPCIR only; it is not flood,
 //! electrical contact, physical stackup, or a verified fabricated conductor.
 use crate::outline_preview::{bounded, fixed, valid_ring};
@@ -19,6 +20,8 @@ pub struct CopperArea {
     pub layer: u32,
     pub source_line: usize,
     pub geometry: CopperGeometry,
+    /// Same named COPPER object's subsequent COPCUT pieces, never standalone pour voids.
+    pub cutouts: Vec<CopperGeometry>,
 }
 fn token(s: &str, max: usize) -> bool {
     !s.is_empty() && s.len() <= max && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
@@ -39,8 +42,33 @@ fn point(row: &str, origin: [i64; 2]) -> Result<[i64; 2], &'static str> {
         .ok_or("COPPER_OVERFLOW")?;
     Ok([bounded(x)?, bounded(y)?])
 }
-/// Strict source-syntax preview. Explicit COPCUT / COPCCO or multiple pieces
-/// cause a hard refusal, rather than inventing a solid area over a void.
+// Deliberately restricted initial void support: five-point axis-aligned rectangles.
+// Exact closed polygon, not a bounding-box approximation of an arbitrary polygon.
+pub fn rectangle_bounds(ring: &[[i64; 2]]) -> Option<[i64; 4]> {
+    if ring.len() != 5 || ring[0] != ring[4] || !valid_ring(ring) {
+        return None;
+    }
+    let x0 = ring.iter().map(|v| v[0]).min()?;
+    let y0 = ring.iter().map(|v| v[1]).min()?;
+    let x1 = ring.iter().map(|v| v[0]).max()?;
+    let y1 = ring.iter().map(|v| v[1]).max()?;
+    if x0 >= x1 || y0 >= y1 {
+        return None;
+    }
+    let mut expected = std::collections::BTreeSet::from([[x0, y0], [x0, y1], [x1, y0], [x1, y1]]);
+    for v in &ring[..4] {
+        if !expected.remove(v) {
+            return None;
+        }
+    }
+    if !expected.is_empty() {
+        return None;
+    }
+    Some([x0, y0, x1, y1])
+}
+/// Fail closed on ambiguous ownership: a COPCUT only subtracts from the COPPER
+/// record whose explicit multi-piece header encloses it. Standalone COPCUT is
+/// an unassociated pour void and is rejected, not inferred by containment.
 pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static str> {
     if bytes.len() > crate::route_preview::MAX_FILE_BYTES {
         return Err("INPUT_TOO_LARGE");
@@ -96,19 +124,36 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
         if fields.len() >= 2 && fields[1] == "COPCUT" {
             return Err("UNSUPPORTED_COPPER_VOID");
         }
+        // A declared multi-piece count that understates a following COPCUT
+        // must not silently re-fill the omitted void. Reject orphan piece
+        // headers even when the line-item header has already been consumed.
+        if fields.len() == 5
+            && matches!(
+                fields[0],
+                "COPCUT" | "COPCCO" | "CIRCUR" | "COPCLS" | "COPCIR" | "COPOPN"
+            )
+        {
+            return Err("UNCONSUMED_COPPER_PIECE");
+        }
         if fields.len() < 2 || fields[1] != "COPPER" {
             i += 1;
             continue;
         }
-        // name COPPER x y 1 1 [0 net]. Only declared solid-filled
-        // single-piece copper is accepted. Reject external-library reuse.
+        // name COPPER x y pieces 1 [0 net]. A single explicit owner
+        // contains its filled body first, followed by bounded rectangular
+        // COPCUT pieces. Never infer ownership from spatial containment.
         if !matches!(fields.len(), 6 | 8)
             || !token(fields[0], 16)
-            || fields[4] != "1"
             || fields[5] != "1"
             || (fields.len() == 8 && (fields[6] != "0" || !token(fields[7], 47)))
         {
             return Err("UNSUPPORTED_COPPER_HEADER");
+        }
+        let piece_count = fields[4]
+            .parse::<usize>()
+            .map_err(|_| "UNSUPPORTED_COPPER_HEADER")?;
+        if !(1..=9).contains(&piece_count) {
+            return Err("COPPER_PIECE_LIMIT");
         }
         if found.len() >= MAX_COPPER || !names.insert(fields[0].to_owned()) {
             return Err("COPPER_COUNT_OR_DUPLICATE");
@@ -122,71 +167,129 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
             None
         };
         i += 1;
-        let piece: Vec<_> = lines
-            .get(i)
-            .ok_or("TRUNCATED_COPPER")?
-            .split_ascii_whitespace()
-            .collect();
-        if piece.len() != 5 || !matches!(piece[0], "COPCLS" | "COPCIR") || piece[3] != "0" {
-            return Err("UNSUPPORTED_COPPER_PIECE");
-        }
-        let n = piece[1]
-            .parse::<usize>()
-            .map_err(|_| "COPPER_CORNER_COUNT")?;
-        if (piece[0] == "COPCIR" && n != 2)
-            || (piece[0] == "COPCLS" && !(4..=MAX_VERTICES).contains(&n))
-        {
-            return Err("COPPER_CORNER_COUNT");
-        }
-        let width = fixed(piece[2])?;
-        if !(1..=25_000).contains(&width) {
-            return Err("COPPER_WIDTH_RANGE");
-        }
-        let layer = piece[4].parse::<u32>().map_err(|_| "COPPER_LAYER_RANGE")?;
-        if !(1..=max_layer).contains(&layer) {
-            return Err("COPPER_LAYER_RANGE");
-        }
-        i += 1;
-        let mut vertices = Vec::with_capacity(n);
-        for _ in 0..n {
-            let row = lines.get(i).ok_or("TRUNCATED_COPPER")?;
-            vertices.push(point(row, origin)?);
+        let mut primary = None;
+        let mut cutouts = Vec::new();
+        let mut parent_layer = 0;
+        for part_index in 0..piece_count {
+            let piece: Vec<_> = lines
+                .get(i)
+                .ok_or("TRUNCATED_COPPER")?
+                .split_ascii_whitespace()
+                .collect();
+            if piece.len() != 5 || piece[3] != "0" {
+                return Err("UNSUPPORTED_COPPER_PIECE");
+            }
+            if part_index == 0 {
+                if !matches!(piece[0], "COPCLS" | "COPCIR") {
+                    return Err("UNSUPPORTED_COPPER_PIECE");
+                }
+            } else if piece[0] != "COPCUT" {
+                // COPCCO and arcs are explicitly deferred; do not invent a fill.
+                return Err("UNSUPPORTED_COPPER_CUTOUT_PIECE");
+            }
+            let n = piece[1]
+                .parse::<usize>()
+                .map_err(|_| "COPPER_CORNER_COUNT")?;
+            if (piece[0] == "COPCIR" && n != 2)
+                || (piece[0] == "COPCLS" && !(4..=MAX_VERTICES).contains(&n))
+                || (piece[0] == "COPCUT" && n != 5)
+            {
+                return Err("COPPER_CORNER_COUNT");
+            }
+            let width = fixed(piece[2])?;
+            if !(1..=25_000).contains(&width) {
+                return Err("COPPER_WIDTH_RANGE");
+            }
+            let layer = piece[4].parse::<u32>().map_err(|_| "COPPER_LAYER_RANGE")?;
+            if !(1..=max_layer).contains(&layer) {
+                return Err("COPPER_LAYER_RANGE");
+            }
+            if part_index == 0 {
+                parent_layer = layer;
+            } else if layer != parent_layer {
+                return Err("COPPER_CUTOUT_LAYER_MISMATCH");
+            }
             i += 1;
+            let mut vertices = Vec::with_capacity(n);
+            for _ in 0..n {
+                let row = lines.get(i).ok_or("TRUNCATED_COPPER")?;
+                vertices.push(point(row, origin)?);
+                i += 1;
+            }
+            let geometry = if piece[0] == "COPCIR" {
+                let a = vertices[0];
+                let b = vertices[1];
+                if (a[0] == b[0]) == (a[1] == b[1]) {
+                    return Err("UNSUPPORTED_COPPER_CIRCLE_DIAMETER");
+                }
+                let diameter = (b[0] - a[0]).abs().max((b[1] - a[1]).abs());
+                if diameter < 2 || diameter % 2 != 0 {
+                    return Err("UNSUPPORTED_COPPER_CIRCLE_GRID");
+                }
+                let centre = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+                let radius = diameter / 2;
+                for c in [
+                    [centre[0] - radius, centre[1]],
+                    [centre[0] + radius, centre[1]],
+                    [centre[0], centre[1] - radius],
+                    [centre[0], centre[1] + radius],
+                ] {
+                    bounded(c[0])?;
+                    bounded(c[1])?;
+                }
+                CopperGeometry::Circle { centre, radius }
+            } else {
+                if !valid_ring(&vertices) {
+                    return Err("INVALID_COPPER_RING");
+                }
+                if piece[0] == "COPCUT" && rectangle_bounds(&vertices).is_none() {
+                    return Err("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY");
+                }
+                CopperGeometry::Polygon(vertices)
+            };
+            if part_index == 0 {
+                primary = Some(geometry);
+            } else {
+                cutouts.push(geometry);
+            }
         }
-        let geometry = if piece[0] == "COPCIR" {
-            let a = vertices[0];
-            let b = vertices[1];
-            if (a[0] == b[0]) == (a[1] == b[1]) {
-                return Err("UNSUPPORTED_COPPER_CIRCLE_DIAMETER");
+        let geometry = primary.ok_or("TRUNCATED_COPPER")?;
+        if !cutouts.is_empty() {
+            // A_023: rectangular outer with disjoint, strictly-inside rectangles.
+            // Arbitrary polygon-with-holes triangulation is deferred.
+            let outer = match &geometry {
+                CopperGeometry::Polygon(v) => {
+                    rectangle_bounds(v).ok_or("UNSUPPORTED_COPPER_HOLLOW_OUTER")?
+                }
+                CopperGeometry::Circle { .. } => return Err("UNSUPPORTED_COPPER_HOLLOW_OUTER"),
+            };
+            let mut accepted: Vec<[i64; 4]> = Vec::new();
+            for hole in &cutouts {
+                let h = match hole {
+                    CopperGeometry::Polygon(v) => {
+                        rectangle_bounds(v).ok_or("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY")?
+                    }
+                    CopperGeometry::Circle { .. } => return Err("UNSUPPORTED_COPPER_CUTOUT_PIECE"),
+                };
+                if h[0] <= outer[0] || h[1] <= outer[1] || h[2] >= outer[2] || h[3] >= outer[3] {
+                    return Err("COPPER_CUTOUT_NOT_INTERIOR");
+                }
+                if accepted
+                    .iter()
+                    .any(|p| h[0] <= p[2] && h[2] >= p[0] && h[1] <= p[3] && h[3] >= p[1])
+                {
+                    return Err("COPPER_CUTOUT_OVERLAP_OR_TOUCH");
+                }
+                accepted.push(h);
             }
-            let diameter = (b[0] - a[0]).abs().max((b[1] - a[1]).abs());
-            if diameter < 2 || diameter % 2 != 0 {
-                return Err("UNSUPPORTED_COPPER_CIRCLE_GRID");
-            }
-            let centre = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-            let radius = diameter / 2;
-            for coord in [
-                [centre[0] - radius, centre[1]],
-                [centre[0] + radius, centre[1]],
-                [centre[0], centre[1] - radius],
-                [centre[0], centre[1] + radius],
-            ] {
-                bounded(coord[0])?;
-                bounded(coord[1])?;
-            }
-            CopperGeometry::Circle { centre, radius }
-        } else {
-            if !valid_ring(&vertices) {
-                return Err("INVALID_COPPER_RING");
-            }
-            CopperGeometry::Polygon(vertices)
-        };
+        }
         found.push(CopperArea {
             name,
             net_label,
-            layer,
+            layer: parent_layer,
             source_line,
             geometry,
+            cutouts,
         });
     }
     if !ended {
@@ -202,8 +305,8 @@ pub fn augment(
     areas: &[CopperArea],
 ) -> Result<(), &'static str> {
     use boardsi_model::{
-        Boundary, BoundarySegment, CopperArea as ModelCopperArea, GeometryProvenance, ObjectId,
-        ObjectKind, ObjectMeta, Point,
+        Boundary, BoundarySegment, CopperArea as ModelCopperArea, Cutout as ModelCutout,
+        GeometryProvenance, ObjectId, ObjectKind, ObjectMeta, Point,
     };
     if areas.is_empty() {
         return Ok(());
@@ -270,11 +373,51 @@ pub fn augment(
             layer,
             net: None, // Explicitly unverified electrical ownership.
             outer: Boundary { segments },
-            cutouts: vec![], // COPCUT/holes are rejected by the parser.
+            cutouts: a
+                .cutouts
+                .iter()
+                .enumerate()
+                .map(|(index, cut)| {
+                    let v = match cut {
+                        CopperGeometry::Polygon(v) => v,
+                        CopperGeometry::Circle { .. } => {
+                            unreachable!("cutouts are rectangular polygons")
+                        }
+                    };
+                    ModelCutout {
+                        meta: ObjectMeta {
+                            id: ObjectId::new(
+                                &source,
+                                ObjectKind::Cutout,
+                                &format!(
+                                    "source-copper-{}-{}-cutout-{}",
+                                    a.name, a.source_line, index
+                                ),
+                                "",
+                            ),
+                            provenance: GeometryProvenance {
+                                source_object_type:
+                                    "PADS V9.4 MILS same-COPPER COPCUT rectangular source void"
+                                        .into(),
+                                history: vec![],
+                            },
+                        },
+                        boundary: Boundary {
+                            segments: v
+                                .windows(2)
+                                .map(|pair| BoundarySegment::Line {
+                                    start: point(pair[0]),
+                                    end: point(pair[1]),
+                                })
+                                .collect(),
+                        },
+                    }
+                })
+                .collect(),
         });
     }
     board.sources[0].capability.object_coverage.push(
-        "PADS COPCLS/COPCIR explicitly filled source artwork; net/contact NOT_VERIFIED".into(),
+        "PADS source COPCLS/COPCIR plus strictly bounded combined rectangular COPCUT; net/contact NOT_VERIFIED".into(),
     );
     Ok(())
 }
@@ -339,6 +482,62 @@ mod tests {
             SAMPLE.replace("10 0", "10 0 90 0 0 0 0 0"),
         ] {
             assert!(parse(sample.as_bytes(), 4).is_err(), "{sample}");
+        }
+    }
+    #[test]
+    fn accepts_explicit_combined_rectangle_cutout_with_canonical_provenance() {
+        let source = SAMPLE.replace("1 1 0 GND", "2 1 0 GND").replace(
+            "0 20\n0 0\n*END*",
+            "0 20\n0 0\nCOPCUT 5 0.01 0 2\n2 2\n4 2\n4 6\n2 6\n2 2\n*END*",
+        );
+        let a = parse(source.as_bytes(), 4).unwrap();
+        // Misstated 1-piece owner must refuse the subsequent source COPCUT.
+        // Otherwise copper would be silently filled across a real void.
+        assert!(parse(source.replace("2 1 0 GND", "1 1 0 GND").as_bytes(), 4).is_err());
+        assert_eq!(a.len(), 1);
+        assert_eq!(a[0].cutouts.len(), 1);
+        assert_eq!(
+            rectangle_bounds(match &a[0].cutouts[0] {
+                CopperGeometry::Polygon(r) => r,
+                CopperGeometry::Circle { .. } => panic!("expected polygon"),
+            }),
+            Some([10200, 20200, 10400, 20600])
+        );
+    }
+    #[test]
+    fn refuses_wrong_owner_layer_and_touching_holes() {
+        let source = SAMPLE.replace("1 1 0 GND", "2 1 0 GND").replace(
+            "0 20\n0 0\n*END*",
+            "0 20\n0 0\nCOPCUT 5 0.01 0 2\n2 2\n4 2\n4 6\n2 6\n2 2\n*END*",
+        );
+        assert!(parse(
+            source
+                .replace("COPCUT 5 0.01 0 2", "COPCUT 5 0.01 0 1")
+                .as_bytes(),
+            4
+        )
+        .is_err());
+        assert!(parse(
+            source
+                .replace("2 2\n4 2\n4 6\n2 6\n2 2", "0 2\n4 2\n4 6\n0 6\n0 2")
+                .as_bytes(),
+            4
+        )
+        .is_err());
+        assert!(parse(
+            source
+                .replace("COPCUT 5 0.01 0 2", "COPCCO 5 0.01 0 2")
+                .as_bytes(),
+            4
+        )
+        .is_err());
+    }
+    #[test]
+    fn source_names_matching_piece_keywords_are_legal() {
+        for name in ["COPCLS", "COPCIR", "COPCUT", "COPCCO"] {
+            let a = SAMPLE.replace("GND_ZONE COPPER", &format!("{name} COPPER"));
+            let areas = parse(a.as_bytes(), 4).unwrap();
+            assert_eq!(areas[0].name, name);
         }
     }
     #[test]

@@ -22,6 +22,7 @@
 #include <array>
 #include <cstddef>
 #include <algorithm>
+#include <set>
 #include <functional>
 #include <utility>
 
@@ -76,6 +77,10 @@ struct ImportedCopperArea {
     qint64 cx_nm=0,cy_nm=0,radius_nm=0;
     std::vector<std::pair<qint64,qint64>> ring;
     std::vector<std::array<int,3>> triangles;
+    std::vector<std::vector<std::pair<qint64,qint64>>> cutouts;
+    // Exact-grid tiling for validated axis-aligned rectangular holes.
+    // Consumed unchanged by source-aware RHI rendering and picking.
+    std::vector<std::array<std::pair<qint64,qint64>,3>> hollowTriangles;
 };
 inline bool validateCopperArea(ImportedCopperArea &a) {
     constexpr qint64 bound=1422400000LL;
@@ -84,7 +89,9 @@ inline bool validateCopperArea(ImportedCopperArea &a) {
         return false;
     auto coord=[&](qint64 v) {return v%254==0 && v>=-bound && v<=bound;};
     a.triangles.clear();
+    a.hollowTriangles.clear();
     if(a.circle) {
+        if(!a.cutouts.empty()) return false;
         if(!a.ring.empty() || !coord(a.cx_nm) || !coord(a.cy_nm) ||
            !coord(a.radius_nm) || a.radius_nm<=0) return false;
         for(const auto v:{a.cx_nm-a.radius_nm,a.cx_nm+a.radius_nm,
@@ -95,6 +102,61 @@ inline bool validateCopperArea(ImportedCopperArea &a) {
     if(a.ring.size()<4 || a.ring.size()>256 || a.ring.front()!=a.ring.back()) return false;
     const int n=static_cast<int>(a.ring.size())-1;
     for(auto p:a.ring) if(!coord(p.first) || !coord(p.second)) return false;
+    if(!a.cutouts.empty()) {
+        // Conservative rectangular subset: explicit same-owner COPCUT pieces
+        // with disjoint strict interiors. No arbitrary polygon hole approximation.
+        using P=std::pair<qint64,qint64>;
+        using B=std::array<qint64,4>;
+        auto rectangle=[&](const std::vector<P>&ring,B &b)->bool {
+            if(ring.size()!=5 || ring.front()!=ring.back())return false;
+            qint64 x0=ring.front().first,x1=x0,y0=ring.front().second,y1=y0;
+            for(const P &p:ring) {
+                if(!coord(p.first)||!coord(p.second))return false;
+                x0=std::min(x0,p.first);x1=std::max(x1,p.first);
+                y0=std::min(y0,p.second);y1=std::max(y1,p.second);
+            }
+            if(x0>=x1||y0>=y1)return false;
+            std::set<P> expected={{x0,y0},{x0,y1},{x1,y0},{x1,y1}};
+            for(size_t i=0;i<4;++i)if(expected.erase(ring[i])!=1)return false;
+            if(!expected.empty())return false;
+            for(size_t i=0;i<4;++i)
+                if((ring[i].first==ring[i+1].first)==
+                   (ring[i].second==ring[i+1].second))return false;
+            b={x0,y0,x1,y1};return true;
+        };
+        if(a.cutouts.size()>8)return false;
+        B outer;
+        if(!rectangle(a.ring,outer))return false;
+        std::vector<B> holes;
+        std::vector<qint64> xx={outer[0],outer[2]},yy={outer[1],outer[3]};
+        for(const auto &ring:a.cutouts) {
+            B h;
+            if(!rectangle(ring,h) || h[0]<=outer[0] || h[1]<=outer[1] ||
+               h[2]>=outer[2] || h[3]>=outer[3])return false;
+            for(const B &p:holes)
+                if(h[0]<=p[2]&&h[2]>=p[0]&&h[1]<=p[3]&&h[3]>=p[1])
+                    return false; // Disallow even boundary touch.
+            holes.push_back(h);
+            xx.push_back(h[0]);xx.push_back(h[2]);
+            yy.push_back(h[1]);yy.push_back(h[3]);
+        }
+        std::sort(xx.begin(),xx.end());xx.erase(std::unique(xx.begin(),xx.end()),xx.end());
+        std::sort(yy.begin(),yy.end());yy.erase(std::unique(yy.begin(),yy.end()),yy.end());
+        for(size_t i=1;i<xx.size();++i)for(size_t j=1;j<yy.size();++j) {
+            const qint64 mx=xx[i-1]+(xx[i]-xx[i-1])/2;
+            const qint64 my=yy[j-1]+(yy[j]-yy[j-1])/2;
+            bool empty=false;
+            for(const B &h:holes)if(mx>=h[0]&&mx<h[2]&&my>=h[1]&&my<h[3]) {
+                empty=true;break;
+            }
+            if(empty)continue;
+            const P p0={xx[i-1],yy[j-1]},p1={xx[i],yy[j-1]};
+            const P p2={xx[i],yy[j]},p3={xx[i-1],yy[j]};
+            a.hollowTriangles.push_back({p0,p1,p2});
+            a.hollowTriangles.push_back({p0,p2,p3});
+        }
+        return !a.hollowTriangles.empty();
+    }
     // Work in integer source ticks: |cross| < 2.6e14, no MSVC __int128 needed.
     auto cross=[&](int i,int j,int k)->qint64 {
         const auto &a0=a.ring[static_cast<size_t>(i)];
@@ -953,16 +1015,26 @@ public:
                 for(size_t i=1;i<c.ring.size();++i)
                     path.lineTo(c.ring[i].first/1e6,-c.ring[i].second/1e6);
                 path.closeSubpath();
+                // Even-odd fill subtracts each explicitly validated COPCUT.
+                // CPU fallback matches the RHI exact-grid hollow triangles.
+                path.setFillRule(Qt::OddEvenFill);
+                for(const auto &cut:c.cutouts) {
+                    path.moveTo(cut[0].first/1e6,-cut[0].second/1e6);
+                    for(size_t i=1;i<cut.size();++i)
+                        path.lineTo(cut[i].first/1e6,-cut[i].second/1e6);
+                    path.closeSubpath();
+                }
                 item=scene_->addPath(path,QPen(color.darker(135),0),QBrush(color));
             }
             item->setZValue(-1); // Beneath trace/pad/POUROUT outlines.
             item->setData(0,c.net=="-" ? QString() : c.net);
             item->setData(2,QString("COPPER %1 / %2 filled SOURCE geometry / layer %3"
-                " / source line %4 / declared net %5 / vertices %6"
+                " / source line %4 / declared net %5 / vertices %6 / cutouts %7"
                 " / connectivity NOT_VERIFIED / fabricated copper NOT_VERIFIED / SI NOT_RUN")
                 .arg(c.name).arg(c.circle ? "COPCIR" : "COPCLS")
                 .arg(c.layer).arg(c.sourceLine).arg(c.net)
-                .arg(c.circle ? 0 : static_cast<int>(c.ring.size())));
+                .arg(c.circle ? 0 : static_cast<int>(c.ring.size()))
+                .arg(static_cast<int>(c.cutouts.size())));
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             copper_.push_back({item,c});
         }
