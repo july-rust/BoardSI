@@ -70,6 +70,16 @@ pub fn rectangle_bounds(ring: &[[i64; 2]]) -> Option<[i64; 4]> {
 /// record whose explicit multi-piece header encloses it. Standalone COPCUT is
 /// an unassociated pour void and is rejected, not inferred by containment.
 pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static str> {
+    // Production Preview remains fail-closed until lossless Qt IPC and GPU
+    // circular-hole mesh are independently accepted (A_026 CP3/CP4).
+    parse_impl(bytes, max_layer, false)
+}
+
+fn parse_impl(
+    bytes: &[u8],
+    max_layer: u32,
+    candidate_circles: bool,
+) -> Result<Vec<CopperArea>, &'static str> {
     if bytes.len() > crate::route_preview::MAX_FILE_BYTES {
         return Err("INPUT_TOO_LARGE");
     }
@@ -183,14 +193,16 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
                 if !matches!(piece[0], "COPCLS" | "COPCIR") {
                     return Err("UNSUPPORTED_COPPER_PIECE");
                 }
-            } else if piece[0] != "COPCUT" {
-                // COPCCO and arcs are explicitly deferred; do not invent a fill.
+            } else if piece[0] != "COPCUT"
+                && !(candidate_circles && piece[0] == "COPCCO")
+            {
+                // Production COPCCO still fails closed until Qt parity.
                 return Err("UNSUPPORTED_COPPER_CUTOUT_PIECE");
             }
             let n = piece[1]
                 .parse::<usize>()
                 .map_err(|_| "COPPER_CORNER_COUNT")?;
-            if (piece[0] == "COPCIR" && n != 2)
+            if (matches!(piece[0], "COPCIR" | "COPCCO") && n != 2)
                 || (piece[0] == "COPCLS" && !(4..=MAX_VERTICES).contains(&n))
                 || (piece[0] == "COPCUT" && !(4..=65).contains(&n))
             {
@@ -216,7 +228,7 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
                 vertices.push(point(row, origin)?);
                 i += 1;
             }
-            let geometry = if piece[0] == "COPCIR" {
+            let geometry = if matches!(piece[0], "COPCIR" | "COPCCO") {
                 let a = vertices[0];
                 let b = vertices[1];
                 if (a[0] == b[0]) == (a[1] == b[1]) {
@@ -255,32 +267,78 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
         }
         let geometry = primary.ok_or("TRUNCATED_COPPER")?;
         if !cutouts.is_empty() {
-            // A_024: bounded source-authored simple orthogonal rings only.
-            // COPCCO/diagonals/arcs are intentionally unsupported; no flood.
-            let outer = match &geometry {
-                CopperGeometry::Polygon(v) => v.as_slice(),
-                CopperGeometry::Circle { .. } => return Err("UNSUPPORTED_COPPER_HOLLOW_OUTER"),
-            };
-            let holes: Vec<Vec<[i64; 2]>> = cutouts
+            let polygons: Vec<Vec<[i64; 2]>> = cutouts
                 .iter()
-                .map(|hole| match hole {
-                    CopperGeometry::Polygon(v) => Ok(v.clone()),
-                    CopperGeometry::Circle { .. } => Err("UNSUPPORTED_COPPER_CUTOUT_PIECE"),
+                .filter_map(|hole| match hole {
+                    CopperGeometry::Polygon(vertices) => Some(vertices.clone()),
+                    CopperGeometry::Circle { .. } => None,
                 })
-                .collect::<Result<_, _>>()?;
-            let diagonal = std::iter::once(outer)
-                .chain(holes.iter().map(Vec::as_slice))
-                .any(|ring| {
-                    ring.windows(2)
-                        .any(|e| e[0][0] != e[1][0] && e[0][1] != e[1][1])
-                });
-            if diagonal {
-                // V11 stores unchanged source vertices. Qt independently
-                // triangulates and checks the mesh, never guess a copper fill.
-                crate::polygon_topology::validate_polygon_with_holes(outer, &holes)
-                    .map_err(|_| "UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY")?;
-            } else if !orthogonal_copper_holes_valid(outer, &holes) {
-                return Err("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY");
+                .collect();
+            let circles: Vec<([i64; 2], i64)> = cutouts
+                .iter()
+                .filter_map(|hole| match hole {
+                    CopperGeometry::Polygon(_) => None,
+                    CopperGeometry::Circle { centre, radius } => Some((*centre, *radius)),
+                })
+                .collect();
+            match &geometry {
+                CopperGeometry::Polygon(outer) => {
+                    let diagonal = std::iter::once(outer.as_slice())
+                        .chain(polygons.iter().map(Vec::as_slice))
+                        .any(|ring| {
+                            ring.windows(2)
+                                .any(|edge| edge[0][0] != edge[1][0] && edge[0][1] != edge[1][1])
+                        });
+                    if diagonal {
+                        crate::polygon_topology::validate_polygon_with_holes(outer, &polygons)
+                            .map_err(|_| "UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY")?;
+                    } else if !polygons.is_empty()
+                        && !orthogonal_copper_holes_valid(outer, &polygons)
+                    {
+                        return Err("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY");
+                    }
+                    if !circles.is_empty() {
+                        // An otherwise untested source ring must first pass the
+                        // exact general polygon oracle before circle clearance.
+                        crate::polygon_topology::validate_polygon_with_holes(outer, &polygons)
+                            .map_err(|_| "UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY")?;
+                        for &(centre, radius) in &circles {
+                            if !crate::circle_cutout_topology::circle_strictly_in_polygon(
+                                outer, centre, radius,
+                            ) {
+                                return Err("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY");
+                            }
+                            for hole in &polygons {
+                                if !crate::circle_cutout_topology::circle_strictly_disjoint_from_polygon(
+                                    hole, centre, radius,
+                                ) {
+                                    return Err("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY");
+                                }
+                            }
+                        }
+                    }
+                }
+                CopperGeometry::Circle { centre, radius } => {
+                    if !polygons.is_empty() {
+                        return Err("UNSUPPORTED_COPPER_HOLLOW_OUTER");
+                    }
+                    for &(c, r) in &circles {
+                        if !crate::circle_cutout_topology::circle_strictly_in_circle(
+                            *centre, *radius, c, r,
+                        ) {
+                            return Err("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY");
+                        }
+                    }
+                }
+            }
+            for first in 0..circles.len() {
+                for second in first + 1..circles.len() {
+                    let (a, ar) = circles[first];
+                    let (b, br) = circles[second];
+                    if !crate::circle_cutout_topology::circles_strictly_disjoint(a, ar, b, br) {
+                        return Err("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY");
+                    }
+                }
             }
         }
         found.push(CopperArea {
