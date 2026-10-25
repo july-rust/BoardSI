@@ -870,7 +870,7 @@ mod tests {
                 include_bytes!("../tests/fixtures/pads_copper_circular_mixed_v94.asc").as_slice(),
                 1,
             ),
-        ] {{
+        ] {
             let result = parse(fixture, 4).unwrap();
             assert_eq!(result.len(), 1);
             assert_eq!(result[0].cutouts.len(), 2);
