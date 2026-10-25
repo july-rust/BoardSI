@@ -1020,6 +1020,24 @@ mod tests {
         assert!(parse(duplicate.as_bytes(), 4).is_err());
     }
     #[test]
+    fn a029_canonical_keeps_analytic_arcs_and_unverified_net() {
+        let input = include_bytes!("../tests/fixtures/pads_curved_copper_candidate_v94.asc");
+        let parsed = crate::route_preview::parse(input).unwrap();
+        let mut board = crate::route_preview::into_canonical(input, &parsed).unwrap();
+        let areas = parse(input, parsed.max_layer).unwrap();
+        augment(&mut board, &areas).unwrap();
+        assert_eq!(board.areas.len(), 1);
+        assert_eq!(board.areas[0].outer.segments.len(), 8);
+        assert_eq!(board.areas[0].cutouts.len(), 0);
+        assert!(board.areas[0].net.is_none());
+        assert_eq!(
+            board.areas[0].outer.segments.iter()
+                .filter(|s| matches!(s, boardsi_model::BoundarySegment::Arc { .. })).count(),
+            4
+        );
+        assert!(!board.validate().has_errors());
+    }
+    #[test]
     fn a029_curved_copper_source_preserves_exact_arcs_and_no_cutout() {
         let asc = include_bytes!("../tests/fixtures/pads_curved_copper_candidate_v94.asc");
         let areas = parse(asc, 4).unwrap();
