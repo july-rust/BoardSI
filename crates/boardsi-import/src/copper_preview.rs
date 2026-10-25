@@ -127,7 +127,10 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
         // A declared multi-piece count that understates a following COPCUT
         // must not silently re-fill the omitted void. Reject orphan piece
         // headers even when the line-item header has already been consumed.
-        if matches!(fields[0], "COPCUT"|"COPCCO"|"CIRCUR"|"COPCLS"|"COPCIR"|"COPOPN") {
+        if matches!(
+            fields[0],
+            "COPCUT" | "COPCCO" | "CIRCUR" | "COPCLS" | "COPCIR" | "COPOPN"
+        ) {
             return Err("UNCONSUMED_COPPER_PIECE");
         }
         if fields.len() < 2 || fields[1] != "COPPER" {
@@ -481,18 +484,27 @@ mod tests {
     }
     #[test]
     fn accepts_explicit_combined_rectangle_cutout_with_canonical_provenance() {
-        let source=SAMPLE.replace("1 1 0 GND","2 1 0 GND")
-            .replace("0 20\n0 0\n*END*",
-                     "0 20\n0 0\nCOPCUT 5 0.01 0 2\n2 2\n4 2\n4 6\n2 6\n2 2\n*END*");
-        let a=parse(source.as_bytes(),4).unwrap();
+        let source = SAMPLE.replace("1 1 0 GND", "2 1 0 GND").replace(
+            "0 20\n0 0\n*END*",
+            "0 20\n0 0\nCOPCUT 5 0.01 0 2\n2 2\n4 2\n4 6\n2 6\n2 2\n*END*",
+        );
+        let a = parse(source.as_bytes(), 4).unwrap();
         // Misstated 1-piece owner must refuse the subsequent source COPCUT.
         // Otherwise copper would be silently filled across a real void.
-        assert!(parse(source.replace("2 1 0 GND","1 1 0 GND").as_bytes(),4).is_err());
-        assert_eq!(a.len(),1);
-        assert_eq!(a[0].cutouts.len(),1);
-        assert_eq!(rectangle_bounds(match &a[0].cutouts[0] {
-            CopperGeometry::Polygon(r)=>r,CopperGeometry::Circle{..}=>panic!("expected polygon")
-        }),Some([10200,20200,10400,20600]));
+        assert!(parse(
+            source.replace("2 1 0 GND", "1 1 0 GND").as_bytes(),
+            4
+        )
+        .is_err());
+        assert_eq!(a.len(), 1);
+        assert_eq!(a[0].cutouts.len(), 1);
+        assert_eq!(
+            rectangle_bounds(match &a[0].cutouts[0] {
+                CopperGeometry::Polygon(r) => r,
+                CopperGeometry::Circle { .. } => panic!("expected polygon"),
+            }),
+            Some([10200, 20200, 10400, 20600])
+        );
     }
     #[test]
     fn refuses_wrong_owner_layer_and_touching_holes() {
