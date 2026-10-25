@@ -541,8 +541,13 @@ mod tests {
         assert_eq!(
             areas[0].geometry,
             CopperGeometry::Polygon(vec![
-                [4000, 4000], [16000, 4000], [16000, 9000],
-                [13000, 9000], [13000, 13000], [4000, 13000], [4000, 4000]
+                [4000, 4000],
+                [16000, 4000],
+                [16000, 9000],
+                [13000, 9000],
+                [13000, 13000],
+                [4000, 13000],
+                [4000, 4000]
             ])
         );
         // Replace one orthogonal edge by a diagonal; fail closed.
@@ -554,17 +559,25 @@ mod tests {
     fn rejects_orthogonal_nested_touching_and_outside_holes() {
         let base = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*LINES*\nA COPPER 0 0 3 1\nCOPCLS 5 0.01 0 1\n0 0\n100 0\n100 100\n0 100\n0 0\nCOPCUT 5 0.01 0 1\n20 20\n60 20\n60 60\n20 60\n20 20\nCOPCUT 5 0.01 0 1\n70 70\n80 70\n80 80\n70 80\n70 70\n*END*\n";
         assert_eq!(parse(base.as_bytes(), 4).unwrap()[0].cutouts.len(), 2);
-        let nested = base.replace("70 70\n80 70\n80 80\n70 80\n70 70",
-                                  "30 30\n40 30\n40 40\n30 40\n30 30");
+        let nested = base.replace(
+            "70 70\n80 70\n80 80\n70 80\n70 70",
+            "30 30\n40 30\n40 40\n30 40\n30 30",
+        );
         assert!(parse(nested.as_bytes(), 4).is_err());
-        let touching = base.replace("70 70\n80 70\n80 80\n70 80\n70 70",
-                                    "60 30\n80 30\n80 40\n60 40\n60 30");
+        let touching = base.replace(
+            "70 70\n80 70\n80 80\n70 80\n70 70",
+            "60 30\n80 30\n80 40\n60 40\n60 30",
+        );
         assert!(parse(touching.as_bytes(), 4).is_err());
-        let outside = base.replace("70 70\n80 70\n80 80\n70 80\n70 70",
-                                   "95 70\n105 70\n105 80\n95 80\n95 70");
+        let outside = base.replace(
+            "70 70\n80 70\n80 80\n70 80\n70 70",
+            "95 70\n105 70\n105 80\n95 80\n95 70",
+        );
         assert!(parse(outside.as_bytes(), 4).is_err());
-        let cross = base.replace("20 20\n60 20\n60 60\n20 60\n20 20",
-                                 "20 20\n60 60\n60 20\n20 60\n20 20");
+        let cross = base.replace(
+            "20 20\n60 20\n60 60\n20 60\n20 20",
+            "20 20\n60 60\n60 20\n20 60\n20 20",
+        );
         assert!(parse(cross.as_bytes(), 4).is_err());
     }
     #[test]
