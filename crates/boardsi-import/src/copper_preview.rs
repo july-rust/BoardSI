@@ -724,7 +724,7 @@ mod tests {
         // the parser does not skip its source meaning and accept the board.
         for kind in ["COPCUT", "COPCCO"] {
             for before in [false, true] {
-                let orphan = format!("ORPHAN {kind} 0 0 1 1\\n");
+                let orphan = format!("ORPHAN {kind} 0 0 1 1\n");
                 let input = if before {
                     SAMPLE.replace("GND_ZONE COPPER", &format!("{orphan}GND_ZONE COPPER"))
                 } else {
