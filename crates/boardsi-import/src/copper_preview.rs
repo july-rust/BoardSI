@@ -814,10 +814,19 @@ mod tests {
         for (case, src) in [
             ("outer tangent", good.replace("25 0\n55 0", "70 0\n100 0")),
             ("hole overlap", good.replace("25 0\n55 0", "-35 0\n-5 0")),
-            ("hole layer", good.replacen("COPCCO 2 0.01 0 1", "COPCCO 2 0.01 0 2", 1)),
+            (
+                "hole layer",
+                good.replacen("COPCCO 2 0.01 0 1", "COPCCO 2 0.01 0 2", 1),
+            ),
             ("zero hole", good.replace("25 0\n55 0", "25 0\n25 0")),
-            ("undeclared piece", good.replace("COP_RING COPPER 200 200 3 1", "COP_RING COPPER 200 200 2 1")),
-            ("misowned void", good.replace("COP_RING COPPER 200 200 3 1", "COP_RING COPPER 200 200 1 1")),
+            (
+                "undeclared piece",
+                good.replace("COP_RING COPPER 200 200 3 1", "COP_RING COPPER 200 200 2 1"),
+            ),
+            (
+                "misowned void",
+                good.replace("COP_RING COPPER 200 200 3 1", "COP_RING COPPER 200 200 1 1"),
+            ),
         ] {
             assert_ne!(src, good, "mutation did not apply: {case}");
             assert!(parse(src.as_bytes(), 4).is_err(), "accepted {case}");
@@ -828,7 +837,7 @@ mod tests {
             "COPCCO 2 0.01 0 1\n25 0\n55 0",
             "COPCUT 5 0.01 0 1\n20 20\n30 20\n30 30\n20 30\n20 20",
         );
-        assert_ne!(mixed,good);
+        assert_ne!(mixed, good);
         assert!(parse(mixed.as_bytes(), 4).is_err());
     }
 
