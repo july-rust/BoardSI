@@ -110,7 +110,7 @@ inline bool validateCopperArea(ImportedCopperArea &a) {
         auto rectangle=[&](const std::vector<P>&ring,B &b)->bool {
             if(ring.size()!=5 || ring.front()!=ring.back())return false;
             qint64 x0=ring.front().first,x1=x0,y0=ring.front().second,y1=y0;
-            for(const P p:ring) {
+            for(const P &p:ring) {
                 if(!coord(p.first)||!coord(p.second))return false;
                 x0=std::min(x0,p.first);x1=std::max(x1,p.first);
                 y0=std::min(y0,p.second);y1=std::max(y1,p.second);
