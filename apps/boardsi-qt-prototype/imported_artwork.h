@@ -1084,10 +1084,14 @@ public:
                     QPen(color.darker(135),0),QBrush(color));
             }else{
                 QPainterPath path;
-                path.moveTo(c.ring[0].first/1e6,-c.ring[0].second/1e6);
-                for(size_t i=1;i<c.ring.size();++i)
-                    path.lineTo(c.ring[i].first/1e6,-c.ring[i].second/1e6);
-                path.closeSubpath();
+                // A hollow COPCIR has analytic circle source and NO
+                // polygonal ring; its verified triangles are below.
+                if(!c.circle) {
+                    path.moveTo(c.ring[0].first/1e6,-c.ring[0].second/1e6);
+                    for(size_t i=1;i<c.ring.size();++i)
+                        path.lineTo(c.ring[i].first/1e6,-c.ring[i].second/1e6);
+                    path.closeSubpath();
+                }
                 // CPU and RHI must share the SAME verified triangles for
                 // approximate circular voids; do not render exact Qt circles
                 // while RHI uses an intentionally conservative polygon.
