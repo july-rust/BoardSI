@@ -273,6 +273,73 @@ fn cutouts_overlap(a: &Shape, b: &Shape) -> bool {
     }
 }
 
+/// A_024: deterministic *orthogonal* COPPER/COPCUT polygon topology.
+// Exact PADS 0.01-mil integer source ticks; no floating point containment.
+// The renderer's grid-cell limit is shared so a valid canonical cutout can
+// never force the Qt viewer to approximate or silently fill a rejected hole.
+pub(crate) fn orthogonal_copper_holes_valid(
+    outer: &[[i64; 2]],
+    holes: &[Vec<[i64; 2]>],
+) -> bool {
+    const MAX_HOLES: usize = 8;
+    const MAX_CORNERS_TOTAL: usize = 128;
+    const MAX_CELLS: usize = 4096;
+    let orthogonal = |ring: &[[i64; 2]]| {
+        ring.len() >= 5
+            && ring.len() <= 65
+            && valid_ring(ring)
+            && ring
+                .windows(2)
+                .all(|w| (w[0][0] == w[1][0]) != (w[0][1] == w[1][1]))
+    };
+    if holes.is_empty()
+        || holes.len() > MAX_HOLES
+        || !orthogonal(outer)
+        || outer.len() + holes.iter().map(Vec::len).sum::<usize>() > MAX_CORNERS_TOTAL
+    {
+        return false;
+    }
+    let mut xs = std::collections::BTreeSet::new();
+    let mut ys = std::collections::BTreeSet::new();
+    for ring in std::iter::once(outer).chain(holes.iter().map(Vec::as_slice)) {
+        if !orthogonal(ring) {
+            return false;
+        }
+        for v in ring {
+            xs.insert(v[0]);
+            ys.insert(v[1]);
+        }
+    }
+    if (xs.len() - 1).saturating_mul(ys.len() - 1) > MAX_CELLS {
+        return false;
+    }
+    for (i, hole) in holes.iter().enumerate() {
+        if rings_touch(outer, hole)
+            || !hole[..hole.len() - 1].iter().all(|&p| inside(p, outer))
+        {
+            return false;
+        }
+        for earlier in &holes[..i] {
+            if rings_touch(hole, earlier)
+                || inside(hole[0], earlier)
+                || inside(earlier[0], hole)
+            {
+                return false;
+            }
+        }
+    }
+    // An exact arithmetic area gate avoids accidentally accepting a cutout
+    // whose area consumes the entire outer copper shape.
+    let area2 = |ring: &[[i64; 2]]| -> i128 {
+        ring.windows(2)
+            .map(|w| i128::from(w[0][0]) * i128::from(w[1][1])
+                - i128::from(w[1][0]) * i128::from(w[0][1]))
+            .sum::<i128>()
+            .abs()
+    };
+    area2(outer) > holes.iter().map(|h| area2(h)).sum::<i128>()
+}
+
 /// Does not use the file extension as evidence. Skips non-BOARD *LINES* items
 /// structurally; never interprets COPPER/KEEPOUT as a physical board boundary.
 pub fn parse(bytes: &[u8]) -> Result<Vec<Shape>, &'static str> {
