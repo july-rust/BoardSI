@@ -1040,6 +1040,16 @@ public:
         }
         return false;
     }
+    bool rejectCopperCircleHolePickForTest(int index,size_t circleIndex=0) const {
+        if(index<0 || index>=static_cast<int>(copper_.size()))return false;
+        const auto &c=copper_[static_cast<size_t>(index)];
+        if(circleIndex>=c.roundCutouts.size() || c.hollowTriangles.empty())
+            return false;
+        const auto &h=c.roundCutouts[circleIndex];
+        const QPointF center=pixel(world(h.cx_nm,h.cy_nm));
+        return copperIndexAt(center)==-1 &&
+               copperIndexAt(pixel(world(h.cx_nm+h.radius_nm/2,h.cy_nm)))==-1;
+    }
     bool rejectCopperSourcePointForTest(qint64 x_nm,qint64 y_nm) const {
         return copperIndexAt(pixel(world(x_nm,y_nm)))==-1;
     }

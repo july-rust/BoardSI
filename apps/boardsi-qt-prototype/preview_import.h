@@ -72,7 +72,9 @@ class PreviewImportPanel final : public QWidget {
         bool ok = false;
         const bool p2g = header.size() == 3 && header[0] == "BOARDSI_P2G_PARTIAL_V6";
         const bool p2h = header.size() == 3 && header[0] == "BOARDSI_P2H_PARTIAL_V7";
-        const bool p2n = header.size() == 3 && header[0] == "BOARDSI_P2N_PARTIAL_V11";
+        const bool p2q = header.size() == 3 && header[0] == "BOARDSI_P2Q_PARTIAL_V12";
+        const bool p2n = header.size() == 3 &&
+            (header[0] == "BOARDSI_P2N_PARTIAL_V11" || p2q);
         const bool p2m = header.size() == 3 &&
             (header[0] == "BOARDSI_P2M_PARTIAL_V10" || p2n);
         const bool p2l = header.size() == 3 &&
@@ -272,6 +274,21 @@ class PreviewImportPanel final : public QWidget {
                     hole.push_back({x,y});
                 }
                 coppers[static_cast<size_t>(id)].cutouts.push_back(std::move(hole));
+            } else if (p2q && parts.size()==5 && parts[0]=="J" &&
+                       layerRecords==layers) {
+                // Only V12 carries analytic circular COPCCO holes. It never
+                // infers ownership by spatial proximity: owner is a G index.
+                const int id=parts[1].toInt(&ok);
+                if(!ok || id<0 || id>=static_cast<int>(coppers.size()))
+                    return false;
+                auto &owner=coppers[static_cast<size_t>(id)];
+                if(owner.cutouts.size()+owner.roundCutouts.size()>=8) return false;
+                ImportedCopperCircleHole hole;
+                hole.cx_nm=parts[2].toLongLong(&ok);if(!ok)return false;
+                hole.cy_nm=parts[3].toLongLong(&ok);if(!ok)return false;
+                hole.radius_nm=parts[4].toLongLong(&ok);if(!ok)return false;
+                if(!a026::validCircle(hole))return false;
+                owner.roundCutouts.push_back(hole);
             } else if (parts.size() == 9 && parts[0] == "V" && layerRecords == layers) {
                 ImportedVia via;
                 via.net = parts[1];
@@ -379,9 +396,15 @@ class PreviewImportPanel final : public QWidget {
                                 int holes=0;
                                 for(auto &c:coppers) {
                                     if(!validateCopperArea(c))return false;
-                                    holes+=static_cast<int>(c.cutouts.size());
+                                    holes+=static_cast<int>(c.cutouts.size()+c.roundCutouts.size());
                                 }
                                 if(holes<1 || parts[11].toInt(&ok)!=holes || !ok) return false;
+                                if(p2q) {
+                                    int circularHoleCount=0;
+                                    for(const auto &c:coppers)
+                                        circularHoleCount+=static_cast<int>(c.roundCutouts.size());
+                                    if(circularHoleCount<1)return false;
+                                }
                             }
                             int countB=0;
                             for(const auto &b : boundary) if(b.isArc) ++countB;
