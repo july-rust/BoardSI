@@ -121,10 +121,8 @@ fn strictly_inside(point: TickPoint, ring: &[TickPoint]) -> bool {
 }
 
 fn any_contact(a: &[TickPoint], b: &[TickPoint]) -> bool {
-    a.windows(2).any(|e| {
-        b.windows(2)
-            .any(|f| segments_touch(e[0], e[1], f[0], f[1]))
-    })
+    a.windows(2)
+        .any(|e| b.windows(2).any(|f| segments_touch(e[0], e[1], f[0], f[1])))
 }
 
 /// Validates simple non-orthogonal rings with strictly disjoint, unnested holes.
@@ -141,12 +139,17 @@ pub fn validate_polygon_with_holes(
     let mut total = outer.len();
     for ring in std::iter::once(outer).chain(holes.iter().map(Vec::as_slice)) {
         if ring.len() > MAX_RING_VERTICES
-            || ring.iter().flatten().any(|v| !(-MAX_SOURCE_TICKS..=MAX_SOURCE_TICKS).contains(v))
+            || ring
+                .iter()
+                .flatten()
+                .any(|v| !(-MAX_SOURCE_TICKS..=MAX_SOURCE_TICKS).contains(v))
         {
             return Err(TopologyError::Complexity);
         }
         if !std::ptr::eq(ring, outer) {
-            total = total.checked_add(ring.len()).ok_or(TopologyError::Complexity)?;
+            total = total
+                .checked_add(ring.len())
+                .ok_or(TopologyError::Complexity)?;
         }
     }
     if total > MAX_VERTICES_TOTAL {
@@ -166,9 +169,7 @@ pub fn validate_polygon_with_holes(
             if any_contact(previous, hole) {
                 return Err(TopologyError::BoundaryContact);
             }
-            if strictly_inside(hole[0], previous)
-                || strictly_inside(previous[0], hole)
-            {
+            if strictly_inside(hole[0], previous) || strictly_inside(previous[0], hole) {
                 return Err(TopologyError::NestedHoles);
             }
         }
@@ -212,8 +213,13 @@ mod tests {
     #[test]
     fn concave_diagonal_outer_and_multiple_holes() {
         let outer = closed(vec![
-            [0, 0], [40, 0], [40, 40], [25, 40], [20, 28],
-            [15, 40], [0, 40],
+            [0, 0],
+            [40, 0],
+            [40, 40],
+            [25, 40],
+            [20, 28],
+            [15, 40],
+            [0, 40],
         ]);
         let hole_a = closed(vec![[5, 5], [10, 5], [10, 10], [5, 10]]);
         let hole_b = closed(vec![[27, 10], [32, 10], [30, 14]]);
@@ -271,11 +277,7 @@ mod tests {
 
     #[test]
     fn rejects_extreme_coordinates_before_exact_predicates() {
-        let extreme = closed(vec![
-            [i64::MIN, 0],
-            [i64::MAX, 1],
-            [0, i64::MAX],
-        ]);
+        let extreme = closed(vec![[i64::MIN, 0], [i64::MAX, 1], [0, i64::MAX]]);
         assert_eq!(
             validate_polygon_with_holes(&extreme, &[]),
             Err(TopologyError::Complexity)
@@ -288,7 +290,9 @@ mod tests {
         assert!(validate_polygon_with_holes(&repeated, &[]).is_err());
         let reversed = closed(vec![[0, 0], [0, 10], [10, 10], [10, 0]]);
         assert_eq!(
-            validate_polygon_with_holes(&reversed, &[]).unwrap().filled_area2,
+            validate_polygon_with_holes(&reversed, &[])
+                .unwrap()
+                .filled_area2,
             200
         );
     }
