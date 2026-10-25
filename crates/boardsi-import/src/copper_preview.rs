@@ -193,9 +193,7 @@ fn parse_impl(
                 if !matches!(piece[0], "COPCLS" | "COPCIR") {
                     return Err("UNSUPPORTED_COPPER_PIECE");
                 }
-            } else if piece[0] != "COPCUT"
-                && !(candidate_circles && piece[0] == "COPCCO")
-            {
+            } else if piece[0] != "COPCUT" && !(candidate_circles && piece[0] == "COPCCO") {
                 // Production COPCCO still fails closed until Qt parity.
                 return Err("UNSUPPORTED_COPPER_CUTOUT_PIECE");
             }
@@ -728,8 +726,7 @@ mod tests {
 
     #[test]
     fn a026_isolated_candidate_rejects_tangent_overlap_and_bad_circle() {
-        let source =
-            include_str!("../tests/fixtures/pads_copper_circular_void_v94.asc");
+        let source = include_str!("../tests/fixtures/pads_copper_circular_void_v94.asc");
         for malformed in [
             source.replace("30 30\n50 30", "0 30\n20 30"),
             source.replace("68 70\n92 70", "42 30\n62 30"),
