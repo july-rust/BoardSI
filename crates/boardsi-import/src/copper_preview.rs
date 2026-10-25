@@ -12,6 +12,7 @@ const MAX_VERTICES: usize = 256;
 pub enum CopperGeometry {
     Polygon(Vec<[i64; 2]>), // Exact 0.01-mil ticks; repeated closure vertex.
     Circle { centre: [i64; 2], radius: i64 },
+    Curved { segments: Vec<crate::outline_topology::Segment>, display_ring: Vec<[i64; 2]> },
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CopperArea {
@@ -223,12 +224,32 @@ fn parse_impl(
             }
             i += 1;
             let mut vertices = Vec::with_capacity(n);
+            let mut source_rows = Vec::with_capacity(n);
             for _ in 0..n {
                 let row = lines.get(i).ok_or("TRUNCATED_COPPER")?;
-                vertices.push(point(row, origin)?);
+                let fields: Vec<&str> = row.split_ascii_whitespace().collect();
+                if fields.len() == 2 {
+                    vertices.push(point(row, origin)?);
+                } else if fields.len() == 8 && part_index == 0 && piece[0] == "COPCLS" {
+                    vertices.push([
+                        bounded(origin[0].checked_add(fixed(fields[0])?).ok_or("COPPER_OVERFLOW")?)?,
+                        bounded(origin[1].checked_add(fixed(fields[1])?).ok_or("COPPER_OVERFLOW")?)?,
+                    ]);
+                } else { return Err("UNSUPPORTED_COPPER_ARC"); }
+                source_rows.push(fields);
                 i += 1;
             }
-            let geometry = if matches!(piece[0], "COPCIR" | "COPCCO") {
+            let curved = source_rows.iter().any(|row| row.len() == 8);
+            let geometry = if curved {
+                if piece_count != 1 || part_index != 0 {
+                    return Err("UNSUPPORTED_CURVED_COPPER_CUTOUT");
+                }
+                let candidate = crate::copper_arc_preflight::validate(&source_rows, origin)?;
+                CopperGeometry::Curved {
+                    segments: candidate.source_segments,
+                    display_ring: candidate.display_ring,
+                }
+            } else if matches!(piece[0], "COPCIR" | "COPCCO") {
                 let a = vertices[0];
                 let b = vertices[1];
                 if (a[0] == b[0]) == (a[1] == b[1]) {
@@ -278,13 +299,13 @@ fn parse_impl(
                 .iter()
                 .filter_map(|hole| match hole {
                     CopperGeometry::Polygon(vertices) => Some(vertices.clone()),
-                    CopperGeometry::Circle { .. } => None,
+                    CopperGeometry::Circle { .. } | CopperGeometry::Curved { .. } => None,
                 })
                 .collect();
             let circles: Vec<([i64; 2], i64)> = cutouts
                 .iter()
                 .filter_map(|hole| match hole {
-                    CopperGeometry::Polygon(_) => None,
+                    CopperGeometry::Polygon(_) | CopperGeometry::Curved { .. } => None,
                     CopperGeometry::Circle { centre, radius } => Some((*centre, *radius)),
                 })
                 .collect();
@@ -292,6 +313,7 @@ fn parse_impl(
                 let total = match &geometry {
                     CopperGeometry::Polygon(outer) => outer.len(),
                     CopperGeometry::Circle { .. } => 33,
+                    CopperGeometry::Curved { .. } => return Err("UNSUPPORTED_CURVED_COPPER_CUTOUT"),
                 } + polygons.iter().map(Vec::len).sum::<usize>()
                     + circles.len() * 33;
                 if total > 128 {
@@ -335,6 +357,7 @@ fn parse_impl(
                         }
                     }
                 }
+                CopperGeometry::Curved { .. } => return Err("UNSUPPORTED_CURVED_COPPER_CUTOUT"),
                 CopperGeometry::Circle { centre, radius } => {
                     // A_028: a closed, simple, same-owner COPCUT polygon is
                     // strictly enclosed when every vertex lies within the
@@ -424,6 +447,7 @@ pub fn augment(
             .clone();
         let vertices = match &a.geometry {
             CopperGeometry::Polygon(v) => v.clone(),
+            CopperGeometry::Curved { display_ring, .. } => display_ring.clone(),
             CopperGeometry::Circle { centre, radius } => {
                 let [x, y] = *centre;
                 let r = *radius;
@@ -438,6 +462,21 @@ pub fn augment(
                     start: point(pair[0]),
                     end: point(pair[1]),
                     clockwise: false,
+                })
+                .collect(),
+            CopperGeometry::Curved { segments, .. } => segments
+                .iter()
+                .map(|segment| match *segment {
+                    crate::outline_topology::Segment::Line(start, end) => BoundarySegment::Line {
+                        start: point(start),
+                        end: point(end),
+                    },
+                    crate::outline_topology::Segment::Arc(a) => BoundarySegment::Arc {
+                        centre: point(a.centre),
+                        start: point(a.start),
+                        end: point(a.end),
+                        clockwise: a.clockwise,
+                    },
                 })
                 .collect(),
             CopperGeometry::Polygon(_) => vertices
@@ -457,9 +496,11 @@ pub fn augment(
                     "",
                 ),
                 provenance: GeometryProvenance {
-                    source_object_type:
+                    source_object_type: if matches!(&a.geometry, CopperGeometry::Curved { .. }) {
+                        "PADS V9.4 MILS explicitly owned curved COPCLS exact analytical quarter-arcs; conservative preview"
+                    } else {
                         "PADS V9.4 MILS *LINES* explicit COPCLS/COPCIR source-filled (restricted)"
-                            .into(),
+                    }.into(),
                     history: vec![],
                 },
             },
@@ -472,6 +513,7 @@ pub fn augment(
                 .enumerate()
                 .map(|(index, cut)| {
                     let segments = match cut {
+                        CopperGeometry::Curved { .. } => unreachable!("curved void refused"),
                         CopperGeometry::Polygon(vertices) => vertices
                             .windows(2)
                             .map(|pair| BoundarySegment::Line {
@@ -515,6 +557,7 @@ pub fn augment(
                                 source_object_type: match cut {
                                     CopperGeometry::Polygon(_) => "PADS V9.4 MILS same-COPPER COPCUT bounded straight polygonal source void",
                                     CopperGeometry::Circle { .. } => "PADS V9.4 MILS same-COPPER COPCCO analytical circular source void",
+                                    CopperGeometry::Curved { .. } => "UNSUPPORTED_CURVED_COPPER_CUTOUT",
                                 }
                                 .into(),
                                 history: vec![],
@@ -609,7 +652,7 @@ mod tests {
         assert_eq!(
             rectangle_bounds(match &a[0].cutouts[0] {
                 CopperGeometry::Polygon(r) => r,
-                CopperGeometry::Circle { .. } => panic!("expected polygon"),
+                CopperGeometry::Circle { .. } | CopperGeometry::Curved { .. } => panic!("expected polygon"),
             }),
             Some([10200, 20200, 10400, 20600])
         );
@@ -957,4 +1000,21 @@ mod tests {
         );
         assert!(parse(duplicate.as_bytes(), 4).is_err());
     }
+    #[test]
+    fn a029_curved_copper_source_preserves_exact_arcs_and_no_cutout() {
+        let asc = include_bytes!("../tests/fixtures/pads_curved_copper_candidate_v94.asc");
+        let areas = parse(asc, 4).unwrap();
+        assert_eq!(areas.len(), 1);
+        let (segments, visual) = match &areas[0].geometry {
+            CopperGeometry::Curved { segments, display_ring } => (segments, display_ring),
+            _ => panic!("expected curved analytical source"),
+        };
+        assert_eq!(segments.iter().filter(|s| matches!(s, crate::outline_topology::Segment::Arc(_))).count(), 4);
+        assert_eq!(visual.len(), 37);
+        assert!(areas[0].cutouts.is_empty());
+        let src = std::str::from_utf8(asc).unwrap();
+        assert!(parse(src.replace("COP_ARC COPPER 0 0 1 1", "COP_ARC COPPER 0 0 2 1").as_bytes(), 4).is_err());
+        assert!(parse(src.replace("2700 900", "2700 450").as_bytes(), 4).is_err());
+    }
+
 }
