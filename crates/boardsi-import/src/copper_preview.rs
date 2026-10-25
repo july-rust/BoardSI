@@ -491,11 +491,7 @@ mod tests {
         let a = parse(source.as_bytes(), 4).unwrap();
         // Misstated 1-piece owner must refuse the subsequent source COPCUT.
         // Otherwise copper would be silently filled across a real void.
-        assert!(parse(
-            source.replace("2 1 0 GND", "1 1 0 GND").as_bytes(),
-            4
-        )
-        .is_err());
+        assert!(parse(source.replace("2 1 0 GND", "1 1 0 GND").as_bytes(), 4).is_err());
         assert_eq!(a.len(), 1);
         assert_eq!(a[0].cutouts.len(), 1);
         assert_eq!(
