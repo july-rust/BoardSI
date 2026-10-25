@@ -1020,6 +1020,29 @@ mod tests {
         assert!(parse(duplicate.as_bytes(), 4).is_err());
     }
     #[test]
+    fn a029_accepts_redundant_collinear_source_corner_with_exact_arc_count() {
+        let source = include_bytes!("../tests/fixtures/pads_curved_copper_collinear_v94.asc");
+        let coppers = parse(source, 4).unwrap();
+        assert_eq!(coppers.len(), 1);
+        match &coppers[0].geometry {
+            CopperGeometry::Curved {
+                segments,
+                display_ring,
+            } => {
+                assert_eq!(segments.len(), 9);
+                assert_eq!(display_ring.len(), 38);
+                assert_eq!(
+                    segments
+                        .iter()
+                        .filter(|s| matches!(s, crate::outline_topology::Segment::Arc(_)))
+                        .count(),
+                    4
+                );
+            }
+            _ => panic!("expected source arc geometry"),
+        }
+    }
+    #[test]
     fn a029_canonical_keeps_analytic_arcs_and_unverified_net() {
         let input = include_bytes!("../tests/fixtures/pads_curved_copper_candidate_v94.asc");
         let parsed = crate::route_preview::parse(input).unwrap();

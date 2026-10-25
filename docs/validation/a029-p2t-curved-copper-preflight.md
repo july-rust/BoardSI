@@ -24,7 +24,7 @@ All PADS ownership, unit, layer, origin, closedness, source tick, angle, end-poi
 
 ## Required native acceptance
 
-The synthetic, redistributable fixture `pads_curved_copper_candidate_v94.asc` covers four quarter-circle corners. Rust tests include exact source topology, adversarial arc mutations, source owner, failed unsupported combinations, Canonical boundary, and source net unverified. The Qt `--curved-copper-selftest` exercises the real Rust import executable, actual Qt V13 decoder, CPU filled/not-filled control points, Properties, layer hide/restore, rejected malformed V13, cleanup, imported-current RHI frame and triangle-based picking. A_022–A_028 regressions remain mandatory on Linux, Windows x64/ARM64 and macOS Apple Silicon.
+The synthetic, redistributable fixture `pads_curved_copper_candidate_v94.asc` covers four quarter-circle corners. Rust tests include exact source topology, adversarial arc mutations, source owner, redundant collinear corners, failed unsupported combinations, Canonical boundary, and source net unverified. The Qt `--curved-copper-selftest` exercises the real Rust import executable, actual Qt V13 decoder, CPU filled/not-filled control points, Properties, layer hide/restore, rejected malformed V13, cleanup, imported-current RHI frame and triangle-based picking. A_022–A_028 regressions remain mandatory on Linux, Windows x64/ARM64 and macOS Apple Silicon.
 
 Source CI reference before this document update: [Qt runtime 40187015909](https://github.com/july-rust/BoardSI/actions/runs/40187015909) and [PR #190](https://github.com/july-rust/BoardSI/pull/190). These are **intermediate** results; the final acceptance record must identify the exact reviewed HEAD, every required check run ID and the post-merge main validation.
 
@@ -33,3 +33,7 @@ Source CI reference before this document update: [Qt runtime 40187015909](https:
 A_029 remains **NOT COMPLETED** until exact final HEAD CI PASS, independent Codex review with zero unresolved P1/P2, protected GitHub Verified Squash Merge, and separate protected-main CI success. Do not bypass ruleset or retag previous tests.
 
 Real commercial PADS exporter certification, conductor flood, electrical connectivity, board fabrication, production RLGC/S, 3D EM, physical GPU VRAM/driver reset and million-object 60 FPS remain **NOT_VERIFIED / NOT_RUN**. Keep the broad roadmap Issues #9/#11/#165 and deferred #46 open.
+
+## Independent P2 review correction
+
+Independent Codex review at `1e1b278` identified a valid redundant collinear source vertex that produced a zero-area fan triangle, causing Qt to reject a Rust-accepted contour (PR #190 P2 finding, review thread `PRRT_kwDOVIj3S86wAwJs`). The correction skips **only** zero-area triangles when generating the shared conservative CPU/RHI fan; all nonzero triangles must satisfy the original winding constraint and their sum must still exactly equal the original polygon twice-area. New public `pads_curved_copper_collinear_v94.asc` fixture and dedicated native Qt `--curved-collinear-selftest` are added across Linux/Windows x64/ARM64/macOS ARM64. The finding must remain unresolved until final native evidence and independent latest-HEAD re-review confirm correction.

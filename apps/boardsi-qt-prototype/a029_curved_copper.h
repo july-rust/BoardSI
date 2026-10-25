@@ -101,7 +101,11 @@ inline bool validate(ImportedCopperArea &c) {
     qint64 sum=0;
     for(size_t i=1;i+1<display.size()-1;++i) {
         const qint64 a=cross(display.front(),display[i],display[i+1]);
-        if(a==0||(a>0)!=ccw)return false;
+        // Consecutive collinear source corners yield zero-area fan wedges.
+        // Skip only those wedges; nonzero orientation and full source-grid
+        // area equality are still mandatory for the shared CPU/RHI mesh.
+        if(a==0)continue;
+        if((a>0)!=ccw)return false;
         sum+=a;
         c.hollowTriangles.push_back({{
             {display.front().first*254,display.front().second*254},

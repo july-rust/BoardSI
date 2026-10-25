@@ -1957,7 +1957,7 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
 }
 
 // A_029: imported exact source cardinal arcs -> strict V13 -> shared CPU/RHI mesh.
-static int runCurvedCopperSmoke(PreviewWindow &window,const QString &fixture) {
+static int runCurvedCopperSmoke(PreviewWindow &window,const QString &fixture,bool collinear=false) {
     QElapsedTimer clock; clock.start();
     bool pass=false,loaded=false,properties=false,proxy=false,filtered=false;
     bool malformed=false,reset=false,rhiFrame=false,rhiPick=false;
@@ -1988,7 +1988,7 @@ static int runCurvedCopperSmoke(PreviewWindow &window,const QString &fixture) {
             properties=panel->selectCopper(0) &&
                 window.displayedProperties().contains("COPPER COP_ARC") &&
                 window.displayedProperties().contains("COPCLS ARC") &&
-                window.displayedProperties().contains("vertices 37") &&
+                window.displayedProperties().contains(collinear ? "vertices 38" : "vertices 37") &&
                 window.displayedProperties().contains("connectivity NOT_VERIFIED");
             auto *scene=panel->findChild<QGraphicsScene *>();
             QGraphicsPathItem *item=nullptr;
@@ -2037,7 +2037,7 @@ static int runCurvedCopperSmoke(PreviewWindow &window,const QString &fixture) {
         if(!pass && failure.isEmpty())failure="A029 native import timeout";
     }
     const QJsonObject report{
-        {"schema","boardsi-preview-a029-curved-copper-v1"},
+        {"schema",collinear ? "boardsi-preview-a029-curved-collinear-v1" : "boardsi-preview-a029-curved-copper-v1"},
         {"pass",pass},{"fixture_import",loaded},
         {"source_properties",properties},{"cpu_conservative_fill",proxy},
         {"layer_filter",filtered},{"malformed_rejected",malformed},
@@ -2050,7 +2050,8 @@ static int runCurvedCopperSmoke(PreviewWindow &window,const QString &fixture) {
         {"host_arch",QSysInfo::currentCpuArchitecture()},
         {"elapsed_ms",clock.elapsed()},{"failure",failure}
     };
-    QFile receipt("qt-preview-a029-curved-copper-results.json");
+    QFile receipt(collinear ? "qt-preview-a029-curved-collinear-results.json" :
+                 "qt-preview-a029-curved-copper-results.json");
     if(!receipt.open(QIODevice::WriteOnly) ||
        receipt.write(QJsonDocument(report).toJson(QJsonDocument::Indented))<1)return 2;
     qInfo().noquote()<<QJsonDocument(report).toJson(QJsonDocument::Compact);
@@ -2283,10 +2284,12 @@ int main(int argc, char **argv) {
     const bool circlePolygonTesting = args.size()==7 && args.at(1)=="--circle-polygon-selftest";
     const bool circleMixedTesting = args.size()==7 && args.at(1)=="--circle-mixed-selftest";
     const bool curvedCopperTesting = args.size()==7 && args.at(1)=="--curved-copper-selftest";
+    const bool curvedCollinearTesting = args.size()==7 && args.at(1)=="--curved-collinear-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
                          rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting ||
                          arcTesting || outlineTesting || circleTesting || mixedTesting || pourTesting || copperTesting || cutoutTesting || orthogonalTesting || diagonalTesting || circularCopperTesting || hollowCircleTesting ||
-                         circlePolygonTesting || circleMixedTesting || curvedCopperTesting;
+                         circlePolygonTesting || circleMixedTesting || curvedCopperTesting ||
+                         curvedCollinearTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -2309,7 +2312,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return curvedCopperTesting ? runCurvedCopperSmoke(window,fixture) :
+    return curvedCollinearTesting ? runCurvedCopperSmoke(window,fixture,true) :
+           curvedCopperTesting ? runCurvedCopperSmoke(window,fixture) :
            circleMixedTesting ? runCutoutSmoke(window,fixture,false,false,false,false,false,true) :
            circlePolygonTesting ? runCutoutSmoke(window,fixture,false,false,false,false,true) :
            hollowCircleTesting ? runCutoutSmoke(window,fixture,false,false,false,true) :
