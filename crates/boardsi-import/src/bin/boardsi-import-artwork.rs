@@ -47,12 +47,22 @@ fn run() -> Result<(), &'static str> {
         .iter()
         .filter(|c| matches!(c.geometry, copper_preview::CopperGeometry::Curved { .. }))
         .count();
-    let curved_holes = coppers.iter().filter(|c|
-        matches!(c.geometry, copper_preview::CopperGeometry::Curved { .. }) &&
-        !c.cutouts.is_empty()).count();
-    if curved_count > 0 && coppers.iter().any(|c|
-        c.cutouts.iter().any(|h| matches!(h,copper_preview::CopperGeometry::Circle { .. })))
-    { return Err("UNSUPPORTED_CURVED_COMBINED_COPPER"); }
+    let curved_holes = coppers
+        .iter()
+        .filter(|c| {
+            matches!(c.geometry, copper_preview::CopperGeometry::Curved { .. })
+                && !c.cutouts.is_empty()
+        })
+        .count();
+    if curved_count > 0
+        && coppers.iter().any(|c| {
+            c.cutouts
+                .iter()
+                .any(|h| matches!(h, copper_preview::CopperGeometry::Circle { .. }))
+        })
+    {
+        return Err("UNSUPPORTED_CURVED_COMBINED_COPPER");
+    }
     let mode = if curved_holes > 0 {
         "BOARDSI_P2U_PARTIAL_V14"
     } else if curved_count > 0 {
@@ -186,7 +196,9 @@ fn run() -> Result<(), &'static str> {
                 || mode == "BOARDSI_P2L_PARTIAL_V9"
                 || mode == "BOARDSI_P2M_PARTIAL_V10"
                 || (mode == "BOARDSI_P2N_PARTIAL_V11"
-                    || (mode == "BOARDSI_P2Q_PARTIAL_V12" || (mode == "BOARDSI_P2T_PARTIAL_V13" || mode == "BOARDSI_P2U_PARTIAL_V14")))
+                    || (mode == "BOARDSI_P2Q_PARTIAL_V12"
+                        || (mode == "BOARDSI_P2T_PARTIAL_V13"
+                            || mode == "BOARDSI_P2U_PARTIAL_V14")))
             {
                 format!(
                     "|{}|{}",
@@ -205,7 +217,8 @@ fn run() -> Result<(), &'static str> {
         || mode == "BOARDSI_P2L_PARTIAL_V9"
         || mode == "BOARDSI_P2M_PARTIAL_V10"
         || (mode == "BOARDSI_P2N_PARTIAL_V11"
-            || (mode == "BOARDSI_P2Q_PARTIAL_V12" || (mode == "BOARDSI_P2T_PARTIAL_V13" || mode == "BOARDSI_P2U_PARTIAL_V14")))
+            || (mode == "BOARDSI_P2Q_PARTIAL_V12"
+                || (mode == "BOARDSI_P2T_PARTIAL_V13" || mode == "BOARDSI_P2U_PARTIAL_V14")))
     {
         // Non-electrical BOARD geometry. A circle is analytical (C), while
         // straight polygon segments retain the unchanged O record.
@@ -276,7 +289,8 @@ fn run() -> Result<(), &'static str> {
         if mode == "BOARDSI_P2L_PARTIAL_V9"
             || mode == "BOARDSI_P2M_PARTIAL_V10"
             || (mode == "BOARDSI_P2N_PARTIAL_V11"
-                || (mode == "BOARDSI_P2Q_PARTIAL_V12" || (mode == "BOARDSI_P2T_PARTIAL_V13" || mode == "BOARDSI_P2U_PARTIAL_V14")))
+                || (mode == "BOARDSI_P2Q_PARTIAL_V12"
+                    || (mode == "BOARDSI_P2T_PARTIAL_V13" || mode == "BOARDSI_P2U_PARTIAL_V14")))
         {
             for pour in &pours {
                 for (sequence, pair) in pour.vertices.windows(2).enumerate() {
@@ -301,7 +315,9 @@ fn run() -> Result<(), &'static str> {
             // G record is a non-electrical preview shape, never an invented flood.
             if mode == "BOARDSI_P2M_PARTIAL_V10"
                 || (mode == "BOARDSI_P2N_PARTIAL_V11"
-                    || (mode == "BOARDSI_P2Q_PARTIAL_V12" || (mode == "BOARDSI_P2T_PARTIAL_V13" || mode == "BOARDSI_P2U_PARTIAL_V14")))
+                    || (mode == "BOARDSI_P2Q_PARTIAL_V12"
+                        || (mode == "BOARDSI_P2T_PARTIAL_V13"
+                            || mode == "BOARDSI_P2U_PARTIAL_V14")))
             {
                 for copper in &coppers {
                     use copper_preview::CopperGeometry;
@@ -388,7 +404,8 @@ fn run() -> Result<(), &'static str> {
                     }
                 }
                 if mode == "BOARDSI_P2N_PARTIAL_V11"
-                    || (mode == "BOARDSI_P2Q_PARTIAL_V12" || (mode == "BOARDSI_P2T_PARTIAL_V13" || mode == "BOARDSI_P2U_PARTIAL_V14"))
+                    || (mode == "BOARDSI_P2Q_PARTIAL_V12"
+                        || (mode == "BOARDSI_P2T_PARTIAL_V13" || mode == "BOARDSI_P2U_PARTIAL_V14"))
                 {
                     // H references a G index; the source alone defines ownership.
                     for (index, copper) in coppers.iter().enumerate() {
@@ -443,7 +460,9 @@ fn run() -> Result<(), &'static str> {
                 .sum();
             if mode == "BOARDSI_P2M_PARTIAL_V10"
                 || (mode == "BOARDSI_P2N_PARTIAL_V11"
-                    || (mode == "BOARDSI_P2Q_PARTIAL_V12" || (mode == "BOARDSI_P2T_PARTIAL_V13" || mode == "BOARDSI_P2U_PARTIAL_V14")))
+                    || (mode == "BOARDSI_P2Q_PARTIAL_V12"
+                        || (mode == "BOARDSI_P2T_PARTIAL_V13"
+                            || mode == "BOARDSI_P2U_PARTIAL_V14")))
             {
                 if mode == "BOARDSI_P2U_PARTIAL_V14" {
                     writeln!(
@@ -461,7 +480,8 @@ fn run() -> Result<(), &'static str> {
                         coppers.len(),
                         curved_count,
                         coppers.iter().map(|c| c.cutouts.len()).sum::<usize>(),
-                    ).map_err(|_| "FORMAT_ERROR")?;
+                    )
+                    .map_err(|_| "FORMAT_ERROR")?;
                 } else if mode == "BOARDSI_P2T_PARTIAL_V13" {
                     writeln!(
                         out,
