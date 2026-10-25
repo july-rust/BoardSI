@@ -358,7 +358,9 @@ class PreviewImportPanel final : public QWidget {
             } else if (parts[0] == "END" && i == lines.size()-1 &&
                        layerRecords == layers &&
                        (((p2c || p2d || p2e || p2f || p2g || p2h || p2i) &&
-                         parts.size() == (p2u ? 15 : (p2t ? 14 : (p2n ? 14 : (p2m ? 13 : (p2l ? 12 : (p2i ? 11 : (p2h ? 10 : (p2g ? 9 : (p2f ? 7 : 6)))))))))) ||
+                         parts.size() == (p2u ? 15 : p2t ? 14 : p2n ? 14 :
+                             p2m ? 13 : p2l ? 12 : p2i ? 11 : p2h ? 10 :
+                             p2g ? 9 : p2f ? 7 : 6)) ||
                         (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h && !p2i &&
                          parts.size() == 5))) {
                 const int count = parts[1].toInt(&ok);
