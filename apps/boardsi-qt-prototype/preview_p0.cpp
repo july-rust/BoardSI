@@ -1746,7 +1746,7 @@ static int runRhiGeometrySmoke() {
 
 // A_023 V11: real Rust combined COPPER/COPCUT -> Qt decoder ->
 // CPU even-odd hollow path, RHI exact hollow pick, layers/cleanup.
-static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orthogonal=false,bool diagonal=false) {
+static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orthogonal=false,bool diagonal=false,bool circular=false) {
     bool pass=false,loaded=false,hollow=false,properties=false,filtered=false;
     bool malformed=false,reset=false,rhiPick=false,rhiFrame=false;
     QString failure;
@@ -1776,22 +1776,29 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
 #endif
             loaded=panel->copperCount()==1 && state.contains("1 filled source copper areas");
             properties=panel->selectCopper(0) &&
-                window.displayedProperties().contains("COPPER COP_HOLE") &&
-                window.displayedProperties().contains("cutouts 2") &&
+                window.displayedProperties().contains(circular ? "COPPER COP_CIRC" : "COPPER COP_HOLE") &&
+                window.displayedProperties().contains(circular ? "cutouts 3" : "cutouts 2") &&
                 window.displayedProperties().contains("connectivity NOT_VERIFIED") &&
                 (!orthogonal || window.displayedProperties().contains("vertices 7")) &&
                 (!diagonal || window.displayedProperties().contains("vertices 5"));
             auto *scene=panel->findChild<QGraphicsScene *>();
             QGraphicsPathItem *copper=nullptr;
             if(scene)for(QGraphicsItem *it:scene->items()) {
-                if(it->data(2).toString().startsWith("COPPER COP_HOLE")) {
+                if(it->data(2).toString().startsWith(circular ? "COPPER COP_CIRC" : "COPPER COP_HOLE")) {
                     copper=qgraphicsitem_cast<QGraphicsPathItem *>(it);break;
                 }
             }
             constexpr qreal mil=0.0254;
             if(copper) {
                 const auto path=copper->path();
-                hollow=diagonal ?
+                hollow=circular ?
+                    (path.contains(QPointF(60*mil,-60*mil)) &&
+                     path.contains(QPointF(160*mil,-160*mil)) &&
+                     !path.contains(QPointF(90*mil,-80*mil)) &&
+                     !path.contains(QPointF(130*mil,-120*mil)) &&
+                     !path.contains(QPointF(75*mil,-140*mil)) &&
+                     !path.contains(QPointF(180*mil,-160*mil))) :
+                    diagonal ?
                     (path.contains(QPointF(50*mil,-50*mil)) &&
                      !path.contains(QPointF(80*mil,-70*mil)) &&
                      !path.contains(QPointF(120*mil,-100*mil)) &&
@@ -1835,16 +1842,25 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
                 sharedSector=validateCopperArea(sector) &&
                     !sector.hollowTriangles.empty();
             }
+            ImportedCopperArea roundBad=bad;
+            roundBad.cutouts.clear();
+            roundBad.roundCutouts.push_back({12700,12700,254}); // invalid radius
             malformed=!validateCopperArea(bad) &&
+                (!circular || !validateCopperArea(roundBad)) &&
                 !PreviewImportPanel::validTransportForTest(
-                    "BOARDSI_P2N_PARTIAL_V11|V9.4-MILS|4\nL|1|Top\n");
+                    "BOARDSI_P2N_PARTIAL_V11|V9.4-MILS|4\nL|1|Top\n") &&
+                (!circular || !PreviewImportPanel::validTransportForTest(
+                    "BOARDSI_P2Q_PARTIAL_V12|V9.4-MILS|4\nL|1|Top\n"));
 #ifdef BOARDSI_RHI_ARTWORK
             if(auto *rhi=panel->rhiViewForTest()) {
                 auto *item=rhi->itemForTest();
                 rhiPick=item && item->copperCountForTest()==1 &&
                     item->dispatchCopperPickForTest(0) &&
-                    item->rejectCopperHolePickForTest(0) &&
-                    item->rejectCopperHolePickForTest(0,1) &&
+                    (circular ? item->rejectCopperHolePickForTest(0) &&
+                        item->rejectCopperCircleHolePickForTest(0) &&
+                        item->rejectCopperCircleHolePickForTest(0,1) :
+                        item->rejectCopperHolePickForTest(0) &&
+                        item->rejectCopperHolePickForTest(0,1)) &&
                     (!orthogonal || item->rejectCopperSourcePointForTest(
                         145*25400LL,110*25400LL)) &&
                     (!diagonal || item->rejectCopperSourcePointForTest(
@@ -1864,18 +1880,22 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
         if(!pass&&failure.isEmpty())failure="A023 native cutout smoke timed out";
     }
     const QJsonObject report{
-        {"schema",diagonal ? "boardsi-preview-a025-diagonal-v1" :
+        {"schema",circular ? "boardsi-preview-a026-circle-v1" :
+                  diagonal ? "boardsi-preview-a025-diagonal-v1" :
                   orthogonal ? "boardsi-preview-a024-orthogonal-v1" :
                                "boardsi-preview-a023-cutout-v1"},
         {"pass",pass},{"fixture_import",loaded},{"cpu_hollow_fill",hollow},
         {"source_properties",properties},{"layer_filter",filtered},
         {"malformed_rejected",malformed},{"clear_resets",reset},
         {"orthogonal_source",orthogonal},{"diagonal_source",diagonal},
+        {"circular_source",circular},
         {"shared_bridge_sector",diagonal ? pass : true},
-        {"rhi_hole_pick",rhiPick},{"rhi_imported_frame_confirmed",rhiFrame},
+        {"rhi_hole_pick",rhiPick},{"rhi_circle_hole_pick",circular && rhiPick},
+        {"rhi_imported_frame_confirmed",rhiFrame},
         {"physical_copper","NOT_VERIFIED"},{"physical_si","NOT_RUN"},{"failure",failure}
     };
-    QFile output(diagonal ? "qt-preview-a025-diagonal-results.json" :
+    QFile output(circular ? "qt-preview-a026-circle-results.json" :
+                 diagonal ? "qt-preview-a025-diagonal-results.json" :
                 orthogonal ? "qt-preview-a024-orthogonal-results.json" :
                              "qt-preview-a023-cutout-results.json");
     if(!output.open(QIODevice::WriteOnly)||
@@ -2105,9 +2125,10 @@ int main(int argc, char **argv) {
     const bool cutoutTesting = args.size() == 7 && args.at(1) == "--cutout-selftest";
     const bool orthogonalTesting = args.size() == 7 && args.at(1) == "--orthogonal-selftest";
     const bool diagonalTesting = args.size() == 7 && args.at(1) == "--diagonal-selftest";
+    const bool circularCopperTesting = args.size()==7 && args.at(1)=="--circular-copper-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
                          rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting ||
-                         arcTesting || outlineTesting || circleTesting || mixedTesting || pourTesting || copperTesting || cutoutTesting || orthogonalTesting || diagonalTesting;
+                         arcTesting || outlineTesting || circleTesting || mixedTesting || pourTesting || copperTesting || cutoutTesting || orthogonalTesting || diagonalTesting || circularCopperTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -2130,7 +2151,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return diagonalTesting ? runCutoutSmoke(window,fixture,false,true) :
+    return circularCopperTesting ? runCutoutSmoke(window,fixture,false,false,true) :
+           diagonalTesting ? runCutoutSmoke(window,fixture,false,true) :
            orthogonalTesting ? runCutoutSmoke(window,fixture,true) :
            cutoutTesting ? runCutoutSmoke(window, fixture) :
            copperTesting ? runCopperSmoke(window, fixture) :
