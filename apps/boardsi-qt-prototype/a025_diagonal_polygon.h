@@ -191,7 +191,7 @@ inline bool triangulate(ImportedCopperArea &src) {
             const P c=merged[i],n=merged[(i+1)%merged.size()];
             if(cross(p,c,n)<=0)continue;
             bool occupied=false;
-            for(const P v:merged) {
+            for(const P &v:merged) {
                 if(v==p||v==c||v==n)continue; // duplicated bridge endpoint
                 if(cross(p,c,v)>=0 && cross(c,n,v)>=0 && cross(n,p,v)>=0) {
                     occupied=true;break;
