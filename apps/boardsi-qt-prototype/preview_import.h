@@ -400,10 +400,10 @@ class PreviewImportPanel final : public QWidget {
                                 }
                                 if(holes<1 || parts[11].toInt(&ok)!=holes || !ok) return false;
                                 if(p2q) {
-                                    int circles=0;
+                                    int circularHoleCount=0;
                                     for(const auto &c:coppers)
-                                        circles+=static_cast<int>(c.roundCutouts.size());
-                                    if(circles<1)return false;
+                                        circularHoleCount+=static_cast<int>(c.roundCutouts.size());
+                                    if(circularHoleCount<1)return false;
                                 }
                             }
                             int countB=0;
