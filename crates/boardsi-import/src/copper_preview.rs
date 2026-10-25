@@ -726,7 +726,10 @@ mod tests {
 
     #[test]
     fn a026_isolated_candidate_rejects_tangent_overlap_and_bad_circle() {
-        let source = include_str!("../tests/fixtures/pads_copper_circular_void_v94.asc");
+        // Git for Windows may check out .asc fixtures with CRLF. Normalize
+        // only the test string so every adversarial mutation actually fires.
+        let source = include_str!("../tests/fixtures/pads_copper_circular_void_v94.asc")
+            .replace("\r\n", "\n");
         for (case, malformed) in [
             (
                 "outer tangent",
@@ -753,6 +756,7 @@ mod tests {
                 source.replace("COP_CIRC COPPER 50 50 4 1", "COP_CIRC COPPER 50 50 1 1"),
             ),
         ] {
+            assert_ne!(malformed, source, "mutation was not applied: {case}");
             let candidate = parse_impl(malformed.as_bytes(), 4, true);
             assert!(
                 candidate.is_err(),
