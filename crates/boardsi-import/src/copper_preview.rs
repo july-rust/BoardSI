@@ -73,8 +73,9 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
     // V12 Qt can transmit analytical COPCCO and render source-safe
     // conservative hollow meshes. Source-circle hollow outers remain deferred.
     let areas = parse_impl(bytes, max_layer, true)?;
-    if areas.iter().any(|a| matches!(&a.geometry, CopperGeometry::Circle { .. })
-        && !a.cutouts.is_empty())
+    if areas
+        .iter()
+        .any(|a| matches!(&a.geometry, CopperGeometry::Circle { .. }) && !a.cutouts.is_empty())
     {
         return Err("UNSUPPORTED_COPPER_HOLLOW_OUTER");
     }
@@ -269,7 +270,9 @@ fn parse_impl(
                 if let CopperGeometry::Circle { radius, .. } = &geometry {
                     // Qt's conservative 32-edge bounded proxy is qualified
                     // only for source circles >=1000 source ticks.
-                    if *radius < 1000 { return Err("UNSUPPORTED_SMALL_CIRCULAR_VOID"); }
+                    if *radius < 1000 {
+                        return Err("UNSUPPORTED_SMALL_CIRCULAR_VOID");
+                    }
                 }
                 cutouts.push(geometry);
             }
@@ -296,7 +299,9 @@ fn parse_impl(
                     CopperGeometry::Circle { .. } => 0,
                 } + polygons.iter().map(Vec::len).sum::<usize>()
                     + circles.len() * 33;
-                if total > 128 { return Err("COPPER_CIRCLE_PROXY_COMPLEXITY"); }
+                if total > 128 {
+                    return Err("COPPER_CIRCLE_PROXY_COMPLEXITY");
+                }
             }
             match &geometry {
                 CopperGeometry::Polygon(outer) => {
@@ -713,8 +718,8 @@ mod tests {
     fn a026_source_owned_circle_accepts_explicit_v12_geometry() {
         let source = include_bytes!("../tests/fixtures/pads_copper_circular_void_v94.asc");
         let areas = parse(source, 4).unwrap();
-        assert_eq!(areas.len(),1);
-        assert_eq!(areas[0].cutouts.len(),3);
+        assert_eq!(areas.len(), 1);
+        assert_eq!(areas[0].cutouts.len(), 3);
         // A mistaken owner piece count must not paint filled copper over a void.
         let understated = String::from_utf8_lossy(source)
             .replace("COP_CIRC COPPER 50 50 4 1", "COP_CIRC COPPER 50 50 1 1");
