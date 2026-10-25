@@ -604,8 +604,7 @@ mod tests {
         };
         assert_eq!(outer[2], [11000, 9000]);
         assert_eq!(v[0].net_label.as_deref(), Some("GND"));
-        assert!(parse(asc.replace("30 20\\n50 20\\n40 40\\n30 20",
-             "0 20\\n50 20\\n40 40\\n0 20").as_bytes(), 4).is_err());
+        assert!(parse(asc.replace("30 20\n50 20\n40 40\n30 20", "0 20\n50 20\n40 40\n0 20").as_bytes(), 4).is_err());
         assert!(parse(asc.replace("DIA COPPER 0 0 2 1", "DIA COPPER 0 0 1 1").as_bytes(), 4).is_err());
     }
     #[test]
