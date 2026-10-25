@@ -1105,7 +1105,9 @@ public:
                         path.lineTo(cut[i].first/1e6,-cut[i].second/1e6);
                     path.closeSubpath();
                 }
-                item=scene_->addPath(path,QPen(color.darker(135),0),QBrush(color));
+                item=scene_->addPath(path,
+                    c.roundCutouts.empty() ? QPen(color.darker(135),0) : QPen(Qt::NoPen),
+                    QBrush(color));
             }
             item->setZValue(-1); // Beneath trace/pad/POUROUT outlines.
             item->setData(0,c.net=="-" ? QString() : c.net);
