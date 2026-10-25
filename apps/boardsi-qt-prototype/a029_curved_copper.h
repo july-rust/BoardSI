@@ -40,7 +40,7 @@ inline bool point(qint64 x,qint64 y) {
 }
 inline bool validate(ImportedCopperArea &c) {
     if(!c.curved||c.circle||!c.cutouts.empty()||!c.roundCutouts.empty()||
-       !c.ring.empty()||c.curvedSegments.size()<3||c.curvedSegments.size()>64)
+       c.curvedSegments.size()<3||c.curvedSegments.size()>64)
         return false;
     std::vector<P> chord, display;
     chord.reserve(c.curvedSegments.size()+1);
