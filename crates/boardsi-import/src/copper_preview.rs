@@ -728,16 +728,35 @@ mod tests {
     fn a026_isolated_candidate_rejects_tangent_overlap_and_bad_circle() {
         let source = include_str!("../tests/fixtures/pads_copper_circular_void_v94.asc");
         for (case, malformed) in [
-            ("outer tangent", source.replace("30 30\n50 30", "0 30\n20 30")),
-            ("circle overlap", source.replace("68 70\n92 70", "42 30\n62 30")),
-            ("polygon overlap", source.replace("30 30\n50 30", "30 85\n50 85")),
-            ("layer mismatch", source.replacen("COPCCO 2 0.01 0 1", "COPCCO 2 0.01 0 2", 1)),
-            ("diagonal diameter", source.replace("30 30\n50 30", "30 30\n50 50")),
-            ("owner piece count", source.replace("COP_CIRC COPPER 50 50 4 1", "COP_CIRC COPPER 50 50 1 1")),
+            (
+                "outer tangent",
+                source.replace("30 30\n50 30", "0 30\n20 30"),
+            ),
+            (
+                "circle overlap",
+                source.replace("68 70\n92 70", "42 30\n62 30"),
+            ),
+            (
+                "polygon overlap",
+                source.replace("30 30\n50 30", "30 85\n50 85"),
+            ),
+            (
+                "layer mismatch",
+                source.replacen("COPCCO 2 0.01 0 1", "COPCCO 2 0.01 0 2", 1),
+            ),
+            (
+                "diagonal diameter",
+                source.replace("30 30\n50 30", "30 30\n50 50"),
+            ),
+            (
+                "owner piece count",
+                source.replace("COP_CIRC COPPER 50 50 4 1", "COP_CIRC COPPER 50 50 1 1"),
+            ),
         ] {
+            let candidate = parse_impl(malformed.as_bytes(), 4, true);
             assert!(
-                parse_impl(malformed.as_bytes(), 4, true).is_err(),
-                "candidate accepted malformed {case}"
+                candidate.is_err(),
+                "candidate accepted malformed {case}: {candidate:?}"
             );
         }
     }
