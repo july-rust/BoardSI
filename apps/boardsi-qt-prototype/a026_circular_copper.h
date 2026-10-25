@@ -105,13 +105,17 @@ inline bool innerProxy(const ImportedCopperCircleHole &outer,std::vector<P> &rin
     return true;
 }
 inline bool triangulate(ImportedCopperArea &a) {
-    if(a.roundCutouts.empty() ||
+    // A_028: source COPCIR may own exact COPCUT polygon voids, optionally
+    // alongside source COPCCO. Source topology is independently checked by
+    // Rust. Here display proxies must pass the full A_025 triangle oracle.
+    if((a.roundCutouts.empty() && a.cutouts.empty()) ||
        a.cutouts.size()+a.roundCutouts.size()>8)return false;
     ImportedCopperArea proxyArea=a;
     if(a.circle) {
-        // Only circular voids within a source circle are qualified.
-        if(!a.cutouts.empty() || !innerProxy(
-             {a.cx_nm,a.cy_nm,a.radius_nm},proxyArea.ring))return false;
+        // Inscribed display proxy never creates copper beyond the analytic
+        // source circle. Polygon voids remain on their EXACT source grid.
+        if(!innerProxy({a.cx_nm,a.cy_nm,a.radius_nm},proxyArea.ring))
+            return false;
         proxyArea.circle=false; // A_025 consumes polygonal display proxies.
     }
     for(const auto &hole:a.roundCutouts) {
