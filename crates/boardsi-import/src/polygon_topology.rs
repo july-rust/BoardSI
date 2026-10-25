@@ -10,6 +10,7 @@ pub type TickPoint = [i64; 2];
 const MAX_HOLES: usize = 8;
 const MAX_VERTICES_TOTAL: usize = 128;
 const MAX_RING_VERTICES: usize = 65;
+const MAX_SOURCE_TICKS: i64 = 5_600_000; // Match PADS V9.4 restricted importer.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TopologyError {
@@ -133,15 +134,22 @@ pub fn validate_polygon_with_holes(
     outer: &[TickPoint],
     holes: &[Vec<TickPoint>],
 ) -> Result<AreaProof, TopologyError> {
-    let total = outer
-        .len()
-        .checked_add(holes.iter().map(Vec::len).sum::<usize>())
-        .ok_or(TopologyError::Complexity)?;
-    if holes.len() > MAX_HOLES
-        || total > MAX_VERTICES_TOTAL
-        || outer.len() > MAX_RING_VERTICES
-        || holes.iter().any(|h| h.len() > MAX_RING_VERTICES)
-    {
+    // Gate complexity and source range before any i128 products.
+    if holes.len() > MAX_HOLES || outer.len() > MAX_RING_VERTICES {
+        return Err(TopologyError::Complexity);
+    }
+    let mut total = outer.len();
+    for ring in std::iter::once(outer).chain(holes.iter().map(Vec::as_slice)) {
+        if ring.len() > MAX_RING_VERTICES
+            || ring.iter().flatten().any(|v| !(-MAX_SOURCE_TICKS..=MAX_SOURCE_TICKS).contains(v))
+        {
+            return Err(TopologyError::Complexity);
+        }
+        if !std::ptr::eq(ring, outer) {
+            total = total.checked_add(ring.len()).ok_or(TopologyError::Complexity)?;
+        }
+    }
+    if total > MAX_VERTICES_TOTAL {
         return Err(TopologyError::Complexity);
     }
     let outer_area2 = simple_ring_area2(outer)?;
@@ -257,6 +265,19 @@ mod tests {
         let small = closed(vec![[2, 2], [3, 2], [2, 3]]);
         assert_eq!(
             validate_polygon_with_holes(&outer, &vec![small; 9]),
+            Err(TopologyError::Complexity)
+        );
+    }
+
+    #[test]
+    fn rejects_extreme_coordinates_before_exact_predicates() {
+        let extreme = closed(vec![
+            [i64::MIN, 0],
+            [i64::MAX, 1],
+            [0, i64::MAX],
+        ]);
+        assert_eq!(
+            validate_polygon_with_holes(&extreme, &[]),
             Err(TopologyError::Complexity)
         );
     }
