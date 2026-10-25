@@ -171,7 +171,11 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
             .iter()
             .find(|x| x.meta.id == via.padstack)
             .ok_or("MISSING_CONTACT_PADSTACK")?;
-        for entry in padstack.entries.iter().filter(|e| e.role == PadRole::Conductive) {
+        for entry in padstack
+            .entries
+            .iter()
+            .filter(|e| e.role == PadRole::Conductive)
+        {
             let candidate = site(
                 &source,
                 via.meta.id.clone(),
@@ -204,9 +208,7 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
                 let b = &sites[second];
                 // One source conductor's two sites are not a contact with another
                 // conductor; distinct via centres do not imply a barrel contact.
-                if a.conductor == b.conductor
-                    || (a.via_index.is_some() && b.via_index.is_some())
-                {
+                if a.conductor == b.conductor || (a.via_index.is_some() && b.via_index.is_some()) {
                     continue;
                 }
                 let (Some(net_a), Some(net_b)) = (&a.net, &b.net) else {
@@ -291,18 +293,20 @@ mod tests {
 
     #[test]
     fn no_cross_layer_or_near_miss_contact() {
-        let altered = TWO.replace(
-            "U2.2 U3.3\n300 200 1 10 0",
-            "U2.2 U3.3\n300 200 2 10 0",
-        );
+        let altered = TWO.replace("U2.2 U3.3\n300 200 1 10 0", "U2.2 U3.3\n300 200 2 10 0");
         let parsed = parse(altered.as_bytes()).unwrap();
-        assert!(into_canonical(altered.as_bytes(), &parsed).unwrap().connectivity.edges.is_empty());
-        let shifted = TWO.replace(
-            "U2.2 U3.3\n300 200 1 10 0",
-            "U2.2 U3.3\n300.01 200 1 10 0",
-        );
+        assert!(into_canonical(altered.as_bytes(), &parsed)
+            .unwrap()
+            .connectivity
+            .edges
+            .is_empty());
+        let shifted = TWO.replace("U2.2 U3.3\n300 200 1 10 0", "U2.2 U3.3\n300.01 200 1 10 0");
         let parsed = parse(shifted.as_bytes()).unwrap();
-        assert!(into_canonical(shifted.as_bytes(), &parsed).unwrap().connectivity.edges.is_empty());
+        assert!(into_canonical(shifted.as_bytes(), &parsed)
+            .unwrap()
+            .connectivity
+            .edges
+            .is_empty());
     }
 
     #[test]
@@ -314,21 +318,26 @@ mod tests {
         let parsed = parse(changed.as_bytes()).unwrap();
         let board = into_canonical(changed.as_bytes(), &parsed).unwrap();
         assert!(board.connectivity.edges.is_empty());
-        assert!(board.sources[0].capability.object_coverage.iter().any(
-            |s| s.contains("potential net conflicts 1")
-        ));
+        assert!(board.sources[0]
+            .capability
+            .object_coverage
+            .iter()
+            .any(|s| s.contains("potential net conflicts 1")));
     }
 
     #[test]
     fn via_barrel_requires_both_layer_contacts() {
-        const VIA: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 2 10 0 SIMPLEVIA\n500 200 2 10 0\n*END*\n";
+        const VIA: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 2 10 0 SIMPLEVIA\n500 200 2 10 0\n*END*\n";
         let parsed = parse(VIA.as_bytes()).unwrap();
         let board = into_canonical(VIA.as_bytes(), &parsed).unwrap();
         assert_eq!(board.vias[0].connected_layers.len(), 2);
         assert_eq!(
-            board.connectivity.edges.iter().filter(|e| matches!(
-                e.evidence, ConnectionEvidence::ViaBarrel { .. }
-            )).count(),
+            board
+                .connectivity
+                .edges
+                .iter()
+                .filter(|e| matches!(e.evidence, ConnectionEvidence::ViaBarrel { .. }))
+                .count(),
             1
         );
         assert!(!board.validate().has_errors());
