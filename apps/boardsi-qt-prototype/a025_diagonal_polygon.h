@@ -121,6 +121,24 @@ inline bool validBridge(P a,P b,const Ring &outer,
     }
     return true;
 }
+// On a merged weakly-simple contour a source vertex may occur multiple
+// times, each occurrence bounding a DIFFERENT interior sector. A distance-only
+// bridge choice can attach to the wrong copy and destroy the valid ear order.
+// For the CCW merged contour choose the incidence whose adjacent edges enclose
+// the departing bridge ray. All tests stay in the exact source-tick domain.
+inline bool bridgeInLocalSector(const Ring &merged,size_t index,P holePoint) {
+    if(merged.size()<3 || index>=merged.size())return false;
+    const P prev=merged[(index+merged.size()-1)%merged.size()];
+    const P curr=merged[index],next=merged[(index+1)%merged.size()];
+    if(holePoint==curr || prev==curr || next==curr)return false;
+    const qint64 turn=cross(prev,curr,next);
+    const qint64 incoming=cross(prev,curr,holePoint);
+    const qint64 outgoing=cross(curr,next,holePoint);
+    if(turn>0)return incoming>0 && outgoing>0;
+    if(turn<0)return incoming>0 || outgoing>0;
+    // Collinear incidence cannot certify a unique bridge sector.
+    return incoming>0 && outgoing>0;
+}
 inline bool triangulate(ImportedCopperArea &src) {
     // Only invoked when a same-owner hole is present. The legacy orthogonal
     // grid path is preserved, and the no-hole path remains unchanged.
@@ -165,7 +183,8 @@ inline bool triangulate(ImportedCopperArea &src) {
         qint64 best=std::numeric_limits<qint64>::max();
         for(size_t i=0;i<merged.size();++i) {
             const P o=merged[i];
-            if(!validBridge(o,hp,outer,holes,bridges))continue;
+            if(!bridgeInLocalSector(merged,i,hp) ||
+               !validBridge(o,hp,outer,holes,bridges))continue;
             const qint64 dx=o.first-hp.first,dy=o.second-hp.second;
             const qint64 dist=dx*dx+dy*dy;
             if(dist<best) {best=dist;dest=i;}

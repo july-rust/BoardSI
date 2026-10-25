@@ -1816,6 +1816,25 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
             bad.name="BAD";bad.net="-";bad.layer=1;bad.sourceLine=1;
             bad.ring={{0,0},{25400,0},{25400,25400},{0,25400},{0,0}};
             bad.cutouts.push_back({{0,2540},{5080,2540},{5080,5080},{0,5080},{0,2540}});
+            // A_025 exact Codex P2 reproducer: two independent triangular
+            // voids can bridge to the same outer vertex. Each duplicate
+            // vertex has a distinct incident sector; never choose by distance
+            // alone or reject a valid source-authored board on a no-ear path.
+            bool sharedSector=true;
+            if(diagonal) {
+                constexpr qint64 t=254;
+                ImportedCopperArea sector;
+                sector.name="SHARED_SECTOR"; sector.net="-";
+                sector.layer=1; sector.sourceLine=1;
+                sector.ring={{0,0},{1000*t,0},{1000*t,1000*t},
+                             {0,1000*t},{0,0}};
+                sector.cutouts={
+                    {{141*t,24*t},{161*t,24*t},{151*t,44*t},{141*t,24*t}},
+                    {{305*t,127*t},{325*t,127*t},{315*t,147*t},{305*t,127*t}}
+                };
+                sharedSector=validateCopperArea(sector) &&
+                    !sector.hollowTriangles.empty();
+            }
             malformed=!validateCopperArea(bad) &&
                 !PreviewImportPanel::validTransportForTest(
                     "BOARDSI_P2N_PARTIAL_V11|V9.4-MILS|4\nL|1|Top\n");
@@ -1836,7 +1855,7 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
 #endif
             panel->clearArtwork();
             reset=panel->copperCount()==0;
-            pass=loaded&&hollow&&properties&&filtered&&malformed&&reset&&rhiFrame&&rhiPick;
+            pass=loaded&&hollow&&properties&&filtered&&malformed&&reset&&rhiFrame&&rhiPick&&sharedSector;
             if(!pass)failure="A023 hollow copper source, CPU/RHI, filter or decoder mismatch";
             loop.quit();
         });
@@ -1852,6 +1871,7 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
         {"source_properties",properties},{"layer_filter",filtered},
         {"malformed_rejected",malformed},{"clear_resets",reset},
         {"orthogonal_source",orthogonal},{"diagonal_source",diagonal},
+        {"shared_bridge_sector",diagonal ? pass : true},
         {"rhi_hole_pick",rhiPick},{"rhi_imported_frame_confirmed",rhiFrame},
         {"physical_copper","NOT_VERIFIED"},{"physical_si","NOT_RUN"},{"failure",failure}
     };

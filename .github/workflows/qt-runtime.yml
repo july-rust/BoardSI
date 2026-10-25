@@ -445,7 +445,7 @@ jobs:
           set -e
           if test -f qt-preview-a025-diagonal-results.json; then cat qt-preview-a025-diagonal-results.json; else echo "A025 receipt missing"; fi
           if test "$rc" -ne 0; then exit "$rc"; fi
-          python -c 'import json; r=json.load(open("qt-preview-a025-diagonal-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a025-diagonal-v1" and r["diagonal_source"] and r["fixture_import"] and r["cpu_hollow_fill"] and r["source_properties"] and r["layer_filter"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_hole_pick"] and r["rhi_imported_frame_confirmed"] and r["physical_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
+          python -c 'import json; r=json.load(open("qt-preview-a025-diagonal-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a025-diagonal-v1" and r["diagonal_source"] and r["shared_bridge_sector"] and r["fixture_import"] and r["cpu_hollow_fill"] and r["source_properties"] and r["layer_filter"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_hole_pick"] and r["rhi_imported_frame_confirmed"] and r["physical_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
       - name: Run A_014 native Qt Quick / RHI geometry and first-frame smoke
         shell: bash
         run: |
