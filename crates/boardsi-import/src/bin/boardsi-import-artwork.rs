@@ -183,7 +183,7 @@ fn run() -> Result<(), &'static str> {
         || mode == "BOARDSI_P2I_PARTIAL_V8"
         || mode == "BOARDSI_P2L_PARTIAL_V9"
         || mode == "BOARDSI_P2M_PARTIAL_V10"
-                || mode == "BOARDSI_P2N_PARTIAL_V11"
+        || mode == "BOARDSI_P2N_PARTIAL_V11"
     {
         // Non-electrical BOARD geometry. A circle is analytical (C), while
         // straight polygon segments retain the unchanged O record.
@@ -251,7 +251,10 @@ fn run() -> Result<(), &'static str> {
                 .map_err(|_| "FORMAT_ERROR")?;
             }
         }
-        if mode == "BOARDSI_P2L_PARTIAL_V9" || mode == "BOARDSI_P2M_PARTIAL_V10" || mode == "BOARDSI_P2N_PARTIAL_V11" {
+        if mode == "BOARDSI_P2L_PARTIAL_V9"
+            || mode == "BOARDSI_P2M_PARTIAL_V10"
+            || mode == "BOARDSI_P2N_PARTIAL_V11"
+        {
             for pour in &pours {
                 for (sequence, pair) in pour.vertices.windows(2).enumerate() {
                     // Q is a source-authored UNFILLED boundary, not copper fill.
@@ -317,20 +320,23 @@ fn run() -> Result<(), &'static str> {
                 }
                 if mode == "BOARDSI_P2N_PARTIAL_V11" {
                     // H references a G index; the source alone defines ownership.
-                    for (index,copper) in coppers.iter().enumerate() {
+                    for (index, copper) in coppers.iter().enumerate() {
                         for cutout in &copper.cutouts {
-                            let copper_preview::CopperGeometry::Polygon(vertices)=cutout else {
+                            let copper_preview::CopperGeometry::Polygon(vertices) = cutout else {
                                 return Err("UNSUPPORTED_COPPER_CUTOUT_PIECE");
                             };
-                            write!(out,"H|{}|{}",index,vertices.len())
-                                .map_err(|_|"FORMAT_ERROR")?;
+                            write!(out, "H|{}|{}", index, vertices.len())
+                                .map_err(|_| "FORMAT_ERROR")?;
                             for v in vertices {
-                                write!(out,"|{}|{}",
+                                write!(
+                                    out,
+                                    "|{}|{}",
                                     outline_preview::wire_nm(v[0])?,
-                                    outline_preview::wire_nm(v[1])?)
-                                    .map_err(|_|"FORMAT_ERROR")?;
+                                    outline_preview::wire_nm(v[1])?
+                                )
+                                .map_err(|_| "FORMAT_ERROR")?;
                             }
-                            writeln!(out).map_err(|_|"FORMAT_ERROR")?;
+                            writeln!(out).map_err(|_| "FORMAT_ERROR")?;
                         }
                     }
                 }
@@ -348,33 +354,38 @@ fn run() -> Result<(), &'static str> {
                 .sum();
             if mode == "BOARDSI_P2M_PARTIAL_V10" || mode == "BOARDSI_P2N_PARTIAL_V11" {
                 if mode == "BOARDSI_P2N_PARTIAL_V11" {
-                    writeln!(out,
+                    writeln!(
+                        out,
                         "END|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
                         result.segments.len(),
                         result.skipped.saturating_add(pad_data.skipped as u32),
-                        pad_data.pads.len(),result.arcs.len(),
+                        pad_data.pads.len(),
+                        result.arcs.len(),
                         outlines.iter().filter(|s| !s.cutout).count(),
                         outlines.iter().filter(|s| s.cutout).count(),
                         outlines.iter().filter(|s| s.circle.is_some()).count(),
-                        mixed_arcs,pours.len(),coppers.len(),
-                        coppers.iter().map(|c|c.cutouts.len()).sum::<usize>())
-                        .map_err(|_|"FORMAT_ERROR")?;
+                        mixed_arcs,
+                        pours.len(),
+                        coppers.len(),
+                        coppers.iter().map(|c| c.cutouts.len()).sum::<usize>()
+                    )
+                    .map_err(|_| "FORMAT_ERROR")?;
                 } else {
-                writeln!(
-                    out,
-                    "END|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
-                    result.segments.len(),
-                    result.skipped.saturating_add(pad_data.skipped as u32),
-                    pad_data.pads.len(),
-                    result.arcs.len(),
-                    outlines.iter().filter(|s| !s.cutout).count(),
-                    outlines.iter().filter(|s| s.cutout).count(),
-                    outlines.iter().filter(|s| s.circle.is_some()).count(),
-                    mixed_arcs,
-                    pours.len(),
-                    coppers.len()
-                )
-                .map_err(|_| "FORMAT_ERROR")?;
+                    writeln!(
+                        out,
+                        "END|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+                        result.segments.len(),
+                        result.skipped.saturating_add(pad_data.skipped as u32),
+                        pad_data.pads.len(),
+                        result.arcs.len(),
+                        outlines.iter().filter(|s| !s.cutout).count(),
+                        outlines.iter().filter(|s| s.cutout).count(),
+                        outlines.iter().filter(|s| s.circle.is_some()).count(),
+                        mixed_arcs,
+                        pours.len(),
+                        coppers.len()
+                    )
+                    .map_err(|_| "FORMAT_ERROR")?;
                 }
                 // All END records are emitted by their own protocol version.
                 // Avoid emitting V9 END a second time.
