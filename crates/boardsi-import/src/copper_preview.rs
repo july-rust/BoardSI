@@ -702,6 +702,62 @@ mod tests {
         assert!(parse(understated.as_bytes(), 4).is_err());
     }
     #[test]
+    fn a026_isolated_candidate_parses_owned_circle_and_mixed_holes() {
+        let fixture = include_bytes!("../tests/fixtures/pads_copper_circular_void_v94.asc");
+        let areas = parse_impl(fixture, 4, true).unwrap();
+        assert_eq!(areas.len(), 1);
+        assert_eq!(areas[0].cutouts.len(), 3);
+        assert_eq!(areas[0].net_label.as_deref(), Some("GND"));
+        assert_eq!(
+            areas[0].cutouts[0],
+            CopperGeometry::Circle {
+                centre: [9000, 8000],
+                radius: 1000
+            }
+        );
+        assert_eq!(
+            areas[0].cutouts[1],
+            CopperGeometry::Circle {
+                centre: [13000, 12000],
+                radius: 1200
+            }
+        );
+        // This candidate MUST NOT leak into the production entrypoint.
+        assert_eq!(parse(fixture, 4), Err("UNSUPPORTED_COPPER_CUTOUT_PIECE"));
+    }
+
+    #[test]
+    fn a026_isolated_candidate_rejects_tangent_overlap_and_bad_circle() {
+        let source =
+            include_str!("../tests/fixtures/pads_copper_circular_void_v94.asc");
+        for malformed in [
+            source.replace("30 30\n50 30", "0 30\n20 30"),
+            source.replace("68 70\n92 70", "42 30\n62 30"),
+            source.replace("30 30\n50 30", "30 85\n50 85"),
+            source.replacen("COPCCO 2 0.01 0 1", "COPCCO 2 0.01 0 2", 1),
+            source.replace("30 30\n50 30", "30 30\n50 50"),
+            source.replace("COP_CIRC COPPER 50 50 4 1", "COP_CIRC COPPER 50 50 1 1"),
+        ] {
+            assert!(parse_impl(malformed.as_bytes(), 4, true).is_err());
+        }
+    }
+
+    #[test]
+    fn a026_isolated_circle_outer_hole_is_exact_and_not_production_enabled() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*LINES*\nZ COPPER 0 0 2 1\nCOPCIR 2 0.01 0 1\n-40 0\n40 0\nCOPCCO 2 0.01 0 1\n-10 0\n10 0\n*END*\n";
+        let parsed = parse_impl(source.as_bytes(), 4, true).unwrap();
+        assert_eq!(parsed[0].cutouts.len(), 1);
+        assert_eq!(
+            parsed[0].cutouts[0],
+            CopperGeometry::Circle {
+                centre: [0, 0],
+                radius: 1000
+            }
+        );
+        assert!(parse(source.as_bytes(), 4).is_err());
+    }
+
+    #[test]
     fn rejects_range_truncation_duplicate_and_end() {
         assert!(parse(SAMPLE.as_bytes(), 1).is_err());
         assert!(parse(SAMPLE.replace("10 0", "10.001 0").as_bytes(), 4).is_err());
