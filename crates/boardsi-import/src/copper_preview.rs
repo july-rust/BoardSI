@@ -436,10 +436,33 @@ pub fn augment(
                 .iter()
                 .enumerate()
                 .map(|(index, cut)| {
-                    let v = match cut {
-                        CopperGeometry::Polygon(v) => v,
-                        CopperGeometry::Circle { .. } => {
-                            unreachable!("cutouts are rectangular polygons")
+                    let segments = match cut {
+                        CopperGeometry::Polygon(vertices) => vertices
+                            .windows(2)
+                            .map(|pair| BoundarySegment::Line {
+                                start: point(pair[0]),
+                                end: point(pair[1]),
+                            })
+                            .collect(),
+                        CopperGeometry::Circle { centre, radius } => {
+                            let [x, y] = *centre;
+                            let r = *radius;
+                            let cardinal = [
+                                [x + r, y],
+                                [x, y + r],
+                                [x - r, y],
+                                [x, y - r],
+                                [x + r, y],
+                            ];
+                            cardinal
+                                .windows(2)
+                                .map(|pair| BoundarySegment::Arc {
+                                    centre: point(*centre),
+                                    start: point(pair[0]),
+                                    end: point(pair[1]),
+                                    clockwise: false,
+                                })
+                                .collect()
                         }
                     };
                     ModelCutout {
@@ -454,21 +477,15 @@ pub fn augment(
                                 "",
                             ),
                             provenance: GeometryProvenance {
-                                source_object_type:
-                                    "PADS V9.4 MILS same-COPPER COPCUT bounded straight polygonal source void"
-                                        .into(),
+                                source_object_type: match cut {
+                                    CopperGeometry::Polygon(_) => "PADS V9.4 MILS same-COPPER COPCUT bounded straight polygonal source void",
+                                    CopperGeometry::Circle { .. } => "PADS V9.4 MILS same-COPPER COPCCO analytical circular source void",
+                                }
+                                .into(),
                                 history: vec![],
                             },
                         },
-                        boundary: Boundary {
-                            segments: v
-                                .windows(2)
-                                .map(|pair| BoundarySegment::Line {
-                                    start: point(pair[0]),
-                                    end: point(pair[1]),
-                                })
-                                .collect(),
-                        },
+                        boundary: Boundary { segments },
                     }
                 })
                 .collect(),
