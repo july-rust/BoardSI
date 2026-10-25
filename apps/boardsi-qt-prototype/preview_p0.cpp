@@ -1746,7 +1746,7 @@ static int runRhiGeometrySmoke() {
 
 // A_023 V11: real Rust combined COPPER/COPCUT -> Qt decoder ->
 // CPU even-odd hollow path, RHI exact hollow pick, layers/cleanup.
-static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orthogonal=false) {
+static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orthogonal=false,bool diagonal=false) {
     bool pass=false,loaded=false,hollow=false,properties=false,filtered=false;
     bool malformed=false,reset=false,rhiPick=false,rhiFrame=false;
     QString failure;
@@ -1779,7 +1779,8 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
                 window.displayedProperties().contains("COPPER COP_HOLE") &&
                 window.displayedProperties().contains("cutouts 2") &&
                 window.displayedProperties().contains("connectivity NOT_VERIFIED") &&
-                (!orthogonal || window.displayedProperties().contains("vertices 7"));
+                (!orthogonal || window.displayedProperties().contains("vertices 7")) &&
+                (!diagonal || window.displayedProperties().contains("vertices 5"));
             auto *scene=panel->findChild<QGraphicsScene *>();
             QGraphicsPathItem *copper=nullptr;
             if(scene)for(QGraphicsItem *it:scene->items()) {
@@ -1790,13 +1791,19 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
             constexpr qreal mil=0.0254;
             if(copper) {
                 const auto path=copper->path();
-                hollow=path.contains(QPointF(50*mil,-50*mil)) &&
-                       !path.contains(QPointF(70*mil,-70*mil)) &&
-                       (orthogonal ?
-                        (!path.contains(QPointF(110*mil,-110*mil)) &&
-                         !path.contains(QPointF(145*mil,-110*mil)) &&
-                         path.contains(QPointF(80*mil,-80*mil))) :
-                        !path.contains(QPointF(110*mil,-90*mil)));
+                hollow=diagonal ?
+                    (path.contains(QPointF(50*mil,-50*mil)) &&
+                     !path.contains(QPointF(80*mil,-70*mil)) &&
+                     !path.contains(QPointF(120*mil,-100*mil)) &&
+                     !path.contains(QPointF(155*mil,-125*mil)) &&
+                     path.contains(QPointF(130*mil,-65*mil))) :
+                    (path.contains(QPointF(50*mil,-50*mil)) &&
+                     !path.contains(QPointF(70*mil,-70*mil)) &&
+                     (orthogonal ?
+                      (!path.contains(QPointF(110*mil,-110*mil)) &&
+                       !path.contains(QPointF(145*mil,-110*mil)) &&
+                       path.contains(QPointF(80*mil,-80*mil))) :
+                      !path.contains(QPointF(110*mil,-90*mil))));
             }
             auto *hide=panel->findChild<QPushButton *>("importedHideAllLayers");
             auto *show=panel->findChild<QPushButton *>("importedShowAllLayers");
@@ -1820,7 +1827,9 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
                     item->rejectCopperHolePickForTest(0) &&
                     item->rejectCopperHolePickForTest(0,1) &&
                     (!orthogonal || item->rejectCopperSourcePointForTest(
-                        145*25400LL,110*25400LL));
+                        145*25400LL,110*25400LL)) &&
+                    (!diagonal || item->rejectCopperSourcePointForTest(
+                        155*25400LL,125*25400LL));
             }else rhiPick=false; // No RHI object: never certify an unrun RHI test.
 #else
             rhiPick=false; // CPU-only build cannot claim Qt Quick/RHI validation.
@@ -1836,17 +1845,19 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
         if(!pass&&failure.isEmpty())failure="A023 native cutout smoke timed out";
     }
     const QJsonObject report{
-        {"schema",orthogonal ? "boardsi-preview-a024-orthogonal-v1" :
-                                "boardsi-preview-a023-cutout-v1"},
+        {"schema",diagonal ? "boardsi-preview-a025-diagonal-v1" :
+                  orthogonal ? "boardsi-preview-a024-orthogonal-v1" :
+                               "boardsi-preview-a023-cutout-v1"},
         {"pass",pass},{"fixture_import",loaded},{"cpu_hollow_fill",hollow},
         {"source_properties",properties},{"layer_filter",filtered},
         {"malformed_rejected",malformed},{"clear_resets",reset},
-        {"orthogonal_source",orthogonal},
+        {"orthogonal_source",orthogonal},{"diagonal_source",diagonal},
         {"rhi_hole_pick",rhiPick},{"rhi_imported_frame_confirmed",rhiFrame},
         {"physical_copper","NOT_VERIFIED"},{"physical_si","NOT_RUN"},{"failure",failure}
     };
-    QFile output(orthogonal ? "qt-preview-a024-orthogonal-results.json" :
-                               "qt-preview-a023-cutout-results.json");
+    QFile output(diagonal ? "qt-preview-a025-diagonal-results.json" :
+                orthogonal ? "qt-preview-a024-orthogonal-results.json" :
+                             "qt-preview-a023-cutout-results.json");
     if(!output.open(QIODevice::WriteOnly)||
        output.write(QJsonDocument(report).toJson(QJsonDocument::Indented))<1)return 2;
     qInfo().noquote()<<QJsonDocument(report).toJson(QJsonDocument::Compact);
@@ -2073,9 +2084,10 @@ int main(int argc, char **argv) {
     const bool copperTesting = args.size() == 7 && args.at(1) == "--copper-selftest";
     const bool cutoutTesting = args.size() == 7 && args.at(1) == "--cutout-selftest";
     const bool orthogonalTesting = args.size() == 7 && args.at(1) == "--orthogonal-selftest";
+    const bool diagonalTesting = args.size() == 7 && args.at(1) == "--diagonal-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
                          rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting ||
-                         arcTesting || outlineTesting || circleTesting || mixedTesting || pourTesting || copperTesting || cutoutTesting || orthogonalTesting;
+                         arcTesting || outlineTesting || circleTesting || mixedTesting || pourTesting || copperTesting || cutoutTesting || orthogonalTesting || diagonalTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -2098,7 +2110,8 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return orthogonalTesting ? runCutoutSmoke(window,fixture,true) :
+    return diagonalTesting ? runCutoutSmoke(window,fixture,false,true) :
+           orthogonalTesting ? runCutoutSmoke(window,fixture,true) :
            cutoutTesting ? runCutoutSmoke(window, fixture) :
            copperTesting ? runCopperSmoke(window, fixture) :
            pourTesting ? runPourSmoke(window, fixture) :
