@@ -2014,8 +2014,8 @@ static int runCurvedHoleSmoke(PreviewWindow &window,const QString &fixture) {
             malformed=!PreviewImportPanel::validTransportForTest(
                 "BOARDSI_P2U_PARTIAL_V14|V9.4-MILS|4\nL|1|Top\n");
 #ifdef BOARDSI_RHI_ARTWORK
-            if(auto *rhi=panel->rhiViewForTest()) {
-                auto *node=rhi->itemForTest();
+            if(auto *pickRhi=panel->rhiViewForTest()) {
+                auto *node=pickRhi->itemForTest();
                 rhiPick=node && node->copperCountForTest()==1 &&
                     node->dispatchCopperPickForTest(0) &&
                     node->rejectCopperSourcePointForTest(200*25400LL,150*25400LL) &&
