@@ -1799,9 +1799,9 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture) {
                 rhiPick=item && item->copperCountForTest()==1 &&
                     item->dispatchCopperPickForTest(0) &&
                     item->rejectCopperHolePickForTest(0);
-            }else rhiPick=true;
+            }else rhiPick=false; // No RHI object: never certify an unrun RHI test.
 #else
-            rhiPick=true;
+            rhiPick=false; // CPU-only build cannot claim Qt Quick/RHI validation.
 #endif
             panel->clearArtwork();
             reset=panel->copperCount()==0;
