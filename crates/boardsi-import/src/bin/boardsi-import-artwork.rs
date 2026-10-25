@@ -43,8 +43,11 @@ fn run() -> Result<(), &'static str> {
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
     // records are actually emitted. Rejected PART rows are not P2C geometry.
     let mixed = outlines.iter().any(|s| s.segments.is_some());
-    let mode = if coppers.iter().any(|c| c.cutouts.iter().any(|h|
-        matches!(h, copper_preview::CopperGeometry::Circle { .. }))) {
+    let mode = if coppers.iter().any(|c| {
+        c.cutouts
+            .iter()
+            .any(|h| matches!(h, copper_preview::CopperGeometry::Circle { .. }))
+    }) {
         "BOARDSI_P2Q_PARTIAL_V12"
     } else if coppers.iter().any(|c| !c.cutouts.is_empty()) {
         "BOARDSI_P2N_PARTIAL_V11"
@@ -279,7 +282,9 @@ fn run() -> Result<(), &'static str> {
             }
             // V10 emits only explicit source-filled *LINES* COPPER geometry.
             // G record is a non-electrical preview shape, never an invented flood.
-            if mode == "BOARDSI_P2M_PARTIAL_V10" || (mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12") {
+            if mode == "BOARDSI_P2M_PARTIAL_V10"
+                || (mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12")
+            {
                 for copper in &coppers {
                     use copper_preview::CopperGeometry;
                     match &copper.geometry {
@@ -321,7 +326,7 @@ fn run() -> Result<(), &'static str> {
                         }
                     }
                 }
-                if (mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12") {
+                if mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12" {
                     // H references a G index; the source alone defines ownership.
                     for (index, copper) in coppers.iter().enumerate() {
                         for cutout in &copper.cutouts {
@@ -345,7 +350,8 @@ fn run() -> Result<(), &'static str> {
                                         return Err("UNSUPPORTED_COPPER_CUTOUT_PIECE");
                                     }
                                     writeln!(
-                                        out, "J|{}|{}|{}|{}",
+                                        out,
+                                        "J|{}|{}|{}|{}",
                                         index,
                                         outline_preview::wire_nm(centre[0])?,
                                         outline_preview::wire_nm(centre[1])?,
@@ -369,8 +375,10 @@ fn run() -> Result<(), &'static str> {
                         .count()
                 })
                 .sum();
-            if mode == "BOARDSI_P2M_PARTIAL_V10" || (mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12") {
-                if (mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12") {
+            if mode == "BOARDSI_P2M_PARTIAL_V10"
+                || (mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12")
+            {
+                if mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12" {
                     writeln!(
                         out,
                         "END|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
