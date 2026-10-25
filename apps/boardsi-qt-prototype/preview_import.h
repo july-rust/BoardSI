@@ -73,9 +73,11 @@ class PreviewImportPanel final : public QWidget {
         const bool p2g = header.size() == 3 && header[0] == "BOARDSI_P2G_PARTIAL_V6";
         const bool p2h = header.size() == 3 && header[0] == "BOARDSI_P2H_PARTIAL_V7";
         const bool p2q = header.size() == 3 && header[0] == "BOARDSI_P2Q_PARTIAL_V12";
-        const bool p2t = header.size() == 3 && header[0] == "BOARDSI_P2T_PARTIAL_V13";
+        const bool p2u = header.size() == 3 && header[0] == "BOARDSI_P2U_PARTIAL_V14";
+        const bool p2t = header.size() == 3 &&
+            (header[0] == "BOARDSI_P2T_PARTIAL_V13" || p2u);
         const bool p2n = header.size() == 3 &&
-            (header[0] == "BOARDSI_P2N_PARTIAL_V11" || p2q);
+            (header[0] == "BOARDSI_P2N_PARTIAL_V11" || p2q || p2u);
         const bool p2m = header.size() == 3 &&
             (header[0] == "BOARDSI_P2M_PARTIAL_V10" || p2n || p2t);
         const bool p2l = header.size() == 3 &&
@@ -356,7 +358,9 @@ class PreviewImportPanel final : public QWidget {
             } else if (parts[0] == "END" && i == lines.size()-1 &&
                        layerRecords == layers &&
                        (((p2c || p2d || p2e || p2f || p2g || p2h || p2i) &&
-                         parts.size() == (p2t ? 14 : (p2n ? 14 : (p2m ? 13 : (p2l ? 12 : (p2i ? 11 : (p2h ? 10 : (p2g ? 9 : (p2f ? 7 : 6))))))))) ||
+                         parts.size() == (p2u ? 15 : p2t ? 14 : p2n ? 14 :
+                             p2m ? 13 : p2l ? 12 : p2i ? 11 : p2h ? 10 :
+                             p2g ? 9 : p2f ? 7 : 6)) ||
                         (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h && !p2i &&
                          parts.size() == 5))) {
                 const int count = parts[1].toInt(&ok);
@@ -402,8 +406,8 @@ class PreviewImportPanel final : public QWidget {
                                 return false;
                             const int arcCountB=parts[8].toInt(&ok);
                             if(!ok || (p2l ? arcCountB<0 : arcCountB<1) ||
-                               parts[p2t ? 12 : (p2n ? 12 : (p2m ? 11 : (p2l ? 10 : 9)))]!="CANONICAL_PARTIAL" ||
-                               parts[p2t ? 13 : (p2n ? 13 : (p2m ? 12 : (p2l ? 11 : 10)))]!="SI_NOT_RUN") return false;
+                               parts[p2u ? 13 : (p2t ? 12 : (p2n ? 12 : (p2m ? 11 : (p2l ? 10 : 9))))]!="CANONICAL_PARTIAL" ||
+                               parts[p2u ? 14 : (p2t ? 13 : (p2n ? 13 : (p2m ? 12 : (p2l ? 11 : 10))))]!="SI_NOT_RUN") return false;
                             if(p2l) {
                                 int unique=0;
                                 QString name;
@@ -429,7 +433,7 @@ class PreviewImportPanel final : public QWidget {
                                     if(!validateCopperArea(c))return false;
                                     holes+=static_cast<int>(c.cutouts.size()+c.roundCutouts.size());
                                 }
-                                if(holes<1 || parts[11].toInt(&ok)!=holes || !ok) return false;
+                                if(holes<1 || parts[p2u ? 12 : 11].toInt(&ok)!=holes || !ok) return false;
                                 if(p2q) {
                                     int circularHoleCount=0;
                                     for(const auto &c:coppers)

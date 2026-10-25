@@ -257,7 +257,7 @@ fn parse_impl(
             }
             let curved = source_rows.iter().any(|row| row.len() == 8);
             let geometry = if curved {
-                if piece_count != 1 || part_index != 0 {
+                if part_index != 0 || piece_count > 2 {
                     return Err("UNSUPPORTED_CURVED_COPPER_CUTOUT");
                 }
                 let candidate = crate::copper_arc_preflight::validate(&source_rows, origin)?;
@@ -375,7 +375,16 @@ fn parse_impl(
                         }
                     }
                 }
-                CopperGeometry::Curved { .. } => return Err("UNSUPPORTED_CURVED_COPPER_CUTOUT"),
+                CopperGeometry::Curved { display_ring, .. } => {
+                    // Only one explicit same-owner straight convex COPCUT.
+                    // A_029 has already proved the analytical source arc and
+                    // conservative display; strict convex containment certifies
+                    // the entire hole remains clear of its display proxy.
+                    if cutouts.len() != 1 || polygons.len() != 1 || !circles.is_empty() {
+                        return Err("UNSUPPORTED_CURVED_COPPER_CUTOUT");
+                    }
+                    crate::curved_cutout_topology::validate(display_ring, &polygons[0])?;
+                }
                 CopperGeometry::Circle { centre, radius } => {
                     // A_028: a closed, simple, same-owner COPCUT polygon is
                     // strictly enclosed when every vertex lies within the

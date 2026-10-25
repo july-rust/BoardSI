@@ -492,6 +492,15 @@ jobs:
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --curved-collinear-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_curved_copper_collinear_v94.asc"
           cat qt-preview-a029-curved-collinear-results.json
           python -c 'import json; r=json.load(open("qt-preview-a029-curved-collinear-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a029-curved-collinear-v1" and r["fixture_import"] and r["source_properties"] and r["cpu_conservative_fill"] and r["layer_filter"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_imported_frame_confirmed"] and r["rhi_source_pick"] and r["physical_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN" and r["gpu_hardware_benchmark"]=="NOT_RUN", r'
+      - name: A_030 native source-owned curved COPCLS and convex COPCUT V14 CPU/RHI parity
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --curved-hole-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_curved_copper_polygon_cutout_v94.asc"
+          cat qt-preview-a030-curved-hole-results.json
+          python -c 'import json; r=json.load(open("qt-preview-a030-curved-hole-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a030-curved-hole-v1" and r["fixture_import"] and r["source_properties"] and r["cpu_hole_unfilled"] and r["layer_filter"] and r["malformed_v14_rejected"] and r["clear_resets"] and r["rhi_imported_frame_confirmed"] and r["rhi_hole_pick"] and r["electrical_connectivity"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN" and r["vendor_export"]=="NOT_VERIFIED" and r["gpu_hardware_benchmark"]=="NOT_RUN", r'
       - name: Run A_014 native Qt Quick / RHI geometry and first-frame smoke
         shell: bash
         run: |
