@@ -70,9 +70,15 @@ pub fn rectangle_bounds(ring: &[[i64; 2]]) -> Option<[i64; 4]> {
 /// record whose explicit multi-piece header encloses it. Standalone COPCUT is
 /// an unassociated pour void and is rejected, not inferred by containment.
 pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static str> {
-    // Production Preview remains fail-closed until lossless Qt IPC and GPU
-    // circular-hole mesh are independently accepted (A_026 CP3/CP4).
-    parse_impl(bytes, max_layer, false)
+    // V12 Qt can transmit analytical COPCCO and render source-safe
+    // conservative hollow meshes. Source-circle hollow outers remain deferred.
+    let areas = parse_impl(bytes, max_layer, true)?;
+    if areas.iter().any(|a| matches!(&a.geometry, CopperGeometry::Circle { .. })
+        && !a.cutouts.is_empty())
+    {
+        return Err("UNSUPPORTED_COPPER_HOLLOW_OUTER");
+    }
+    Ok(areas)
 }
 
 fn parse_impl(
@@ -260,6 +266,11 @@ fn parse_impl(
             if part_index == 0 {
                 primary = Some(geometry);
             } else {
+                if let CopperGeometry::Circle { radius, .. } = &geometry {
+                    // Qt's conservative 32-edge bounded proxy is qualified
+                    // only for source circles >=1000 source ticks.
+                    if *radius < 1000 { return Err("UNSUPPORTED_SMALL_CIRCULAR_VOID"); }
+                }
                 cutouts.push(geometry);
             }
         }
@@ -279,6 +290,14 @@ fn parse_impl(
                     CopperGeometry::Circle { centre, radius } => Some((*centre, *radius)),
                 })
                 .collect();
+            if !circles.is_empty() {
+                let total = match &geometry {
+                    CopperGeometry::Polygon(outer) => outer.len(),
+                    CopperGeometry::Circle { .. } => 0,
+                } + polygons.iter().map(Vec::len).sum::<usize>()
+                    + circles.len() * 33;
+                if total > 128 { return Err("COPPER_CIRCLE_PROXY_COMPLEXITY"); }
+            }
             match &geometry {
                 CopperGeometry::Polygon(outer) => {
                     let diagonal = std::iter::once(outer.as_slice())
@@ -691,9 +710,11 @@ mod tests {
         .is_err());
     }
     #[test]
-    fn a026_circular_void_stays_fail_closed_until_qt_parity_is_proven() {
+    fn a026_source_owned_circle_accepts_explicit_v12_geometry() {
         let source = include_bytes!("../tests/fixtures/pads_copper_circular_void_v94.asc");
-        assert_eq!(parse(source, 4), Err("UNSUPPORTED_COPPER_CUTOUT_PIECE"));
+        let areas = parse(source, 4).unwrap();
+        assert_eq!(areas.len(),1);
+        assert_eq!(areas[0].cutouts.len(),3);
         // A mistaken owner piece count must not paint filled copper over a void.
         let understated = String::from_utf8_lossy(source)
             .replace("COP_CIRC COPPER 50 50 4 1", "COP_CIRC COPPER 50 50 1 1");
@@ -720,8 +741,8 @@ mod tests {
                 radius: 1200
             }
         );
-        // This candidate MUST NOT leak into the production entrypoint.
-        assert_eq!(parse(fixture, 4), Err("UNSUPPORTED_COPPER_CUTOUT_PIECE"));
+        // Production now has the matching lossless V12 Qt path.
+        assert_eq!(parse(fixture, 4).unwrap(), areas);
     }
 
     #[test]
