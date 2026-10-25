@@ -242,7 +242,7 @@ pub fn augment(
     areas: &[CopperArea],
 ) -> Result<(), &'static str> {
     use boardsi_model::{
-        Boundary, BoundarySegment, CopperArea as ModelCopperArea, GeometryProvenance, ObjectId,
+        Boundary, BoundarySegment, CopperArea as ModelCopperArea, Cutout as ModelCutout, GeometryProvenance, ObjectId,
         ObjectKind, ObjectMeta, Point,
     };
     if areas.is_empty() {
@@ -310,11 +310,21 @@ pub fn augment(
             layer,
             net: None, // Explicitly unverified electrical ownership.
             outer: Boundary { segments },
-            cutouts: a.cutouts.iter().map(|cut| {
+            cutouts: a.cutouts.iter().enumerate().map(|(index,cut)| {
                 let v=match cut { CopperGeometry::Polygon(v)=>v,
                     CopperGeometry::Circle{..}=>unreachable!("cutouts are rectangular polygons") };
-                Boundary{segments:v.windows(2).map(|pair| BoundarySegment::Line{
-                    start:point(pair[0]),end:point(pair[1])}).collect()}
+                ModelCutout {
+                    meta: ObjectMeta {
+                        id: ObjectId::new(&source,ObjectKind::Cutout,
+                            &format!("source-copper-{}-{}-cutout-{}",a.name,a.source_line,index),""),
+                        provenance: GeometryProvenance {
+                            source_object_type:"PADS V9.4 MILS same-COPPER COPCUT rectangular source void".into(),
+                            history:vec![],
+                        },
+                    },
+                    boundary: Boundary{segments:v.windows(2).map(|pair| BoundarySegment::Line{
+                        start:point(pair[0]),end:point(pair[1])}).collect()},
+                }
             }).collect(),
         });
     }
