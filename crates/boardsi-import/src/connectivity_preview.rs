@@ -5,7 +5,7 @@ use boardsi_model::{
     BoardModel, ConnectionEvidence, ConnectivityEdge, ConnectivityNode, ContactSite,
     GeometryProvenance, ObjectId, ObjectKind, ObjectMeta, PadRole, SourceId, ViaKind,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 const MAX_SITES_PER_POINT: usize = 32;
 const MAX_EDGES: usize = 100_000;
@@ -97,10 +97,7 @@ fn add_edge(
         meta: metadata(
             source,
             ObjectKind::Edge,
-            &format!(
-                "{}:{}--{}",
-                kind, first.source_object, second.source_object
-            ),
+            &format!("{}:{}--{}", kind, first.source_object, second.source_object),
             "PADS V9.4 MILS bounded local contact evidence, not full PCB connectivity",
         ),
         a: first.clone(),
