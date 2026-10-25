@@ -849,14 +849,63 @@ mod tests {
             assert_ne!(src, good, "mutation did not apply: {case}");
             assert!(parse(src.as_bytes(), 4).is_err(), "accepted {case}");
         }
-        // V12 cannot be interpreted as blanket support for a polygonal
-        // COPCUT inside the outer COPCIR. Keep this combination fail-closed.
+        // A_028 accepts strictly verified source-owned COPCUT inside COPCIR
+        // while preserving fail-closed behavior for contacts and overlaps.
         let mixed = good.replace(
             "COPCCO 2 0.01 0 1\n25 0\n55 0",
             "COPCUT 5 0.01 0 1\n20 20\n30 20\n30 30\n20 30\n20 20",
         );
         assert_ne!(mixed, good);
-        assert!(parse(mixed.as_bytes(), 4).is_err());
+        assert_eq!(parse(mixed.as_bytes(), 4).unwrap()[0].cutouts.len(), 2);
+    }
+
+    #[test]
+    fn a028_circle_polygon_and_mixed_fixtures_preserve_analytic_source() {
+        for (fixture, circles) in [
+            (include_bytes!("../tests/fixtures/pads_copper_circular_polygon_v94.asc").as_slice(), 0),
+            (include_bytes!("../tests/fixtures/pads_copper_circular_mixed_v94.asc").as_slice(), 1),
+        ] {
+            let result = parse(fixture, 4).unwrap();
+            assert_eq!(result.len(), 1);
+            assert_eq!(result[0].cutouts.len(), 2);
+            assert!(matches!(result[0].geometry, CopperGeometry::Circle { .. }));
+            assert_eq!(result[0].net_label.as_deref(), Some("GND"));
+            assert_eq!(
+                result[0].cutouts.iter().filter(|v| matches!(v, CopperGeometry::Circle {..})).count(),
+                circles,
+            );
+            assert!(matches!(result[0].cutouts[0], CopperGeometry::Polygon(_)));
+        }
+    }
+
+    #[test]
+    fn a028_rejects_poly_contact_overlap_misownership_and_mixed_collision() {
+        let poly = include_str!("../tests/fixtures/pads_copper_circular_polygon_v94.asc")
+            .replace("\r\n", "\n");
+        let mixed = include_str!("../tests/fixtures/pads_copper_circular_mixed_v94.asc")
+            .replace("\r\n", "\n");
+        let malformed = [
+            ("polygon touches circle", poly.replace("-45 -15", "-100 0")),
+            ("polygon overlaps sibling", poly.replace(
+                "30 -20\n50 -20\n40 5\n30 -20",
+                "-40 -10\n-20 -10\n-30 10\n-40 -10",
+            )),
+            ("self crossing hole", poly.replace(
+                "-45 -15\n-25 -15\n-25 5\n-45 5\n-45 -15",
+                "-45 -15\n-25 5\n-25 -15\n-45 5\n-45 -15",
+            )),
+            ("wrong layer", poly.replacen("COPCUT 5 0.01 0 1", "COPCUT 5 0.01 0 2", 1)),
+            ("undeclared piece", poly.replace("COP_POLY COPPER 200 200 3 1", "COP_POLY COPPER 200 200 1 1")),
+            ("orphan polygon", poly.replace("COP_POLY COPPER 200 200 3 1", "COP_POLY COPPER 200 200 2 1")),
+            ("mixed circle contacts polygon", mixed.replace("25 10\n55 10", "-40 0\n-10 0")),
+            ("mixed circle touches outer", mixed.replace("25 10\n55 10", "70 0\n100 0")),
+            ("mixed wrong layer", mixed.replace("COPCCO 2 0.01 0 1", "COPCCO 2 0.01 0 2")),
+        ];
+        for (case, src) in malformed {
+            let original = if case.starts_with("mixed") { &mixed } else { &poly };
+            assert_ne!(&src, original, "mutation missing: {case}");
+            assert!(parse(src.as_bytes(), 4).is_err(), "accepted {case}");
+        }
     }
 
     #[test]
