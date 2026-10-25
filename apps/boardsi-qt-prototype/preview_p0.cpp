@@ -1956,6 +1956,108 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
     return pass?0:1;
 }
 
+// A_029: imported exact source cardinal arcs -> strict V13 -> shared CPU/RHI mesh.
+static int runCurvedCopperSmoke(PreviewWindow &window,const QString &fixture,bool collinear=false) {
+    QElapsedTimer clock; clock.start();
+    bool pass=false,loaded=false,properties=false,proxy=false,filtered=false;
+    bool malformed=false,reset=false,rhiFrame=false,rhiPick=false;
+    QString failure;
+    if(!window.openCandidate(fixture)) failure="A029 fixture unavailable";
+    else {
+        QEventLoop loop; QTimer tick;
+        QObject::connect(&tick,&QTimer::timeout,&loop,[&]{
+            const QString state=window.importPanel()->importStatus();
+            if(state.startsWith("FAILED")||state.startsWith("CANCELLED")) {
+                failure="A029 curved Copper import failed: "+state;
+                loop.quit();return;
+            }
+            if(!state.startsWith("PARTIAL"))return;
+            auto *panel=window.importPanel()->imported();
+#ifdef BOARDSI_RHI_ARTWORK
+            auto *nativeRhi=panel->rhiViewForTest();
+            if(!nativeRhi||!panel->rhiCanvasActiveForTest()||nativeRhi->failed()) {
+                failure="A029 real imported RHI frame NOT_RUN";loop.quit();return;
+            }
+            if(!nativeRhi->status().startsWith("RHI_FRAME_"))return;
+            rhiFrame=true;
+#else
+            failure="A029 no compiled RHI backend";loop.quit();return;
+#endif
+            loaded=panel->copperCount()==1 &&
+                   state.contains("1 filled source copper areas");
+            properties=panel->selectCopper(0) &&
+                window.displayedProperties().contains("COPPER COP_ARC") &&
+                window.displayedProperties().contains("COPCLS ARC") &&
+                window.displayedProperties().contains(collinear ? "vertices 38" : "vertices 37") &&
+                window.displayedProperties().contains("connectivity NOT_VERIFIED");
+            auto *scene=panel->findChild<QGraphicsScene *>();
+            QGraphicsPathItem *item=nullptr;
+            if(scene)for(QGraphicsItem *i:scene->items()) {
+                if(i->data(2).toString().startsWith("COPPER COP_ARC")) {
+                    item=qgraphicsitem_cast<QGraphicsPathItem *>(i);break;
+                }
+            }
+            constexpr qreal mm=0.0254;
+            if(item) {
+                const auto p=item->path();
+                proxy=p.contains(QPointF(200*mm,-150*mm)) &&
+                      p.contains(QPointF(200*mm,-40*mm)) &&
+                      !p.contains(QPointF(20*mm,-20*mm)) &&
+                      !p.contains(QPointF(430*mm,-110*mm));
+            }
+            auto *hide=panel->findChild<QPushButton *>("importedHideAllLayers");
+            auto *show=panel->findChild<QPushButton *>("importedShowAllLayers");
+            if(hide && show && item) {
+                hide->click();const bool hidden=!item->isVisible();
+                show->click();const bool restored=item->isVisible();
+                filtered=hidden&&restored;
+            }
+            ImportedCopperArea bad;
+            bad.curved=true;bad.layer=2;bad.sourceLine=1;
+            bad.name="BAD";bad.net="-";
+            malformed=!validateCopperArea(bad) &&
+                !PreviewImportPanel::validTransportForTest(
+                    "BOARDSI_P2T_PARTIAL_V13|V9.4-MILS|4\nL|1|Top\n");
+#ifdef BOARDSI_RHI_ARTWORK
+            if(auto *rhi=panel->rhiViewForTest()) {
+                auto *node=rhi->itemForTest();
+                rhiPick=node && node->copperCountForTest()==1 &&
+                        node->dispatchCopperPickForTest(0) &&
+                        node->rejectCopperSourcePointForTest(430*25400LL,110*25400LL);
+            }
+#endif
+            panel->clearArtwork();
+            reset=panel->copperCount()==0;
+            pass=loaded&&properties&&proxy&&filtered&&malformed&&reset&&rhiFrame&&rhiPick;
+            if(!pass)failure="A029 curved COPCLS parser/mesh/properties/GPU mismatch";
+            loop.quit();
+        });
+        QTimer::singleShot(20000,&loop,&QEventLoop::quit);
+        tick.start(20);loop.exec();tick.stop();
+        if(!pass && failure.isEmpty())failure="A029 native import timeout";
+    }
+    const QJsonObject report{
+        {"schema",collinear ? "boardsi-preview-a029-curved-collinear-v1" : "boardsi-preview-a029-curved-copper-v1"},
+        {"pass",pass},{"fixture_import",loaded},
+        {"source_properties",properties},{"cpu_conservative_fill",proxy},
+        {"layer_filter",filtered},{"malformed_rejected",malformed},
+        {"clear_resets",reset},{"rhi_imported_frame_confirmed",rhiFrame},
+        {"rhi_source_pick",rhiPick},
+        {"physical_copper","NOT_VERIFIED"},{"physical_si","NOT_RUN"},
+        {"gpu_hardware_benchmark","NOT_RUN"},
+        {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"native_backend",QGuiApplication::platformName()},
+        {"host_arch",QSysInfo::currentCpuArchitecture()},
+        {"elapsed_ms",clock.elapsed()},{"failure",failure}
+    };
+    QFile receipt(collinear ? "qt-preview-a029-curved-collinear-results.json" :
+                 "qt-preview-a029-curved-copper-results.json");
+    if(!receipt.open(QIODevice::WriteOnly) ||
+       receipt.write(QJsonDocument(report).toJson(QJsonDocument::Indented))<1)return 2;
+    qInfo().noquote()<<QJsonDocument(report).toJson(QJsonDocument::Compact);
+    return pass?0:1;
+}
+
 // A_022 V10: real Rust synthetic COPCLS/COPCIR -> strict Qt decoder ->
 // CPU/RHI filled geometry, selection/filter parity and state clearing.
 static int runCopperSmoke(PreviewWindow &window,const QString &fixture) {
@@ -2181,10 +2283,13 @@ int main(int argc, char **argv) {
     const bool hollowCircleTesting = args.size()==7 && args.at(1)=="--hollow-circle-selftest";
     const bool circlePolygonTesting = args.size()==7 && args.at(1)=="--circle-polygon-selftest";
     const bool circleMixedTesting = args.size()==7 && args.at(1)=="--circle-mixed-selftest";
+    const bool curvedCopperTesting = args.size()==7 && args.at(1)=="--curved-copper-selftest";
+    const bool curvedCollinearTesting = args.size()==7 && args.at(1)=="--curved-collinear-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
                          rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting ||
                          arcTesting || outlineTesting || circleTesting || mixedTesting || pourTesting || copperTesting || cutoutTesting || orthogonalTesting || diagonalTesting || circularCopperTesting || hollowCircleTesting ||
-                         circlePolygonTesting || circleMixedTesting;
+                         circlePolygonTesting || circleMixedTesting || curvedCopperTesting ||
+                         curvedCollinearTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -2207,7 +2312,9 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return circleMixedTesting ? runCutoutSmoke(window,fixture,false,false,false,false,false,true) :
+    return curvedCollinearTesting ? runCurvedCopperSmoke(window,fixture,true) :
+           curvedCopperTesting ? runCurvedCopperSmoke(window,fixture) :
+           circleMixedTesting ? runCutoutSmoke(window,fixture,false,false,false,false,false,true) :
            circlePolygonTesting ? runCutoutSmoke(window,fixture,false,false,false,false,true) :
            hollowCircleTesting ? runCutoutSmoke(window,fixture,false,false,false,true) :
            circularCopperTesting ? runCutoutSmoke(window,fixture,false,false,true) :

@@ -183,6 +183,7 @@ mod tests {
 }
 
 pub mod circle_cutout_topology;
+pub mod copper_arc_preflight;
 pub mod copper_preview;
 pub mod digest;
 pub mod outline_arc;
