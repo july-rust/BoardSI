@@ -43,7 +43,15 @@ fn run() -> Result<(), &'static str> {
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
     // records are actually emitted. Rejected PART rows are not P2C geometry.
     let mixed = outlines.iter().any(|s| s.segments.is_some());
-    let mode = if coppers.iter().any(|c| {
+    let curved_count = coppers.iter().filter(|c|
+        matches!(c.geometry, copper_preview::CopperGeometry::Curved { .. })
+    ).count();
+    if curved_count > 0 && coppers.iter().any(|c| !c.cutouts.is_empty()) {
+        return Err("UNSUPPORTED_CURVED_COMBINED_COPPER");
+    }
+    let mode = if curved_count > 0 {
+        "BOARDSI_P2T_PARTIAL_V13"
+    } else if coppers.iter().any(|c| {
         c.cutouts
             .iter()
             .any(|h| matches!(h, copper_preview::CopperGeometry::Circle { .. }))
@@ -171,7 +179,7 @@ fn run() -> Result<(), &'static str> {
                 || mode == "BOARDSI_P2I_PARTIAL_V8"
                 || mode == "BOARDSI_P2L_PARTIAL_V9"
                 || mode == "BOARDSI_P2M_PARTIAL_V10"
-                || (mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12")
+                || (mode == "BOARDSI_P2N_PARTIAL_V11" || (mode == "BOARDSI_P2Q_PARTIAL_V12" || mode == "BOARDSI_P2T_PARTIAL_V13"))
             {
                 format!(
                     "|{}|{}",
@@ -189,7 +197,7 @@ fn run() -> Result<(), &'static str> {
         || mode == "BOARDSI_P2I_PARTIAL_V8"
         || mode == "BOARDSI_P2L_PARTIAL_V9"
         || mode == "BOARDSI_P2M_PARTIAL_V10"
-        || (mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12")
+        || (mode == "BOARDSI_P2N_PARTIAL_V11" || (mode == "BOARDSI_P2Q_PARTIAL_V12" || mode == "BOARDSI_P2T_PARTIAL_V13"))
     {
         // Non-electrical BOARD geometry. A circle is analytical (C), while
         // straight polygon segments retain the unchanged O record.
@@ -259,7 +267,7 @@ fn run() -> Result<(), &'static str> {
         }
         if mode == "BOARDSI_P2L_PARTIAL_V9"
             || mode == "BOARDSI_P2M_PARTIAL_V10"
-            || (mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12")
+            || (mode == "BOARDSI_P2N_PARTIAL_V11" || (mode == "BOARDSI_P2Q_PARTIAL_V12" || mode == "BOARDSI_P2T_PARTIAL_V13"))
         {
             for pour in &pours {
                 for (sequence, pair) in pour.vertices.windows(2).enumerate() {
@@ -283,7 +291,7 @@ fn run() -> Result<(), &'static str> {
             // V10 emits only explicit source-filled *LINES* COPPER geometry.
             // G record is a non-electrical preview shape, never an invented flood.
             if mode == "BOARDSI_P2M_PARTIAL_V10"
-                || (mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12")
+                || (mode == "BOARDSI_P2N_PARTIAL_V11" || (mode == "BOARDSI_P2Q_PARTIAL_V12" || mode == "BOARDSI_P2T_PARTIAL_V13"))
             {
                 for copper in &coppers {
                     use copper_preview::CopperGeometry;
@@ -310,6 +318,41 @@ fn run() -> Result<(), &'static str> {
                             }
                             writeln!(out).map_err(|_| "FORMAT_ERROR")?;
                         }
+                        CopperGeometry::Curved { segments, .. } => {
+                            write!(
+                                out, "G|R|{}|{}|{}|{}|{}",
+                                copper.layer,
+                                copper.name,
+                                copper.net_label.as_deref().unwrap_or("-"),
+                                copper.source_line,
+                                segments.len()
+                            ).map_err(|_| "FORMAT_ERROR")?;
+                            for segment in segments {
+                                use boardsi_import::outline_topology::Segment;
+                                match segment {
+                                    Segment::Line(start, end) => {
+                                        write!(out, "|L|{}|{}|0|0|{}|{}|-",
+                                            outline_preview::wire_nm(start[0])?,
+                                            outline_preview::wire_nm(start[1])?,
+                                            outline_preview::wire_nm(end[0])?,
+                                            outline_preview::wire_nm(end[1])?
+                                        ).map_err(|_| "FORMAT_ERROR")?;
+                                    }
+                                    Segment::Arc(arc) => {
+                                        write!(out, "|A|{}|{}|{}|{}|{}|{}|{}",
+                                            outline_preview::wire_nm(arc.start[0])?,
+                                            outline_preview::wire_nm(arc.start[1])?,
+                                            outline_preview::wire_nm(arc.centre[0])?,
+                                            outline_preview::wire_nm(arc.centre[1])?,
+                                            outline_preview::wire_nm(arc.end[0])?,
+                                            outline_preview::wire_nm(arc.end[1])?,
+                                            if arc.clockwise { "CW" } else { "CCW" }
+                                        ).map_err(|_| "FORMAT_ERROR")?;
+                                    }
+                                }
+                            }
+                            writeln!(out).map_err(|_| "FORMAT_ERROR")?;
+                        }
                         CopperGeometry::Circle { centre, radius } => {
                             writeln!(
                                 out,
@@ -326,11 +369,12 @@ fn run() -> Result<(), &'static str> {
                         }
                     }
                 }
-                if mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12" {
+                if mode == "BOARDSI_P2N_PARTIAL_V11" || (mode == "BOARDSI_P2Q_PARTIAL_V12" || mode == "BOARDSI_P2T_PARTIAL_V13") {
                     // H references a G index; the source alone defines ownership.
                     for (index, copper) in coppers.iter().enumerate() {
                         for cutout in &copper.cutouts {
                             match cutout {
+                                copper_preview::CopperGeometry::Curved { .. } => return Err("UNSUPPORTED_CURVED_COPPER_CUTOUT"),
                                 copper_preview::CopperGeometry::Polygon(vertices) => {
                                     write!(out, "H|{}|{}", index, vertices.len())
                                         .map_err(|_| "FORMAT_ERROR")?;
@@ -376,9 +420,24 @@ fn run() -> Result<(), &'static str> {
                 })
                 .sum();
             if mode == "BOARDSI_P2M_PARTIAL_V10"
-                || (mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12")
+                || (mode == "BOARDSI_P2N_PARTIAL_V11" || (mode == "BOARDSI_P2Q_PARTIAL_V12" || mode == "BOARDSI_P2T_PARTIAL_V13"))
             {
-                if mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12" {
+                if mode == "BOARDSI_P2T_PARTIAL_V13" {
+                    writeln!(out,
+                        "END|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
+                        result.segments.len(),
+                        result.skipped.saturating_add(pad_data.skipped as u32),
+                        pad_data.pads.len(),
+                        result.arcs.len(),
+                        outlines.iter().filter(|s| !s.cutout).count(),
+                        outlines.iter().filter(|s| s.cutout).count(),
+                        outlines.iter().filter(|s| s.circle.is_some()).count(),
+                        mixed_arcs,
+                        pours.len(),
+                        coppers.len(),
+                        curved_count,
+                    ).map_err(|_| "FORMAT_ERROR")?;
+                } else if mode == "BOARDSI_P2N_PARTIAL_V11" || mode == "BOARDSI_P2Q_PARTIAL_V12" {
                     writeln!(
                         out,
                         "END|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|CANONICAL_PARTIAL|SI_NOT_RUN",
