@@ -561,8 +561,9 @@ mod tests {
                 [4000, 4000]
             ])
         );
-        // Replace one orthogonal edge by a diagonal; fail closed.
-        assert!(parse(input.replace("90 50\n90 90", "90 50\n91 90").as_bytes(), 4).is_err());
+        // A_025: a well-formed diagonal remains source-owned and is accepted.
+        // Invalid original ring topology continues to fail closed.
+        assert!(parse(input.replace("90 50\n90 90", "90 50\n91 90").as_bytes(), 4).is_ok());
         // Declare fewer pieces than authored; never omit a hole silently.
         assert!(parse(input.replace("40 40 3 1", "40 40 2 1").as_bytes(), 4).is_err());
     }
