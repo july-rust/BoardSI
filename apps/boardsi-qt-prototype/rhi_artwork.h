@@ -986,6 +986,21 @@ public:
         }
         return copperIndexAt(centroid)==index;
     }
+    // A_023 negative pick test: hole centre is not rendered copper.
+    bool rejectCopperHolePickForTest(int index) const {
+        if(index<0 || index>=static_cast<int>(copper_.size()))return false;
+        const auto &c=copper_[static_cast<size_t>(index)];
+        if(c.cutouts.empty())return false;
+        const auto &h=c.cutouts.front();
+        if(h.size()!=5)return false;
+        qint64 x0=h[0].first,x1=x0,y0=h[0].second,y1=y0;
+        for(const auto &p:h) {
+            x0=std::min(x0,p.first);x1=std::max(x1,p.first);
+            y0=std::min(y0,p.second);y1=std::max(y1,p.second);
+        }
+        const qint64 x=x0+(x1-x0)/2,y=y0+(y1-y0)/2;
+        return copperIndexAt(pixel(world(x,y)))==-1;
+    }
     int outlineCountForTest() const { return static_cast<int>(outlineEdges_.size()); }
     int circleCountForTest() const { return static_cast<int>(circles_.size()); }
     int boundaryCountForTest() const { return static_cast<int>(boundaries_.size()); }
