@@ -1,12 +1,12 @@
 # BoardSI A_030 / P2-U — curved COPCLS + one convex straight COPCUT
 
 ## Status
-IN PROGRESS. This report documents the implemented **candidate** and gate, not an accepted production feature.
+**VERIFIED COMPLETE for the restricted A_030 contract** (2026-10-26 KST). Acceptance evidence is the final closeout comment on [Issue #191](https://github.com/july-rust/BoardSI/issues/191#issuecomment-6403878315); **this does not certify overall P2 or real PCB physics**.
 - Source baseline: protected `main@0e4e465145479e3142c78ca344dc936284f921e8`, merged A_029 PR #190.
 - Issue #191.
-- Candidate branch `a030/p2u-curved-copper-polygon-cutout`.
-- Final SHA/CI/review evidence must be filled after all checks, not inferred from a draft commit.
-- Do not merge while CI or exact-HEAD independent review is missing/failed.
+- Candidate branch `a030/p2u-curved-copper-polygon-cutout` at reviewed source HEAD `34c6b5759a8fceda56b2caa2ad4f20bee02576d0`.
+- [PR #192](https://github.com/july-rust/BoardSI/pull/192) Squash merged as protected `main@bcdfa269233730efbbfa35f34f5ee43d18153b0b`.
+- Original Issue #191 final record reports 21/21 final candidate checks, 17/17 post-merge required checks, successful exact-HEAD Codex review with no findings, resolved threads and GitHub Verified signature. See [main post-merge CI](https://github.com/july-rust/BoardSI/actions/runs/40193161416).
 
 ## Accepted narrow source grammar
 PADS V9.4 MILS `*LINES*`: explicit same-name `COPPER` owner, declared **two** pieces, A_029 analytically certified outward convex cardinal quarter-arc `COPCLS`, one simple strictly convex straight `COPCUT` on the exact same layer. Closed rings, no boundary contact/overlap, no standalone voids, no extra/mixed circle cutout, no arbitrary/nonconvex arc.
@@ -42,4 +42,4 @@ Source-grid coordinates: exact 0.01 mil ticks = 254 nm. Predicates for strict co
 4. Separate post-merge main SHA/signature and mandatory CI fully verified.
 5. Issue #191 closed only after proof. Broad #9/#11/#165 stay OPEN.
 
-**Current verification: NOT VERIFIED until workflow evidence is inspected.**
+**Final A_030 disposition:** Verified complete for explicitly supported single convex straight COPCUT inside source-owned cardinal outward curved COPCLS. See #191 final acceptance evidence. Real vendor exports, copper flood/electrical connectivity, RLGC/S and hardware GPU performance remain NOT_VERIFIED / NOT_RUN.

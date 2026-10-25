@@ -140,7 +140,10 @@ fn parse_impl(
         }
         // A standalone void can subtract from visible copper: fail closed.
         // No silent render that hides COPCUT/COPCCO under a filled shape.
-        if fields.len() >= 2 && fields[1] == "COPCUT" {
+        if fields.len() >= 2 && matches!(fields[1], "COPCUT" | "COPCCO") {
+            // Standalone polygonal OR circular void line items have no
+            // explicit same-COPPER owner. Silently ignoring a round void
+            // would let the preview paint copper across a source cutout.
             return Err("UNSUPPORTED_COPPER_VOID");
         }
         // A declared multi-piece count that understates a following COPCUT
@@ -712,6 +715,31 @@ mod tests {
             4
         )
         .is_err());
+    }
+    #[test]
+    fn a031_orphan_round_void_is_not_silently_ignored() {
+        // A complete COPPER area must not survive a separate, unowned
+        // COPCCO item. Merely ignoring the item would invent filled copper.
+        // A deliberately incomplete standalone record is enough to prove
+        // the parser does not skip its source meaning and accept the board.
+        for kind in ["COPCUT", "COPCCO"] {
+            for before in [false, true] {
+                let orphan = format!("ORPHAN {kind} 0 0 1 1\n");
+                let input = if before {
+                    SAMPLE.replace("GND_ZONE COPPER", &format!("{orphan}GND_ZONE COPPER"))
+                } else {
+                    SAMPLE.replace("*END*", &format!("{orphan}*END*"))
+                };
+                assert_eq!(
+                    parse(input.as_bytes(), 4),
+                    Err("UNSUPPORTED_COPPER_VOID"),
+                    "{kind} must be rejected whether before or after a valid owner"
+                );
+            }
+        }
+        // The actual source-owned circular void remains supported.
+        let owned = include_bytes!("../tests/fixtures/pads_copper_circular_void_v94.asc");
+        assert_eq!(parse(owned, 4).unwrap()[0].cutouts.len(), 3);
     }
     #[test]
     fn source_names_matching_piece_keywords_are_legal() {
