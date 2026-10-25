@@ -127,7 +127,7 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
         // A declared multi-piece count that understates a following COPCUT
         // must not silently re-fill the omitted void. Reject orphan piece
         // headers even when the line-item header has already been consumed.
-        if matches!(
+        if fields.len() == 5 && matches!(
             fields[0],
             "COPCUT" | "COPCCO" | "CIRCUR" | "COPCLS" | "COPCIR" | "COPOPN"
         ) {
@@ -529,6 +529,14 @@ mod tests {
             4
         )
         .is_err());
+    }
+    #[test]
+    fn source_names_matching_piece_keywords_are_legal() {
+        for name in ["COPCLS", "COPCIR", "COPCUT", "COPCCO"] {
+            let a = SAMPLE.replace("GND_ZONE COPPER", &format!("{name} COPPER"));
+            let areas = parse(a.as_bytes(), 4).unwrap();
+            assert_eq!(areas[0].name, name);
+        }
     }
     #[test]
     fn rejects_range_truncation_duplicate_and_end() {
