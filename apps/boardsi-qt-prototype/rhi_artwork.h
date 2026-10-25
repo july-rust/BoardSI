@@ -318,7 +318,7 @@ class BoardSiRhiItem final : public QQuickItem {
             const auto &c=copper_[i-1];
             if(!visible(c.layer) || !includedNet(c.net) ||
                (netOnly_ && net_!="All nets" && c.net=="-")) continue;
-            if(c.circle) {
+            if(c.circle && c.hollowTriangles.empty()) {
                 const QPointF center=pixel(world(c.cx_nm,c.cy_nm));
                 if(std::hypot(pos.x()-center.x(),pos.y()-center.y())<=
                    c.radius_nm/1e6*scaleFactor()) return static_cast<int>(i-1);
@@ -513,7 +513,7 @@ protected:
             if(copperGroups.empty() || copperGroups.back().first!=color.rgba())
                 copperGroups.emplace_back(color.rgba(),Vertices{});
             auto &v=copperGroups.back().second;
-            if(c.circle) {
+            if(c.circle && c.hollowTriangles.empty()) {
                 const auto center=pixel(world(c.cx_nm,c.cy_nm));
                 const qreal radius=c.radius_nm/1e6*px;
                 if(!inView(center,radius,width(),height())) continue;
@@ -969,7 +969,8 @@ public:
     bool dispatchCopperPickForTest(int index) const {
         if(index<0 || index>=static_cast<int>(copper_.size())) return false;
         const auto &c=copper_[static_cast<size_t>(index)];
-        if(c.circle) return copperIndexAt(pixel(world(c.cx_nm,c.cy_nm)))==index;
+        if(c.circle && c.hollowTriangles.empty())
+            return copperIndexAt(pixel(world(c.cx_nm,c.cy_nm)))==index;
         // Test centroid of an actually filled triangle, excluding hollow voids.
         if(!c.hollowTriangles.empty()) {
             const auto &t=c.hollowTriangles.front();
