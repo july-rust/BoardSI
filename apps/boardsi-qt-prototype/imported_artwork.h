@@ -97,13 +97,15 @@ inline bool validateCopperArea(ImportedCopperArea &a) {
     a.triangles.clear();
     a.hollowTriangles.clear();
     if(a.circle) {
-        if(!a.cutouts.empty() || !a.roundCutouts.empty()) return false;
+        // A_027: V12 preserves COPCIR/COPCCO analytic circles while the
+        // display-only hollow mesh must conservatively fit source geometry.
+        if(!a.cutouts.empty()) return false;
         if(!a.ring.empty() || !coord(a.cx_nm) || !coord(a.cy_nm) ||
            !coord(a.radius_nm) || a.radius_nm<=0) return false;
         for(const auto v:{a.cx_nm-a.radius_nm,a.cx_nm+a.radius_nm,
                           a.cy_nm-a.radius_nm,a.cy_nm+a.radius_nm})
             if(!coord(v)) return false;
-        return true;
+        return a.roundCutouts.empty() || a026::triangulate(a);
     }
     if(a.ring.size()<4 || a.ring.size()>256 || a.ring.front()!=a.ring.back()) return false;
     const int n=static_cast<int>(a.ring.size())-1;
@@ -1075,7 +1077,7 @@ public:
             const QColor color(c.layer==1 ? "#e6aa55" :
                                c.layer==layerCount ? "#509fca" : "#8fb66f");
             QGraphicsItem *item=nullptr;
-            if(c.circle) {
+            if(c.circle && c.hollowTriangles.empty()) {
                 const qreal r=c.radius_nm/1e6;
                 item=scene_->addEllipse(QRectF((c.cx_nm-c.radius_nm)/1e6,
                     (-c.cy_nm-c.radius_nm)/1e6,2*r,2*r),
@@ -1090,7 +1092,7 @@ public:
                 // approximate circular voids; do not render exact Qt circles
                 // while RHI uses an intentionally conservative polygon.
                 path.setFillRule(Qt::OddEvenFill);
-                if(!c.roundCutouts.empty()) {
+                if(!c.hollowTriangles.empty()) {
                     path=QPainterPath();
                     for(const auto &tri:c.hollowTriangles) {
                         path.moveTo(tri[0].first/1e6,-tri[0].second/1e6);
@@ -1106,7 +1108,7 @@ public:
                     path.closeSubpath();
                 }
                 item=scene_->addPath(path,
-                    c.roundCutouts.empty() ? QPen(color.darker(135),0) : QPen(Qt::NoPen),
+                    c.hollowTriangles.empty() ? QPen(color.darker(135),0) : QPen(Qt::NoPen),
                     QBrush(color));
             }
             item->setZValue(-1); // Beneath trace/pad/POUROUT outlines.
