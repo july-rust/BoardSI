@@ -431,7 +431,13 @@ mod tests {
         assert_eq!(shape.name, "COP_ARC");
         assert_eq!(shape.net_label.as_deref(), Some("NET_UNVERIFIED"));
         assert_eq!(shape.candidate.display_ring.len(), 37);
-        // It is not yet accepted by production until Qt CPU/RHI parity.
-        assert!(crate::copper_preview::parse(asc, 4).is_err());
+        // Production import preserves exact analytical source arcs separately
+        // from the conservative visualization-only ring.
+        let imported = crate::copper_preview::parse(asc, 4).unwrap();
+        assert_eq!(imported.len(), 1);
+        assert!(matches!(
+            imported[0].geometry,
+            crate::copper_preview::CopperGeometry::Curved { .. }
+        ));
     }
 }
