@@ -1818,6 +1818,7 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
                 rhiPick=item && item->copperCountForTest()==1 &&
                     item->dispatchCopperPickForTest(0) &&
                     item->rejectCopperHolePickForTest(0) &&
+                    item->rejectCopperHolePickForTest(0,1) &&
                     (!orthogonal || item->rejectCopperSourcePointForTest(
                         145*25400LL,110*25400LL));
             }else rhiPick=false; // No RHI object: never certify an unrun RHI test.
