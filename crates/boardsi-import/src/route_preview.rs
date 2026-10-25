@@ -1235,8 +1235,18 @@ mod p2b_via_tests {
             .provenance
             .source_object_type
             .contains("ROUTE via placement"));
-        assert_eq!(board.vias[0].connected_layers.len(), 2);
-        assert_eq!(board.connectivity.edges.iter().filter(|e| matches!(e.evidence, ConnectionEvidence::ViaBarrel { .. })).count(), 1);
+        assert_eq!(board.vias[0].connected_layers.len(), 1);
+        // The two-row source padstack has no conductive pad on layer 2:
+        // never infer barrel-to-trace contact from the via's drilled span.
+        assert_eq!(
+            board
+                .connectivity
+                .edges
+                .iter()
+                .filter(|e| matches!(e.evidence, ConnectionEvidence::ViaBarrel { .. }))
+                .count(),
+            0
+        );
         assert!(!board.validate().has_errors());
     }
     #[test]
