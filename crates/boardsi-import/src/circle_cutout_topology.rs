@@ -150,8 +150,9 @@ pub fn polygon_strictly_in_circle(
         return false;
     }
     let r2 = i128::from(outer_radius) * i128::from(outer_radius);
-    hole.iter().copied().all(|point|
-        squared_distance(point, outer_center) < r2)
+    hole.iter()
+        .copied()
+        .all(|point| squared_distance(point, outer_center) < r2)
 }
 
 /// Strictly disjoint circular voids, including non-touching requirement.
