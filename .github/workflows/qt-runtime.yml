@@ -459,6 +459,15 @@ jobs:
           if test -f qt-preview-a026-circle-results.json; then cat qt-preview-a026-circle-results.json; else echo "A026 receipt missing"; fi
           if test "$rc" -ne 0; then exit "$rc"; fi
           python -c 'import json; r=json.load(open("qt-preview-a026-circle-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a026-circle-v1" and r["circular_source"] and r["fixture_import"] and r["cpu_hollow_fill"] and r["source_properties"] and r["layer_filter"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_hole_pick"] and r["rhi_circle_hole_pick"] and r["rhi_imported_frame_confirmed"] and r["physical_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
+      - name: A_027 native COPCIR outer COPCCO holes V12 CPU/RHI parity
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --hollow-circle-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_copper_hollow_circle_v94.asc"
+          cat qt-preview-a027-circle-ring-results.json
+          python -c 'import json; r=json.load(open("qt-preview-a027-circle-ring-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a027-circle-ring-v1" and r["hollow_circle_outer"] and r["fixture_import"] and r["cpu_hollow_fill"] and r["source_properties"] and r["layer_filter"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_hole_pick"] and r["rhi_circle_hole_pick"] and r["rhi_imported_frame_confirmed"] and r["physical_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
       - name: Run A_014 native Qt Quick / RHI geometry and first-frame smoke
         shell: bash
         run: |

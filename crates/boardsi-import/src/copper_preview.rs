@@ -70,16 +70,11 @@ pub fn rectangle_bounds(ring: &[[i64; 2]]) -> Option<[i64; 4]> {
 /// record whose explicit multi-piece header encloses it. Standalone COPCUT is
 /// an unassociated pour void and is rejected, not inferred by containment.
 pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static str> {
-    // V12 Qt can transmit analytical COPCCO and render source-safe
-    // conservative hollow meshes. Source-circle hollow outers remain deferred.
-    let areas = parse_impl(bytes, max_layer, true)?;
-    if areas
-        .iter()
-        .any(|a| matches!(&a.geometry, CopperGeometry::Circle { .. }) && !a.cutouts.is_empty())
-    {
-        return Err("UNSUPPORTED_COPPER_HOLLOW_OUTER");
-    }
-    Ok(areas)
+    // A_027: the V12 G|C plus explicitly owned J|index circle records
+    // preserve a hollow COPCIR outer without inventing electrical connectivity.
+    // Exact source-tick containment/overlap checks remain in parse_impl.
+    // Qt A_027 admits the shape only if its conservative CPU/RHI mesh passes.
+    parse_impl(bytes, max_layer, true)
 }
 
 fn parse_impl(
@@ -792,7 +787,7 @@ mod tests {
     }
 
     #[test]
-    fn a026_isolated_circle_outer_hole_is_exact_and_not_production_enabled() {
+    fn a027_source_circle_outer_hole_retains_analytic_geometry() {
         let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*LINES*\nZ COPPER 0 0 2 1\nCOPCIR 2 0.01 0 1\n-40 0\n40 0\nCOPCCO 2 0.01 0 1\n-10 0\n10 0\n*END*\n";
         let parsed = parse_impl(source.as_bytes(), 4, true).unwrap();
         assert_eq!(parsed[0].cutouts.len(), 1);
@@ -803,7 +798,47 @@ mod tests {
                 radius: 1000
             }
         );
-        assert!(parse(source.as_bytes(), 4).is_err());
+        assert_eq!(parse(source.as_bytes(), 4).unwrap(), parsed);
+    }
+
+    #[test]
+    fn a027_rejects_tangent_overlapping_and_misowned_hollow_circles() {
+        let good = include_str!("../tests/fixtures/pads_copper_hollow_circle_v94.asc")
+            .replace("\r\n", "\n");
+        let parsed = parse(good.as_bytes(), 4).unwrap();
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].cutouts.len(), 2);
+        assert!(matches!(parsed[0].geometry, CopperGeometry::Circle { .. }));
+        assert_eq!(parsed[0].net_label.as_deref(), Some("GND"));
+        // The source does not certify an electrical NetId merely by naming GND.
+        for (case, src) in [
+            ("outer tangent", good.replace("25 0\n55 0", "70 0\n100 0")),
+            ("hole overlap", good.replace("25 0\n55 0", "-35 0\n-5 0")),
+            (
+                "hole layer",
+                good.replacen("COPCCO 2 0.01 0 1", "COPCCO 2 0.01 0 2", 1),
+            ),
+            ("zero hole", good.replace("25 0\n55 0", "25 0\n25 0")),
+            (
+                "undeclared piece",
+                good.replace("COP_RING COPPER 200 200 3 1", "COP_RING COPPER 200 200 2 1"),
+            ),
+            (
+                "misowned void",
+                good.replace("COP_RING COPPER 200 200 3 1", "COP_RING COPPER 200 200 1 1"),
+            ),
+        ] {
+            assert_ne!(src, good, "mutation did not apply: {case}");
+            assert!(parse(src.as_bytes(), 4).is_err(), "accepted {case}");
+        }
+        // V12 cannot be interpreted as blanket support for a polygonal
+        // COPCUT inside the outer COPCIR. Keep this combination fail-closed.
+        let mixed = good.replace(
+            "COPCCO 2 0.01 0 1\n25 0\n55 0",
+            "COPCUT 5 0.01 0 1\n20 20\n30 20\n30 30\n20 30\n20 20",
+        );
+        assert_ne!(mixed, good);
+        assert!(parse(mixed.as_bytes(), 4).is_err());
     }
 
     #[test]

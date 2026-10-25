@@ -66,18 +66,62 @@ inline bool proxy(const ImportedCopperCircleHole &h,std::vector<P> &ring) {
     }
     return true;
 }
+// A_027: display-only INSCRIBED polygon for a source COPCIR outer.
+// Convexity + every checked integer vertex strictly inside the analytic
+// circle prove every mesh triangle stays inside source copper. Independent
+// segment-distance test caps radial display underfill to <=1% of radius.
+inline bool innerProxy(const ImportedCopperCircleHole &outer,std::vector<P> &ring) {
+    if(!validCircle(outer))return false;
+    const qint64 cx=outer.cx_nm/kGrid,cy=outer.cy_nm/kGrid;
+    const qint64 r=outer.radius_nm/kGrid;
+    constexpr long double pi=3.141592653589793238462643383279502884L;
+    const long double rad=static_cast<long double>(r)-3.L;
+    if(rad<=0)return false;
+    ring.clear();ring.reserve(kSegments+1);
+    for(int i=0;i<kSegments;++i) {
+        const long double angle=2*pi*static_cast<long double>(i)/kSegments;
+        const qint64 dx=static_cast<qint64>(std::llround(rad*std::cos(angle)));
+        const qint64 dy=static_cast<qint64>(std::llround(rad*std::sin(angle)));
+        const qint64 x=cx+dx,y=cy+dy;
+        if(x<-kBoundTicks||x>kBoundTicks||y<-kBoundTicks||y>kBoundTicks)
+            return false;
+        // Here 2*r*r <= 6.3e13, safely within signed 64-bit.
+        if(dx*dx+dy*dy>=r*r)return false;
+        ring.push_back({x*kGrid,y*kGrid});
+    }
+    ring.push_back(ring.front());
+    for(size_t i=1;i<ring.size();++i) {
+        const auto a=ring[i-1],b=ring[i];
+        const long double ax=static_cast<long double>(a.first/kGrid-cx);
+        const long double ay=static_cast<long double>(a.second/kGrid-cy);
+        const long double bx=static_cast<long double>(b.first/kGrid-cx);
+        const long double by=static_cast<long double>(b.second/kGrid-cy);
+        const long double dx=bx-ax,dy=by-ay;
+        const long double len=std::hypot(dx,dy);
+        if(len<=0 || !std::isfinite(len))return false;
+        const long double distance=std::abs(ax*by-ay*bx)/len;
+        if(!std::isfinite(distance) || distance<0.99L*r)return false;
+    }
+    return true;
+}
 inline bool triangulate(ImportedCopperArea &a) {
-    if(a.circle||a.roundCutouts.empty()||
+    if(a.roundCutouts.empty() ||
        a.cutouts.size()+a.roundCutouts.size()>8)return false;
     ImportedCopperArea proxyArea=a;
+    if(a.circle) {
+        // Only circular voids within a source circle are qualified.
+        if(!a.cutouts.empty() || !innerProxy(
+             {a.cx_nm,a.cy_nm,a.radius_nm},proxyArea.ring))return false;
+        proxyArea.circle=false; // A_025 consumes polygonal display proxies.
+    }
     for(const auto &hole:a.roundCutouts) {
         std::vector<P> ring;
         if(!proxy(hole,ring))return false;
         proxyArea.cutouts.push_back(std::move(ring));
     }
-    // Bounded exact-source-tick polygon mesh with independent area,
-    // touching and overlap checks from A_025. No approximated void can
-    // introduce copper over an actual circular source void.
+    // The A_025 independent integer-grid mesh checks strict separation,
+    // triangle overlap, total area and bounded complexity. Both RHI and CPU
+    // use ONLY these triangles; no analytic disk may paint over the hole.
     if(!a025::triangulate(proxyArea)||proxyArea.hollowTriangles.empty())
         return false;
     a.hollowTriangles=std::move(proxyArea.hollowTriangles);
