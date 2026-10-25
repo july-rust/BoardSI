@@ -263,7 +263,7 @@ class PreviewImportPanel final : public QWidget {
                 const int id=parts[1].toInt(&ok);
                 if(!ok || id<0 || id>=static_cast<int>(coppers.size())) return false;
                 const int n=parts[2].toInt(&ok);
-                if(!ok || n!=5 || parts.size()!=3+2*n ||
+                if(!ok || n<5 || n>65 || parts.size()!=3+2*n ||
                    coppers[static_cast<size_t>(id)].cutouts.size()>=8) return false;
                 std::vector<std::pair<qint64,qint64>> hole;
                 for(int j=0;j<n;++j) {
