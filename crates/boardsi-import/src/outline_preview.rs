@@ -277,10 +277,7 @@ fn cutouts_overlap(a: &Shape, b: &Shape) -> bool {
 // Exact PADS 0.01-mil integer source ticks; no floating point containment.
 // The renderer's grid-cell limit is shared so a valid canonical cutout can
 // never force the Qt viewer to approximate or silently fill a rejected hole.
-pub(crate) fn orthogonal_copper_holes_valid(
-    outer: &[[i64; 2]],
-    holes: &[Vec<[i64; 2]>],
-) -> bool {
+pub(crate) fn orthogonal_copper_holes_valid(outer: &[[i64; 2]], holes: &[Vec<[i64; 2]>]) -> bool {
     const MAX_HOLES: usize = 8;
     const MAX_CORNERS_TOTAL: usize = 128;
     const MAX_CELLS: usize = 4096;
@@ -314,16 +311,11 @@ pub(crate) fn orthogonal_copper_holes_valid(
         return false;
     }
     for (i, hole) in holes.iter().enumerate() {
-        if rings_touch(outer, hole)
-            || !hole[..hole.len() - 1].iter().all(|&p| inside(p, outer))
-        {
+        if rings_touch(outer, hole) || !hole[..hole.len() - 1].iter().all(|&p| inside(p, outer)) {
             return false;
         }
         for earlier in &holes[..i] {
-            if rings_touch(hole, earlier)
-                || inside(hole[0], earlier)
-                || inside(earlier[0], hole)
-            {
+            if rings_touch(hole, earlier) || inside(hole[0], earlier) || inside(earlier[0], hole) {
                 return false;
             }
         }
@@ -332,8 +324,10 @@ pub(crate) fn orthogonal_copper_holes_valid(
     // whose area consumes the entire outer copper shape.
     let area2 = |ring: &[[i64; 2]]| -> i128 {
         ring.windows(2)
-            .map(|w| i128::from(w[0][0]) * i128::from(w[1][1])
-                - i128::from(w[1][0]) * i128::from(w[0][1]))
+            .map(|w| {
+                i128::from(w[0][0]) * i128::from(w[1][1])
+                    - i128::from(w[1][0]) * i128::from(w[0][1])
+            })
             .sum::<i128>()
             .abs()
     };
