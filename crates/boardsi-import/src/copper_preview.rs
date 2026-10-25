@@ -127,10 +127,12 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
         // A declared multi-piece count that understates a following COPCUT
         // must not silently re-fill the omitted void. Reject orphan piece
         // headers even when the line-item header has already been consumed.
-        if fields.len() == 5 && matches!(
-            fields[0],
-            "COPCUT" | "COPCCO" | "CIRCUR" | "COPCLS" | "COPCIR" | "COPOPN"
-        ) {
+        if fields.len() == 5
+            && matches!(
+                fields[0],
+                "COPCUT" | "COPCCO" | "CIRCUR" | "COPCLS" | "COPCIR" | "COPOPN"
+            )
+        {
             return Err("UNCONSUMED_COPPER_PIECE");
         }
         if fields.len() < 2 || fields[1] != "COPPER" {
