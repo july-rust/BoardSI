@@ -103,59 +103,112 @@ inline bool validateCopperArea(ImportedCopperArea &a) {
     const int n=static_cast<int>(a.ring.size())-1;
     for(auto p:a.ring) if(!coord(p.first) || !coord(p.second)) return false;
     if(!a.cutouts.empty()) {
-        // Conservative rectangular subset: explicit same-owner COPCUT pieces
-        // with disjoint strict interiors. No arbitrary polygon hole approximation.
+        // A_024: validated *orthogonal* polygon rings. The mesh contains only
+        // exact 254-nm-grid coordinates: each grid cell lies wholly in or out
+        // of the original source-authored shape. No diagonal interpolation.
         using P=std::pair<qint64,qint64>;
-        using B=std::array<qint64,4>;
-        auto rectangle=[&](const std::vector<P>&ring,B &b)->bool {
-            if(ring.size()!=5 || ring.front()!=ring.back())return false;
-            qint64 x0=ring.front().first,x1=x0,y0=ring.front().second,y1=y0;
-            for(const P &p:ring) {
-                if(!coord(p.first)||!coord(p.second))return false;
-                x0=std::min(x0,p.first);x1=std::max(x1,p.first);
-                y0=std::min(y0,p.second);y1=std::max(y1,p.second);
-            }
-            if(x0>=x1||y0>=y1)return false;
-            std::set<P> expected={{x0,y0},{x0,y1},{x1,y0},{x1,y1}};
-            for(size_t i=0;i<4;++i)if(expected.erase(ring[i])!=1)return false;
-            if(!expected.empty())return false;
-            for(size_t i=0;i<4;++i)
-                if((ring[i].first==ring[i+1].first)==
-                   (ring[i].second==ring[i+1].second))return false;
-            b={x0,y0,x1,y1};return true;
+        auto overlap=[](qint64 a,qint64 b,qint64 c,qint64 d) {
+            return std::max(std::min(a,b),std::min(c,d))<=
+                   std::min(std::max(a,b),std::max(c,d));
         };
-        if(a.cutouts.size()>8)return false;
-        B outer;
-        if(!rectangle(a.ring,outer))return false;
-        std::vector<B> holes;
-        std::vector<qint64> xx={outer[0],outer[2]},yy={outer[1],outer[3]};
-        for(const auto &ring:a.cutouts) {
-            B h;
-            if(!rectangle(ring,h) || h[0]<=outer[0] || h[1]<=outer[1] ||
-               h[2]>=outer[2] || h[3]>=outer[3])return false;
-            for(const B &p:holes)
-                if(h[0]<=p[2]&&h[2]>=p[0]&&h[1]<=p[3]&&h[3]>=p[1])
-                    return false; // Disallow even boundary touch.
-            holes.push_back(h);
-            xx.push_back(h[0]);xx.push_back(h[2]);
-            yy.push_back(h[1]);yy.push_back(h[3]);
+        auto touches=[&](P a,P b,P c,P d) {
+            const bool av=a.first==b.first,cv=c.first==d.first;
+            if(av&&cv)return a.first==c.first &&
+                overlap(a.second,b.second,c.second,d.second);
+            if(!av&&!cv)return a.second==c.second &&
+                overlap(a.first,b.first,c.first,d.first);
+            if(av)return overlap(a.second,b.second,c.second,d.second) &&
+                overlap(c.first,d.first,a.first,a.first);
+            return overlap(c.second,d.second,a.second,a.second) &&
+                overlap(a.first,b.first,c.first,c.first);
+        };
+        auto area2=[](const std::vector<P> &ring)->qint64 {
+            qint64 value=0;
+            for(size_t i=1;i<ring.size();++i)
+                value+=(ring[i-1].first/254)*(ring[i].second/254)-
+                       (ring[i].first/254)*(ring[i-1].second/254);
+            return value<0?-value:value;
+        };
+        auto orthogonal=[&](const std::vector<P> &ring)->bool {
+            if(ring.size()<5||ring.size()>65||ring.front()!=ring.back())return false;
+            for(size_t i=1;i<ring.size();++i) {
+                if(!coord(ring[i].first)||!coord(ring[i].second))return false;
+                const P a=ring[i-1],b=ring[i];
+                if((a.first==b.first)==(a.second==b.second))return false;
+            }
+            for(size_t i=1;i<ring.size();++i)
+                for(size_t j=i+2;j<ring.size();++j) {
+                    if(i==1 && j==ring.size()-1)continue;
+                    if(touches(ring[i-1],ring[i],ring[j-1],ring[j]))
+                        return false;
+                }
+            return area2(ring)>0;
+        };
+        auto inside=[](P p,const std::vector<P>&ring) {
+            bool found=false;
+            for(size_t i=1;i<ring.size();++i) {
+                const P x=ring[i-1],y=ring[i];
+                if(x.first==y.first &&
+                   p.second>=std::min(x.second,y.second) &&
+                   p.second<std::max(x.second,y.second) &&
+                   p.first<x.first)found=!found;
+            }
+            return found;
+        };
+        auto ringTouches=[&](const std::vector<P>&x,const std::vector<P>&y) {
+            for(size_t i=1;i<x.size();++i)
+                for(size_t j=1;j<y.size();++j)
+                    if(touches(x[i-1],x[i],y[j-1],y[j]))return true;
+            return false;
+        };
+        if(a.cutouts.size()>8 || !orthogonal(a.ring))return false;
+        size_t total=a.ring.size();
+        for(const auto &hole:a.cutouts) {
+            total+=hole.size();
+            if(total>128 || !orthogonal(hole) || ringTouches(a.ring,hole))
+                return false;
+            for(size_t i=0;i+1<hole.size();++i)
+                if(!inside(hole[i],a.ring))return false;
         }
+        for(size_t i=0;i<a.cutouts.size();++i)
+            for(size_t j=i+1;j<a.cutouts.size();++j) {
+                const auto &x=a.cutouts[i],&y=a.cutouts[j];
+                if(ringTouches(x,y)||inside(x.front(),y)||inside(y.front(),x))
+                    return false;
+            }
+        std::vector<qint64> xx,yy;
+        auto collect=[&](const std::vector<P>&ring) {
+            for(P p:ring){xx.push_back(p.first);yy.push_back(p.second);}
+        };
+        collect(a.ring);
+        for(const auto &hole:a.cutouts)collect(hole);
         std::sort(xx.begin(),xx.end());xx.erase(std::unique(xx.begin(),xx.end()),xx.end());
         std::sort(yy.begin(),yy.end());yy.erase(std::unique(yy.begin(),yy.end()),yy.end());
-        for(size_t i=1;i<xx.size();++i)for(size_t j=1;j<yy.size();++j) {
-            const qint64 mx=xx[i-1]+(xx[i]-xx[i-1])/2;
-            const qint64 my=yy[j-1]+(yy[j]-yy[j-1])/2;
-            bool empty=false;
-            for(const B &h:holes)if(mx>=h[0]&&mx<h[2]&&my>=h[1]&&my<h[3]) {
-                empty=true;break;
+        if(xx.size()<2||yy.size()<2||(xx.size()-1)*(yy.size()-1)>4096)
+            return false;
+        qint64 filled2=0;
+        for(size_t i=1;i<xx.size();++i)
+            for(size_t j=1;j<yy.size();++j) {
+                const qint64 x0=xx[i-1],x1=xx[i],y0=yy[j-1],y1=yy[j];
+                const P mid={x0+(x1-x0)/2,y0+(y1-y0)/2};
+                if(!inside(mid,a.ring))continue;
+                bool voided=false;
+                for(const auto &hole:a.cutouts)
+                    if(inside(mid,hole)){voided=true;break;}
+                if(voided)continue;
+                // The grid is an exact partition for orthogonal boundaries.
+                const P p0={x0,y0},p1={x1,y0},p2={x1,y1},p3={x0,y1};
+                a.hollowTriangles.push_back({p0,p1,p2});
+                a.hollowTriangles.push_back({p0,p2,p3});
+                filled2+=2*((x1-x0)/254)*((y1-y0)/254);
             }
-            if(empty)continue;
-            const P p0={xx[i-1],yy[j-1]},p1={xx[i],yy[j-1]};
-            const P p2={xx[i],yy[j]},p3={xx[i-1],yy[j]};
-            a.hollowTriangles.push_back({p0,p1,p2});
-            a.hollowTriangles.push_back({p0,p2,p3});
+        qint64 source2=area2(a.ring);
+        for(const auto &hole:a.cutouts)source2-=area2(hole);
+        // Exact integer area oracle: reject any hole that the mesh would fill.
+        if(source2<=0||filled2!=source2||a.hollowTriangles.empty()) {
+            a.hollowTriangles.clear();return false;
         }
-        return !a.hollowTriangles.empty();
+        return true;
     }
     // Work in integer source ticks: |cross| < 2.6e14, no MSVC __int128 needed.
     auto cross=[&](int i,int j,int k)->qint64 {
