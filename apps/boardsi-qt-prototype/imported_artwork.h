@@ -77,6 +77,8 @@ struct ImportedCopperArea {
     QString name, net;
     int layer=0, sourceLine=0;
     bool circle=false;
+    bool curved=false; // A_029: exact original Arc/Line source, display proxy separate.
+    std::vector<ImportedBoundarySegment> curvedSegments;
     qint64 cx_nm=0,cy_nm=0,radius_nm=0;
     std::vector<std::pair<qint64,qint64>> ring;
     std::vector<std::array<int,3>> triangles;
@@ -88,6 +90,7 @@ struct ImportedCopperArea {
 };
 #include "a025_diagonal_polygon.h"
 #include "a026_circular_copper.h"
+#include "a029_curved_copper.h"
 inline bool validateCopperArea(ImportedCopperArea &a) {
     constexpr qint64 bound=1422400000LL;
     if(a.layer<1 || a.layer>64 || a.sourceLine<=0 ||
@@ -96,6 +99,7 @@ inline bool validateCopperArea(ImportedCopperArea &a) {
     auto coord=[&](qint64 v) {return v%254==0 && v>=-bound && v<=bound;};
     a.triangles.clear();
     a.hollowTriangles.clear();
+    if(a.curved)return a029::validate(a);
     if(a.circle) {
         // A_027: V12 preserves COPCIR/COPCCO analytic circles while the
         // display-only hollow mesh must conservatively fit source geometry.
@@ -1122,7 +1126,7 @@ public:
             item->setData(2,QString("COPPER %1 / %2 filled SOURCE geometry / layer %3"
                 " / source line %4 / declared net %5 / vertices %6 / cutouts %7"
                 " / connectivity NOT_VERIFIED / fabricated copper NOT_VERIFIED / SI NOT_RUN")
-                .arg(c.name).arg(c.circle ? "COPCIR" : "COPCLS")
+                .arg(c.name).arg(c.circle ? "COPCIR" : (c.curved ? "COPCLS ARC (conservative shared mesh)" : "COPCLS"))
                 .arg(c.layer).arg(c.sourceLine).arg(c.net)
                 .arg(c.circle ? 0 : static_cast<int>(c.ring.size()))
                 .arg(static_cast<int>(c.cutouts.size()+c.roundCutouts.size())));
