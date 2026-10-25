@@ -82,11 +82,7 @@ fn segment_clear(a: Point, b: Point, center: Point, radius: i64) -> bool {
 /// Check a strictly interior circle within a simple closed polygon.
 /// A concave outer outline is valid; any tangent/contact is rejected.
 /// Caller MUST independently establish that the polygon is simple.
-pub fn circle_strictly_in_polygon(
-    outer: &[[i64; 2]],
-    center: [i64; 2],
-    radius: i64,
-) -> bool {
+pub fn circle_strictly_in_polygon(outer: &[[i64; 2]], center: [i64; 2], radius: i64) -> bool {
     if !ring_valid_input(outer)
         || !bounded(center)
         || !(1..=SOURCE_BOUND).contains(&radius)
@@ -162,13 +158,7 @@ mod tests {
     use super::*;
 
     fn square(x0: i64, y0: i64, x1: i64, y1: i64) -> Vec<Point> {
-        vec![
-            [x0, y0],
-            [x1, y0],
-            [x1, y1],
-            [x0, y1],
-            [x0, y0],
-        ]
+        vec![[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]
     }
 
     #[test]
@@ -223,12 +213,7 @@ mod tests {
             [SOURCE_BOUND + 1, 50],
             1
         ));
-        assert!(!circles_strictly_disjoint(
-            [i64::MAX, 0],
-            1,
-            [0, 0],
-            1
-        ));
+        assert!(!circles_strictly_disjoint([i64::MAX, 0], 1, [0, 0], 1));
         assert!(!circle_strictly_in_circle([0, 0], 2, [0, 0], 0));
     }
 }
