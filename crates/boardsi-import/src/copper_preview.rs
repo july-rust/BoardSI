@@ -271,9 +271,8 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
             let diagonal = std::iter::once(outer)
                 .chain(holes.iter().map(Vec::as_slice))
                 .any(|ring| {
-                    ring.windows(2).any(|e| {
-                        e[0][0] != e[1][0] && e[0][1] != e[1][1]
-                    })
+                    ring.windows(2)
+                        .any(|e| e[0][0] != e[1][0] && e[0][1] != e[1][1])
                 });
             if diagonal {
                 // V11 stores unchanged source vertices. Qt independently
@@ -604,8 +603,18 @@ mod tests {
         };
         assert_eq!(outer[2], [11000, 9000]);
         assert_eq!(v[0].net_label.as_deref(), Some("GND"));
-        assert!(parse(asc.replace("30 20\n50 20\n40 40\n30 20", "0 20\n50 20\n40 40\n0 20").as_bytes(), 4).is_err());
-        assert!(parse(asc.replace("DIA COPPER 0 0 2 1", "DIA COPPER 0 0 1 1").as_bytes(), 4).is_err());
+        assert!(parse(
+            asc.replace("30 20\n50 20\n40 40\n30 20", "0 20\n50 20\n40 40\n0 20")
+                .as_bytes(),
+            4
+        )
+        .is_err());
+        assert!(parse(
+            asc.replace("DIA COPPER 0 0 2 1", "DIA COPPER 0 0 1 1")
+                .as_bytes(),
+            4
+        )
+        .is_err());
     }
     #[test]
     fn rejects_range_truncation_duplicate_and_end() {
