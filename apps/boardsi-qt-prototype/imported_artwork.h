@@ -82,6 +82,7 @@ struct ImportedCopperArea {
     // Consumed unchanged by source-aware RHI rendering and picking.
     std::vector<std::array<std::pair<qint64,qint64>,3>> hollowTriangles;
 };
+#include "a025_diagonal_polygon.h"
 inline bool validateCopperArea(ImportedCopperArea &a) {
     constexpr qint64 bound=1422400000LL;
     if(a.layer<1 || a.layer>64 || a.sourceLine<=0 ||
@@ -103,6 +104,17 @@ inline bool validateCopperArea(ImportedCopperArea &a) {
     const int n=static_cast<int>(a.ring.size())-1;
     for(auto p:a.ring) if(!coord(p.first) || !coord(p.second)) return false;
     if(!a.cutouts.empty()) {
+        // A_025: preserve the exact A_024 orthogonal grid path, and use
+        // separate bounded source-vertex triangulation only for diagonal rings.
+        auto hasDiagonal=[](const std::vector<std::pair<qint64,qint64>>&ring) {
+            for(size_t i=1;i<ring.size();++i)
+                if(ring[i-1].first!=ring[i].first &&
+                   ring[i-1].second!=ring[i].second)return true;
+            return false;
+        };
+        bool diagonal=hasDiagonal(a.ring);
+        for(const auto &hole:a.cutouts)diagonal=diagonal||hasDiagonal(hole);
+        if(diagonal)return a025::triangulate(a);
         // A_024: validated *orthogonal* polygon rings. The mesh contains only
         // exact 254-nm-grid coordinates: each grid cell lies wholly in or out
         // of the original source-authored shape. No diagonal interpolation.

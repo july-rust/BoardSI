@@ -256,14 +256,14 @@ class PreviewImportPanel final : public QWidget {
                 if(!validateCopperArea(c)) return false;
                 for(const auto &old:coppers) if(old.name==c.name) return false;
                 coppers.push_back(std::move(c));
-            } else if (p2n && parts.size()>=13 && parts[0]=="H" &&
+            } else if (p2n && parts.size()>=11 && parts[0]=="H" &&
                        layerRecords==layers) {
-                // V11 H is a source-authored rectangular void, indexed to G.
+                // V11 H is an explicitly source-owned polygon void, indexed to G.
                 // Never spatially infer ownership of standalone COPCUT.
                 const int id=parts[1].toInt(&ok);
                 if(!ok || id<0 || id>=static_cast<int>(coppers.size())) return false;
                 const int n=parts[2].toInt(&ok);
-                if(!ok || n<5 || n>65 || parts.size()!=3+2*n ||
+                if(!ok || n<4 || n>65 || parts.size()!=3+2*n ||
                    coppers[static_cast<size_t>(id)].cutouts.size()>=8) return false;
                 std::vector<std::pair<qint64,qint64>> hole;
                 for(int j=0;j<n;++j) {
