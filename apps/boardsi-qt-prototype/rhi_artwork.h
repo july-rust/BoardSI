@@ -996,26 +996,30 @@ public:
         // A_025: exact source polygon may have sloped edges. Choose a
         // certified non-boundary sample from three consecutive vertices,
         // without assuming axis-aligned grid-cell occupancy.
-        auto insideRing=[](qint64 x,qint64 y,
+        // Use 1/3 source ticks for point-in-ring predicates. Multiplying
+        // raw nanometre deltas can overflow signed 64-bit at source limits.
+        auto insideRing=[](qint64 nx,qint64 ny,
                            const std::vector<std::pair<qint64,qint64>>&r) {
             bool inside=false;
             for(size_t i=1;i<r.size();++i) {
                 const auto a=r[i-1],b=r[i];
-                const qint64 dx=b.first-a.first,dy=b.second-a.second;
-                const qint64 cross=dx*(y-a.second)-dy*(x-a.first);
-                if(cross==0 && x>=std::min(a.first,b.first) &&
-                   x<=std::max(a.first,b.first) &&
-                   y>=std::min(a.second,b.second) &&
-                   y<=std::max(a.second,b.second))return false;
-                if((a.second>y)!=(b.second>y) &&
-                   ((cross>0)==(b.second>a.second)))inside=!inside;
+                const qint64 ax=3*(a.first/254), ay=3*(a.second/254);
+                const qint64 bx=3*(b.first/254), by=3*(b.second/254);
+                const qint64 cross=(bx-ax)*(ny-ay)-(by-ay)*(nx-ax);
+                if(cross==0 && nx>=std::min(ax,bx) &&
+                   nx<=std::max(ax,bx) &&
+                   ny>=std::min(ay,by) &&
+                   ny<=std::max(ay,by))return false;
+                if((ay>ny)!=(by>ny) && ((cross>0)==(by>ay)))inside=!inside;
             }
             return inside;
         };
         for(size_t i=0;i+3<h.size();++i) {
+            const qint64 nx=h[i].first/254+h[i+1].first/254+h[i+2].first/254;
+            const qint64 ny=h[i].second/254+h[i+1].second/254+h[i+2].second/254;
             const qint64 x=(h[i].first+h[i+1].first+h[i+2].first)/3;
             const qint64 y=(h[i].second+h[i+1].second+h[i+2].second)/3;
-            if(insideRing(x,y,h))
+            if(insideRing(nx,ny,h))
                 return copperIndexAt(pixel(world(x,y)))==-1;
         }
         std::vector<qint64> xx,yy;

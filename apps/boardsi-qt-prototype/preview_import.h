@@ -256,7 +256,7 @@ class PreviewImportPanel final : public QWidget {
                 if(!validateCopperArea(c)) return false;
                 for(const auto &old:coppers) if(old.name==c.name) return false;
                 coppers.push_back(std::move(c));
-            } else if (p2n && parts.size()>=13 && parts[0]=="H" &&
+            } else if (p2n && parts.size()>=11 && parts[0]=="H" &&
                        layerRecords==layers) {
                 // V11 H is an explicitly source-owned polygon void, indexed to G.
                 // Never spatially infer ownership of standalone COPCUT.
