@@ -988,11 +988,11 @@ public:
     }
     // A_024: search an exact source-grid cell within an authored void.
     // The old hole-bounding-box centre is not necessarily inside an L-hole.
-    bool rejectCopperHolePickForTest(int index) const {
+    bool rejectCopperHolePickForTest(int index,size_t holeIndex=0) const {
         if(index<0 || index>=static_cast<int>(copper_.size()))return false;
         const auto &c=copper_[static_cast<size_t>(index)];
-        if(c.cutouts.empty())return false;
-        const auto &h=c.cutouts.front();
+        if(holeIndex>=c.cutouts.size())return false;
+        const auto &h=c.cutouts[holeIndex];
         std::vector<qint64> xx,yy;
         for(const auto &p:h){xx.push_back(p.first);yy.push_back(p.second);}
         std::sort(xx.begin(),xx.end());xx.erase(std::unique(xx.begin(),xx.end()),xx.end());
