@@ -410,4 +410,16 @@ mod tests {
         assert_ne!(boundary.segments.len(), candidate.display_ring.len() - 1);
     }
 
+
+    #[test]
+    fn public_pads_fixture_retains_analytic_source_and_net_uncertainty() {
+        let asc = include_bytes!("../tests/fixtures/pads_curved_copper_candidate_v94.asc");
+        let shape = inspect_owned_source(asc, 4).unwrap();
+        assert_eq!(shape.name, "COP_ARC");
+        assert_eq!(shape.net_label.as_deref(), Some("NET_UNVERIFIED"));
+        assert_eq!(shape.candidate.display_ring.len(), 37);
+        // It is not yet accepted by production until Qt CPU/RHI parity.
+        assert!(crate::copper_preview::parse(asc, 4).is_err());
+    }
+
 }
