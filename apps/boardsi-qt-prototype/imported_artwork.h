@@ -99,13 +99,15 @@ inline bool validateCopperArea(ImportedCopperArea &a) {
     if(a.circle) {
         // A_027: V12 preserves COPCIR/COPCCO analytic circles while the
         // display-only hollow mesh must conservatively fit source geometry.
-        if(!a.cutouts.empty()) return false;
         if(!a.ring.empty() || !coord(a.cx_nm) || !coord(a.cy_nm) ||
            !coord(a.radius_nm) || a.radius_nm<=0) return false;
         for(const auto v:{a.cx_nm-a.radius_nm,a.cx_nm+a.radius_nm,
                           a.cy_nm-a.radius_nm,a.cy_nm+a.radius_nm})
             if(!coord(v)) return false;
-        return a.roundCutouts.empty() || a026::triangulate(a);
+        // A_028 mixed COPCUT + COPCCO uses the same A_025 verified
+        // triangle mesh for selection, CPU fill and RHI draw/picking.
+        return (a.cutouts.empty() && a.roundCutouts.empty()) ||
+               a026::triangulate(a);
     }
     if(a.ring.size()<4 || a.ring.size()>256 || a.ring.front()!=a.ring.back()) return false;
     const int n=static_cast<int>(a.ring.size())-1;

@@ -185,6 +185,40 @@ pub fn validate_polygon_with_holes(
     })
 }
 
+/// Source-tick polygon-hole oracle for a circular primary copper area.
+/// The analytic circular container is validated separately; no surrogate
+/// bounding square or sampled circle may substitute for that validation.
+pub fn validate_disjoint_polygon_holes(holes: &[Vec<TickPoint>]) -> Result<i128, TopologyError> {
+    if holes.len() > MAX_HOLES {
+        return Err(TopologyError::Complexity);
+    }
+    let mut vertices = 33usize; // A_027 display-only circular outer proxy.
+    let mut total_area2 = 0i128;
+    for (i, hole) in holes.iter().enumerate() {
+        vertices = vertices
+            .checked_add(hole.len())
+            .ok_or(TopologyError::Complexity)?;
+        if vertices > MAX_VERTICES_TOTAL
+            || hole
+                .iter()
+                .flatten()
+                .any(|v| !(-MAX_SOURCE_TICKS..=MAX_SOURCE_TICKS).contains(v))
+        {
+            return Err(TopologyError::Complexity);
+        }
+        total_area2 += simple_ring_area2(hole)?;
+        for old in &holes[..i] {
+            if any_contact(old, hole) {
+                return Err(TopologyError::BoundaryContact);
+            }
+            if strictly_inside(hole[0], old) || strictly_inside(old[0], hole) {
+                return Err(TopologyError::NestedHoles);
+            }
+        }
+    }
+    Ok(total_area2)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,6 +226,25 @@ mod tests {
     fn closed(mut p: Vec<TickPoint>) -> Vec<TickPoint> {
         p.push(p[0]);
         p
+    }
+
+    #[test]
+    fn circular_owner_hole_set_rejects_touching_nested_and_repeated_vertices() {
+        let first = closed(vec![[1, 1], [10, 1], [10, 10], [1, 10]]);
+        let second = closed(vec![[20, 20], [28, 20], [28, 28], [20, 28]]);
+        assert!(validate_disjoint_polygon_holes(&[first.clone(), second]).is_ok());
+        let touch = closed(vec![[10, 4], [14, 4], [14, 8], [10, 8]]);
+        assert_eq!(
+            validate_disjoint_polygon_holes(&[first.clone(), touch]),
+            Err(TopologyError::BoundaryContact)
+        );
+        let nested = closed(vec![[2, 2], [4, 2], [4, 4], [2, 4]]);
+        assert_eq!(
+            validate_disjoint_polygon_holes(&[first.clone(), nested]),
+            Err(TopologyError::NestedHoles)
+        );
+        let bad = closed(vec![[0, 0], [5, 0], [5, 0], [0, 5]]);
+        assert!(validate_disjoint_polygon_holes(&[bad]).is_err());
     }
 
     #[test]

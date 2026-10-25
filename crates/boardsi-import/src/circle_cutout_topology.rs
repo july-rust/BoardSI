@@ -135,6 +135,26 @@ pub fn circle_strictly_in_circle(
     squared_distance(outer_center, hole_center) < clearance * clearance
 }
 
+/// Every edge of a polygon with all vertices strictly inside a disk
+/// is strictly inside that disk (convexity). Caller must independently
+/// verify polygon simplicity, area, ownership and pairwise disjointness.
+pub fn polygon_strictly_in_circle(
+    hole: &[[i64; 2]],
+    outer_center: [i64; 2],
+    outer_radius: i64,
+) -> bool {
+    if !ring_valid_input(hole)
+        || !bounded(outer_center)
+        || !(1..=SOURCE_BOUND).contains(&outer_radius)
+    {
+        return false;
+    }
+    let r2 = i128::from(outer_radius) * i128::from(outer_radius);
+    hole.iter()
+        .copied()
+        .all(|point| squared_distance(point, outer_center) < r2)
+}
+
 /// Strictly disjoint circular voids, including non-touching requirement.
 pub fn circles_strictly_disjoint(
     first_center: [i64; 2],
@@ -191,6 +211,17 @@ mod tests {
         assert!(!circle_strictly_in_polygon(&triangle, [49, 49], 3));
         let corner = vec![[10, 10], [90, 10], [10, 90], [10, 10]];
         assert!(!circle_strictly_disjoint_from_polygon(&corner, [20, 20], 4));
+    }
+
+    #[test]
+    fn polygon_in_circular_owner_checks_all_vertices_exactly() {
+        let inside = square(-10, -10, 10, 10);
+        assert!(polygon_strictly_in_circle(&inside, [0, 0], 15));
+        assert!(!polygon_strictly_in_circle(&inside, [0, 0], 14));
+        let tangent = vec![[15, 0], [14, 1], [14, -1], [15, 0]];
+        assert!(!polygon_strictly_in_circle(&tangent, [0, 0], 15));
+        assert!(!polygon_strictly_in_circle(&inside[..4], [0, 0], 15));
+        assert!(!polygon_strictly_in_circle(&inside, [i64::MAX, 0], 15));
     }
 
     #[test]
