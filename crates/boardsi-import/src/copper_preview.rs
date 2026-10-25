@@ -11,8 +11,14 @@ const MAX_VERTICES: usize = 256;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CopperGeometry {
     Polygon(Vec<[i64; 2]>), // Exact 0.01-mil ticks; repeated closure vertex.
-    Circle { centre: [i64; 2], radius: i64 },
-    Curved { segments: Vec<crate::outline_topology::Segment>, display_ring: Vec<[i64; 2]> },
+    Circle {
+        centre: [i64; 2],
+        radius: i64,
+    },
+    Curved {
+        segments: Vec<crate::outline_topology::Segment>,
+        display_ring: Vec<[i64; 2]>,
+    },
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CopperArea {
@@ -232,10 +238,20 @@ fn parse_impl(
                     vertices.push(point(row, origin)?);
                 } else if fields.len() == 8 && part_index == 0 && piece[0] == "COPCLS" {
                     vertices.push([
-                        bounded(origin[0].checked_add(fixed(fields[0])?).ok_or("COPPER_OVERFLOW")?)?,
-                        bounded(origin[1].checked_add(fixed(fields[1])?).ok_or("COPPER_OVERFLOW")?)?,
+                        bounded(
+                            origin[0]
+                                .checked_add(fixed(fields[0])?)
+                                .ok_or("COPPER_OVERFLOW")?,
+                        )?,
+                        bounded(
+                            origin[1]
+                                .checked_add(fixed(fields[1])?)
+                                .ok_or("COPPER_OVERFLOW")?,
+                        )?,
                     ]);
-                } else { return Err("UNSUPPORTED_COPPER_ARC"); }
+                } else {
+                    return Err("UNSUPPORTED_COPPER_ARC");
+                }
                 source_rows.push(fields);
                 i += 1;
             }
@@ -313,7 +329,9 @@ fn parse_impl(
                 let total = match &geometry {
                     CopperGeometry::Polygon(outer) => outer.len(),
                     CopperGeometry::Circle { .. } => 33,
-                    CopperGeometry::Curved { .. } => return Err("UNSUPPORTED_CURVED_COPPER_CUTOUT"),
+                    CopperGeometry::Curved { .. } => {
+                        return Err("UNSUPPORTED_CURVED_COPPER_CUTOUT")
+                    }
                 } + polygons.iter().map(Vec::len).sum::<usize>()
                     + circles.len() * 33;
                 if total > 128 {
@@ -652,7 +670,8 @@ mod tests {
         assert_eq!(
             rectangle_bounds(match &a[0].cutouts[0] {
                 CopperGeometry::Polygon(r) => r,
-                CopperGeometry::Circle { .. } | CopperGeometry::Curved { .. } => panic!("expected polygon"),
+                CopperGeometry::Circle { .. } | CopperGeometry::Curved { .. } =>
+                    panic!("expected polygon"),
             }),
             Some([10200, 20200, 10400, 20600])
         );
@@ -1006,15 +1025,28 @@ mod tests {
         let areas = parse(asc, 4).unwrap();
         assert_eq!(areas.len(), 1);
         let (segments, visual) = match &areas[0].geometry {
-            CopperGeometry::Curved { segments, display_ring } => (segments, display_ring),
+            CopperGeometry::Curved {
+                segments,
+                display_ring,
+            } => (segments, display_ring),
             _ => panic!("expected curved analytical source"),
         };
-        assert_eq!(segments.iter().filter(|s| matches!(s, crate::outline_topology::Segment::Arc(_))).count(), 4);
+        assert_eq!(
+            segments
+                .iter()
+                .filter(|s| matches!(s, crate::outline_topology::Segment::Arc(_)))
+                .count(),
+            4
+        );
         assert_eq!(visual.len(), 37);
         assert!(areas[0].cutouts.is_empty());
         let src = std::str::from_utf8(asc).unwrap();
-        assert!(parse(src.replace("COP_ARC COPPER 0 0 1 1", "COP_ARC COPPER 0 0 2 1").as_bytes(), 4).is_err());
+        assert!(parse(
+            src.replace("COP_ARC COPPER 0 0 1 1", "COP_ARC COPPER 0 0 2 1")
+                .as_bytes(),
+            4
+        )
+        .is_err());
         assert!(parse(src.replace("2700 900", "2700 450").as_bytes(), 4).is_err());
     }
-
 }
