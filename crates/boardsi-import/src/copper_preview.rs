@@ -399,8 +399,8 @@ mod tests {
     #[test]
     fn accepts_explicit_combined_rectangle_cutout_with_canonical_provenance() {
         let source=SAMPLE.replace("1 1 0 GND","2 1 0 GND")
-            .replace("0 20\\n0 0\\n*END*",
-                     "0 20\\n0 0\\nCOPCUT 5 0.01 0 2\\n2 2\\n4 2\\n4 6\\n2 6\\n2 2\\n*END*");
+            .replace("0 20\n0 0\n*END*",
+                     "0 20\n0 0\nCOPCUT 5 0.01 0 2\n2 2\n4 2\n4 6\n2 6\n2 2\n*END*");
         let a=parse(source.as_bytes(),4).unwrap();
         assert_eq!(a.len(),1);
         assert_eq!(a[0].cutouts.len(),1);
@@ -411,11 +411,11 @@ mod tests {
     #[test]
     fn refuses_wrong_owner_layer_and_touching_holes() {
         let source=SAMPLE.replace("1 1 0 GND","2 1 0 GND")
-            .replace("0 20\\n0 0\\n*END*",
-                     "0 20\\n0 0\\nCOPCUT 5 0.01 0 2\\n2 2\\n4 2\\n4 6\\n2 6\\n2 2\\n*END*");
+            .replace("0 20\n0 0\n*END*",
+                     "0 20\n0 0\nCOPCUT 5 0.01 0 2\n2 2\n4 2\n4 6\n2 6\n2 2\n*END*");
         assert!(parse(source.replace("COPCUT 5 0.01 0 2","COPCUT 5 0.01 0 1").as_bytes(),4).is_err());
-        assert!(parse(source.replace("2 2\\n4 2\\n4 6\\n2 6\\n2 2",
-                                    "0 2\\n4 2\\n4 6\\n0 6\\n0 2").as_bytes(),4).is_err());
+        assert!(parse(source.replace("2 2\n4 2\n4 6\n2 6\n2 2",
+                                    "0 2\n4 2\n4 6\n0 6\n0 2").as_bytes(),4).is_err());
         assert!(parse(source.replace("COPCUT 5 0.01 0 2","COPCCO 5 0.01 0 2").as_bytes(),4).is_err());
     }
     #[test]
