@@ -1748,7 +1748,7 @@ static int runRhiGeometrySmoke() {
 // CPU even-odd hollow path, RHI exact hollow pick, layers/cleanup.
 static int runCutoutSmoke(PreviewWindow &window,const QString &fixture) {
     bool pass=false,loaded=false,hollow=false,properties=false,filtered=false;
-    bool malformed=false,reset=false,rhiPick=false;
+    bool malformed=false,reset=false,rhiPick=false,rhiFrame=false;
     QString failure;
     if(!window.openCandidate(fixture))failure="A023 fixture unavailable";
     else {
@@ -1760,6 +1760,20 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture) {
             }
             if(!state.startsWith("PARTIAL"))return;
             auto *panel=window.importPanel()->imported();
+#ifdef BOARDSI_RHI_ARTWORK
+            // Qt Quick source frame must have been presented for THIS import;
+            // a stale RHI instance can survive a CPU fallback.
+            auto *nativeRhi=panel->rhiViewForTest();
+            if(!nativeRhi || !panel->rhiCanvasActiveForTest() || nativeRhi->failed()) {
+                failure="A023 RHI unavailable / CPU fallback / NOT_RUN";
+                loop.quit();return;
+            }
+            if(!nativeRhi->status().startsWith("RHI_FRAME_"))return;
+            rhiFrame=true;
+#else
+            failure="A023 CPU-only build / imported RHI frame NOT_RUN";
+            loop.quit();return;
+#endif
             loaded=panel->copperCount()==1 && state.contains("1 filled source copper areas");
             properties=panel->selectCopper(0) &&
                 window.displayedProperties().contains("COPPER COP_HOLE") &&
@@ -1805,7 +1819,7 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture) {
 #endif
             panel->clearArtwork();
             reset=panel->copperCount()==0;
-            pass=loaded&&hollow&&properties&&filtered&&malformed&&reset&&rhiPick;
+            pass=loaded&&hollow&&properties&&filtered&&malformed&&reset&&rhiFrame&&rhiPick;
             if(!pass)failure="A023 hollow copper source, CPU/RHI, filter or decoder mismatch";
             loop.quit();
         });
@@ -1818,7 +1832,7 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture) {
         {"pass",pass},{"fixture_import",loaded},{"cpu_hollow_fill",hollow},
         {"source_properties",properties},{"layer_filter",filtered},
         {"malformed_rejected",malformed},{"clear_resets",reset},
-        {"rhi_hole_pick",rhiPick},
+        {"rhi_hole_pick",rhiPick},{"rhi_imported_frame_confirmed",rhiFrame},
         {"physical_copper","NOT_VERIFIED"},{"physical_si","NOT_RUN"},{"failure",failure}
     };
     QFile output("qt-preview-a023-cutout-results.json");
