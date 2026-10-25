@@ -986,20 +986,33 @@ public:
         }
         return copperIndexAt(centroid)==index;
     }
-    // A_023 negative pick test: hole centre is not rendered copper.
+    // A_024: search an exact source-grid cell within an authored void.
+    // The old hole-bounding-box centre is not necessarily inside an L-hole.
     bool rejectCopperHolePickForTest(int index) const {
         if(index<0 || index>=static_cast<int>(copper_.size()))return false;
         const auto &c=copper_[static_cast<size_t>(index)];
         if(c.cutouts.empty())return false;
         const auto &h=c.cutouts.front();
-        if(h.size()!=5)return false;
-        qint64 x0=h[0].first,x1=x0,y0=h[0].second,y1=y0;
-        for(const auto &p:h) {
-            x0=std::min(x0,p.first);x1=std::max(x1,p.first);
-            y0=std::min(y0,p.second);y1=std::max(y1,p.second);
+        std::vector<qint64> xx,yy;
+        for(const auto &p:h){xx.push_back(p.first);yy.push_back(p.second);}
+        std::sort(xx.begin(),xx.end());xx.erase(std::unique(xx.begin(),xx.end()),xx.end());
+        std::sort(yy.begin(),yy.end());yy.erase(std::unique(yy.begin(),yy.end()),yy.end());
+        for(size_t i=1;i<xx.size();++i)for(size_t j=1;j<yy.size();++j) {
+            const qint64 x=xx[i-1]+(xx[i]-xx[i-1])/2;
+            const qint64 y=yy[j-1]+(yy[j]-yy[j-1])/2;
+            bool inside=false;
+            for(size_t k=1;k<h.size();++k) {
+                const auto &p=h[k-1],&q=h[k];
+                if(p.first==q.first &&
+                    y>=std::min(p.second,q.second) &&
+                    y<std::max(p.second,q.second) && x<p.first)inside=!inside;
+            }
+            if(inside)return copperIndexAt(pixel(world(x,y)))==-1;
         }
-        const qint64 x=x0+(x1-x0)/2,y=y0+(y1-y0)/2;
-        return copperIndexAt(pixel(world(x,y)))==-1;
+        return false;
+    }
+    bool rejectCopperSourcePointForTest(qint64 x_nm,qint64 y_nm) const {
+        return copperIndexAt(pixel(world(x_nm,y_nm)))==-1;
     }
     int outlineCountForTest() const { return static_cast<int>(outlineEdges_.size()); }
     int circleCountForTest() const { return static_cast<int>(circles_.size()); }
