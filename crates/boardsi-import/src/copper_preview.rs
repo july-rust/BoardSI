@@ -618,6 +618,15 @@ mod tests {
         .is_err());
     }
     #[test]
+    fn a026_circular_void_stays_fail_closed_until_qt_parity_is_proven() {
+        let source = include_bytes!("../tests/fixtures/pads_copper_circular_void_v94.asc");
+        assert_eq!(parse(source, 4), Err("UNSUPPORTED_COPPER_CUTOUT_PIECE"));
+        // A mistaken owner piece count must not paint filled copper over a void.
+        let understated = String::from_utf8_lossy(source)
+            .replace("COP_CIRC COPPER 50 50 4 1", "COP_CIRC COPPER 50 50 1 1");
+        assert!(parse(understated.as_bytes(), 4).is_err());
+    }
+    #[test]
     fn rejects_range_truncation_duplicate_and_end() {
         assert!(parse(SAMPLE.as_bytes(), 1).is_err());
         assert!(parse(SAMPLE.replace("10 0", "10.001 0").as_bytes(), 4).is_err());
