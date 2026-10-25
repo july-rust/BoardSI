@@ -324,6 +324,16 @@ class BoardSiRhiItem final : public QQuickItem {
                    c.radius_nm/1e6*scaleFactor()) return static_cast<int>(i-1);
                 continue;
             }
+            for(const auto &tri:c.hollowTriangles) {
+                const auto point=[&](std::pair<qint64,qint64> p) {
+                    return pixel(world(p.first,p.second));
+                };
+                const QPointF a=point(tri[0]),b=point(tri[1]),p2=point(tri[2]);
+                const auto x=side(a,b,pos),y=side(b,p2,pos),z=side(p2,a,pos);
+                if((x>=0 && y>=0 && z>=0)||(x<=0 && y<=0 && z<=0))
+                    return static_cast<int>(i-1);
+            }
+            if(!c.hollowTriangles.empty())continue;
             for(const auto &indices:c.triangles) {
                 const auto point=[&](int n) {
                     auto p=c.ring[static_cast<size_t>(n)];
@@ -511,6 +521,17 @@ protected:
                     std::ceil(3.14159265358979323846 *
                               std::sqrt(std::max<qreal>(1,radius)))),24,256);
                 disk(v,center,radius,steps);
+            } else if(!c.hollowTriangles.empty()) {
+                for(const auto &tri:c.hollowTriangles) {
+                    auto point=[&](std::pair<qint64,qint64> p) {
+                        return pixel(world(p.first,p.second));
+                    };
+                    const auto a=point(tri[0]),b=point(tri[1]),p2=point(tri[2]);
+                    if(QRectF(a,b).normalized().united(QRectF(b,p2).normalized())
+                        .united(QRectF(p2,a).normalized())
+                        .intersects(QRectF(0,0,width(),height())))
+                        triangle(v,a,b,p2);
+                }
             } else {
                 for(const auto &tri:c.triangles) {
                     auto point=[&](int n){
@@ -949,7 +970,13 @@ public:
         if(index<0 || index>=static_cast<int>(copper_.size())) return false;
         const auto &c=copper_[static_cast<size_t>(index)];
         if(c.circle) return copperIndexAt(pixel(world(c.cx_nm,c.cy_nm)))==index;
-        // Test the centroid of an actual emitted triangle, not the bounding box.
+        // Test centroid of an actually filled triangle, excluding hollow voids.
+        if(!c.hollowTriangles.empty()) {
+            const auto &t=c.hollowTriangles.front();
+            QPointF centroid;
+            for(const auto &p:t)centroid+=pixel(world(p.first,p.second))/3.0;
+            return copperIndexAt(centroid)==index;
+        }
         if(c.triangles.empty()) return false;
         const auto &t=c.triangles.front();
         QPointF centroid;
