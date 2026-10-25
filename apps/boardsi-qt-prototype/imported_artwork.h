@@ -178,7 +178,7 @@ inline bool validateCopperArea(ImportedCopperArea &a) {
             }
         std::vector<qint64> xx,yy;
         auto collect=[&](const std::vector<P>&ring) {
-            for(P p:ring){xx.push_back(p.first);yy.push_back(p.second);}
+            for(const P &p:ring){xx.push_back(p.first);yy.push_back(p.second);}
         };
         collect(a.ring);
         for(const auto &hole:a.cutouts)collect(hole);
