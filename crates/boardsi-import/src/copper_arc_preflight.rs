@@ -19,25 +19,29 @@ pub struct CurvedCopperCandidate {
 }
 
 fn area2(ring: &[[i64; 2]]) -> i128 {
-    ring.windows(2).map(|p| {
-        i128::from(p[0][0]) * i128::from(p[1][1])
-            - i128::from(p[1][0]) * i128::from(p[0][1])
-    }).sum()
+    ring.windows(2)
+        .map(|p| {
+            i128::from(p[0][0]) * i128::from(p[1][1]) - i128::from(p[1][0]) * i128::from(p[0][1])
+        })
+        .sum()
 }
 
 fn cross(a: [i64; 2], b: [i64; 2], c: [i64; 2]) -> i128 {
     let x = i128::from(b[0]) - i128::from(a[0]);
     let y = i128::from(b[1]) - i128::from(a[1]);
-    x * (i128::from(c[1]) - i128::from(b[1]))
-      - y * (i128::from(c[0]) - i128::from(b[0]))
+    x * (i128::from(c[1]) - i128::from(b[1])) - y * (i128::from(c[0]) - i128::from(b[0]))
 }
 
 fn convex_chords(ring: &[[i64; 2]]) -> bool {
-    if ring.len() < 4 || ring.first() != ring.last() { return false; }
+    if ring.len() < 4 || ring.first() != ring.last() {
+        return false;
+    }
     let winding = area2(ring).signum();
-    if winding == 0 { return false; }
-    let n = ring.len()-1;
-    (0..n).all(|i| cross(ring[i], ring[(i+1)%n], ring[(i+2)%n]) * winding >= 0)
+    if winding == 0 {
+        return false;
+    }
+    let n = ring.len() - 1;
+    (0..n).all(|i| cross(ring[i], ring[(i + 1) % n], ring[(i + 2) % n]) * winding >= 0)
 }
 
 /// Strict source-owned COPCLS candidate (no holes).
@@ -62,11 +66,15 @@ pub fn validate(
         if row.len() != 2 && row.len() != 8 {
             return Err("COPPER_ARC_ROW");
         }
-        let x = origin[0].checked_add(fixed(row[0])?)
-            .ok_or("COPPER_ARC_OVERFLOW").and_then(bounded)?;
-        let y = origin[1].checked_add(fixed(row[1])?)
-            .ok_or("COPPER_ARC_OVERFLOW").and_then(bounded)?;
-        vertices.push([x,y]);
+        let x = origin[0]
+            .checked_add(fixed(row[0])?)
+            .ok_or("COPPER_ARC_OVERFLOW")
+            .and_then(bounded)?;
+        let y = origin[1]
+            .checked_add(fixed(row[1])?)
+            .ok_or("COPPER_ARC_OVERFLOW")
+            .and_then(bounded)?;
+        vertices.push([x, y]);
     }
     if !convex_chords(&vertices) {
         return Err("COPPER_ARC_NONCONVEX");
@@ -77,20 +85,23 @@ pub fn validate(
     for (i, arc) in arcs.iter().enumerate() {
         match arc {
             None => {
-                segments.push(Segment::Line(vertices[i], vertices[i+1]));
-                display.push(vertices[i+1]);
+                segments.push(Segment::Line(vertices[i], vertices[i + 1]));
+                display.push(vertices[i + 1]);
             }
             Some(a) => {
                 // Outward convex arc: source winding and quarter sweep agree.
-                if a.clockwise == ccw { return Err("COPPER_ARC_NOT_OUTWARD"); }
-                let r = (a.start[0] - a.centre[0]).abs()
+                if a.clockwise == ccw {
+                    return Err("COPPER_ARC_NOT_OUTWARD");
+                }
+                let r = (a.start[0] - a.centre[0])
+                    .abs()
                     .max((a.start[1] - a.centre[1]).abs());
                 if r < MIN_ARC_RADIUS_TICKS {
                     return Err("COPPER_ARC_TOO_SMALL");
                 }
                 segments.push(Segment::Arc(*a));
-                let theta = ((a.start[1] - a.centre[1]) as f64)
-                    .atan2((a.start[0] - a.centre[0]) as f64);
+                let theta =
+                    ((a.start[1] - a.centre[1]) as f64).atan2((a.start[0] - a.centre[0]) as f64);
                 let signed_quarter = if a.clockwise {
                     -std::f64::consts::FRAC_PI_2
                 } else {
@@ -106,7 +117,7 @@ pub fn validate(
                         let y = a.centre[1] + (inner_r * angle.sin()).round() as i64;
                         let dx = i128::from(x) - i128::from(a.centre[0]);
                         let dy = i128::from(y) - i128::from(a.centre[1]);
-                        if dx*dx + dy*dy >= i128::from(r)*i128::from(r) {
+                        if dx * dx + dy * dy >= i128::from(r) * i128::from(r) {
                             return Err("COPPER_ARC_PROXY_OUTSIDE");
                         }
                         [bounded(x)?, bounded(y)?]
@@ -122,8 +133,8 @@ pub fn validate(
             return Err("COPPER_ARC_PROXY_LIMIT");
         }
     }
-    if !outline_topology::ring_valid(&segments) || !valid_ring(&display)
-        || !convex_chords(&display) {
+    if !outline_topology::ring_valid(&segments) || !valid_ring(&display) || !convex_chords(&display)
+    {
         return Err("COPPER_ARC_INVALID_TOPOLOGY");
     }
     // Conservative proxy radius: eight 11.25-degree chords per quarter arc.
@@ -143,16 +154,24 @@ mod tests {
         "100 0\n300 0 2700 900 200 0 400 200\n400 100\n400 200 0 900 200 100 400 300\n300 300\n100 300 900 900 0 100 200 300\n0 200\n0 100 1800 900 0 0 200 200\n100 0";
 
     fn check(source: &str) -> Result<CurvedCopperCandidate, &'static str> {
-        let rows: Vec<Vec<&str>> = source.lines()
-            .map(|line| line.split_ascii_whitespace().collect()).collect();
-        validate(&rows, [0,0])
+        let rows: Vec<Vec<&str>> = source
+            .lines()
+            .map(|line| line.split_ascii_whitespace().collect())
+            .collect();
+        validate(&rows, [0, 0])
     }
 
     #[test]
     fn rounded_rectangle_retains_four_exact_arcs_and_conservative_proxy() {
         let c = check(ROUNDED).unwrap();
         assert_eq!(c.source_segments.len(), 8);
-        assert_eq!(c.source_segments.iter().filter(|s| matches!(s, Segment::Arc(_))).count(), 4);
+        assert_eq!(
+            c.source_segments
+                .iter()
+                .filter(|s| matches!(s, Segment::Arc(_)))
+                .count(),
+            4
+        );
         assert_eq!(c.display_ring.len(), 37);
         assert_eq!(c.display_ring.first(), c.display_ring.last());
         assert!(valid_ring(&c.display_ring));
@@ -173,9 +192,13 @@ mod tests {
         assert!(check(&ROUNDED.replace("300 300\n100 300", "300 300\n100 -300")).is_err());
         assert!(check(&ROUNDED.replace("2700 900", "2700 -900")).is_err());
         assert!(validate(
-            &ROUNDED.lines().map(|row| row.split_ascii_whitespace().collect()).collect::<Vec<Vec<&str>>>(),
+            &ROUNDED
+                .lines()
+                .map(|row| row.split_ascii_whitespace().collect())
+                .collect::<Vec<Vec<&str>>>(),
             [5_590_000, 0]
-        ).is_err());
+        )
+        .is_err());
     }
 
     #[test]
