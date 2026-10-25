@@ -73,10 +73,11 @@ class PreviewImportPanel final : public QWidget {
         const bool p2g = header.size() == 3 && header[0] == "BOARDSI_P2G_PARTIAL_V6";
         const bool p2h = header.size() == 3 && header[0] == "BOARDSI_P2H_PARTIAL_V7";
         const bool p2q = header.size() == 3 && header[0] == "BOARDSI_P2Q_PARTIAL_V12";
+        const bool p2t = header.size() == 3 && header[0] == "BOARDSI_P2T_PARTIAL_V13";
         const bool p2n = header.size() == 3 &&
             (header[0] == "BOARDSI_P2N_PARTIAL_V11" || p2q);
         const bool p2m = header.size() == 3 &&
-            (header[0] == "BOARDSI_P2M_PARTIAL_V10" || p2n);
+            (header[0] == "BOARDSI_P2M_PARTIAL_V10" || p2n || p2t);
         const bool p2l = header.size() == 3 &&
             (header[0] == "BOARDSI_P2L_PARTIAL_V9" || p2m);
         const bool p2i = header.size() == 3 &&
@@ -235,13 +236,36 @@ class PreviewImportPanel final : public QWidget {
                        layerRecords==layers) {
                 ImportedCopperArea c;
                 c.circle=(parts[1]=="C");
-                if(!c.circle && parts[1]!="P") return false;
+                c.curved=(parts[1]=="R");
+                if(c.curved && !p2t)return false;
+                if(!c.circle && !c.curved && parts[1]!="P") return false;
                 c.layer=parts[2].toInt(&ok);
                 if(!ok || c.layer<1 || c.layer>layers) return false;
                 c.name=parts[3]; c.net=parts[4];
                 c.sourceLine=parts[5].toInt(&ok);
                 if(!ok || c.sourceLine<1 || coppers.size()>=64) return false;
-                if(c.circle) {
+                if(c.curved) {
+                    const int n=parts[6].toInt(&ok);
+                    if(!ok || n<3 || n>64 || parts.size()!=7+8*n)return false;
+                    for(int j=0;j<n;++j) {
+                        const int k=7+8*j;
+                        ImportedBoundarySegment e;
+                        e.isArc=parts[k]=="A";
+                        if(!e.isArc && parts[k]!="L")return false;
+                        qint64 *coordinates[]={&e.x0_nm,&e.y0_nm,&e.cx_nm,&e.cy_nm,
+                                               &e.x1_nm,&e.y1_nm};
+                        for(int x=0;x<6;++x) {
+                            *coordinates[x]=parts[k+x+1].toLongLong(&ok);
+                            if(!ok)return false;
+                        }
+                        if(parts[k+7]=="CW")e.clockwise=true;
+                        else if(parts[k+7]=="CCW")e.clockwise=false;
+                        else if(parts[k+7]=="-" && !e.isArc)e.clockwise=false;
+                        else return false;
+                        if(e.isArc && parts[k+7]=="-")return false;
+                        c.curvedSegments.push_back(e);
+                    }
+                } else if(c.circle) {
                     if(parts.size()!=9) return false;
                     c.cx_nm=parts[6].toLongLong(&ok);if(!ok)return false;
                     c.cy_nm=parts[7].toLongLong(&ok);if(!ok)return false;
@@ -332,7 +356,7 @@ class PreviewImportPanel final : public QWidget {
             } else if (parts[0] == "END" && i == lines.size()-1 &&
                        layerRecords == layers &&
                        (((p2c || p2d || p2e || p2f || p2g || p2h || p2i) &&
-                         parts.size() == (p2n ? 14 : (p2m ? 13 : (p2l ? 12 : (p2i ? 11 : (p2h ? 10 : (p2g ? 9 : (p2f ? 7 : 6)))))))) ||
+                         parts.size() == (p2t ? 14 : (p2n ? 14 : (p2m ? 13 : (p2l ? 12 : (p2i ? 11 : (p2h ? 10 : (p2g ? 9 : (p2f ? 7 : 6))))))))) ||
                         (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h && !p2i &&
                          parts.size() == 5))) {
                 const int count = parts[1].toInt(&ok);
@@ -378,8 +402,8 @@ class PreviewImportPanel final : public QWidget {
                                 return false;
                             const int arcCountB=parts[8].toInt(&ok);
                             if(!ok || (p2l ? arcCountB<0 : arcCountB<1) ||
-                               parts[p2n ? 12 : (p2m ? 11 : (p2l ? 10 : 9))]!="CANONICAL_PARTIAL" ||
-                               parts[p2n ? 13 : (p2m ? 12 : (p2l ? 11 : 10))]!="SI_NOT_RUN") return false;
+                               parts[p2t ? 12 : (p2n ? 12 : (p2m ? 11 : (p2l ? 10 : 9)))]!="CANONICAL_PARTIAL" ||
+                               parts[p2t ? 13 : (p2n ? 13 : (p2m ? 12 : (p2l ? 11 : 10)))]!="SI_NOT_RUN") return false;
                             if(p2l) {
                                 int unique=0;
                                 QString name;
@@ -392,6 +416,13 @@ class PreviewImportPanel final : public QWidget {
                             if(p2m && (coppers.empty() ||
                                parts[10].toInt(&ok)!=static_cast<int>(coppers.size()) || !ok))
                                 return false;
+                            if(p2t) {
+                                int curved=0;
+                                for(const auto &c:coppers)
+                                    if(c.curved)++curved;
+                                if(curved<1 || parts[11].toInt(&ok)!=curved || !ok)
+                                    return false;
+                            }
                             if(p2n) {
                                 int holes=0;
                                 for(auto &c:coppers) {
