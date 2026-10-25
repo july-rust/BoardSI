@@ -78,7 +78,7 @@ fn a030_cli_v14_carries_analytic_r_and_source_owned_h() {
     assert!(g.contains("|A|"));
     let h: Vec<_> = wire.lines().filter(|v| v.starts_with("H|")).collect();
     assert_eq!(h.len(), 1);
-    assert!(h[0].starts_with("H|0|5|38100|27940|63500|27940|"));
+    assert!(h[0].starts_with("H|0|5|3810000|2794000|6350000|2794000|"));
     let end = wire
         .lines()
         .find(|v| v.starts_with("END|"))
