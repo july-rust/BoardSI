@@ -2,7 +2,7 @@
 //! A_022 standalone COPCLS/COPCIR geometry remains backward compatible.
 //! This records explicit filled COPCLS/COPCIR only; it is not flood,
 //! electrical contact, physical stackup, or a verified fabricated conductor.
-use crate::outline_preview::{bounded, fixed, valid_ring};
+use crate::outline_preview::{bounded, fixed, orthogonal_copper_holes_valid, valid_ring};
 use std::collections::BTreeSet;
 
 const MAX_COPPER: usize = 64;
@@ -192,7 +192,7 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
                 .map_err(|_| "COPPER_CORNER_COUNT")?;
             if (piece[0] == "COPCIR" && n != 2)
                 || (piece[0] == "COPCLS" && !(4..=MAX_VERTICES).contains(&n))
-                || (piece[0] == "COPCUT" && n != 5)
+                || (piece[0] == "COPCUT" && !(5..=65).contains(&n))
             {
                 return Err("COPPER_CORNER_COUNT");
             }
@@ -242,9 +242,9 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
                 if !valid_ring(&vertices) {
                     return Err("INVALID_COPPER_RING");
                 }
-                if piece[0] == "COPCUT" && rectangle_bounds(&vertices).is_none() {
-                    return Err("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY");
-                }
+                // Exact closed rings are checked here; orthogonal topology,
+                // strictly interior ownership and grid complexity below.
+                // Diagonal/intersecting/hollow unsupported cases fail closed.
                 CopperGeometry::Polygon(vertices)
             };
             if part_index == 0 {
@@ -255,32 +255,21 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
         }
         let geometry = primary.ok_or("TRUNCATED_COPPER")?;
         if !cutouts.is_empty() {
-            // A_023: rectangular outer with disjoint, strictly-inside rectangles.
-            // Arbitrary polygon-with-holes triangulation is deferred.
+            // A_024: bounded source-authored simple orthogonal rings only.
+            // COPCCO/diagonals/arcs are intentionally unsupported; no flood.
             let outer = match &geometry {
-                CopperGeometry::Polygon(v) => {
-                    rectangle_bounds(v).ok_or("UNSUPPORTED_COPPER_HOLLOW_OUTER")?
-                }
+                CopperGeometry::Polygon(v) => v.as_slice(),
                 CopperGeometry::Circle { .. } => return Err("UNSUPPORTED_COPPER_HOLLOW_OUTER"),
             };
-            let mut accepted: Vec<[i64; 4]> = Vec::new();
-            for hole in &cutouts {
-                let h = match hole {
-                    CopperGeometry::Polygon(v) => {
-                        rectangle_bounds(v).ok_or("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY")?
-                    }
-                    CopperGeometry::Circle { .. } => return Err("UNSUPPORTED_COPPER_CUTOUT_PIECE"),
-                };
-                if h[0] <= outer[0] || h[1] <= outer[1] || h[2] >= outer[2] || h[3] >= outer[3] {
-                    return Err("COPPER_CUTOUT_NOT_INTERIOR");
-                }
-                if accepted
-                    .iter()
-                    .any(|p| h[0] <= p[2] && h[2] >= p[0] && h[1] <= p[3] && h[3] >= p[1])
-                {
-                    return Err("COPPER_CUTOUT_OVERLAP_OR_TOUCH");
-                }
-                accepted.push(h);
+            let holes: Vec<Vec<[i64; 2]>> = cutouts
+                .iter()
+                .map(|hole| match hole {
+                    CopperGeometry::Polygon(v) => Ok(v.clone()),
+                    CopperGeometry::Circle { .. } => Err("UNSUPPORTED_COPPER_CUTOUT_PIECE"),
+                })
+                .collect::<Result<_, _>>()?;
+            if !orthogonal_copper_holes_valid(outer, &holes) {
+                return Err("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY");
             }
         }
         found.push(CopperArea {
@@ -539,6 +528,44 @@ mod tests {
             let areas = parse(a.as_bytes(), 4).unwrap();
             assert_eq!(areas[0].name, name);
         }
+    }
+    #[test]
+    fn accepts_orthogonal_nonrectangular_copper_and_holes() {
+        let input = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*LINES*\nCOP_ORTHO COPPER 40 40 3 1 0 GND\nCOPCLS 7 0.01 0 1\n0 0\n120 0\n120 50\n90 50\n90 90\n0 90\n0 0\nCOPCUT 7 0.01 0 1\n20 20\n50 20\n50 30\n35 30\n35 45\n20 45\n20 20\nCOPCUT 5 0.01 0 1\n60 60\n80 60\n80 80\n60 80\n60 60\n*END*\n";
+        let areas = parse(input.as_bytes(), 4).unwrap();
+        assert_eq!(areas.len(), 1);
+        assert_eq!(areas[0].cutouts.len(), 2);
+        assert_eq!(areas[0].name, "COP_ORTHO");
+        assert_eq!(areas[0].net_label.as_deref(), Some("GND"));
+        // Every accepted area carries the exact source ring, not its box.
+        assert_eq!(
+            areas[0].geometry,
+            CopperGeometry::Polygon(vec![
+                [4000, 4000], [16000, 4000], [16000, 9000],
+                [13000, 9000], [13000, 13000], [4000, 13000], [4000, 4000]
+            ])
+        );
+        // Replace one orthogonal edge by a diagonal; fail closed.
+        assert!(parse(input.replace("90 50\n90 90", "90 50\n91 90").as_bytes(), 4).is_err());
+        // Declare fewer pieces than authored; never omit a hole silently.
+        assert!(parse(input.replace("40 40 3 1", "40 40 2 1").as_bytes(), 4).is_err());
+    }
+    #[test]
+    fn rejects_orthogonal_nested_touching_and_outside_holes() {
+        let base = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*LINES*\nA COPPER 0 0 3 1\nCOPCLS 5 0.01 0 1\n0 0\n100 0\n100 100\n0 100\n0 0\nCOPCUT 5 0.01 0 1\n20 20\n60 20\n60 60\n20 60\n20 20\nCOPCUT 5 0.01 0 1\n70 70\n80 70\n80 80\n70 80\n70 70\n*END*\n";
+        assert_eq!(parse(base.as_bytes(), 4).unwrap()[0].cutouts.len(), 2);
+        let nested = base.replace("70 70\n80 70\n80 80\n70 80\n70 70",
+                                  "30 30\n40 30\n40 40\n30 40\n30 30");
+        assert!(parse(nested.as_bytes(), 4).is_err());
+        let touching = base.replace("70 70\n80 70\n80 80\n70 80\n70 70",
+                                    "60 30\n80 30\n80 40\n60 40\n60 30");
+        assert!(parse(touching.as_bytes(), 4).is_err());
+        let outside = base.replace("70 70\n80 70\n80 80\n70 80\n70 70",
+                                   "95 70\n105 70\n105 80\n95 80\n95 70");
+        assert!(parse(outside.as_bytes(), 4).is_err());
+        let cross = base.replace("20 20\n60 20\n60 60\n20 60\n20 20",
+                                 "20 20\n60 60\n60 20\n20 60\n20 20");
+        assert!(parse(cross.as_bytes(), 4).is_err());
     }
     #[test]
     fn rejects_range_truncation_duplicate_and_end() {
