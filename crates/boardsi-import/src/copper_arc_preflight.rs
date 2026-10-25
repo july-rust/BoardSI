@@ -146,6 +146,167 @@ pub fn validate(
     })
 }
 
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CurvedSourceCopper {
+    pub name: String,
+    pub net_label: Option<String>, // Source label, NOT an electrical NetId.
+    pub source_line: usize,
+    pub layer: u32,
+    pub candidate: CurvedCopperCandidate,
+}
+
+/// Audit one bounded explicit source-owned PADS V9.4 COPCLS object.
+///
+/// Unlike containment heuristics, ownership is determined solely by a
+/// complete one-piece COPPER header and the immediately following COPCLS.
+/// Deliberately isolated from the production copper parser until the Qt
+/// transport and GPU are proven to consume the identical conservative mesh.
+pub fn inspect_owned_source(
+    bytes: &[u8],
+    max_layer: u32,
+) -> Result<CurvedSourceCopper, &'static str> {
+    if bytes.len() > crate::route_preview::MAX_FILE_BYTES {
+        return Err("INPUT_TOO_LARGE");
+    }
+    if !(1..=64).contains(&max_layer) {
+        return Err("COPPER_LAYER_RANGE");
+    }
+    let text = std::str::from_utf8(bytes).map_err(|_| "INVALID_COPPER_ENCODING")?;
+    let mut lines = text.lines();
+    let first = lines.next().ok_or("EMPTY_FILE")?;
+    if !matches!(
+        first.split_ascii_whitespace().next().unwrap_or(""),
+        "!PADS-POWERPCB-V9.4-MILS!"
+            | "!PADS-POWERPCB-V9.4-MILS-CP1252!"
+            | "!PADS-POWERPCB-V9.4-MILS-250L!"
+            | "!PADS-POWERPCB-V9.4-MILS-250L-CP1252!"
+    ) {
+        return Err("UNSUPPORTED_REVISION_OR_UNIT");
+    }
+    let mut in_lines = false;
+    let mut end = false;
+    let mut found = None;
+    // Enumerate from 2 since the first physical line is the PADS header.
+    let rows: Vec<&str> = lines.collect();
+    let mut i = 0;
+    while i < rows.len() {
+        let raw = rows[i];
+        if raw.len() > 16_384 {
+            return Err("OVERLONG_COPPER_LINE");
+        }
+        let p: Vec<&str> = raw.split_ascii_whitespace().collect();
+        if p.is_empty() || matches!(p[0], "REMARK" | "*REMARK*") {
+            i += 1;
+            continue;
+        }
+        if p[0] == "*END*" {
+            end = true;
+            break;
+        }
+        if p[0].starts_with('*') {
+            if p[0] == "*GET*" && in_lines {
+                return Err("UNSUPPORTED_COPPER_REUSE");
+            }
+            in_lines = p[0] == "*LINES*";
+            i += 1;
+            continue;
+        }
+        if !in_lines {
+            i += 1;
+            continue;
+        }
+        if p[0] == "COPCUT" || p[0] == "COPCCO"
+            || (p.len() >= 2 && p[1] == "COPCUT")
+        {
+            return Err("ORPHAN_COPPER_CUTOUT");
+        }
+        if p.len() < 2 || p[1] != "COPPER" {
+            i += 1;
+            continue;
+        }
+        if found.is_some()
+            || !matches!(p.len(), 6 | 8)
+            || p[0].is_empty()
+            || p[0].len() > 16
+            || !p[0].bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+            || p[4] != "1"
+            || p[5] != "1"
+            || (p.len() == 8
+                && (p[6] != "0" || p[7].is_empty() || p[7].len() > 47
+                    || !p[7].bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')))
+        {
+            return Err("UNSUPPORTED_CURVED_COPPER_OWNER");
+        }
+        let origin = [bounded(fixed(p[2])?)?, bounded(fixed(p[3])?)?];
+        let source_line = i + 2;
+        i += 1;
+        let piece: Vec<&str> = rows.get(i).ok_or("TRUNCATED_CURVED_COPPER")?
+            .split_ascii_whitespace().collect();
+        if piece.len() != 5 || piece[0] != "COPCLS"
+            || piece[3] != "0"
+            || !(1..=25_000).contains(&fixed(piece[2])?)
+        {
+            return Err("UNSUPPORTED_CURVED_COPPER_PIECE");
+        }
+        let count = piece[1].parse::<usize>().map_err(|_| "COPPER_CORNER_COUNT")?;
+        if !(4..=65).contains(&count) {
+            return Err("COPPER_ARC_ROW_LIMIT");
+        }
+        let layer = piece[4].parse::<u32>().map_err(|_| "COPPER_LAYER_RANGE")?;
+        if layer == 0 || layer > max_layer {
+            return Err("COPPER_LAYER_RANGE");
+        }
+        i += 1;
+        if rows.len() - i < count {
+            return Err("TRUNCATED_CURVED_COPPER");
+        }
+        let corners: Vec<Vec<&str>> = rows[i..i + count]
+            .iter().map(|row| row.split_ascii_whitespace().collect()).collect();
+        if !corners.iter().any(|row| row.len() == 8) {
+            return Err("COPPER_ARC_MISSING");
+        }
+        let candidate = validate(&corners, origin)?;
+        found = Some(CurvedSourceCopper {
+            name: p[0].to_owned(),
+            net_label: p.get(7).map(|s| (*s).to_owned()),
+            source_line,
+            layer,
+            candidate,
+        });
+        i += count;
+    }
+    if !end {
+        return Err("MISSING_END_MARKER");
+    }
+    found.ok_or("CURVED_COPPER_NOT_FOUND")
+}
+
+impl CurvedCopperCandidate {
+    /// Exact analytical preflight model. Never derives boundary geometry
+    /// from the proxy; may only enter production after full viewer gating.
+    pub fn analytical_boundary(&self, frame: &boardsi_model::ObjectId) -> boardsi_model::Boundary {
+        use boardsi_model::{Boundary, BoundarySegment, Point};
+        let pt = |ticks| Point {
+            frame: frame.clone(),
+            ticks,
+        };
+        let segments = self.source_segments.iter().map(|segment| match *segment {
+            Segment::Line(start, end) => BoundarySegment::Line {
+                start: pt(start),
+                end: pt(end),
+            },
+            Segment::Arc(a) => BoundarySegment::Arc {
+                centre: pt(a.centre),
+                start: pt(a.start),
+                end: pt(a.end),
+                clockwise: a.clockwise,
+            },
+        }).collect();
+        Boundary { segments }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,4 +369,45 @@ mod tests {
             "COPPER_ARC_MISSING"
         );
     }
+
+    #[test]
+    fn explicit_pads_owner_is_required_for_curved_candidate() {
+        let file = format!(
+            "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*LINES*\nCURVED COPPER 0 0 1 1 0 GND\nCOPCLS 9 0.01 0 2\n{}\n*END*\n",
+            ROUNDED
+        );
+        let obj = inspect_owned_source(file.as_bytes(), 4).unwrap();
+        assert_eq!(obj.name, "CURVED");
+        assert_eq!(obj.net_label.as_deref(), Some("GND"));
+        assert_eq!(obj.layer, 2);
+        assert_eq!(obj.source_line, 5);
+        assert_eq!(obj.candidate.source_segments.len(), 8);
+        assert!(inspect_owned_source(
+            file.replace("0 0 1 1 0 GND", "0 0 2 1 0 GND").as_bytes(), 4
+        ).is_err());
+        assert!(inspect_owned_source(
+            file.replace("COPCLS 9", "COPCUT 9").as_bytes(), 4
+        ).is_err());
+        assert!(inspect_owned_source(
+            file.replace("*END*", "COPCUT 5 0.01 0 2\n*END*").as_bytes(), 4
+        ).is_err());
+    }
+
+    #[test]
+    fn analytical_boundary_does_not_promote_visual_proxy_to_source_geometry() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0\n*END*\n";
+        let parsed = crate::route_preview::parse(source.as_bytes()).unwrap();
+        let board = crate::route_preview::into_canonical(source.as_bytes(), &parsed).unwrap();
+        let candidate = check(ROUNDED).unwrap();
+        let boundary = candidate.analytical_boundary(&board.frames[0].meta.id);
+        assert_eq!(boundary.segments.len(), 8);
+        assert_eq!(
+            boundary.segments.iter()
+                .filter(|s| matches!(s, boardsi_model::BoundarySegment::Arc { .. }))
+                .count(),
+            4
+        );
+        assert_ne!(boundary.segments.len(), candidate.display_ring.len() - 1);
+    }
+
 }
