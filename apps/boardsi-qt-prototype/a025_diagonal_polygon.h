@@ -50,13 +50,6 @@ inline bool inside(P numerator,qint64 den,const Ring &r) {
         if(on(x,y,numerator))return false; // boundary is never interior
         if((x.second>numerator.second)!=(y.second>numerator.second)) {
             const qint64 side=cross(x,y,numerator);
-            if((side>0)==(y.second>x.second?true:false)) {
-                // The comparison above intentionally uses y.second only:
-                // replace by normal ray rule directly below.
-            }
-            if((side>0)==(y.second>x.second?false:true)) {
-                // no-op (kept out of the area predicate)
-            }
             if((side>0)==(y.second>x.second))found=!found;
         }
     }
@@ -231,10 +224,8 @@ inline bool triangulate(ImportedCopperArea &src) {
         // No proper crossing of any source-authored contour edge.
         for(size_t k=0;k<3;++k) {
             const P x=t[k],y=t[(k+1)%3];
-            for(const Ring *r : std::vector<const Ring*>{&outer}) {
-                for(size_t j=0;j<r->size();++j)
-                    if(properCross(x,y,(*r)[j],(*r)[(j+1)%r->size()]))return false;
-            }
+            for(size_t j=0;j<outer.size();++j)
+                if(properCross(x,y,outer[j],outer[(j+1)%outer.size()]))return false;
             for(const Ring &r:holes)
                 for(size_t j=0;j<r.size();++j)
                     if(properCross(x,y,r[j],r[(j+1)%r.size()]))return false;
