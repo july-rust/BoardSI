@@ -91,6 +91,7 @@ struct ImportedCopperArea {
 #include "a025_diagonal_polygon.h"
 #include "a026_circular_copper.h"
 #include "a029_curved_copper.h"
+#include "a030_curved_cutout.h"
 inline bool validateCopperArea(ImportedCopperArea &a) {
     constexpr qint64 bound=1422400000LL;
     if(a.layer<1 || a.layer>64 || a.sourceLine<=0 ||
@@ -99,7 +100,7 @@ inline bool validateCopperArea(ImportedCopperArea &a) {
     auto coord=[&](qint64 v) {return v%254==0 && v>=-bound && v<=bound;};
     a.triangles.clear();
     a.hollowTriangles.clear();
-    if(a.curved)return a029::validate(a);
+    if(a.curved)return a.cutouts.empty() ? a029::validate(a) : a030::triangulate(a);
     if(a.circle) {
         // A_027: V12 preserves COPCIR/COPCCO analytic circles while the
         // display-only hollow mesh must conservatively fit source geometry.
