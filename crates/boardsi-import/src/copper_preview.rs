@@ -291,7 +291,7 @@ fn parse_impl(
             if !circles.is_empty() {
                 let total = match &geometry {
                     CopperGeometry::Polygon(outer) => outer.len(),
-                    CopperGeometry::Circle { .. } => 0,
+                    CopperGeometry::Circle { .. } => 33,
                 } + polygons.iter().map(Vec::len).sum::<usize>()
                     + circles.len() * 33;
                 if total > 128 {
@@ -336,8 +336,26 @@ fn parse_impl(
                     }
                 }
                 CopperGeometry::Circle { centre, radius } => {
+                    // A_028: a closed, simple, same-owner COPCUT polygon is
+                    // strictly enclosed when every vertex lies within the
+                    // analytic circle. Disjointness is independently proven.
                     if !polygons.is_empty() {
-                        return Err("UNSUPPORTED_COPPER_HOLLOW_OUTER");
+                        crate::polygon_topology::validate_disjoint_polygon_holes(&polygons)
+                            .map_err(|_| "UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY")?;
+                        for hole in &polygons {
+                            if !crate::circle_cutout_topology::polygon_strictly_in_circle(
+                                hole, *centre, *radius,
+                            ) {
+                                return Err("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY");
+                            }
+                            for &(c, r) in &circles {
+                                if !crate::circle_cutout_topology::circle_strictly_disjoint_from_polygon(
+                                    hole, c, r,
+                                ) {
+                                    return Err("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY");
+                                }
+                            }
+                        }
                     }
                     for &(c, r) in &circles {
                         if !crate::circle_cutout_topology::circle_strictly_in_circle(
