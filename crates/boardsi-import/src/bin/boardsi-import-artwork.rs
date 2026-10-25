@@ -56,11 +56,16 @@ fn run() -> Result<(), &'static str> {
         .count();
     if curved_count > 0
         && coppers.iter().any(|c| {
-            c.cutouts
-                .iter()
-                .any(|h| matches!(h, copper_preview::CopperGeometry::Circle { .. }))
+            (!c.cutouts.is_empty()
+                && !matches!(c.geometry, copper_preview::CopperGeometry::Curved { .. }))
+                || c.cutouts
+                    .iter()
+                    .any(|h| matches!(h, copper_preview::CopperGeometry::Circle { .. }))
         })
     {
+        // V13 cannot carry any H record and V14 is narrowly scoped to a
+        // curved owner's own single convex COPCUT. Reject independent holes
+        // instead of emitting a mixed-version wire Qt cannot decode.
         return Err("UNSUPPORTED_CURVED_COMBINED_COPPER");
     }
     let mode = if curved_holes > 0 {
