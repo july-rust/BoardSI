@@ -1,4 +1,4 @@
-//! A_023 P2-N: bounded *LINES* explicitly combined rectangular COPCUT holes.
+//! A_025 P2-P: bounded *LINES* explicit source-owned straight polygon COPCUT holes.
 //! A_022 standalone COPCLS/COPCIR geometry remains backward compatible.
 //! This records explicit filled COPCLS/COPCIR only; it is not flood,
 //! electrical contact, physical stackup, or a verified fabricated conductor.
@@ -192,7 +192,7 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
                 .map_err(|_| "COPPER_CORNER_COUNT")?;
             if (piece[0] == "COPCIR" && n != 2)
                 || (piece[0] == "COPCLS" && !(4..=MAX_VERTICES).contains(&n))
-                || (piece[0] == "COPCUT" && !(5..=65).contains(&n))
+                || (piece[0] == "COPCUT" && !(4..=65).contains(&n))
             {
                 return Err("COPPER_CORNER_COUNT");
             }
@@ -268,7 +268,19 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
                     CopperGeometry::Circle { .. } => Err("UNSUPPORTED_COPPER_CUTOUT_PIECE"),
                 })
                 .collect::<Result<_, _>>()?;
-            if !orthogonal_copper_holes_valid(outer, &holes) {
+            let diagonal = std::iter::once(outer)
+                .chain(holes.iter().map(Vec::as_slice))
+                .any(|ring| {
+                    ring.windows(2).any(|e| {
+                        e[0][0] != e[1][0] && e[0][1] != e[1][1]
+                    })
+                });
+            if diagonal {
+                // V11 stores unchanged source vertices. Qt independently
+                // triangulates and checks the mesh, never guess a copper fill.
+                crate::polygon_topology::validate_polygon_with_holes(outer, &holes)
+                    .map_err(|_| "UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY")?;
+            } else if !orthogonal_copper_holes_valid(outer, &holes) {
                 return Err("UNSUPPORTED_COPPER_CUTOUT_TOPOLOGY");
             }
         }
@@ -386,7 +398,7 @@ pub fn augment(
                             ),
                             provenance: GeometryProvenance {
                                 source_object_type:
-                                    "PADS V9.4 MILS same-COPPER COPCUT rectangular source void"
+                                    "PADS V9.4 MILS same-COPPER COPCUT bounded straight polygonal source void"
                                         .into(),
                                 history: vec![],
                             },
@@ -406,7 +418,7 @@ pub fn augment(
         });
     }
     board.sources[0].capability.object_coverage.push(
-        "PADS source COPCLS/COPCIR plus strictly bounded combined rectangular COPCUT; net/contact NOT_VERIFIED".into(),
+        "PADS source COPCLS/COPCIR plus strictly bounded combined polygonal COPCUT; net/contact NOT_VERIFIED".into(),
     );
     Ok(())
 }
@@ -579,6 +591,22 @@ mod tests {
             "20 20\n60 60\n60 20\n20 60\n20 20",
         );
         assert!(parse(cross.as_bytes(), 4).is_err());
+    }
+    #[test]
+    fn a025_diagonal_source_preserves_vertices_and_rejects_touching() {
+        let asc = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*LINES*\nDIA COPPER 0 0 2 1 0 GND\nCOPCLS 5 0.01 0 1\n0 0\n120 0\n110 90\n0 90\n0 0\nCOPCUT 4 0.01 0 1\n30 20\n50 20\n40 40\n30 20\n*END*\n";
+        let v = parse(asc.as_bytes(), 4).unwrap();
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].cutouts.len(), 1);
+        let outer = match &v[0].geometry {
+            CopperGeometry::Polygon(p) => p,
+            _ => panic!("polygon expected"),
+        };
+        assert_eq!(outer[2], [11000, 9000]);
+        assert_eq!(v[0].net_label.as_deref(), Some("GND"));
+        assert!(parse(asc.replace("30 20\\n50 20\\n40 40\\n30 20",
+             "0 20\\n50 20\\n40 40\\n0 20").as_bytes(), 4).is_err());
+        assert!(parse(asc.replace("DIA COPPER 0 0 2 1", "DIA COPPER 0 0 1 1").as_bytes(), 4).is_err());
     }
     #[test]
     fn rejects_range_truncation_duplicate_and_end() {
