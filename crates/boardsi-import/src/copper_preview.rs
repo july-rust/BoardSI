@@ -1031,8 +1031,12 @@ mod tests {
         assert_eq!(board.areas[0].cutouts.len(), 0);
         assert!(board.areas[0].net.is_none());
         assert_eq!(
-            board.areas[0].outer.segments.iter()
-                .filter(|s| matches!(s, boardsi_model::BoundarySegment::Arc { .. })).count(),
+            board.areas[0]
+                .outer
+                .segments
+                .iter()
+                .filter(|s| matches!(s, boardsi_model::BoundarySegment::Arc { .. }))
+                .count(),
             4
         );
         assert!(!board.validate().has_errors());
