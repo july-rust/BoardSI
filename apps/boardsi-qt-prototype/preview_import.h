@@ -72,7 +72,9 @@ class PreviewImportPanel final : public QWidget {
         bool ok = false;
         const bool p2g = header.size() == 3 && header[0] == "BOARDSI_P2G_PARTIAL_V6";
         const bool p2h = header.size() == 3 && header[0] == "BOARDSI_P2H_PARTIAL_V7";
-        const bool p2m = header.size() == 3 && header[0] == "BOARDSI_P2M_PARTIAL_V10";
+        const bool p2n = header.size() == 3 && header[0] == "BOARDSI_P2N_PARTIAL_V11";
+        const bool p2m = header.size() == 3 &&
+            (header[0] == "BOARDSI_P2M_PARTIAL_V10" || p2n);
         const bool p2l = header.size() == 3 &&
             (header[0] == "BOARDSI_P2L_PARTIAL_V9" || p2m);
         const bool p2i = header.size() == 3 &&
@@ -254,6 +256,22 @@ class PreviewImportPanel final : public QWidget {
                 if(!validateCopperArea(c)) return false;
                 for(const auto &old:coppers) if(old.name==c.name) return false;
                 coppers.push_back(std::move(c));
+            } else if (p2n && parts.size()>=13 && parts[0]=="H" &&
+                       layerRecords==layers) {
+                // V11 H is a source-authored rectangular void, indexed to G.
+                // Never spatially infer ownership of standalone COPCUT.
+                const int id=parts[1].toInt(&ok);
+                if(!ok || id<0 || id>=static_cast<int>(coppers.size())) return false;
+                const int n=parts[2].toInt(&ok);
+                if(!ok || n!=5 || parts.size()!=3+2*n ||
+                   coppers[static_cast<size_t>(id)].cutouts.size()>=8) return false;
+                std::vector<std::pair<qint64,qint64>> hole;
+                for(int j=0;j<n;++j) {
+                    const qint64 x=parts[3+2*j].toLongLong(&ok);if(!ok)return false;
+                    const qint64 y=parts[4+2*j].toLongLong(&ok);if(!ok)return false;
+                    hole.push_back({x,y});
+                }
+                coppers[static_cast<size_t>(id)].cutouts.push_back(std::move(hole));
             } else if (parts.size() == 9 && parts[0] == "V" && layerRecords == layers) {
                 ImportedVia via;
                 via.net = parts[1];
@@ -297,7 +315,7 @@ class PreviewImportPanel final : public QWidget {
             } else if (parts[0] == "END" && i == lines.size()-1 &&
                        layerRecords == layers &&
                        (((p2c || p2d || p2e || p2f || p2g || p2h || p2i) &&
-                         parts.size() == (p2m ? 13 : (p2l ? 12 : (p2i ? 11 : (p2h ? 10 : (p2g ? 9 : (p2f ? 7 : 6))))))) ||
+                         parts.size() == (p2n ? 14 : (p2m ? 13 : (p2l ? 12 : (p2i ? 11 : (p2h ? 10 : (p2g ? 9 : (p2f ? 7 : 6)))))))) ||
                         (!p2c && !p2d && !p2e && !p2f && !p2g && !p2h && !p2i &&
                          parts.size() == 5))) {
                 const int count = parts[1].toInt(&ok);
@@ -343,8 +361,8 @@ class PreviewImportPanel final : public QWidget {
                                 return false;
                             const int arcCountB=parts[8].toInt(&ok);
                             if(!ok || (p2l ? arcCountB<0 : arcCountB<1) ||
-                               parts[p2m ? 11 : (p2l ? 10 : 9)]!="CANONICAL_PARTIAL" ||
-                               parts[p2m ? 12 : (p2l ? 11 : 10)]!="SI_NOT_RUN") return false;
+                               parts[p2n ? 12 : (p2m ? 11 : (p2l ? 10 : 9))]!="CANONICAL_PARTIAL" ||
+                               parts[p2n ? 13 : (p2m ? 12 : (p2l ? 11 : 10))]!="SI_NOT_RUN") return false;
                             if(p2l) {
                                 int unique=0;
                                 QString name;
@@ -357,6 +375,14 @@ class PreviewImportPanel final : public QWidget {
                             if(p2m && (coppers.empty() ||
                                parts[10].toInt(&ok)!=static_cast<int>(coppers.size()) || !ok))
                                 return false;
+                            if(p2n) {
+                                int holes=0;
+                                for(auto &c:coppers) {
+                                    if(!validateCopperArea(c))return false;
+                                    holes+=static_cast<int>(c.cutouts.size());
+                                }
+                                if(holes<1 || parts[11].toInt(&ok)!=holes || !ok) return false;
+                            }
                             int countB=0;
                             for(const auto &b : boundary) if(b.isArc) ++countB;
                             if(countB!=arcCountB) return false;
