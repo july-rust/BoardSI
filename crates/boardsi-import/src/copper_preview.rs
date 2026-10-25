@@ -223,7 +223,7 @@ pub fn parse(bytes: &[u8], max_layer: u32) -> Result<Vec<CopperArea>, &'static s
         found.push(CopperArea {
             name,
             net_label,
-            layer,
+            layer: parent_layer,
             source_line,
             geometry,
             cutouts,
