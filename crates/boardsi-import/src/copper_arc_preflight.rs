@@ -146,7 +146,6 @@ pub fn validate(
     })
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CurvedSourceCopper {
     pub name: String,
@@ -216,9 +215,7 @@ pub fn inspect_owned_source(
             i += 1;
             continue;
         }
-        if p[0] == "COPCUT" || p[0] == "COPCCO"
-            || (p.len() >= 2 && p[1] == "COPCUT")
-        {
+        if p[0] == "COPCUT" || p[0] == "COPCCO" || (p.len() >= 2 && p[1] == "COPCUT") {
             return Err("ORPHAN_COPPER_CUTOUT");
         }
         if p.len() < 2 || p[1] != "COPPER" {
@@ -233,7 +230,9 @@ pub fn inspect_owned_source(
             || p[4] != "1"
             || p[5] != "1"
             || (p.len() == 8
-                && (p[6] != "0" || p[7].is_empty() || p[7].len() > 47
+                && (p[6] != "0"
+                    || p[7].is_empty()
+                    || p[7].len() > 47
                     || !p[7].bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')))
         {
             return Err("UNSUPPORTED_CURVED_COPPER_OWNER");
@@ -241,15 +240,21 @@ pub fn inspect_owned_source(
         let origin = [bounded(fixed(p[2])?)?, bounded(fixed(p[3])?)?];
         let source_line = i + 2;
         i += 1;
-        let piece: Vec<&str> = rows.get(i).ok_or("TRUNCATED_CURVED_COPPER")?
-            .split_ascii_whitespace().collect();
-        if piece.len() != 5 || piece[0] != "COPCLS"
+        let piece: Vec<&str> = rows
+            .get(i)
+            .ok_or("TRUNCATED_CURVED_COPPER")?
+            .split_ascii_whitespace()
+            .collect();
+        if piece.len() != 5
+            || piece[0] != "COPCLS"
             || piece[3] != "0"
             || !(1..=25_000).contains(&fixed(piece[2])?)
         {
             return Err("UNSUPPORTED_CURVED_COPPER_PIECE");
         }
-        let count = piece[1].parse::<usize>().map_err(|_| "COPPER_CORNER_COUNT")?;
+        let count = piece[1]
+            .parse::<usize>()
+            .map_err(|_| "COPPER_CORNER_COUNT")?;
         if !(4..=65).contains(&count) {
             return Err("COPPER_ARC_ROW_LIMIT");
         }
@@ -262,7 +267,9 @@ pub fn inspect_owned_source(
             return Err("TRUNCATED_CURVED_COPPER");
         }
         let corners: Vec<Vec<&str>> = rows[i..i + count]
-            .iter().map(|row| row.split_ascii_whitespace().collect()).collect();
+            .iter()
+            .map(|row| row.split_ascii_whitespace().collect())
+            .collect();
         if !corners.iter().any(|row| row.len() == 8) {
             return Err("COPPER_ARC_MISSING");
         }
@@ -291,18 +298,22 @@ impl CurvedCopperCandidate {
             frame: frame.clone(),
             ticks,
         };
-        let segments = self.source_segments.iter().map(|segment| match *segment {
-            Segment::Line(start, end) => BoundarySegment::Line {
-                start: pt(start),
-                end: pt(end),
-            },
-            Segment::Arc(a) => BoundarySegment::Arc {
-                centre: pt(a.centre),
-                start: pt(a.start),
-                end: pt(a.end),
-                clockwise: a.clockwise,
-            },
-        }).collect();
+        let segments = self
+            .source_segments
+            .iter()
+            .map(|segment| match *segment {
+                Segment::Line(start, end) => BoundarySegment::Line {
+                    start: pt(start),
+                    end: pt(end),
+                },
+                Segment::Arc(a) => BoundarySegment::Arc {
+                    centre: pt(a.centre),
+                    start: pt(a.start),
+                    end: pt(a.end),
+                    clockwise: a.clockwise,
+                },
+            })
+            .collect();
         Boundary { segments }
     }
 }
@@ -382,15 +393,16 @@ mod tests {
         assert_eq!(obj.layer, 2);
         assert_eq!(obj.source_line, 5);
         assert_eq!(obj.candidate.source_segments.len(), 8);
+        assert!(
+            inspect_owned_source(file.replace("0 0 1 1 0 GND", "0 0 2 1 0 GND").as_bytes(), 4)
+                .is_err()
+        );
+        assert!(inspect_owned_source(file.replace("COPCLS 9", "COPCUT 9").as_bytes(), 4).is_err());
         assert!(inspect_owned_source(
-            file.replace("0 0 1 1 0 GND", "0 0 2 1 0 GND").as_bytes(), 4
-        ).is_err());
-        assert!(inspect_owned_source(
-            file.replace("COPCLS 9", "COPCUT 9").as_bytes(), 4
-        ).is_err());
-        assert!(inspect_owned_source(
-            file.replace("*END*", "COPCUT 5 0.01 0 2\n*END*").as_bytes(), 4
-        ).is_err());
+            file.replace("*END*", "COPCUT 5 0.01 0 2\n*END*").as_bytes(),
+            4
+        )
+        .is_err());
     }
 
     #[test]
@@ -402,14 +414,15 @@ mod tests {
         let boundary = candidate.analytical_boundary(&board.frames[0].meta.id);
         assert_eq!(boundary.segments.len(), 8);
         assert_eq!(
-            boundary.segments.iter()
+            boundary
+                .segments
+                .iter()
                 .filter(|s| matches!(s, boardsi_model::BoundarySegment::Arc { .. }))
                 .count(),
             4
         );
         assert_ne!(boundary.segments.len(), candidate.display_ring.len() - 1);
     }
-
 
     #[test]
     fn public_pads_fixture_retains_analytic_source_and_net_uncertainty() {
@@ -421,5 +434,4 @@ mod tests {
         // It is not yet accepted by production until Qt CPU/RHI parity.
         assert!(crate::copper_preview::parse(asc, 4).is_err());
     }
-
 }
