@@ -1746,10 +1746,15 @@ static int runRhiGeometrySmoke() {
 
 // A_023 V11: real Rust combined COPPER/COPCUT -> Qt decoder ->
 // CPU even-odd hollow path, RHI exact hollow pick, layers/cleanup.
-static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orthogonal=false,bool diagonal=false,bool circular=false,bool hollowOuter=false) {
+static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orthogonal=false,bool diagonal=false,bool circular=false,bool hollowOuter=false,bool circlePolygons=false,bool mixedShape=false) {
     bool pass=false,loaded=false,hollow=false,properties=false,filtered=false;
     bool malformed=false,reset=false,rhiPick=false,rhiFrame=false;
     QString failure;
+    const bool a028=circlePolygons||mixedShape;
+    const QString copperName=mixedShape ? "COPPER COP_MIX" :
+        circlePolygons ? "COPPER COP_POLY" :
+        hollowOuter ? "COPPER COP_RING" : circular ? "COPPER COP_CIRC" :
+        "COPPER COP_HOLE";
     if(!window.openCandidate(fixture))failure="A023 fixture unavailable";
     else {
         QEventLoop loop;QTimer tick;
@@ -1776,8 +1781,7 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
 #endif
             loaded=panel->copperCount()==1 && state.contains("1 filled source copper areas");
             properties=panel->selectCopper(0) &&
-                window.displayedProperties().contains(hollowOuter ? "COPPER COP_RING" :
-                    circular ? "COPPER COP_CIRC" : "COPPER COP_HOLE") &&
+                window.displayedProperties().contains(copperName) &&
                 window.displayedProperties().contains(circular ? "cutouts 3" : "cutouts 2") &&
                 window.displayedProperties().contains("connectivity NOT_VERIFIED") &&
                 (!orthogonal || window.displayedProperties().contains("vertices 7")) &&
@@ -1785,15 +1789,20 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
             auto *scene=panel->findChild<QGraphicsScene *>();
             QGraphicsPathItem *copper=nullptr;
             if(scene)for(QGraphicsItem *it:scene->items()) {
-                if(it->data(2).toString().startsWith(hollowOuter ? "COPPER COP_RING" :
-                        circular ? "COPPER COP_CIRC" : "COPPER COP_HOLE")) {
+                if(it->data(2).toString().startsWith(copperName)) {
                     copper=qgraphicsitem_cast<QGraphicsPathItem *>(it);break;
                 }
             }
             constexpr qreal mil=0.0254;
             if(copper) {
                 const auto path=copper->path();
-                hollow=hollowOuter ?
+                hollow=a028 ?
+                    (path.contains(QPointF(200*mil,-150*mil)) &&
+                     !path.contains(QPointF(165*mil,-195*mil)) &&
+                     !path.contains(QPointF((mixedShape ? 240 : 240)*mil,
+                                          -(mixedShape ? 210 : 190)*mil)) &&
+                     !path.contains(QPointF(310*mil,-200*mil))) :
+                    hollowOuter ?
                     (path.contains(QPointF(200*mil,-260*mil)) &&
                      path.contains(QPointF(200*mil,-200*mil)) &&
                      !path.contains(QPointF(160*mil,-200*mil)) &&
@@ -1831,6 +1840,17 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
             bad.name="BAD";bad.net="-";bad.layer=1;bad.sourceLine=1;
             bad.ring={{0,0},{25400,0},{25400,25400},{0,25400},{0,0}};
             bad.cutouts.push_back({{0,2540},{5080,2540},{5080,5080},{0,5080},{0,2540}});
+            ImportedCopperArea badCirclePolygon;
+            badCirclePolygon.name="A028_BAD"; badCirclePolygon.net="-";
+            badCirclePolygon.layer=1; badCirclePolygon.sourceLine=1;
+            badCirclePolygon.circle=true;
+            badCirclePolygon.cx_nm=200*25400LL;
+            badCirclePolygon.cy_nm=200*25400LL;
+            badCirclePolygon.radius_nm=100*25400LL;
+            badCirclePolygon.cutouts.push_back({
+                {295*25400LL,190*25400LL},{305*25400LL,190*25400LL},
+                {305*25400LL,200*25400LL},{295*25400LL,200*25400LL},
+                {295*25400LL,190*25400LL}});
             // A_025 exact Codex P2 reproducer: two independent triangular
             // voids can bridge to the same outer vertex. Each duplicate
             // vertex has a distinct incident sector; never choose by distance
@@ -1861,6 +1881,7 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
             nearTangent.radius_nm=100*25400LL;
             nearTangent.roundCutouts.push_back({285*25400LL,200*25400LL,15*25400LL});
             malformed=!validateCopperArea(bad) &&
+                (!a028 || !validateCopperArea(badCirclePolygon)) &&
                 (!hollowOuter || !validateCopperArea(nearTangent)) &&
                 (!(circular || hollowOuter) || !validateCopperArea(roundBad)) &&
                 !PreviewImportPanel::validTransportForTest(
@@ -1872,7 +1893,11 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
                 auto *item=rhi->itemForTest();
                 rhiPick=item && item->copperCountForTest()==1 &&
                     item->dispatchCopperPickForTest(0) &&
-                    (hollowOuter ? item->rejectCopperCircleHolePickForTest(0) &&
+                    (a028 ? item->rejectCopperHolePickForTest(0) &&
+                        (mixedShape ? item->rejectCopperCircleHolePickForTest(0) :
+                                      item->rejectCopperHolePickForTest(0,1)) &&
+                        item->rejectCopperSourcePointForTest(310*25400LL,200*25400LL) :
+                     hollowOuter ? item->rejectCopperCircleHolePickForTest(0) &&
                         item->rejectCopperCircleHolePickForTest(0,1) &&
                         item->rejectCopperSourcePointForTest(310*25400LL,200*25400LL) :
                         circular ? item->rejectCopperHolePickForTest(0) &&
@@ -1899,7 +1924,9 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
         if(!pass&&failure.isEmpty())failure="A023 native cutout smoke timed out";
     }
     const QJsonObject report{
-        {"schema",hollowOuter ? "boardsi-preview-a027-circle-ring-v1" :
+        {"schema",mixedShape ? "boardsi-preview-a028-circle-mixed-v1" :
+                  circlePolygons ? "boardsi-preview-a028-circle-polygon-v1" :
+                  hollowOuter ? "boardsi-preview-a027-circle-ring-v1" :
                   circular ? "boardsi-preview-a026-circle-v1" :
                   diagonal ? "boardsi-preview-a025-diagonal-v1" :
                   orthogonal ? "boardsi-preview-a024-orthogonal-v1" :
@@ -1910,12 +1937,15 @@ static int runCutoutSmoke(PreviewWindow &window,const QString &fixture,bool orth
         {"orthogonal_source",orthogonal},{"diagonal_source",diagonal},
         {"circular_source",circular},
         {"hollow_circle_outer",hollowOuter},
+        {"circular_polygon_source",a028},{"mixed_cutout_source",mixedShape},
         {"shared_bridge_sector",diagonal ? pass : true},
-        {"rhi_hole_pick",rhiPick},{"rhi_circle_hole_pick",(circular || hollowOuter) && rhiPick},
+        {"rhi_hole_pick",rhiPick},{"rhi_circle_hole_pick",(circular || hollowOuter || mixedShape) && rhiPick},
         {"rhi_imported_frame_confirmed",rhiFrame},
         {"physical_copper","NOT_VERIFIED"},{"physical_si","NOT_RUN"},{"failure",failure}
     };
-    QFile output(hollowOuter ? "qt-preview-a027-circle-ring-results.json" :
+    QFile output(mixedShape ? "qt-preview-a028-circle-mixed-results.json" :
+                 circlePolygons ? "qt-preview-a028-circle-polygon-results.json" :
+                 hollowOuter ? "qt-preview-a027-circle-ring-results.json" :
                  circular ? "qt-preview-a026-circle-results.json" :
                  diagonal ? "qt-preview-a025-diagonal-results.json" :
                 orthogonal ? "qt-preview-a024-orthogonal-results.json" :
@@ -2149,9 +2179,12 @@ int main(int argc, char **argv) {
     const bool diagonalTesting = args.size() == 7 && args.at(1) == "--diagonal-selftest";
     const bool circularCopperTesting = args.size()==7 && args.at(1)=="--circular-copper-selftest";
     const bool hollowCircleTesting = args.size()==7 && args.at(1)=="--hollow-circle-selftest";
+    const bool circlePolygonTesting = args.size()==7 && args.at(1)=="--circle-polygon-selftest";
+    const bool circleMixedTesting = args.size()==7 && args.at(1)=="--circle-mixed-selftest";
     const bool testing = ((args.size() == 5 || args.size() == 7) && args.at(1) == "--selftest") ||
                          rendererTesting || viaTesting || padTesting || rectTesting || bottomTesting ||
-                         arcTesting || outlineTesting || circleTesting || mixedTesting || pourTesting || copperTesting || cutoutTesting || orthogonalTesting || diagonalTesting || circularCopperTesting || hollowCircleTesting;
+                         arcTesting || outlineTesting || circleTesting || mixedTesting || pourTesting || copperTesting || cutoutTesting || orthogonalTesting || diagonalTesting || circularCopperTesting || hollowCircleTesting ||
+                         circlePolygonTesting || circleMixedTesting;
     QString worker, first, second, importer, fixture;
     if (testing) {
         worker = args.at(2); first = args.at(3); second = args.at(4);
@@ -2174,7 +2207,9 @@ int main(int argc, char **argv) {
     }
     PreviewWindow window(worker, first, second, importer);
     window.show();
-    return hollowCircleTesting ? runCutoutSmoke(window,fixture,false,false,false,true) :
+    return circleMixedTesting ? runCutoutSmoke(window,fixture,false,false,false,false,false,true) :
+           circlePolygonTesting ? runCutoutSmoke(window,fixture,false,false,false,false,true) :
+           hollowCircleTesting ? runCutoutSmoke(window,fixture,false,false,false,true) :
            circularCopperTesting ? runCutoutSmoke(window,fixture,false,false,true) :
            diagonalTesting ? runCutoutSmoke(window,fixture,false,true) :
            orthogonalTesting ? runCutoutSmoke(window,fixture,true) :
