@@ -70,6 +70,9 @@ struct ImportedPourEdge { QString name,net; int layer=0,sequence=0,sourceLine=0;
 
 // Exact-grid filled COPCLS/COPCIR source shapes, not reconstructed flooded copper.
 // Triangle indices are CPU-validated and reused by the RHI GPU batch.
+struct ImportedCopperCircleHole {
+    qint64 cx_nm=0, cy_nm=0, radius_nm=0; // analytic source circle
+};
 struct ImportedCopperArea {
     QString name, net;
     int layer=0, sourceLine=0;
@@ -78,11 +81,13 @@ struct ImportedCopperArea {
     std::vector<std::pair<qint64,qint64>> ring;
     std::vector<std::array<int,3>> triangles;
     std::vector<std::vector<std::pair<qint64,qint64>>> cutouts;
+    std::vector<ImportedCopperCircleHole> roundCutouts;
     // Exact-grid tiling for validated axis-aligned rectangular holes.
     // Consumed unchanged by source-aware RHI rendering and picking.
     std::vector<std::array<std::pair<qint64,qint64>,3>> hollowTriangles;
 };
 #include "a025_diagonal_polygon.h"
+#include "a026_circular_copper.h"
 inline bool validateCopperArea(ImportedCopperArea &a) {
     constexpr qint64 bound=1422400000LL;
     if(a.layer<1 || a.layer>64 || a.sourceLine<=0 ||
@@ -92,7 +97,7 @@ inline bool validateCopperArea(ImportedCopperArea &a) {
     a.triangles.clear();
     a.hollowTriangles.clear();
     if(a.circle) {
-        if(!a.cutouts.empty()) return false;
+        if(!a.cutouts.empty() || !a.roundCutouts.empty()) return false;
         if(!a.ring.empty() || !coord(a.cx_nm) || !coord(a.cy_nm) ||
            !coord(a.radius_nm) || a.radius_nm<=0) return false;
         for(const auto v:{a.cx_nm-a.radius_nm,a.cx_nm+a.radius_nm,
@@ -103,6 +108,7 @@ inline bool validateCopperArea(ImportedCopperArea &a) {
     if(a.ring.size()<4 || a.ring.size()>256 || a.ring.front()!=a.ring.back()) return false;
     const int n=static_cast<int>(a.ring.size())-1;
     for(auto p:a.ring) if(!coord(p.first) || !coord(p.second)) return false;
+    if(!a.roundCutouts.empty())return a026::triangulate(a);
     if(!a.cutouts.empty()) {
         // A_025: preserve the exact A_024 orthogonal grid path, and use
         // separate bounded source-vertex triangulation only for diagonal rings.
@@ -1080,10 +1086,20 @@ public:
                 for(size_t i=1;i<c.ring.size();++i)
                     path.lineTo(c.ring[i].first/1e6,-c.ring[i].second/1e6);
                 path.closeSubpath();
-                // Even-odd fill subtracts each explicitly validated COPCUT.
-                // CPU fallback matches the RHI exact-grid hollow triangles.
+                // CPU and RHI must share the SAME verified triangles for
+                // approximate circular voids; do not render exact Qt circles
+                // while RHI uses an intentionally conservative polygon.
                 path.setFillRule(Qt::OddEvenFill);
-                for(const auto &cut:c.cutouts) {
+                if(!c.roundCutouts.empty()) {
+                    path=QPainterPath();
+                    for(const auto &tri:c.hollowTriangles) {
+                        path.moveTo(tri[0].first/1e6,-tri[0].second/1e6);
+                        path.lineTo(tri[1].first/1e6,-tri[1].second/1e6);
+                        path.lineTo(tri[2].first/1e6,-tri[2].second/1e6);
+                        path.closeSubpath();
+                    }
+                    path.setFillRule(Qt::WindingFill);
+                } else for(const auto &cut:c.cutouts) {
                     path.moveTo(cut[0].first/1e6,-cut[0].second/1e6);
                     for(size_t i=1;i<cut.size();++i)
                         path.lineTo(cut[i].first/1e6,-cut[i].second/1e6);
@@ -1099,7 +1115,7 @@ public:
                 .arg(c.name).arg(c.circle ? "COPCIR" : "COPCLS")
                 .arg(c.layer).arg(c.sourceLine).arg(c.net)
                 .arg(c.circle ? 0 : static_cast<int>(c.ring.size()))
-                .arg(static_cast<int>(c.cutouts.size())));
+                .arg(static_cast<int>(c.cutouts.size()+c.roundCutouts.size())));
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             copper_.push_back({item,c});
         }
