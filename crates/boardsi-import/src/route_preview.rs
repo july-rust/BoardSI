@@ -896,6 +896,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             connected_layers: vec![],
         });
     }
+    crate::connectivity_preview::augment(&mut board)?;
     let report = board.validate();
     if report.has_errors() {
         return Err("CANONICAL_MODEL_INVALID");
@@ -1234,7 +1235,18 @@ mod p2b_via_tests {
             .provenance
             .source_object_type
             .contains("ROUTE via placement"));
-        assert!(board.vias[0].connected_layers.is_empty());
+        assert_eq!(board.vias[0].connected_layers.len(), 1);
+        // The two-row source padstack has no conductive pad on layer 2:
+        // never infer barrel-to-trace contact from the via's drilled span.
+        assert_eq!(
+            board
+                .connectivity
+                .edges
+                .iter()
+                .filter(|e| matches!(e.evidence, ConnectionEvidence::ViaBarrel { .. }))
+                .count(),
+            0
+        );
         assert!(!board.validate().has_errors());
     }
     #[test]
@@ -1292,7 +1304,7 @@ mod p2b_via_regressions {
         assert!(artwork.vias[0].inner_pad);
         let board = into_canonical(BASE.as_bytes(), &artwork).unwrap();
         assert_eq!(board.padstacks[0].entries.len(), 4);
-        assert_eq!(board.vias[0].connected_layers.len(), 0);
+        assert_eq!(board.vias[0].connected_layers.len(), 2);
         assert!(!board.validate().has_errors());
     }
     #[test]

@@ -2,6 +2,7 @@
 // Only restricted V9.4-MILS straight segments -> partial Canonical -> Qt, SI NOT_RUN.
 #pragma once
 #include "imported_artwork.h"
+#include "a032_contact_records.h"
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QProcess>
@@ -28,9 +29,10 @@ class PreviewImportPanel final : public QWidget {
     QByteArray data_;
     QByteArray errors_; // Small bounded diagnostic (fixed importer error codes only).
     QString binary_;
+    QString candidatePath_;
     QString status_ = "NOT IMPORTED / SI NOT_RUN";
     std::function<void(const QString &)> callback_;
-    bool expired_ = false, overflow_ = false;
+    bool expired_ = false, overflow_ = false, stderr_overflow_ = false;
     void status(const QString &message) {
         status_ = message;
         if (importLabel_) importLabel_->setText(message);
@@ -51,6 +53,43 @@ class PreviewImportPanel final : public QWidget {
             if (chunk.isEmpty()) break;
             data_.append(chunk);
         }
+    }
+    static void appendBoundedStderr(QByteArray &captured, bool &overflow,
+                                    const QByteArray &chunk) {
+        const qint64 budget = 256 - captured.size();
+        if (chunk.size() > budget) overflow = true;
+        if (budget > 0) captured.append(chunk.left(budget));
+    }
+    void collectStderr() {
+        // Reuse the same bounded collector as native multi-chunk regressions.
+        appendBoundedStderr(errors_, stderr_overflow_, process_.readAllStandardError());
+    }
+    static bool decodeContactAudit(const QByteArray &bytes, QString &label) {
+        // Separate versioned success diagnostic, never part of V1-V14
+        // artwork stdout. Old local import workers simply have no audit.
+        if (bytes.isEmpty()) {
+            label = "Local endpoint contact evidence NOT_EXPOSED / full-board connectivity NOT_VERIFIED";
+            return true;
+        }
+        if (bytes.size() > 256) return false;
+        const auto fields = QString::fromLatin1(bytes).trimmed().split('|');
+        if (fields.size() != 5 ||
+            fields[0] != "BOARDSI_CONTACT_AUDIT_V1" ||
+            fields[3] != "CONFLICT_DETAIL_NOT_EXPOSED" ||
+            fields[4] != "LOCAL_ENDPOINT_ONLY")
+            return false;
+        bool ok = false;
+        const qulonglong local = fields[1].toULongLong(&ok);
+        if (!ok || local > 100000) return false;
+        const qulonglong barrel = fields[2].toULongLong(&ok);
+        if (!ok || barrel > 100000) return false;
+        label = QString("A_032 source-backed exact local endpoint edges: %1; "
+                        "qualified via-barrel edges: %2; "
+                        "cross-Net conflict details NOT_EXPOSED; "
+                        "area/Pad/Pin contact NOT_EVALUATED; "
+                        "full-board connectivity NOT_VERIFIED")
+                    .arg(local).arg(barrel);
+        return true;
     }
     static bool decode(const QByteArray &bytes, int &layers, int &skipped,
                        std::vector<ImportedTrack> &tracks,
@@ -484,6 +523,17 @@ class PreviewImportPanel final : public QWidget {
 public:
     // Exercise the production decoder from native tests, especially malformed
     // V7 END trailers. No bypass of the real parser/validation logic.
+    static bool validContactAuditForTest(const QByteArray &bytes) {
+        QString label;
+        return decodeContactAudit(bytes, label);
+    }
+    static bool validContactAuditChunksForTest(const std::vector<QByteArray> &chunks) {
+        QByteArray captured;
+        bool overflow = false;
+        for (const auto &chunk : chunks) appendBoundedStderr(captured, overflow, chunk);
+        QString label;
+        return !overflow && decodeContactAudit(captured, label);
+    }
     static bool validTransportForTest(const QByteArray &bytes) {
         int layers=0, skipped=0;
         std::vector<ImportedTrack> tracks;
@@ -535,23 +585,21 @@ public:
         process_.setProcessChannelMode(QProcess::SeparateChannels);
         process_.setReadChannel(QProcess::StandardOutput);
         connect(&process_, &QProcess::readyReadStandardOutput, this, [this] { collect(); });
-        connect(&process_, &QProcess::readyReadStandardError, this, [this] {
-            // read() follows the selected stdout channel; collect stderr explicitly.
-            const QByteArray stderrChunk = process_.readAllStandardError();
-            const qint64 budget = 256 - errors_.size();
-            if (budget > 0) errors_.append(stderrChunk.left(budget));
-        });
+        connect(&process_, &QProcess::readyReadStandardError, this,
+                [this] { collectStderr(); });
         connect(&process_, &QProcess::finished, this,
                 [this](int code, QProcess::ExitStatus exitStatus) {
             deadline_.stop();
             collect();
+            collectStderr();
             if (cancelled_) {
                 status("CANCELLED / no new board imported / SI NOT_RUN");
                 return;
             }
-            if (expired_ || overflow_) {
+            if (expired_ || overflow_ || stderr_overflow_) {
                 status(expired_ ? "FAILED / IMPORT_TIMEOUT / NOTHING IMPORTED"
-                                : "FAILED / IMPORT_OUTPUT_LIMIT / NOTHING IMPORTED");
+                       : stderr_overflow_ ? "FAILED / INVALID_CONTACT_AUDIT / NOTHING IMPORTED"
+                       : "FAILED / IMPORT_OUTPUT_LIMIT / NOTHING IMPORTED");
                 return;
             }
             if (code != 0 || exitStatus != QProcess::NormalExit) {
@@ -575,6 +623,12 @@ public:
                     : QString("FAILED / %1 / NOTHING IMPORTED").arg(errorCode));
                 return;
             }
+            QByteArray legacyArtwork, contactWire;
+            if(!a032::splitWire(data_,legacyArtwork,contactWire)) {
+                qWarning("A032_CONTACT_WIRE_REJECT:ENVELOPE");
+                status("FAILED / INVALID_CONTACT_RECORDS / NOTHING IMPORTED");
+                return;
+            }
             int layers = 0, skipped = 0;
             std::vector<ImportedTrack> tracks;
             std::vector<ImportedVia> vias;
@@ -585,14 +639,26 @@ public:
             std::vector<ImportedBoundarySegment> boundary;
             std::vector<ImportedPourEdge> pours;
             std::vector<ImportedCopperArea> coppers;
-            if (!decode(data_, layers, skipped, tracks, vias, pads, arcs, outlines, circles, boundary,pours,coppers)) {
+            if (!decode(legacyArtwork, layers, skipped, tracks, vias, pads, arcs, outlines, circles, boundary,pours,coppers)) {
                 status("FAILED / INVALID_TRANSPORT / NOTHING IMPORTED");
+                return;
+            }
+            QString contactAudit;
+            if (!decodeContactAudit(errors_, contactAudit)) {
+                status("FAILED / INVALID_CONTACT_AUDIT / NOTHING IMPORTED");
+                return;
+            }
+            std::vector<ImportedContactMarker> contactMarkers;
+            if(!a032::decode(contactWire,candidatePath_,tracks,arcs,vias,errors_,contactMarkers)) {
+                status("FAILED / INVALID_CONTACT_RECORDS / NOTHING IMPORTED");
                 return;
             }
             if (!imported_->load(layers, skipped, tracks, vias, pads, arcs, outlines, circles, boundary,pours,coppers)) {
                 status("FAILED / INVALID_GEOMETRY / NOTHING IMPORTED");
                 return;
             }
+            imported_->setLocalContacts(contactMarkers);
+            imported_->setLocalContactAudit(contactAudit);
             tabs_->setTabText(1, "Imported Partial");
             tabs_->setCurrentWidget(imported_);
             // The imported tab can be hidden during load(), before its viewport
@@ -645,14 +711,16 @@ public:
             status("FAILED / FILE_NOT_FOUND / NOTHING IMPORTED");
             return false;
         }
+        candidatePath_=path;
         data_.clear();
         errors_.clear();
         expired_ = false;
         overflow_ = false;
+        stderr_overflow_ = false;
         cancelled_ = false;
         status("RUNNING / local PADS route import, SI NOT_RUN");
         deadline_.start(10000);
-        process_.start(binary_, {path});
+        process_.start(binary_, {path, "--contact-records-v1"});
         return true;
     }
     void stop() {

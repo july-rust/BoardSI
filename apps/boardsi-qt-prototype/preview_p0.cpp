@@ -23,6 +23,8 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QElapsedTimer>
+#include <QTemporaryFile>
+#include <QStandardPaths>
 #include <QMainWindow>
 #include <QPlainTextEdit>
 #include <QSplitter>
@@ -338,6 +340,64 @@ protected:
     }
 };
 
+// A_032_2 exercises the production Qt optional contact-record decoder.
+// The file is a synthetic SHA input, not private CAD or an SI test.
+static bool a032ContactRecordDecoderRegression() {
+    QTemporaryFile source;
+    if(!source.open()) return false;
+    const QByteArray bytes("synthetic A032 contact decoder evidence\n");
+    if(source.write(bytes)!=bytes.size() || !source.flush()) return false;
+    const QByteArray hash=QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex();
+    const QByteArray preamble=QByteArray("BOARDSI_CONTACT_RECORDS_V1|1|LOCAL_ENDPOINT_ONLY|")
+        +hash+"\n";
+    ImportedTrack t0,t1;
+    t0.layer=1;t0.net="NET_A";t0.x0_nm=0;t0.y0_nm=0;
+    t0.x1_nm=2540;t0.y1_nm=0;t0.width_nm=254;
+    t1=t0;t1.x0_nm=2540;t1.x1_nm=5080;
+    const std::vector<ImportedTrack> traces{t0,t1};
+    const QByteArray row("E|S|T|0|1|1|T|1|0|1|2540|0\n");
+    const QByteArray tail("BOARDSI_CONTACT_END_V1|1\n");
+    const QByteArray audit("BOARDSI_CONTACT_AUDIT_V1|1|0|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n");
+    const QByteArray good=preamble+row+tail;
+    const QByteArray emptyWire=QByteArray("BOARDSI_CONTACT_RECORDS_V1|0|LOCAL_ENDPOINT_ONLY|")+
+        hash+"\nBOARDSI_CONTACT_END_V1|0\n";
+    const QByteArray emptyAudit("BOARDSI_CONTACT_AUDIT_V1|0|0|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n");
+    std::vector<ImportedContactMarker> emptyMarkers;
+    const bool emptyAccepted=a032::decode(emptyWire,source.fileName(),traces,{},{},
+        emptyAudit,emptyMarkers) && emptyMarkers.empty();
+    std::vector<ImportedContactMarker> markers;
+    const bool valid=a032::decode(good,source.fileName(),traces,{},{},audit,markers) &&
+        markers.size()==1 && !markers[0].barrel && !markers[0].potentialConflict &&
+        markers[0].a.kind=='T' && markers[0].a.site==1 && markers[0].b.site==0 &&
+        markers[0].x_nm==2540 && markers[0].y_nm==0;
+    QByteArray artwork,parsedWire;
+    const QByteArray sourceArt("BOARDSI_P2A_PARTIAL_V1|V9.4-MILS|1\nL|1|TOP\nEND|0|0|CANONICAL_PARTIAL|SI_NOT_RUN\n");
+    const bool split=a032::splitWire(sourceArt+good,artwork,parsedWire) &&
+        artwork==sourceArt && parsedWire==good;
+    QByteArray invalidPoint=good;
+    invalidPoint.replace("|2540|0\n","|2541|0\n");
+    QByteArray invalidHash=good;
+    invalidHash.replace(hash, QByteArray(64,'0'));
+    QByteArray invalidTerm=good;
+    invalidTerm.replace("BOARDSI_CONTACT_END_V1|1","BOARDSI_CONTACT_END_V1|2");
+    QByteArray otherAudit("BOARDSI_CONTACT_AUDIT_V1|0|0|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n");
+    auto distinctNets=traces;
+    distinctNets[1].net="NET_B";
+    const QByteArray conflict=preamble+
+        QByteArray("X|C|T|0|1|1|T|1|0|1|2540|0\n")+tail;
+    std::vector<ImportedContactMarker> conflictMarkers;
+    const bool conflictValid=a032::decode(conflict,source.fileName(),distinctNets,{},{},
+        otherAudit,conflictMarkers) && conflictMarkers.size()==1 &&
+        conflictMarkers[0].potentialConflict && !conflictMarkers[0].barrel &&
+        conflictMarkers[0].net=="NET_A" && conflictMarkers[0].otherNet=="NET_B";
+    return valid && split && conflictValid && emptyAccepted &&
+        !a032::decode(invalidPoint,source.fileName(),traces,{},{},audit,markers) &&
+        !a032::decode(invalidHash,source.fileName(),traces,{},{},audit,markers) &&
+        !a032::decode(invalidTerm,source.fileName(),traces,{},{},audit,markers) &&
+        !a032::decode(good,source.fileName(),distinctNets,{},{},audit,markers) &&
+        !a032::decode(conflict,source.fileName(),traces,{},{},otherAudit,markers);
+}
+
 static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                            const QString &worker, const QString &fixture) {
     app.setQuitOnLastWindowClosed(false);
@@ -443,8 +503,22 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             }
             importSummaryVerified = true;
             auto *scene = panel->findChild<QGraphicsScene *>();
-            if (!scene || scene->items().size() != 3 || panel->segmentCount() != 3 ||
-                panel->visibleSegments() != 3) {
+            int sourceTraceItems = 0;
+            int localMarkers = 0;
+            if(scene) for (QGraphicsItem *obj : scene->items()) {
+                if(qgraphicsitem_cast<QGraphicsLineItem *>(obj)) ++sourceTraceItems;
+                if(obj->data(3).toString()=="A032Contact") ++localMarkers;
+            }
+            // Decoder test covers hostile source hash/endpoint/Net/trailer and
+            // explicit cross-Net POTENTIAL_CONFLICT, independent of rendering.
+            if (!a032ContactRecordDecoderRegression()) {
+                stopWith("A_032 object contact transport hostile decoder regression");
+                return;
+            }
+            // Overlay contact markers do not change the legacy imported
+            // THREE physical trace primitives. They are separate evidence.
+            if (!scene || sourceTraceItems != 3 || localMarkers < 1 ||
+                panel->segmentCount() != 3 || panel->visibleSegments() != 3) {
                 stopWith("P2-A imported scene does not contain the expected three tracks"); return;
             }
             // Independent millimetre reference from the PUBLIC synthetic PADS fixture.
@@ -826,6 +900,40 @@ static int runOutlineSmoke(PreviewWindow &window, const QString &fixture) {
 }
 
 
+// A_032_1: exercise a real QProcess stderr stream rather than only
+// decoding an in-memory test vector. The subprocess is a public temporary
+// Python fixture; no proprietary board, network, or extra permissions.
+static bool a032RejectsOverflowFromRealWorkerProcess() {
+    QString python = QStandardPaths::findExecutable("python3");
+    if (python.isEmpty()) python = QStandardPaths::findExecutable("python");
+    if (python.isEmpty()) return false;
+    QTemporaryFile mock(QDir::tempPath() + "/boardsi-a032-stderr-XXXXXX.py");
+    if (!mock.open()) return false;
+    const QByteArray program = R"py(
+import sys
+sys.stdout.write("BOARDSI_P2A_PARTIAL_V1|V9.4-MILS|1\nL|1|TOP\nT|1|NET_A|0|0|2540|0|254\nEND|1|0|CANONICAL_PARTIAL|SI_NOT_RUN\n")
+sys.stderr.write("BOARDSI_CONTACT_AUDIT_V1|1|0|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n" + " " * 300)
+sys.stdout.flush()
+sys.stderr.flush()
+)py";
+    if (mock.write(program) != program.size() || !mock.flush()) return false;
+    mock.close();
+    PreviewImportPanel panel(python);
+    QEventLoop loop;
+    panel.setStatusCallback([&loop](const QString &status) {
+        if (status.startsWith("FAILED") || status.startsWith("PARTIAL"))
+            loop.quit();
+    });
+    if (!panel.openPath(mock.fileName())) return false;
+    QTimer::singleShot(5000, &loop, &QEventLoop::quit);
+    loop.exec();
+    const bool rejected = panel.importStatus() ==
+        "FAILED / INVALID_CONTACT_AUDIT / NOTHING IMPORTED" &&
+        !panel.showingImported();
+    panel.stop();
+    return rejected;
+}
+
 // P2-H: independent native import -> V7 -> Qt CPU/RHI circle acceptance.
 static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock; clock.start();
@@ -841,6 +949,31 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
             transportPrefix+"END|0|0|0|0|1|0|1|CANONICAL_PARTIAL|SI_NOT_RUN\n") &&
         !PreviewImportPanel::validTransportForTest(
             transportPrefix+"END|0|0|0|0\n");
+    // A_032: a separate bounded success-audit protocol must not accept
+    // forged counts, extra fields or an unversioned message.
+    const bool contactAuditTransport =
+        PreviewImportPanel::validContactAuditForTest(
+            "BOARDSI_CONTACT_AUDIT_V1|2|1|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n") &&
+        !PreviewImportPanel::validContactAuditForTest(
+            "BOARDSI_CONTACT_AUDIT_V1|X|1|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n") &&
+        !PreviewImportPanel::validContactAuditForTest(
+            "BOARDSI_CONTACT_AUDIT_V1|2|1|CONFLICT_DETAIL_NOT_EXPOSED|FULL_BOARD_VERIFIED\n");
+    // Exercise the very same chunk collector used by the real QProcess
+    // handler. Decoder-only tests cannot see truncated stderr.
+    const QByteArray canonicalAudit =
+        "BOARDSI_CONTACT_AUDIT_V1|2|1|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n";
+    const QByteArray paddedAudit = canonicalAudit +
+        QByteArray(256 - canonicalAudit.size(), ' ');
+    const bool contactAuditChunkCollection =
+        PreviewImportPanel::validContactAuditChunksForTest(
+            {canonicalAudit.left(17), canonicalAudit.mid(17)}) &&
+        PreviewImportPanel::validContactAuditChunksForTest(
+            {paddedAudit.left(127), paddedAudit.mid(127)}) &&
+        !PreviewImportPanel::validContactAuditChunksForTest(
+            {paddedAudit.left(127), paddedAudit.mid(127), QByteArray(" ")}) &&
+        !PreviewImportPanel::validContactAuditChunksForTest(
+            {canonicalAudit, QByteArray(257, ' ')});
+    const bool realProcessOverflowRejected = a032RejectsOverflowFromRealWorkerProcess();
     bool overflowCircleRejected=false;
     QEventLoop loop;
     if (!window.openCandidate(fixture)) {
@@ -913,7 +1046,8 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
 #endif
             passed=counts && outerExact && cutExact && independent &&
                    malformedTransportRejected && overflowCircleRejected &&
-                   (!rhiChecked || rhiExact);
+                   contactAuditTransport && contactAuditChunkCollection &&
+                   realProcessOverflowRejected && (!rhiChecked || rhiExact);
             if(!passed) failure="A_017 circle geometry/count/RHI/pick mismatch";
             loop.quit();
         });
@@ -930,6 +1064,9 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
         {"rhi_source_checked",rhiChecked},{"rhi_circle_fit_and_pick",rhiExact},
         {"v7_truncated_end_rejected",malformedTransportRejected},
         {"v7_overflow_circle_rejected",overflowCircleRejected},
+        {"a032_bounded_contact_audit_decode",contactAuditTransport},
+        {"a032_bounded_stderr_chunk_collector",contactAuditChunkCollection},
+        {"a032_real_qprocess_stderr_overflow_rejected",realProcessOverflowRejected},
         {"scope","public synthetic V9.4 even-grid circular BOARD and BRDCIR; SI NOT_RUN"}
     };
     QFile receipt("qt-preview-p2h-circle-results.json");

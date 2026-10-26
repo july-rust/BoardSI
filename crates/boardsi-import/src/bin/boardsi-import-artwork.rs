@@ -9,9 +9,12 @@ use std::{
 };
 // 0.01 mil canonical tick = 254 nm. All Qt wire coordinates remain nm.
 const NM: i64 = 254;
-fn run() -> Result<(), &'static str> {
+fn run() -> Result<(usize, usize), &'static str> {
     let args: Vec<_> = env::args_os().collect();
-    if args.len() != 2 {
+    // The suffix protocol is opt-in. Existing one-path invocations keep
+    // byte-identical V1-V14 stdout and their existing bounded stderr audit.
+    let contacts_v1 = args.len() == 3 && args[2] == "--contact-records-v1";
+    if args.len() != 2 && !contacts_v1 {
         return Err("USAGE");
     }
     let path = &args[1];
@@ -39,6 +42,32 @@ fn run() -> Result<(), &'static str> {
     {
         return Err("CANONICAL_VALIDATION_FAILED");
     }
+    // A_032 auxiliary diagnostic channel: stdout V1-V14 artwork wire remains
+    // byte-for-byte compatible. This small, bounded stderr *success* record
+    // reports only local, source-grid exact contact evidence. The GUI must
+    // never interpret it as a complete electrical connectivity result.
+    let local_contacts = board
+        .connectivity
+        .edges
+        .iter()
+        .filter(|e| {
+            matches!(
+                e.evidence,
+                boardsi_model::ConnectionEvidence::SameLayerContact { .. }
+            )
+        })
+        .count();
+    let via_barrels = board
+        .connectivity
+        .edges
+        .iter()
+        .filter(|e| {
+            matches!(
+                e.evidence,
+                boardsi_model::ConnectionEvidence::ViaBarrel { .. }
+            )
+        })
+        .count();
     let mut out = Vec::new();
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
     // records are actually emitted. Rejected PART rows are not P2C geometry.
@@ -538,13 +567,20 @@ fn run() -> Result<(), &'static str> {
                     )
                     .map_err(|_| "FORMAT_ERROR")?;
                 }
+                // V10-V14 intentionally return early from their legacy
+                // END serialization. The optional evidence suffix MUST be
+                // emitted on this path as well, before the first stdout byte.
+                if contacts_v1 {
+                    let evidence = boardsi_import::contact_wire::encode(&board)?;
+                    out.extend_from_slice(&evidence);
+                }
                 // All END records are emitted by their own protocol version.
                 // Avoid emitting V9 END a second time.
                 if out.len() > 2 * 1024 * 1024 {
                     return Err("OUTPUT_LIMIT");
                 }
                 io::stdout().write_all(&out).map_err(|_| "STDOUT_FAILED")?;
-                return Ok(());
+                return Ok((local_contacts, via_barrels));
             }
             writeln!(
                 out,
@@ -633,15 +669,31 @@ fn run() -> Result<(), &'static str> {
         )
     }
     .map_err(|_| "FORMAT_ERROR")?;
+    if contacts_v1 {
+        // Validate and format the complete suffix before any stdout write.
+        // Never return a successful partial artwork if this gate fails.
+        let evidence = boardsi_import::contact_wire::encode(&board)?;
+        out.extend_from_slice(&evidence);
+    }
     if out.len() > 2 * 1024 * 1024 {
         return Err("OUTPUT_LIMIT");
     }
     io::stdout().write_all(&out).map_err(|_| "STDOUT_FAILED")?;
-    Ok(())
+    Ok((local_contacts, via_barrels))
 }
 fn main() {
-    if let Err(err) = run() {
-        eprintln!("P2A_IMPORT_ERROR:{err}");
-        std::process::exit(3);
+    match run() {
+        Ok((contacts, barrels)) => {
+            // Emit success diagnostics only after the complete bounded artwork
+            // payload was actually written, not during a failing parse.
+            eprintln!(
+                "BOARDSI_CONTACT_AUDIT_V1|{}|{}|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY",
+                contacts, barrels
+            );
+        }
+        Err(err) => {
+            eprintln!("P2A_IMPORT_ERROR:{err}");
+            std::process::exit(3);
+        }
     }
 }

@@ -315,6 +315,16 @@ struct ImportedVia {
     int firstLayer = 0, lastLayer = 0;
 };
 
+// Verified endpoint records are never equivalent to complete Net connectivity.
+struct ImportedContactEnd { char kind='T'; int index=0,site=0,layer=0; };
+struct ImportedContactMarker {
+    bool barrel=false;
+    bool potentialConflict=false;
+    ImportedContactEnd a,b;
+    qint64 x_nm=0,y_nm=0;
+    QString net;
+    QString otherNet;
+};
 #ifdef BOARDSI_RHI_ARTWORK
 #include "rhi_artwork.h"
 #endif
@@ -346,6 +356,8 @@ class ImportedArtworkPanel final : public QWidget {
     std::vector<std::pair<QGraphicsPathItem *, ImportedBoundarySegment>> boundaries_;
     std::function<void(const QString &)> detailsCallback_;
     int skipped_ = 0;
+    std::vector<std::pair<QGraphicsEllipseItem*,ImportedContactMarker>> contacts_;
+    QString localContactAudit_ = "Local endpoint contact evidence: NOT_EXPOSED; full-board connectivity NOT_VERIFIED";
     void refresh() {
 #ifdef BOARDSI_RHI_ARTWORK
         if (rhi_) rhi_->filter(layerVisible_, nets_->currentText(), netOnly_ && netOnly_->isChecked());
@@ -509,6 +521,15 @@ class ImportedArtworkPanel final : public QWidget {
             QString("Layer %1: %2 objects | Net %3: %4 route/via objects | Electrical connectivity NOT_VERIFIED")
                 .arg(layerId).arg(selectedLayerCount).arg(net)
                 .arg(net=="All nets" ? QString("ALL") : QString::number(selectedNetCount)));
+        for(const auto &entry:contacts_) {
+            const auto &m=entry.second;
+            const bool layerShown=(m.a.layer<layerVisible_.size() && layerVisible_[m.a.layer]) ||
+                                  (m.barrel && m.b.layer<layerVisible_.size() && layerVisible_[m.b.layer]);
+            entry.first->setVisible(layerShown && (!netOnly || net==m.net || (m.potentialConflict && net==m.otherNet)));
+        }
+        // The exact local contact audit comes from Rust and is independent
+        // of CPU/RHI rendering, selection filtering and GPU picking.
+        line += "\n" + localContactAudit_;
         line += "\nArtwork renderer: " + rendererStatus();
         summary_->setText(line);
         if (detailsCallback_) detailsCallback_(line);
@@ -673,6 +694,9 @@ public:
                 else if (kind == 7) selectOutline(index);
                 else if (kind == 8) selectPour(index);
                 else if (kind == 9) selectCopper(index);
+                else if (kind == 10 && index>=0 && index<static_cast<int>(contacts_.size())) {
+                    if(detailsCallback_) detailsCallback_(contacts_[static_cast<size_t>(index)].first->data(2).toString());
+                }
             });
         }
 #endif
@@ -713,6 +737,12 @@ public:
                 if (pos >= 0) { nets_->setCurrentIndex(pos); break; }
             }
             refresh();
+            for(auto *item:scene_->selectedItems()) {
+                if(item->data(3).toString()=="A032Contact") {
+                    if(detailsCallback_) detailsCallback_(item->data(2).toString());
+                    break;
+                }
+            }
         });
         view_->setRendererChangedCallback([this] { refresh(); });
         setMinimumHeight(230);
@@ -726,12 +756,71 @@ public:
     void setDetailsCallback(std::function<void(const QString &)> callback) {
         detailsCallback_ = std::move(callback);
     }
+    void setLocalContacts(const std::vector<ImportedContactMarker> &markers) {
+        const QSignalBlocker muteSelection(scene_);
+        for(const auto &p:contacts_) { scene_->removeItem(p.first); delete p.first; }
+        contacts_.clear();
+        contacts_.reserve(markers.size());
+        for(const auto &m:markers) {
+            // ItemIgnoresTransformations gives fixed-size screen-space markers
+            // without moving their exact integer-nm source anchor.
+            auto *item=scene_->addEllipse(QRectF(-4,-4,8,8),
+                QPen(QColor(m.potentialConflict?"#ff8888":(m.barrel?"#7ae7c6":"#9be3fd")),1),
+                QBrush(QColor(m.potentialConflict?"#9b3636":(m.barrel?"#286952":"#266c89"))));
+            item->setPos(m.x_nm/1e6,-m.y_nm/1e6);
+            item->setFlag(QGraphicsItem::ItemIgnoresTransformations);
+            item->setFlag(QGraphicsItem::ItemIsSelectable);
+            item->setZValue(m.potentialConflict?12:(m.barrel?11:10));
+            item->setData(0,m.net);
+            item->setData(3,"A032Contact");
+            item->setData(2,QString("A_032 verified LOCAL endpoint / %1 / Net %2 / %3,%4 nm"
+                " / %5[%6] site %7 L%8 <> %9[%10] site %11 L%12"
+                " / complete connectivity NOT_VERIFIED")
+                .arg(m.potentialConflict?"Potential Cross-Net conflict (NOT a certified Short)":(m.barrel?"ViaBarrel":"SameLayerContact"))
+                .arg(m.potentialConflict?(m.net+" vs "+m.otherNet):m.net)
+                .arg(m.x_nm).arg(m.y_nm)
+                .arg(QChar(m.a.kind)).arg(m.a.index).arg(m.a.site).arg(m.a.layer)
+                .arg(QChar(m.b.kind)).arg(m.b.index).arg(m.b.site).arg(m.b.layer));
+            contacts_.push_back({item,m});
+        }
+        // The selected conductor reports observed local evidence only;
+        // a zero count is NOT a certified Open (other contacts unexamined).
+        std::vector<int> traceCount(tracks_.size(),0), arcCount(arcs_.size(),0), viaCount(vias_.size(),0);
+        for(const auto &m:markers) {
+            if(m.potentialConflict) continue;
+            const auto tally=[&](const ImportedContactEnd &e) {
+                if(e.kind=='T' && e.index>=0 && e.index<static_cast<int>(traceCount.size())) ++traceCount[static_cast<size_t>(e.index)];
+                if(e.kind=='A' && e.index>=0 && e.index<static_cast<int>(arcCount.size())) ++arcCount[static_cast<size_t>(e.index)];
+                if(e.kind=='V' && e.index>=0 && e.index<static_cast<int>(viaCount.size())) ++viaCount[static_cast<size_t>(e.index)];
+            };
+            tally(m.a);
+            if(m.a.kind!=m.b.kind || m.a.index!=m.b.index) tally(m.b);
+        }
+        for(size_t i=0;i<tracks_.size();++i)
+            tracks_[i].first->setData(1,tracks_[i].first->data(1).toString()+
+                QString(" / A_032 source-local contact records %1; other contacts NOT_EVALUATED").arg(traceCount[i]));
+        for(size_t i=0;i<arcs_.size();++i)
+            arcs_[i].first->setData(1,arcs_[i].first->data(1).toString()+
+                QString(" / A_032 source-local contact records %1; other contacts NOT_EVALUATED").arg(arcCount[i]));
+        for(size_t i=0;i<vias_.size();++i)
+            vias_[i].first->setData(1,vias_[i].first->data(1).toString()+
+                QString(" / A_032 source-local contact records %1; Via span alone NOT a contact").arg(viaCount[i]));
+#ifdef BOARDSI_RHI_ARTWORK
+        if(rhi_)rhi_->setLocalContacts(markers);
+#endif
+        refresh();
+    }
+    void setLocalContactAudit(const QString &auditedText) {
+        localContactAudit_ = auditedText;
+        refresh();
+    }
     // Starting a new import invalidates the last artwork. In particular, a failed
     // attempt must not leave old copper visible under a "NOTHING IMPORTED" status.
     void clearArtwork() {
         // Clearing selected graphics items can synchronously emit
         // selectionChanged. Prevent callbacks from iterating freed pointers.
         const QSignalBlocker muteSelection(scene_);
+        contacts_.clear();
         tracks_.clear();
         arcs_.clear();
         vias_.clear();
@@ -751,6 +840,7 @@ public:
         savedLayerVisibility_.clear(); hasSavedVisibility_=false;
         if(explorerStatus_) explorerStatus_->setText("No imported copper objects / SI NOT_RUN");
         skipped_ = 0;
+        localContactAudit_ = "Local endpoint contact evidence: NOT_EXPOSED; full-board connectivity NOT_VERIFIED";
 #ifdef BOARDSI_RHI_ARTWORK
         if (rhi_) rhi_->load(0, {}, {}, {});
 #endif
@@ -944,6 +1034,7 @@ public:
             outerRings+outerCircles+boundaryOuter!=1) return false;
         {
             const QSignalBlocker muteSelection(scene_);
+            contacts_.clear();
             tracks_.clear();
             arcs_.clear();
             vias_.clear();
