@@ -598,16 +598,25 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             if (panel->visibleSegments() != 3) {
                 stopWith("P2-A layer visibility restore failed"); return;
             }
+            // A_034: Qt Quick Zoom/Fit operates on RHI item, not hidden CPU
+            // GraphicsView. Test whichever canvas the user actually sees.
+            const auto displayedScale = [panel] {
+#ifdef BOARDSI_RHI_ARTWORK
+                if(panel->rhiCanvasActiveForTest())
+                    return panel->rhiViewForTest()->itemForTest()->zoomFactorForTest();
+#endif
+                return panel->scale();
+            };
             fit->click(); // Establish baseline after the tab has become visible.
-            const qreal fitScale = panel->scale();
+            const qreal fitScale = displayedScale();
             zoom->click();
-            if (panel->scale() <= fitScale) {
-                stopWith("P2-A imported zoom did not change the canvas"); return;
+            if (displayedScale() <= fitScale) {
+                stopWith("P2-A imported zoom did not change the visible canvas"); return;
             }
             fit->click();
-            if (fitScale <= 0 || qAbs(panel->scale() - fitScale) >
+            if (fitScale <= 0 || qAbs(displayedScale() - fitScale) >
                                   qMax(qreal(0.02), fitScale * qreal(0.01))) {
-                stopWith("P2-A imported Fit did not restore the canvas"); return;
+                stopWith("P2-A imported Fit did not restore the visible canvas"); return;
             }
             // A_034: production-source contact metadata must follow the very
             // same layer/net filters in QGraphicsScene and (when built) RHI.
