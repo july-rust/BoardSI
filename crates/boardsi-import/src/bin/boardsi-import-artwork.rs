@@ -39,6 +39,26 @@ fn run() -> Result<(), &'static str> {
     {
         return Err("CANONICAL_VALIDATION_FAILED");
     }
+    // A_032 auxiliary diagnostic channel: stdout V1-V14 artwork wire remains
+    // byte-for-byte compatible. This small, bounded stderr *success* record
+    // reports only local, source-grid exact contact evidence. The GUI must
+    // never interpret it as a complete electrical connectivity result.
+    let local_contacts = board
+        .connectivity
+        .edges
+        .iter()
+        .filter(|e| matches!(e.evidence, boardsi_model::ConnectionEvidence::SameLayerContact { .. }))
+        .count();
+    let via_barrels = board
+        .connectivity
+        .edges
+        .iter()
+        .filter(|e| matches!(e.evidence, boardsi_model::ConnectionEvidence::ViaBarrel { .. }))
+        .count();
+    eprintln!(
+        "BOARDSI_CONTACT_AUDIT_V1|{}|{}|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY",
+        local_contacts, via_barrels
+    );
     let mut out = Vec::new();
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
     // records are actually emitted. Rejected PART rows are not P2C geometry.
