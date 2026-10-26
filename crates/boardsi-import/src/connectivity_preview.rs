@@ -107,6 +107,21 @@ fn add_edge(
     Ok(())
 }
 
+// Reject oversized buckets before allocating the next contact record.
+fn push_site(
+    locations: &mut BTreeMap<(ObjectId, [i64; 2]), Vec<Site>>,
+    layer: &ObjectId,
+    ticks: [i64; 2],
+    candidate: Site,
+) -> Result<(), &'static str> {
+    let sites = locations.entry((layer.clone(), ticks)).or_default();
+    if sites.len() >= MAX_SITES_PER_POINT {
+        return Err("CONTACT_BUCKET_LIMIT");
+    }
+    sites.push(candidate);
+    Ok(())
+}
+
 /// Appends *only* endpoint-supported graph evidence to the existing model.
 /// Requires the V9.4 source geometry to have been validated by its parsers.
 /// A failure returns an error; callers must discard the partial model.
@@ -131,10 +146,7 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
                 if index == 0 { "start" } else { "end" },
                 None,
             );
-            locations
-                .entry((trace.layer.clone(), point.ticks))
-                .or_default()
-                .push(candidate);
+            push_site(&mut locations, &trace.layer, point.ticks, candidate)?;
         }
     }
     for arc in &board.arcs {
@@ -151,10 +163,7 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
                 name,
                 None,
             );
-            locations
-                .entry((arc.layer.clone(), point.ticks))
-                .or_default()
-                .push(candidate);
+            push_site(&mut locations, &arc.layer, point.ticks, candidate)?;
         }
     }
     for (index, via) in board.vias.iter().enumerate() {
@@ -190,10 +199,7 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
                 "centre",
                 Some(index),
             );
-            locations
-                .entry((entry.layer.clone(), via.position.ticks))
-                .or_default()
-                .push(candidate);
+            push_site(&mut locations, &entry.layer, via.position.ticks, candidate)?;
         }
     }
 
@@ -368,4 +374,25 @@ mod tests {
         );
         assert!(!board.validate().has_errors());
     }
+    #[test]
+    fn oversized_contact_bucket_fails_during_insertion() {
+        // Every trace starts at one exact coordinate, with a distinct end.
+        // The 33rd site must be rejected without accumulating all contacts.
+        let mut source = String::from(
+            "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\n",
+        );
+        for index in 0..(MAX_SITES_PER_POINT + 1) {
+            source.push_str(&format!(
+                "U1.1 U2.2\n100 200 1 10 0\n{} 300 1 10 0\n",
+                200 + index
+            ));
+        }
+        source.push_str("*END*\n");
+        let parsed = parse(source.as_bytes()).unwrap();
+        assert_eq!(
+            into_canonical(source.as_bytes(), &parsed).unwrap_err(),
+            "CONTACT_BUCKET_LIMIT"
+        );
+    }
+
 }
