@@ -2,6 +2,8 @@
 
 Source of truth: [Development Specification v1.0](specification/BoardSI_Development_Spec_v1.0.md). Requirements U01–U48; acceptance tests T01–T54. A document's completion is NOT proof of program correctness.
 
+**Living implementation tracker:** [A_036 Development Completion Checklist](development-checklist.md). Every B-series and later feature PR must update the affected requirements/test rows and evidence, or explicitly record that the checklist status does not change. A-series scoped Preview successes must not be promoted to full M0/M1/M2 acceptance without the applicable gate evidence.
+
 ## Milestones and labels
 
 [Project plan JSON](project-plan.json) defines 11 development milestone stages, 22 labels and 24 planning Issues. The workflow [bootstrap-management.yml](../.github/workflows/bootstrap-management.yml) creates missing GitHub Milestones/Labels and links existing Issues by their exact titles. Trigger: merge of setup PR into main, or Actions → Bootstrap GitHub Milestones and Labels → Run workflow. It is idempotent; it must show a successful Actions run before considering Milestones created.

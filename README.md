@@ -14,6 +14,7 @@ Planned features: PCB / BGA substrate pad-to-pad analysis; geometry, stackup, re
 
 ## Documents
 
+- **[Development completion checklist (A_036; continuously updated)](docs/development-checklist.md)** — U01–U48, T01–T54, finished/partial/unverified with evidence
 - [Development specification v1.0, 2026-10-14](docs/specification/BoardSI_Development_Spec_v1.0.md)
 - [Project management and bootstrap](docs/project-management.md)
 - [Roadmap metadata](docs/project-plan.json)
