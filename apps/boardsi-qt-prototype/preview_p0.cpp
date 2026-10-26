@@ -2778,7 +2778,7 @@ static int runB001StackupSelftest() {
     const bool pass = unknownBlocked && nonCopperRoleRejected && inputAccepted && invalidBlocked &&
                       sourceOverwriteRejected && symlinkRejected && saved && longFieldRejected &&
                       oversizedDocRejected && reset && restored && mutationRejected && foreignRejected;
-    qInfo().noquote() << QJsonDocument(QJsonObject{
+    const QJsonDocument report(QJsonObject{
         {"schema", "b001-stackup-native-test-v1"},
         {"pass", pass}, {"missing_fields_blocked", unknownBlocked},
         {"user_input_validated", inputAccepted}, {"noncopper_role_blocked", nonCopperRoleRejected},
@@ -2792,7 +2792,13 @@ static int runB001StackupSelftest() {
         {"different_source_rejected", foreignRejected},
         {"reference_electrical_contact", "NOT_VERIFIED"},
         {"material_physics", "NOT_VERIFIED"}, {"physical_si", "NOT_RUN"}
-    }).toJson(QJsonDocument::Compact);
+    });
+    QFile receipt("qt-preview-b001-stackup-results.json");
+    if (!receipt.open(QIODevice::WriteOnly) ||
+        receipt.write(report.toJson(QJsonDocument::Indented)) < 1)
+        return 2;
+    receipt.close();
+    qInfo().noquote() << report.toJson(QJsonDocument::Compact);
     return pass ? 0 : 1;
 }
 
