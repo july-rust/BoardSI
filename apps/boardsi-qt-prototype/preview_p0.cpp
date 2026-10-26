@@ -527,7 +527,7 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             }
             // Overlay contact markers do not change the legacy imported
             // THREE physical trace primitives. They are separate evidence.
-            if (!scene || sourceTraceItems != 3 || localMarkers < 1 ||
+            if (!scene || sourceTraceItems != 3 || localMarkers != 1 ||
                 panel->segmentCount() != 3 || panel->visibleSegments() != 3) {
                 stopWith("P2-A imported scene does not contain the expected three tracks"); return;
             }
@@ -740,7 +740,12 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             int oldContacts = 0;
             if (scene) for (auto *item : scene->items())
                 if (item->data(3).toString() == "A032Contact") ++oldContacts;
-            if (panel->segmentCount() != 0 || panel->arcCount() != 0 ||
+            bool rhiContactReset=true;
+#ifdef BOARDSI_RHI_ARTWORK
+            if(auto *rhi=panel->rhiViewForTest())
+                rhiContactReset=rhi->itemForTest()->visibleContactCountForTest()==0;
+#endif
+            if (!rhiContactReset || panel->segmentCount() != 0 || panel->arcCount() != 0 ||
                 panel->padCount() != 10 || oldContacts != 0 || !scene ||
                 !netSelect || netSelect->currentText() != "All nets" ||
                 !netOnly || netOnly->isChecked() ||
@@ -765,8 +770,13 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             int contactCount = 0;
             if (scene) for (auto *item : scene->items())
                 if (item->data(3).toString() == "A032Contact") ++contactCount;
+            bool rhiContactRestored=true;
+#ifdef BOARDSI_RHI_ARTWORK
+            if(auto *rhi=panel->rhiViewForTest())
+                rhiContactRestored=rhi->itemForTest()->visibleContactCountForTest()==1;
+#endif
             if (!scene || panel->segmentCount() != 3 || panel->padCount() != 0 ||
-                contactCount < 1 || !netSelect ||
+                contactCount != 1 || !rhiContactRestored || !netSelect ||
                 netSelect->currentText() != "All nets" ||
                 !window.displayedProperties().contains(QFileInfo(fixture).fileName()) ||
                 window.displayedProperties().contains("pads_bottom_mirror_v94.asc")) {
