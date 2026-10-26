@@ -315,6 +315,14 @@ struct ImportedVia {
     int firstLayer = 0, lastLayer = 0;
 };
 
+// Verified endpoint records are never equivalent to complete Net connectivity.
+struct ImportedContactEnd { char kind='T'; int index=0,site=0,layer=0; };
+struct ImportedContactMarker {
+    bool barrel=false;
+    ImportedContactEnd a,b;
+    qint64 x_nm=0,y_nm=0;
+    QString net;
+};
 #ifdef BOARDSI_RHI_ARTWORK
 #include "rhi_artwork.h"
 #endif
@@ -346,6 +354,7 @@ class ImportedArtworkPanel final : public QWidget {
     std::vector<std::pair<QGraphicsPathItem *, ImportedBoundarySegment>> boundaries_;
     std::function<void(const QString &)> detailsCallback_;
     int skipped_ = 0;
+    std::vector<std::pair<QGraphicsEllipseItem*,ImportedContactMarker>> contacts_;
     QString localContactAudit_ = "Local endpoint contact evidence: NOT_EXPOSED; full-board connectivity NOT_VERIFIED";
     void refresh() {
 #ifdef BOARDSI_RHI_ARTWORK
@@ -510,6 +519,12 @@ class ImportedArtworkPanel final : public QWidget {
             QString("Layer %1: %2 objects | Net %3: %4 route/via objects | Electrical connectivity NOT_VERIFIED")
                 .arg(layerId).arg(selectedLayerCount).arg(net)
                 .arg(net=="All nets" ? QString("ALL") : QString::number(selectedNetCount)));
+        for(const auto &entry:contacts_) {
+            const auto &m=entry.second;
+            const bool layerShown=(m.a.layer<layerVisible_.size() && layerVisible_[m.a.layer]) ||
+                                  (m.barrel && m.b.layer<layerVisible_.size() && layerVisible_[m.b.layer]);
+            entry.first->setVisible(layerShown && (!netOnly || net==m.net));
+        }
         // The exact local contact audit comes from Rust and is independent
         // of CPU/RHI rendering, selection filtering and GPU picking.
         line += "\n" + localContactAudit_;
@@ -677,6 +692,9 @@ public:
                 else if (kind == 7) selectOutline(index);
                 else if (kind == 8) selectPour(index);
                 else if (kind == 9) selectCopper(index);
+                else if (kind == 10 && index>=0 && index<static_cast<int>(contacts_.size())) {
+                    if(detailsCallback_) detailsCallback_(contacts_[static_cast<size_t>(index)].first->data(2).toString());
+                }
             });
         }
 #endif
@@ -730,6 +748,36 @@ public:
     void setDetailsCallback(std::function<void(const QString &)> callback) {
         detailsCallback_ = std::move(callback);
     }
+    void setLocalContacts(const std::vector<ImportedContactMarker> &markers) {
+        const QSignalBlocker muteSelection(scene_);
+        for(const auto &p:contacts_) { scene_->removeItem(p.first); delete p.first; }
+        contacts_.clear();
+        contacts_.reserve(markers.size());
+        for(const auto &m:markers) {
+            // ItemIgnoresTransformations gives fixed-size screen-space markers
+            // without moving their exact integer-nm source anchor.
+            auto *item=scene_->addEllipse(QRectF(-4,-4,8,8),
+                QPen(QColor(m.barrel?"#7ae7c6":"#9be3fd"),1),
+                QBrush(QColor(m.barrel?"#286952":"#266c89")));
+            item->setPos(m.x_nm/1e6,-m.y_nm/1e6);
+            item->setFlag(QGraphicsItem::ItemIgnoresTransformations);
+            item->setFlag(QGraphicsItem::ItemIsSelectable);
+            item->setZValue(10);
+            item->setData(0,m.net);
+            item->setData(2,QString("A_032 verified LOCAL endpoint / %1 / Net %2 / %3,%4 nm"
+                " / %5[%6] site %7 L%8 <> %9[%10] site %11 L%12"
+                " / complete connectivity NOT_VERIFIED")
+                .arg(m.barrel?"ViaBarrel":"SameLayerContact").arg(m.net)
+                .arg(m.x_nm).arg(m.y_nm)
+                .arg(QChar(m.a.kind)).arg(m.a.index).arg(m.a.site).arg(m.a.layer)
+                .arg(QChar(m.b.kind)).arg(m.b.index).arg(m.b.site).arg(m.b.layer));
+            contacts_.push_back({item,m});
+        }
+#ifdef BOARDSI_RHI_ARTWORK
+        if(rhi_)rhi_->setLocalContacts(markers);
+#endif
+        refresh();
+    }
     void setLocalContactAudit(const QString &auditedText) {
         localContactAudit_ = auditedText;
         refresh();
@@ -740,6 +788,7 @@ public:
         // Clearing selected graphics items can synchronously emit
         // selectionChanged. Prevent callbacks from iterating freed pointers.
         const QSignalBlocker muteSelection(scene_);
+        contacts_.clear();
         tracks_.clear();
         arcs_.clear();
         vias_.clear();
@@ -953,6 +1002,7 @@ public:
             outerRings+outerCircles+boundaryOuter!=1) return false;
         {
             const QSignalBlocker muteSelection(scene_);
+            contacts_.clear();
             tracks_.clear();
             arcs_.clear();
             vias_.clear();

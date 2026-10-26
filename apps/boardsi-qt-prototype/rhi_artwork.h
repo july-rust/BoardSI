@@ -116,6 +116,7 @@ public:
 class BoardSiRhiItem final : public QQuickItem {
     std::vector<ImportedTrack> tracks_;
     std::vector<ImportedVia> vias_;
+    std::vector<ImportedContactMarker> contactMarkers_;
     std::vector<ImportedPad> pads_;
     std::vector<ImportedArc> arcs_;
     std::vector<ImportedOutlineEdge> outlineEdges_;
@@ -761,6 +762,34 @@ protected:
             node->setFlag(QSGNode::OwnsMaterial);
             root->appendChildNode(node);
         }
+        // Screen-space markers share the exact source-nm / net/layer filters
+        // used by CPU. They are display hints, never a solver-ready netlist.
+        for(const bool barrel:{false,true}) {
+            Vertices contactGeometry;
+            for(const auto &m:contactMarkers_) {
+                if(m.barrel!=barrel || !includedNet(m.net) ||
+                   !(visible(m.a.layer) || (m.barrel && visible(m.b.layer)))) continue;
+                const QPointF centre=pixel(world(m.x_nm,m.y_nm));
+                if(!inView(centre,7,width(),height())) continue;
+                disk(contactGeometry,centre,4.0,12);
+            }
+            if(contactGeometry.empty() ||
+               contactGeometry.size()>static_cast<size_t>(std::numeric_limits<int>::max())) continue;
+            auto *node=new QSGGeometryNode();
+            auto *geometry=new QSGGeometry(QSGGeometry::defaultAttributes_Point2D(),
+                 static_cast<int>(contactGeometry.size()));
+            geometry->setDrawingMode(QSGGeometry::DrawTriangles);
+            auto *dst=geometry->vertexDataAsPoint2D();
+            for(size_t i=0;i<contactGeometry.size();++i)
+                dst[i].set(static_cast<float>(contactGeometry[i].x()),
+                           static_cast<float>(contactGeometry[i].y()));
+            auto *material=new QSGFlatColorMaterial();
+            material->setColor(QColor(barrel?"#7ae7c6":"#9be3fd"));
+            node->setGeometry(geometry);node->setMaterial(material);
+            node->setFlag(QSGNode::OwnsGeometry);
+            node->setFlag(QSGNode::OwnsMaterial);
+            root->appendChildNode(node);
+        }
         return root;
     }
     void mousePressEvent(QMouseEvent *event) override {
@@ -775,6 +804,16 @@ protected:
     }
     void mouseReleaseEvent(QMouseEvent *event) override {
         if (!dragging_ && picked_) {
+            for(size_t i=0;i<contactMarkers_.size();++i) {
+                const auto &m=contactMarkers_[i];
+                if(!includedNet(m.net) ||
+                   !(visible(m.a.layer) || (m.barrel && visible(m.b.layer)))) continue;
+                const QPointF point=pixel(world(m.x_nm,m.y_nm));
+                if(std::hypot(event->position().x()-point.x(),
+                              event->position().y()-point.y())<=6.0) {
+                    picked_(10,static_cast<int>(i));event->accept();return;
+                }
+            }
             // Screen-space picking is independent of float GPU coordinates.
             for (size_t i=0;i<pads_.size();++i) {
                 const auto &p=pads_[i];
@@ -854,6 +893,7 @@ public:
                const std::vector<ImportedBoundarySegment> &boundary = {},
                const std::vector<ImportedPourEdge> &pours = {},
                const std::vector<ImportedCopperArea> &copper = {}) {
+        contactMarkers_.clear();
         tracks_=tracks; vias_=vias; pads_=pads; arcs_=arcs;
         outlineEdges_=outlines; circles_=circles; boundaries_=boundary; pours_=pours; copper_=copper; layers_=layers;
         adapterProof_->store(0,std::memory_order_release);
@@ -939,6 +979,10 @@ public:
         rebuildTrackBins();
         pan_=QPointF();zoom_=1.0;
         modelGeneration_.fetch_add(1,std::memory_order_release);
+        requestSceneUpdate();
+    }
+    void setLocalContacts(const std::vector<ImportedContactMarker> &markers) {
+        contactMarkers_=markers;
         requestSceneUpdate();
     }
     void filter(QVector<bool> layers,const QString &net,bool onlySelectedNet=false) {
@@ -1399,6 +1443,7 @@ public:
         armFrameDeadline();
         if (changed_) changed_();
     }
+    void setLocalContacts(const std::vector<ImportedContactMarker> &markers) {artwork_->setLocalContacts(markers);}
     void filter(QVector<bool> layers,const QString &net,bool onlySelectedNet=false) {artwork_->filter(std::move(layers),net,onlySelectedNet);}
     void fit() {artwork_->fit();}
     void zoom(qreal factor) {artwork_->zoom(factor);}

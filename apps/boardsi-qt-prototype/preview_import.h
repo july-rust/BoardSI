@@ -2,6 +2,7 @@
 // Only restricted V9.4-MILS straight segments -> partial Canonical -> Qt, SI NOT_RUN.
 #pragma once
 #include "imported_artwork.h"
+#include "a032_contact_records.h"
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QProcess>
@@ -28,6 +29,7 @@ class PreviewImportPanel final : public QWidget {
     QByteArray data_;
     QByteArray errors_; // Small bounded diagnostic (fixed importer error codes only).
     QString binary_;
+    QString candidatePath_;
     QString status_ = "NOT IMPORTED / SI NOT_RUN";
     std::function<void(const QString &)> callback_;
     bool expired_ = false, overflow_ = false, stderr_overflow_ = false;
@@ -621,6 +623,11 @@ public:
                     : QString("FAILED / %1 / NOTHING IMPORTED").arg(errorCode));
                 return;
             }
+            QByteArray legacyArtwork, contactWire;
+            if(!a032::splitWire(data_,legacyArtwork,contactWire)) {
+                status("FAILED / INVALID_CONTACT_RECORDS / NOTHING IMPORTED");
+                return;
+            }
             int layers = 0, skipped = 0;
             std::vector<ImportedTrack> tracks;
             std::vector<ImportedVia> vias;
@@ -631,7 +638,7 @@ public:
             std::vector<ImportedBoundarySegment> boundary;
             std::vector<ImportedPourEdge> pours;
             std::vector<ImportedCopperArea> coppers;
-            if (!decode(data_, layers, skipped, tracks, vias, pads, arcs, outlines, circles, boundary,pours,coppers)) {
+            if (!decode(legacyArtwork, layers, skipped, tracks, vias, pads, arcs, outlines, circles, boundary,pours,coppers)) {
                 status("FAILED / INVALID_TRANSPORT / NOTHING IMPORTED");
                 return;
             }
@@ -640,10 +647,16 @@ public:
                 status("FAILED / INVALID_CONTACT_AUDIT / NOTHING IMPORTED");
                 return;
             }
+            std::vector<ImportedContactMarker> contactMarkers;
+            if(!a032::decode(contactWire,candidatePath_,tracks,arcs,vias,errors_,contactMarkers)) {
+                status("FAILED / INVALID_CONTACT_RECORDS / NOTHING IMPORTED");
+                return;
+            }
             if (!imported_->load(layers, skipped, tracks, vias, pads, arcs, outlines, circles, boundary,pours,coppers)) {
                 status("FAILED / INVALID_GEOMETRY / NOTHING IMPORTED");
                 return;
             }
+            imported_->setLocalContacts(contactMarkers);
             imported_->setLocalContactAudit(contactAudit);
             tabs_->setTabText(1, "Imported Partial");
             tabs_->setCurrentWidget(imported_);
@@ -697,6 +710,7 @@ public:
             status("FAILED / FILE_NOT_FOUND / NOTHING IMPORTED");
             return false;
         }
+        candidatePath_=path;
         data_.clear();
         errors_.clear();
         expired_ = false;
@@ -705,7 +719,7 @@ public:
         cancelled_ = false;
         status("RUNNING / local PADS route import, SI NOT_RUN");
         deadline_.start(10000);
-        process_.start(binary_, {path});
+        process_.start(binary_, {path, "--contact-records-v1"});
         return true;
     }
     void stop() {
