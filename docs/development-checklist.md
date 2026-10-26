@@ -23,24 +23,26 @@
 | GPU 렌더 | 제한 RHI Native Frame/Picking 회귀 | 고객 GPU 드라이버·VRAM·Reset·1M@60FPS **미검증** |
 | Security / 출시 | SEC_001 코드 변경 및 CodeQL CI 이력 ([SEC_001 코드 검사](validation/sec001-codeql-markdown-comment-scan.md)) | 실제 Alert #1 상태 NOT_VERIFIED; 라이선스·배포 미완 |
 
+**날짜 기준:** 모든 `[x]`는 `체크일`(처음 체크리스트에 기록된 날짜, KST)과 `근거일`(참조 PR의 병합일 또는 사양서 개정일, KST)을 별도로 표시합니다. 최초 체크 13개는 2026-10-26에 등록했습니다. 선행 근거일이 전체 제품 인수 완료를 의미하지는 않습니다.
+
 **표시 기준:** `[x]`는 **체크된 문장에 명시된 한정된 범위만 완료**를 뜻합니다. `부분 증빙`은 최종 인수 미완입니다. `[ ]`를 `[x]`로 변경하려면 해당 범위의 실행 결과·원본·SHA·리뷰·미해결 문제를 대조해야 합니다. 사양서에서 `확정`된 요구도 개발 완료로 자동 처리하지 않습니다.
 
 ## 2. A시리즈 구현 확인 목록
 
 ### 실제 실행 증빙이 있는 제한 Preview
 
-- [x] Qt Widgets Preview와 별도 Rust Worker / Versioned IPC의 제한 작동 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md)
-- [x] 공개 합성 PADS Layout ASCII V9.4 MILS의 **명시된 subset만** 파싱 및 비지원 입력 거절 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md)
-- [x] 지원 Straight Trace/Arc/Via/Component·RF Pad 및 Bottom Mirror 변환 — [A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md)
-- [x] 지원 Board Outline과 다각형·곡선·복합 외곽 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md)
-- [x] 지원 Copper Area/원형·곡선·비직교 외곽, Cutout/Hole와 CPU/RHI 표시 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md)
-- [x] 원본 Source tick·좌표·원본 개체별 Provenance와 Artwork 독립 검증 — [A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md)
-- [x] 제한 Layer·Net 표시, Filtering, Picking, Zoom/Fit 및 Qt Quick RHI Presented Frame — [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md)
-- [x] 원본 정확히 일치하는 일부 Trace/Arc/Via **국소 접점만** 그래프 근거 생성 — [A_032 국소 접점](validation/a032-p2w-local-connectivity.md)
-- [x] CPU/RHI 국소 접점 마커와 소스 정보/Visible Frame 정합성 — [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md)
-- [x] 연속 다른 PADS 합성 보드 재Import의 stale 객체·필터 상태 제거 — [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md)
-- [x] 10K·100K·1M **합성** 객체의 렌더/상호작용 회귀 시험(성능 보증 아님) — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md)
-- [x] Windows x64·Windows ARM64·macOS ARM64 **Native CI 시험 환경** 범위 PASS — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md)
+- [x] Qt Widgets Preview와 별도 Rust Worker / Versioned IPC의 제한 작동 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-19 KST** ([PR #102](https://github.com/july-rust/BoardSI/pull/102))
+- [x] 공개 합성 PADS Layout ASCII V9.4 MILS의 **명시된 subset만** 파싱 및 비지원 입력 거절 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-22 KST** ([PR #159](https://github.com/july-rust/BoardSI/pull/159))
+- [x] 지원 Straight Trace/Arc/Via/Component·RF Pad 및 Bottom Mirror 변환 — [A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-23 KST** ([PR #167](https://github.com/july-rust/BoardSI/pull/167))
+- [x] 지원 Board Outline과 다각형·곡선·복합 외곽 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #208](https://github.com/july-rust/BoardSI/pull/208))
+- [x] 지원 Copper Area/원형·곡선·비직교 외곽, Cutout/Hole와 CPU/RHI 표시 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-25 KST** ([PR #192](https://github.com/july-rust/BoardSI/pull/192))
+- [x] 원본 Source tick·좌표·원본 개체별 Provenance와 Artwork 독립 검증 — [A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #200](https://github.com/july-rust/BoardSI/pull/200))
+- [x] 제한 Layer·Net 표시, Filtering, Picking, Zoom/Fit 및 Qt Quick RHI Presented Frame — [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #203](https://github.com/july-rust/BoardSI/pull/203))
+- [x] 원본 정확히 일치하는 일부 Trace/Arc/Via **국소 접점만** 그래프 근거 생성 — [A_032 국소 접점](validation/a032-p2w-local-connectivity.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #196](https://github.com/july-rust/BoardSI/pull/196))
+- [x] CPU/RHI 국소 접점 마커와 소스 정보/Visible Frame 정합성 — [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #203](https://github.com/july-rust/BoardSI/pull/203))
+- [x] 연속 다른 PADS 합성 보드 재Import의 stale 객체·필터 상태 제거 — [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #202](https://github.com/july-rust/BoardSI/pull/202))
+- [x] 10K·100K·1M **합성** 객체의 렌더/상호작용 회귀 시험(성능 보증 아님) — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-24 KST** ([PR #173](https://github.com/july-rust/BoardSI/pull/173))
+- [x] Windows x64·Windows ARM64·macOS ARM64 **Native CI 시험 환경** 범위 PASS — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #208](https://github.com/july-rust/BoardSI/pull/208))
 
 ### A_036 이후에도 반드시 남겨 두는 미완 항목
 
@@ -90,7 +92,7 @@
 - [ ] **U13** — CPU/GPU 등 계산 자원 선택 UI — **정식 인수 미검증**
 - [ ] **U14** — 영어 기본, 한국어 옵션 — **정식 인수 미검증**
 - [ ] **U15** — 공개 검증 샘플, 기밀 PCB 오프라인 검증 — **부분 증빙 / 최종 미완료**: 공개 합성 fixture 존재, 기밀 실보드 오프라인 전 경로 시험 미완 ([A_035 감사](validation/a035-p2z-final-preview-acceptance.md))
-- [x] **U16** — 제품명 BoardSI 사용 — **현재 제품명 적용 확인**
+- [x] **U16** — 제품명 BoardSI 사용 — **현재 제품명 적용 확인** · **체크일: 2026-10-26 KST** · **근거일: 2026-10-14 KST** ([사양서 개정일](specification/BoardSI_Development_Spec_v1.0.md))
 
 ### 실행/기하/입력 구조 U17–U32
 
@@ -202,17 +204,20 @@
 
 ## 6. 갱신 및 완료 판정 규칙
 
-1. `B_001`을 포함한 모든 후속 기능·수정 PR에서 이 문서를 함께 검토하며, 해당 Uxx·Txx·단계·검증 한계·Issue/PR 링크를 **동일 PR**에서 최신화합니다. 변경이 없다면 PR 본문에 `체크리스트 변경 없음`과 범위·이유를 적습니다.
+1. **문서 관리 담당은 챙(ChatGPT)**입니다. 사용자는 일상적으로 문서를 열람만 하고, 체크/날짜/근거 갱신은 챙이 GitHub PR로 수행합니다. `B_001`을 포함한 모든 후속 기능·수정 PR에서 이 문서를 함께 검토하며, 해당 Uxx·Txx·단계·검증 한계·Issue/PR 링크를 **동일 PR**에서 최신화합니다. 변경이 없다면 PR 본문에 `체크리스트 변경 없음`과 범위·이유를 적습니다.
 2. 체크 전 **사양서 요구와 검증 범위가 일치**하는지 확인합니다. 증거: 원본/공개 Fixture·PR·최종 Commit SHA·CI/실행 로그·OS·독립 검토 결과. Green CI/PR Merge만으로 실 PCB Solver/제품을 PASS로 승격하지 않습니다.
 3. 판정: `완료`=해당 문장 전체 수용, `부분 증빙`=일부 구현/시험, `정식 인수 미검증`=제품 게이트 부족, `BLOCKED`=실패 또는 명시적 외부 조건 미해결. 제한 완료와 제품 전체 완료를 섞지 않습니다.
 4. 물리 Gate Q **historical FAIL**, M0 **BLOCKED**, CodeQL Alert #1의 **실제 Open/Fixed 상태 NOT_VERIFIED**, GPU 측정/라이선스·배포 미완 상태는 별도 근거가 확인되기 전 변경하지 않습니다.
-5. 각 단계 종료 후 아래 이력에 작업 번호, 변경된 U/T, 최종 `main` SHA, Native 테스트·Codex 리뷰 증빙 및 아직 미검증인 항목을 기록합니다.
+5. 체크를 새로 표시할 때는 반드시 실제 KST 날짜의 `**체크일: YYYY-MM-DD KST**`와 근거 링크·근거일을 기록합니다. 이미 체크된 항목을 재검증하더라도 최초 체크일은 유지하며, 정정은 변경 이력에 남깁니다. GitHub 문서 CI가 체크일 누락 및 날짜 형식 오류를 검사합니다.
+6. 위 운영 방식은 GitHub 계정의 기술적 접근권한 변경이 아닙니다. 저장소 소유자 권한은 그대로 유지되며, 현재 동일 계정 인증으로 챙의 수정과 소유자의 직접 수정을 GitHub가 기술적으로 구별하지는 못합니다.
+7. 각 단계 종료 후 아래 이력에 작업 번호, 변경된 U/T, 최종 `main` SHA, Native 테스트·Codex 리뷰 증빙 및 아직 미검증인 항목을 기록합니다.
 
 ### 변경 이력
 
 | 날짜(KST) | 작업 | 기준/증거 | 변경 사항 |
 | --- | --- | --- | --- |
-| 2026-10-26 | A_036 | 사양서 v1.0, A_035/이전 근거, 착수 `main@8168298e5a2f64966220ead49017aeef2b4844ad` | U48·T54 전수 목록과 제한 A 시리즈 체크, B_001 시작 전 기준선 생성. A_036 PR 병합/CI는 별도 확인 |
+| 2026-10-26 | A_036 | 사양서 v1.0, [PR #210](https://github.com/july-rust/BoardSI/pull/210), `main@d23f2d4001130cf654e3071cfeb01a7df473ac1d` | U01–U48 / T01–T54 목록 및 최초 체크 13개 생성. 병합 후 21/21 CI PASS |
+| 2026-10-26 | A_036 후속 날짜 보강 | [Issue #211](https://github.com/july-rust/BoardSI/issues/211) | 기존 체크 13개에 최초 체크일 및 개별 선행 근거일 기록, 향후 체크 날짜 필수화, 챙 관리·사용자 열람 운영 원칙 추가 |
 
 ### 필수 참고 근거
 

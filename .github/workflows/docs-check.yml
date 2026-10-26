@@ -33,6 +33,30 @@ jobs:
           assert all(x.get('summary') and len(x['summary']) > 20 for x in plan['issues'])
           print('Planning files validated (not Rust build or SI accuracy)')
           PY
+      - name: Require dated checklist checks
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from datetime import date
+          from pathlib import Path
+          import re
+
+          source = Path('docs/development-checklist.md').read_text(encoding='utf-8')
+          checked = [
+              (line_number, line)
+              for line_number, line in enumerate(source.splitlines(), 1)
+              if re.match(r'^\s*- \[[xX]\] ', line)
+          ]
+          assert checked, 'No checked items found in the development checklist'
+          for line_number, line in checked:
+              match = re.search(r'\*\*체크일: (\d{4}-\d{2}-\d{2}) KST\*\*', line)
+              assert match, f'Missing first-check KST date at line {line_number}'
+              date.fromisoformat(match.group(1))
+              assert re.search(r'\*\*근거일: \d{4}-\d{2}-\d{2} KST\*\*', line), (
+                  f'Missing dated evidence at line {line_number}'
+              )
+          print(f'Dated development checklist checks verified: {len(checked)}')
+          PY
       - name: Verify M0 U/T crosswalk and per-ID ledger, including T44 regression
         run: python3 tools/validation/m0_traceability_check.py
       - name: Validate per-case M0 prototype evidence without promoting full acceptance
