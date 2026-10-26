@@ -25,6 +25,7 @@
 #include <QJsonArray>
 #include <QElapsedTimer>
 #include <QTemporaryFile>
+#include <QTemporaryDir>
 #include <QStandardPaths>
 #include <QMainWindow>
 #include <QPlainTextEdit>
@@ -2706,13 +2707,13 @@ static int runPourSmoke(PreviewWindow &window, const QString &fixture) {
 static int runB001StackupSelftest() {
     QTemporaryFile source;
     QTemporaryFile different;
-    QTemporaryFile overlay;
-    if (!source.open() || !different.open() || !overlay.open()) return 2;
+    QTemporaryDir overlayDirectory;
+    if (!source.open() || !different.open() || !overlayDirectory.isValid()) return 2;
+    const QString overlayPath = QDir(overlayDirectory.path()).filePath("b001_overlay.json");
     if (source.write("B001 public synthetic source A\n") < 1 ||
         different.write("B001 different synthetic source B\n") < 1) return 2;
     source.flush(); source.close();
     different.flush(); different.close();
-    overlay.close();
 
     B001StackupEditor editor;
     editor.resetForImport(source.fileName(), 4);
@@ -2751,9 +2752,9 @@ static int runB001StackupSelftest() {
         QFile::remove(linkPath);
     }
 #endif
-    const bool saved = editor.saveTo(overlay.fileName());
+    const bool saved = editor.saveTo(overlayPath);
     set(1, 9, QString(513, QChar('x')));
-    const bool longFieldRejected = !editor.saveTo(overlay.fileName());
+    const bool longFieldRejected = !editor.saveTo(overlayPath);
     set(1, 9, "PUBLIC_SYNTHETIC_NOT_VERIFIED");
     editor.resetForImport(source.fileName(), 64);
     for (int r = 0; r < 64; ++r) {
@@ -2761,19 +2762,19 @@ static int runB001StackupSelftest() {
         set(r, 4, QString(400, QChar('d')));
         set(r, 9, QString(400, QChar('s')));
     }
-    const bool oversizedDocRejected = !editor.saveTo(overlay.fileName());
+    const bool oversizedDocRejected = !editor.saveTo(overlayPath);
     editor.resetForImport(source.fileName(), 4);
     const bool reset = editor.table()->item(0, 1)->text() == "Unknown";
-    const bool restored = editor.loadFrom(overlay.fileName()) &&
+    const bool restored = editor.loadFrom(overlayPath) &&
         editor.validate().startsWith("INPUT FIELDS VALID");
     QFile changed(source.fileName());
     const bool changedWritten = changed.open(QIODevice::WriteOnly | QIODevice::Append) &&
         changed.write("MODIFIED AFTER IMPORT\n") > 0;
     changed.close();
     const bool mutationRejected = changedWritten &&
-        !editor.saveTo(overlay.fileName()) && !editor.loadFrom(overlay.fileName());
+        !editor.saveTo(overlayPath) && !editor.loadFrom(overlayPath);
     editor.resetForImport(different.fileName(), 4);
-    const bool foreignRejected = !editor.loadFrom(overlay.fileName()) &&
+    const bool foreignRejected = !editor.loadFrom(overlayPath) &&
         editor.validate().contains("RUN BLOCKED");
     const bool pass = unknownBlocked && nonCopperRoleRejected && inputAccepted && invalidBlocked &&
                       sourceOverwriteRejected && symlinkRejected && saved && longFieldRejected &&
