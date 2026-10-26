@@ -102,7 +102,7 @@ struct ContactValidationIndex<'a> {
     arcs: BTreeMap<&'a ObjectId, &'a Arc>,
     pads: BTreeMap<&'a ObjectId, &'a Pad>,
     vias: BTreeMap<&'a ObjectId, &'a Via>,
-    areas: BTreeMap<&'a ObjectId, &'a Area>,
+    areas: BTreeMap<&'a ObjectId, &'a CopperArea>,
     nets: BTreeSet<&'a ObjectId>,
     conductive: BTreeSet<(&'a ObjectId, &'a ObjectId)>,
 }
