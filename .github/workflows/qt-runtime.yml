@@ -408,7 +408,7 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc"
           cp qt-preview-p0-results.json qt-preview-a034-contact-results.json
-          python -c 'import json; r=json.load(open("qt-preview-a034-contact-results.json")); assert r["pass"] and r["a034_local_contact_cpu_rhi_filter_verified"] and r["a034_local_contact_rhi_pick_scope"]=="PASS" and r["a034_cross_file_reimport_scope"]=="PASS" and r["a034_cross_file_reimport_verified"] and r["source_sha"], r'
+          python -c 'import json; r=json.load(open("qt-preview-a034-contact-results.json")); assert r["pass"] and r["a034_local_contact_cpu_rhi_filter_verified"] and r["a034_local_contact_rhi_pick_scope"]=="PASS" and r["a034_local_contact_rhi_frame_scope"]=="PASS" and r["a034_cross_file_reimport_scope"]=="PASS" and r["a034_cross_file_reimport_verified"] and r["source_sha"], r'
       - name: A_021 native PADS POUROUT V9 IPC and GPU/CPU source parity regression
         shell: bash
         run: |
