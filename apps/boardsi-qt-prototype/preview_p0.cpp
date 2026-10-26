@@ -2740,7 +2740,28 @@ static int runB001StackupSelftest() {
     set(1, 5, "-0.1");
     const bool invalidBlocked = editor.validate().contains("INVALID DK/DF");
     set(1, 5, "0.02");
+    const bool sourceOverwriteRejected = !editor.saveTo(source.fileName()) &&
+        !editor.saveTo(QFileInfo(source.fileName()).absolutePath() +
+                       "/./" + QFileInfo(source.fileName()).fileName());
+    bool symlinkRejected = true;
+#ifdef Q_OS_UNIX
+    const QString linkPath = source.fileName() + ".b001-alias";
+    if (QFile::link(source.fileName(), linkPath)) {
+        symlinkRejected = !editor.saveTo(linkPath);
+        QFile::remove(linkPath);
+    }
+#endif
     const bool saved = editor.saveTo(overlay.fileName());
+    set(1, 9, QString(513, QChar('x')));
+    const bool longFieldRejected = !editor.saveTo(overlay.fileName());
+    set(1, 9, "PUBLIC_SYNTHETIC_NOT_VERIFIED");
+    editor.resetForImport(source.fileName(), 64);
+    for (int r = 0; r < 64; ++r) {
+        set(r, 3, QString(400, QChar('m')));
+        set(r, 4, QString(400, QChar('d')));
+        set(r, 9, QString(400, QChar('s')));
+    }
+    const bool oversizedDocRejected = !editor.saveTo(overlay.fileName());
     editor.resetForImport(source.fileName(), 4);
     const bool reset = editor.table()->item(0, 1)->text() == "Unknown";
     const bool restored = editor.loadFrom(overlay.fileName()) &&
@@ -2754,14 +2775,19 @@ static int runB001StackupSelftest() {
     editor.resetForImport(different.fileName(), 4);
     const bool foreignRejected = !editor.loadFrom(overlay.fileName()) &&
         editor.validate().contains("RUN BLOCKED");
-    const bool pass = unknownBlocked && nonCopperRoleRejected && inputAccepted && invalidBlocked && saved &&
-                      reset && restored && mutationRejected && foreignRejected;
+    const bool pass = unknownBlocked && nonCopperRoleRejected && inputAccepted && invalidBlocked &&
+                      sourceOverwriteRejected && symlinkRejected && saved && longFieldRejected &&
+                      oversizedDocRejected && reset && restored && mutationRejected && foreignRejected;
     qInfo().noquote() << QJsonDocument(QJsonObject{
         {"schema", "b001-stackup-native-test-v1"},
         {"pass", pass}, {"missing_fields_blocked", unknownBlocked},
         {"user_input_validated", inputAccepted}, {"noncopper_role_blocked", nonCopperRoleRejected},
         {"negative_df_blocked", invalidBlocked},
-        {"overlay_saved", saved}, {"reimport_reset", reset},
+        {"overlay_saved", saved}, {"source_overwrite_blocked", sourceOverwriteRejected},
+        {"source_symlink_blocked", symlinkRejected},
+        {"oversized_field_blocked", longFieldRejected},
+        {"oversized_document_blocked", oversizedDocRejected},
+        {"reimport_reset", reset},
         {"same_source_roundtrip", restored}, {"post_import_mutation_rejected", mutationRejected},
         {"different_source_rejected", foreignRejected},
         {"reference_electrical_contact", "NOT_VERIFIED"},
