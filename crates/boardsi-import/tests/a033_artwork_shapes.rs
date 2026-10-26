@@ -47,7 +47,10 @@ fn polygon(tag: &str, vertices_mil: &[[i64; 2]]) -> String {
 #[test]
 fn source_board_outline_and_explicit_cutout_have_exact_four_edges_each() {
     let wire = import("pads_board_outline_cutout_v94.asc");
-    assert_eq!(wire.lines().next(), Some("BOARDSI_P2G_PARTIAL_V6|V9.4-MILS|4"));
+    assert_eq!(
+        wire.lines().next(),
+        Some("BOARDSI_P2G_PARTIAL_V6|V9.4-MILS|4")
+    );
     let actual: BTreeSet<String> = wire
         .lines()
         .filter(|row| row.starts_with("O|"))
@@ -56,17 +59,17 @@ fn source_board_outline_and_explicit_cutout_have_exact_four_edges_each() {
     let outer = [[100, 200], [500, 200], [500, 500], [100, 500], [100, 200]];
     let cut = [[200, 300], [300, 300], [300, 400], [200, 400], [200, 300]];
     let mut expected = BTreeSet::new();
-    for (kind, name, vertices) in [
-        ("OUTER", "MAIN_BOARD", outer),
-        ("CUT", "INNER_CUT", cut),
-    ] {
+    for (kind, name, vertices) in [("OUTER", "MAIN_BOARD", outer), ("CUT", "INNER_CUT", cut)] {
         for (n, pair) in vertices.windows(2).enumerate() {
             expected.insert(line(kind, name, n, pair[0], pair[1]));
         }
     }
     assert_eq!(actual.len(), 8);
     assert_eq!(wire.lines().filter(|row| row.starts_with("O|")).count(), 8);
-    assert_eq!(actual, expected, "source outline/hole vertices must remain exact");
+    assert_eq!(
+        actual, expected,
+        "source outline/hole vertices must remain exact"
+    );
     assert_eq!(wire.lines().filter(|row| row.starts_with("G|")).count(), 0);
     assert_eq!(wire.lines().filter(|row| row.starts_with("H|")).count(), 0);
     assert!(wire.ends_with("CANONICAL_PARTIAL|SI_NOT_RUN\n"));
@@ -75,7 +78,10 @@ fn source_board_outline_and_explicit_cutout_have_exact_four_edges_each() {
 #[test]
 fn source_owned_copper_polygon_has_exact_two_rectangular_holes() {
     let wire = import("pads_copper_cutout_v94.asc");
-    assert_eq!(wire.lines().next(), Some("BOARDSI_P2N_PARTIAL_V11|V9.4-MILS|4"));
+    assert_eq!(
+        wire.lines().next(),
+        Some("BOARDSI_P2N_PARTIAL_V11|V9.4-MILS|4")
+    );
     let all_copper: Vec<_> = wire.lines().filter(|row| row.starts_with("G|")).collect();
     assert_eq!(all_copper.len(), 1, "no extra or lost copper area");
     let fields: Vec<_> = all_copper[0].split('|').collect();
@@ -93,10 +99,7 @@ fn source_owned_copper_polygon_has_exact_two_rectangular_holes() {
     let normalized = format!("{}|{}", fields[..5].join("|"), fields[6..].join("|"));
     assert_eq!(normalized, outer);
     let expected: BTreeSet<_> = [
-        polygon(
-            "H|0",
-            &[[60, 60], [80, 60], [80, 80], [60, 80], [60, 60]],
-        ),
+        polygon("H|0", &[[60, 60], [80, 60], [80, 80], [60, 80], [60, 60]]),
         polygon(
             "H|0",
             &[[100, 80], [120, 80], [120, 100], [100, 100], [100, 80]],
@@ -107,7 +110,13 @@ fn source_owned_copper_polygon_has_exact_two_rectangular_holes() {
     let holes: Vec<_> = wire.lines().filter(|row| row.starts_with("H|")).collect();
     let actual: BTreeSet<_> = holes.iter().map(|s| (*s).to_owned()).collect();
     assert_eq!(holes.len(), 2);
-    assert_eq!(actual, expected, "two explicitly owned voids must be preserved");
-    assert!(wire.lines().all(|row| !row.starts_with("J|")), "no invented circular void");
+    assert_eq!(
+        actual, expected,
+        "two explicitly owned voids must be preserved"
+    );
+    assert!(
+        wire.lines().all(|row| !row.starts_with("J|")),
+        "no invented circular void"
+    );
     assert!(wire.ends_with("CANONICAL_PARTIAL|SI_NOT_RUN\n"));
 }
