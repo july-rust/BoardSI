@@ -167,6 +167,21 @@ jobs:
           cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker"
           cmake --build build-qt --parallel 2
           file build-qt/boardsi-qt-runtime-validation target/debug/boardsi-worker
+      - name: B_001 stackup native editor regression (source safety)
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          set +e
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --b001-stackup-selftest
+          rc=$?
+          if test -f qt-preview-b001-stackup-results.json; then
+            cat qt-preview-b001-stackup-results.json
+          else
+            echo "B001_RECEIPT_MISSING"
+          fi
+          exit "$rc"
       - name: Execute actual native Qt backend
         id: native_qt_execution
         shell: bash
@@ -528,6 +543,7 @@ jobs:
         with:
           name: boardsi-preview-p0-native-${{ matrix.name }}
           path: |
+            build-qt/qt-preview-b001-stackup-results.json
             build-qt/qt-preview-p0-results.json
             build-qt/qt-preview-p2b-via-results.json
             build-qt/qt-preview-p2d-rect-results.json
