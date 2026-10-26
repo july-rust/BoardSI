@@ -289,6 +289,17 @@ jobs:
               $fixture=Join-Path $copy 'public-pads-v94-synthetic.asc'
               & $exe --selftest $worker $a $b $importer $fixture
               if ($LASTEXITCODE -ne 0) {throw 'Direct Windows executable bundled Qt smoke failed'}
+              # The package must work without developer target/debug or an injected path.
+              $env:BOARDSI_STACKUP_VALIDATOR = $null
+              & $exe --b001-stackup-selftest
+              if ($LASTEXITCODE -ne 0) {throw 'Direct bundled Rust Canonical audit regression failed'}
+              $audit = Get-Content -LiteralPath 'qt-preview-b001-stackup-results.json' -Raw | ConvertFrom-Json
+              if ($audit.pass -ne $true -or
+                  $audit.canonical_assumed_and_reference_unsupported -ne $true -or
+                  $audit.canonical_out_of_band_blocked -ne $true) {
+                throw 'Bundled Rust Canonical audit lacks explicit source and frequency safety proof'
+              }
+              Copy-Item -LiteralPath 'qt-preview-b001-stackup-results.json' -Destination 'qt-preview-b001-bundled-direct.json' -Force
             } finally {Pop-Location}
             $direct=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
             if ($direct.pass -ne $true -or $direct.source_sha -ne $env:BOARDSI_SOURCE_HEAD_SHA) {
@@ -547,6 +558,7 @@ jobs:
           name: boardsi-preview-p0-native-${{ matrix.name }}
           path: |
             build-qt/qt-preview-b001-stackup-results.json
+            build-qt/qt-preview-b001-bundled-direct.json
             build-qt/qt-preview-p0-results.json
             build-qt/qt-preview-p2b-via-results.json
             build-qt/qt-preview-p2d-rect-results.json
