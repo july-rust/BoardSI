@@ -45,7 +45,8 @@ class B001StackupEditor final : public QWidget {
         QCryptographicHash hash(QCryptographicHash::Sha256);
         while (!f.atEnd()) {
             const QByteArray chunk = f.read(65536);
-            if (chunk.isEmpty() || !hash.addData(chunk)) return {};
+            if (chunk.isEmpty()) return {};
+            hash.addData(chunk);
         }
         return hash.result().toHex();
     }
