@@ -20,9 +20,9 @@ Branch: `a032/p2w-endpoint-connectivity`.
 - `crates/boardsi-model/src/validation.rs`: per-validation indexed graph node / Trace / Arc / Pad / Via / CopperArea and Net lookups; remove repeated whole-via validation in node/edge path because the same `BoardModel::validate` already validates every via. Same-layer, exact-coordinate, source-net and connected-layer checks remain active. **Runtime speed is NOT_VERIFIED until measured on exact final HEAD.**
 - `crates/boardsi-import/src/connectivity_preview.rs`: guard `MAX_SITES_PER_POINT` before each insertion of Trace/Arc/Via contact records, and add 33-site limit and 10,000-segment positive regression cases.
 - `apps/boardsi-qt-prototype/preview_import.h`: remember cumulative stderr overflow across chunks, drain stderr on process completion, and refuse import on overflow. Extract the exact bounded chunk collector for targeted native regression.
-- `apps/boardsi-qt-prototype/preview_p0.cpp`: split-chunk and 256/257-byte stderr collector regressions in the existing real Qt smoke, separate from decoder-only tests.
+- `apps/boardsi-qt-prototype/preview_p0.cpp`: split-chunk and 256/257-byte collector regressions plus an actual spawned Python mock-worker QProcess integration smoke that emits valid V1 stdout and >256-byte malicious stderr, verifying `INVALID_CONTACT_AUDIT` and no imported view.
 
-These are **source changes**, not a claim that runtime CI or an end-to-end hostile QProcess run has passed. A direct spawned-malicious-worker integration test and independently measured release import latency remain required for full A_032_1 acceptance.
+These are **source changes**, not a claim that the added native QProcess test has passed on final HEAD. A separately measured release import latency remains required for full A_032_1 acceptance.
 
 ## Outstanding owner-required CP3 features
 
