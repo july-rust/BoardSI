@@ -30,6 +30,7 @@ class PreviewImportPanel final : public QWidget {
     QByteArray errors_; // Small bounded diagnostic (fixed importer error codes only).
     QString binary_;
     QString candidatePath_;
+    int importedLayerCount_ = 0;
     QString status_ = "NOT IMPORTED / SI NOT_RUN";
     std::function<void(const QString &)> callback_;
     bool expired_ = false, overflow_ = false, stderr_overflow_ = false;
@@ -657,6 +658,7 @@ public:
                 status("FAILED / INVALID_GEOMETRY / NOTHING IMPORTED");
                 return;
             }
+            importedLayerCount_ = layers;
             imported_->setLocalContacts(contactMarkers);
             imported_->setLocalContactAudit(contactAudit);
             tabs_->setTabText(1, "Imported Partial");
@@ -696,12 +698,14 @@ public:
     QTabWidget *artworkTabs() const { return tabs_; }
     bool showingImported() const { return tabs_->currentWidget() == imported_; }
     QString importStatus() const { return status_; }
+    int importedLayerCount() const { return importedLayerCount_; }
     void setStatusCallback(std::function<void(const QString &)> cb) { callback_ = std::move(cb); }
     bool openPath(const QString &path) {
         if (process_.state() != QProcess::NotRunning) return false;
         // An import attempt replaces the candidate, even when start/parse fails.
         // Never show previous geometry with the current "NOTHING IMPORTED" result.
         imported_->clearArtwork();
+        importedLayerCount_ = 0;
         tabs_->setTabText(1, "Imported Partial (none)");
         if (!QFileInfo(binary_).isAbsolute() || !QFileInfo(binary_).isExecutable()) {
             status("FAILED / IMPORTER_UNAVAILABLE / NOTHING IMPORTED");
