@@ -11,7 +11,7 @@ This audit verifies *only the explicitly supported source-authored* PADS V9.4 MI
 
 ### Independent exact-source grid reference
 
-A new native Rust process-level `tests/a033_source_parity.rs` checks complete sets of the source-owned `T|` and `P|` rows against manually calculated, literal source-coordinate expectations. It is not an importer-output recording.
+Two new native Rust process-level suites (`tests/a033_source_parity.rs` and `tests/a033_artwork_shapes.rs`) check complete sets of source-owned `T|`, `P|`, `O|`, `G|P`, and `H|` rows against manually calculated, literal source-coordinate expectations. It is not an importer-output recording.
 
 | Fixture | Exact authored evidence | Check | Limit |
 | --- | --- | --- | --- |
@@ -19,6 +19,8 @@ A new native Rust process-level `tests/a033_source_parity.rs` checks complete se
 | `pads_bottom_mirror_v94.asc` | 10 authored RF pads at 5 placements, 0/90/180/270 rotations, mirrored layer 4 and top layer 1 | full unordered `P|` row equality, no phantom traces or copper, exact side/rotation/net-unverified labels | synthetic orthogonal RF only; no electrical Pad/Pin net proof |
 | `pads_route_straight_v94.asc` opt-in | exactly one equal-Net endpoint contact at 300,200 mil; SHA-256 of original bytes | byte-identical legacy prefix; strict hash/count/trailer; one exact local `E|S` evidence, no fabricated conflict | **not complete Open/Short**, no source Net-to-pad assertion |
 | Mutated public route fixture | source 100→101 mil, oversized coordinate, MAXLAYER 65, V9.5 header | successful modified source yields modified x-coordinate; unsupported/hostile inputs reject with empty stdout | synthetic mutation only, not exhaustive fuzzing |
+| `pads_board_outline_cutout_v94.asc` | source-owned MAIN_BOARD + INNER_CUT, four exact edges each at authored 100/200 mil origin | entire `O|` row-set equality, duplicate/no-extra copper rejection, non-SI-only suffix | source-designed polygon bounds only; actual routing keepouts NOT_VERIFIED |
+| `pads_copper_cutout_v94.asc` | explicit one `G|P` copper polygon and two `H|0` hole polygons relative to 40/40 mil source origin | original complete outer polygon points and hole owner/points match independent authored MIL references, with source-line provenance maintained | neither thermal/flood nor electrically proved GND plane |
 
 Golden arithmetic: 1 mil = 25,400 nm; one supported canonical 0.01-mil tick = 254 nm. An IPC/display mesh has no authority to alter the original source-grid coordinates.
 
@@ -43,3 +45,7 @@ The tests check whole transport primitive sets rather than isolated substring pr
 - Binary distribution license approval: **NOT_VERIFIED**
 
 The full M1/P2 umbrella issues #9, #11, #165 remain open.
+
+## Independent Codex availability (2026-10-26)
+
+The exact prior candidate `551662e` passed the strict 17/17 required CI contexts. An explicit `@codex review` returned **'To use Codex here, create an environment for this repo'**, rather than a completed review verdict. Do NOT report a Codex PASS or zero findings on this basis. The newer geometry tests must independently clear all new exact-HEAD CI contexts; third-party review remains **NOT_RUN / ENVIRONMENT_NOT_CONFIGURED** until a real review completes. This is not evidence that the source tests are free of unknown flaws.
