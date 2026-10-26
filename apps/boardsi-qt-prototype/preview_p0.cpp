@@ -841,6 +841,15 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
             transportPrefix+"END|0|0|0|0|1|0|1|CANONICAL_PARTIAL|SI_NOT_RUN\n") &&
         !PreviewImportPanel::validTransportForTest(
             transportPrefix+"END|0|0|0|0\n");
+    // A_032: a separate bounded success-audit protocol must not accept
+    // forged counts, extra fields or an unversioned message.
+    const bool contactAuditTransport =
+        PreviewImportPanel::validContactAuditForTest(
+            "BOARDSI_CONTACT_AUDIT_V1|2|1|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n") &&
+        !PreviewImportPanel::validContactAuditForTest(
+            "BOARDSI_CONTACT_AUDIT_V1|X|1|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n") &&
+        !PreviewImportPanel::validContactAuditForTest(
+            "BOARDSI_CONTACT_AUDIT_V1|2|1|CONFLICT_DETAIL_NOT_EXPOSED|FULL_BOARD_VERIFIED\n");
     bool overflowCircleRejected=false;
     QEventLoop loop;
     if (!window.openCandidate(fixture)) {
@@ -913,7 +922,7 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
 #endif
             passed=counts && outerExact && cutExact && independent &&
                    malformedTransportRejected && overflowCircleRejected &&
-                   (!rhiChecked || rhiExact);
+                   contactAuditTransport && (!rhiChecked || rhiExact);
             if(!passed) failure="A_017 circle geometry/count/RHI/pick mismatch";
             loop.quit();
         });
@@ -930,6 +939,7 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
         {"rhi_source_checked",rhiChecked},{"rhi_circle_fit_and_pick",rhiExact},
         {"v7_truncated_end_rejected",malformedTransportRejected},
         {"v7_overflow_circle_rejected",overflowCircleRejected},
+        {"a032_bounded_contact_audit_decode",contactAuditTransport},
         {"scope","public synthetic V9.4 even-grid circular BOARD and BRDCIR; SI NOT_RUN"}
     };
     QFile receipt("qt-preview-p2h-circle-results.json");
