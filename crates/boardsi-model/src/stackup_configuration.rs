@@ -61,6 +61,15 @@ fn valid_evidence(source: &PropertySource) -> bool {
         && source.temperature_c.map_or(true, f64::is_finite)
 }
 
+/// The absent board outline is an explicitly known limitation of this
+/// material-only configuration; no other missing field is excused.
+pub fn material_overlay_report_has_blocker(report: &ValidationReport) -> bool {
+    report.issues.iter().any(|issue| {
+        issue.severity == Severity::Error
+            || (issue.severity == Severity::Missing && issue.context != "outline missing")
+    })
+}
+
 /// Only the stackup/material portion is constructed. No synthetic net, copper, port,
 /// via or plane is created and the resulting model is never solver-ready.
 pub fn build_stackup_configuration(
@@ -168,10 +177,11 @@ pub fn build_stackup_configuration(
             .checked_add(edit.thickness_um)
             .ok_or(ModelError::CoordinateOverflow)?;
     }
+    // This configuration intentionally has no imported outline or Copper geometry.
+    // An outline is mandatory for the *whole board*, not for material-only
+    // qualification. All other structural errors or missing properties still block.
     let report = board.validate_materials_at(frequency_hz);
-    if report.has_errors() || report.has_missing() {
-        #[cfg(test)]
-        eprintln!("B001 report: {:?}", report.issues);
+    if material_overlay_report_has_blocker(&report) {
         return Err(ModelError::InvalidMaterial);
     }
     Ok(StackupConfiguration {
