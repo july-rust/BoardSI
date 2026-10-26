@@ -8,7 +8,7 @@
 - [Development completion checklist](../docs/development-checklist.md) rows affected (Uxx/Txx/stage), or `no status change` with reason:
 
 ## Acceptance evidence
-- [ ] Development checklist updated with new scope, exact evidence and remaining limitations (or no-change reason documented)
+- [ ] ChatGPT-managed development checklist updated via this PR (or no-change reason documented); every new `[x]` includes first-check `YYYY-MM-DD KST`, dated evidence and source link
 - [ ] Tests or explicit Not Tested status
 - [ ] Format/model accuracy limitations documented
 - [ ] No confidential PCB/stackup/net/result data or credentials
