@@ -7,6 +7,7 @@
 #include "model_v2.cpp"
 #include "synthetic_artwork.h"
 #include "preview_import.h"
+#include "b001_stackup_editor.h"
 #include "a019_gpu_benchmark.h"
 #include "a019_interaction_validation.h"
 #include "a020_explorer_validation.h"
@@ -45,6 +46,8 @@ class PreviewWindow : public QMainWindow {
     QAction *stopAction = nullptr;
     SyntheticArtworkPanel *artwork = nullptr;
     PreviewImportPanel *importUI = nullptr;
+    B001StackupEditor *stackup = nullptr;
+    QString chosenSourcePath;
     QString importResultStatus = "NOT IMPORTED";
     QLabel *properties = nullptr;
     QLabel *validation = nullptr;
@@ -194,6 +197,8 @@ public:
         resultSummary->setObjectName("previewResults");
         resultSummary->setReadOnly(true);
         tabs->addTab(resultSummary, "Results");
+        stackup = new B001StackupEditor(tabs);
+        tabs->addTab(stackup, "Stackup / Reference");
         tabs->addTab(unsupportedTab(
             "S-PARAMETERS - NOT AVAILABLE\nSynthetic Worker data are not physical PCB SI results.", tabs),
             "S-Parameters");
@@ -238,6 +243,11 @@ public:
         rightLayout->addWidget(validBox);
         importUI->setStatusCallback([this](const QString &state) {
             importResultStatus = state;
+            if (state.startsWith("PARTIAL"))
+                stackup->resetForImport(chosenSourcePath, importUI->importedLayerCount());
+            else if (state.startsWith("RUNNING") || state.startsWith("FAILED") ||
+                     state.startsWith("CANCELLED"))
+                stackup->resetForImport(QString(), 0);
             log->appendPlainText("PCB Import: " + state);
             refreshProperties();
         });
@@ -307,6 +317,7 @@ public:
             return false;
         }
         chosenFile = QFileInfo(file).fileName();
+        chosenSourcePath = file;
         const bool started = importUI->openPath(file);
         if (!started)
             log->appendPlainText("Open PCB: unsupported PADS source or local executable unavailable.");
@@ -322,6 +333,7 @@ public:
     QAction *saveControl() const { return saveAction; }
     SyntheticArtworkPanel *artworkPanel() const { return artwork; }
     PreviewImportPanel *importPanel() const { return importUI; }
+    B001StackupEditor *stackupEditor() const { return stackup; }
 
 protected:
     void closeEvent(QCloseEvent *event) override {
@@ -2691,9 +2703,67 @@ static int runPourSmoke(PreviewWindow &window, const QString &fixture) {
     return pass?0:1;
 }
 
+static int runB001StackupSelftest() {
+    QTemporaryFile source;
+    QTemporaryFile different;
+    QTemporaryFile overlay;
+    if (!source.open() || !different.open() || !overlay.open()) return 2;
+    if (source.write("B001 public synthetic source A\n") < 1 ||
+        different.write("B001 different synthetic source B\n") < 1) return 2;
+    source.flush(); source.close();
+    different.flush(); different.close();
+    overlay.close();
+
+    B001StackupEditor editor;
+    editor.resetForImport(source.fileName(), 4);
+    const bool unknownBlocked = editor.validate().contains("RUN BLOCKED");
+    auto set = [&editor](int row, int col, const QString &value) {
+        editor.table()->item(row, col)->setText(value);
+    };
+    for (int r = 0; r < 4; ++r) {
+        const bool copper = r % 2 == 0;
+        set(r, 1, copper ? "Copper" : "Core");
+        set(r, 2, copper ? "35" : "100");
+        set(r, 3, "Synthetic assumption");
+        set(r, 4, copper ? "" : "4.2");
+        set(r, 5, copper ? "" : "0.02");
+        set(r, 6, copper ? "58000000" : "");
+        set(r, 7, r == 2 ? "Ground" : "Signal");
+        set(r, 9, "PUBLIC_SYNTHETIC_NOT_VERIFIED");
+    }
+    set(0, 8, "3");
+    const bool inputAccepted = editor.validate().startsWith("INPUT FIELDS VALID") &&
+        editor.validate().contains("PHYSICAL SI RUN BLOCKED");
+    set(1, 5, "-0.1");
+    const bool invalidBlocked = editor.validate().contains("INVALID DK/DF");
+    set(1, 5, "0.02");
+    const bool saved = editor.saveTo(overlay.fileName());
+    editor.resetForImport(source.fileName(), 4);
+    const bool reset = editor.table()->item(0, 1)->text() == "Unknown";
+    const bool restored = editor.loadFrom(overlay.fileName()) &&
+        editor.validate().startsWith("INPUT FIELDS VALID");
+    editor.resetForImport(different.fileName(), 4);
+    const bool foreignRejected = !editor.loadFrom(overlay.fileName()) &&
+        editor.validate().contains("RUN BLOCKED");
+    const bool pass = unknownBlocked && inputAccepted && invalidBlocked && saved &&
+                      reset && restored && foreignRejected;
+    qInfo().noquote() << QJsonDocument(QJsonObject{
+        {"schema", "b001-stackup-native-test-v1"},
+        {"pass", pass}, {"missing_fields_blocked", unknownBlocked},
+        {"user_input_validated", inputAccepted}, {"negative_df_blocked", invalidBlocked},
+        {"overlay_saved", saved}, {"reimport_reset", reset},
+        {"same_source_roundtrip", restored}, {"different_source_rejected", foreignRejected},
+        {"reference_electrical_contact", "NOT_VERIFIED"},
+        {"material_physics", "NOT_VERIFIED"}, {"physical_si", "NOT_RUN"}
+    }).toJson(QJsonDocument::Compact);
+    return pass ? 0 : 1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if (args.size() == 2 && args.at(1) == "--b001-stackup-selftest")
+        return runB001StackupSelftest();
     if (args.size() == 2 && args.at(1) == "--explorer-selftest")
         return runA020ExplorerSmoke();
     if (args.size() == 2 && args.at(1) == "--rhi-geometry-selftest")
