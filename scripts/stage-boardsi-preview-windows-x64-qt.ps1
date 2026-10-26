@@ -20,6 +20,7 @@ $items=@{
  'build-qt/boardsi-preview-p0.exe'='boardsi-preview-p0.exe'
  'target/debug/boardsi-worker.exe'='boardsi-worker.exe'
  'target/debug/boardsi-import-artwork.exe'='boardsi-import-artwork.exe'
+ 'target/debug/boardsi-stackup-config.exe'='boardsi-stackup-config.exe'
  'build-qt/qt-model-a.frame'='qt-model-a.frame'
  'build-qt/qt-model-b.frame'='qt-model-b.frame'
  'crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc'='public-pads-v94-synthetic.asc'
@@ -110,6 +111,10 @@ BoardSI P2-A Windows x64 QT-BUNDLED TEST PACKAGE (NOT A RELEASE)
 3. Optional: PowerShell .\run-preview.ps1 -ValidateOnly
    then .\run-preview.ps1 -SelfTest or .\run-preview.ps1
 4. Open PCB: restricted PADS V9.4 MILS straight-route and explicit round\n   through-via subset only.
+   Stackup / Reference: enter explicit material source, revision, method,
+   frequency and valid-band data; use the bundled native Rust Canonical
+   audit executable. Audit success means ASSUMED material-only data,
+   NOT verified copper return paths or a physical SI run.
    Other pads, vias, connectivity, stackup and physical SI are NOT IMPORTED.
 5. If an MSVC runtime DLL is missing, install the official Microsoft
    Visual C++ 2015-2022 x64 Redistributable:
