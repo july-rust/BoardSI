@@ -850,6 +850,21 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
             "BOARDSI_CONTACT_AUDIT_V1|X|1|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n") &&
         !PreviewImportPanel::validContactAuditForTest(
             "BOARDSI_CONTACT_AUDIT_V1|2|1|CONFLICT_DETAIL_NOT_EXPOSED|FULL_BOARD_VERIFIED\n");
+    // Exercise the very same chunk collector used by the real QProcess
+    // handler. Decoder-only tests cannot see truncated stderr.
+    const QByteArray canonicalAudit =
+        "BOARDSI_CONTACT_AUDIT_V1|2|1|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n";
+    const QByteArray paddedAudit = canonicalAudit +
+        QByteArray(256 - canonicalAudit.size(), ' ');
+    const bool contactAuditChunkCollection =
+        PreviewImportPanel::validContactAuditChunksForTest(
+            {canonicalAudit.left(17), canonicalAudit.mid(17)}) &&
+        PreviewImportPanel::validContactAuditChunksForTest(
+            {paddedAudit.left(127), paddedAudit.mid(127)}) &&
+        !PreviewImportPanel::validContactAuditChunksForTest(
+            {paddedAudit.left(127), paddedAudit.mid(127), QByteArray(" ")}) &&
+        !PreviewImportPanel::validContactAuditChunksForTest(
+            {canonicalAudit, QByteArray(257, ' ')});
     bool overflowCircleRejected=false;
     QEventLoop loop;
     if (!window.openCandidate(fixture)) {
@@ -922,7 +937,8 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
 #endif
             passed=counts && outerExact && cutExact && independent &&
                    malformedTransportRejected && overflowCircleRejected &&
-                   contactAuditTransport && (!rhiChecked || rhiExact);
+                   contactAuditTransport && contactAuditChunkCollection &&
+                   (!rhiChecked || rhiExact);
             if(!passed) failure="A_017 circle geometry/count/RHI/pick mismatch";
             loop.quit();
         });
@@ -940,6 +956,7 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
         {"v7_truncated_end_rejected",malformedTransportRejected},
         {"v7_overflow_circle_rejected",overflowCircleRejected},
         {"a032_bounded_contact_audit_decode",contactAuditTransport},
+        {"a032_bounded_stderr_chunk_collector",contactAuditChunkCollection},
         {"scope","public synthetic V9.4 even-grid circular BOARD and BRDCIR; SI NOT_RUN"}
     };
     QFile receipt("qt-preview-p2h-circle-results.json");
