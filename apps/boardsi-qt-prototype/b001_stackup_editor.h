@@ -22,6 +22,7 @@ class B001StackupEditor final : public QWidget {
     QTableWidget *rows_ = nullptr;
     QLabel *message_ = nullptr;
     QString sourcePath_;
+    QByteArray importDigest_; // Pinned at successful import; never trust a later path-only match.
     static constexpr int Columns = 10;
     // Layer ID / kind / thickness in micrometres / material / Dk / Df /
     // conductivity S/m / net-role hint / reference layer / source document.
@@ -41,7 +42,7 @@ class B001StackupEditor final : public QWidget {
     }
     static QByteArray sourceDigest(const QString &path) {
         QFile f(path);
-        if (!f.open(QIODevice::ReadOnly)) return {};
+        if (!f.open(QIODevice::ReadOnly) || f.size() > 64 * 1024 * 1024) return {};
         QCryptographicHash hash(QCryptographicHash::Sha256);
         while (!f.atEnd()) {
             const QByteArray chunk = f.read(65536);
@@ -102,9 +103,16 @@ public:
     void resetForImport(const QString &path, int layerCount) {
         // Begin reimport by calling with 0; fail-closed regardless of import outcome.
         sourcePath_ = layerCount > 0 ? path : QString();
+        importDigest_.clear();
         rows_->setRowCount(0);
         if (sourcePath_.isEmpty() || layerCount < 1 || layerCount > 64) {
             status("NO QUALIFIED STACKUP / SI NOT_RUN");
+            return;
+        }
+        importDigest_ = sourceDigest(sourcePath_);
+        if (importDigest_.size() != 64) {
+            sourcePath_.clear();
+            status("SOURCE HASH UNAVAILABLE OR TOO LARGE / RUN BLOCKED");
             return;
         }
         rows_->setRowCount(layerCount);
@@ -154,7 +162,7 @@ public:
         if (sourcePath_.isEmpty() || rows_->rowCount() < 1 ||
             rows_->rowCount() > 64) return false;
         const QByteArray digest = sourceDigest(sourcePath_);
-        if (digest.size() != 64) return false;
+        if (digest.size() != 64 || digest != importDigest_) return false;
         QJsonArray layers;
         for (int r = 0; r < rows_->rowCount(); ++r) {
             QJsonArray row;
@@ -182,7 +190,7 @@ public:
         if (error.error != QJsonParseError::NoError || !doc.isObject()) return false;
         const QJsonObject root = doc.object();
         const QByteArray digest = sourceDigest(sourcePath_);
-        if (digest.size() != 64 ||
+        if (digest.size() != 64 || digest != importDigest_ ||
             root.value("schema").toString() != "boardsi-b001-stackup-overlay-v1" ||
             root.value("source_sha256").toString().toLatin1() != digest ||
             root.value("scope").toString() != "USER_OVERLAY_NOT_PHYSICAL_SI") return false;
