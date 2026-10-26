@@ -567,6 +567,13 @@ fn run() -> Result<(usize, usize), &'static str> {
                     )
                     .map_err(|_| "FORMAT_ERROR")?;
                 }
+                // V10-V14 intentionally return early from their legacy
+                // END serialization. The optional evidence suffix MUST be
+                // emitted on this path as well, before the first stdout byte.
+                if contacts_v1 {
+                    let evidence = boardsi_import::contact_wire::encode(&board)?;
+                    out.extend_from_slice(&evidence);
+                }
                 // All END records are emitted by their own protocol version.
                 // Avoid emitting V9 END a second time.
                 if out.len() > 2 * 1024 * 1024 {

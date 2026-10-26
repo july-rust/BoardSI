@@ -807,14 +807,22 @@ protected:
     }
     void mouseReleaseEvent(QMouseEvent *event) override {
         if (!dragging_ && picked_) {
-            for(size_t i=0;i<contactMarkers_.size();++i) {
-                const auto &m=contactMarkers_[i];
-                if(!(includedNet(m.net) || (m.potentialConflict && includedNet(m.otherNet))) ||
-                   !(visible(m.a.layer) || (m.barrel && visible(m.b.layer)))) continue;
-                const QPointF point=pixel(world(m.x_nm,m.y_nm));
-                if(std::hypot(event->position().x()-point.x(),
-                              event->position().y()-point.y())<=6.0) {
-                    picked_(10,static_cast<int>(i));event->accept();return;
+            // Render stack is same-layer, then ViaBarrel, then conflict
+            // overlays. Hit-test in REVERSE visual order so a barrel marker
+            // is not hidden behind its coincident same-layer contact.
+            for(int kind=2;kind>=0;--kind) {
+                for(size_t end=contactMarkers_.size();end>0;--end) {
+                    const size_t i=end-1;
+                    const auto &m=contactMarkers_[i];
+                    const int actual=m.potentialConflict?2:(m.barrel?1:0);
+                    if(actual!=kind ||
+                       !(includedNet(m.net) || (m.potentialConflict && includedNet(m.otherNet))) ||
+                       !(visible(m.a.layer) || (m.barrel && visible(m.b.layer)))) continue;
+                    const QPointF point=pixel(world(m.x_nm,m.y_nm));
+                    if(std::hypot(event->position().x()-point.x(),
+                                  event->position().y()-point.y())<=6.0) {
+                        picked_(10,static_cast<int>(i));event->accept();return;
+                    }
                 }
             }
             // Screen-space picking is independent of float GPU coordinates.

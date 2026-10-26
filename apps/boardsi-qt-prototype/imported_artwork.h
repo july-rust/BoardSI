@@ -770,7 +770,7 @@ public:
             item->setPos(m.x_nm/1e6,-m.y_nm/1e6);
             item->setFlag(QGraphicsItem::ItemIgnoresTransformations);
             item->setFlag(QGraphicsItem::ItemIsSelectable);
-            item->setZValue(10);
+            item->setZValue(m.potentialConflict?12:(m.barrel?11:10));
             item->setData(0,m.net);
             item->setData(3,"A032Contact");
             item->setData(2,QString("A_032 verified LOCAL endpoint / %1 / Net %2 / %3,%4 nm"
