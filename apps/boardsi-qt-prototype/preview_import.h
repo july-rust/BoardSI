@@ -30,7 +30,7 @@ class PreviewImportPanel final : public QWidget {
     QString binary_;
     QString status_ = "NOT IMPORTED / SI NOT_RUN";
     std::function<void(const QString &)> callback_;
-    bool expired_ = false, overflow_ = false;
+    bool expired_ = false, overflow_ = false, stderr_overflow_ = false;
     void status(const QString &message) {
         status_ = message;
         if (importLabel_) importLabel_->setText(message);
@@ -51,6 +51,14 @@ class PreviewImportPanel final : public QWidget {
             if (chunk.isEmpty()) break;
             data_.append(chunk);
         }
+    }
+    void collectStderr() {
+        // A bounded preview is not a bounded source: remember any discarded
+        // bytes and reject the entire success audit, including split chunks.
+        const QByteArray chunk = process_.readAllStandardError();
+        const qint64 budget = 256 - errors_.size();
+        if (chunk.size() > budget) stderr_overflow_ = true;
+        if (budget > 0) errors_.append(chunk.left(budget));
     }
     static bool decodeContactAudit(const QByteArray &bytes, QString &label) {
         // Separate versioned success diagnostic, never part of V1-V14
@@ -566,23 +574,21 @@ public:
         process_.setProcessChannelMode(QProcess::SeparateChannels);
         process_.setReadChannel(QProcess::StandardOutput);
         connect(&process_, &QProcess::readyReadStandardOutput, this, [this] { collect(); });
-        connect(&process_, &QProcess::readyReadStandardError, this, [this] {
-            // read() follows the selected stdout channel; collect stderr explicitly.
-            const QByteArray stderrChunk = process_.readAllStandardError();
-            const qint64 budget = 256 - errors_.size();
-            if (budget > 0) errors_.append(stderrChunk.left(budget));
-        });
+        connect(&process_, &QProcess::readyReadStandardError, this,
+                [this] { collectStderr(); });
         connect(&process_, &QProcess::finished, this,
                 [this](int code, QProcess::ExitStatus exitStatus) {
             deadline_.stop();
             collect();
+            collectStderr();
             if (cancelled_) {
                 status("CANCELLED / no new board imported / SI NOT_RUN");
                 return;
             }
-            if (expired_ || overflow_) {
+            if (expired_ || overflow_ || stderr_overflow_) {
                 status(expired_ ? "FAILED / IMPORT_TIMEOUT / NOTHING IMPORTED"
-                                : "FAILED / IMPORT_OUTPUT_LIMIT / NOTHING IMPORTED");
+                       : stderr_overflow_ ? "FAILED / INVALID_CONTACT_AUDIT / NOTHING IMPORTED"
+                       : "FAILED / IMPORT_OUTPUT_LIMIT / NOTHING IMPORTED");
                 return;
             }
             if (code != 0 || exitStatus != QProcess::NormalExit) {
@@ -686,6 +692,7 @@ public:
         errors_.clear();
         expired_ = false;
         overflow_ = false;
+        stderr_overflow_ = false;
         cancelled_ = false;
         status("RUNNING / local PADS route import, SI NOT_RUN");
         deadline_.start(10000);
