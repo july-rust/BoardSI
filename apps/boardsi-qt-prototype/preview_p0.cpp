@@ -2742,17 +2742,24 @@ static int runB001StackupSelftest() {
     const bool reset = editor.table()->item(0, 1)->text() == "Unknown";
     const bool restored = editor.loadFrom(overlay.fileName()) &&
         editor.validate().startsWith("INPUT FIELDS VALID");
+    QFile changed(source.fileName());
+    const bool changedWritten = changed.open(QIODevice::WriteOnly | QIODevice::Append) &&
+        changed.write("MODIFIED AFTER IMPORT\n") > 0;
+    changed.close();
+    const bool mutationRejected = changedWritten &&
+        !editor.saveTo(overlay.fileName()) && !editor.loadFrom(overlay.fileName());
     editor.resetForImport(different.fileName(), 4);
     const bool foreignRejected = !editor.loadFrom(overlay.fileName()) &&
         editor.validate().contains("RUN BLOCKED");
     const bool pass = unknownBlocked && inputAccepted && invalidBlocked && saved &&
-                      reset && restored && foreignRejected;
+                      reset && restored && mutationRejected && foreignRejected;
     qInfo().noquote() << QJsonDocument(QJsonObject{
         {"schema", "b001-stackup-native-test-v1"},
         {"pass", pass}, {"missing_fields_blocked", unknownBlocked},
         {"user_input_validated", inputAccepted}, {"negative_df_blocked", invalidBlocked},
         {"overlay_saved", saved}, {"reimport_reset", reset},
-        {"same_source_roundtrip", restored}, {"different_source_rejected", foreignRejected},
+        {"same_source_roundtrip", restored}, {"post_import_mutation_rejected", mutationRejected},
+        {"different_source_rejected", foreignRejected},
         {"reference_electrical_contact", "NOT_VERIFIED"},
         {"material_physics", "NOT_VERIFIED"}, {"physical_si", "NOT_RUN"}
     }).toJson(QJsonDocument::Compact);
