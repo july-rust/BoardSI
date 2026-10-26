@@ -6,15 +6,25 @@ use std::io::{self, Read};
 use std::sync::Arc;
 
 fn text_field<'a>(row: &'a [Value], i: usize) -> Result<&'a str, &'static str> {
-    row.get(i).and_then(Value::as_str).ok_or("ROW_FIELD_NOT_STRING")
+    row.get(i)
+        .and_then(Value::as_str)
+        .ok_or("ROW_FIELD_NOT_STRING")
 }
 fn float_field(row: &[Value], i: usize) -> Result<f64, &'static str> {
-    let v: f64 = text_field(row, i)?.parse().map_err(|_| "INVALID_NUMERIC_FIELD")?;
-    if !v.is_finite() { return Err("INVALID_NUMERIC_FIELD"); }
+    let v: f64 = text_field(row, i)?
+        .parse()
+        .map_err(|_| "INVALID_NUMERIC_FIELD")?;
+    if !v.is_finite() {
+        return Err("INVALID_NUMERIC_FIELD");
+    }
     Ok(v)
 }
 fn optional_float(row: &[Value], i: usize) -> Result<Option<f64>, &'static str> {
-    if text_field(row, i)?.is_empty() { Ok(None) } else { float_field(row, i).map(Some) }
+    if text_field(row, i)?.is_empty() {
+        Ok(None)
+    } else {
+        float_field(row, i).map(Some)
+    }
 }
 fn layer_kind(value: &str) -> Result<LayerKind, &'static str> {
     match value {
@@ -36,11 +46,13 @@ fn role_hint(value: &str) -> Result<NetRole, &'static str> {
     }
 }
 fn sha_bytes(s: &str) -> Result<[u8; 32], &'static str> {
-    if s.len() != 64 || !s.is_ascii() { return Err("INVALID_SOURCE_DIGEST"); }
-    let mut bytes = [0u8;32];
+    if s.len() != 64 || !s.is_ascii() {
+        return Err("INVALID_SOURCE_DIGEST");
+    }
+    let mut bytes = [0u8; 32];
     for (i, target) in bytes.iter_mut().enumerate() {
-        *target = u8::from_str_radix(&s[i*2..i*2+2], 16)
-            .map_err(|_| "INVALID_SOURCE_DIGEST")?;
+        *target =
+            u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|_| "INVALID_SOURCE_DIGEST")?;
     }
     Ok(bytes)
 }
@@ -48,21 +60,39 @@ fn audit(input: &Value) -> Result<Value, &'static str> {
     let object = input.as_object().ok_or("INVALID_DOCUMENT")?;
     if object.get("schema").and_then(Value::as_str) != Some("boardsi-b001-stackup-overlay-v2")
         || object.get("scope").and_then(Value::as_str) != Some("USER_OVERLAY_NOT_PHYSICAL_SI")
-    { return Err("INVALID_SCHEMA"); }
-    let digest = sha_bytes(object.get("source_sha256").and_then(Value::as_str)
-        .ok_or("MISSING_SOURCE_DIGEST")?)?;
-    let frequency = object.get("audit_frequency_hz").and_then(Value::as_str)
+    {
+        return Err("INVALID_SCHEMA");
+    }
+    let digest = sha_bytes(
+        object
+            .get("source_sha256")
+            .and_then(Value::as_str)
+            .ok_or("MISSING_SOURCE_DIGEST")?,
+    )?;
+    let frequency = object
+        .get("audit_frequency_hz")
+        .and_then(Value::as_str)
         .ok_or("MISSING_AUDIT_FREQUENCY")?
-        .parse::<f64>().map_err(|_| "INVALID_AUDIT_FREQUENCY")?;
-    if !frequency.is_finite() || frequency < 0.0 {return Err("INVALID_AUDIT_FREQUENCY");}
-    let layers = object.get("layers").and_then(Value::as_array).ok_or("MISSING_LAYERS")?;
-    if layers.is_empty() || layers.len() > 64 { return Err("INVALID_LAYER_COUNT"); }
+        .parse::<f64>()
+        .map_err(|_| "INVALID_AUDIT_FREQUENCY")?;
+    if !frequency.is_finite() || frequency < 0.0 {
+        return Err("INVALID_AUDIT_FREQUENCY");
+    }
+    let layers = object
+        .get("layers")
+        .and_then(Value::as_array)
+        .ok_or("MISSING_LAYERS")?;
+    if layers.is_empty() || layers.len() > 64 {
+        return Err("INVALID_LAYER_COUNT");
+    }
     let mut edits = Vec::with_capacity(layers.len());
     for (index, item) in layers.iter().enumerate() {
         let row = item.as_array().ok_or("INVALID_LAYER_ROW")?;
-        if row.len() != 16 || row.iter().any(|v| {
-            v.as_str().map_or(true, |x| x.len() > 512)
-        }) {
+        if row.len() != 16
+            || row
+                .iter()
+                .any(|v| v.as_str().map_or(true, |x| x.len() > 512))
+        {
             return Err("INVALID_LAYER_ROW");
         }
         let index_str = text_field(row, 0)?;
@@ -71,11 +101,17 @@ fn audit(input: &Value) -> Result<Value, &'static str> {
         }
         let thickness_um = text_field(row, 2)?;
         // Strict exact integer micrometres; reject truncation rather than silently round.
-        let thickness = thickness_um.parse::<i64>().map_err(|_| "INVALID_THICKNESS_UM")?;
+        let thickness = thickness_um
+            .parse::<i64>()
+            .map_err(|_| "INVALID_THICKNESS_UM")?;
         let reference_layer_id = if text_field(row, 8)?.is_empty() {
             None
         } else {
-            Some(text_field(row, 8)?.parse::<u32>().map_err(|_| "INVALID_REFERENCE_ID")?)
+            Some(
+                text_field(row, 8)?
+                    .parse::<u32>()
+                    .map_err(|_| "INVALID_REFERENCE_ID")?,
+            )
         };
         let band = match (optional_float(row, 14)?, optional_float(row, 15)?) {
             (Some(min_hz), Some(max_hz)) => Some(FrequencyRange { min_hz, max_hz }),
@@ -105,16 +141,23 @@ fn audit(input: &Value) -> Result<Value, &'static str> {
     let source: SourceId = Arc::new(SourceIdentity {
         format: SourceFormat::PadsAsc,
         format_version: "V9.4-MILS-partial".into(),
-        files: vec![SourceFile { logical_path: "imported-source.asc".into(), sha256: digest }],
+        files: vec![SourceFile {
+            logical_path: "imported-source.asc".into(),
+            sha256: digest,
+        }],
         importer_version: "b001-ui-overlay (no copper metadata)".into(),
         conditions: vec![("overlay".into(), "user-assumed".into())],
     });
     let result = build_stackup_configuration(source, &edits, frequency)
         .map_err(|_| "CANONICAL_MATERIAL_OR_STACKUP_REJECTED")?;
-    let total = result.total_thickness_m.to_f64()
+    let total = result
+        .total_thickness_m
+        .to_f64()
         .map_err(|_| "INVALID_TOTAL_THICKNESS")?;
     let report = result.model.validate_materials_at(frequency);
-    if report.has_errors() || report.has_missing() { return Err("CANONICAL_VALIDATION_REJECTED"); }
+    if report.has_errors() || report.has_missing() {
+        return Err("CANONICAL_VALIDATION_REJECTED");
+    }
     Ok(json!({
         "schema": "boardsi-b001-canonical-audit-v1",
         "canonical_stackup": "ASSUMED",
@@ -146,13 +189,16 @@ fn main() {
     match output {
         Ok(receipt) => println!("{}", receipt),
         Err(error) => {
-            println!("{}", json!({
-                "schema": "boardsi-b001-canonical-audit-v1",
-                "canonical_stackup": "REJECTED",
-                "reason": error,
-                "solver_ready": false,
-                "physical_si": "NOT_RUN"
-            }));
+            println!(
+                "{}",
+                json!({
+                    "schema": "boardsi-b001-canonical-audit-v1",
+                    "canonical_stackup": "REJECTED",
+                    "reason": error,
+                    "solver_ready": false,
+                    "physical_si": "NOT_RUN"
+                })
+            );
             std::process::exit(1);
         }
     }
