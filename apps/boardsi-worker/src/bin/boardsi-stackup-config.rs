@@ -155,7 +155,7 @@ fn audit(input: &Value) -> Result<Value, &'static str> {
         .to_f64()
         .map_err(|_| "INVALID_TOTAL_THICKNESS")?;
     let report = result.model.validate_materials_at(frequency);
-    if report.has_errors() || report.has_missing() {
+    if material_overlay_report_has_blocker(&report) {
         return Err("CANONICAL_VALIDATION_REJECTED");
     }
     Ok(json!({
