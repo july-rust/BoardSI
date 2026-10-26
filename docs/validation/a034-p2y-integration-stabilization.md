@@ -22,6 +22,10 @@ The second A_034 slice extends the **actual native production-source** P2-A impo
 6. On different-board reimport, require 0 old source markers in CPU *and existing RHI item*; on return, require exactly one correct restored marker.
 7. Audit existing RHI frame/picking/CPU fallback, Copper hole picking, mirror, per-layer/net explorer, scene resize, 10k synthetic interaction and controlled injected failure regression **by specific CI steps**, without inferring a physical GPU stress qualification.
 
+### Active RHI Zoom/Fit parity correction
+
+A subsequent macOS arm64 native Qt Quick `--selftest` failed at the **legacy CPU-only** `panel->scale()` assertion, `P2-A imported zoom did not change the canvas`. Production Zoom correctly calls `rhi_->zoom()` when the active canvas is RHI; the old CTest always read a separate hidden CPU GraphicsView transform. The regression now chooses the **visible** canvas's actual zoom factor and requires Zoom In then Fit to restore the same baseline on either path. This is a test-observation correctness fix, not bypass of RHI contact Picking or a change in production zoom behavior. Native revalidation remains pending.
+
 ### Integration test state ordering correction
 
 The first strict active-Qt-Quick PR candidate failed the newly added native source smoke on macOS and Windows x64. The macOS receipt explicitly reported `P2-A net selection/Properties callback unavailable`: the new CPU marker-picking assertion had been inserted **before** the preexisting imported Net/Geometry/Zoom/Properties tests and changed their active selection/callback state. The contact filter/pick block has been moved **after** the original baseline smoke assertions; the original Net A filter is explicitly set again before the cross-board replacement. The Windows x64 GUI returned code 1 with no useful console detail, so attributing its failure solely to the same issue is a hypothesis until next exact-HEAD run. No existing assertion was removed or relaxed.
