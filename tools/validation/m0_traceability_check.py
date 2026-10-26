@@ -198,12 +198,23 @@ def visible_markdown_lines(source):
         # HTML-comment terminator and retains its unmatched delimiter.
         comment_visibility = mask_inline_code_for_comment_scan(original_line)
         visible_code_chars = list(original_line)
-        for comment_match in re.finditer(r"<!--.*?-->", comment_visibility):
+        # Scan literal delimiters on this ONE physical source line.
+        # A regex for HTML comment tags is both unnecessary and misleading:
+        # multi-line comments are handled by the in_comment state machine
+        # below, not by a single-line regular expression.
+        comment_offset = 0
+        while True:
+            comment_start = comment_visibility.find("<!--", comment_offset)
+            if comment_start < 0:
+                break
+            comment_end = comment_visibility.find("-->", comment_start + 4)
+            if comment_end < 0:
+                break  # An unclosed same-line opener is parsed below.
             # A backslash-escaped '<' is literal GFM text, not an opener.
-            if is_escaped_markdown_token(original_line, comment_match.start()):
-                continue
-            for pos in range(comment_match.start(), comment_match.end()):
-                visible_code_chars[pos] = " "
+            if not is_escaped_markdown_token(original_line, comment_start):
+                for pos in range(comment_start, comment_end + 3):
+                    visible_code_chars[pos] = " "
+            comment_offset = comment_end + 3
         line_for_code_spans = "".join(visible_code_chars)
         if not in_comment and not real_fence_start and unclosed_inline_code_run(line_for_code_spans):
             raise ValueError("multiline inline-code span unsupported in normative Markdown")
@@ -1264,6 +1275,36 @@ if __name__=="__main__":
             intro, literal_code + "\n\n" + intro, 1)
         if validate(unaffected, ledger) != (48, 54):
             raise AssertionError("valid comment-like inline code rejected")
+
+    # SEC_001 / CodeQL py/bad-tag-filter: literal delimiter scan
+    # deliberately owns SAME-LINE comment masking only. Separate physical
+    # lines are consumed by in_comment, including markup that must stay
+    # hidden from the traceability/crosswalk parser.
+    crosswalk_header = "| 요구 ID | 본문 | 주요 시험 | 완료 단계 |"
+    for comment_line in (
+        "<!-- first ` --> visible note <!-- second `` -->",
+        "<!-- `<!-- inner marker --> trailing visible text",
+    ):
+        inserted = specification.replace(
+            crosswalk_header, comment_line + "\n" + crosswalk_header, 1
+        )
+        if validate(inserted, ledger) != (48, 54):
+            raise AssertionError("same-line literal HTML comment scan regression")
+    for hidden_comment in (
+        "<!--\nordinary cross-line note\n-->",
+        "<!--\n<style> hidden raw HTML inside comment\n-->",
+    ):
+        inserted = specification.replace(
+            crosswalk_header, hidden_comment + "\n" + crosswalk_header, 1
+        )
+        if validate(inserted, ledger) != (48, 54):
+            raise AssertionError("cross-line HTML comment handling regression")
+    # A cross-line comment must still conceal required rendered rows; it
+    # cannot be taken as traceability evidence just because a line scanner
+    # did not find the closing token on the opener's physical line.
+    must_reject(specification.replace(
+        crosswalk_header, "<!--\n" + crosswalk_header + "\n-->", 1
+    ), ledger)
 
     # GFM emphasis delimiters cannot consume adjacent inner whitespace.
     for invalid_markup in ("** U01 **", "* U01 *", "__ U01 __"):
