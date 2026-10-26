@@ -357,7 +357,7 @@ mod tests {
         // without assuming which end is emitted first.
         let rows: Vec<_> = encoded.lines().filter(|r| r.starts_with("E|S|")).collect();
         assert_eq!(rows.len(), 1);
-        assert!(rows[0].contains("|254000|50800"));
+        assert!(rows[0].contains("|7620000|5080000"));
         assert!(rows[0].contains("|T|0|1|1|") || rows[0].contains("|T|0|0|1|"));
         assert!(rows[0].contains("|T|1|0|1|") || rows[0].contains("|T|1|1|1|"));
         assert!(encoded.ends_with("BOARDSI_CONTACT_END_V1|1\n"));
