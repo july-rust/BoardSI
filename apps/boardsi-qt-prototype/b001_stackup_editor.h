@@ -2,6 +2,7 @@
 // Never infer copper, material or electrical continuity from a PADS layer number.
 #pragma once
 #include <QCryptographicHash>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QHeaderView>
@@ -165,18 +166,41 @@ public:
             rows_->rowCount() > 64) return false;
         const QByteArray digest = sourceDigest(sourcePath_);
         if (digest.size() != 64 || digest != importDigest_) return false;
+        // Reject destructive save destinations, including source symlinks or aliases
+        // through symlinked parent directories. Never replace the imported board.
+        const QString sourceCanonical = QFileInfo(sourcePath_).canonicalFilePath();
+        const QFileInfo destination(path);
+        const QString targetCanonical = destination.canonicalFilePath();
+        const QString parentCanonical = QDir(destination.absolutePath()).canonicalPath();
+        if (sourceCanonical.isEmpty() || parentCanonical.isEmpty() || destination.isDir())
+            return false;
+#ifdef Q_OS_WIN
+        constexpr auto pathCase = Qt::CaseInsensitive;
+#else
+        constexpr auto pathCase = Qt::CaseSensitive;
+#endif
+        const QString proposed = QDir::cleanPath(QDir(parentCanonical).filePath(destination.fileName()));
+        if ((!targetCanonical.isEmpty() &&
+             QString::compare(sourceCanonical, targetCanonical, pathCase) == 0) ||
+            QString::compare(sourceCanonical, proposed, pathCase) == 0)
+            return false;
         QJsonArray layers;
         for (int r = 0; r < rows_->rowCount(); ++r) {
             QJsonArray row;
-            for (int c = 0; c < Columns; ++c) row.append(field(r, c));
+            for (int c = 0; c < Columns; ++c) {
+                const QString value = field(r, c);
+                if (value.size() > 512) return false;
+                row.append(value);
+            }
             layers.append(row);
         }
         const QJsonObject root{{"schema", "boardsi-b001-stackup-overlay-v1"},
             {"source_sha256", QString::fromLatin1(digest)}, {"layers", layers},
             {"scope", "USER_OVERLAY_NOT_PHYSICAL_SI"}};
+        const QByteArray bytes = QJsonDocument(root).toJson(QJsonDocument::Indented);
+        if (bytes.size() > 65536) return false; // symmetric with loadFrom()
         QSaveFile output(path);
         if (!output.open(QIODevice::WriteOnly)) return false;
-        const QByteArray bytes = QJsonDocument(root).toJson(QJsonDocument::Indented);
         if (output.write(bytes) != bytes.size()) {
             output.cancelWriting();
             return false;
