@@ -52,13 +52,15 @@ class PreviewImportPanel final : public QWidget {
             data_.append(chunk);
         }
     }
+    static void appendBoundedStderr(QByteArray &captured, bool &overflow,
+                                    const QByteArray &chunk) {
+        const qint64 budget = 256 - captured.size();
+        if (chunk.size() > budget) overflow = true;
+        if (budget > 0) captured.append(chunk.left(budget));
+    }
     void collectStderr() {
-        // A bounded preview is not a bounded source: remember any discarded
-        // bytes and reject the entire success audit, including split chunks.
-        const QByteArray chunk = process_.readAllStandardError();
-        const qint64 budget = 256 - errors_.size();
-        if (chunk.size() > budget) stderr_overflow_ = true;
-        if (budget > 0) errors_.append(chunk.left(budget));
+        // Reuse the same bounded collector as native multi-chunk regressions.
+        appendBoundedStderr(errors_, stderr_overflow_, process_.readAllStandardError());
     }
     static bool decodeContactAudit(const QByteArray &bytes, QString &label) {
         // Separate versioned success diagnostic, never part of V1-V14
@@ -522,6 +524,13 @@ public:
     static bool validContactAuditForTest(const QByteArray &bytes) {
         QString label;
         return decodeContactAudit(bytes, label);
+    }
+    static bool validContactAuditChunksForTest(const std::vector<QByteArray> &chunks) {
+        QByteArray captured;
+        bool overflow = false;
+        for (const auto &chunk : chunks) appendBoundedStderr(captured, overflow, chunk);
+        QString label;
+        return !overflow && decodeContactAudit(captured, label);
     }
     static bool validTransportForTest(const QByteArray &bytes) {
         int layers=0, skipped=0;
