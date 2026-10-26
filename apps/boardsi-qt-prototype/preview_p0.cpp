@@ -413,6 +413,7 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
     bool localContactFilterVerified = false;
     bool localContactRhiPicked = false;
     bool localContactRhiTested = false;
+    bool localContactRhiFrameVerified = false;
     // Repository CTest has BOTH source-backed public fixtures. The Windows
     // Qt-bundled standalone smoke deliberately stages one fixture under a
     // different name; keep that single-file release gate intact. The source
@@ -591,6 +592,22 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 if(auto *rhi=panel->rhiViewForTest();rhi && panel->rhiCanvasActiveForTest()) {
                     localContactRhiTested=true;
                     auto *item=rhi->itemForTest();
+                    // Require a newly presented RHI frame *after* this
+                    // source's SHA-bound contact and layer/net revisions.
+                    // A widget that is merely active/PENDING is not proof.
+                    // Existing A_019 native render-action gate observes a
+                    // frameSwapped after the requested scene revision.
+                    const qint64 swappedMs=a019RenderActionToSwap(*rhi,[&] {
+                        item->requestFreshFrame();
+                    });
+                    localContactRhiFrameVerified=swappedMs>=0 &&
+                        item->syncedGeneration()==item->sourceGeneration() &&
+                        rhi->status().startsWith("RHI_FRAME_") &&
+                        !rhi->failed();
+                    if(!localContactRhiFrameVerified) {
+                        stopWith("A_034 source contact had no revision-matched "
+                                 "RHI frame before picking");return;
+                    }
                     const QPointF at=item->screenPointForTest(7620000,5080000);
                     QMouseEvent press(QEvent::MouseButtonPress,at,at,at,
                                       Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);
@@ -864,6 +881,9 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         {"a034_local_contact_rhi_pick_scope", !testImport ? "NOT_RUN_NO_IMPORT" :
             !localContactRhiTested ? "NOT_RUN_NO_ACTIVE_RHI" :
             (localContactRhiPicked && rc == 0 ? "PASS" : "FAIL")},
+        {"a034_local_contact_rhi_frame_scope", !testImport ? "NOT_RUN_NO_IMPORT" :
+            !localContactRhiTested ? "NOT_RUN_NO_ACTIVE_RHI" :
+            (localContactRhiFrameVerified && rc == 0 ? "PASS" : "FAIL")},
         {"a034_cross_file_reimport_scope", crossFileSourceFixture ?
              (crossFileReimportVerified && rc == 0 ? "PASS" : "FAIL") :
              "NOT_RUN_SINGLE_FIXTURE"},
