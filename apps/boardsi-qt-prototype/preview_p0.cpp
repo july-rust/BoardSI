@@ -410,6 +410,10 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
     bool importSummaryVerified = false;
     bool importFailureRecoveryVerified = false;
     bool crossFileReimportVerified = false;
+    bool localContactFilterVerified = false;
+    bool localContactRhiPicked = false;
+    bool localContactRhiTested = false;
+    bool localContactRhiFrameVerified = false;
     // Repository CTest has BOTH source-backed public fixtures. The Windows
     // Qt-bundled standalone smoke deliberately stages one fixture under a
     // different name; keep that single-file release gate intact. The source
@@ -524,7 +528,7 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             }
             // Overlay contact markers do not change the legacy imported
             // THREE physical trace primitives. They are separate evidence.
-            if (!scene || sourceTraceItems != 3 || localMarkers < 1 ||
+            if (!scene || sourceTraceItems != 3 || localMarkers != 1 ||
                 panel->segmentCount() != 3 || panel->visibleSegments() != 3) {
                 stopWith("P2-A imported scene does not contain the expected three tracks"); return;
             }
@@ -594,16 +598,119 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             if (panel->visibleSegments() != 3) {
                 stopWith("P2-A layer visibility restore failed"); return;
             }
+            // A_034: Qt Quick Zoom/Fit operates on RHI item, not hidden CPU
+            // GraphicsView. Test whichever canvas the user actually sees.
+            const auto displayedScale = [panel] {
+#ifdef BOARDSI_RHI_ARTWORK
+                if(panel->rhiCanvasActiveForTest())
+                    return panel->rhiViewForTest()->itemForTest()->zoomFactorForTest();
+#endif
+                return panel->scale();
+            };
             fit->click(); // Establish baseline after the tab has become visible.
-            const qreal fitScale = panel->scale();
+            const qreal fitScale = displayedScale();
             zoom->click();
-            if (panel->scale() <= fitScale) {
-                stopWith("P2-A imported zoom did not change the canvas"); return;
+            if (displayedScale() <= fitScale) {
+                stopWith("P2-A imported zoom did not change the visible canvas"); return;
             }
             fit->click();
-            if (fitScale <= 0 || qAbs(panel->scale() - fitScale) >
+            if (fitScale <= 0 || qAbs(displayedScale() - fitScale) >
                                   qMax(qreal(0.02), fitScale * qreal(0.01))) {
-                stopWith("P2-A imported Fit did not restore the canvas"); return;
+                stopWith("P2-A imported Fit did not restore the visible canvas"); return;
+            }
+            // A_034: production-source contact metadata must follow the very
+            // same layer/net filters in QGraphicsScene and (when built) RHI.
+            // Use the real source-SHA validated contact, NOT a synthetic
+            // injected whole-board connectivity assumption.
+            if (!localContactFilterVerified) {
+                auto *netOnly=window.findChild<QCheckBox *>("importedNetOnly");
+                auto *topToggle=window.findChild<QPushButton *>("importedLayerToggle");
+                const auto visibleContacts=[scene] {
+                    int n=0;
+                    for(auto *item:scene->items())
+                        if(item->data(3).toString()=="A032Contact" && item->isVisible()) ++n;
+                    return n;
+                };
+                const auto parity=[&] {
+#ifdef BOARDSI_RHI_ARTWORK
+                    if(auto *rhi=panel->rhiViewForTest())
+                        return rhi->itemForTest()->visibleContactCountForTest()==visibleContacts();
+#endif
+                    return true; // CPU-only platform: RHI NOT_RUN.
+                };
+                if(!netOnly || !topToggle || !panel->selectNet("NET_A") ||
+                   visibleContacts()!=1 || !parity()) {
+                    stopWith("A_034 local source contact setup/CPU-RHI parity invalid");return;
+                }
+                netOnly->setChecked(true);
+                if(!panel->selectNet("NET_B") || visibleContacts()!=0 || !parity()) {
+                    stopWith("A_034 Net B retained unrelated NET_A contact marker");return;
+                }
+                if(!panel->selectNet("NET_A") || visibleContacts()!=1 || !parity()) {
+                    stopWith("A_034 Net A failed to restore same-Net contact marker");return;
+                }
+                topToggle->click();
+                if(visibleContacts()!=0 || !parity()) {
+                    stopWith("A_034 hidden source layer retained contact marker");return;
+                }
+                topToggle->click();
+                if(visibleContacts()!=1 || !parity()) {
+                    stopWith("A_034 layer restore lost local contact marker");return;
+                }
+                netOnly->setChecked(false);
+                if(!panel->selectNet("All nets") || visibleContacts()!=1 || !parity()) {
+                    stopWith("A_034 resetting filters changed local contact count");return;
+                }
+                QGraphicsItem *cpuMarker=nullptr;
+                for(auto *item:scene->items())
+                    if(item->data(3).toString()=="A032Contact") cpuMarker=item;
+                if(!cpuMarker) {stopWith("A_034 source contact marker unavailable");return;}
+                cpuMarker->setSelected(true);
+                const bool cpuPick=window.displayedProperties().contains(
+                    "A_032 verified LOCAL endpoint") &&
+                    window.displayedProperties().contains(
+                    "complete connectivity NOT_VERIFIED");
+                scene->clearSelection();
+                if(!cpuPick) {
+                    stopWith("A_034 CPU contact picking did not report bounded evidence");return;
+                }
+#ifdef BOARDSI_RHI_ARTWORK
+                if(auto *rhi=panel->rhiViewForTest();rhi && panel->rhiCanvasActiveForTest()) {
+                    localContactRhiTested=true;
+                    auto *item=rhi->itemForTest();
+                    // Require a newly presented RHI frame *after* this
+                    // source's SHA-bound contact and layer/net revisions.
+                    // A widget that is merely active/PENDING is not proof.
+                    // Existing A_019 native render-action gate observes a
+                    // frameSwapped after the requested scene revision.
+                    const qint64 swappedMs=a019RenderActionToSwap(*rhi,[&] {
+                        item->requestFreshFrame();
+                    });
+                    localContactRhiFrameVerified=swappedMs>=0 &&
+                        item->syncedGeneration()==item->sourceGeneration() &&
+                        rhi->status().startsWith("RHI_FRAME_") &&
+                        !rhi->failed();
+                    if(!localContactRhiFrameVerified) {
+                        stopWith("A_034 source contact had no revision-matched "
+                                 "RHI frame before picking");return;
+                    }
+                    const QPointF at=item->screenPointForTest(7620000,5080000);
+                    QMouseEvent press(QEvent::MouseButtonPress,at,at,at,
+                                      Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);
+                    QMouseEvent release(QEvent::MouseButtonRelease,at,at,at,
+                                        Qt::LeftButton,Qt::NoButton,Qt::NoModifier);
+                    QCoreApplication::sendEvent(item,&press);
+                    QCoreApplication::sendEvent(item,&release);
+                    localContactRhiPicked=window.displayedProperties().contains(
+                        "A_032 verified LOCAL endpoint") &&
+                        window.displayedProperties().contains(
+                        "complete connectivity NOT_VERIFIED");
+                    if(!localContactRhiPicked) {
+                        stopWith("A_034 RHI contact picking/provenance mismatches CPU");return;
+                    }
+                }
+#endif
+                localContactFilterVerified=true;
             }
             importedGeometryVerified = true;
             // A_034: first verify a successful replacement with a DIFFERENT
@@ -615,6 +722,9 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 auto *hideAll = window.findChild<QPushButton *>("importedHideAllLayers");
                 if (!netOnly || !hideAll) {
                     stopWith("A_034 imported filter controls unavailable"); return;
+                }
+                if(!panel->selectNet("NET_A")) {
+                    stopWith("A_034 source Net filter unavailable before board replacement");return;
                 }
                 netOnly->setChecked(true);
                 hideAll->click();
@@ -659,7 +769,12 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             int oldContacts = 0;
             if (scene) for (auto *item : scene->items())
                 if (item->data(3).toString() == "A032Contact") ++oldContacts;
-            if (panel->segmentCount() != 0 || panel->arcCount() != 0 ||
+            bool rhiContactReset=true;
+#ifdef BOARDSI_RHI_ARTWORK
+            if(auto *rhi=panel->rhiViewForTest())
+                rhiContactReset=rhi->itemForTest()->visibleContactCountForTest()==0;
+#endif
+            if (!rhiContactReset || panel->segmentCount() != 0 || panel->arcCount() != 0 ||
                 panel->padCount() != 10 || oldContacts != 0 || !scene ||
                 !netSelect || netSelect->currentText() != "All nets" ||
                 !netOnly || netOnly->isChecked() ||
@@ -684,8 +799,13 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             int contactCount = 0;
             if (scene) for (auto *item : scene->items())
                 if (item->data(3).toString() == "A032Contact") ++contactCount;
+            bool rhiContactRestored=true;
+#ifdef BOARDSI_RHI_ARTWORK
+            if(auto *rhi=panel->rhiViewForTest())
+                rhiContactRestored=rhi->itemForTest()->visibleContactCountForTest()==1;
+#endif
             if (!scene || panel->segmentCount() != 3 || panel->padCount() != 0 ||
-                contactCount < 1 || !netSelect ||
+                contactCount != 1 || !rhiContactRestored || !netSelect ||
                 netSelect->currentText() != "All nets" ||
                 !window.displayedProperties().contains(QFileInfo(fixture).fileName()) ||
                 window.displayedProperties().contains("pads_bottom_mirror_v94.asc")) {
@@ -769,6 +889,13 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         {"p2a_import_summary_counts_verified", importSummaryVerified},
         {"p2a_import_failure_recovery_verified", importFailureRecoveryVerified},
         {"a034_cross_file_reimport_verified", testImport && crossFileReimportVerified && rc == 0},
+        {"a034_local_contact_cpu_rhi_filter_verified", testImport && localContactFilterVerified && rc == 0},
+        {"a034_local_contact_rhi_pick_scope", !testImport ? "NOT_RUN_NO_IMPORT" :
+            !localContactRhiTested ? "NOT_RUN_NO_ACTIVE_RHI" :
+            (localContactRhiPicked && rc == 0 ? "PASS" : "FAIL")},
+        {"a034_local_contact_rhi_frame_scope", !testImport ? "NOT_RUN_NO_IMPORT" :
+            !localContactRhiTested ? "NOT_RUN_NO_ACTIVE_RHI" :
+            (localContactRhiFrameVerified && rc == 0 ? "PASS" : "FAIL")},
         {"a034_cross_file_reimport_scope", crossFileSourceFixture ?
              (crossFileReimportVerified && rc == 0 ? "PASS" : "FAIL") :
              "NOT_RUN_SINGLE_FIXTURE"},
