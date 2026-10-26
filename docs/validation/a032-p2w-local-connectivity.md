@@ -1,6 +1,6 @@
 # A_032 / P2-W — limited local ROUTE endpoint connectivity
 
-Status: **IMPLEMENTATION CANDIDATE — NATIVE CHECKS AND INDEPENDENT REVIEW PENDING**
+Status: **A_032_2 IMPLEMENTATION CANDIDATE — EXACT-HEAD CI / INDEPENDENT REVIEW / MAIN MERGE PENDING**
 
 Baseline protected main: `54dc90ccd68a80ec1455c6947ce8a2229924ee26` (A_031 PR #194).
 Tracking: [Issue #195](https://github.com/july-rust/BoardSI/issues/195).
@@ -26,7 +26,7 @@ Tracking: [Issue #195](https://github.com/july-rust/BoardSI/issues/195).
 | Complete-board open/short, isolated copper island | NOT_VERIFIED |
 | Vendor-export real-data qualification, 2D RLGC/S, GPU VRAM/reset/1M at 60 FPS | NOT_RUN |
 
-Legacy Qt V1–V14 keeps its source-label semantics and must never present *source net alone* as proof of local contact. Qt-specific evidence display requires a separately gated wire-schema extension; do not silently overload old fields.
+Legacy Qt V1–V14 keeps its source-label semantics and must never present *source net alone* as proof of local contact. A_032_2 proposes a strictly opt-in and separately gated `BOARDSI_CONTACT_RECORDS_V1` suffix after the legacy END, leaving default V1–V14 byte-identical. Object-level GPU/CPU markers and Cross-Net potential conflict remain bounded local source evidence, never full-board electrical verification. See [A_032_2 evidence ledger](a032-2-contact-viewer.md).
 
 ## Acceptance requirements (not yet evidence)
 
