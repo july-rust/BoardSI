@@ -16,6 +16,10 @@ Existing P2-A Preview smoke already exercises a complete 3-track source-import, 
 5. Open original route source again, confirm 3 tracks, 0 stale pads, source-bound local contact evidence restored, and original filename restored.
 6. Repeat existing independent Qt geometry/net/zoom/fit checks and invalid/header failure recovery.
 
+### Native package scope distinction (A_034 CI corrective review)
+
+The first A_034 candidate failed Windows x64 **bundled standalone** smoke, even though the native installed-Qt test step passed. The copied standalone test has only one fixture named `public-pads-v94-synthetic.asc`, so its original one-file smoke must not require the second repository fixture. The production-source native CTest uses `pads_route_straight_v94.asc` and **must** run the cross-file gate. The smoke JSON now reports `a034_cross_file_reimport_scope=PASS|FAIL` for the source CTest and `NOT_RUN_SINGLE_FIXTURE` for the staged package; the latter is never reported as a cross-file PASS. This preserves and distinguishes both acceptance scopes without reducing either environment's existing validation. At the time of this update the corrective PR HEAD CI has not been certified.
+
 All source fixtures are public synthetic samples in `crates/boardsi-import/tests/fixtures`, without private/exporter CAD data. The added assertion is reflected in `qt-preview-p0-results.json` as `a034_cross_file_reimport_verified` and only reports true when the entire native P2-A smoke succeeds.
 
 ## Expected verification and controls
