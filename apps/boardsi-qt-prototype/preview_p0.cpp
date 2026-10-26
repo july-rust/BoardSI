@@ -714,6 +714,9 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 if (!netOnly || !hideAll) {
                     stopWith("A_034 imported filter controls unavailable"); return;
                 }
+                if(!panel->selectNet("NET_A")) {
+                    stopWith("A_034 source Net filter unavailable before board replacement");return;
+                }
                 netOnly->setChecked(true);
                 hideAll->click();
                 if (panel->visibleSegments() != 0) {
