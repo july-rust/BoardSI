@@ -2,9 +2,11 @@
 mod coordinates;
 mod identity;
 mod validation;
+mod stackup_configuration;
 pub use coordinates::*;
 pub use identity::*;
 pub use validation::*;
+pub use stackup_configuration::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModelError {
