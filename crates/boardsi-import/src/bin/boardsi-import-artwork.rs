@@ -11,7 +11,10 @@ use std::{
 const NM: i64 = 254;
 fn run() -> Result<(usize, usize), &'static str> {
     let args: Vec<_> = env::args_os().collect();
-    if args.len() != 2 {
+    // The suffix protocol is opt-in. Existing one-path invocations keep
+    // byte-identical V1-V14 stdout and their existing bounded stderr audit.
+    let contacts_v1 = args.len() == 3 && args[2] == "--contact-records-v1";
+    if args.len() != 2 && !contacts_v1 {
         return Err("USAGE");
     }
     let path = &args[1];
@@ -659,6 +662,12 @@ fn run() -> Result<(usize, usize), &'static str> {
         )
     }
     .map_err(|_| "FORMAT_ERROR")?;
+    if contacts_v1 {
+        // Validate and format the complete suffix before any stdout write.
+        // Never return a successful partial artwork if this gate fails.
+        let evidence = boardsi_import::contact_wire::encode(&board)?;
+        out.extend_from_slice(&evidence);
+    }
     if out.len() > 2 * 1024 * 1024 {
         return Err("OUTPUT_LIMIT");
     }
