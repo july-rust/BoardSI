@@ -532,6 +532,83 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 panel->segmentCount() != 3 || panel->visibleSegments() != 3) {
                 stopWith("P2-A imported scene does not contain the expected three tracks"); return;
             }
+            // Independent millimetre reference from the PUBLIC synthetic PADS fixture.
+            // Verify the *rendered* Qt geometry, Y inversion, net and real pen width,
+            // not just the Rust line-protocol strings.
+            struct ExpectedLine { const char *net; qreal x0,y0,x1,y1,width; };
+            const ExpectedLine reference[] = {
+                {"NET_A",  2.54, -5.08,  7.62, -5.08, 0.254},
+                {"NET_A",  7.62, -5.08,  7.62,-10.16, 0.254},
+                {"NET_B", 25.40, -7.62, 38.10, -7.62, 0.3048}
+            };
+            const auto near = [](qreal x, qreal y) { return qAbs(x - y) < 0.000001; };
+            for (const auto &want : reference) {
+                bool found = false;
+                for (QGraphicsItem *item : scene->items()) {
+                    const auto *line = qgraphicsitem_cast<QGraphicsLineItem *>(item);
+                    if (!line || line->data(0).toString() != QString::fromLatin1(want.net)) continue;
+                    const QLineF actual = line->line();
+                    if (near(actual.x1(), want.x0) && near(actual.y1(), want.y0) &&
+                        near(actual.x2(), want.x1) && near(actual.y2(), want.y1) &&
+                        near(line->pen().widthF(), want.width)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    stopWith("P2-A Qt scene geometry/net/width differs from independent reference");
+                    return;
+                }
+            }
+            if (!panel->selectNet("NET_A") ||
+                !window.displayedProperties().contains("Selected net: NET_A")) {
+                stopWith("P2-A net selection/Properties callback unavailable"); return;
+            }
+            window.importPanel()->artworkTabs()->setCurrentIndex(0);
+            if (!window.artworkPanel()->selectNet("DATA_P0") ||
+                !window.displayedProperties().contains("Source: SYNTHETIC") ||
+                window.displayedProperties().contains("PCB candidate:") ||
+                window.displayedProperties().contains("Source: IMPORTED PARTIAL")) {
+                stopWith("P2-A synthetic Properties leaked imported provenance"); return;
+            }
+            window.importPanel()->artworkTabs()->setCurrentIndex(1);
+            if (!window.displayedProperties().contains("Source: IMPORTED PARTIAL") ||
+                !window.displayedProperties().contains("Selected net: NET_A")) {
+                stopWith("P2-A imported Properties not restored after tab switch"); return;
+            }
+            for (QGraphicsItem *item : scene->items()) {
+                if (item->data(0).toString() == "NET_B" && !near(item->opacity(), 0.12)) {
+                    stopWith("P2-A net highlight opacity mismatch"); return;
+                }
+            }
+            auto *toggle = window.findChild<QPushButton *>("importedLayerToggle");
+            auto *fit = window.findChild<QPushButton *>("importedFit");
+            auto *zoom = window.findChild<QPushButton *>("importedZoomIn");
+            if (!toggle || !fit || !zoom) {
+                stopWith("P2-A layer/zoom controls missing"); return;
+            }
+            toggle->click(); // The initially selected copper layer is Top (1).
+            if (!window.displayedProperties().contains("Visible: 1")) {
+                stopWith("P2-A imported layer change did not refresh Properties"); return;
+            }
+            if (panel->visibleSegments() != 1) {
+                stopWith("P2-A layer 1 hide does not leave only layer 4 visible"); return;
+            }
+            toggle->click();
+            if (panel->visibleSegments() != 3) {
+                stopWith("P2-A layer visibility restore failed"); return;
+            }
+            fit->click(); // Establish baseline after the tab has become visible.
+            const qreal fitScale = panel->scale();
+            zoom->click();
+            if (panel->scale() <= fitScale) {
+                stopWith("P2-A imported zoom did not change the canvas"); return;
+            }
+            fit->click();
+            if (fitScale <= 0 || qAbs(panel->scale() - fitScale) >
+                                  qMax(qreal(0.02), fitScale * qreal(0.01))) {
+                stopWith("P2-A imported Fit did not restore the canvas"); return;
+            }
             // A_034: production-source contact metadata must follow the very
             // same layer/net filters in QGraphicsScene and (when built) RHI.
             // Use the real source-SHA validated contact, NOT a synthetic
@@ -625,83 +702,6 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 }
 #endif
                 localContactFilterVerified=true;
-            }
-            // Independent millimetre reference from the PUBLIC synthetic PADS fixture.
-            // Verify the *rendered* Qt geometry, Y inversion, net and real pen width,
-            // not just the Rust line-protocol strings.
-            struct ExpectedLine { const char *net; qreal x0,y0,x1,y1,width; };
-            const ExpectedLine reference[] = {
-                {"NET_A",  2.54, -5.08,  7.62, -5.08, 0.254},
-                {"NET_A",  7.62, -5.08,  7.62,-10.16, 0.254},
-                {"NET_B", 25.40, -7.62, 38.10, -7.62, 0.3048}
-            };
-            const auto near = [](qreal x, qreal y) { return qAbs(x - y) < 0.000001; };
-            for (const auto &want : reference) {
-                bool found = false;
-                for (QGraphicsItem *item : scene->items()) {
-                    const auto *line = qgraphicsitem_cast<QGraphicsLineItem *>(item);
-                    if (!line || line->data(0).toString() != QString::fromLatin1(want.net)) continue;
-                    const QLineF actual = line->line();
-                    if (near(actual.x1(), want.x0) && near(actual.y1(), want.y0) &&
-                        near(actual.x2(), want.x1) && near(actual.y2(), want.y1) &&
-                        near(line->pen().widthF(), want.width)) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    stopWith("P2-A Qt scene geometry/net/width differs from independent reference");
-                    return;
-                }
-            }
-            if (!panel->selectNet("NET_A") ||
-                !window.displayedProperties().contains("Selected net: NET_A")) {
-                stopWith("P2-A net selection/Properties callback unavailable"); return;
-            }
-            window.importPanel()->artworkTabs()->setCurrentIndex(0);
-            if (!window.artworkPanel()->selectNet("DATA_P0") ||
-                !window.displayedProperties().contains("Source: SYNTHETIC") ||
-                window.displayedProperties().contains("PCB candidate:") ||
-                window.displayedProperties().contains("Source: IMPORTED PARTIAL")) {
-                stopWith("P2-A synthetic Properties leaked imported provenance"); return;
-            }
-            window.importPanel()->artworkTabs()->setCurrentIndex(1);
-            if (!window.displayedProperties().contains("Source: IMPORTED PARTIAL") ||
-                !window.displayedProperties().contains("Selected net: NET_A")) {
-                stopWith("P2-A imported Properties not restored after tab switch"); return;
-            }
-            for (QGraphicsItem *item : scene->items()) {
-                if (item->data(0).toString() == "NET_B" && !near(item->opacity(), 0.12)) {
-                    stopWith("P2-A net highlight opacity mismatch"); return;
-                }
-            }
-            auto *toggle = window.findChild<QPushButton *>("importedLayerToggle");
-            auto *fit = window.findChild<QPushButton *>("importedFit");
-            auto *zoom = window.findChild<QPushButton *>("importedZoomIn");
-            if (!toggle || !fit || !zoom) {
-                stopWith("P2-A layer/zoom controls missing"); return;
-            }
-            toggle->click(); // The initially selected copper layer is Top (1).
-            if (!window.displayedProperties().contains("Visible: 1")) {
-                stopWith("P2-A imported layer change did not refresh Properties"); return;
-            }
-            if (panel->visibleSegments() != 1) {
-                stopWith("P2-A layer 1 hide does not leave only layer 4 visible"); return;
-            }
-            toggle->click();
-            if (panel->visibleSegments() != 3) {
-                stopWith("P2-A layer visibility restore failed"); return;
-            }
-            fit->click(); // Establish baseline after the tab has become visible.
-            const qreal fitScale = panel->scale();
-            zoom->click();
-            if (panel->scale() <= fitScale) {
-                stopWith("P2-A imported zoom did not change the canvas"); return;
-            }
-            fit->click();
-            if (fitScale <= 0 || qAbs(panel->scale() - fitScale) >
-                                  qMax(qreal(0.02), fitScale * qreal(0.01))) {
-                stopWith("P2-A imported Fit did not restore the canvas"); return;
             }
             importedGeometryVerified = true;
             // A_034: first verify a successful replacement with a DIFFERENT
