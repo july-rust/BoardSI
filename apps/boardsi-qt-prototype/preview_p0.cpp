@@ -340,6 +340,58 @@ protected:
     }
 };
 
+// A_032_2 exercises the production Qt optional contact-record decoder.
+// The file is a synthetic SHA input, not private CAD or an SI test.
+static bool a032ContactRecordDecoderRegression() {
+    QTemporaryFile source;
+    if(!source.open()) return false;
+    const QByteArray bytes("synthetic A032 contact decoder evidence\n");
+    if(source.write(bytes)!=bytes.size() || !source.flush()) return false;
+    const QByteArray hash=QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex();
+    const QByteArray preamble=QByteArray("BOARDSI_CONTACT_RECORDS_V1|1|LOCAL_ENDPOINT_ONLY|")
+        +hash+"\n";
+    ImportedTrack t0,t1;
+    t0.layer=1;t0.net="NET_A";t0.x0_nm=0;t0.y0_nm=0;
+    t0.x1_nm=2540;t0.y1_nm=0;t0.width_nm=254;
+    t1=t0;t1.x0_nm=2540;t1.x1_nm=5080;
+    const std::vector<ImportedTrack> traces{t0,t1};
+    const QByteArray row("E|S|T|0|1|1|T|1|0|1|2540|0\n");
+    const QByteArray tail("BOARDSI_CONTACT_END_V1|1\n");
+    const QByteArray audit("BOARDSI_CONTACT_AUDIT_V1|1|0|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n");
+    const QByteArray good=preamble+row+tail;
+    std::vector<ImportedContactMarker> markers;
+    const bool valid=a032::decode(good,source.fileName(),traces,{},{},audit,markers) &&
+        markers.size()==1 && !markers[0].barrel && !markers[0].potentialConflict &&
+        markers[0].a.kind=='T' && markers[0].a.site==1 && markers[0].b.site==0 &&
+        markers[0].x_nm==2540 && markers[0].y_nm==0;
+    QByteArray artwork,parsedWire;
+    const QByteArray sourceArt("BOARDSI_P2A_PARTIAL_V1|V9.4-MILS|1\nL|1|TOP\nEND|0|0|CANONICAL_PARTIAL|SI_NOT_RUN\n");
+    const bool split=a032::splitWire(sourceArt+good,artwork,parsedWire) &&
+        artwork==sourceArt && parsedWire==good;
+    QByteArray invalidPoint=good;
+    invalidPoint.replace("|2540|0\n","|2541|0\n");
+    QByteArray invalidHash=good;
+    invalidHash.replace(hash, QByteArray(64,'0'));
+    QByteArray invalidTerm=good;
+    invalidTerm.replace("BOARDSI_CONTACT_END_V1|1","BOARDSI_CONTACT_END_V1|2");
+    QByteArray otherAudit("BOARDSI_CONTACT_AUDIT_V1|0|0|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n");
+    auto distinctNets=traces;
+    distinctNets[1].net="NET_B";
+    const QByteArray conflict=preamble+
+        QByteArray("X|C|T|0|1|1|T|1|0|1|2540|0\n")+tail;
+    std::vector<ImportedContactMarker> conflictMarkers;
+    const bool conflictValid=a032::decode(conflict,source.fileName(),distinctNets,{},{},
+        otherAudit,conflictMarkers) && conflictMarkers.size()==1 &&
+        conflictMarkers[0].potentialConflict && !conflictMarkers[0].barrel &&
+        conflictMarkers[0].net=="NET_A" && conflictMarkers[0].otherNet=="NET_B";
+    return valid && split && conflictValid &&
+        !a032::decode(invalidPoint,source.fileName(),traces,{},{},audit,markers) &&
+        !a032::decode(invalidHash,source.fileName(),traces,{},{},audit,markers) &&
+        !a032::decode(invalidTerm,source.fileName(),traces,{},{},audit,markers) &&
+        !a032::decode(good,source.fileName(),distinctNets,{},{},audit,markers) &&
+        !a032::decode(conflict,source.fileName(),traces,{},{},otherAudit,markers);
+}
+
 static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                            const QString &worker, const QString &fixture) {
     app.setQuitOnLastWindowClosed(false);
@@ -450,6 +502,12 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             if(scene) for (QGraphicsItem *obj : scene->items()) {
                 if(qgraphicsitem_cast<QGraphicsLineItem *>(obj)) ++sourceTraceItems;
                 if(obj->data(3).toString()=="A032Contact") ++localMarkers;
+            }
+            // Decoder test covers hostile source hash/endpoint/Net/trailer and
+            // explicit cross-Net POTENTIAL_CONFLICT, independent of rendering.
+            if (!a032ContactRecordDecoderRegression()) {
+                stopWith("A_032 object contact transport hostile decoder regression");
+                return;
             }
             // Overlay contact markers do not change the legacy imported
             // THREE physical trace primitives. They are separate evidence.
