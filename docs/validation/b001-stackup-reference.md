@@ -45,6 +45,12 @@
 2. Codex P2: serialized overlay could exceed importer bounds; writer now rejects fields > 512 characters and file > 65,536 bytes, with regression for oversized inputs.
 3. Native Windows x64 previously failed an overlay selftest using an already open temporary destination; test now uses a fresh JSON path in a temporary directory. Exact `e5f4493` Windows x64 / ARM64 / macOS ARM64 jobs verified PASS. No stale-head green status was reused.
 
+## GitHub protected merge evidence (2026-10-27 KST confirmation)
+
+- [B_001 PR #213](https://github.com/july-rust/BoardSI/pull/213) is **MERGED**, protected signed squash result **[`main@ed9fc66e5b0ab0072fcb93103adc18c2729ae0e3`](https://github.com/july-rust/BoardSI/commit/ed9fc66e5b0ab0072fcb93103adc18c2729ae0e3)**; GitHub commit verification reports `verified=true`, `reason=valid`.
+- PR final source `head@a789ff22ad025c83ec6357a81ea2bbe9b3069b32` was checked independently: 26/26 GitHub checks SUCCESS; 17/17 required contexts SUCCESS; all three Native Qt and Linux Qt PASS; independent Codex review for this identical SHA completed with zero findings; both older review threads resolved.
+- A merge into `main` has separate new checks. Its final post-merge results must **not** be inferred from the pre-merge SHA. All product/physics gates described above remain unchanged.
+
 ## Follow-up gate before Issue #12 can close
 
 A subsequent implementation must couple the Qt editor to the **same Rust Canonical Board Model**, preserve exact provenance plus material validity frequency/source revision, confirm a concrete Reference **Net and Copper region**, and validate source-specific Return Path and scenario/reimport revision. The implementation must then qualify T02/T04/T24/T52 with relevant independent tests. Keep Issue #12 OPEN until that evidence exists.
