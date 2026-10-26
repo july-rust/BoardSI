@@ -1021,6 +1021,19 @@ public:
                                 outlineEdges_.size()+circles_.size()+boundaries_.size()+pours_.size()+copper_.size());
     }
     int copperCountForTest() const {return static_cast<int>(copper_.size());}
+    // A_034: observable CPU/RHI contact-filter parity on source-backed Qt
+    // fixtures. This counts DISPLAY HINTS, never electrically proven edges.
+    int visibleContactCountForTest() const {
+        int result=0;
+        for(const auto &m:contactMarkers_) {
+            const bool layerShown=visible(m.a.layer) ||
+                                   (m.barrel && visible(m.b.layer));
+            const bool netShown=includedNet(m.net) ||
+                                 (m.potentialConflict && includedNet(m.otherNet));
+            if(layerShown && netShown) ++result;
+        }
+        return result;
+    }
     bool dispatchCopperPickForTest(int index) const {
         if(index<0 || index>=static_cast<int>(copper_.size())) return false;
         const auto &c=copper_[static_cast<size_t>(index)];
