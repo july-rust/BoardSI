@@ -143,10 +143,18 @@ fn route_source_hash_and_local_contact_suffix_are_explicit_not_certified_short()
     );
     let suffix = String::from_utf8(extended.stdout[legacy.stdout.len()..].to_vec())
         .expect("strict ASCII suffix");
-    // Fixed by independent Python hashlib SHA-256 over the 221 authored
-    // source bytes, never from the same implementation as the importer.
-    assert_eq!(source.len(), 221);
-    const EXPECTED_HASH: &str = "434b953c1cb50cc1e4a93a8e91dea5f0f5b599640798932d2b80c531f87bfdcf";
+    // Independently computed with Python hashlib; Git checkout may convert
+    // the 15 LF line endings to CRLF (GitHub Windows native runners).
+    // Hash the ACTUAL input bytes; neither digest comes from importer code.
+    let expected_hash = match source.len() {
+        221 if !source.contains(&b'\r') => {
+            "434b953c1cb50cc1e4a93a8e91dea5f0f5b599640798932d2b80c531f87bfdcf"
+        }
+        236 if source.windows(2).filter(|pair| *pair == b"\r\n").count() == 15 => {
+            "f608e223f873f2fa9f4dea2f265d18b10d7fa144d0eae830451f8e3aedb91db9"
+        }
+        _ => panic!("unexpected public fixture bytes or newline policy"),
+    };
     let mut rows = suffix.lines();
     let header = rows.next().expect("suffix header");
     let header_parts: Vec<_> = header.split('|').collect();
@@ -154,7 +162,7 @@ fn route_source_hash_and_local_contact_suffix_are_explicit_not_certified_short()
     assert_eq!(header_parts[0], "BOARDSI_CONTACT_RECORDS_V1");
     assert_eq!(header_parts[2], "LOCAL_ENDPOINT_ONLY");
     assert_eq!(
-        header_parts[3], EXPECTED_HASH,
+        header_parts[3], expected_hash,
         "suffix must bind original source bytes"
     );
     let count: usize = header_parts[1].parse().expect("bounded decimal count");
