@@ -737,6 +737,12 @@ public:
                 if (pos >= 0) { nets_->setCurrentIndex(pos); break; }
             }
             refresh();
+            for(auto *item:scene_->selectedItems()) {
+                if(item->data(3).toString()=="A032Contact") {
+                    if(detailsCallback_) detailsCallback_(item->data(2).toString());
+                    break;
+                }
+            }
         });
         view_->setRendererChangedCallback([this] { refresh(); });
         setMinimumHeight(230);
@@ -766,6 +772,7 @@ public:
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             item->setZValue(10);
             item->setData(0,m.net);
+            item->setData(3,"A032Contact");
             item->setData(2,QString("A_032 verified LOCAL endpoint / %1 / Net %2 / %3,%4 nm"
                 " / %5[%6] site %7 L%8 <> %9[%10] site %11 L%12"
                 " / complete connectivity NOT_VERIFIED")
@@ -776,6 +783,28 @@ public:
                 .arg(QChar(m.b.kind)).arg(m.b.index).arg(m.b.site).arg(m.b.layer));
             contacts_.push_back({item,m});
         }
+        // The selected conductor reports observed local evidence only;
+        // a zero count is NOT a certified Open (other contacts unexamined).
+        std::vector<int> traceCount(tracks_.size(),0), arcCount(arcs_.size(),0), viaCount(vias_.size(),0);
+        for(const auto &m:markers) {
+            if(m.potentialConflict) continue;
+            const auto tally=[&](const ImportedContactEnd &e) {
+                if(e.kind=='T' && e.index>=0 && e.index<static_cast<int>(traceCount.size())) ++traceCount[static_cast<size_t>(e.index)];
+                if(e.kind=='A' && e.index>=0 && e.index<static_cast<int>(arcCount.size())) ++arcCount[static_cast<size_t>(e.index)];
+                if(e.kind=='V' && e.index>=0 && e.index<static_cast<int>(viaCount.size())) ++viaCount[static_cast<size_t>(e.index)];
+            };
+            tally(m.a);
+            if(m.a.kind!=m.b.kind || m.a.index!=m.b.index) tally(m.b);
+        }
+        for(size_t i=0;i<tracks_.size();++i)
+            tracks_[i].first->setData(1,tracks_[i].first->data(1).toString()+
+                QString(" / A_032 source-local contact records %1; other contacts NOT_EVALUATED").arg(traceCount[i]));
+        for(size_t i=0;i<arcs_.size();++i)
+            arcs_[i].first->setData(1,arcs_[i].first->data(1).toString()+
+                QString(" / A_032 source-local contact records %1; other contacts NOT_EVALUATED").arg(arcCount[i]));
+        for(size_t i=0;i<vias_.size();++i)
+            vias_[i].first->setData(1,vias_[i].first->data(1).toString()+
+                QString(" / A_032 source-local contact records %1; Via span alone NOT a contact").arg(viaCount[i]));
 #ifdef BOARDSI_RHI_ARTWORK
         if(rhi_)rhi_->setLocalContacts(markers);
 #endif

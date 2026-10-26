@@ -445,8 +445,16 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             }
             importSummaryVerified = true;
             auto *scene = panel->findChild<QGraphicsScene *>();
-            if (!scene || scene->items().size() != 3 || panel->segmentCount() != 3 ||
-                panel->visibleSegments() != 3) {
+            int sourceTraceItems = 0;
+            int localMarkers = 0;
+            if(scene) for (QGraphicsItem *obj : scene->items()) {
+                if(qgraphicsitem_cast<QGraphicsLineItem *>(obj)) ++sourceTraceItems;
+                if(obj->data(3).toString()=="A032Contact") ++localMarkers;
+            }
+            // Overlay contact markers do not change the legacy imported
+            // THREE physical trace primitives. They are separate evidence.
+            if (!scene || sourceTraceItems != 3 || localMarkers < 1 ||
+                panel->segmentCount() != 3 || panel->visibleSegments() != 3) {
                 stopWith("P2-A imported scene does not contain the expected three tracks"); return;
             }
             // Independent millimetre reference from the PUBLIC synthetic PADS fixture.
