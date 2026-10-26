@@ -410,6 +410,9 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
     bool importSummaryVerified = false;
     bool importFailureRecoveryVerified = false;
     bool crossFileReimportVerified = false;
+    bool localContactFilterVerified = false;
+    bool localContactRhiPicked = false;
+    bool localContactRhiTested = false;
     // Repository CTest has BOTH source-backed public fixtures. The Windows
     // Qt-bundled standalone smoke deliberately stages one fixture under a
     // different name; keep that single-file release gate intact. The source
@@ -527,6 +530,84 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             if (!scene || sourceTraceItems != 3 || localMarkers < 1 ||
                 panel->segmentCount() != 3 || panel->visibleSegments() != 3) {
                 stopWith("P2-A imported scene does not contain the expected three tracks"); return;
+            }
+            // A_034: production-source contact metadata must follow the very
+            // same layer/net filters in QGraphicsScene and (when built) RHI.
+            // Use the real source-SHA validated contact, NOT a synthetic
+            // injected whole-board connectivity assumption.
+            if (!localContactFilterVerified) {
+                auto *netOnly=window.findChild<QCheckBox *>("importedNetOnly");
+                auto *topToggle=window.findChild<QPushButton *>("importedLayerToggle");
+                const auto visibleContacts=[scene] {
+                    int n=0;
+                    for(auto *item:scene->items())
+                        if(item->data(3).toString()=="A032Contact" && item->isVisible()) ++n;
+                    return n;
+                };
+                const auto parity=[&] {
+#ifdef BOARDSI_RHI_ARTWORK
+                    if(auto *rhi=panel->rhiViewForTest())
+                        return rhi->itemForTest()->visibleContactCountForTest()==visibleContacts();
+#endif
+                    return true; // CPU-only platform: RHI NOT_RUN.
+                };
+                if(!netOnly || !topToggle || !panel->selectNet("NET_A") ||
+                   visibleContacts()!=1 || !parity()) {
+                    stopWith("A_034 local source contact setup/CPU-RHI parity invalid");return;
+                }
+                netOnly->setChecked(true);
+                if(!panel->selectNet("NET_B") || visibleContacts()!=0 || !parity()) {
+                    stopWith("A_034 Net B retained unrelated NET_A contact marker");return;
+                }
+                if(!panel->selectNet("NET_A") || visibleContacts()!=1 || !parity()) {
+                    stopWith("A_034 Net A failed to restore same-Net contact marker");return;
+                }
+                topToggle->click();
+                if(visibleContacts()!=0 || !parity()) {
+                    stopWith("A_034 hidden source layer retained contact marker");return;
+                }
+                topToggle->click();
+                if(visibleContacts()!=1 || !parity()) {
+                    stopWith("A_034 layer restore lost local contact marker");return;
+                }
+                netOnly->setChecked(false);
+                if(!panel->selectNet("All nets") || visibleContacts()!=1 || !parity()) {
+                    stopWith("A_034 resetting filters changed local contact count");return;
+                }
+                QGraphicsItem *cpuMarker=nullptr;
+                for(auto *item:scene->items())
+                    if(item->data(3).toString()=="A032Contact") cpuMarker=item;
+                if(!cpuMarker) {stopWith("A_034 source contact marker unavailable");return;}
+                cpuMarker->setSelected(true);
+                const bool cpuPick=window.displayedProperties().contains(
+                    "A_032 verified LOCAL endpoint") &&
+                    window.displayedProperties().contains(
+                    "complete connectivity NOT_VERIFIED");
+                scene->clearSelection();
+                if(!cpuPick) {
+                    stopWith("A_034 CPU contact picking did not report bounded evidence");return;
+                }
+#ifdef BOARDSI_RHI_ARTWORK
+                if(auto *rhi=panel->rhiViewForTest();rhi && panel->rhiCanvasActiveForTest()) {
+                    localContactRhiTested=true;
+                    auto *item=rhi->itemForTest();
+                    const QPointF at=item->screenPointForTest(7620000,5080000);
+                    QMouseEvent press(QEvent::MouseButtonPress,at,at,at,
+                                      Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);
+                    QMouseEvent release(QEvent::MouseButtonRelease,at,at,at,
+                                        Qt::LeftButton,Qt::NoButton,Qt::NoModifier);
+                    QCoreApplication::sendEvent(item,&press);
+                    QCoreApplication::sendEvent(item,&release);
+                    localContactRhiPicked=window.displayedProperties().contains(
+                        "A_032 verified LOCAL endpoint") &&
+                        window.displayedProperties().contains(
+                        "complete connectivity NOT_VERIFIED");
+                    if(!localContactRhiPicked) {
+                        stopWith("A_034 RHI contact picking/provenance mismatches CPU");return;
+                    }
+                }
+#endif
+                localContactFilterVerified=true;
             }
             // Independent millimetre reference from the PUBLIC synthetic PADS fixture.
             // Verify the *rendered* Qt geometry, Y inversion, net and real pen width,
@@ -769,6 +850,10 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         {"p2a_import_summary_counts_verified", importSummaryVerified},
         {"p2a_import_failure_recovery_verified", importFailureRecoveryVerified},
         {"a034_cross_file_reimport_verified", testImport && crossFileReimportVerified && rc == 0},
+        {"a034_local_contact_cpu_rhi_filter_verified", testImport && localContactFilterVerified && rc == 0},
+        {"a034_local_contact_rhi_pick_scope", !testImport ? "NOT_RUN_NO_IMPORT" :
+            !localContactRhiTested ? "NOT_RUN_NO_ACTIVE_RHI" :
+            (localContactRhiPicked && rc == 0 ? "PASS" : "FAIL")},
         {"a034_cross_file_reimport_scope", crossFileSourceFixture ?
              (crossFileReimportVerified && rc == 0 ? "PASS" : "FAIL") :
              "NOT_RUN_SINGLE_FIXTURE"},
