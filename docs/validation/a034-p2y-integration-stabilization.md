@@ -22,7 +22,9 @@ The second A_034 slice extends the **actual native production-source** P2-A impo
 6. On different-board reimport, require 0 old source markers in CPU *and existing RHI item*; on return, require exactly one correct restored marker.
 7. Audit existing RHI frame/picking/CPU fallback, Copper hole picking, mirror, per-layer/net explorer, scene resize, 10k synthetic interaction and controlled injected failure regression **by specific CI steps**, without inferring a physical GPU stress qualification.
 
-**Acceptance pending:** exact candidate HEAD native Qt/Windows x64+ARM64/macOS ARM64/Linux offscreen checks, source CTest receipt flags, full 17 protected contexts, independent exact-HEAD Codex review, merge and main-push checks. Complete this paragraph only on real evidence.
+**Acceptance pending:** exact candidate HEAD native Qt/Windows x64+ARM64/macOS ARM64/Linux offscreen checks, source CTest receipt flags, full 17 protected contexts, independent exact-HEAD Codex review, merge and main-push checks.
+
+**Explicit active-RHI gate:** `.github/workflows/qt-runtime.yml` now runs the full source `--selftest` again **after** Qt Quick is installed and rebuilt on Windows x64/ARM64 and macOS ARM64. Each job requires `a034_local_contact_cpu_rhi_filter_verified=true`, `a034_local_contact_rhi_pick_scope=PASS`, `a034_cross_file_reimport_scope=PASS` and native test PASS. The receipt is archived as `qt-preview-a034-contact-results.json`. Merely seeing a CPU-only CTest success is not accepted as native RHI picking evidence; a real hardware GPU *adapter* is still a separately scoped qualification. Complete this paragraph only on real evidence.
 
 ## Existing regression coverage reused (not newly certified)
 
