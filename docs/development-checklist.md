@@ -16,7 +16,7 @@
 | A_001–A_035 P2 Preview | 제한된 PADS V9.4 MILS 합성 원본 Import→Canonical/IPC→Qt CPU/RHI Artwork; 3 Native CI ([A_035 감사](validation/a035-p2z-final-preview-acceptance.md)) | **부분 기능 PASS**, 범용 PADS/실 PCB 해석 아님 |
 | M0 구조·기술 | Rust/Qt·IPC·Canonical·3 Native 프로토타입 ([M0 종료 게이트](validation/m0-completion-gate.md)) | **BLOCKED**: F1/F6/F7 등 독립 종료 게이트 남음 |
 | M1 PADS/Artwork | PADS subset, Copper/Cutout, Source parity, 제한 국소 Route 접점 ([A_034 Native 통합](validation/a034-p2y-integration-stabilization.md)) | **PARTIAL**, ODB++ 및 전체 Connectivity 미완 |
-| M1 Stackup/Reference (B_001) | 다음 제안 단계, 실제 구현 증빙 없음 | **미착수** |
+| M1 Stackup/Reference (B_001) | Qt 사용자 입력 Overlay 및 출처 제한 저장 후보 구현 ([B_001 검증 원장](validation/b001-stackup-reference.md)); Native CI/실제 Canonical 연동 미확인 | **개발 진행 중 / 정식 미완** |
 | M1a / M1b | Via/Pad 일부 기하 연구, 실 Port 자동/수동 전체 범위 증빙 없음 | **미완** |
 | M2 연구·제품 Solver | PEC/lossless FEM 합성 쿠폰 수학 검증만 존재 ([M2 검증 원장](validation/README.md)) | **제품 Solver 미완**; PH-08 원본 Gate Q **FAIL 유지** |
 | M2a/M2b/M2c, M3–M5 | 단계별 요구 명세 있음; 일부 기술 시연만 존재 | **미완 / 후속** |
@@ -58,7 +58,7 @@
 | --- | --- | --- |
 | M0 | ☐ BLOCKED | [M0 종료 게이트](validation/m0-completion-gate.md) — 사양/시험 개별 인수·실물 기준 PC/공개 샘플·라이선스/배포 |
 | M1 Import/Artwork | ☐ PARTIAL | [#8](https://github.com/july-rust/BoardSI/issues/8), [#9](https://github.com/july-rust/BoardSI/issues/9), [#10](https://github.com/july-rust/BoardSI/issues/10), [#11](https://github.com/july-rust/BoardSI/issues/11): 포맷별 Import 완성도·ODB++·전체 연결 |
-| **B_001 / M1 Stackup·Reference** | ☐ 미착수 | [#12](https://github.com/july-rust/BoardSI/issues/12): 층/소재/두께/Dk/Df 편집·Reference 지정·모름/충돌 값 차단·ReImport 무효화 |
+| **B_001 / M1 Stackup·Reference** | ◐ 구현 후보 / 검증 대기 | [#12](https://github.com/july-rust/BoardSI/issues/12): [B_001 범위 원장](validation/b001-stackup-reference.md) — 사용자 Overlay UI/로컬 저장 후보. 물리 Reference/Canonical Rust 연동·인수시험은 미완 |
 | M1a | ☐ PARTIAL | [#13](https://github.com/july-rust/BoardSI/issues/13): Substrate Pad/Via/Anti-pad/Plane·Pad-to-Pad |
 | M1b | ☐ 미완 | [#14](https://github.com/july-rust/BoardSI/issues/14), [#15](https://github.com/july-rust/BoardSI/issues/15): Port 후보/수동·Single/Differential·P001–P012 |
 | M2 | ☐ 미완 | [#16](https://github.com/july-rust/BoardSI/issues/16), [#17](https://github.com/july-rust/BoardSI/issues/17): 물리 검증된 RLGC, Direct S, DC, Touchstone |
@@ -85,8 +85,8 @@
 - [ ] **U06** — PADS Layout ASCII (*.ASC) 지원 — **부분 증빙 / 최종 미완료**: PADS V9.4 MILS 공개 합성 subset만 검증 ([A_035 감사](validation/a035-p2z-final-preview-acceptance.md))
 - [ ] **U07** — 다양한 PCB 형식 확장(ODB++, IPC-2581, KiCad, Gerber 등) — **정식 인수 미검증**
 - [ ] **U08** — 자체 2D Artwork, Layer/Net 확인 — **부분 증빙 / 최종 미완료**: CPU/Qt RHI Preview·Layer/Net 필터 제한 검증 ([A_034 Native 통합](validation/a034-p2y-integration-stabilization.md))
-- [ ] **U09** — Stackup 두께, Copper, Dk/Df, Material 편집 — **정식 인수 미검증**
-- [ ] **U10** — GND·Power·Reference 지정 — **정식 인수 미검증**
+- [ ] **U09** — Stackup 두께, Copper, Dk/Df, Material 편집 — **부분 구현 후보 / 정식 인수 미검증**: B_001 Qt UI 입력/검증 코드 추가; 물성 유효 주파수·Rust Canonical 연동 및 Native CI 확인 필요 ([B_001 원장](validation/b001-stackup-reference.md))
+- [ ] **U10** — GND·Power·Reference 지정 — **부분 구현 후보 / 정식 인수 미검증**: B_001 Layer 역할 힌트/Reference ID 입력만 지원, 전기적 Net/Return Path 자격 미확인 ([B_001 원장](validation/b001-stackup-reference.md))
 - [ ] **U11** — Single/Differential 선택, 선폭·두께 가상 변경 — **정식 인수 미검증**
 - [ ] **U12** — DC~30 GHz 등 사용자 주파수 범위 — **정식 인수 미검증**
 - [ ] **U13** — CPU/GPU 등 계산 자원 선택 UI — **정식 인수 미검증**
@@ -139,9 +139,9 @@
 ### 기본 시험 T01–T15
 
 - [ ] **T01** — ASC 형식·버전·단위 — **부분 증빙 / 정식 인수 미완료**: 제한 PADS 버전/Signature fixture ([A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md))
-- [ ] **T02** — 필수 물성·기하 누락 — **정식 인수 미검증**
+- [ ] **T02** — 필수 물성·기하 누락 — **부분 후보 / 정식 인수 미검증**: 제한 Qt 입력 검사/Native 결과 검증 대기 ([B_001 원장](validation/b001-stackup-reference.md))
 - [ ] **T03** — Layer·Via·Padstack·Copper — **부분 증빙 / 정식 인수 미완료**: 일부 Pad/Via/Copper와 국소 접점만 ([A_032 국소 접점](validation/a032-p2w-local-connectivity.md))
-- [ ] **T04** — Reference 분할·전원 분류 — **정식 인수 미검증**
+- [ ] **T04** — Reference 분할·전원 분류 — **정식 인수 미검증**: B_001 역할 힌트는 실제 Copper/Net/분할 판정이 아님 ([B_001 원장](validation/b001-stackup-reference.md))
 - [ ] **T05** — P/N·Mixed-mode — **정식 인수 미검증**
 - [ ] **T06** — 균일 선로 수치 정확도 — **부분 증빙 / 정식 인수 미완료**: 합성 수학/무손실 쿠폰 ([M2 검증 원장](validation/README.md))
 - [ ] **T07** — 손실·수동성·상호성 — **부분 증빙 / 정식 인수 미완료**: 무손실 기준 검사만; 손실 미검증 ([M2 검증 원장](validation/README.md))
@@ -164,7 +164,7 @@
 - [ ] **T21** — Canonical Model 안정성 — **부분 증빙 / 정식 인수 미완료**: Canonical synthetic 구조검증; Cross-format ID 미완 ([M0 종료 게이트](validation/m0-completion-gate.md))
 - [ ] **T22** — Import 압축/비정상 파일 — **정식 인수 미검증**
 - [ ] **T23** — 수동 Port Copper 외부 클릭 — **정식 인수 미검증**
-- [ ] **T24** — GND Plane Cutout/분리 — **정식 인수 미검증**
+- [ ] **T24** — GND Plane Cutout/분리 — **정식 인수 미검증**: 물리 Return 경로 검증 미실시 ([B_001 원장](validation/b001-stackup-reference.md))
 - [ ] **T25** — Pair P/N 역전/Port 번호 변화 — **정식 인수 미검증**
 - [ ] **T26** — Branch/Series R·C 포함 신호 — **정식 인수 미검증**
 - [ ] **T27** — Reimport 후 Port 이동/Net 변경 — **정식 인수 미검증**
@@ -198,7 +198,7 @@
 - [ ] **T49** — 진단 출력·캐시·공개 패키지 — **정식 인수 미검증**
 - [ ] **T50** — UI·Heartbeat·Cancel 시간 계측 — **부분 증빙 / 정식 인수 미완료**: Qt 타이밍 회귀 일부; 원인/출시 목표 미확정 ([M0 종료 게이트](validation/m0-completion-gate.md))
 - [ ] **T51** — 미세 Substrate·ODB Step·극성 — **부분 증빙 / 정식 인수 미완료**: PADS source tick 좌표 확인; ODB Step/미세 Substrate 미완 ([A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md))
-- [ ] **T52** — 치수·물성 범위와 외삽 — **정식 인수 미검증**
+- [ ] **T52** — 치수·물성 범위와 외삽 — **부분 후보 / 정식 인수 미검증**: B_001 필드 양수/유한성 검사 후보, 주파수 범위/외삽 정식 검증 미실시 ([B_001 원장](validation/b001-stackup-reference.md))
 - [ ] **T53** — DC 미지원·깊은 노치·긴 지연 — **정식 인수 미검증**
 - [ ] **T54** — SSD 부족·쓰기 중 강제 종료 — **정식 인수 미검증**
 
@@ -218,6 +218,7 @@
 | --- | --- | --- | --- |
 | 2026-10-26 | A_036 | 사양서 v1.0, [PR #210](https://github.com/july-rust/BoardSI/pull/210), `main@d23f2d4001130cf654e3071cfeb01a7df473ac1d` | U01–U48 / T01–T54 목록 및 최초 체크 13개 생성. 병합 후 21/21 CI PASS |
 | 2026-10-26 | A_036 후속 날짜 보강 | [Issue #211](https://github.com/july-rust/BoardSI/issues/211) | 기존 체크 13개에 최초 체크일 및 개별 선행 근거일 기록, 향후 체크 날짜 필수화, 챙 관리·사용자 열람 운영 원칙 추가 |
+| 2026-10-26 | B_001 착수 (PR 검증 전) | [Issue #12](https://github.com/july-rust/BoardSI/issues/12), [검증 원장](validation/b001-stackup-reference.md) | Qt 사용자 Stackup Overlay 후보 코드. U09/U10/T02/T52 부분 증빙 후보; 정식 체크박스 변경 없음. Native CI/독립 리뷰/실제 물리 준비도 미확인 |
 
 ### 필수 참고 근거
 
