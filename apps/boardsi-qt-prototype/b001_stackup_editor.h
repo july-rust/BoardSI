@@ -91,6 +91,14 @@ public:
         message_->setObjectName("b001StackupStatus");
         message_->setWordWrap(true);
         layout->addWidget(message_);
+        // Any user edit or changed audit frequency invalidates the previous
+        // Rust receipt immediately: no stale 'ASSUMED' result survives a scenario edit.
+        connect(rows_, &QTableWidget::itemChanged, this, [this](QTableWidgetItem *) {
+            status("STACKUP INPUT MODIFIED / RE-AUDIT REQUIRED / SI NOT_RUN");
+        });
+        connect(auditFrequency_, &QLineEdit::textChanged, this, [this](const QString &) {
+            status("AUDIT FREQUENCY MODIFIED / RE-AUDIT REQUIRED / SI NOT_RUN");
+        });
         auto *commands = new QHBoxLayout;
         auto *check = new QPushButton("Validate input", this);
         auto *canonical = new QPushButton("Audit in Rust Canonical Model", this);
