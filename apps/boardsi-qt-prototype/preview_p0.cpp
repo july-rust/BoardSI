@@ -410,6 +410,12 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
     bool importSummaryVerified = false;
     bool importFailureRecoveryVerified = false;
     bool crossFileReimportVerified = false;
+    // Repository CTest has BOTH source-backed public fixtures. The Windows
+    // Qt-bundled standalone smoke deliberately stages one fixture under a
+    // different name; keep that single-file release gate intact. The source
+    // CTest must never skip its cross-file assertions.
+    const bool crossFileSourceFixture =
+        QFileInfo(fixture).fileName() == "pads_route_straight_v94.asc";
     auto *tick = new QTimer(&app);
     tick->setInterval(50);
     QObject::connect(tick, &QTimer::timeout, &app, [&] {
@@ -604,7 +610,7 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
             // source kind. A_033 independently specifies ten mirrored RF pads.
             // Keep source Net selection and layer visibility deliberately dirty
             // so the second board must reset them rather than reuse old state.
-            if (!crossFileReimportVerified) {
+            if (crossFileSourceFixture && !crossFileReimportVerified) {
                 auto *netOnly = window.findChild<QCheckBox *>("importedNetOnly");
                 auto *hideAll = window.findChild<QPushButton *>("importedHideAllLayers");
                 if (!netOnly || !hideAll) {
@@ -763,6 +769,9 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         {"p2a_import_summary_counts_verified", importSummaryVerified},
         {"p2a_import_failure_recovery_verified", importFailureRecoveryVerified},
         {"a034_cross_file_reimport_verified", testImport && crossFileReimportVerified && rc == 0},
+        {"a034_cross_file_reimport_scope", crossFileSourceFixture ?
+             (crossFileReimportVerified && rc == 0 ? "PASS" : "FAIL") :
+             "NOT_RUN_SINGLE_FIXTURE"},
         {"p2a_properties_source_isolation_verified", testImport && importedGeometryVerified && rc == 0 && phase == 5},
         {"p1_scope", "synthetic illustrative geometry only; no PCB file imported"}
     };
