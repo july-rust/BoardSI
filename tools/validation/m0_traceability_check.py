@@ -1286,7 +1286,7 @@ if __name__=="__main__":
         "<!-- `<!-- inner marker --> trailing visible text",
     ):
         inserted = specification.replace(
-            crosswalk_header, comment_line + "\n" + crosswalk_header, 1
+            crosswalk_header, comment_line + "\n\n" + crosswalk_header, 1
         )
         if validate(inserted, ledger) != (48, 54):
             raise AssertionError("same-line literal HTML comment scan regression")
@@ -1295,7 +1295,7 @@ if __name__=="__main__":
         "<!--\n<style> hidden raw HTML inside comment\n-->",
     ):
         inserted = specification.replace(
-            crosswalk_header, hidden_comment + "\n" + crosswalk_header, 1
+            crosswalk_header, hidden_comment + "\n\n" + crosswalk_header, 1
         )
         if validate(inserted, ledger) != (48, 54):
             raise AssertionError("cross-line HTML comment handling regression")
