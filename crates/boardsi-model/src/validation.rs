@@ -110,7 +110,12 @@ struct ContactValidationIndex<'a> {
 impl<'a> ContactValidationIndex<'a> {
     fn new(board: &'a BoardModel) -> Self {
         Self {
-            nodes: board.connectivity.nodes.iter().map(|x| (&x.meta.id, x)).collect(),
+            nodes: board
+                .connectivity
+                .nodes
+                .iter()
+                .map(|x| (&x.meta.id, x))
+                .collect(),
             traces: board.traces.iter().map(|x| (&x.meta.id, x)).collect(),
             arcs: board.arcs.iter().map(|x| (&x.meta.id, x)).collect(),
             pads: board.pads.iter().map(|x| (&x.meta.id, x)).collect(),
@@ -122,8 +127,7 @@ impl<'a> ContactValidationIndex<'a> {
                 .iter()
                 .flat_map(|p| {
                     p.entries.iter().filter_map(move |entry| {
-                        (entry.role == PadRole::Conductive)
-                            .then_some((&p.meta.id, &entry.layer))
+                        (entry.role == PadRole::Conductive).then_some((&p.meta.id, &entry.layer))
                     })
                 })
                 .collect(),
@@ -892,7 +896,11 @@ impl BoardModel {
         lookup.known_net(net)?;
         Ok((net.as_ref(), self.exact_point_m(point)?))
     }
-    fn validate_edge<'a>(&'a self, edge: &ConnectivityEdge, lookup: &ContactValidationIndex<'a>) -> Result<(), ModelError> {
+    fn validate_edge<'a>(
+        &'a self,
+        edge: &ConnectivityEdge,
+        lookup: &ContactValidationIndex<'a>,
+    ) -> Result<(), ModelError> {
         require(edge.a != edge.b, ModelError::InvalidConnection)?;
         let a = lookup
             .nodes
@@ -925,7 +933,11 @@ impl BoardModel {
                         && matches!(b.site, ContactSite::ViaCentre),
                     ModelError::InvalidConnection,
                 )?;
-                let via = lookup.vias.get(via).copied().ok_or(ModelError::InvalidReference)?;
+                let via = lookup
+                    .vias
+                    .get(via)
+                    .copied()
+                    .ok_or(ModelError::InvalidReference)?;
                 // Whole-board via validation checks plated drill, span and
                 // conductive padstack. Here ensure the edge uses its two
                 // independently proven contact layers.
