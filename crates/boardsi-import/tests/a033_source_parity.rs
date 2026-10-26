@@ -146,8 +146,7 @@ fn route_source_hash_and_local_contact_suffix_are_explicit_not_certified_short()
     // Fixed by independent Python hashlib SHA-256 over the 221 authored
     // source bytes, never from the same implementation as the importer.
     assert_eq!(source.len(), 221);
-    const EXPECTED_HASH: &str =
-        "434b953c1cb50cc1e4a93a8e91dea5f0f5b599640798932d2b80c531f87bfdcf";
+    const EXPECTED_HASH: &str = "434b953c1cb50cc1e4a93a8e91dea5f0f5b599640798932d2b80c531f87bfdcf";
     let mut rows = suffix.lines();
     let header = rows.next().expect("suffix header");
     let header_parts: Vec<_> = header.split('|').collect();
