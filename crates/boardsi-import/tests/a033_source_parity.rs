@@ -43,20 +43,31 @@ fn primitive_set(wire: &str, kind: &str) -> BTreeSet<String> {
 
 fn assert_only_rows(wire: &str, expected: &[&str], kind: &str) {
     let actual = primitive_set(wire, kind);
-    assert_eq!(actual.len(), wire.lines().filter(|l| l.starts_with(kind)).count(),
-        "duplicate native transport records");
+    assert_eq!(
+        actual.len(),
+        wire.lines().filter(|l| l.starts_with(kind)).count(),
+        "duplicate native transport records"
+    );
     let oracle: BTreeSet<String> = expected.iter().map(|s| (*s).to_owned()).collect();
-    assert_eq!(actual, oracle, "every source-authored primitive must appear exactly once");
+    assert_eq!(
+        actual, oracle,
+        "every source-authored primitive must appear exactly once"
+    );
 }
 
 #[test]
 fn complete_straight_route_rows_match_hand_calculated_source_grid() {
     let path = fixture("pads_route_straight_v94.asc");
     let source = fs::read(&path).expect("synthetic fixture");
-    assert!(source.windows(b"100 200 1 10 0".len()).any(|w| w == b"100 200 1 10 0"));
+    assert!(source
+        .windows(b"100 200 1 10 0".len())
+        .any(|w| w == b"100 200 1 10 0"));
     assert_eq!(100 * NM_PER_MIL, 2_540_000);
     let wire = String::from_utf8(success(&path, false).stdout).expect("ASCII IPC");
-    assert_eq!(wire.lines().next(), Some("BOARDSI_P2A_PARTIAL_V1|V9.4-MILS|4"));
+    assert_eq!(
+        wire.lines().next(),
+        Some("BOARDSI_P2A_PARTIAL_V1|V9.4-MILS|4")
+    );
     assert_only_rows(
         &wire,
         &[
@@ -67,8 +78,11 @@ fn complete_straight_route_rows_match_hand_calculated_source_grid() {
         "T|",
     );
     assert_eq!(
-        wire.lines().filter(|row| matches!(row.split('|').next(),
-            Some("A" | "V" | "P" | "G" | "H" | "J" | "B" | "C" | "O" | "Q")))
+        wire.lines()
+            .filter(|row| matches!(
+                row.split('|').next(),
+                Some("A" | "V" | "P" | "G" | "H" | "J" | "B" | "C" | "O" | "Q")
+            ))
             .count(),
         0,
         "a route-only fixture must not invent other source artwork"
@@ -84,7 +98,10 @@ fn complete_bottom_mirror_pad_rows_match_manual_board_axis_oracle() {
     // importer snapshots, renderer triangles, or Canonical output.
     let path = fixture("pads_bottom_mirror_v94.asc");
     let wire = String::from_utf8(success(&path, false).stdout).expect("ASCII IPC");
-    assert_eq!(wire.lines().next(), Some("BOARDSI_P2E_PARTIAL_V4|V9.4-MILS|4"));
+    assert_eq!(
+        wire.lines().next(),
+        Some("BOARDSI_P2E_PARTIAL_V4|V9.4-MILS|4")
+    );
     assert_only_rows(
         &wire,
         &[
@@ -102,8 +119,11 @@ fn complete_bottom_mirror_pad_rows_match_manual_board_axis_oracle() {
         "P|",
     );
     assert_eq!(
-        wire.lines().filter(|row| matches!(row.split('|').next(),
-            Some("T" | "A" | "V" | "G" | "H" | "J" | "Q" | "O" | "B" | "C")))
+        wire.lines()
+            .filter(|row| matches!(
+                row.split('|').next(),
+                Some("T" | "A" | "V" | "G" | "H" | "J" | "Q" | "O" | "B" | "C")
+            ))
             .count(),
         0,
         "pad-only source must not acquire phantom copper or traces"
@@ -118,25 +138,44 @@ fn route_source_hash_and_local_contact_suffix_are_explicit_not_certified_short()
     let legacy = success(&path, false);
     let extended = success(&path, true);
     assert!(extended.stdout.starts_with(&legacy.stdout));
-    assert_eq!(extended.stderr, legacy.stderr, "opt-in cannot change the legacy audit");
+    assert_eq!(
+        extended.stderr, legacy.stderr,
+        "opt-in cannot change the legacy audit"
+    );
     let suffix = String::from_utf8(extended.stdout[legacy.stdout.len()..].to_vec())
         .expect("strict ASCII suffix");
-    let expected_hash = sha256(&source).iter().map(|b| format!("{b:02x}")).collect::<String>();
+    let expected_hash = sha256(&source)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>();
     let mut rows = suffix.lines();
     let header = rows.next().expect("suffix header");
     let header_parts: Vec<_> = header.split('|').collect();
     assert_eq!(header_parts.len(), 4);
     assert_eq!(header_parts[0], "BOARDSI_CONTACT_RECORDS_V1");
     assert_eq!(header_parts[2], "LOCAL_ENDPOINT_ONLY");
-    assert_eq!(header_parts[3], expected_hash, "suffix must bind original source bytes");
+    assert_eq!(
+        header_parts[3], expected_hash,
+        "suffix must bind original source bytes"
+    );
     let count: usize = header_parts[1].parse().expect("bounded decimal count");
     let records: Vec<_> = rows.collect();
-    assert_eq!(records.len(), count + 1, "record count and trailer are mandatory");
-    assert_eq!(records.last().copied(), Some(format!("BOARDSI_CONTACT_END_V1|{count}").as_str()));
+    assert_eq!(
+        records.len(),
+        count + 1,
+        "record count and trailer are mandatory"
+    );
+    assert_eq!(
+        records.last().copied(),
+        Some(format!("BOARDSI_CONTACT_END_V1|{count}").as_str())
+    );
     // Only adjacent *distinct* NET_A source traces touch at exactly
     // (300 mil, 200 mil); NET_B geometry must remain disconnected.
     assert_eq!(count, 1);
-    assert!(records[0].starts_with("E|S|"), "local same-net endpoint only");
+    assert!(
+        records[0].starts_with("E|S|"),
+        "local same-net endpoint only"
+    );
     assert!(records[0].ends_with("|7620000|5080000"));
     assert!(!suffix.contains("\nX|C|"), "no cross-net short inference");
 }
@@ -151,8 +190,10 @@ fn mutated_source_must_not_pass_as_original_or_succeed_on_invalid_geometry() {
     fs::write(&temp, moved).unwrap();
     let shifted = success(&temp, false);
     let shifted_wire = String::from_utf8(shifted.stdout).unwrap();
-    assert!(!shifted_wire.contains("T|1|NET_A|2540000|5080000|7620000|5080000|254000"),
-        "the original Golden row must not survive a moved source endpoint");
+    assert!(
+        !shifted_wire.contains("T|1|NET_A|2540000|5080000|7620000|5080000|254000"),
+        "the original Golden row must not survive a moved source endpoint"
+    );
     assert!(shifted_wire.contains("T|1|NET_A|2565400|5080000|7620000|5080000|254000"));
 
     for bad in [
@@ -164,7 +205,10 @@ fn mutated_source_must_not_pass_as_original_or_succeed_on_invalid_geometry() {
         fs::write(&temp, bad).unwrap();
         let failed = import(&temp, false);
         assert!(!failed.status.success(), "hostile input was accepted");
-        assert!(failed.stdout.is_empty(), "failed import emitted usable partial artwork");
+        assert!(
+            failed.stdout.is_empty(),
+            "failed import emitted usable partial artwork"
+        );
     }
     fs::remove_file(&temp).unwrap();
 }
