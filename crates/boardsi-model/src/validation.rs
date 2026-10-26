@@ -94,6 +94,55 @@ fn property<T>(value: &Property<T>, id: &ObjectId, label: &str, report: &mut Val
         );
     }
 }
+// Built once per board validation. A contact graph must not turn every
+// edge into a linear scan over all imported conductors and contact nodes.
+struct ContactValidationIndex<'a> {
+    nodes: BTreeMap<&'a ObjectId, &'a ConnectivityNode>,
+    traces: BTreeMap<&'a ObjectId, &'a Trace>,
+    arcs: BTreeMap<&'a ObjectId, &'a Arc>,
+    pads: BTreeMap<&'a ObjectId, &'a Pad>,
+    vias: BTreeMap<&'a ObjectId, &'a Via>,
+    areas: BTreeMap<&'a ObjectId, &'a Area>,
+    nets: BTreeSet<&'a ObjectId>,
+    conductive: BTreeSet<(&'a ObjectId, &'a ObjectId)>,
+}
+
+impl<'a> ContactValidationIndex<'a> {
+    fn new(board: &'a BoardModel) -> Self {
+        Self {
+            nodes: board.connectivity.nodes.iter().map(|x| (&x.meta.id, x)).collect(),
+            traces: board.traces.iter().map(|x| (&x.meta.id, x)).collect(),
+            arcs: board.arcs.iter().map(|x| (&x.meta.id, x)).collect(),
+            pads: board.pads.iter().map(|x| (&x.meta.id, x)).collect(),
+            vias: board.vias.iter().map(|x| (&x.meta.id, x)).collect(),
+            areas: board.areas.iter().map(|x| (&x.meta.id, x)).collect(),
+            nets: board.nets.iter().map(|x| &x.meta.id).collect(),
+            conductive: board
+                .padstacks
+                .iter()
+                .flat_map(|p| {
+                    p.entries.iter().filter_map(move |entry| {
+                        (entry.role == PadRole::Conductive)
+                            .then_some((&p.meta.id, &entry.layer))
+                    })
+                })
+                .collect(),
+        }
+    }
+    fn known_net(&self, net: &Option<ObjectId>) -> Result<(), ModelError> {
+        require(
+            net.as_ref().map_or(true, |id| self.nets.contains(id)),
+            ModelError::InvalidReference,
+        )
+    }
+    fn conductive(&self, stack: &ObjectId, layer: &ObjectId) -> Result<(), ModelError> {
+        require(
+            self.conductive.contains(&(stack, layer)),
+            ModelError::InvalidConnection,
+        )
+    }
+}
+
 impl BoardModel {
     fn metas(&self) -> Vec<(&ObjectMeta, ObjectKind)> {
         let mut result = Vec::new();
@@ -658,16 +707,17 @@ impl BoardModel {
                 "via actual connected layers/plating/span",
             );
         }
+        let lookup = ContactValidationIndex::new(self);
         for node in &self.connectivity.nodes {
             report.check(
-                self.node_data(node).map(|_| ()),
+                self.node_data(node, &lookup).map(|_| ()),
                 &node.meta.id,
                 "contact node/conductive owner/site",
             );
         }
         for edge in &self.connectivity.edges {
             report.check(
-                self.validate_edge(edge),
+                self.validate_edge(edge, &lookup),
                 &edge.meta.id,
                 "explicit connection evidence",
             );
@@ -766,14 +816,15 @@ impl BoardModel {
     fn node_data<'a>(
         &'a self,
         node: &'a ConnectivityNode,
+        lookup: &ContactValidationIndex<'a>,
     ) -> Result<(Option<&'a ObjectId>, [Rational; 2]), ModelError> {
         self.copper_layer(&node.layer)?;
         let (net, point) = match &node.site {
             ContactSite::TraceVertex(i) => {
-                let trace = self
+                let trace = lookup
                     .traces
-                    .iter()
-                    .find(|x| x.meta.id == node.conductor)
+                    .get(&node.conductor)
+                    .copied()
                     .ok_or(ModelError::InvalidReference)?;
                 require(trace.layer == node.layer, ModelError::InvalidConnection)?;
                 (
@@ -785,10 +836,10 @@ impl BoardModel {
                 )
             }
             ContactSite::ArcStart | ContactSite::ArcEnd => {
-                let arc = self
+                let arc = lookup
                     .arcs
-                    .iter()
-                    .find(|x| x.meta.id == node.conductor)
+                    .get(&node.conductor)
+                    .copied()
                     .ok_or(ModelError::InvalidReference)?;
                 require(arc.layer == node.layer, ModelError::InvalidConnection)?;
                 (
@@ -801,33 +852,34 @@ impl BoardModel {
                 )
             }
             ContactSite::PadCentre => {
-                let pad = self
+                let pad = lookup
                     .pads
-                    .iter()
-                    .find(|x| x.meta.id == node.conductor)
+                    .get(&node.conductor)
+                    .copied()
                     .ok_or(ModelError::InvalidReference)?;
-                self.conductive(&pad.padstack, &node.layer)?;
+                lookup.conductive(&pad.padstack, &node.layer)?;
                 (&pad.net, &pad.position)
             }
             ContactSite::ViaCentre => {
-                let via = self
+                let via = lookup
                     .vias
-                    .iter()
-                    .find(|x| x.meta.id == node.conductor)
+                    .get(&node.conductor)
+                    .copied()
                     .ok_or(ModelError::InvalidReference)?;
-                self.validate_via(via)?;
+                // The via itself was checked in the board's via-validation pass.
+                // Repeat only the node-specific layer and plating checks here.
                 require(
                     via.connected_layers.contains(&node.layer),
                     ModelError::InvalidConnection,
                 )?;
-                self.conductive(&via.padstack, &node.layer)?;
+                lookup.conductive(&via.padstack, &node.layer)?;
                 (&via.net, &via.position)
             }
             ContactSite::AreaWitness { point, evidence } => {
-                let area = self
+                let area = lookup
                     .areas
-                    .iter()
-                    .find(|x| x.meta.id == node.conductor)
+                    .get(&node.conductor)
+                    .copied()
                     .ok_or(ModelError::InvalidReference)?;
                 require(
                     area.layer == node.layer && !evidence.trim().is_empty(),
@@ -837,25 +889,23 @@ impl BoardModel {
                 (&area.net, point)
             }
         };
-        self.net(net)?;
+        lookup.known_net(net)?;
         Ok((net.as_ref(), self.exact_point_m(point)?))
     }
-    fn validate_edge(&self, edge: &ConnectivityEdge) -> Result<(), ModelError> {
+    fn validate_edge<'a>(&'a self, edge: &ConnectivityEdge, lookup: &ContactValidationIndex<'a>) -> Result<(), ModelError> {
         require(edge.a != edge.b, ModelError::InvalidConnection)?;
-        let a = self
-            .connectivity
+        let a = lookup
             .nodes
-            .iter()
-            .find(|x| x.meta.id == edge.a)
+            .get(&edge.a)
+            .copied()
             .ok_or(ModelError::InvalidReference)?;
-        let b = self
-            .connectivity
+        let b = lookup
             .nodes
-            .iter()
-            .find(|x| x.meta.id == edge.b)
+            .get(&edge.b)
+            .copied()
             .ok_or(ModelError::InvalidReference)?;
-        let (net_a, pos_a) = self.node_data(a)?;
-        let (net_b, pos_b) = self.node_data(b)?;
+        let (net_a, pos_a) = self.node_data(a, lookup)?;
+        let (net_b, pos_b) = self.node_data(b, lookup)?;
         // Unknown/floating data is never shorted by implication; an electrical edge needs a known matching net.
         require(
             net_a.is_some() && net_a == net_b,
@@ -875,12 +925,15 @@ impl BoardModel {
                         && matches!(b.site, ContactSite::ViaCentre),
                     ModelError::InvalidConnection,
                 )?;
-                let via = self
-                    .vias
-                    .iter()
-                    .find(|x| x.meta.id == *via)
-                    .ok_or(ModelError::InvalidReference)?;
-                self.validate_via(via)
+                let via = lookup.vias.get(via).copied().ok_or(ModelError::InvalidReference)?;
+                // Whole-board via validation checks plated drill, span and
+                // conductive padstack. Here ensure the edge uses its two
+                // independently proven contact layers.
+                require(
+                    via.connected_layers.contains(&a.layer)
+                        && via.connected_layers.contains(&b.layer),
+                    ModelError::InvalidConnection,
+                )
             }
         }
     }
