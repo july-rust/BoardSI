@@ -375,6 +375,33 @@ mod tests {
         assert!(!board.validate().has_errors());
     }
     #[test]
+    fn ten_thousand_segment_chain_preserves_exact_local_connectivity() {
+        // GUI import permits this bounded size. Exercise the formerly
+        // quadratic node/edge validation with fully generated public data.
+        let mut source = String::from(
+            "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\n",
+        );
+        for index in 0..10_000usize {
+            source.push_str(&format!(
+                "U1.1 U2.2\n{} 200 1 10 0\n{} 200 1 10 0\n",
+                100 + index,
+                101 + index
+            ));
+        }
+        source.push_str("*END*\n");
+        let started = std::time::Instant::now();
+        let parsed = parse(source.as_bytes()).unwrap();
+        assert_eq!(parsed.segments.len(), 10_000);
+        let board = into_canonical(source.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.connectivity.edges.len(), 9_999);
+        assert!(!board.validate().has_errors());
+        eprintln!(
+            "A_032_1 10000 segment chain debug-test duration: {:?} (not a release or GUI deadline benchmark)",
+            started.elapsed()
+        );
+    }
+
+    #[test]
     fn oversized_contact_bucket_fails_during_insertion() {
         // Every trace starts at one exact coordinate, with a distinct end.
         // The 33rd site must be rejected without accumulating all contacts.
