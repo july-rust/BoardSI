@@ -2728,10 +2728,13 @@ static int runB001StackupSelftest() {
         set(r, 4, copper ? "" : "4.2");
         set(r, 5, copper ? "" : "0.02");
         set(r, 6, copper ? "58000000" : "");
-        set(r, 7, r == 2 ? "Ground" : "Signal");
+        set(r, 7, r == 2 ? "Ground" : (copper ? "Signal" : "Unknown"));
         set(r, 9, "PUBLIC_SYNTHETIC_NOT_VERIFIED");
     }
     set(0, 8, "3");
+    set(1, 7, "Signal");
+    const bool nonCopperRoleRejected = editor.validate().contains("NON-COPPER ROLE UNSUPPORTED");
+    set(1, 7, "Unknown");
     const bool inputAccepted = editor.validate().startsWith("INPUT FIELDS VALID") &&
         editor.validate().contains("PHYSICAL SI RUN BLOCKED");
     set(1, 5, "-0.1");
@@ -2751,12 +2754,13 @@ static int runB001StackupSelftest() {
     editor.resetForImport(different.fileName(), 4);
     const bool foreignRejected = !editor.loadFrom(overlay.fileName()) &&
         editor.validate().contains("RUN BLOCKED");
-    const bool pass = unknownBlocked && inputAccepted && invalidBlocked && saved &&
+    const bool pass = unknownBlocked && nonCopperRoleRejected && inputAccepted && invalidBlocked && saved &&
                       reset && restored && mutationRejected && foreignRejected;
     qInfo().noquote() << QJsonDocument(QJsonObject{
         {"schema", "b001-stackup-native-test-v1"},
         {"pass", pass}, {"missing_fields_blocked", unknownBlocked},
-        {"user_input_validated", inputAccepted}, {"negative_df_blocked", invalidBlocked},
+        {"user_input_validated", inputAccepted}, {"noncopper_role_blocked", nonCopperRoleRejected},
+        {"negative_df_blocked", invalidBlocked},
         {"overlay_saved", saved}, {"reimport_reset", reset},
         {"same_source_roundtrip", restored}, {"post_import_mutation_rejected", mutationRejected},
         {"different_source_rejected", foreignRejected},
