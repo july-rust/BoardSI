@@ -32,3 +32,10 @@ Do not promote tests from a stale head SHA or label a Material-only audit as phy
 ## Verification checkpoint — 2026-10-27 KST
 
 Code head `55ddb2a6c5c7aee79ee18d7ad3948794c8356440`: protected 17/17 required contexts PASS, Windows x64/ARM64 + macOS ARM64 Qt and Linux Qt PASS. Qt regression shows actual Rust assumed canonical configuration PASS and out-of-band denial PASS. Windows x64 bundled package copied to a Korean/space-containing path directly launched Rust audit PASS, and includes the validator in its SHA256SUMS manifest. The material-only Canonical model has no asserted Reference Copper/Net continuity; SI remains NOT_RUN. **A subsequent documentation HEAD must rerun CI and Codex; this code-SHA result cannot substitute its own result.**
+
+## Protected integration proof (2026-10-27 KST)
+
+- [PR #215](https://github.com/july-rust/BoardSI/pull/215) **merged** with verified signed squash `main@5f795b7f4609304827d4d6ca6acb4ff7ecf73cc8`; original independent exact source HEAD `6ce79d685a26cd3b26f1cd9b9ca065850aea5ca5` **28/28 GitHub checks SUCCESS**, including all **17/17 protected required**, 3 Native Qt architectures plus Linux CTest, and same-head Codex zero findings / no unresolved review threads.
+- The repository's formal acceptance list **does not** mark U09/U10/U39 or T02/T04/T24/T52 complete because the Rust source-bound Material-only model is still not tied to imported electrical Copper and Net topology or a proved physical return path.
+- GitHub auto-closed Issue #12 on merge. The issue was **reopened** deliberately and remains a full B_001 closure gate.
+- The merge SHA and evidence are traced in [development-checklist.md](../development-checklist.md); its original limited-scope check date is preserved. The separate post-merge `main` CI should be checked at its exact SHA before asserting post-main pass.
