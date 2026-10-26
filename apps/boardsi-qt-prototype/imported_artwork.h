@@ -346,6 +346,7 @@ class ImportedArtworkPanel final : public QWidget {
     std::vector<std::pair<QGraphicsPathItem *, ImportedBoundarySegment>> boundaries_;
     std::function<void(const QString &)> detailsCallback_;
     int skipped_ = 0;
+    QString localContactAudit_ = "Local endpoint contact evidence: NOT_EXPOSED; full-board connectivity NOT_VERIFIED";
     void refresh() {
 #ifdef BOARDSI_RHI_ARTWORK
         if (rhi_) rhi_->filter(layerVisible_, nets_->currentText(), netOnly_ && netOnly_->isChecked());
@@ -509,6 +510,9 @@ class ImportedArtworkPanel final : public QWidget {
             QString("Layer %1: %2 objects | Net %3: %4 route/via objects | Electrical connectivity NOT_VERIFIED")
                 .arg(layerId).arg(selectedLayerCount).arg(net)
                 .arg(net=="All nets" ? QString("ALL") : QString::number(selectedNetCount)));
+        // The exact local contact audit comes from Rust and is independent
+        // of CPU/RHI rendering, selection filtering and GPU picking.
+        line += "\n" + localContactAudit_;
         line += "\nArtwork renderer: " + rendererStatus();
         summary_->setText(line);
         if (detailsCallback_) detailsCallback_(line);
@@ -726,6 +730,10 @@ public:
     void setDetailsCallback(std::function<void(const QString &)> callback) {
         detailsCallback_ = std::move(callback);
     }
+    void setLocalContactAudit(const QString &auditedText) {
+        localContactAudit_ = auditedText;
+        refresh();
+    }
     // Starting a new import invalidates the last artwork. In particular, a failed
     // attempt must not leave old copper visible under a "NOTHING IMPORTED" status.
     void clearArtwork() {
@@ -751,6 +759,7 @@ public:
         savedLayerVisibility_.clear(); hasSavedVisibility_=false;
         if(explorerStatus_) explorerStatus_->setText("No imported copper objects / SI NOT_RUN");
         skipped_ = 0;
+        localContactAudit_ = "Local endpoint contact evidence: NOT_EXPOSED; full-board connectivity NOT_VERIFIED";
 #ifdef BOARDSI_RHI_ARTWORK
         if (rhi_) rhi_->load(0, {}, {}, {});
 #endif
