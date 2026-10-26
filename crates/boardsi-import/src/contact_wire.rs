@@ -76,7 +76,6 @@ fn resolve(
     })
 }
 
-
 fn bounded_push(
     buckets: &mut BTreeMap<(usize, [i64; 2]), Vec<Endpoint>>,
     item: Endpoint,
@@ -98,43 +97,88 @@ fn potential_conflicts(
 ) -> Result<Vec<(Endpoint, Endpoint)>, &'static str> {
     let mut buckets: BTreeMap<(usize, [i64; 2]), Vec<Endpoint>> = BTreeMap::new();
     for (index, t) in board.traces.iter().enumerate() {
-        if t.centreline.len() != 2 { return Err("CONTACT_WIRE_TRACE_GEOMETRY"); }
-        let Some(net) = &t.net else { continue; };
+        if t.centreline.len() != 2 {
+            return Err("CONTACT_WIRE_TRACE_GEOMETRY");
+        }
+        let Some(net) = &t.net else {
+            continue;
+        };
         let layer = *layers.get(&t.layer).ok_or("CONTACT_WIRE_UNKNOWN_LAYER")?;
         for (site, point) in t.centreline.iter().enumerate() {
-            bounded_push(&mut buckets, Endpoint {
-                kind: 'T', index, site, layer, ticks: point.ticks, net: net.clone()
-            })?;
+            bounded_push(
+                &mut buckets,
+                Endpoint {
+                    kind: 'T',
+                    index,
+                    site,
+                    layer,
+                    ticks: point.ticks,
+                    net: net.clone(),
+                },
+            )?;
         }
     }
     for (index, a) in board.arcs.iter().enumerate() {
-        let Some(net) = &a.net else { continue; };
+        let Some(net) = &a.net else {
+            continue;
+        };
         let layer = *layers.get(&a.layer).ok_or("CONTACT_WIRE_UNKNOWN_LAYER")?;
         for (site, point) in [(0, &a.start), (1, &a.end)] {
-            bounded_push(&mut buckets, Endpoint {
-                kind: 'A', index, site, layer, ticks: point.ticks, net: net.clone()
-            })?;
+            bounded_push(
+                &mut buckets,
+                Endpoint {
+                    kind: 'A',
+                    index,
+                    site,
+                    layer,
+                    ticks: point.ticks,
+                    net: net.clone(),
+                },
+            )?;
         }
     }
-    let drills: BTreeMap<_, _> = board.drills.iter()
-        .map(|x| (x.meta.id.clone(), x)).collect();
-    let padstacks: BTreeMap<_, _> = board.padstacks.iter()
-        .map(|x| (x.meta.id.clone(), x)).collect();
+    let drills: BTreeMap<_, _> = board
+        .drills
+        .iter()
+        .map(|x| (x.meta.id.clone(), x))
+        .collect();
+    let padstacks: BTreeMap<_, _> = board
+        .padstacks
+        .iter()
+        .map(|x| (x.meta.id.clone(), x))
+        .collect();
     for (index, v) in board.vias.iter().enumerate() {
-        let Some(net) = &v.net else { continue; };
+        let Some(net) = &v.net else {
+            continue;
+        };
         let drill = drills.get(&v.drill).ok_or("CONTACT_WIRE_MISSING_DRILL")?;
-        if v.kind != ViaKind::Through || !drill.plated { continue; }
-        let padstack = padstacks.get(&v.padstack).ok_or("CONTACT_WIRE_MISSING_PADSTACK")?;
+        if v.kind != ViaKind::Through || !drill.plated {
+            continue;
+        }
+        let padstack = padstacks
+            .get(&v.padstack)
+            .ok_or("CONTACT_WIRE_MISSING_PADSTACK")?;
         for entry in &padstack.entries {
-            if entry.role != PadRole::Conductive { continue; }
-            let layer = *layers.get(&entry.layer).ok_or("CONTACT_WIRE_UNKNOWN_LAYER")?;
+            if entry.role != PadRole::Conductive {
+                continue;
+            }
+            let layer = *layers
+                .get(&entry.layer)
+                .ok_or("CONTACT_WIRE_UNKNOWN_LAYER")?;
             // Add the Via only if a supported endpoint already exists at
             // precisely the centre on this conductive layer.
             if buckets.contains_key(&(layer, v.position.ticks)) {
-                bounded_push(&mut buckets, Endpoint {
-                    kind: 'V', index, site: 0, layer,
-                    ticks: v.position.ticks, net: net.clone()
-                })?;
+                bounded_push(
+                    &mut buckets,
+                    Endpoint {
+                        kind: 'V',
+                        index,
+                        site: 0,
+                        layer,
+                        ticks: v.position.ticks,
+                        net: net.clone(),
+                    },
+                )?;
             }
         }
     }
@@ -142,10 +186,15 @@ fn potential_conflicts(
     for (_, mut sites) in buckets {
         sites.sort_by_key(|s| (s.kind, s.index, s.site, s.layer));
         for i in 0..sites.len() {
-            for j in i+1..sites.len() {
-                let a=&sites[i]; let b=&sites[j];
-                if (a.kind==b.kind && a.index==b.index) ||
-                    (a.kind=='V' && b.kind=='V') || a.net==b.net { continue; }
+            for j in i + 1..sites.len() {
+                let a = &sites[i];
+                let b = &sites[j];
+                if (a.kind == b.kind && a.index == b.index)
+                    || (a.kind == 'V' && b.kind == 'V')
+                    || a.net == b.net
+                {
+                    continue;
+                }
                 if conflicts.len() >= MAX_RECORDS {
                     return Err("CONTACT_WIRE_RECORD_LIMIT");
                 }
@@ -193,9 +242,15 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
     }
 
     let conflicts = potential_conflicts(board, &layers)?;
-    let count = board.connectivity.edges.len()
-        .checked_add(conflicts.len()).ok_or("CONTACT_WIRE_RECORD_LIMIT")?;
-    if count > MAX_RECORDS { return Err("CONTACT_WIRE_RECORD_LIMIT"); }
+    let count = board
+        .connectivity
+        .edges
+        .len()
+        .checked_add(conflicts.len())
+        .ok_or("CONTACT_WIRE_RECORD_LIMIT")?;
+    if count > MAX_RECORDS {
+        return Err("CONTACT_WIRE_RECORD_LIMIT");
+    }
     let mut out = String::new();
     let hash = &board.sources[0].id.files[0].sha256;
     write!(
@@ -263,24 +318,23 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         if a.layer != b.layer || a.ticks != b.ticks || a.net == b.net {
             return Err("CONTACT_WIRE_CONFLICT_MISMATCH");
         }
-        let x = a.ticks[0].checked_mul(NM_PER_TICK).ok_or("CONTACT_WIRE_OVERFLOW")?;
-        let y = a.ticks[1].checked_mul(NM_PER_TICK).ok_or("CONTACT_WIRE_OVERFLOW")?;
+        let x = a.ticks[0]
+            .checked_mul(NM_PER_TICK)
+            .ok_or("CONTACT_WIRE_OVERFLOW")?;
+        let y = a.ticks[1]
+            .checked_mul(NM_PER_TICK)
+            .ok_or("CONTACT_WIRE_OVERFLOW")?;
         writeln!(
             &mut out,
             "X|C|{}|{}|{}|{}|{}|{}|{}|{}|{x}|{y}",
-            a.kind, a.index, a.site, a.layer,
-            b.kind, b.index, b.site, b.layer
-        ).map_err(|_| "CONTACT_WIRE_FORMAT")?;
+            a.kind, a.index, a.site, a.layer, b.kind, b.index, b.site, b.layer
+        )
+        .map_err(|_| "CONTACT_WIRE_FORMAT")?;
         if out.len() > MAX_RECORD_BYTES {
             return Err("CONTACT_WIRE_OUTPUT_LIMIT");
         }
     }
-    writeln!(
-        &mut out,
-        "BOARDSI_CONTACT_END_V1|{}",
-        count
-    )
-    .map_err(|_| "CONTACT_WIRE_FORMAT")?;
+    writeln!(&mut out, "BOARDSI_CONTACT_END_V1|{}", count).map_err(|_| "CONTACT_WIRE_FORMAT")?;
     if out.len() > MAX_RECORD_BYTES {
         return Err("CONTACT_WIRE_OUTPUT_LIMIT");
     }
@@ -291,7 +345,7 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
 mod tests {
     use super::*;
     use crate::route_preview::{into_canonical, parse};
-    const TWO: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0\n300 400 1 10 0\n*END*\n";
+    const TWO: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 1 10 0\nU2.2 U3.3\n300 200 1 10 0\n300 400 1 10 0\n*END*\n";
     #[test]
     fn opt_in_rows_are_verified_endpoint_edges() {
         let parsed = parse(TWO.as_bytes()).unwrap();
@@ -303,8 +357,10 @@ mod tests {
     }
     #[test]
     fn cross_net_conflict_is_location_only_never_a_short_edge() {
-        let with_other_net = TWO.replace("300 200 1 10 0\\n300 400 1 10 0",
-            "300 200 1 10 0\\n*SIGNAL* NET_B\\nU2.2 U3.3\\n300 200 1 10 0\\n300 400 1 10 0");
+        let with_other_net = TWO.replace(
+            "U2.2 U3.3\n300 200 1 10 0",
+            "*SIGNAL* NET_B\nU2.2 U3.3\n300 200 1 10 0",
+        );
         let parsed = parse(with_other_net.as_bytes()).unwrap();
         let board = into_canonical(with_other_net.as_bytes(), &parsed).unwrap();
         assert!(board.connectivity.edges.is_empty());
