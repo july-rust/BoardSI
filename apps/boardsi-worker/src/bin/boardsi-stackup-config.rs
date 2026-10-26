@@ -130,12 +130,10 @@ fn audit(input: &Value) -> Result<Value, &'static str> {
     }))
 }
 fn main() {
-    if std::env::args().collect::<Vec<_>>().as_slice() != ["boardsi-stackup-config", "--audit-stdin-v1"] {
-        // Only the documented non-interactive CLI contract is supported.
-        if std::env::args().len() != 2 || std::env::args().nth(1).as_deref() != Some("--audit-stdin-v1") {
-            eprintln!("Usage: boardsi-stackup-config --audit-stdin-v1");
-            std::process::exit(2);
-        }
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() != 2 || args[1] != "--audit-stdin-v1" {
+        eprintln!("Usage: boardsi-stackup-config --audit-stdin-v1");
+        std::process::exit(2);
     }
     let mut input = String::new();
     let output = match io::stdin().take(65_537).read_to_string(&mut input) {
