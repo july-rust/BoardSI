@@ -29,18 +29,18 @@
 
 ### 실제 실행 증빙이 있는 제한 Preview
 
-- [x] Qt Widgets Preview와 별도 Rust Worker / Versioned IPC의 제한 작동 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md)
-- [x] 공개 합성 PADS Layout ASCII V9.4 MILS의 **명시된 subset만** 파싱 및 비지원 입력 거절 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md)
-- [x] 지원 Straight Trace/Arc/Via/Component·RF Pad 및 Bottom Mirror 변환 — [A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md)
-- [x] 지원 Board Outline과 다각형·곡선·복합 외곽 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md)
-- [x] 지원 Copper Area/원형·곡선·비직교 외곽, Cutout/Hole와 CPU/RHI 표시 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md)
-- [x] 원본 Source tick·좌표·원본 개체별 Provenance와 Artwork 독립 검증 — [A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md)
-- [x] 제한 Layer·Net 표시, Filtering, Picking, Zoom/Fit 및 Qt Quick RHI Presented Frame — [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md)
-- [x] 원본 정확히 일치하는 일부 Trace/Arc/Via **국소 접점만** 그래프 근거 생성 — [A_032 국소 접점](validation/a032-p2w-local-connectivity.md)
-- [x] CPU/RHI 국소 접점 마커와 소스 정보/Visible Frame 정합성 — [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md)
-- [x] 연속 다른 PADS 합성 보드 재Import의 stale 객체·필터 상태 제거 — [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md)
-- [x] 10K·100K·1M **합성** 객체의 렌더/상호작용 회귀 시험(성능 보증 아님) — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md)
-- [x] Windows x64·Windows ARM64·macOS ARM64 **Native CI 시험 환경** 범위 PASS — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md)
+- [x] Qt Widgets Preview와 별도 Rust Worker / Versioned IPC의 제한 작동 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-19 KST** ([PR #102](https://github.com/july-rust/BoardSI/pull/102))
+- [x] 공개 합성 PADS Layout ASCII V9.4 MILS의 **명시된 subset만** 파싱 및 비지원 입력 거절 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-22 KST** ([PR #159](https://github.com/july-rust/BoardSI/pull/159))
+- [x] 지원 Straight Trace/Arc/Via/Component·RF Pad 및 Bottom Mirror 변환 — [A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-23 KST** ([PR #167](https://github.com/july-rust/BoardSI/pull/167))
+- [x] 지원 Board Outline과 다각형·곡선·복합 외곽 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #208](https://github.com/july-rust/BoardSI/pull/208))
+- [x] 지원 Copper Area/원형·곡선·비직교 외곽, Cutout/Hole와 CPU/RHI 표시 — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-25 KST** ([PR #192](https://github.com/july-rust/BoardSI/pull/192))
+- [x] 원본 Source tick·좌표·원본 개체별 Provenance와 Artwork 독립 검증 — [A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #200](https://github.com/july-rust/BoardSI/pull/200))
+- [x] 제한 Layer·Net 표시, Filtering, Picking, Zoom/Fit 및 Qt Quick RHI Presented Frame — [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #203](https://github.com/july-rust/BoardSI/pull/203))
+- [x] 원본 정확히 일치하는 일부 Trace/Arc/Via **국소 접점만** 그래프 근거 생성 — [A_032 국소 접점](validation/a032-p2w-local-connectivity.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #196](https://github.com/july-rust/BoardSI/pull/196))
+- [x] CPU/RHI 국소 접점 마커와 소스 정보/Visible Frame 정합성 — [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #203](https://github.com/july-rust/BoardSI/pull/203))
+- [x] 연속 다른 PADS 합성 보드 재Import의 stale 객체·필터 상태 제거 — [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #202](https://github.com/july-rust/BoardSI/pull/202))
+- [x] 10K·100K·1M **합성** 객체의 렌더/상호작용 회귀 시험(성능 보증 아님) — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-24 KST** ([PR #173](https://github.com/july-rust/BoardSI/pull/173))
+- [x] Windows x64·Windows ARM64·macOS ARM64 **Native CI 시험 환경** 범위 PASS — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #208](https://github.com/july-rust/BoardSI/pull/208))
 
 ### A_036 이후에도 반드시 남겨 두는 미완 항목
 
@@ -90,7 +90,7 @@
 - [ ] **U13** — CPU/GPU 등 계산 자원 선택 UI — **정식 인수 미검증**
 - [ ] **U14** — 영어 기본, 한국어 옵션 — **정식 인수 미검증**
 - [ ] **U15** — 공개 검증 샘플, 기밀 PCB 오프라인 검증 — **부분 증빙 / 최종 미완료**: 공개 합성 fixture 존재, 기밀 실보드 오프라인 전 경로 시험 미완 ([A_035 감사](validation/a035-p2z-final-preview-acceptance.md))
-- [x] **U16** — 제품명 BoardSI 사용 — **현재 제품명 적용 확인**
+- [x] **U16** — 제품명 BoardSI 사용 — **현재 제품명 적용 확인** · **체크일: 2026-10-26 KST** · **근거일: 2026-10-14 KST** ([사양서 개정일](specification/BoardSI_Development_Spec_v1.0.md))
 
 ### 실행/기하/입력 구조 U17–U32
 
