@@ -20,11 +20,15 @@ Remaining to close Issue #12: full imported Copper/Net/Area object mapping, refe
 
 | Scope | State | Evidence |
 | --- | --- | --- |
-| Rust Compiler/Clippy/fmt tests | **PENDING latest HEAD CI** | [PR #215 checks](https://github.com/july-rust/BoardSI/pull/215/checks) |
-| Qt native Windows x64, Windows ARM64, macOS ARM64 | **PENDING latest HEAD CI** | [PR #215 checks](https://github.com/july-rust/BoardSI/pull/215/checks) |
-| Linux CTest | **PENDING latest HEAD CI** | [PR #215 checks](https://github.com/july-rust/BoardSI/pull/215/checks) |
-| Independent Codex review | **PENDING latest HEAD** | [PR #215](https://github.com/july-rust/BoardSI/pull/215) |
+| Rust Compiler/Clippy/fmt tests | **PASS on code SHA `55ddb2a6c5c7aee79ee18d7ad3948794c8356440`**; see [Qt 4-platform workflow](https://github.com/july-rust/BoardSI/actions/runs/40419571718), [Numerical workflow](https://github.com/july-rust/BoardSI/actions/runs/40419571744) | [PR #215 checks](https://github.com/july-rust/BoardSI/pull/215/checks) |
+| Qt native Windows x64, Windows ARM64, macOS ARM64 | **PASS on code SHA `55ddb2a6c5c7aee79ee18d7ad3948794c8356440`**; see [Qt 4-platform workflow](https://github.com/july-rust/BoardSI/actions/runs/40419571718), [Numerical workflow](https://github.com/july-rust/BoardSI/actions/runs/40419571744) | [PR #215 checks](https://github.com/july-rust/BoardSI/pull/215/checks) |
+| Linux CTest | **PASS on code SHA `55ddb2a6c5c7aee79ee18d7ad3948794c8356440`**; see [Qt 4-platform workflow](https://github.com/july-rust/BoardSI/actions/runs/40419571718), [Numerical workflow](https://github.com/july-rust/BoardSI/actions/runs/40419571744) | [PR #215 checks](https://github.com/july-rust/BoardSI/pull/215/checks) |
+| Independent Codex review | **PASS on code SHA `55ddb2a6c5c7aee79ee18d7ad3948794c8356440`**, 0 new Codex findings; previous packaging P2 resolved | [PR #215](https://github.com/july-rust/BoardSI/pull/215) |
 | Real Reference Copper continuity and production Solver | **NOT_IMPLEMENTED / BLOCKED** | [Issue #12](https://github.com/july-rust/BoardSI/issues/12) |
 | Entire specification U09/U10/U39, T02/T04/T24/T52 | **NOT_QUALIFIED** | [Development checklist](../development-checklist.md) |
 
 Do not promote tests from a stale head SHA or label a Material-only audit as physical return-path success.
+
+## Verification checkpoint — 2026-10-27 KST
+
+Code head `55ddb2a6c5c7aee79ee18d7ad3948794c8356440`: protected 17/17 required contexts PASS, Windows x64/ARM64 + macOS ARM64 Qt and Linux Qt PASS. Qt regression shows actual Rust assumed canonical configuration PASS and out-of-band denial PASS. Windows x64 bundled package copied to a Korean/space-containing path directly launched Rust audit PASS, and includes the validator in its SHA256SUMS manifest. The material-only Canonical model has no asserted Reference Copper/Net continuity; SI remains NOT_RUN. **A subsequent documentation HEAD must rerun CI and Codex; this code-SHA result cannot substitute its own result.**
