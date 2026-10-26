@@ -224,7 +224,7 @@
 | 2026-10-26 | A_036 | 사양서 v1.0, [PR #210](https://github.com/july-rust/BoardSI/pull/210), `main@d23f2d4001130cf654e3071cfeb01a7df473ac1d` | U01–U48 / T01–T54 목록 및 최초 체크 13개 생성. 병합 후 21/21 CI PASS |
 | 2026-10-26 | A_036 후속 날짜 보강 | [Issue #211](https://github.com/july-rust/BoardSI/issues/211) | 기존 체크 13개에 최초 체크일 및 개별 선행 근거일 기록, 향후 체크 날짜 필수화, 챙 관리·사용자 열람 운영 원칙 추가 |
 | 2026-10-26 | B_001 착수 (PR 검증 전) | [Issue #12](https://github.com/july-rust/BoardSI/issues/12), [검증 원장](validation/b001-stackup-reference.md) | Qt 사용자 Stackup Overlay 후보 코드. U09/U10/T02/T52 부분 증빙 후보; 정식 체크박스 변경 없음. Native CI/독립 리뷰/실제 물리 준비도 미확인 |
-| 2026-10-27 | B_001 제한 UI 증빙 확정 / #12 OPEN | [PR #213](https://github.com/july-rust/BoardSI/pull/213), `head@e5f449398c9f22a02878e397d69bb8b34319b252`, [26/26 CI](https://github.com/july-rust/BoardSI/commit/e5f449398c9f22a02878e397d69bb8b34319b252/checks), [Qt Native 3+Linux](validation/b001-stackup-reference.md), 독립 Codex 리뷰 | 좁은 범위의 B_001 Qt Overlay 체크 1개 신규 추가 (최초 체크일 2026-10-27 KST / 근거일 2026-10-26 KST); U09/U10/U39 및 T02/T04/T24/T52 전체 인수 체크는 미완으로 유지. 최종 병합 SHA는 병합 후 별도 확정 |
+| 2026-10-27 | B_001 제한 UI 증빙 확정 / #12 OPEN | [병합 PR #213](https://github.com/july-rust/BoardSI/pull/213), **`main@ed9fc66e5b0ab0072fcb93103adc18c2729ae0e3`** ([서명된 squash merge](https://github.com/july-rust/BoardSI/commit/ed9fc66e5b0ab0072fcb93103adc18c2729ae0e3)), 사전 병합 `head@a789ff22ad025c83ec6357a81ea2bbe9b3069b32` (26/26 검사 PASS, 17/17 필수, Codex same-head findings 0), [Qt Native 3+Linux](validation/b001-stackup-reference.md) | 제한 Qt Overlay [x] 1개만 추가 (최초 체크일 2026-10-27 KST / 시험 근거일 2026-10-26 KST); U09/U10/U39 및 T02/T04/T24/T52 전체 인수 체크는 미완. 병합된 main 신규 CI는 별도 게이트로 확인 |
 
 ### 필수 참고 근거
 
