@@ -1,9 +1,9 @@
 # A_032_2 — bounded local endpoint evidence transport and Qt Artwork overlay
 
 Tracking: [Issue #195](https://github.com/july-rust/BoardSI/issues/195), [PR #196](https://github.com/july-rust/BoardSI/pull/196).
-Status: **IMPLEMENTATION CANDIDATE — NOT FULLY ACCEPTED — DO NOT MERGE UNTIL EXACT-HEAD GATES PASS**.
+Status: **COMPLETE — A_032_2 merged into protected main via PR #196 with 17/17 successful post-merge mandatory checks**.
 
-## Shipped in candidate source
+## Shipped source (merged)
 
 1. `boardsi-import-artwork INPUT --contact-records-v1` is strictly opt-in. The one-argument default's complete V1–V14 stdout remains unchanged. The suffix begins *after* its ordinary `END` newline; versioned `BOARDSI_CONTACT_RECORDS_V1` header has total record count and the original source-file SHA-256. `BOARDSI_CONTACT_END_V1` closes it.
 2. `E|S` transports an already-validated Canonical exact same-layer, same-Net endpoint-to-endpoint contact; `E|B` transports qualified plated-through-via barrel evidence between two independently contacted conductive layers. Object kinds/indexes, endpoint site, original layer and exact source-grid nm coordinates are carried. These positions are **not** inferred from trace width, proximity, or display geometry.
@@ -19,22 +19,25 @@ Status: **IMPLEMENTATION CANDIDATE — NOT FULLY ACCEPTED — DO NOT MERGE UNTIL
 - The Canonical board geometry and copper `net: None` remain intact; the default V1–V14 layout protocol is never silently reinterpreted.
 - Physical SI, 2D RLGC/S-parameters, package discontinuity models, vendor real-export qualification and blanket M1/P2 completion are **NOT_VERIFIED**.
 
-## Added synthetic native regressions
+## Validated synthetic native regressions
 
 - Rust unit: deterministic opt-in contact rows; exact source grid; cross-net source conflict is diagnostic only; original A_032_1 negative padstack and 10,000-segment tests.
 - Rust binary integration: default stdout is a byte-identical prefix of opt-in stdout on representative V10, V11, V12, V13 and V14 public Copper source fixtures; suffix count/trailer and stderr audit preserved, including previously missed V10–V14 early-return serializer.
 - Qt imported P2A smoke: source trace-count unchanged in presence of contact overlay, local markers present; source Net/Layer filtering unaffected.
 - Qt native decoder smoke: valid contact, valid zero-contact board, valid potential conflict; hostile SHA mismatch, altered source coordinate, mismatched Net, malformed trailer and invalid conflict claims rejected.
-- All outcomes must be verified at the **final exact PR HEAD**, not inherited from an earlier candidate. Unknown results remain `NOT_RUN`.
+- Outcomes were verified at exact PR HEAD `8d65fff379de6b64d03631ca48aa5d91fc52c11f`, with 23/23 PR checks SUCCESS. Hardware-only exercises that were not run remain expressly NOT_RUN.
 
-## Acceptance and remaining gates
+## Final verified closeout (2026-10-26 KST)
 
-- `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, full unit/integration suite.
-- Linux x64 and Windows x64/ARM64 and macOS ARM64 native Qt/RHI+CPU regressions, including existing A_022–A_030 Copper imports.
-- Repeated **optimized release** 10,000-segment Import latency measured against Qt's 10 s deadline: **NOT_VERIFIED until a reproducible result is attached**. Native test passing alone is not performance certification.
-- Source-backed GPU/CPU marker visual/picking parity and actual non-software GPU evidence: distinguish tested from `NOT_RUN`.
-- Review all P1/P2 comments and explicitly resolve only after confirming source fixes. Exact-final-HEAD independent Codex review with zero unresolved P1/P2, zero open threads.
-- All 17 protected required status contexts SUCCESS at exact final HEAD. Keep branch protections and signed squash-only integration. Separately inspect protected-main signature and post-merge required contexts.
-- Preserve unrelated Issue #9, #11, #165 OPEN. No proprietary fixture, credentials, or unsupported SI assertion.
+**A_032 / A_032_1 / A_032_2: COMPLETE for the bounded P2-W deliverable, not for all P2/M1.** The earlier candidate/pending language below has been reconciled to the following exact evidence:
 
-**Do not merge PR #196 or close Issue #195 while any mandatory item is FAILED, BLOCKED or NOT_RUN.**
+- Implementation PR: [#196](https://github.com/july-rust/BoardSI/pull/196), final reviewed PR head `8d65fff379de6b64d03631ca48aa5d91fc52c11f`, squash-merged 2026-10-26 03:08:09 UTC.
+- Protected `main` merge commit: [`51360acac465cbff394edf63b1363c60b635478c`](https://github.com/july-rust/BoardSI/commit/51360acac465cbff394edf63b1363c60b635478c), GitHub signature **Verified** (`valid`), one parent `54dc90ccd68a80ec1455c6947ce8a2229924ee26`.
+- The merged commit's [post-merge checks](https://github.com/july-rust/BoardSI/commit/51360acac465cbff394edf63b1363c60b635478c/checks) completed **17/17 SUCCESS, 0 failed/pending**, matching the 17 required contexts of active main ruleset `#25046595`. At the exact PR head, 23/23 checks passed (including the 17 required native contexts).
+- Independent Codex review of exact PR head `8d65fff`: completed, no remaining new findings; all six PR review threads **resolved (6/6)**. Issue [#195](https://github.com/july-rust/BoardSI/issues/195) **CLOSED**.
+- [Release 10,000-segment synthetic route benchmark](https://github.com/july-rust/BoardSI/actions/runs/40261462513/job/121374561848): Rust importer 0.6213 / 0.6038 / 0.5814 s; peak child RSS ~57,452 KiB; output 955,611 bytes. **This is not end-to-end Qt GUI latency or real-board performance certification.**
+- Synthetic Rust/Qt native tests and V10–V14 opt-in compatibility are covered by the exact-head PR checks. Hardware-GPU reset, VRAM capacity and 1M-object 60 FPS were **NOT_RUN/NOT_VERIFIED**, not release blockers for this scoped local-evidence milestone.
+- Remains **NOT_VERIFIED**: whole-board Open/Short, interior/T-junction/trace-width or copper flood/thermal contacts, component Pad/Pin electrical contact, real vendor-export qualification, full SI/RLGC/S-parameters, complete M1/P2. Broad Issues [#9](https://github.com/july-rust/BoardSI/issues/9), [#11](https://github.com/july-rust/BoardSI/issues/11), [#165](https://github.com/july-rust/BoardSI/issues/165) stay open.
+
+This closeout edits validation documentation only. Historical review issues, baseline numbers, and historical pre-merge candidate states are retained as history, not current blockers.
+

@@ -1,8 +1,8 @@
 # A_032 / P2-W — limited local ROUTE endpoint connectivity
 
-Status: **A_032_2 IMPLEMENTATION CANDIDATE — EXACT-HEAD CI / INDEPENDENT REVIEW / MAIN MERGE PENDING**
+Status: **COMPLETE — A_032/A_032_1/A_032_2 P2-W limited local source-backed connectivity merged and verified 2026-10-26**
 
-Baseline protected main: `54dc90ccd68a80ec1455c6947ce8a2229924ee26` (A_031 PR #194).
+Historical start baseline: `54dc90ccd68a80ec1455c6947ce8a2229924ee26` (A_031 PR #194). Final P2-W integration: `51360acac465cbff394edf63b1363c60b635478c`.
 Tracking: [Issue #195](https://github.com/july-rust/BoardSI/issues/195).
 
 ## What is source-backed
@@ -26,14 +26,19 @@ Tracking: [Issue #195](https://github.com/july-rust/BoardSI/issues/195).
 | Complete-board open/short, isolated copper island | NOT_VERIFIED |
 | Vendor-export real-data qualification, 2D RLGC/S, GPU VRAM/reset/1M at 60 FPS | NOT_RUN |
 
-Legacy Qt V1–V14 keeps its source-label semantics and must never present *source net alone* as proof of local contact. A_032_2 proposes a strictly opt-in and separately gated `BOARDSI_CONTACT_RECORDS_V1` suffix after the legacy END, leaving default V1–V14 byte-identical. Object-level GPU/CPU markers and Cross-Net potential conflict remain bounded local source evidence, never full-board electrical verification. See [A_032_2 evidence ledger](a032-2-contact-viewer.md).
+Legacy Qt V1–V14 keeps its source-label semantics and must never present *source net alone* as proof of local contact. A_032_2 implements a strictly opt-in and independently validated `BOARDSI_CONTACT_RECORDS_V1` suffix after the legacy END, leaving default V1–V14 byte-identical. Object-level GPU/CPU markers and Cross-Net potential conflict remain bounded local source evidence, never full-board electrical verification. See [A_032_2 evidence ledger](a032-2-contact-viewer.md).
 
-## Acceptance requirements (not yet evidence)
+## Final verified closeout (2026-10-26 KST)
 
-- Rust `cargo fmt --check`, import/model/numerical tests and clippy clean.
-- Native Qt Linux x64, Windows x64, Windows ARM64, macOS ARM64 compatibility, all older import/copper regressions.
-- Exact-final-head independent Codex review, zero unresolved P1/P2 findings/threads.
-- 17/17 required PR checks SUCCESS, unchanged ruleset #25046595, GitHub Verified Squash merge.
-- Independent protected-main 17/17 post-merge checks and merge signature verification.
+**A_032 / A_032_1 / A_032_2: COMPLETE for the bounded P2-W deliverable, not for all P2/M1.** The earlier candidate/pending language below has been reconciled to the following exact evidence:
 
-Any missing evidence must remain `NOT_RUN` or `BLOCKED`. Broad Issues #9/#11/#165 remain OPEN.
+- Implementation PR: [#196](https://github.com/july-rust/BoardSI/pull/196), final reviewed PR head `8d65fff379de6b64d03631ca48aa5d91fc52c11f`, squash-merged 2026-10-26 03:08:09 UTC.
+- Protected `main` merge commit: [`51360acac465cbff394edf63b1363c60b635478c`](https://github.com/july-rust/BoardSI/commit/51360acac465cbff394edf63b1363c60b635478c), GitHub signature **Verified** (`valid`), one parent `54dc90ccd68a80ec1455c6947ce8a2229924ee26`.
+- The merged commit's [post-merge checks](https://github.com/july-rust/BoardSI/commit/51360acac465cbff394edf63b1363c60b635478c/checks) completed **17/17 SUCCESS, 0 failed/pending**, matching the 17 required contexts of active main ruleset `#25046595`. At the exact PR head, 23/23 checks passed (including the 17 required native contexts).
+- Independent Codex review of exact PR head `8d65fff`: completed, no remaining new findings; all six PR review threads **resolved (6/6)**. Issue [#195](https://github.com/july-rust/BoardSI/issues/195) **CLOSED**.
+- [Release 10,000-segment synthetic route benchmark](https://github.com/july-rust/BoardSI/actions/runs/40261462513/job/121374561848): Rust importer 0.6213 / 0.6038 / 0.5814 s; peak child RSS ~57,452 KiB; output 955,611 bytes. **This is not end-to-end Qt GUI latency or real-board performance certification.**
+- Synthetic Rust/Qt native tests and V10–V14 opt-in compatibility are covered by the exact-head PR checks. Hardware-GPU reset, VRAM capacity and 1M-object 60 FPS were **NOT_RUN/NOT_VERIFIED**, not release blockers for this scoped local-evidence milestone.
+- Remains **NOT_VERIFIED**: whole-board Open/Short, interior/T-junction/trace-width or copper flood/thermal contacts, component Pad/Pin electrical contact, real vendor-export qualification, full SI/RLGC/S-parameters, complete M1/P2. Broad Issues [#9](https://github.com/july-rust/BoardSI/issues/9), [#11](https://github.com/july-rust/BoardSI/issues/11), [#165](https://github.com/july-rust/BoardSI/issues/165) stay open.
+
+This closeout edits validation documentation only. Historical review issues, baseline numbers, and historical pre-merge candidate states are retained as history, not current blockers.
+
