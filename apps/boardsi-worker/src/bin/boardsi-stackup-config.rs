@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use std::io::{self, Read};
 use std::sync::Arc;
 
-fn text_field<'a>(row: &'a [Value], i: usize) -> Result<&'a str, &'static str> {
+fn text_field(row: &[Value], i: usize) -> Result<&str, &'static str> {
     row.get(i)
         .and_then(Value::as_str)
         .ok_or("ROW_FIELD_NOT_STRING")
