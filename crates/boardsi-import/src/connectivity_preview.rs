@@ -176,6 +176,11 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
             .iter()
             .filter(|e| e.role == PadRole::Conductive)
         {
+            // No endpoint to connect on this layer: do not index an idle
+            // via barrel/pad as though its span established an actual contact.
+            if !locations.contains_key(&(entry.layer.clone(), via.position.ticks)) {
+                continue;
+            }
             let candidate = site(
                 &source,
                 via.meta.id.clone(),
@@ -323,6 +328,27 @@ mod tests {
             .object_coverage
             .iter()
             .any(|s| s.contains("potential net conflicts 1")));
+    }
+
+    #[test]
+    fn verified_arc_to_trace_endpoint_only() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* ARC_NET\nU1.1 U2.2\n200 100 1 10 0\n100 100 1 10 4096 CCW\n100 200 1 10 0\nU2.2 U3.3\n100 200 1 10 0\n300 200 1 10 0\n*END*\n";
+        let parsed = parse(source.as_bytes()).unwrap();
+        assert_eq!(parsed.arcs.len(), 1);
+        assert_eq!(parsed.segments.len(), 1);
+        let board = into_canonical(source.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.connectivity.edges.len(), 1);
+        assert!(!board.validate().has_errors());
+    }
+
+    #[test]
+    fn via_without_inner_conductive_pad_never_invents_layer_two_barrel() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 2 10 0 SIMPLEVIA\n500 200 2 10 0\n*END*\n";
+        let parsed = parse(source.as_bytes()).unwrap();
+        let board = into_canonical(source.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.vias[0].connected_layers.len(), 1);
+        assert_eq!(board.connectivity.edges.len(), 1);
+        assert!(!board.validate().has_errors());
     }
 
     #[test]
