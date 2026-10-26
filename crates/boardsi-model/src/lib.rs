@@ -1,12 +1,12 @@
 //! Format-neutral, dependency-free M0 data contract. Not an importer or physical validator.
 mod coordinates;
 mod identity;
-mod validation;
 mod stackup_configuration;
+mod validation;
 pub use coordinates::*;
 pub use identity::*;
-pub use validation::*;
 pub use stackup_configuration::*;
+pub use validation::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModelError {
