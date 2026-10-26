@@ -10,6 +10,10 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonParseError>
+#include <QLineEdit>
+#include <QProcess>
+#include <QCoreApplication>
 #include <QLabel>
 #include <QPushButton>
 #include <QSaveFile>
@@ -22,11 +26,13 @@
 class B001StackupEditor final : public QWidget {
     QTableWidget *rows_ = nullptr;
     QLabel *message_ = nullptr;
+    QLineEdit *auditFrequency_ = nullptr;
     QString sourcePath_;
     QByteArray importDigest_; // Pinned at successful import; never trust a later path-only match.
-    static constexpr int Columns = 10;
+    static constexpr int Columns = 16;
     // Layer ID / kind / thickness in micrometres / material / Dk / Df /
-    // conductivity S/m / net-role hint / reference layer / source document.
+    // conductivity S/m / net-role hint / reference layer / source document / revision /
+    // method / reference frequency / temperature / material band min/max.
     QString field(int r, int c) const {
         const auto *item = rows_->item(r, c);
         return item ? item->text().trimmed() : QString();
@@ -69,25 +75,45 @@ public:
         layout->addWidget(title);
         rows_ = new QTableWidget(0, Columns, this);
         rows_->setObjectName("b001StackupTable");
-        rows_->setHorizontalHeaderLabels({"Layer ID", "Kind", "Thickness (um)",
+        rows_->setHorizontalHeaderLabels({"Layer ID", "Kind", "Thickness (integer um)",
             "Material", "Dk", "Df", "Conductivity (S/m)", "Role hint",
-            "Ref layer ID", "Property source"});
+            "Ref layer ID", "Source document", "Source revision",
+            "Measurement method", "Ref frequency (Hz)", "Temp (C)",
+            "Valid from (Hz)", "Valid to (Hz)"});
         rows_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
         rows_->setMinimumHeight(160);
         layout->addWidget(rows_);
+        auditFrequency_ = new QLineEdit(this);
+        auditFrequency_->setObjectName("b001AuditFrequencyHz");
+        auditFrequency_->setPlaceholderText("Analysis frequency in Hz (explicit, required for Rust audit)");
+        layout->addWidget(auditFrequency_);
         message_ = new QLabel("NO SOURCE / PHYSICAL SI NOT_RUN", this);
         message_->setObjectName("b001StackupStatus");
         message_->setWordWrap(true);
         layout->addWidget(message_);
+        // Any user edit or changed audit frequency invalidates the previous
+        // Rust receipt immediately: no stale 'ASSUMED' result survives a scenario edit.
+        connect(rows_, &QTableWidget::itemChanged, this, [this](QTableWidgetItem *) {
+            status("STACKUP INPUT MODIFIED / RE-AUDIT REQUIRED / SI NOT_RUN");
+        });
+        connect(auditFrequency_, &QLineEdit::textChanged, this, [this](const QString &) {
+            status("AUDIT FREQUENCY MODIFIED / RE-AUDIT REQUIRED / SI NOT_RUN");
+        });
         auto *commands = new QHBoxLayout;
         auto *check = new QPushButton("Validate input", this);
+        auto *canonical = new QPushButton("Audit in Rust Canonical Model", this);
+        canonical->setObjectName("b001CanonicalAudit");
         auto *save = new QPushButton("Save overlay...", this);
         auto *load = new QPushButton("Load overlay...", this);
         commands->addWidget(check);
+        commands->addWidget(canonical);
         commands->addWidget(save);
         commands->addWidget(load);
         layout->addLayout(commands);
         connect(check, &QPushButton::clicked, this, [this] { status(validate()); });
+        connect(canonical, &QPushButton::clicked, this, [this] {
+            if (!auditCanonical()) status("CANONICAL AUDIT BLOCKED / SI NOT_RUN");
+        });
         connect(save, &QPushButton::clicked, this, [this] {
             const QString path = QFileDialog::getSaveFileName(
                 this, "Save local stackup overlay", QString(), "BoardSI overlay (*.json)");
@@ -100,6 +126,7 @@ public:
         });
     }
     QTableWidget *table() const { return rows_; }
+    void setAuditFrequency(const QString &hz) { auditFrequency_->setText(hz); }
     QString summary() const { return message_->text(); }
     void resetForImport(const QString &path, int layerCount) {
         // Begin reimport by calling with 0; fail-closed regardless of import outcome.
@@ -133,7 +160,8 @@ public:
             if (kind != "Copper" && kind != "Core" &&
                 kind != "Prepreg" && kind != "Mask")
                 return QString("L%1: UNKNOWN LAYER KIND / RUN BLOCKED").arg(r + 1);
-            if (!positive(field(r, 2)))
+            if (!positive(field(r, 2)) || !std::isfinite(field(r, 2).toDouble()) ||
+                std::floor(field(r, 2).toDouble()) != field(r, 2).toDouble())
                 return QString("L%1: INVALID OR MISSING THICKNESS / RUN BLOCKED").arg(r + 1);
             if (field(r, 3).isEmpty() || field(r, 9).isEmpty())
                 return QString("L%1: MISSING MATERIAL/PROVENANCE / RUN BLOCKED").arg(r + 1);
@@ -194,8 +222,9 @@ public:
             }
             layers.append(row);
         }
-        const QJsonObject root{{"schema", "boardsi-b001-stackup-overlay-v1"},
+        const QJsonObject root{{"schema", "boardsi-b001-stackup-overlay-v2"},
             {"source_sha256", QString::fromLatin1(digest)}, {"layers", layers},
+            {"audit_frequency_hz", auditFrequency_->text().trimmed()},
             {"scope", "USER_OVERLAY_NOT_PHYSICAL_SI"}};
         const QByteArray bytes = QJsonDocument(root).toJson(QJsonDocument::Indented);
         if (bytes.size() > 65536) return false; // symmetric with loadFrom()
@@ -217,24 +246,88 @@ public:
         const QJsonObject root = doc.object();
         const QByteArray digest = sourceDigest(sourcePath_);
         if (digest.size() != 64 || digest != importDigest_ ||
-            root.value("schema").toString() != "boardsi-b001-stackup-overlay-v1" ||
+            (root.value("schema").toString() != "boardsi-b001-stackup-overlay-v2" &&
+             root.value("schema").toString() != "boardsi-b001-stackup-overlay-v1") ||
             root.value("source_sha256").toString().toLatin1() != digest ||
             root.value("scope").toString() != "USER_OVERLAY_NOT_PHYSICAL_SI") return false;
         const QJsonArray layers = root.value("layers").toArray();
         if (layers.size() != rows_->rowCount()) return false;
+        const bool legacy = root.value("schema").toString() == "boardsi-b001-stackup-overlay-v1";
         // Validate everything before mutating visible state.
         for (int r = 0; r < layers.size(); ++r) {
             if (!layers[r].isArray()) return false;
             const QJsonArray values = layers[r].toArray();
-            if (values.size() != Columns ||
+            if (values.size() != (legacy ? 10 : Columns) ||
                 values[0].toString() != QString::number(r + 1)) return false;
             for (const auto &v : values)
                 if (!v.isString() || v.toString().size() > 512) return false;
         }
         for (int r = 0; r < layers.size(); ++r) {
             const QJsonArray values = layers[r].toArray();
-            for (int c = 1; c < Columns; ++c) put(r, c, values[c].toString());
+            for (int c = 1; c < Columns; ++c)
+                put(r, c, c < values.size() ? values[c].toString() : QString());
         }
+        auditFrequency_->setText(legacy ? QString() :
+            root.value("audit_frequency_hz").toString());
+        status("OVERLAY LOADED / CANONICAL MUST BE RE-AUDITED / SI NOT_RUN");
+        return true;
+    }
+    bool auditCanonical() {
+        if (!validate().startsWith("INPUT FIELDS VALID")) return false;
+        bool valid = false;
+        const double freq = auditFrequency_->text().trimmed().toDouble(&valid);
+        if (!valid || !std::isfinite(freq) || freq < 0.0) return false;
+        const QByteArray digest = sourceDigest(sourcePath_);
+        if (digest != importDigest_ || digest.size() != 64) return false;
+        QJsonArray layers;
+        for (int r = 0; r < rows_->rowCount(); ++r) {
+            QJsonArray row;
+            for (int c = 0; c < Columns; ++c) {
+                const QString value = field(r, c);
+                if (value.size() > 512) return false;
+                row.append(value);
+            }
+            layers.append(row);
+        }
+        const QJsonDocument request(QJsonObject{
+            {"schema", "boardsi-b001-stackup-overlay-v2"},
+            {"source_sha256", QString::fromLatin1(digest)},
+            {"scope", "USER_OVERLAY_NOT_PHYSICAL_SI"},
+            {"audit_frequency_hz", auditFrequency_->text().trimmed()},
+            {"layers", layers}});
+        const QByteArray bytes = request.toJson(QJsonDocument::Compact);
+        if (bytes.size() > 65536) return false;
+        QString executable = qEnvironmentVariable("BOARDSI_STACKUP_VALIDATOR");
+        if (executable.isEmpty()) {
+#ifdef Q_OS_WIN
+            executable = QCoreApplication::applicationDirPath() + "/boardsi-stackup-config.exe";
+#else
+            executable = QCoreApplication::applicationDirPath() + "/boardsi-stackup-config";
+#endif
+        }
+        if (!QFileInfo(executable).isExecutable()) return false;
+        QProcess process;
+        process.setProgram(executable);
+        process.setArguments({"--audit-stdin-v1"});
+        process.start();
+        if (!process.waitForStarted(2500)) return false;
+        if (process.write(bytes) != bytes.size()) { process.kill(); process.waitForFinished(1000); return false; }
+        process.closeWriteChannel();
+        if (!process.waitForFinished(5000)) { process.kill(); process.waitForFinished(1000); return false; }
+        const QByteArray resultBytes = process.readAllStandardOutput();
+        if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0 ||
+            resultBytes.size() > 4096) return false;
+        QJsonParseError error;
+        const QJsonDocument result = QJsonDocument::fromJson(resultBytes, &error);
+        if (error.error != QJsonParseError::NoError || !result.isObject()) return false;
+        const QJsonObject auditFields = result.object();
+        if (auditFields.value("schema").toString() != "boardsi-b001-canonical-audit-v1" ||
+            auditFields.value("canonical_stackup").toString() != "ASSUMED" ||
+            auditFields.value("reference_continuity").toString() != "UNSUPPORTED_NO_COPPER_NET_EVIDENCE" ||
+            auditFields.value("solver_ready").toBool(true) ||
+            auditFields.value("source_sha256").toString().toLatin1() != digest ||
+            auditFields.value("layer_count").toInt() != rows_->rowCount()) return false;
+        status("RUST CANONICAL STACKUP ASSUMED / REFERENCE UNSUPPORTED / SI NOT_RUN");
         return true;
     }
 };

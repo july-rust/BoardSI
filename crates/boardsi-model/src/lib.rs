@@ -1,9 +1,11 @@
 //! Format-neutral, dependency-free M0 data contract. Not an importer or physical validator.
 mod coordinates;
 mod identity;
+mod stackup_configuration;
 mod validation;
 pub use coordinates::*;
 pub use identity::*;
+pub use stackup_configuration::*;
 pub use validation::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

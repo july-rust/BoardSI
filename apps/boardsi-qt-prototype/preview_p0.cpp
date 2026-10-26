@@ -2731,8 +2731,21 @@ static int runB001StackupSelftest() {
         set(r, 6, copper ? "58000000" : "");
         set(r, 7, r == 2 ? "Ground" : (copper ? "Signal" : "Unknown"));
         set(r, 9, "PUBLIC_SYNTHETIC_NOT_VERIFIED");
+        set(r, 10, "synthetic-v1");
+        set(r, 11, "generated-test-only");
+        set(r, 12, "1000000000");
+        set(r, 13, "25");
+        set(r, 14, "1000000");
+        set(r, 15, "2000000000");
     }
     set(0, 8, "3");
+    editor.setAuditFrequency("1000000000");
+    const bool rustCanonicalAssumed = editor.auditCanonical() &&
+        editor.summary().contains("REFERENCE UNSUPPORTED") &&
+        editor.summary().contains("SI NOT_RUN");
+    editor.setAuditFrequency("3000000000");
+    const bool rustOutOfBandRejected = !editor.auditCanonical();
+    editor.setAuditFrequency("1000000000");
     set(1, 7, "Signal");
     const bool nonCopperRoleRejected = editor.validate().contains("NON-COPPER ROLE UNSUPPORTED");
     set(1, 7, "Unknown");
@@ -2776,13 +2789,17 @@ static int runB001StackupSelftest() {
     editor.resetForImport(different.fileName(), 4);
     const bool foreignRejected = !editor.loadFrom(overlayPath) &&
         editor.validate().contains("RUN BLOCKED");
-    const bool pass = unknownBlocked && nonCopperRoleRejected && inputAccepted && invalidBlocked &&
+    const bool pass = unknownBlocked && rustCanonicalAssumed && rustOutOfBandRejected &&
+                      nonCopperRoleRejected && inputAccepted && invalidBlocked &&
                       sourceOverwriteRejected && symlinkRejected && saved && longFieldRejected &&
                       oversizedDocRejected && reset && restored && mutationRejected && foreignRejected;
     const QJsonDocument report(QJsonObject{
         {"schema", "b001-stackup-native-test-v1"},
         {"pass", pass}, {"missing_fields_blocked", unknownBlocked},
-        {"user_input_validated", inputAccepted}, {"noncopper_role_blocked", nonCopperRoleRejected},
+        {"user_input_validated", inputAccepted},
+        {"canonical_assumed_and_reference_unsupported", rustCanonicalAssumed},
+        {"canonical_out_of_band_blocked", rustOutOfBandRejected},
+        {"noncopper_role_blocked", nonCopperRoleRejected},
         {"negative_df_blocked", invalidBlocked},
         {"overlay_saved", saved}, {"source_overwrite_blocked", sourceOverwriteRejected},
         {"source_symlink_blocked", symlinkRejected},

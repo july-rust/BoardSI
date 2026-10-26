@@ -16,6 +16,7 @@ if ($packed) {
     $preview = Join-Path $PSScriptRoot 'boardsi-preview-p0.exe'
     $worker = Join-Path $PSScriptRoot 'boardsi-worker.exe'
     $importer = Join-Path $PSScriptRoot 'boardsi-import-artwork.exe'
+    $stackupValidator = Join-Path $PSScriptRoot 'boardsi-stackup-config.exe'
     $a = Join-Path $PSScriptRoot 'qt-model-a.frame'
     $b = Join-Path $PSScriptRoot 'qt-model-b.frame'
     $fixture = Join-Path $PSScriptRoot 'public-pads-v94-synthetic.asc'
@@ -25,6 +26,7 @@ if ($packed) {
     $preview = Join-Path $root 'build-qt/boardsi-preview-p0.exe'
     $worker = Join-Path $root 'target/debug/boardsi-worker.exe'
     $importer = Join-Path $root 'target/debug/boardsi-import-artwork.exe'
+    $stackupValidator = Join-Path $root 'target/debug/boardsi-stackup-config.exe'
     $a = Join-Path $root 'build-qt/qt-model-a.frame'
     $b = Join-Path $root 'build-qt/qt-model-b.frame'
     $fixture = Join-Path $root 'crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc'
@@ -91,7 +93,7 @@ if ($bundled) {
     }
     $kitLabel = 'Qt 6.8.3 MSVC 2022 x64 developer SDK'
 }
-foreach ($required in @($preview, $worker, $importer, $a, $b)) {
+foreach ($required in @($preview, $worker, $importer, $stackupValidator, $a, $b)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw ('Missing BoardSI executable/model frame: ' + $required)
     }
@@ -119,7 +121,7 @@ function Assert-Amd64PeFile([string]$path) {
         $stream.Dispose()
     }
 }
-foreach ($native in @($preview, $worker, $importer,
+foreach ($native in @($preview, $worker, $importer, $stackupValidator,
                        (Join-Path $qtBin 'Qt6Core.dll'),
                        (Join-Path $qtBin 'Qt6Gui.dll'),
                        (Join-Path $qtBin 'Qt6Network.dll'),
@@ -152,11 +154,13 @@ $launchArgs = @($worker, $a, $b, $importer)
 if ($SelfTest) { $launchArgs = @('--selftest') + $launchArgs + @($fixture) }
 $oldPath = $env:PATH
 $oldPluginPath = $env:QT_PLUGIN_PATH
+$oldValidator = $env:BOARDSI_STACKUP_VALIDATOR
 $oldPlatform = $env:QT_QPA_PLATFORM
 try {
     $env:PATH = $qtBin + ';' + $oldPath
     $env:QT_PLUGIN_PATH = if ($bundled) { $PSScriptRoot } else { Join-Path $qt 'plugins' }
     $env:QT_QPA_PLATFORM = 'windows'
+    $env:BOARDSI_STACKUP_VALIDATOR = $stackupValidator
     # Smoke writes qt-preview-p0-results.json in the process working directory.
     # CI uses a directory outside the staged artifact to keep SHA256SUMS complete.
     Push-Location -LiteralPath $workingDirectory
@@ -175,4 +179,5 @@ try {
     $env:PATH = $oldPath
     $env:QT_PLUGIN_PATH = $oldPluginPath
     $env:QT_QPA_PLATFORM = $oldPlatform
+    $env:BOARDSI_STACKUP_VALIDATOR = $oldValidator
 }
