@@ -155,7 +155,7 @@ fn route_source_hash_and_local_contact_suffix_are_explicit_not_certified_short()
     assert_eq!(header_parts[0], "BOARDSI_CONTACT_RECORDS_V1");
     assert_eq!(header_parts[2], "LOCAL_ENDPOINT_ONLY");
     assert_eq!(
-        header_parts[3], expected_hash,
+        header_parts[3], EXPECTED_HASH,
         "suffix must bind original source bytes"
     );
     let count: usize = header_parts[1].parse().expect("bounded decimal count");
