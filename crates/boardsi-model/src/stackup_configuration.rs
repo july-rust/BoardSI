@@ -45,9 +45,14 @@ fn provenance(id: ObjectId) -> ObjectMeta {
     }
 }
 fn assumed<T>(value: T, source: &PropertySource) -> Property<T> {
-    Property::Assumed { value, source: source.clone() }
+    Property::Assumed {
+        value,
+        source: source.clone(),
+    }
 }
-fn finite_positive(x: f64) -> bool { x.is_finite() && x > 0.0 }
+fn finite_positive(x: f64) -> bool {
+    x.is_finite() && x > 0.0
+}
 fn valid_evidence(source: &PropertySource) -> bool {
     !source.document.trim().is_empty()
         && !source.revision.trim().is_empty()
@@ -88,29 +93,38 @@ pub fn build_stackup_configuration(
             return Err(ModelError::InvalidMaterial);
         }
         if let Some(reference) = edit.reference_layer_id {
-            let target = edits.get(reference.checked_sub(1).ok_or(ModelError::InvalidReference)? as usize)
+            let target = edits
+                .get(
+                    reference
+                        .checked_sub(1)
+                        .ok_or(ModelError::InvalidReference)? as usize,
+                )
                 .ok_or(ModelError::InvalidReference)?;
-            if !is_copper || target.kind != LayerKind::Copper
-                || reference == edit.source_layer_id
-            {
+            if !is_copper || target.kind != LayerKind::Copper || reference == edit.source_layer_id {
                 return Err(ModelError::InvalidReference);
             }
         }
         let band = edit.band_hz.ok_or(ModelError::MissingRequired)?;
-        if !band.min_hz.is_finite() || !band.max_hz.is_finite()
-            || band.min_hz < 0.0 || band.max_hz < band.min_hz
-            || frequency_hz < band.min_hz || frequency_hz > band.max_hz
+        if !band.min_hz.is_finite()
+            || !band.max_hz.is_finite()
+            || band.min_hz < 0.0
+            || band.max_hz < band.min_hz
+            || frequency_hz < band.min_hz
+            || frequency_hz > band.max_hz
         {
             return Err(ModelError::OutsideMaterialBand);
         }
-        let reference_frequency = edit.evidence.reference_frequency_hz
+        let reference_frequency = edit
+            .evidence
+            .reference_frequency_hz
             .ok_or(ModelError::MissingRequired)?;
         if reference_frequency < band.min_hz || reference_frequency > band.max_hz {
             return Err(ModelError::OutsideMaterialBand);
         }
         if is_copper {
             if !edit.conductivity_s_per_m.map_or(false, finite_positive)
-                || edit.dk.is_some() || edit.df.is_some()
+                || edit.dk.is_some()
+                || edit.df.is_some()
             {
                 return Err(ModelError::InvalidMaterial);
             }
@@ -126,11 +140,15 @@ pub fn build_stackup_configuration(
         let material = Material {
             meta: provenance(material_id.clone()),
             name: edit.material_name.clone(),
-            dk: edit.dk.map_or(Property::Missing, |v| assumed(v, &edit.evidence)),
-            df: edit.df.map_or(Property::Missing, |v| assumed(v, &edit.evidence)),
-            conductivity_s_per_m: edit.conductivity_s_per_m.map_or(
-                Property::Missing, |v| assumed(v, &edit.evidence)
-            ),
+            dk: edit
+                .dk
+                .map_or(Property::Missing, |v| assumed(v, &edit.evidence)),
+            df: edit
+                .df
+                .map_or(Property::Missing, |v| assumed(v, &edit.evidence)),
+            conductivity_s_per_m: edit
+                .conductivity_s_per_m
+                .map_or(Property::Missing, |v| assumed(v, &edit.evidence)),
             valid_band: assumed(band, &edit.evidence),
         };
         board.materials.push(material);
@@ -146,7 +164,9 @@ pub fn build_stackup_configuration(
             ),
             material: Some(material_id),
         });
-        z_um = z_um.checked_add(edit.thickness_um).ok_or(ModelError::CoordinateOverflow)?;
+        z_um = z_um
+            .checked_add(edit.thickness_um)
+            .ok_or(ModelError::CoordinateOverflow)?;
     }
     let report = board.validate_materials_at(frequency_hz);
     if report.has_errors() || report.has_missing() {
@@ -167,26 +187,47 @@ mod tests {
         let src = Arc::new(SourceIdentity {
             format: SourceFormat::Synthetic,
             format_version: "public-b001-v1".into(),
-            files: vec![SourceFile { logical_path: "synthetic.asc".into(), sha256: [42;32] }],
-            importer_version: "test".into(), conditions: vec![],
+            files: vec![SourceFile {
+                logical_path: "synthetic.asc".into(),
+                sha256: [42; 32],
+            }],
+            importer_version: "test".into(),
+            conditions: vec![],
         });
         let source = PropertySource {
-            document: "synthetic testcase only".into(), revision: "v1".into(),
+            document: "synthetic testcase only".into(),
+            revision: "v1".into(),
             method: "manual demonstration".into(),
-            reference_frequency_hz: Some(1e9), temperature_c: Some(25.0),
+            reference_frequency_hz: Some(1e9),
+            temperature_c: Some(25.0),
         };
         let copper = StackupLayerEdit {
-            source_layer_id: 1, kind: LayerKind::Copper, thickness_um: 35,
-            material_name: "test copper".into(), dk: None, df: None,
+            source_layer_id: 1,
+            kind: LayerKind::Copper,
+            thickness_um: 35,
+            material_name: "test copper".into(),
+            dk: None,
+            df: None,
             conductivity_s_per_m: Some(5.8e7),
-            band_hz: Some(FrequencyRange { min_hz: 1e6, max_hz: 2e9 }),
-            evidence: source.clone(), role_hint: NetRole::Signal, reference_layer_id: Some(3),
+            band_hz: Some(FrequencyRange {
+                min_hz: 1e6,
+                max_hz: 2e9,
+            }),
+            evidence: source.clone(),
+            role_hint: NetRole::Signal,
+            reference_layer_id: Some(3),
         };
         let core = StackupLayerEdit {
-            source_layer_id: 2, kind: LayerKind::Dielectric(DielectricKind::Core),
-            thickness_um: 100, material_name: "test dielectric".into(),
-            dk: Some(4.2), df: Some(0.02), conductivity_s_per_m: None,
-            band_hz: copper.band_hz, evidence: source, role_hint: NetRole::Unknown,
+            source_layer_id: 2,
+            kind: LayerKind::Dielectric(DielectricKind::Core),
+            thickness_um: 100,
+            material_name: "test dielectric".into(),
+            dk: Some(4.2),
+            df: Some(0.02),
+            conductivity_s_per_m: None,
+            band_hz: copper.band_hz,
+            evidence: source,
+            role_hint: NetRole::Unknown,
             reference_layer_id: None,
         };
         let mut gnd = copper.clone();
@@ -202,8 +243,14 @@ mod tests {
         assert_eq!(c.model.stackup.layers.len(), 3);
         assert_eq!(c.model.materials.len(), 3);
         assert_eq!(c.total_thickness_m, Rational::new(170, 1_000_000).unwrap());
-        assert_eq!(c.model.stackup.layers[1].z_m.value(), Some(&Rational::new(35,1_000_000).unwrap()));
-        assert_eq!(c.reference_continuity, ReferenceContinuity::UnsupportedNoCopperNetEvidence);
+        assert_eq!(
+            c.model.stackup.layers[1].z_m.value(),
+            Some(&Rational::new(35, 1_000_000).unwrap())
+        );
+        assert_eq!(
+            c.reference_continuity,
+            ReferenceContinuity::UnsupportedNoCopperNetEvidence
+        );
         assert!(c.model.nets.is_empty() && c.model.areas.is_empty());
         assert!(!c.model.validate_materials_at(1e9).has_errors());
         assert!(matches!(c.model.materials[1].dk, Property::Assumed { .. }));
@@ -212,16 +259,31 @@ mod tests {
     fn missing_bad_or_out_of_band_inputs_fail_closed() {
         let (src, mut e) = fixture();
         e[1].df = Some(-0.1);
-        assert_eq!(build_stackup_configuration(src.clone(), &e, 1e9).unwrap_err(), ModelError::InvalidMaterial);
+        assert_eq!(
+            build_stackup_configuration(src.clone(), &e, 1e9).unwrap_err(),
+            ModelError::InvalidMaterial
+        );
         e[1].df = Some(0.02);
         e[1].evidence.revision.clear();
-        assert_eq!(build_stackup_configuration(src.clone(), &e, 1e9).unwrap_err(), ModelError::InvalidStackup);
+        assert_eq!(
+            build_stackup_configuration(src.clone(), &e, 1e9).unwrap_err(),
+            ModelError::InvalidStackup
+        );
         e[1].evidence.revision = "v1".into();
-        assert_eq!(build_stackup_configuration(src.clone(), &e, 30e9).unwrap_err(), ModelError::OutsideMaterialBand);
+        assert_eq!(
+            build_stackup_configuration(src.clone(), &e, 30e9).unwrap_err(),
+            ModelError::OutsideMaterialBand
+        );
         e[0].reference_layer_id = Some(2);
-        assert_eq!(build_stackup_configuration(src.clone(), &e, 1e9).unwrap_err(), ModelError::InvalidReference);
+        assert_eq!(
+            build_stackup_configuration(src.clone(), &e, 1e9).unwrap_err(),
+            ModelError::InvalidReference
+        );
         e[0].reference_layer_id = Some(3);
         e[1].thickness_um = 0;
-        assert_eq!(build_stackup_configuration(src, &e, 1e9).unwrap_err(), ModelError::InvalidStackup);
+        assert_eq!(
+            build_stackup_configuration(src, &e, 1e9).unwrap_err(),
+            ModelError::InvalidStackup
+        );
     }
 }
