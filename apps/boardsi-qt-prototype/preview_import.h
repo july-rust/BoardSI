@@ -52,6 +52,33 @@ class PreviewImportPanel final : public QWidget {
             data_.append(chunk);
         }
     }
+    static bool decodeContactAudit(const QByteArray &bytes, QString &label) {
+        // Separate versioned success diagnostic, never part of V1-V14
+        // artwork stdout. Old local import workers simply have no audit.
+        if (bytes.isEmpty()) {
+            label = "Local endpoint contact evidence NOT_EXPOSED / full-board connectivity NOT_VERIFIED";
+            return true;
+        }
+        if (bytes.size() > 256) return false;
+        const auto fields = QString::fromLatin1(bytes).trimmed().split('|');
+        if (fields.size() != 5 ||
+            fields[0] != "BOARDSI_CONTACT_AUDIT_V1" ||
+            fields[3] != "CONFLICT_DETAIL_NOT_EXPOSED" ||
+            fields[4] != "LOCAL_ENDPOINT_ONLY")
+            return false;
+        bool ok = false;
+        const qulonglong local = fields[1].toULongLong(&ok);
+        if (!ok || local > 100000) return false;
+        const qulonglong barrel = fields[2].toULongLong(&ok);
+        if (!ok || barrel > 100000) return false;
+        label = QString("A_032 source-backed exact local endpoint edges: %1; "
+                        "qualified via-barrel edges: %2; "
+                        "cross-Net conflict details NOT_EXPOSED; "
+                        "area/Pad/Pin contact NOT_EVALUATED; "
+                        "full-board connectivity NOT_VERIFIED")
+                    .arg(local).arg(barrel);
+        return true;
+    }
     static bool decode(const QByteArray &bytes, int &layers, int &skipped,
                        std::vector<ImportedTrack> &tracks,
                        std::vector<ImportedVia> &vias,
@@ -484,6 +511,10 @@ class PreviewImportPanel final : public QWidget {
 public:
     // Exercise the production decoder from native tests, especially malformed
     // V7 END trailers. No bypass of the real parser/validation logic.
+    static bool validContactAuditForTest(const QByteArray &bytes) {
+        QString label;
+        return decodeContactAudit(bytes, label);
+    }
     static bool validTransportForTest(const QByteArray &bytes) {
         int layers=0, skipped=0;
         std::vector<ImportedTrack> tracks;
@@ -589,10 +620,16 @@ public:
                 status("FAILED / INVALID_TRANSPORT / NOTHING IMPORTED");
                 return;
             }
+            QString contactAudit;
+            if (!decodeContactAudit(errors_, contactAudit)) {
+                status("FAILED / INVALID_CONTACT_AUDIT / NOTHING IMPORTED");
+                return;
+            }
             if (!imported_->load(layers, skipped, tracks, vias, pads, arcs, outlines, circles, boundary,pours,coppers)) {
                 status("FAILED / INVALID_GEOMETRY / NOTHING IMPORTED");
                 return;
             }
+            imported_->setLocalContactAudit(contactAudit);
             tabs_->setTabText(1, "Imported Partial");
             tabs_->setCurrentWidget(imported_);
             // The imported tab can be hidden during load(), before its viewport
