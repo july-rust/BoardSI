@@ -409,6 +409,13 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
     bool importedGeometryVerified = false;
     bool importSummaryVerified = false;
     bool importFailureRecoveryVerified = false;
+    bool crossFileReimportVerified = false;
+    // Repository CTest has BOTH source-backed public fixtures. The Windows
+    // Qt-bundled standalone smoke deliberately stages one fixture under a
+    // different name; keep that single-file release gate intact. The source
+    // CTest must never skip its cross-file assertions.
+    const bool crossFileSourceFixture =
+        QFileInfo(fixture).fileName() == "pads_route_straight_v94.asc";
     auto *tick = new QTimer(&app);
     tick->setInterval(50);
     QObject::connect(tick, &QTimer::timeout, &app, [&] {
@@ -599,6 +606,28 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
                 stopWith("P2-A imported Fit did not restore the canvas"); return;
             }
             importedGeometryVerified = true;
+            // A_034: first verify a successful replacement with a DIFFERENT
+            // source kind. A_033 independently specifies ten mirrored RF pads.
+            // Keep source Net selection and layer visibility deliberately dirty
+            // so the second board must reset them rather than reuse old state.
+            if (crossFileSourceFixture && !crossFileReimportVerified) {
+                auto *netOnly = window.findChild<QCheckBox *>("importedNetOnly");
+                auto *hideAll = window.findChild<QPushButton *>("importedHideAllLayers");
+                if (!netOnly || !hideAll) {
+                    stopWith("A_034 imported filter controls unavailable"); return;
+                }
+                netOnly->setChecked(true);
+                hideAll->click();
+                if (panel->visibleSegments() != 0) {
+                    stopWith("A_034 old board layer filter setup did not hide traces"); return;
+                }
+                const QString second = QFileInfo(fixture).absoluteDir().filePath(
+                    "pads_bottom_mirror_v94.asc");
+                if (!window.openCandidate(second)) {
+                    stopWith("A_034 second distinct PADS board import did not start"); return;
+                }
+                phase = 9; return;
+            }
             // Regression: a failed replacement must not retain the previous board
             // under the misleading "NOTHING IMPORTED" status.
             if (window.openCandidate(fixture + ".missing-board") ||
@@ -618,6 +647,53 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         }
         if (phase == 6 && window.importPanel()->importStatus().startsWith("FAILED")) {
             stopWith("P2-A initial parser returned failure"); return;
+        }
+        if (phase == 9 && window.importPanel()->importStatus().startsWith("FAILED")) {
+            stopWith("A_034 different valid source failed to import"); return;
+        }
+        if (phase == 9 && window.importPanel()->importStatus().startsWith("PARTIAL")) {
+            auto *panel = window.importPanel()->imported();
+            auto *netSelect = window.findChild<QComboBox *>("importedNetSelect");
+            auto *netOnly = window.findChild<QCheckBox *>("importedNetOnly");
+            auto *scene = panel->findChild<QGraphicsScene *>();
+            int oldContacts = 0;
+            if (scene) for (auto *item : scene->items())
+                if (item->data(3).toString() == "A032Contact") ++oldContacts;
+            if (panel->segmentCount() != 0 || panel->arcCount() != 0 ||
+                panel->padCount() != 10 || oldContacts != 0 || !scene ||
+                !netSelect || netSelect->currentText() != "All nets" ||
+                !netOnly || netOnly->isChecked() ||
+                !panel->summaryText().contains("Component SMD pads: 10  Visible: 10") ||
+                !window.displayedProperties().contains("pads_bottom_mirror_v94.asc") ||
+                window.displayedProperties().contains("Selected net: NET_A")) {
+                stopWith("A_034 successful replacement leaked prior traces, "
+                         "local contacts, filters, source or layer visibility"); return;
+            }
+            if (!window.openCandidate(fixture)) {
+                stopWith("A_034 route re-import after RF pad board did not start"); return;
+            }
+            phase = 10; return;
+        }
+        if (phase == 10 && window.importPanel()->importStatus().startsWith("FAILED")) {
+            stopWith("A_034 re-import of original route failed"); return;
+        }
+        if (phase == 10 && window.importPanel()->importStatus().startsWith("PARTIAL")) {
+            auto *panel = window.importPanel()->imported();
+            auto *scene = panel->findChild<QGraphicsScene *>();
+            auto *netSelect = window.findChild<QComboBox *>("importedNetSelect");
+            int contactCount = 0;
+            if (scene) for (auto *item : scene->items())
+                if (item->data(3).toString() == "A032Contact") ++contactCount;
+            if (!scene || panel->segmentCount() != 3 || panel->padCount() != 0 ||
+                contactCount < 1 || !netSelect ||
+                netSelect->currentText() != "All nets" ||
+                !window.displayedProperties().contains(QFileInfo(fixture).fileName()) ||
+                window.displayedProperties().contains("pads_bottom_mirror_v94.asc")) {
+                stopWith("A_034 re-import retained stale RF pads or lost route contact evidence");
+                return;
+            }
+            crossFileReimportVerified = true;
+            phase = 6; return; // Repeat existing geometry/selection/failure recovery gates.
         }
         if (phase == 8 && window.importPanel()->importStatus().startsWith("PARTIAL")) {
             stopWith("P2-A accepted invalid-header fixture as imported geometry"); return;
@@ -692,6 +768,10 @@ static int runPreviewSmoke(QApplication &app, PreviewWindow &window,
         {"p2a_geometry_mm_width_y_net_verified", importedGeometryVerified},
         {"p2a_import_summary_counts_verified", importSummaryVerified},
         {"p2a_import_failure_recovery_verified", importFailureRecoveryVerified},
+        {"a034_cross_file_reimport_verified", testImport && crossFileReimportVerified && rc == 0},
+        {"a034_cross_file_reimport_scope", crossFileSourceFixture ?
+             (crossFileReimportVerified && rc == 0 ? "PASS" : "FAIL") :
+             "NOT_RUN_SINGLE_FIXTURE"},
         {"p2a_properties_source_isolation_verified", testImport && importedGeometryVerified && rc == 0 && phase == 5},
         {"p1_scope", "synthetic illustrative geometry only; no PCB file imported"}
     };
