@@ -47,13 +47,23 @@ fn run() -> Result<(usize, usize), &'static str> {
         .connectivity
         .edges
         .iter()
-        .filter(|e| matches!(e.evidence, boardsi_model::ConnectionEvidence::SameLayerContact { .. }))
+        .filter(|e| {
+            matches!(
+                e.evidence,
+                boardsi_model::ConnectionEvidence::SameLayerContact { .. }
+            )
+        })
         .count();
     let via_barrels = board
         .connectivity
         .edges
         .iter()
-        .filter(|e| matches!(e.evidence, boardsi_model::ConnectionEvidence::ViaBarrel { .. }))
+        .filter(|e| {
+            matches!(
+                e.evidence,
+                boardsi_model::ConnectionEvidence::ViaBarrel { .. }
+            )
+        })
         .count();
     let mut out = Vec::new();
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
