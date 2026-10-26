@@ -396,6 +396,19 @@ jobs:
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --explorer-selftest
           cat qt-preview-a020-explorer-results.json
           python -c 'import json; r=json.load(open("qt-preview-a020-explorer-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a020-explorer-v1" and r["case_sensitive_exact_net_identity"] and r["net_only_unverified_pad_excluded"] and r["straight_outline_selection"] and r["source_properties"] and r["physical_si"]=="NOT_RUN", r'
+      # A_034: unlike the legacy QtBase CTest, this source smoke MUST run
+      # after the Quick modules are installed and the RHI build is rebuilt.
+      # It verifies actual source-backed contact mouse picking and filter reset,
+      # not a synthetic test-only RHI model or physically qualified SI.
+      - name: A_034 native Qt Quick source contact filter and mouse picking
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc"
+          cp qt-preview-p0-results.json qt-preview-a034-contact-results.json
+          python -c 'import json; r=json.load(open("qt-preview-a034-contact-results.json")); assert r["pass"] and r["a034_local_contact_cpu_rhi_filter_verified"] and r["a034_local_contact_rhi_pick_scope"]=="PASS" and r["a034_cross_file_reimport_scope"]=="PASS" and r["a034_cross_file_reimport_verified"] and r["source_sha"], r'
       - name: A_021 native PADS POUROUT V9 IPC and GPU/CPU source parity regression
         shell: bash
         run: |
@@ -527,6 +540,7 @@ jobs:
             build-qt/qt-preview-a019-native-benchmark.json
             build-qt/qt-preview-a019-interaction-results.json
             build-qt/qt-preview-a020-explorer-results.json
+            build-qt/qt-preview-a034-contact-results.json
             build-qt/qt-preview-a021-pour-results.json
             build-qt/qt-preview-a022-copper-results.json
             build-qt/qt-preview-a023-cutout-results.json
