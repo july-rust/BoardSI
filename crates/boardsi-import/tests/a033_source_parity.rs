@@ -1,7 +1,6 @@
 //! A_033: independent, hand-authored source-grid oracles for the actual local
 //! PADS V9.4 MILS CLI. This is NOT a vendor-export or GPU frame certification.
 //! Exact complete primitive sets catch unexpected extra, omitted, or shifted art.
-use boardsi_import::digest::sha256;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -144,11 +143,11 @@ fn route_source_hash_and_local_contact_suffix_are_explicit_not_certified_short()
     );
     let suffix = String::from_utf8(extended.stdout[legacy.stdout.len()..].to_vec())
         .expect("strict ASCII suffix");
-    let mut expected_hash = String::with_capacity(64);
-    for b in sha256(&source) {
-        use std::fmt::Write as _;
-        write!(&mut expected_hash, "{b:02x}").expect("hex text");
-    }
+    // Fixed by independent Python hashlib SHA-256 over the 221 authored
+    // source bytes, never from the same implementation as the importer.
+    assert_eq!(source.len(), 221);
+    const EXPECTED_HASH: &str =
+        "434b953c1cb50cc1e4a93a8e91dea5f0f5b599640798932d2b80c531f87bfdcf";
     let mut rows = suffix.lines();
     let header = rows.next().expect("suffix header");
     let header_parts: Vec<_> = header.split('|').collect();
