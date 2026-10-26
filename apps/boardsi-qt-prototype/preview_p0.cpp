@@ -23,6 +23,8 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QElapsedTimer>
+#include <QTemporaryFile>
+#include <QStandardPaths>
 #include <QMainWindow>
 #include <QPlainTextEdit>
 #include <QSplitter>
@@ -826,6 +828,40 @@ static int runOutlineSmoke(PreviewWindow &window, const QString &fixture) {
 }
 
 
+// A_032_1: exercise a real QProcess stderr stream rather than only
+// decoding an in-memory test vector. The subprocess is a public temporary
+// Python fixture; no proprietary board, network, or extra permissions.
+static bool a032RejectsOverflowFromRealWorkerProcess() {
+    QString python = QStandardPaths::findExecutable("python3");
+    if (python.isEmpty()) python = QStandardPaths::findExecutable("python");
+    if (python.isEmpty()) return false;
+    QTemporaryFile mock(QDir::tempPath() + "/boardsi-a032-stderr-XXXXXX.py");
+    if (!mock.open()) return false;
+    const QByteArray program = R"py(
+import sys
+sys.stdout.write("BOARDSI_P2A_PARTIAL_V1|V9.4-MILS|1\nL|1|TOP\nT|1|NET_A|0|0|2540|0|254\nEND|1|0|CANONICAL_PARTIAL|SI_NOT_RUN\n")
+sys.stderr.write("BOARDSI_CONTACT_AUDIT_V1|1|0|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n" + " " * 300)
+sys.stdout.flush()
+sys.stderr.flush()
+)py";
+    if (mock.write(program) != program.size() || !mock.flush()) return false;
+    mock.close();
+    PreviewImportPanel panel(python);
+    QEventLoop loop;
+    panel.setStatusCallback([&loop](const QString &status) {
+        if (status.startsWith("FAILED") || status.startsWith("PARTIAL"))
+            loop.quit();
+    });
+    if (!panel.openPath(mock.fileName())) return false;
+    QTimer::singleShot(5000, &loop, &QEventLoop::quit);
+    loop.exec();
+    const bool rejected = panel.importStatus() ==
+        "FAILED / INVALID_CONTACT_AUDIT / NOTHING IMPORTED" &&
+        !panel.showingImported();
+    panel.stop();
+    return rejected;
+}
+
 // P2-H: independent native import -> V7 -> Qt CPU/RHI circle acceptance.
 static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
     QElapsedTimer clock; clock.start();
@@ -865,6 +901,7 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
             {paddedAudit.left(127), paddedAudit.mid(127), QByteArray(" ")}) &&
         !PreviewImportPanel::validContactAuditChunksForTest(
             {canonicalAudit, QByteArray(257, ' ')});
+    const bool realProcessOverflowRejected = a032RejectsOverflowFromRealWorkerProcess();
     bool overflowCircleRejected=false;
     QEventLoop loop;
     if (!window.openCandidate(fixture)) {
@@ -938,7 +975,7 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
             passed=counts && outerExact && cutExact && independent &&
                    malformedTransportRejected && overflowCircleRejected &&
                    contactAuditTransport && contactAuditChunkCollection &&
-                   (!rhiChecked || rhiExact);
+                   realProcessOverflowRejected && (!rhiChecked || rhiExact);
             if(!passed) failure="A_017 circle geometry/count/RHI/pick mismatch";
             loop.quit();
         });
@@ -957,6 +994,7 @@ static int runCircleSmoke(PreviewWindow &window, const QString &fixture) {
         {"v7_overflow_circle_rejected",overflowCircleRejected},
         {"a032_bounded_contact_audit_decode",contactAuditTransport},
         {"a032_bounded_stderr_chunk_collector",contactAuditChunkCollection},
+        {"a032_real_qprocess_stderr_overflow_rejected",realProcessOverflowRejected},
         {"scope","public synthetic V9.4 even-grid circular BOARD and BRDCIR; SI NOT_RUN"}
     };
     QFile receipt("qt-preview-p2h-circle-results.json");
