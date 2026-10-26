@@ -40,12 +40,16 @@ fn resolve(
         }
         ('A', ContactSite::ArcStart) => {
             let item = &board.arcs[index];
-            if item.layer != node.layer { return Err("CONTACT_WIRE_ARC_MISMATCH"); }
+            if item.layer != node.layer {
+                return Err("CONTACT_WIRE_ARC_MISMATCH");
+            }
             (0, item.start.ticks, item.net.as_ref())
         }
         ('A', ContactSite::ArcEnd) => {
             let item = &board.arcs[index];
-            if item.layer != node.layer { return Err("CONTACT_WIRE_ARC_MISMATCH"); }
+            if item.layer != node.layer {
+                return Err("CONTACT_WIRE_ARC_MISMATCH");
+            }
             (1, item.end.ticks, item.net.as_ref())
         }
         ('V', ContactSite::ViaCentre) => {
@@ -58,7 +62,14 @@ fn resolve(
         _ => return Err("CONTACT_WIRE_UNSUPPORTED_SITE"),
     };
     let net = net.cloned().ok_or("CONTACT_WIRE_NO_NET")?;
-    Ok(Endpoint { kind, index, site, layer, ticks, net })
+    Ok(Endpoint {
+        kind,
+        index,
+        site,
+        layer,
+        ticks,
+        net,
+    })
 }
 
 /// A strictly opt-in suffix AFTER the unchanged legacy END line. The caller
@@ -80,25 +91,48 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
     for (i, v) in board.vias.iter().enumerate() {
         objects.insert(v.meta.id.clone(), ('V', i));
     }
-    let layers: BTreeMap<_, _> = board.stackup.layers.iter().enumerate()
-        .map(|(i, l)| (l.meta.id.clone(), i + 1)).collect();
-    let nodes: BTreeMap<_, _> = board.connectivity.nodes.iter()
-        .map(|n| (n.meta.id.clone(), n)).collect();
+    let layers: BTreeMap<_, _> = board
+        .stackup
+        .layers
+        .iter()
+        .enumerate()
+        .map(|(i, l)| (l.meta.id.clone(), i + 1))
+        .collect();
+    let nodes: BTreeMap<_, _> = board
+        .connectivity
+        .nodes
+        .iter()
+        .map(|n| (n.meta.id.clone(), n))
+        .collect();
     if board.connectivity.edges.len() > MAX_RECORDS {
         return Err("CONTACT_WIRE_RECORD_LIMIT");
     }
 
     let mut out = String::new();
     let hash = &board.sources[0].id.files[0].sha256;
-    write!(&mut out, "BOARDSI_CONTACT_RECORDS_V1|{}|LOCAL_ENDPOINT_ONLY|",
-        board.connectivity.edges.len()).map_err(|_| "CONTACT_WIRE_FORMAT")?;
-    for b in hash { write!(&mut out, "{b:02x}").map_err(|_| "CONTACT_WIRE_FORMAT")?; }
+    write!(
+        &mut out,
+        "BOARDSI_CONTACT_RECORDS_V1|{}|LOCAL_ENDPOINT_ONLY|",
+        board.connectivity.edges.len()
+    )
+    .map_err(|_| "CONTACT_WIRE_FORMAT")?;
+    for b in hash {
+        write!(&mut out, "{b:02x}").map_err(|_| "CONTACT_WIRE_FORMAT")?;
+    }
     out.push('\n');
     for edge in &board.connectivity.edges {
-        let a = resolve(board, &objects, &layers,
-            nodes.get(&edge.a).ok_or("CONTACT_WIRE_NODE_MISSING")?)?;
-        let b = resolve(board, &objects, &layers,
-            nodes.get(&edge.b).ok_or("CONTACT_WIRE_NODE_MISSING")?)?;
+        let a = resolve(
+            board,
+            &objects,
+            &layers,
+            nodes.get(&edge.a).ok_or("CONTACT_WIRE_NODE_MISSING")?,
+        )?;
+        let b = resolve(
+            board,
+            &objects,
+            &layers,
+            nodes.get(&edge.b).ok_or("CONTACT_WIRE_NODE_MISSING")?,
+        )?;
         if a.net != b.net || a.ticks != b.ticks {
             return Err("CONTACT_WIRE_GEOMETRY_MISMATCH");
         }
@@ -110,25 +144,39 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
                 'S'
             }
             ConnectionEvidence::ViaBarrel { via } => {
-                if a.layer == b.layer || a.kind != 'V' || b.kind != 'V'
-                    || a.index != b.index || board.vias[a.index].meta.id != *via {
+                if a.layer == b.layer
+                    || a.kind != 'V'
+                    || b.kind != 'V'
+                    || a.index != b.index
+                    || board.vias[a.index].meta.id != *via
+                {
                     return Err("CONTACT_WIRE_BARREL_MISMATCH");
                 }
                 'B'
             }
         };
-        let x = a.ticks[0].checked_mul(NM_PER_TICK).ok_or("CONTACT_WIRE_OVERFLOW")?;
-        let y = a.ticks[1].checked_mul(NM_PER_TICK).ok_or("CONTACT_WIRE_OVERFLOW")?;
-        writeln!(&mut out, "E|{class}|{}|{}|{}|{}|{}|{}|{}|{}|{x}|{y}",
-            a.kind, a.index, a.site, a.layer,
-            b.kind, b.index, b.site, b.layer)
-            .map_err(|_| "CONTACT_WIRE_FORMAT")?;
+        let x = a.ticks[0]
+            .checked_mul(NM_PER_TICK)
+            .ok_or("CONTACT_WIRE_OVERFLOW")?;
+        let y = a.ticks[1]
+            .checked_mul(NM_PER_TICK)
+            .ok_or("CONTACT_WIRE_OVERFLOW")?;
+        writeln!(
+            &mut out,
+            "E|{class}|{}|{}|{}|{}|{}|{}|{}|{}|{x}|{y}",
+            a.kind, a.index, a.site, a.layer, b.kind, b.index, b.site, b.layer
+        )
+        .map_err(|_| "CONTACT_WIRE_FORMAT")?;
         if out.len() > MAX_RECORD_BYTES {
             return Err("CONTACT_WIRE_OUTPUT_LIMIT");
         }
     }
-    writeln!(&mut out, "BOARDSI_CONTACT_END_V1|{}",
-        board.connectivity.edges.len()).map_err(|_| "CONTACT_WIRE_FORMAT")?;
+    writeln!(
+        &mut out,
+        "BOARDSI_CONTACT_END_V1|{}",
+        board.connectivity.edges.len()
+    )
+    .map_err(|_| "CONTACT_WIRE_FORMAT")?;
     if out.len() > MAX_RECORD_BYTES {
         return Err("CONTACT_WIRE_OUTPUT_LIMIT");
     }
