@@ -144,10 +144,11 @@ fn route_source_hash_and_local_contact_suffix_are_explicit_not_certified_short()
     );
     let suffix = String::from_utf8(extended.stdout[legacy.stdout.len()..].to_vec())
         .expect("strict ASCII suffix");
-    let expected_hash = sha256(&source)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect::<String>();
+    let mut expected_hash = String::with_capacity(64);
+    for b in sha256(&source) {
+        use std::fmt::Write as _;
+        write!(&mut expected_hash, "{b:02x}").expect("hex text");
+    }
     let mut rows = suffix.lines();
     let header = rows.next().expect("suffix header");
     let header_parts: Vec<_> = header.split('|').collect();
