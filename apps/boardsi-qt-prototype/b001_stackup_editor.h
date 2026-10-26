@@ -320,13 +320,13 @@ public:
         QJsonParseError error;
         const QJsonDocument result = QJsonDocument::fromJson(resultBytes, &error);
         if (error.error != QJsonParseError::NoError || !result.isObject()) return false;
-        const QJsonObject data = result.object();
-        if (data.value("schema").toString() != "boardsi-b001-canonical-audit-v1" ||
-            data.value("canonical_stackup").toString() != "ASSUMED" ||
-            data.value("reference_continuity").toString() != "UNSUPPORTED_NO_COPPER_NET_EVIDENCE" ||
-            data.value("solver_ready").toBool(true) ||
-            data.value("source_sha256").toString().toLatin1() != digest ||
-            data.value("layer_count").toInt() != rows_->rowCount()) return false;
+        const QJsonObject auditFields = result.object();
+        if (auditFields.value("schema").toString() != "boardsi-b001-canonical-audit-v1" ||
+            auditFields.value("canonical_stackup").toString() != "ASSUMED" ||
+            auditFields.value("reference_continuity").toString() != "UNSUPPORTED_NO_COPPER_NET_EVIDENCE" ||
+            auditFields.value("solver_ready").toBool(true) ||
+            auditFields.value("source_sha256").toString().toLatin1() != digest ||
+            auditFields.value("layer_count").toInt() != rows_->rowCount()) return false;
         status("RUST CANONICAL STACKUP ASSUMED / REFERENCE UNSUPPORTED / SI NOT_RUN");
         return true;
     }
