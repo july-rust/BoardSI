@@ -2,7 +2,7 @@
 
 Source of truth: [Development Specification v1.0](specification/BoardSI_Development_Spec_v1.0.md). Requirements U01–U48; acceptance tests T01–T54. A document's completion is NOT proof of program correctness.
 
-**Living implementation tracker:** [A_036 Development Completion Checklist](development-checklist.md). Every B-series and later feature PR must update the affected requirements/test rows and evidence, or explicitly record that the checklist status does not change. A-series scoped Preview successes must not be promoted to full M0/M1/M2 acceptance without the applicable gate evidence.
+**Living implementation tracker:** [A_036 Development Completion Checklist](development-checklist.md). For the normal workflow, ChatGPT alone maintains checklist content through reviewed GitHub PRs; the repository owner reads the Markdown tracker without manually ticking boxes. Every B-series and later feature PR must update the affected requirements/test rows and evidence, recording `체크일: YYYY-MM-DD KST` and the dated source for new checks, or explicitly record that checklist status does not change. This assigns editing responsibility but does not alter the owner's GitHub administrator permissions. A-series scoped Preview successes must not be promoted to full M0/M1/M2 acceptance without the applicable gate evidence.
 
 ## Milestones and labels
 
