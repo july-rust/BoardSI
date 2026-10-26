@@ -625,6 +625,7 @@ public:
             }
             QByteArray legacyArtwork, contactWire;
             if(!a032::splitWire(data_,legacyArtwork,contactWire)) {
+                qWarning("A032_CONTACT_WIRE_REJECT:ENVELOPE");
                 status("FAILED / INVALID_CONTACT_RECORDS / NOTHING IMPORTED");
                 return;
             }

@@ -3,6 +3,7 @@
 #include "imported_artwork.h"
 #include <QCryptographicHash>
 #include <QFile>
+#include <QDebug>
 #include <QSet>
 #include <QStringList>
 #include <limits>
@@ -73,31 +74,54 @@ inline bool decode(const QByteArray &wire, const QString &sourcePath,
                    const QByteArray &stderrAudit,
                    std::vector<ImportedContactMarker> &markers) {
     if(wire.isEmpty() || wire.size()>1024*1024 || !wire.endsWith('\n') ||
-       wire.contains('\r') || wire.contains('\0')) return false;
+       wire.contains('\r') || wire.contains('\0')) {
+        qWarning("A032_CONTACT_WIRE_REJECT:FRAME");
+        return false;
+    }
     const QStringList lines=QString::fromLatin1(wire).split('\n',Qt::SkipEmptyParts);
-    if(lines.size()<2 || lines.size()>100002) return false;
+    if(lines.size()<2 || lines.size()>100002) {
+        qWarning("A032_CONTACT_WIRE_REJECT:LINES");
+        return false;
+    }
     const QStringList header=lines.front().split('|');
     if(header.size()!=4 || header[0]!="BOARDSI_CONTACT_RECORDS_V1" ||
-       header[2]!="LOCAL_ENDPOINT_ONLY" || header[3].size()!=64)
+       header[2]!="LOCAL_ENDPOINT_ONLY" || header[3].size()!=64) {
+        qWarning("A032_CONTACT_WIRE_REJECT:HEADER");
         return false;
+    }
     for(const QChar ch:header[3]) if(!((ch>='0'&&ch<='9') || (ch>='a'&&ch<='f'))) return false;
     QFile source(sourcePath);
-    if(!source.open(QIODevice::ReadOnly) || source.size()>8*1024*1024) return false;
+    if(!source.open(QIODevice::ReadOnly) || source.size()>8*1024*1024) {
+        qWarning("A032_CONTACT_WIRE_REJECT:SOURCE_FILE");
+        return false;
+    }
     QCryptographicHash digest(QCryptographicHash::Sha256);
     if(!digest.addData(&source) ||
-       QString::fromLatin1(digest.result().toHex())!=header[3]) return false;
+       QString::fromLatin1(digest.result().toHex())!=header[3]) {
+        qWarning("A032_CONTACT_WIRE_REJECT:SOURCE_SHA256");
+        return false;
+    }
     qint64 count=0;
     if(!decimal(header[1],count,false) || count<0 || count>100000 ||
-       lines.size()!=count+2) return false;
+       lines.size()!=count+2) {
+        qWarning("A032_CONTACT_WIRE_REJECT:RECORD_COUNT");
+        return false;
+    }
     const QStringList trailer=lines.back().split('|');
     qint64 tailCount=0;
     if(trailer.size()!=2 || trailer[0]!="BOARDSI_CONTACT_END_V1" ||
-       !decimal(trailer[1],tailCount,false) || count!=tailCount) return false;
+       !decimal(trailer[1],tailCount,false) || count!=tailCount) {
+        qWarning("A032_CONTACT_WIRE_REJECT:TRAILER");
+        return false;
+    }
     const QStringList audit=QString::fromLatin1(stderrAudit).trimmed().split('|');
     qint64 local=0,barrel=0;
     if(audit.size()!=5 || audit[0]!="BOARDSI_CONTACT_AUDIT_V1" ||
        !decimal(audit[1],local,false) || !decimal(audit[2],barrel,false) ||
-       local+barrel>count) return false;
+       local+barrel>count) {
+        qWarning("A032_CONTACT_WIRE_REJECT:AUDIT");
+        return false;
+    }
 
     std::vector<ImportedContactMarker> parsed;
     parsed.reserve(static_cast<size_t>(count));
@@ -156,7 +180,10 @@ inline bool decode(const QByteArray &wire, const QString &sourcePath,
         parsed.push_back(std::move(m));
     }
     if(countedLocal!=local || countedBarrel!=barrel ||
-       countedConflicts!=count-local-barrel) return false;
+       countedConflicts!=count-local-barrel) {
+        qWarning("A032_CONTACT_WIRE_REJECT:EVIDENCE_COUNT");
+        return false;
+    }
     markers=std::move(parsed);
     return true;
 }

@@ -359,6 +359,12 @@ static bool a032ContactRecordDecoderRegression() {
     const QByteArray tail("BOARDSI_CONTACT_END_V1|1\n");
     const QByteArray audit("BOARDSI_CONTACT_AUDIT_V1|1|0|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n");
     const QByteArray good=preamble+row+tail;
+    const QByteArray emptyWire=QByteArray("BOARDSI_CONTACT_RECORDS_V1|0|LOCAL_ENDPOINT_ONLY|")+
+        hash+"\nBOARDSI_CONTACT_END_V1|0\n";
+    const QByteArray emptyAudit("BOARDSI_CONTACT_AUDIT_V1|0|0|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY\n");
+    std::vector<ImportedContactMarker> emptyMarkers;
+    const bool emptyAccepted=a032::decode(emptyWire,source.fileName(),traces,{},{},
+        emptyAudit,emptyMarkers) && emptyMarkers.empty();
     std::vector<ImportedContactMarker> markers;
     const bool valid=a032::decode(good,source.fileName(),traces,{},{},audit,markers) &&
         markers.size()==1 && !markers[0].barrel && !markers[0].potentialConflict &&
@@ -384,7 +390,7 @@ static bool a032ContactRecordDecoderRegression() {
         otherAudit,conflictMarkers) && conflictMarkers.size()==1 &&
         conflictMarkers[0].potentialConflict && !conflictMarkers[0].barrel &&
         conflictMarkers[0].net=="NET_A" && conflictMarkers[0].otherNet=="NET_B";
-    return valid && split && conflictValid &&
+    return valid && split && conflictValid && emptyAccepted &&
         !a032::decode(invalidPoint,source.fileName(),traces,{},{},audit,markers) &&
         !a032::decode(invalidHash,source.fileName(),traces,{},{},audit,markers) &&
         !a032::decode(invalidTerm,source.fileName(),traces,{},{},audit,markers) &&
