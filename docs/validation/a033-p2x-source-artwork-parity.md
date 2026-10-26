@@ -1,6 +1,6 @@
 # A_033 / P2-X — Source-to-artwork independent parity audit
 
-Status: **IMPLEMENTATION CANDIDATE — EXACT-HEAD CI/REVIEW AND QT/VENDOR GATES PENDING**
+Status: **SOURCE-GRID AUDIT IMPLEMENTED AND VERIFIED — bounded Synthetic PADS subset; independent hardware/vendor qualification NOT_VERIFIED**
 
 Tracking: [Issue #198](https://github.com/july-rust/BoardSI/issues/198).
 Start: protected `main@a875024969a0a5cc4096c6d26fc933269b1f8681`, A_032 #196 and #197 confirmed merged.
@@ -26,14 +26,32 @@ Golden arithmetic: 1 mil = 25,400 nm; one supported canonical 0.01-mil tick = 25
 
 The tests check whole transport primitive sets rather than isolated substring presence, and reject duplicate rows. Previously existing Rust/Qt tests are preserved.
 
-## Work still required before closing A_033
+## Exact-head acceptance evidence (PR #199)
 
-1. Run **final exact-head** Rust format, clippy, all-target workspace tests and existing native Qt full/filtered imported-artwork CTests; reconcile any failure.
-2. Audit GPU and CPU RHI/GraphicsView parity on the same source-owned geometry and source-picking filters. An offscreen CPU success is **not** hardware GPU validation.
-3. Recheck failure/clear, rejected wrong-layer/out-of-range input, renderer marker overlap, repeated import with no stale source objects and bounded performance.
-4. Run independent Codex review of the exact PR HEAD, address P1/P2 findings, and verify strict protected required contexts. Only then merge signed squash and confirm main post-merge checks.
-5. Seek *legally redistributable* real PADS V9.4 exports. If unavailable, keep real CAD fidelity `NOT_VERIFIED`. Never publish proprietary CAD files.
-6. Assess remaining A_033 coverage before Issue #198 is closed; if nontrivial native/real-file gates remain, keep Issue #198 open and record an accurate partial closeout.
+- [Implementation and tests PR #199](https://github.com/july-rust/BoardSI/pull/199), final reviewed/tested HEAD `24a2eb529ffc0ed65c629ea7f64d0b239ab4412f`.
+- **17/17 active protected-main required status contexts: SUCCESS** at exact final PR HEAD, including Rust `numerical` (fmt, clippy, workspace tests), native Windows x64/ARM64, macOS ARM64, and all four Qt native/offscreen contexts. Main ruleset #25046595 requires signed squash-only merge.
+- **Codex independent GitHub review: COMPLETED** on exactly `24a2eb5`, `has_any_findings=false`, `has_unresolved_findings=false`. A prior environment-setup request applied to the *earlier* draft; it must not be treated as the final review disposition.
+- **No open GitHub review threads** on PR #199 at merge.
+- Merged by squash to protected main `770a51bc0e0315dfc5a37ad8d03776e57be6877e` and GitHub commit signature `verified=true; reason=valid`.
+- [Post-merge main CI runs](https://github.com/july-rust/BoardSI/actions?query=branch%3Amain) must be examined for the merge SHA itself; a successful PR-only check is not proof of a successful post-merge push. Issue #198's final disposition records post-merge result.
+
+### Existing native Qt evidence (not a hardware claim)
+
+At [the PR exact-head Qt workflow](https://github.com/july-rust/BoardSI/actions/runs/40272281908), the Windows x64, Windows ARM64, and macOS ARM64 Qt native jobs succeeded. Existing *named* native test steps for V9–V14 filled/cutout/curved imported copper, CPU/RHI parity, source picking, import explorer, software RHI CPU fallback and source-bound Artwork Viewer succeeded. Linux x64 offscreen provisional job succeeded. These native results exercise the **existing** RHI/CPU code; A_033 adds source-grid oracle tests and does **not** change RHI/CPU engine internals.
+
+The test names are success evidence for the respective bounded fixtures and CI environments, **not** whole-design fabrication fidelity, a physical GPU memory certification, and not a guarantee that a particular real vendor PCB will import.
+
+## Input and regression matrix
+
+- **PASS (Synthetic)**: exact `T|` route x/y, widths, source Net label/layer and object count; `P|` five-device placements, 10 RF pads, top/bottom mirror and orthogonal rotation; `O|` polygon BOARD/CUTOUT edges; `G|P` polygon copper and two explicitly linked `H|` holes.
+- **PASS (Synthetic)**: opt-in A_032 source SHA-256, unchanged default wire prefix, one exact same-Net local endpoint and explicit `SI_NOT_RUN`. SHA oracle permits **only** authored 221-byte LF or Git Windows 236-byte CRLF versions, each with independently fixed digest; no importer digest used as its own reference.
+- **PASS (Synthetic)**: source grid mutation changes emitted transport; unsupported revision, out-of-range coordinate and layer mutation fail closed, no partial successful stdout.
+- **PARTIAL**: existing V1–V14 Qt coverage through native CI includes source shapes and CPU/RHI fallback; no separate A_033 physically calibrated external renderer oracle was produced.
+- **NOT_VERIFIED**: vendor-produced, redistribution-cleared actual PADS V9.4 exports. Only permitted public synthetic fixtures were available in the test evidence; do not imply real CAD certification.
+- **NOT_RUN / separately scoped**: measured physical SI/RLGC/S-parameters and full-board electrical Open/Short, physical GPU reset and VRAM, proprietary customer boards.
+- **NOT_IMPLEMENTED in this audit slice**: general-purpose end-user JSON/CLI Golden comparison tool; exact-source CI process-level tests are the verification artifact. If needed, track this as a separate UI/diagnostic feature, not as existing importer behavior.
+
+No parser grammar was widened, no unrelated source CAD data uploaded, and the legacy V1–V14 Qt transport remains unchanged.
 
 ## Explicit nonclaims
 
@@ -46,6 +64,8 @@ The tests check whole transport primitive sets rather than isolated substring pr
 
 The full M1/P2 umbrella issues #9, #11, #165 remain open.
 
-## Independent Codex availability (2026-10-26)
+## Codex review chronology
 
-The exact prior candidate `551662e` passed the strict 17/17 required CI contexts. An explicit `@codex review` returned **'To use Codex here, create an environment for this repo'**, rather than a completed review verdict. Do NOT report a Codex PASS or zero findings on this basis. The newer geometry tests must independently clear all new exact-HEAD CI contexts; third-party review remains **NOT_RUN / ENVIRONMENT_NOT_CONFIGURED** until a real review completes. This is not evidence that the source tests are free of unknown flaws.
+An early draft review attempt responded with an environment setup instruction. The subsequent **ready-for-review** event triggered an independent Codex review at exact final PR HEAD `24a2eb5`. The bot's final structured status reported completed with no findings; this supersedes the stale draft status. No P1/P2 findings were unresolved at merge.
+
+Source: [PR #199 review and merge history](https://github.com/july-rust/BoardSI/pull/199).
