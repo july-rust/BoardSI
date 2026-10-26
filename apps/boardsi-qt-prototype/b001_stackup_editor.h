@@ -146,6 +146,8 @@ public:
             if (role != "Signal" && role != "Ground" && role != "Power" &&
                 role != "Floating" && role != "Unknown")
                 return QString("L%1: INVALID ROLE HINT / RUN BLOCKED").arg(r + 1);
+            if (kind != "Copper" && role != "Unknown")
+                return QString("L%1: NON-COPPER ROLE UNSUPPORTED / RUN BLOCKED").arg(r + 1);
             const QString reference = field(r, 8);
             if (!reference.isEmpty()) {
                 bool ok = false;
