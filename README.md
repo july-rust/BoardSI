@@ -2,7 +2,7 @@
 
 **Lightweight PCB & BGA Substrate Signal Integrity Analysis**
 
-**Status: M0 architecture/runtime prototypes and restricted M2 lossless 2D FEM research coupons (PH-03/05/06/07) are implemented. A product PCB Solver and verified PCB-format import are not implemented.**
+**Status: Native Qt/Rust Developer Preview with a restricted, source-validated public-synthetic PADS Layout ASCII V9.4 MILS import subset and CPU/Qt Quick-RHI Artwork Viewer. This is not a qualified general-purpose PADS importer, full-board electrical connectivity tool, or physical PCB SI Solver. Historical M0 architecture/runtime prototypes and restricted M2 lossless 2D FEM research coupons (PH-03/05/06/07) remain distinct from product SI verification.**
 
 PH-07 was merged in [PR #40](https://github.com/july-rust/BoardSI/pull/40), `main@c6dce055`. Synthetic numerical verification does not establish measured-PCB or 30 GHz accuracy. See the [validation audit](docs/validation/m2-validation-audit-hardening.md) for independent checks, platform execution evidence and remaining administrative work.
 
@@ -19,6 +19,7 @@ Planned features: PCB / BGA substrate pad-to-pad analysis; geometry, stackup, re
 - [Roadmap metadata](docs/project-plan.json)
 - [Architecture decisions](docs/architecture/README.md)
 - [Validation policy](docs/validation/README.md)
+- [A_035/P2-Z limited Developer Preview acceptance and B-series handoff](docs/validation/a035-p2z-final-preview-acceptance.md)
 - [Pre-PH08 complete-project baseline audit](docs/audits/2026-10-18-pre-ph08-project-audit.md)
 - [Official icon B selection and source status](docs/branding/boardsi-icon-decision.md)
 
