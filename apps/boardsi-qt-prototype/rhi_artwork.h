@@ -1255,6 +1255,9 @@ public:
     quint64 syncedGeneration() const {
         return lastSyncedGeneration_.load(std::memory_order_acquire);
     }
+    // A_034: real active RHI zoom used by the same production Zoom/Fit UI.
+    // CPU GraphicsView transform is not the scale of a Qt Quick viewport.
+    qreal zoomFactorForTest() const { return zoom_; }
     QPointF localPoint(qint64 x,qint64 y) const { return world(x,y); }
     qreal projectedHalfWidthForTest(qint64 sourceWidthNm) const {
         return sourceWidthNm / 2e6 * scaleFactor();
