@@ -170,6 +170,8 @@ pub fn build_stackup_configuration(
     }
     let report = board.validate_materials_at(frequency_hz);
     if report.has_errors() || report.has_missing() {
+        #[cfg(test)]
+        eprintln!("B001 report: {:?}", report.issues);
         return Err(ModelError::InvalidMaterial);
     }
     Ok(StackupConfiguration {
