@@ -97,22 +97,24 @@ inline bool decode(const QByteArray &wire, const QString &sourcePath,
     qint64 local=0,barrel=0;
     if(audit.size()!=5 || audit[0]!="BOARDSI_CONTACT_AUDIT_V1" ||
        !decimal(audit[1],local,false) || !decimal(audit[2],barrel,false) ||
-       local+barrel!=count) return false;
+       local+barrel>count) return false;
 
     std::vector<ImportedContactMarker> parsed;
     parsed.reserve(static_cast<size_t>(count));
     QSet<QString> unique;
-    qint64 countedLocal=0,countedBarrel=0;
+    qint64 countedLocal=0,countedBarrel=0,countedConflicts=0;
     for(qint64 i=1;i<=count;++i) {
         const QString &row=lines[static_cast<int>(i)];
         if(unique.contains(row)) return false;
         unique.insert(row);
         const QStringList fields=row.split('|');
-        if(fields.size()!=12 || fields[0]!="E" ||
-           (fields[1]!="S" && fields[1]!="B") ||
+        const bool conflict = fields.size()==12 && fields[0]=="X" && fields[1]=="C";
+        if(fields.size()!=12 || !(fields[0]=="E" || conflict) ||
+           (!conflict && fields[1]!="S" && fields[1]!="B") ||
            fields[2].size()!=1 || fields[6].size()!=1) return false;
         ImportedContactMarker m;
         m.barrel=fields[1]=="B";
+        m.potentialConflict=conflict;
         m.a.kind=fields[2].at(0).toLatin1();
         m.b.kind=fields[6].at(0).toLatin1();
         qint64 aIndex=0,aSite=0,aLayer=0,bIndex=0,bSite=0,bLayer=0;
@@ -132,8 +134,14 @@ inline bool decode(const QByteArray &wire, const QString &sourcePath,
         QString aNet,bNet;
         if(!encodeEndpoint(m.a,tracks,arcs,vias,m.x_nm,m.y_nm,aNet) ||
            !encodeEndpoint(m.b,tracks,arcs,vias,m.x_nm,m.y_nm,bNet) ||
-           aNet.isEmpty() || aNet!=bNet) return false;
-        if(m.barrel) {
+           aNet.isEmpty() || bNet.isEmpty() ||
+           ((aNet==bNet)==conflict)) return false;
+        if(m.potentialConflict) {
+            if(m.a.layer!=m.b.layer ||
+               (m.a.kind=='V' && m.b.kind=='V') ||
+               (m.a.kind==m.b.kind && m.a.index==m.b.index)) return false;
+            ++countedConflicts;
+        } else if(m.barrel) {
             if(m.a.kind!='V' || m.b.kind!='V' ||
                m.a.index!=m.b.index || m.a.layer==m.b.layer) return false;
             ++countedBarrel;
@@ -144,9 +152,11 @@ inline bool decode(const QByteArray &wire, const QString &sourcePath,
             ++countedLocal;
         }
         m.net=aNet;
+        m.otherNet=bNet;
         parsed.push_back(std::move(m));
     }
-    if(countedLocal!=local || countedBarrel!=barrel) return false;
+    if(countedLocal!=local || countedBarrel!=barrel ||
+       countedConflicts!=count-local-barrel) return false;
     markers=std::move(parsed);
     return true;
 }

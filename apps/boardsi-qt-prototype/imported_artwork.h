@@ -319,9 +319,11 @@ struct ImportedVia {
 struct ImportedContactEnd { char kind='T'; int index=0,site=0,layer=0; };
 struct ImportedContactMarker {
     bool barrel=false;
+    bool potentialConflict=false;
     ImportedContactEnd a,b;
     qint64 x_nm=0,y_nm=0;
     QString net;
+    QString otherNet;
 };
 #ifdef BOARDSI_RHI_ARTWORK
 #include "rhi_artwork.h"
@@ -523,7 +525,7 @@ class ImportedArtworkPanel final : public QWidget {
             const auto &m=entry.second;
             const bool layerShown=(m.a.layer<layerVisible_.size() && layerVisible_[m.a.layer]) ||
                                   (m.barrel && m.b.layer<layerVisible_.size() && layerVisible_[m.b.layer]);
-            entry.first->setVisible(layerShown && (!netOnly || net==m.net));
+            entry.first->setVisible(layerShown && (!netOnly || net==m.net || (m.potentialConflict && net==m.otherNet)));
         }
         // The exact local contact audit comes from Rust and is independent
         // of CPU/RHI rendering, selection filtering and GPU picking.
@@ -757,8 +759,8 @@ public:
             // ItemIgnoresTransformations gives fixed-size screen-space markers
             // without moving their exact integer-nm source anchor.
             auto *item=scene_->addEllipse(QRectF(-4,-4,8,8),
-                QPen(QColor(m.barrel?"#7ae7c6":"#9be3fd"),1),
-                QBrush(QColor(m.barrel?"#286952":"#266c89")));
+                QPen(QColor(m.potentialConflict?"#ff8888":(m.barrel?"#7ae7c6":"#9be3fd")),1),
+                QBrush(QColor(m.potentialConflict?"#9b3636":(m.barrel?"#286952":"#266c89"))));
             item->setPos(m.x_nm/1e6,-m.y_nm/1e6);
             item->setFlag(QGraphicsItem::ItemIgnoresTransformations);
             item->setFlag(QGraphicsItem::ItemIsSelectable);
@@ -767,7 +769,8 @@ public:
             item->setData(2,QString("A_032 verified LOCAL endpoint / %1 / Net %2 / %3,%4 nm"
                 " / %5[%6] site %7 L%8 <> %9[%10] site %11 L%12"
                 " / complete connectivity NOT_VERIFIED")
-                .arg(m.barrel?"ViaBarrel":"SameLayerContact").arg(m.net)
+                .arg(m.potentialConflict?"Potential Cross-Net conflict (NOT a certified Short)":(m.barrel?"ViaBarrel":"SameLayerContact"))
+                .arg(m.potentialConflict?(m.net+" vs "+m.otherNet):m.net)
                 .arg(m.x_nm).arg(m.y_nm)
                 .arg(QChar(m.a.kind)).arg(m.a.index).arg(m.a.site).arg(m.a.layer)
                 .arg(QChar(m.b.kind)).arg(m.b.index).arg(m.b.site).arg(m.b.layer));

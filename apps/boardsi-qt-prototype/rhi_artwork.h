@@ -764,10 +764,12 @@ protected:
         }
         // Screen-space markers share the exact source-nm / net/layer filters
         // used by CPU. They are display hints, never a solver-ready netlist.
-        for(const bool barrel:{false,true}) {
+        for(int markerClass=0;markerClass<3;++markerClass) {
             Vertices contactGeometry;
             for(const auto &m:contactMarkers_) {
-                if(m.barrel!=barrel || !includedNet(m.net) ||
+                const int kind=m.potentialConflict?2:(m.barrel?1:0);
+                if(kind!=markerClass ||
+                   !(includedNet(m.net) || (m.potentialConflict && includedNet(m.otherNet))) ||
                    !(visible(m.a.layer) || (m.barrel && visible(m.b.layer)))) continue;
                 const QPointF centre=pixel(world(m.x_nm,m.y_nm));
                 if(!inView(centre,7,width(),height())) continue;
@@ -784,7 +786,8 @@ protected:
                 dst[i].set(static_cast<float>(contactGeometry[i].x()),
                            static_cast<float>(contactGeometry[i].y()));
             auto *material=new QSGFlatColorMaterial();
-            material->setColor(QColor(barrel?"#7ae7c6":"#9be3fd"));
+            material->setColor(QColor(markerClass==2?"#ff8888":
+                                       (markerClass==1?"#7ae7c6":"#9be3fd")));
             node->setGeometry(geometry);node->setMaterial(material);
             node->setFlag(QSGNode::OwnsGeometry);
             node->setFlag(QSGNode::OwnsMaterial);
@@ -806,7 +809,7 @@ protected:
         if (!dragging_ && picked_) {
             for(size_t i=0;i<contactMarkers_.size();++i) {
                 const auto &m=contactMarkers_[i];
-                if(!includedNet(m.net) ||
+                if(!(includedNet(m.net) || (m.potentialConflict && includedNet(m.otherNet))) ||
                    !(visible(m.a.layer) || (m.barrel && visible(m.b.layer)))) continue;
                 const QPointF point=pixel(world(m.x_nm,m.y_nm));
                 if(std::hypot(event->position().x()-point.x(),
