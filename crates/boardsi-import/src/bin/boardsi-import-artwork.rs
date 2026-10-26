@@ -9,7 +9,7 @@ use std::{
 };
 // 0.01 mil canonical tick = 254 nm. All Qt wire coordinates remain nm.
 const NM: i64 = 254;
-fn run() -> Result<(), &'static str> {
+fn run() -> Result<(usize, usize), &'static str> {
     let args: Vec<_> = env::args_os().collect();
     if args.len() != 2 {
         return Err("USAGE");
@@ -55,10 +55,6 @@ fn run() -> Result<(), &'static str> {
         .iter()
         .filter(|e| matches!(e.evidence, boardsi_model::ConnectionEvidence::ViaBarrel { .. }))
         .count();
-    eprintln!(
-        "BOARDSI_CONTACT_AUDIT_V1|{}|{}|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY",
-        local_contacts, via_barrels
-    );
     let mut out = Vec::new();
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
     // records are actually emitted. Rejected PART rows are not P2C geometry.
@@ -564,7 +560,7 @@ fn run() -> Result<(), &'static str> {
                     return Err("OUTPUT_LIMIT");
                 }
                 io::stdout().write_all(&out).map_err(|_| "STDOUT_FAILED")?;
-                return Ok(());
+                return Ok((local_contacts, via_barrels));
             }
             writeln!(
                 out,
@@ -657,11 +653,21 @@ fn run() -> Result<(), &'static str> {
         return Err("OUTPUT_LIMIT");
     }
     io::stdout().write_all(&out).map_err(|_| "STDOUT_FAILED")?;
-    Ok(())
+    Ok((local_contacts, via_barrels))
 }
 fn main() {
-    if let Err(err) = run() {
-        eprintln!("P2A_IMPORT_ERROR:{err}");
-        std::process::exit(3);
+    match run() {
+        Ok((contacts, barrels)) => {
+            // Emit success diagnostics only after the complete bounded artwork
+            // payload was actually written, not during a failing parse.
+            eprintln!(
+                "BOARDSI_CONTACT_AUDIT_V1|{}|{}|CONFLICT_DETAIL_NOT_EXPOSED|LOCAL_ENDPOINT_ONLY",
+                contacts, barrels
+            );
+        }
+        Err(err) => {
+            eprintln!("P2A_IMPORT_ERROR:{err}");
+            std::process::exit(3);
+        }
     }
 }
