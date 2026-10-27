@@ -120,22 +120,47 @@ fn legacy_site_ids(board: &BoardModel) -> BTreeSet<ObjectId> {
     sites
 }
 
+// Recreate the legacy barrel chain over endpoint-qualified layers only.
+// Intermediate Canonical ViaCentre contacts discovered by B_003 must neither
+// delete formerly valid V1 outer-layer barrels nor appear as orphan V1 links.
+fn legacy_v1_barrels(board: &BoardModel, eligible: &BTreeSet<ObjectId>) -> Vec<(ObjectId, ObjectId)> {
+    let mut via_sites: BTreeMap<ObjectId, Vec<&ConnectivityNode>> = BTreeMap::new();
+    for node in &board.connectivity.nodes {
+        if eligible.contains(&node.meta.id)
+            && matches!(node.site, ContactSite::ViaCentre)
+            && node.conductor.kind == ObjectKind::Via
+        {
+            via_sites
+                .entry(node.conductor.clone())
+                .or_default()
+                .push(node);
+        }
+    }
+    let mut barrels = Vec::new();
+    for (_, mut sites) in via_sites {
+        sites.sort_by(|a, b| a.layer.cmp(&b.layer));
+        for pair in sites.windows(2) {
+            barrels.push((pair[0].meta.id.clone(), pair[1].meta.id.clone()));
+        }
+    }
+    barrels
+}
+
 /// Counts the exact same restricted endpoint-only edges as the V1 suffix.
 /// B_003 interior and Pad edges are deliberately not encoded by legacy V1.
 pub fn legacy_v1_counts(board: &BoardModel) -> (usize, usize) {
     let eligible = legacy_site_ids(board);
-    let mut contacts = 0usize;
-    let mut barrels = 0usize;
-    for edge in &board.connectivity.edges {
-        if !eligible.contains(&edge.a) || !eligible.contains(&edge.b) {
-            continue;
-        }
-        match edge.evidence {
-            ConnectionEvidence::SameLayerContact { .. } => contacts += 1,
-            ConnectionEvidence::ViaBarrel { .. } => barrels += 1,
-        }
-    }
-    (contacts, barrels)
+    let contacts = board
+        .connectivity
+        .edges
+        .iter()
+        .filter(|edge| {
+            eligible.contains(&edge.a)
+                && eligible.contains(&edge.b)
+                && matches!(edge.evidence, ConnectionEvidence::SameLayerContact { .. })
+        })
+        .count();
+    (contacts, legacy_v1_barrels(board, &eligible).len())
 }
 
 fn bounded_push(
@@ -308,12 +333,18 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         .connectivity
         .edges
         .iter()
-        .filter(|edge| legacy_sites.contains(&edge.a) && legacy_sites.contains(&edge.b))
+        .filter(|edge| {
+            legacy_sites.contains(&edge.a)
+                && legacy_sites.contains(&edge.b)
+                && matches!(edge.evidence, ConnectionEvidence::SameLayerContact { .. })
+        })
         .collect();
+    let legacy_barrels = legacy_v1_barrels(board, &legacy_sites);
     let conflicts = potential_conflicts(board, &layers)?;
     let count = legacy_edges
         .len()
-        .checked_add(conflicts.len())
+        .checked_add(legacy_barrels.len())
+        .and_then(|count| count.checked_add(conflicts.len()))
         .ok_or("CONTACT_WIRE_RECORD_LIMIT")?;
     if count > MAX_RECORDS {
         return Err("CONTACT_WIRE_RECORD_LIMIT");
@@ -374,6 +405,44 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         writeln!(
             &mut out,
             "E|{class}|{}|{}|{}|{}|{}|{}|{}|{}|{x}|{y}",
+            a.kind, a.index, a.site, a.layer, b.kind, b.index, b.site, b.layer
+        )
+        .map_err(|_| "CONTACT_WIRE_FORMAT")?;
+        if out.len() > MAX_RECORD_BYTES {
+            return Err("CONTACT_WIRE_OUTPUT_LIMIT");
+        }
+    }
+    for (a_id, b_id) in legacy_barrels {
+        let a = resolve(
+            board,
+            &objects,
+            &layers,
+            nodes.get(&a_id).ok_or("CONTACT_WIRE_NODE_MISSING")?,
+        )?;
+        let b = resolve(
+            board,
+            &objects,
+            &layers,
+            nodes.get(&b_id).ok_or("CONTACT_WIRE_NODE_MISSING")?,
+        )?;
+        if a.kind != 'V'
+            || b.kind != 'V'
+            || a.index != b.index
+            || a.layer == b.layer
+            || a.net != b.net
+            || a.ticks != b.ticks
+        {
+            return Err("CONTACT_WIRE_BARREL_MISMATCH");
+        }
+        let x = a.ticks[0]
+            .checked_mul(NM_PER_TICK)
+            .ok_or("CONTACT_WIRE_OVERFLOW")?;
+        let y = a.ticks[1]
+            .checked_mul(NM_PER_TICK)
+            .ok_or("CONTACT_WIRE_OVERFLOW")?;
+        writeln!(
+            &mut out,
+            "E|B|{}|{}|{}|{}|{}|{}|{}|{}|{x}|{y}",
             a.kind, a.index, a.site, a.layer, b.kind, b.index, b.site, b.layer
         )
         .map_err(|_| "CONTACT_WIRE_FORMAT")?;
