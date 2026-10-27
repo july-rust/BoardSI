@@ -59,6 +59,8 @@
 - [x] **B_001_3 제한 PADS 원본 Copper/Net Reference 후보 감사** — 성공 Import의 source Area ID·Layer·Net 레이블(누락 `-`는 Unknown)·Cutout 목록을 Native Rust 감사로 전달. 동일 Net Signal/Reference 조합 거부, 분할/Cutout·Net 누락·불완전 목록은 전기적 Return Path를 **Unsupported로 차단**; 실제 PADS 공개 합성 Import/GPU Artwork 및 Native 3 OS+Linux Qt 시험 **코드 HEAD 27/27 PASS** · **체크일: 2026-10-27 KST** · **근거일: 2026-10-27 KST** ([PR #217](https://github.com/july-rust/BoardSI/pull/217), [코드 CI](https://github.com/july-rust/BoardSI/commit/d15b86db4cc044da07930fbc9baad41ea0bc891a/checks), [원장](validation/b001-3-source-reference-inventory.md)). **Reference 전기적 접속/Return Path P009 및 정식 T04/T24 인수 완료 아님.**
 - [ ] **B_001 전체 Issue #12 완료** — 제한 Qt Stackup UI [#213](https://github.com/july-rust/BoardSI/pull/213), Rust Canonical 가정 Material [#215](https://github.com/july-rust/BoardSI/pull/215), 원본 Copper/Net **음성·Unsupported 판정** [#217](https://github.com/july-rust/BoardSI/pull/217)만 검증 완료. **실제 Copper/Net/Area/Pad/Port의 완전한 Canonical 연결 및 전기적 Reference/Return Path, Scenario/Cache Revision, 손실·거칠기 모델과 전체 정식 U/T 시험은 미완** ([#12](https://github.com/july-rust/BoardSI/issues/12), [B_001_3 원장](validation/b001-3-source-reference-inventory.md)).
 
+- [ ] **B_002 — B_001 전체 완료 작업 진행 중** — 이번 B_002는 신규 M1a 기능 개발이 아니라 Issue #12의 잔여 기능·검증 종결 명령. Qt/Rust 감사의 소스 변경·Scenario 편집 후 stale receipt를 방지하는 제한적 수정과 Native 회귀 테스트를 [B_002 검증 원장](validation/b002-b001-completion.md)에 등록. **PR HEAD CI·독립 리뷰·병합 미확인, B_001 전체 완료 미달.** Copper/Net/Pad/Port 실제 연결, 물리 Return Path, Material 손실/거칠기, Scenario/Cache Revision과 T02/T04/T24/T52 정식 시험은 여전히 미완. 완료 체크일은 증거가 확보될 때만 기록.
+
 ## 3. 후속 개발 체크리스트
 
 | 단계 | 상태 | 구체적 잔여 작업 (GitHub) |
