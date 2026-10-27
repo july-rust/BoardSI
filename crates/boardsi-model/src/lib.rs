@@ -264,6 +264,9 @@ pub struct Outline {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ContactSite {
     TraceVertex(usize),
+    /// Exact source-frame witness strictly inside a straight trace centreline.
+    /// This is geometrical contact evidence only, not a width/clearance solver.
+    TraceInterior { point: Point },
     ArcStart,
     ArcEnd,
     PadCentre,
