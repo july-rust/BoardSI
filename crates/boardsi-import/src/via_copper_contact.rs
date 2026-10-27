@@ -1,4 +1,4 @@
-//! B_006 bounded PADS through-via centre to simple source COPCLS contact.
+//! B_006/B_007 bounded source-exact plated via-to-COPCLS with one verified COPCUT.
 //! Geometry-only local graph proof; NEVER physical return path or P009.
 use crate::{copper_preview, route_preview};
 use boardsi_model::{
@@ -200,8 +200,12 @@ pub fn augment(
             .filter(|a| a.layer == area.layer)
             .count()
             != 1
-            || !area.cutouts.is_empty()
-            || !copper.cutouts.is_empty()
+            || area.cutouts.len() > 1
+            || copper.cutouts.len() != area.cutouts.len()
+            || area
+                .cutouts
+                .iter()
+                .any(|h| !matches!(h, copper_preview::CopperGeometry::Polygon(_)))
             || !matches!(&area.geometry, copper_preview::CopperGeometry::Polygon(_))
             || copper.net.as_ref().is_some_and(|current| *current != net)
             || copper_source.net.is_some()
@@ -344,7 +348,7 @@ pub fn augment(
                 }
                 append_edge(&source, &mut edges, "via-area", &via_id, &area_id,
                     ConnectionEvidence::SameLayerContact {
-                        evidence: "Original PADS plated Through Via conductive Padstack Layer and strict simple COPCLS interior, declared same Net".into(),
+                        evidence: "Original PADS plated Via conductive Padstack Layer and strict COPCLS/COPCUT copper-only interior, declared same Net".into(),
                     })?;
                 if !board.vias[via_index].connected_layers.contains(&layer) {
                     board.vias[via_index].connected_layers.push(layer.clone());

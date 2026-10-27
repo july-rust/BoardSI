@@ -81,9 +81,10 @@ fn add(
 }
 /// Add B_004 evidence only after the actual accepted source Copper parser
 /// has populated the same Canonical Area set. Never infer a missing Net.
-pub fn augment(
+fn augment_impl(
     board: &mut BoardModel,
     source_areas: &[SourceArea],
+    allow_cutout: bool,
 ) -> Result<AreaContactAudit, &'static str> {
     if source_areas.len() != board.areas.len() {
         return Err("B004_AREA_SOURCE_MISMATCH");
@@ -157,9 +158,39 @@ pub fn augment(
             audit.unsupported_areas += 1;
             continue;
         };
-        if !input.cutouts.is_empty() || ring.len() < 4 || ring.len() > 65 {
+        if ring.len() < 4
+            || ring.len() > 65
+            || (!input.cutouts.is_empty() && !allow_cutout)
+            || input.cutouts.len() > 1
+            || input
+                .cutouts
+                .iter()
+                .any(|hole| !matches!(hole, CopperGeometry::Polygon(_)))
+        {
             audit.unsupported_areas += 1;
             continue;
+        }
+        if let Some(CopperGeometry::Polygon(hole)) = input.cutouts.first() {
+            if area.cutouts.len() != 1
+                || area.outer.segments.len() != ring.len() - 1
+                || area.cutouts[0].boundary.segments.len() != hole.len() - 1
+                || !ring
+                    .windows(2)
+                    .zip(&area.outer.segments)
+                    .all(|(pair, seg)| {
+                        matches!(seg, boardsi_model::BoundarySegment::Line { start, end }
+                        if start.ticks == pair[0] && end.ticks == pair[1])
+                    })
+                || !hole
+                    .windows(2)
+                    .zip(&area.cutouts[0].boundary.segments)
+                    .all(|(pair, seg)| {
+                        matches!(seg, boardsi_model::BoundarySegment::Line { start, end }
+                        if start.ticks == pair[0] && end.ticks == pair[1])
+                    })
+            {
+                return Err("B007_CUTOUT_CANONICAL_MISMATCH");
+            }
         }
         let Some(label) = &input.net_label else {
             audit.unsupported_areas += 1;
@@ -264,6 +295,57 @@ pub fn augment(
         audit.exact_contacts,audit.same_area_links,audit.cross_net_coincidences,audit.unsupported_areas
     ));
     Ok(audit)
+}
+
+/// Legacy B_004 path remains hole-free and unchanged.
+pub fn augment(
+    board: &mut BoardModel,
+    source_areas: &[SourceArea],
+) -> Result<AreaContactAudit, &'static str> {
+    augment_impl(board, source_areas, false)
+}
+
+/// B_007 cutout-aware contacts require independent original-file reparsing.
+/// This checks exact source identity, declared nets, layer/trace inventory and
+/// every canonical copper contour before enabling one bounded polygon void.
+pub fn augment_source_bound(
+    board: &mut BoardModel,
+    source_areas: &[SourceArea],
+    original_bytes: &[u8],
+) -> Result<AreaContactAudit, &'static str> {
+    let route = crate::route_preview::parse(original_bytes).map_err(|_| "B007_SOURCE_ROUTE")?;
+    let mut original = crate::route_preview::into_canonical(original_bytes, &route)
+        .map_err(|_| "B007_SOURCE_MODEL")?;
+    let parts = crate::part_preview::parse(original_bytes, route.max_layer);
+    crate::part_preview::augment_source_bound(&mut original, &parts, original_bytes)
+        .map_err(|_| "B007_SOURCE_PARTS")?;
+    let parsed = crate::copper_preview::parse(original_bytes, route.max_layer)
+        .map_err(|_| "B007_SOURCE_COPPER")?;
+    crate::copper_preview::augment(&mut original, &parsed).map_err(|_| "B007_SOURCE_COPPER")?;
+    if source_areas != parsed
+        || board.sources.first().map(|s| &s.id) != original.sources.first().map(|s| &s.id)
+    {
+        return Err("B007_SOURCE_SHA_MISMATCH");
+    }
+    if board.traces != original.traces
+        || board.arcs != original.arcs
+        || board.nets != original.nets
+        || board.pads != original.pads
+        || board.padstacks != original.padstacks
+        || board.drills != original.drills
+        || board.vias != original.vias
+        || board.stackup.layers.len() != original.stackup.layers.len()
+        || !board
+            .stackup
+            .layers
+            .iter()
+            .zip(&original.stackup.layers)
+            .all(|(a, b)| a.meta.id == b.meta.id && a.order == b.order && a.kind == b.kind)
+        || board.areas != original.areas
+    {
+        return Err("B007_SOURCE_INVENTORY_MISMATCH");
+    }
+    augment_impl(board, source_areas, true)
 }
 
 /// Local candidate report only. No contact never proves whole-board disconnection.

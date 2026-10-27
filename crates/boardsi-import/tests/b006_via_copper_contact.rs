@@ -98,7 +98,7 @@ fn different_net_and_unknown_net_never_create_edges() {
 }
 
 #[test]
-fn owned_cutout_fails_closed_without_fabricating_conductor() {
+fn owned_cutout_keeps_real_via_contact_outside_the_void() {
     let area = AREA
         .replace("100 200 1 1 0 NET_A", "100 200 2 1 0 NET_A")
         .replace(
@@ -108,8 +108,10 @@ fn owned_cutout_fails_closed_without_fabricating_conductor() {
     let text = source(&area, ROUTE);
     let mut board = assemble(&text);
     let result = via_copper_contact::augment(&mut board, text.as_bytes()).unwrap();
-    assert_eq!(result.local_contacts, 0);
-    assert!(result.unsupported_candidates > 0);
+    assert_eq!(result.local_contacts, 1);
+    assert_eq!(result.unsupported_candidates, 0);
+    assert_eq!(result.new_barrel_edges, 1);
+    assert!(!board.validate().has_errors());
 }
 
 #[test]
