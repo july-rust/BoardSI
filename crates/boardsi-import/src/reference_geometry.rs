@@ -205,6 +205,47 @@ pub fn audit(
     if parsed_areas != source_areas {
         return unsupported("ORIGINAL_COPPER_INVENTORY_MISMATCH");
     }
+    // A source ID/hash match alone is not proof that an editable Canonical
+    // inventory still contains the original Net names or complete geometry.
+    // In particular a deleted unselected branch must not become a valid path.
+    if board.nets.len() != source_board.nets.len()
+        || !board.nets.iter().all(|net| {
+            source_board.nets.iter().any(|original| {
+                original.meta.id == net.meta.id && original.name == net.name
+            })
+        })
+    {
+        return unsupported("ORIGINAL_NET_IDENTITY_MISMATCH");
+    }
+    if board.traces.len() != source_board.traces.len()
+        || !board.traces.iter().all(|trace| {
+            source_board.traces.iter().any(|original| {
+                original.meta.id == trace.meta.id
+                    && original.layer == trace.layer
+                    && original.net == trace.net
+                    && original.centreline == trace.centreline
+                    && original.width_m == trace.width_m
+            })
+        })
+    {
+        return unsupported("ORIGINAL_ROUTE_INVENTORY_MISMATCH");
+    }
+    if board.arcs.len() != source_board.arcs.len()
+        || !board.arcs.iter().all(|arc| {
+            source_board.arcs.iter().any(|original| {
+                original.meta.id == arc.meta.id
+                    && original.layer == arc.layer
+                    && original.net == arc.net
+                    && original.centre == arc.centre
+                    && original.start == arc.start
+                    && original.end == arc.end
+                    && original.clockwise == arc.clockwise
+                    && original.width_m == arc.width_m
+            })
+        })
+    {
+        return unsupported("ORIGINAL_ARC_INVENTORY_MISMATCH");
+    }
     let mut selected = Vec::new();
     let mut seen = BTreeSet::new();
     for id in ordered_trace_ids {

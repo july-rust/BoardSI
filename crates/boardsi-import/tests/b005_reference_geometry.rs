@@ -289,3 +289,41 @@ fn refuses_reordered_canonical_layers_despite_unchanged_original_source() {
         "ORIGINAL_LAYER_ORDER_MISMATCH"
     );
 }
+
+#[test]
+fn refuses_relabelled_canonical_net_ids_against_source() {
+    let changed = AREA.replace(" 0 NET_REF", " 0 NET_SIG");
+    let (mut board, areas, raw) = assembled(&source(&changed, SIGNAL));
+    let ids = [board.traces[0].meta.id.clone(), board.traces[1].meta.id.clone()];
+    for net in &mut board.nets {
+        if net.name == "NET_SIG" {
+            net.name = "RENAMED_SIGNAL".into();
+        } else if net.name == "NET_REF" {
+            net.name = "NET_SIG".into();
+        }
+    }
+    assert_eq!(
+        check(&board, &areas, &raw, &ids, "NET_SIG", 1).reason,
+        "ORIGINAL_NET_IDENTITY_MISMATCH"
+    );
+}
+#[test]
+fn refuses_deleted_unselected_original_t_branch() {
+    let branch = SIGNAL.replace(
+        "*SIGNAL* NET_REF",
+        "U9.1 U10.2\n140 230 1 10 0\n140 250 1 10 0\n*SIGNAL* NET_REF",
+    );
+    let (mut board, areas, raw) = assembled(&source(AREA, &branch));
+    let ids = [board.traces[0].meta.id.clone(), board.traces[1].meta.id.clone()];
+    let removed_id = board.traces[2].meta.id.clone();
+    let node_ids: std::collections::BTreeSet<_> = board.connectivity.nodes.iter()
+        .filter(|n| n.conductor == removed_id)
+        .map(|n| n.meta.id.clone()).collect();
+    board.traces.remove(2);
+    board.connectivity.nodes.retain(|n| !node_ids.contains(&n.meta.id));
+    board.connectivity.edges.retain(|e| !node_ids.contains(&e.a) && !node_ids.contains(&e.b));
+    assert_eq!(
+        check(&board, &areas, &raw, &ids, "NET_REF", 1).reason,
+        "ORIGINAL_ROUTE_INVENTORY_MISMATCH"
+    );
+}

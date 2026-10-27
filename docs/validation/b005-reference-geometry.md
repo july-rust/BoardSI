@@ -63,3 +63,5 @@ same-Net Arc contact at selected path. Added three negative regression cases.
 These changes require fresh exact HEAD CI and independent Codex review.
 
 - Original layer ordering is revalidated against reparsed source Layer IDs/order/kind; user-mutated layer adjacency must return `ORIGINAL_LAYER_ORDER_MISMATCH`. Added anti-spoof regression (still CI/review pending).
+
+- Latest Codex P2: canonical source Net label/ID spoof and omitted unselected source branch. Added strict complete Net/Trace/Arc source inventory matching (ID, layer, net, coordinates, widths) and two negative tests. Gate remains NOT_ACCEPTED pending CI and latest-head Codex.
