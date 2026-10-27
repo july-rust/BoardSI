@@ -2758,6 +2758,12 @@ static int runB001StackupSelftest() {
     const bool rustCanonicalAssumed = editor.auditCanonical() &&
         editor.summary().contains("RETURN PATH UNSUPPORTED") &&
         editor.summary().contains("SI NOT_RUN");
+    const bool firstAuditFresh = editor.currentAuditIsFresh();
+    set(1, 5, "0.03");
+    const bool changedMaterialInvalidatesAudit = !editor.currentAuditIsFresh() &&
+        editor.summary().contains("RE-AUDIT REQUIRED");
+    set(1, 5, "0.02");
+    const bool secondAuditRefreshes = editor.auditCanonical() && editor.currentAuditIsFresh();
     // Explicit JSON field types: no implicit string-literal -> bool conversion.
     const auto sourceCopper = [](const QString &net, int holes) {
         QJsonArray row;
@@ -2776,6 +2782,7 @@ static int runB001StackupSelftest() {
     declaredNets.append(QString("SIG"));
     declaredNets.append(QString("GND"));
     editor.setSourceCopperInventory(sourceCopper("GND", 0), declaredNets, true);
+    const bool changedSourceInventoryInvalidates = !editor.currentAuditIsFresh();
     editor.selectReferenceNets("SIG", "GND");
     const bool sourceLabelsNotPhysicalReference = editor.auditCanonical() &&
         editor.summary().contains("OBSERVED_LABELS_NO_TOPOLOGY_PROOF") &&
@@ -2844,11 +2851,14 @@ static int runB001StackupSelftest() {
         changed.write("MODIFIED AFTER IMPORT\n") > 0;
     changed.close();
     const bool mutationRejected = changedWritten &&
-        !editor.saveTo(overlayPath) && !editor.loadFrom(overlayPath);
+        !editor.saveTo(overlayPath) && !editor.loadFrom(overlayPath) &&
+        !editor.auditCanonical() && !editor.currentAuditIsFresh();
     editor.resetForImport(different.fileName(), 4);
     const bool foreignRejected = !editor.loadFrom(overlayPath) &&
         editor.validate().contains("RUN BLOCKED");
     const bool pass = unknownBlocked && rustCanonicalAssumed &&
+                      firstAuditFresh && changedMaterialInvalidatesAudit &&
+                      secondAuditRefreshes && changedSourceInventoryInvalidates &&
                       sourceLabelsNotPhysicalReference && cutoutBlocksReference &&
                       missingCopperNetIsNotGround &&
                       sameNetIsRejected && buttonPreservesReason &&
@@ -2862,6 +2872,9 @@ static int runB001StackupSelftest() {
         {"pass", pass}, {"missing_fields_blocked", unknownBlocked},
         {"user_input_validated", inputAccepted},
         {"canonical_assumed_and_reference_unsupported", rustCanonicalAssumed},
+        {"fresh_audit_binds_session_revision", firstAuditFresh && secondAuditRefreshes},
+        {"changed_material_invalidates_audit", changedMaterialInvalidatesAudit},
+        {"changed_inventory_invalidates_audit", changedSourceInventoryInvalidates},
         {"canonical_out_of_band_blocked", rustOutOfBandRejected},
         {"source_net_labels_never_certify_return", sourceLabelsNotPhysicalReference},
         {"source_cutout_candidate_blocked", cutoutBlocksReference},
