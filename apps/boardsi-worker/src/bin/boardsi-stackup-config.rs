@@ -109,7 +109,7 @@ fn reference_inventory_audit(
             || line == 0
             || holes > 8
             || (curved && circle)
-            || (!net.is_empty() && !observed.contains(net))
+            || (complete && !net.is_empty() && !observed.contains(net))
             || !seen_names.insert(name)
         {
             return Err("SOURCE_COPPER_INVENTORY_CONFLICT");
@@ -432,6 +432,15 @@ mod tests {
             reference_inventory_audit(evidence.as_object().unwrap(), &layers).unwrap().0,
             "UNKNOWN_OR_MISSING_SOURCE_NET"
         );
+        // A bounded/incomplete Net inventory must not block Material audit,
+        // even if a source Copper label fell beyond the 128-name cap.
+        evidence["net_inventory_complete"] = json!(false);
+        evidence["reference_copper_inventory"][0][2] = json!("NET_129");
+        assert_eq!(
+            reference_inventory_audit(evidence.as_object().unwrap(), &layers).unwrap().0,
+            "NO_SOURCE_REFERENCE_EVIDENCE"
+        );
+        evidence["net_inventory_complete"] = json!(true);
         evidence["reference_copper_inventory"][0][2] = json!("OTHER_NET");
         assert_eq!(
             reference_inventory_audit(evidence.as_object().unwrap(), &layers),
