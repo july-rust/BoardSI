@@ -253,8 +253,11 @@ impl BoardModel {
             points.push(&v.position);
         }
         for n in &self.connectivity.nodes {
-            if let ContactSite::AreaWitness { point, .. } = &n.site {
-                points.push(point);
+            match &n.site {
+                ContactSite::AreaWitness { point, .. } | ContactSite::TraceInterior { point } => {
+                    points.push(point);
+                }
+                _ => {}
             }
         }
         points
@@ -838,6 +841,39 @@ impl BoardModel {
                         .get(*i)
                         .ok_or(ModelError::InvalidReference)?,
                 )
+            }
+            ContactSite::TraceInterior { point } => {
+                let trace = lookup
+                    .traces
+                    .get(&node.conductor)
+                    .copied()
+                    .ok_or(ModelError::InvalidReference)?;
+                require(
+                    trace.layer == node.layer && trace.centreline.len() == 2,
+                    ModelError::InvalidConnection,
+                )?;
+                let a = &trace.centreline[0];
+                let b = &trace.centreline[1];
+                require(
+                    a.frame == b.frame && a.frame == point.frame,
+                    ModelError::InvalidConnection,
+                )?;
+                // Exact i128 source-grid cross product: no epsilon, float
+                // rounding, coordinate re-projection or inferred copper width.
+                let ax = i128::from(a.ticks[0]);
+                let ay = i128::from(a.ticks[1]);
+                let bx = i128::from(b.ticks[0]);
+                let by = i128::from(b.ticks[1]);
+                let x = i128::from(point.ticks[0]);
+                let y = i128::from(point.ticks[1]);
+                let cross = (bx - ax) * (y - ay) - (by - ay) * (x - ax);
+                let dot = (x - ax) * (bx - ax) + (y - ay) * (by - ay);
+                let length2 = (bx - ax) * (bx - ax) + (by - ay) * (by - ay);
+                require(
+                    cross == 0 && dot > 0 && dot < length2,
+                    ModelError::InvalidConnection,
+                )?;
+                (&trace.net, point)
             }
             ContactSite::ArcStart | ContactSite::ArcEnd => {
                 let arc = lookup
