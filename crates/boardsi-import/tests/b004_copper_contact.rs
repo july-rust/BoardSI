@@ -146,6 +146,28 @@ fn area_witness_is_independently_checked_by_canonical_model() {
     );
 }
 #[test]
+fn source_declared_component_pad_centre_inside_filled_area() {
+    let sample = include_str!("fixtures/pads_component_simple_v94.asc");
+    let original = "*ROUTE*\n*SIGNAL* NET_A\nU9.1 U9.2\n100 200 1 10 0\n300 200 1 10 0\n";
+    let replacement = "*LINES*\nZONE COPPER 150 250 1 1 0 NET_A\nCOPCLS 5 0.01 0 1\n0 0\n100 0\n100 100\n0 100\n0 0\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U9.2\n300 400 1 10 0\n350 400 1 10 0\n";
+    assert!(sample.contains(original));
+    let input = sample.replace(original, replacement);
+    let parsed = route_preview::parse(input.as_bytes()).unwrap();
+    let mut board = route_preview::into_canonical(input.as_bytes(), &parsed).unwrap();
+    let pads = boardsi_import::part_preview::parse(input.as_bytes(), parsed.max_layer);
+    boardsi_import::part_preview::augment_source_bound(&mut board, &pads, input.as_bytes())
+        .unwrap();
+    let areas = copper_preview::parse(input.as_bytes(), parsed.max_layer).unwrap();
+    copper_preview::augment(&mut board, &areas).unwrap();
+    let result = copper_contact::augment(&mut board, &areas).unwrap();
+    assert_eq!(result.exact_contacts, 1);
+    assert!(!board.validate().has_errors(), "{:#?}",board.validate().issues);
+    let reference = copper_contact::local_reference_candidate(&board, "NET_A");
+    assert_eq!(reference.state, "LOCAL_CONTACT_VERIFIED");
+    assert_eq!(reference.conductor_ids.len(),1);
+    assert!(board.pads.iter().any(|p| p.meta.id == reference.conductor_ids[0]));
+}
+#[test]
 fn legacy_v1_contact_counts_are_unchanged() {
     let src = source(AREA, ROUTE);
     let parsed = route_preview::parse(src.as_bytes()).unwrap();
