@@ -237,14 +237,22 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         .iter()
         .map(|n| (n.meta.id.clone(), n))
         .collect();
-    if board.connectivity.edges.len() > MAX_RECORDS {
+    // V1 explicitly transports *endpoints only*. B_003 interior witnesses
+    // stay in the validated Canonical graph but MUST NOT be encoded as fake
+    // TraceVertex(0/1) or silently change the V1 wire contract.
+    let compatible_edges: Vec<_> = board.connectivity.edges.iter().filter(|edge| {
+        [&edge.a, &edge.b].into_iter().all(|id| {
+            nodes.get(id).map_or(false, |node| {
+                !matches!(node.site, ContactSite::TraceInterior { .. })
+            })
+        })
+    }).collect();
+    if compatible_edges.len() > MAX_RECORDS {
         return Err("CONTACT_WIRE_RECORD_LIMIT");
     }
 
     let conflicts = potential_conflicts(board, &layers)?;
-    let count = board
-        .connectivity
-        .edges
+    let count = compatible_edges
         .len()
         .checked_add(conflicts.len())
         .ok_or("CONTACT_WIRE_RECORD_LIMIT")?;
@@ -263,7 +271,7 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         write!(&mut out, "{b:02x}").map_err(|_| "CONTACT_WIRE_FORMAT")?;
     }
     out.push('\n');
-    for edge in &board.connectivity.edges {
+    for edge in compatible_edges {
         let a = resolve(
             board,
             &objects,
