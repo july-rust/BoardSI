@@ -64,7 +64,7 @@ fn area_connects_only_its_own_interior_witnesses() {
 fn forward_collinear_source_vertices_preserve_exact_contacts() {
     let source_area = AREA
         .replace("COPCLS 5 0.01 0 1", "COPCLS 6 0.01 0 1")
-        .replace("0 0\\n100 0\\n", "0 0\\n50 0\\n100 0\\n");
+        .replace("0 0\n100 0\n", "0 0\n50 0\n100 0\n");
     let (board, audit) = assemble(&source(&source_area, ROUTE));
     assert_eq!(audit.exact_contacts, 1);
     assert_eq!(audit.unsupported_areas, 0);
