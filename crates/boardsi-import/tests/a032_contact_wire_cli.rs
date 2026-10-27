@@ -112,7 +112,7 @@ fn b003_canonical_interior_edges_do_not_break_legacy_qt_audit_counts() {
         assert!(text.starts_with(&format!(
             "BOARDSI_CONTACT_RECORDS_V1|{expected_records}|LOCAL_ENDPOINT_ONLY|"
         )));
-        assert!(text.ends_with(&format!("BOARDSI_CONTACT_END_V1|{expected_records}\\n")));
+        assert!(text.ends_with(&format!("BOARDSI_CONTACT_END_V1|{expected_records}\n")));
         assert_eq!(text.lines().count(), expected_records + 2);
     }
 }
