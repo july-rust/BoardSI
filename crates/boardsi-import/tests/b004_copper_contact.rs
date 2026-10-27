@@ -1,5 +1,5 @@
 //! B_004 source-grid Copper Area contact regression; synthetic PADS V9.4 MILS.
-use boardsi_import::{connectivity_preview, copper_contact, copper_preview, route_preview};
+use boardsi_import::{copper_contact, copper_preview, route_preview};
 use boardsi_model::{ConnectionEvidence, ContactSite};
 
 fn assemble(source: &str) -> (boardsi_model::BoardModel, copper_contact::AreaContactAudit) {
