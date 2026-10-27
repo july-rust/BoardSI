@@ -65,10 +65,17 @@ The existing Qt session digest detects UI edits but was **not** a Rust-owned aud
 
 ### Candidate verification (do not mark PASS before CI)
 
-- [ ] Rust Worker model and snapshot revision unit tests, Rust numerical checks.
-- [ ] Native Qt Windows x64, Windows ARM64 and macOS ARM64 B_001 Stackup test.
-- [ ] Linux x86_64 Qt regression, earlier PADS Artwork/IPC tests.
-- [ ] Exact final HEAD required checks and independent Codex review.
-- [ ] Protected merge and separate post-main verification.
+- [x] Rust Worker snapshot revision unit tests, Rust numerical checks — PR #221 final source HEAD 27/27 PASS.
+- [x] Native Qt Windows x64, Windows ARM64 and macOS ARM64 B_001 Stackup test — PR #221 final source HEAD PASS.
+- [x] Linux x86_64 Qt, existing PADS Artwork/IPC tests — PR #221 final source HEAD PASS.
+- [x] Exact final source HEAD `dd5a2ac7efb0007e4624fb19a275a281b5381128` **27/27 SUCCESS**, independent same-head Codex review with no major findings/unresolved threads.
+- [x] Signed protected squash merge `main@222552c9f92808e67ba06c80cb6de50756fcf3c2` (2026-10-27 KST); signature verified valid.
+- [ ] Separate post-source-merge `main@222552c9` CI: currently pending result; do not claim it passed until checked.
 
 **Remaining full B_001 blockers:** electrical Reference Copper/Net/Pad/Via/Port graph and planar cutouts, qualified Return Path, physical solver Scenario and cache, validated Material loss/roughness, formal full U09/U10/U39 + T02/T04/T24/T52. Issue #12 remains **OPEN**. This limited implementation alone is not full B_001 completion.
+
+### B_002 limited Scenario Revision integration acceptance (2026-10-27 KST)
+
+Only the **source-bound assumed audit** identity and Qt freshness handling from [PR #221](https://github.com/july-rust/BoardSI/pull/221) are accepted: final PR HEAD `dd5a2ac7efb0007e4624fb19a275a281b5381128` 27/27 check-runs SUCCESS; same-HEAD independent Codex review zero major findings/threads; verified signed squash merge `222552c9f92808e67ba06c80cb6de50756fcf3c2`. Check date **2026-10-27 KST**, evidence date **2026-10-27 KST**. The implementation retains `cache_reuse_eligible=false` and all electrical/physics blocks. No physical Solver cache/PCB return-path or full U/T requirements are certified.
+
+Next required B_001 work: imported Copper/Pad/Via geometry and electrical net graph, actual Plane split/Cutout return continuity, physics Scenario Cache Result invalidation, validated Material roughness/loss and the complete formal T02/T04/T24/T52 evidence. Issue #12 stays OPEN until evidence for its agreed scope is independently available.
