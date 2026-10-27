@@ -2758,23 +2758,34 @@ static int runB001StackupSelftest() {
     const bool rustCanonicalAssumed = editor.auditCanonical() &&
         editor.summary().contains("RETURN PATH UNSUPPORTED") &&
         editor.summary().contains("SI NOT_RUN");
-    editor.setSourceCopperInventory(
-        QJsonArray{QJsonArray{3, "PUBLIC_PLANE", "GND", 123, 0, false, false}},
-        QJsonArray{"SIG", "GND"}, true);
+    // Explicit JSON field types: no implicit string-literal -> bool conversion.
+    const auto sourceCopper = [](const QString &net, int holes) {
+        QJsonArray row;
+        row.append(3);
+        row.append(QString("PUBLIC_PLANE"));
+        row.append(net);
+        row.append(123);
+        row.append(holes);
+        row.append(false);
+        row.append(false);
+        QJsonArray areas;
+        areas.append(row);
+        return areas;
+    };
+    QJsonArray declaredNets;
+    declaredNets.append(QString("SIG"));
+    declaredNets.append(QString("GND"));
+    editor.setSourceCopperInventory(sourceCopper("GND", 0), declaredNets, true);
     editor.selectReferenceNets("SIG", "GND");
     const bool sourceLabelsNotPhysicalReference = editor.auditCanonical() &&
         editor.summary().contains("OBSERVED_LABELS_NO_TOPOLOGY_PROOF") &&
         editor.summary().contains("RETURN PATH UNSUPPORTED");
     const QString referenceInventoryProbe = editor.summary();
-    editor.setSourceCopperInventory(
-        QJsonArray{QJsonArray{3, "PUBLIC_PLANE", "GND", 123, 1, false, false}},
-        QJsonArray{"SIG", "GND"}, true);
+    editor.setSourceCopperInventory(sourceCopper("GND", 1), declaredNets, true);
     const bool cutoutBlocksReference = editor.auditCanonical() &&
         editor.summary().contains("CUTOUT_OR_SPLIT_UNSUPPORTED");
     const QString cutoutInventoryProbe = editor.summary();
-    editor.setSourceCopperInventory(
-        QJsonArray{QJsonArray{3, "PUBLIC_PLANE", "", 123, 0, false, false}},
-        QJsonArray{"SIG", "GND"}, true);
+    editor.setSourceCopperInventory(sourceCopper(QString(), 0), declaredNets, true);
     const bool missingCopperNetIsNotGround = editor.auditCanonical() &&
         editor.summary().contains("UNKNOWN_OR_MISSING_SOURCE_NET");
     const QString missingNetProbe = editor.summary();
@@ -2785,9 +2796,7 @@ static int runB001StackupSelftest() {
     const bool buttonPreservesReason = auditButton &&
         editor.summary().contains("RUST REJECTED / SIGNAL_REFERENCE_SAME_NET");
     editor.selectReferenceNets("SIG", "GND");
-    editor.setSourceCopperInventory(
-        QJsonArray{QJsonArray{3, "PUBLIC_PLANE", "GND", 123, 0, false, false}},
-        QJsonArray{"SIG", "GND"}, false);
+    editor.setSourceCopperInventory(sourceCopper("GND", 0), declaredNets, false);
     const bool incompleteNetInventoryBlocks = editor.auditCanonical() &&
         editor.summary().contains("NO_SOURCE_REFERENCE_EVIDENCE");
     const QString incompleteInventoryProbe = editor.summary();
