@@ -276,6 +276,10 @@ pub fn local_reference_candidate(board: &BoardModel, name: &str) -> ReferenceLoc
         state: "UNSUPPORTED",
         ..Default::default()
     };
+    // Never report a verified contact from altered or forged Canonical evidence.
+    if board.validate().has_errors() {
+        return result;
+    }
     let Some(net) = board.nets.iter().find(|n| n.name == name) else {
         return result;
     };
