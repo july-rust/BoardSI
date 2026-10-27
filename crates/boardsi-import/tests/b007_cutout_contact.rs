@@ -221,13 +221,16 @@ fn source_pad_in_cutout_cannot_be_moved_into_copper_or_redefined() {
     let empty = copper_contact::augment_source_bound(&mut board, &areas, input.as_bytes()).unwrap();
     assert_eq!(empty.exact_contacts, 0);
     assert!(board.areas[0].net.is_none());
-    let mut moved = board.clone();
+    let mut moved = board;
     moved.pads[0].position.ticks[0] += 2000;
     assert_eq!(
         copper_contact::augment_source_bound(&mut moved, &areas, input.as_bytes()).unwrap_err(),
         "B007_SOURCE_INVENTORY_MISMATCH"
     );
-    let mut redefined = board;
+    let mut redefined = route_preview::into_canonical(input.as_bytes(), &parsed).unwrap();
+    boardsi_import::part_preview::augment_source_bound(&mut redefined, &pads, input.as_bytes())
+        .unwrap();
+    copper_preview::augment(&mut redefined, &areas).unwrap();
     redefined.padstacks[0].entries.pop();
     assert_eq!(
         copper_contact::augment_source_bound(&mut redefined, &areas, input.as_bytes()).unwrap_err(),
