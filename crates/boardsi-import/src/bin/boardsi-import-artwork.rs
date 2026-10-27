@@ -32,7 +32,7 @@ fn run() -> Result<(usize, usize), &'static str> {
     part_preview::augment_source_bound(&mut board, &pad_data, &bytes)?;
     outline_preview::augment(&mut board, &outlines)?;
     copper_preview::augment(&mut board, &coppers)?;
-    boardsi_import::copper_contact::augment(&mut board, &coppers)?;
+    boardsi_import::copper_contact::augment_source_bound(&mut board, &coppers, &bytes)?;
     // B_006: local source-bound Via/COPCLS evidence, never physical P009 or SI.
     boardsi_import::via_copper_contact::augment(&mut board, &bytes)?;
     if board.arcs.len() != result.arcs.len()
