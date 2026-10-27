@@ -243,7 +243,7 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
     let compatible_edges: Vec<_> = board.connectivity.edges.iter().filter(|edge| {
         [&edge.a, &edge.b].into_iter().all(|id| {
             nodes.get(id).map_or(false, |node| {
-                !matches!(node.site, ContactSite::TraceInterior { .. })
+                !matches!(&node.site, ContactSite::TraceInterior { .. })
             })
         })
     }).collect();
