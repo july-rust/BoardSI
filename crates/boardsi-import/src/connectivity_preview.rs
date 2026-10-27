@@ -166,6 +166,35 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
             push_site(&mut locations, &arc.layer, point.ticks, candidate)?;
         }
     }
+    // Via-to-trace centreline lookup: index exact horizontal/vertical
+    // source-tick axes by Layer. Unsupported diagonal candidates stay layer-
+    // bounded. Never scan every unrelated Layer for every plated Via.
+    let mut horizontal: BTreeMap<(ObjectId, i64), Vec<usize>> = BTreeMap::new();
+    let mut vertical: BTreeMap<(ObjectId, i64), Vec<usize>> = BTreeMap::new();
+    let mut diagonal: BTreeMap<ObjectId, Vec<usize>> = BTreeMap::new();
+    for (trace_index, trace) in board.traces.iter().enumerate() {
+        if trace.centreline.len() != 2 {
+            return Err("UNSUPPORTED_CONTACT_TRACE");
+        }
+        let a = trace.centreline[0].ticks;
+        let b = trace.centreline[1].ticks;
+        if a[1] == b[1] {
+            horizontal
+                .entry((trace.layer.clone(), a[1]))
+                .or_default()
+                .push(trace_index);
+        } else if a[0] == b[0] {
+            vertical
+                .entry((trace.layer.clone(), a[0]))
+                .or_default()
+                .push(trace_index);
+        } else {
+            diagonal
+                .entry(trace.layer.clone())
+                .or_default()
+                .push(trace_index);
+        }
+    }
     for (index, via) in board.vias.iter().enumerate() {
         let drill = board
             .drills
@@ -188,21 +217,37 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
             // Index only an actual endpoint or an exact source-tick
             // straight Trace interior witness. Idle vias remain unconnected.
             let endpoint = locations.contains_key(&(entry.layer.clone(), via.position.ticks));
-            let interior = board.traces.iter().any(|trace| {
-                if trace.layer != entry.layer || trace.centreline.len() != 2 {
-                    return false;
-                }
-                let a = trace.centreline[0].ticks;
-                let b = trace.centreline[1].ticks;
+            if !endpoint {
                 let p = via.position.ticks;
-                let (ax, ay) = (i128::from(a[0]), i128::from(a[1]));
-                let (bx, by) = (i128::from(b[0]), i128::from(b[1]));
-                let (px, py) = (i128::from(p[0]), i128::from(p[1]));
-                (bx - ax) * (py - ay) == (by - ay) * (px - ax)
-                    && (px - ax) * (px - bx) + (py - ay) * (py - by) < 0
-            });
-            if !endpoint && !interior {
-                continue;
+                let candidate_traces = horizontal
+                    .get(&(entry.layer.clone(), p[1]))
+                    .into_iter()
+                    .flat_map(|indices| indices.iter())
+                    .chain(
+                        vertical
+                            .get(&(entry.layer.clone(), p[0]))
+                            .into_iter()
+                            .flat_map(|indices| indices.iter()),
+                    )
+                    .chain(
+                        diagonal
+                            .get(&entry.layer)
+                            .into_iter()
+                            .flat_map(|indices| indices.iter()),
+                    );
+                let interior = candidate_traces.into_iter().any(|&trace_index| {
+                    let trace = &board.traces[trace_index];
+                    let a = trace.centreline[0].ticks;
+                    let b = trace.centreline[1].ticks;
+                    let (ax, ay) = (i128::from(a[0]), i128::from(a[1]));
+                    let (bx, by) = (i128::from(b[0]), i128::from(b[1]));
+                    let (px, py) = (i128::from(p[0]), i128::from(p[1]));
+                    (bx - ax) * (py - ay) == (by - ay) * (px - ax)
+                        && (px - ax) * (px - bx) + (py - ay) * (py - by) < 0
+                });
+                if !interior {
+                    continue;
+                }
             }
             let candidate = site(
                 &source,
