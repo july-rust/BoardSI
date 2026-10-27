@@ -868,9 +868,8 @@ impl BoardModel {
                 let y = i128::from(point.ticks[1]);
                 // Model coordinates are not restricted to PADS importer bounds.
                 // The products can exceed i128 even though individual ticks are i64.
-                let checked_product = |a: i128, b: i128| {
-                    a.checked_mul(b).ok_or(ModelError::CoordinateOverflow)
-                };
+                let checked_product =
+                    |a: i128, b: i128| a.checked_mul(b).ok_or(ModelError::CoordinateOverflow);
                 let dx = bx - ax;
                 let dy = by - ay;
                 let px = x - ax;
