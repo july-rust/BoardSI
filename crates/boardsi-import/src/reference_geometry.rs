@@ -382,6 +382,17 @@ pub fn audit(
             }
         }
     }
+    // This bounded single-layer path audit cannot certify a via-connected
+    // branch, even when the via and downstream Trace have another layer.
+    // Check the reparsed original Via positions so a detached canonical
+    // inventory cannot hide a source-through conductor.
+    if source_board.vias.iter().any(|via| {
+        selected.iter().any(|trace| {
+            on(trace.centreline[0].ticks, trace.centreline[1].ticks, via.position.ticks)
+        })
+    }) {
+        return unsupported("SOURCE_VIA_CONTACT_UNSUPPORTED");
+    }
     // Exact source Arc endpoints touching the selected centreline are
     // established non-straight graph branches, not covered by B_005.
     for arc in &board.arcs {
