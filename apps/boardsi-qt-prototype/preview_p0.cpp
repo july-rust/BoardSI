@@ -2764,6 +2764,15 @@ static int runB001StackupSelftest() {
         editor.summary().contains("RE-AUDIT REQUIRED");
     set(1, 5, "0.02");
     const bool secondAuditRefreshes = editor.auditCanonical() && editor.currentAuditIsFresh();
+    // Simulate a direct model mutation with notifications suppressed: the request
+    // content itself (not just GUI change signals) must invalidate the receipt.
+    editor.table()->blockSignals(true);
+    set(1, 5, "0.03");
+    editor.table()->blockSignals(false);
+    const bool silentMaterialChangeInvalidates = !editor.currentAuditIsFresh();
+    set(1, 5, "0.02");
+    const bool silentChangeReauditRestores = editor.auditCanonical() &&
+        editor.currentAuditIsFresh();
     // Explicit JSON field types: no implicit string-literal -> bool conversion.
     const auto sourceCopper = [](const QString &net, int holes) {
         QJsonArray row;
@@ -2858,7 +2867,8 @@ static int runB001StackupSelftest() {
         editor.validate().contains("RUN BLOCKED");
     const bool pass = unknownBlocked && rustCanonicalAssumed &&
                       firstAuditFresh && changedMaterialInvalidatesAudit &&
-                      secondAuditRefreshes && changedSourceInventoryInvalidates &&
+                      secondAuditRefreshes && silentMaterialChangeInvalidates &&
+                      silentChangeReauditRestores && changedSourceInventoryInvalidates &&
                       sourceLabelsNotPhysicalReference && cutoutBlocksReference &&
                       missingCopperNetIsNotGround &&
                       sameNetIsRejected && buttonPreservesReason &&
@@ -2874,6 +2884,8 @@ static int runB001StackupSelftest() {
         {"canonical_assumed_and_reference_unsupported", rustCanonicalAssumed},
         {"fresh_audit_binds_session_revision", firstAuditFresh && secondAuditRefreshes},
         {"changed_material_invalidates_audit", changedMaterialInvalidatesAudit},
+        {"silent_change_invalidates_audit", silentMaterialChangeInvalidates},
+        {"silent_change_reaudit_refreshes", silentChangeReauditRestores},
         {"changed_inventory_invalidates_audit", changedSourceInventoryInvalidates},
         {"canonical_out_of_band_blocked", rustOutOfBandRejected},
         {"source_net_labels_never_certify_return", sourceLabelsNotPhysicalReference},
