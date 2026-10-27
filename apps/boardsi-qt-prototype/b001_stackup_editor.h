@@ -34,6 +34,7 @@ class B001StackupEditor final : public QWidget {
     bool acceptedNetInventoryComplete_ = false;
     QString sourcePath_;
     QByteArray importDigest_; // Pinned at successful import; never trust a later path-only match.
+    QByteArray auditedRevision_; // Session-only digest of the last successful Rust audit input.
     static constexpr int Columns = 16;
     // Layer ID / kind / thickness in micrometres / material / Dk / Df /
     // conductivity S/m / net-role hint / reference layer / source document / revision /
@@ -107,13 +108,16 @@ public:
         // Any user edit or changed audit frequency invalidates the previous
         // Rust receipt immediately: no stale 'ASSUMED' result survives a scenario edit.
         connect(rows_, &QTableWidget::itemChanged, this, [this](QTableWidgetItem *) {
+            auditedRevision_.clear();
             status("STACKUP INPUT MODIFIED / RE-AUDIT REQUIRED / SI NOT_RUN");
         });
         connect(auditFrequency_, &QLineEdit::textChanged, this, [this](const QString &) {
+            auditedRevision_.clear();
             status("AUDIT FREQUENCY MODIFIED / RE-AUDIT REQUIRED / SI NOT_RUN");
         });
         for (auto *entry : {signalNet_, referenceNet_}) {
             connect(entry, &QLineEdit::textChanged, this, [this](const QString &) {
+                auditedRevision_.clear();
                 status("REFERENCE NET SELECTION MODIFIED / RE-AUDIT REQUIRED / SI NOT_RUN");
             });
         }
@@ -155,13 +159,24 @@ public:
         acceptedCopperInventory_ = copper;
         acceptedNetLabels_ = nets;
         acceptedNetInventoryComplete_ = complete;
+        auditedRevision_.clear();
         status("SOURCE COPPER INVENTORY UPDATED / REFERENCE NOT_PROVED / SI NOT_RUN");
     }
     QString summary() const { return message_->text(); }
+    // A receipt is only fresh for this session's audited input and pinned board bytes.
+    // This is NOT a Solver/Reference qualification or a persistent cache key.
+    bool currentAuditIsFresh() const {
+        if (auditedRevision_.isEmpty() || sourcePath_.isEmpty() ||
+            sourceDigest(sourcePath_) != importDigest_) return false;
+        const QByteArray bytes = auditRequestBytes(importDigest_);
+        return !bytes.isEmpty() &&
+               QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex() == auditedRevision_;
+    }
     void resetForImport(const QString &path, int layerCount) {
         // Begin reimport by calling with 0; fail-closed regardless of import outcome.
         sourcePath_ = layerCount > 0 ? path : QString();
         importDigest_.clear();
+        auditedRevision_.clear();
         acceptedCopperInventory_ = QJsonArray();
         acceptedNetLabels_ = QJsonArray();
         acceptedNetInventoryComplete_ = false;
@@ -315,22 +330,21 @@ public:
         // Explicit choices are user input, not source-certified Net roles.
         signalNet_->setText(legacy ? QString() : storedSignal);
         referenceNet_->setText(legacy ? QString() : storedReference);
+        auditedRevision_.clear();
         status("OVERLAY LOADED / CANONICAL MUST BE RE-AUDITED / SI NOT_RUN");
         return true;
     }
-    bool auditCanonical() {
-        if (!validate().startsWith("INPUT FIELDS VALID")) return false;
-        bool valid = false;
-        const double freq = auditFrequency_->text().trimmed().toDouble(&valid);
-        if (!valid || !std::isfinite(freq) || freq < 0.0) return false;
-        const QByteArray digest = sourceDigest(sourcePath_);
-        if (digest != importDigest_ || digest.size() != 64) return false;
+    // Exact source+user input snapshot shared by audit and freshness checks.
+    // No digest-only shortcut: detect even edits whose Qt notification was suppressed.
+    QByteArray auditRequestBytes(const QByteArray &digest) const {
+        if (digest.size() != 64 || rows_->rowCount() < 1 || rows_->rowCount() > 64)
+            return {};
         QJsonArray layers;
         for (int r = 0; r < rows_->rowCount(); ++r) {
             QJsonArray row;
             for (int c = 0; c < Columns; ++c) {
                 const QString value = field(r, c);
-                if (value.size() > 512) return false;
+                if (value.size() > 512) return {};
                 row.append(value);
             }
             layers.append(row);
@@ -347,7 +361,18 @@ public:
             {"net_inventory_complete", acceptedNetInventoryComplete_},
             {"layers", layers}});
         const QByteArray bytes = request.toJson(QJsonDocument::Compact);
-        if (bytes.size() > 65536) return false;
+        return bytes.size() <= 65536 ? bytes : QByteArray();
+    }
+    bool auditCanonical() {
+        auditedRevision_.clear();
+        if (!validate().startsWith("INPUT FIELDS VALID")) return false;
+        bool valid = false;
+        const double freq = auditFrequency_->text().trimmed().toDouble(&valid);
+        if (!valid || !std::isfinite(freq) || freq < 0.0) return false;
+        const QByteArray digest = sourceDigest(sourcePath_);
+        if (digest != importDigest_ || digest.size() != 64) return false;
+        const QByteArray bytes = auditRequestBytes(digest);
+        if (bytes.isEmpty()) return false;
         QString executable = qEnvironmentVariable("BOARDSI_STACKUP_VALIDATOR");
         if (executable.isEmpty()) {
 #ifdef Q_OS_WIN
@@ -371,6 +396,11 @@ public:
         QJsonParseError error;
         const QJsonDocument result = QJsonDocument::fromJson(resultBytes, &error);
         if (error.error != QJsonParseError::NoError || !result.isObject()) return false;
+        // The source file may change outside Qt while the native process runs.
+        if (sourceDigest(sourcePath_) != digest) {
+            status("SOURCE CHANGED DURING AUDIT / REIMPORT REQUIRED / SI NOT_RUN");
+            return false;
+        }
         const QJsonObject auditFields = result.object();
         if (process.exitCode() != 0) {
             // Display only the native fixed reason code, never raw stdout or
@@ -398,6 +428,7 @@ public:
             candidate != "UNKNOWN_OR_MISSING_SOURCE_NET" &&
             candidate != "OBSERVED_LABELS_NO_TOPOLOGY_PROOF" &&
             candidate != "CUTOUT_OR_SPLIT_UNSUPPORTED") return false;
+        auditedRevision_ = QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex();
         status("RUST CANONICAL STACKUP ASSUMED / SOURCE REFERENCE " + candidate +
                " / RETURN PATH UNSUPPORTED / SI NOT_RUN");
         return true;

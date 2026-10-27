@@ -2758,6 +2758,21 @@ static int runB001StackupSelftest() {
     const bool rustCanonicalAssumed = editor.auditCanonical() &&
         editor.summary().contains("RETURN PATH UNSUPPORTED") &&
         editor.summary().contains("SI NOT_RUN");
+    const bool firstAuditFresh = editor.currentAuditIsFresh();
+    set(1, 5, "0.03");
+    const bool changedMaterialInvalidatesAudit = !editor.currentAuditIsFresh() &&
+        editor.summary().contains("RE-AUDIT REQUIRED");
+    set(1, 5, "0.02");
+    const bool secondAuditRefreshes = editor.auditCanonical() && editor.currentAuditIsFresh();
+    // Simulate a direct model mutation with notifications suppressed: the request
+    // content itself (not just GUI change signals) must invalidate the receipt.
+    editor.table()->blockSignals(true);
+    set(1, 5, "0.03");
+    editor.table()->blockSignals(false);
+    const bool silentMaterialChangeInvalidates = !editor.currentAuditIsFresh();
+    set(1, 5, "0.02");
+    const bool silentChangeReauditRestores = editor.auditCanonical() &&
+        editor.currentAuditIsFresh();
     // Explicit JSON field types: no implicit string-literal -> bool conversion.
     const auto sourceCopper = [](const QString &net, int holes) {
         QJsonArray row;
@@ -2776,6 +2791,7 @@ static int runB001StackupSelftest() {
     declaredNets.append(QString("SIG"));
     declaredNets.append(QString("GND"));
     editor.setSourceCopperInventory(sourceCopper("GND", 0), declaredNets, true);
+    const bool changedSourceInventoryInvalidates = !editor.currentAuditIsFresh();
     editor.selectReferenceNets("SIG", "GND");
     const bool sourceLabelsNotPhysicalReference = editor.auditCanonical() &&
         editor.summary().contains("OBSERVED_LABELS_NO_TOPOLOGY_PROOF") &&
@@ -2839,16 +2855,23 @@ static int runB001StackupSelftest() {
     const bool reset = editor.table()->item(0, 1)->text() == "Unknown";
     const bool restored = editor.loadFrom(overlayPath) &&
         editor.validate().startsWith("INPUT FIELDS VALID");
+    const bool restoredReaudited = restored && editor.auditCanonical() &&
+        editor.currentAuditIsFresh();
     QFile changed(source.fileName());
     const bool changedWritten = changed.open(QIODevice::WriteOnly | QIODevice::Append) &&
         changed.write("MODIFIED AFTER IMPORT\n") > 0;
     changed.close();
     const bool mutationRejected = changedWritten &&
-        !editor.saveTo(overlayPath) && !editor.loadFrom(overlayPath);
+        !editor.currentAuditIsFresh() &&
+        !editor.saveTo(overlayPath) && !editor.loadFrom(overlayPath) &&
+        !editor.auditCanonical();
     editor.resetForImport(different.fileName(), 4);
     const bool foreignRejected = !editor.loadFrom(overlayPath) &&
         editor.validate().contains("RUN BLOCKED");
     const bool pass = unknownBlocked && rustCanonicalAssumed &&
+                      firstAuditFresh && changedMaterialInvalidatesAudit &&
+                      secondAuditRefreshes && silentMaterialChangeInvalidates &&
+                      silentChangeReauditRestores && changedSourceInventoryInvalidates &&
                       sourceLabelsNotPhysicalReference && cutoutBlocksReference &&
                       missingCopperNetIsNotGround &&
                       sameNetIsRejected && buttonPreservesReason &&
@@ -2856,12 +2879,18 @@ static int runB001StackupSelftest() {
                       rustOutOfBandRejected &&
                       nonCopperRoleRejected && inputAccepted && invalidBlocked &&
                       sourceOverwriteRejected && symlinkRejected && saved && longFieldRejected &&
-                      oversizedDocRejected && reset && restored && mutationRejected && foreignRejected;
+                      oversizedDocRejected && reset && restored && restoredReaudited &&
+                      mutationRejected && foreignRejected;
     const QJsonDocument report(QJsonObject{
         {"schema", "b001-stackup-native-test-v1"},
         {"pass", pass}, {"missing_fields_blocked", unknownBlocked},
         {"user_input_validated", inputAccepted},
         {"canonical_assumed_and_reference_unsupported", rustCanonicalAssumed},
+        {"fresh_audit_binds_session_revision", firstAuditFresh && secondAuditRefreshes},
+        {"changed_material_invalidates_audit", changedMaterialInvalidatesAudit},
+        {"silent_change_invalidates_audit", silentMaterialChangeInvalidates},
+        {"silent_change_reaudit_refreshes", silentChangeReauditRestores},
+        {"changed_inventory_invalidates_audit", changedSourceInventoryInvalidates},
         {"canonical_out_of_band_blocked", rustOutOfBandRejected},
         {"source_net_labels_never_certify_return", sourceLabelsNotPhysicalReference},
         {"source_cutout_candidate_blocked", cutoutBlocksReference},
@@ -2880,7 +2909,8 @@ static int runB001StackupSelftest() {
         {"oversized_field_blocked", longFieldRejected},
         {"oversized_document_blocked", oversizedDocRejected},
         {"reimport_reset", reset},
-        {"same_source_roundtrip", restored}, {"post_import_mutation_rejected", mutationRejected},
+        {"same_source_roundtrip", restored}, {"restored_requires_fresh_audit", restoredReaudited},
+        {"post_import_mutation_rejected", mutationRejected},
         {"different_source_rejected", foreignRejected},
         {"reference_electrical_contact", "NOT_VERIFIED"},
         {"material_physics", "NOT_VERIFIED"}, {"physical_si", "NOT_RUN"}
