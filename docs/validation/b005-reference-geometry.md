@@ -52,3 +52,12 @@ unchecked.
 - [ ] Issue #12 remains OPEN; formal U/T unchanged
 
 **No positive acceptance is recorded before these gates.**
+
+## Additional source-proof remediation (pending CI)
+
+Codex identified detached source Net label spoofing, canonical Trace geometry
+mutation, and source Arc branches. B_005 now takes the actual original PADS
+bytes, rechecks original Source SHA and reparsed Copper inventory, independently
+reparses each selected ROUTE Trace ID/Layer/Net/endpoints, and rejects established
+same-Net Arc contact at selected path. Added three negative regression cases.
+These changes require fresh exact HEAD CI and independent Codex review.

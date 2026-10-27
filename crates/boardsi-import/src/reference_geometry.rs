@@ -1,6 +1,7 @@
 //! B_005 restricted source-bound Reference geometry coverage audit.
 //! An exact centreline-in-polygon proof is NOT a physical return-current/P009 proof.
 use crate::copper_preview::{CopperArea as SourceArea, CopperGeometry};
+use crate::{copper_preview, route_preview};
 use boardsi_model::{
     strict_simple_area_contains, BoardModel, BoundarySegment, ConnectionEvidence, ContactSite,
     LayerKind, ObjectId, ObjectKind,
@@ -167,6 +168,7 @@ fn exact_join(
 pub fn audit(
     board: &BoardModel,
     source_areas: &[SourceArea],
+    original_bytes: &[u8],
     ordered_trace_ids: &[ObjectId],
     reference_net_name: &str,
     reference_layer_id: &ObjectId,
@@ -184,6 +186,25 @@ pub fn audit(
     if ordered_trace_ids.is_empty() || ordered_trace_ids.len() > MAX_PATH_SEGMENTS {
         return unsupported("PATH_LENGTH_UNSUPPORTED");
     }
+    // Freshly parse the caller-supplied original PADS bytes. The file SHA,
+    // exact source-area labels/geometries and selected source ROUTE records
+    // must match the Canonical imported model; a modified detached inventory
+    // cannot silently certify a different Reference Net.
+    let Ok(parsed_route) = route_preview::parse(original_bytes) else {
+        return unsupported("ORIGINAL_PADS_ROUTE_UNSUPPORTED");
+    };
+    let Ok(source_board) = route_preview::into_canonical(original_bytes, &parsed_route) else {
+        return unsupported("ORIGINAL_PADS_MODEL_UNSUPPORTED");
+    };
+    let Ok(parsed_areas) = copper_preview::parse(original_bytes, parsed_route.max_layer) else {
+        return unsupported("ORIGINAL_PADS_COPPER_UNSUPPORTED");
+    };
+    if board.sources[0].id != source_board.sources[0].id {
+        return unsupported("ORIGINAL_SOURCE_SHA_MISMATCH");
+    }
+    if parsed_areas != source_areas {
+        return unsupported("ORIGINAL_COPPER_INVENTORY_MISMATCH");
+    }
     let mut selected = Vec::new();
     let mut seen = BTreeSet::new();
     for id in ordered_trace_ids {
@@ -199,6 +220,17 @@ pub fn audit(
             || trace.centreline[0].frame != board.frames[0].meta.id
         {
             return unsupported("UNSUPPORTED_TRACE_GEOMETRY");
+        }
+        // Trace ID alone does not bind its points, layer or Net to PADS.
+        let Some(raw_trace) = source_board.traces.iter().find(|t| t.meta.id == trace.meta.id)
+        else {
+            return unsupported("ORIGINAL_TRACE_NOT_FOUND");
+        };
+        if raw_trace.layer != trace.layer
+            || raw_trace.net != trace.net
+            || raw_trace.centreline != trace.centreline
+        {
+            return unsupported("ORIGINAL_TRACE_GEOMETRY_MISMATCH");
         }
         selected.push(trace);
     }
@@ -291,6 +323,20 @@ pub fn audit(
             if touches(a, b, other.centreline[0].ticks, other.centreline[1].ticks) {
                 return unsupported("UNSELECTED_TRACE_TOUCHES_PATH");
             }
+        }
+    }
+    // Exact source Arc endpoints touching the selected centreline are
+    // established non-straight graph branches, not covered by B_005.
+    for arc in &board.arcs {
+        if arc.layer != first.layer || arc.net.as_ref() != Some(signal_net) {
+            continue;
+        }
+        if selected.iter().any(|trace| {
+            let a = trace.centreline[0].ticks;
+            let b = trace.centreline[1].ticks;
+            on(a, b, arc.start.ticks) || on(a, b, arc.end.ticks)
+        }) {
+            return unsupported("UNSELECTED_ARC_BRANCH");
         }
     }
     let source_id = &board.sources[0].id;
