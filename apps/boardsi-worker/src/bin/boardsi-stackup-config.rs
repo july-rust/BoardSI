@@ -56,6 +56,105 @@ fn sha_bytes(s: &str) -> Result<[u8; 32], &'static str> {
     }
     Ok(bytes)
 }
+/// This is source-owned *object inventory*, not conductor connectivity.
+ /// It can invalidate an unsafe Reference candidate but can never certify P009.
+fn reference_inventory_audit(
+    obj: &serde_json::Map<String, Value>,
+    edits: &[StackupLayerEdit],
+) -> Result<(&'static str, usize, usize), &'static str> {
+    use std::collections::BTreeSet;
+    let nets = obj
+        .get("source_net_labels")
+        .and_then(Value::as_array)
+        .ok_or("MISSING_SOURCE_NET_INVENTORY")?;
+    let copper = obj
+        .get("reference_copper_inventory")
+        .and_then(Value::as_array)
+        .ok_or("MISSING_SOURCE_COPPER_INVENTORY")?;
+    if nets.len() > 128 || copper.len() > 64 {
+        return Err("OVERSIZED_SOURCE_REFERENCE_INVENTORY");
+    }
+    let complete = obj
+        .get("net_inventory_complete")
+        .and_then(Value::as_bool)
+        .ok_or("MISSING_NET_INVENTORY_COMPLETENESS")?;
+    let mut observed = BTreeSet::new();
+    for name in nets {
+        let n = name.as_str().ok_or("INVALID_SOURCE_NET_LABEL")?;
+        if n.is_empty() || n.len() > 64 || !observed.insert(n) {
+            return Err("INVALID_SOURCE_NET_LABEL");
+        }
+    }
+    let mut areas = Vec::with_capacity(copper.len());
+    let mut seen_names = BTreeSet::new();
+    for entry in copper {
+        let row = entry.as_array().ok_or("INVALID_SOURCE_COPPER_RECORD")?;
+        if row.len() != 7 {
+            return Err("INVALID_SOURCE_COPPER_RECORD");
+        }
+        let layer = row[0].as_u64().ok_or("INVALID_COPPER_LAYER")?;
+        let name = row[1].as_str().ok_or("INVALID_COPPER_NAME")?;
+        let net = row[2].as_str().ok_or("INVALID_COPPER_NET")?;
+        let line = row[3].as_u64().ok_or("INVALID_COPPER_SOURCE_LINE")?;
+        let holes = row[4].as_u64().ok_or("INVALID_COPPER_CUTOUTS")?;
+        let curved = row[5].as_bool().ok_or("INVALID_COPPER_CURVE")?;
+        let circle = row[6].as_bool().ok_or("INVALID_COPPER_CIRCLE")?;
+        if layer == 0 || layer as usize > edits.len()
+            || edits[(layer - 1) as usize].kind != LayerKind::Copper
+            || name.is_empty() || name.len() > 16
+            || net.is_empty() || net.len() > 47
+            || line == 0 || holes > 8 || (curved && circle)
+            || !observed.contains(net) || !seen_names.insert(name)
+        {
+            return Err("SOURCE_COPPER_INVENTORY_CONFLICT");
+        }
+        areas.push((layer as u32, net, holes));
+    }
+    let sig = obj
+        .get("selected_signal_net")
+        .and_then(Value::as_str)
+        .ok_or("MISSING_SELECTED_SIGNAL_NET")?;
+    let reference = obj
+        .get("selected_reference_net")
+        .and_then(Value::as_str)
+        .ok_or("MISSING_SELECTED_REFERENCE_NET")?;
+    if sig.len() > 64 || reference.len() > 64 {
+        return Err("OVERSIZED_SELECTED_NET");
+    }
+    if sig.is_empty() || reference.is_empty() {
+        return Ok(("NOT_SELECTED", nets.len(), copper.len()));
+    }
+    if sig == reference {
+        return Err("SIGNAL_REFERENCE_SAME_NET");
+    }
+    if !complete || areas.is_empty() {
+        return Ok(("NO_SOURCE_REFERENCE_EVIDENCE", nets.len(), copper.len()));
+    }
+    if !observed.contains(sig) || !observed.contains(reference) {
+        return Ok(("UNKNOWN_OR_MISSING_SOURCE_NET", nets.len(), copper.len()));
+    }
+    let possible_layers: BTreeSet<u32> = edits
+        .iter()
+        .filter_map(|e| e.reference_layer_id)
+        .collect();
+    if possible_layers.is_empty() {
+        return Ok(("UNKNOWN_OR_MISSING_SOURCE_NET", nets.len(), copper.len()));
+    }
+    let matching: Vec<_> = areas
+        .iter()
+        .filter(|(layer, net, _)| *net == reference && possible_layers.contains(layer))
+        .collect();
+    if matching.is_empty() {
+        return Ok(("UNKNOWN_OR_MISSING_SOURCE_NET", nets.len(), copper.len()));
+    }
+    // Multiple disjoint source Area IDs, curves and holes do NOT prove a
+    // continuous return conductor. Never bridge them or short other Nets.
+    if matching.len() > 1 || matching.iter().any(|(_, _, holes)| *holes > 0) {
+        return Ok(("CUTOUT_OR_SPLIT_UNSUPPORTED", nets.len(), copper.len()));
+    }
+    Ok(("OBSERVED_LABELS_NO_TOPOLOGY_PROOF", nets.len(), copper.len()))
+}
+
 fn audit(input: &Value) -> Result<Value, &'static str> {
     let object = input.as_object().ok_or("INVALID_DOCUMENT")?;
     if object.get("schema").and_then(Value::as_str) != Some("boardsi-b001-stackup-overlay-v2")
@@ -138,6 +237,8 @@ fn audit(input: &Value) -> Result<Value, &'static str> {
             reference_layer_id,
         });
     }
+    let (reference_candidate, observed_net_count, copper_area_count) =
+        reference_inventory_audit(object, &edits)?;
     let source: SourceId = Arc::new(SourceIdentity {
         format: SourceFormat::PadsAsc,
         format_version: "V9.4-MILS-partial".into(),
@@ -163,6 +264,11 @@ fn audit(input: &Value) -> Result<Value, &'static str> {
         "canonical_stackup": "ASSUMED",
         "canonical_materials": "ASSUMED_VALID_IN_BAND",
         "reference_continuity": "UNSUPPORTED_NO_COPPER_NET_EVIDENCE",
+        "reference_candidate": reference_candidate,
+        "observed_net_count": observed_net_count,
+        "observed_copper_area_count": copper_area_count,
+        "electrical_net_separation": "NOT_VERIFIED",
+        "return_path_p009": "UNSUPPORTED",
         "physical_si": "NOT_RUN",
         "solver_ready": false,
         "source_sha256": object.get("source_sha256"),
@@ -212,7 +318,10 @@ mod tests {
         assert!(sha_bytes("not-sha").is_err());
         let obj = json!({"schema":"boardsi-b001-stackup-overlay-v2","scope":"USER_OVERLAY_NOT_PHYSICAL_SI",
             "source_sha256":"0000000000000000000000000000000000000000000000000000000000000000",
-            "audit_frequency_hz":"1000000000","layers":[["1","Unknown","35","","","","","Unknown","","","","","","","",""]]});
+            "audit_frequency_hz":"1000000000","selected_signal_net":"",
+            "selected_reference_net":"","net_inventory_complete":false,
+            "source_net_labels":[],"reference_copper_inventory":[],
+            "layers":[["1","Unknown","35","","","","","Unknown","","","","","","","",""]]});
         assert_eq!(audit(&obj).unwrap_err(), "UNSUPPORTED_LAYER_KIND");
     }
 }
