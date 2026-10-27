@@ -866,9 +866,24 @@ impl BoardModel {
                 let by = i128::from(b.ticks[1]);
                 let x = i128::from(point.ticks[0]);
                 let y = i128::from(point.ticks[1]);
-                let cross = (bx - ax) * (y - ay) - (by - ay) * (x - ax);
-                let dot = (x - ax) * (bx - ax) + (y - ay) * (by - ay);
-                let length2 = (bx - ax) * (bx - ax) + (by - ay) * (by - ay);
+                // Model coordinates are not restricted to PADS importer bounds.
+                // The products can exceed i128 even though individual ticks are i64.
+                let checked_product = |a: i128, b: i128| {
+                    a.checked_mul(b).ok_or(ModelError::CoordinateOverflow)
+                };
+                let dx = bx - ax;
+                let dy = by - ay;
+                let px = x - ax;
+                let py = y - ay;
+                let cross = checked_product(dx, py)?
+                    .checked_sub(checked_product(dy, px)?)
+                    .ok_or(ModelError::CoordinateOverflow)?;
+                let dot = checked_product(px, dx)?
+                    .checked_add(checked_product(py, dy)?)
+                    .ok_or(ModelError::CoordinateOverflow)?;
+                let length2 = checked_product(dx, dx)?
+                    .checked_add(checked_product(dy, dy)?)
+                    .ok_or(ModelError::CoordinateOverflow)?;
                 require(
                     cross == 0 && dot > 0 && dot < length2,
                     ModelError::InvalidConnection,
