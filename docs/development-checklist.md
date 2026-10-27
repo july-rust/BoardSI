@@ -79,7 +79,12 @@
 
 - [x] **B_005 post-main Push CI 최종 확인** — [Signed Squash Merge `7a1ed48`](https://github.com/july-rust/BoardSI/commit/7a1ed48bf905df8357691a1f51b73e130a74537c/checks)의 병합 후 GitHub Check **21/21 SUCCESS** 및 별도 **Push on main SUCCESS** 확인. **체크일: 2026-10-27 KST** · **근거일: 2026-10-27 KST**. [메인 Push 검사 근거](https://github.com/july-rust/BoardSI/commit/7a1ed48bf905df8357691a1f51b73e130a74537c/checks) · [Push on main 워크플로 #40501517050](https://github.com/july-rust/BoardSI/actions/runs/40501517050). 코드·제한 B_005 구현 `[x]`와 구분한다.
 
-- [ ] **B_001 전체 Issue #12 정식 인수** — B_004가 제한적으로 성공하더라도 물리 Reference Return Path/P009, Scenario/Cache, Material loss/roughness 및 공식 U09/U10/U39/T02/T04/T24/T52는 남는다. 원래 OPEN 상태 유지.
+### B_006 제한 완료 — Source-bound Through Via/COPCLS 국소 접촉 감사
+
+- [x] **B_006 공개 합성 PADS V9.4 MILS Plated Through Via–단일 Straight Hole-free COPCLS Polygon의 제한 국소 접촉** — 원본 ROUTE/Net/Layer/Via/Drill/Padstack 및 Copper Source SHA·기하를 재파싱해 동일 원본과 비교하며, 명시적 도금 Through Via의 Conductive Padstack Layer상 Via Centre가 같은 선언 Net의 단일 Source Polygon 엄격 내부인 경우에만 `ViaCentre`–`AreaInterior` SameLayer 증거를 Canonical Graph에 추가. 기존 독립 접점과의 ViaBarrel·AreaContinuity를 검증하며 Source 변조/거짓 Layer/동일 위치 Edge 중복/잘못된 Net·Cutout·Boundary를 차단, Qt V1 회귀 보존. **체크일: 2026-10-27 KST (최초)** · **근거일: 2026-10-27 KST**. [구현 PR #229](https://github.com/july-rust/BoardSI/pull/229), [최종 코드 HEAD `68cd29313d4b3ccfd340321196e286af0ef4ff80`의 CI](https://github.com/july-rust/BoardSI/commit/68cd29313d4b3ccfd340321196e286af0ef4ff80/checks) **9개 워크플로 SUCCESS**, [Rust Numerical Debug/Release B_006 각각 11/11 PASS](https://github.com/july-rust/BoardSI/actions/runs/40510123992), [Qt Native Windows x64/ARM64·macOS ARM64·Linux SUCCESS](https://github.com/july-rust/BoardSI/actions/runs/40510123737), Codex 동일 HEAD findings 0·두 과거 P2 스레드 해결, GitHub 보호 Squash [`main@d7a22f8230086cdf8aeb326882708dfee48d9ee1`](https://github.com/july-rust/BoardSI/commit/d7a22f8230086cdf8aeb326882708dfee48d9ee1), [B_006 검증 원장](validation/b006-via-copper-contact.md). **이 체크는 좁은 원본 기하 국소 접촉 기능만** 의미함. 실제 Copper fill/전기적 Return Path/P009/물리 Solver·Cache 및 정식 U09/U10/U39/T02/T04/T24/T52 전부 미인수. Issue #12 OPEN.
+- [ ] **B_006 protected main post-merge Push CI 및 최종 서명 Verified 확인** — PR 코드 HEAD CI와 별도 인수 게이트. GitHub Check/Push 워크플로와 Commit signature badge를 실제 조회할 수 있을 때만 체크일·근거일을 기록. 코드 기능 한정 완료 상태와 분리.
+
+- [ ] **B_001 전체 Issue #12 정식 인수** — B_006이 제한적으로 성공하더라도 물리 Reference Return Path/P009, Scenario/Cache, Material loss/roughness 및 공식 U09/U10/U39/T02/T04/T24/T52는 남는다. 원래 OPEN 상태 유지.
 
 ## 3. 후속 개발 체크리스트
 
