@@ -244,8 +244,12 @@ public:
         rightLayout->addWidget(validBox);
         importUI->setStatusCallback([this](const QString &state) {
             importResultStatus = state;
-            if (state.startsWith("PARTIAL"))
+            if (state.startsWith("PARTIAL")) {
                 stackup->resetForImport(chosenSourcePath, importUI->importedLayerCount());
+                stackup->setSourceCopperInventory(importUI->importedCopperEvidence(),
+                                                   importUI->importedNetLabels(),
+                                                   importUI->importedNetInventoryComplete());
+            }
             else if (state.startsWith("RUNNING") || state.startsWith("FAILED") ||
                      state.startsWith("CANCELLED"))
                 stackup->resetForImport(QString(), 0);
@@ -2514,7 +2518,7 @@ static int runCurvedCopperSmoke(PreviewWindow &window,const QString &fixture,boo
 // CPU/RHI filled geometry, selection/filter parity and state clearing.
 static int runCopperSmoke(PreviewWindow &window,const QString &fixture) {
     bool pass=false,imported=false,properties=false,filtered=false;
-    bool malformed=false,reset=false,rhiSource=false;
+    bool malformed=false,reset=false,rhiSource=false,sourceInventory=false;
     QString failure;
     if(!window.openCandidate(fixture)) failure="A022 fixture unavailable";
     else {
@@ -2529,6 +2533,16 @@ static int runCopperSmoke(PreviewWindow &window,const QString &fixture) {
             auto *panel=window.importPanel()->imported();
             imported=panel->copperCount()==2 && panel->outlineCount()==4 &&
                      panel->segmentCount()==1 && state.contains("2 filled source copper areas");
+            const QJsonArray copperSource = window.importPanel()->importedCopperEvidence();
+            const QJsonArray declaredNets = window.importPanel()->importedNetLabels();
+            sourceInventory = window.importPanel()->importedNetInventoryComplete() &&
+                copperSource.size() == 2 &&
+                copperSource[0].toArray().size() == 7 &&
+                copperSource[1].toArray().size() == 7 &&
+                copperSource[0].toArray()[2].toString() == "GND" &&
+                copperSource[1].toArray()[2].toString().isEmpty() &&
+                declaredNets.contains("GND") && !declaredNets.contains("-") &&
+                window.findChild<QWidget *>("b001StackupEditor") != nullptr;
             properties=panel->selectCopper(0) &&
                 window.displayedProperties().contains("COPPER COP_A") &&
                 window.displayedProperties().contains("COPCLS") &&
@@ -2575,7 +2589,7 @@ static int runCopperSmoke(PreviewWindow &window,const QString &fixture) {
 #endif
             panel->clearArtwork();
             reset=panel->copperCount()==0 && panel->segmentCount()==0;
-            pass=imported && properties && filtered && malformed && reset && rhiSource;
+            pass=imported && properties && filtered && malformed && reset && rhiSource && sourceInventory;
             if(!pass) failure="A022 source-filled import, properties, filters, decoder or RHI mismatch";
             loop.quit();
         });
@@ -2586,7 +2600,8 @@ static int runCopperSmoke(PreviewWindow &window,const QString &fixture) {
     const QJsonObject report{
         {"schema","boardsi-preview-a022-copper-v1"},
         {"pass",pass},{"fixture_import",imported},
-        {"source_properties",properties},{"filter_parity",filtered},
+        {"source_properties",properties},
+        {"source_copper_net_inventory",sourceInventory},{"filter_parity",filtered},
         {"malformed_rejected",malformed},{"clear_resets",reset},
         {"rhi_source_checked",rhiSource},
         {"fabricated_copper","NOT_VERIFIED"},
@@ -2741,8 +2756,52 @@ static int runB001StackupSelftest() {
     set(0, 8, "3");
     editor.setAuditFrequency("1000000000");
     const bool rustCanonicalAssumed = editor.auditCanonical() &&
-        editor.summary().contains("REFERENCE UNSUPPORTED") &&
+        editor.summary().contains("RETURN PATH UNSUPPORTED") &&
         editor.summary().contains("SI NOT_RUN");
+    // Explicit JSON field types: no implicit string-literal -> bool conversion.
+    const auto sourceCopper = [](const QString &net, int holes) {
+        QJsonArray row;
+        row.append(3);
+        row.append(QString("PUBLIC_PLANE"));
+        row.append(net);
+        row.append(123);
+        row.append(holes);
+        row.append(false);
+        row.append(false);
+        QJsonArray areas;
+        areas.append(row);
+        return areas;
+    };
+    QJsonArray declaredNets;
+    declaredNets.append(QString("SIG"));
+    declaredNets.append(QString("GND"));
+    editor.setSourceCopperInventory(sourceCopper("GND", 0), declaredNets, true);
+    editor.selectReferenceNets("SIG", "GND");
+    const bool sourceLabelsNotPhysicalReference = editor.auditCanonical() &&
+        editor.summary().contains("OBSERVED_LABELS_NO_TOPOLOGY_PROOF") &&
+        editor.summary().contains("RETURN PATH UNSUPPORTED");
+    const QString referenceInventoryProbe = editor.summary();
+    editor.setSourceCopperInventory(sourceCopper("GND", 1), declaredNets, true);
+    const bool cutoutBlocksReference = editor.auditCanonical() &&
+        editor.summary().contains("CUTOUT_OR_SPLIT_UNSUPPORTED");
+    const QString cutoutInventoryProbe = editor.summary();
+    editor.setSourceCopperInventory(sourceCopper(QString(), 0), declaredNets, true);
+    const bool missingCopperNetIsNotGround = editor.auditCanonical() &&
+        editor.summary().contains("UNKNOWN_OR_MISSING_SOURCE_NET");
+    const QString missingNetProbe = editor.summary();
+    editor.selectReferenceNets("SIG", "SIG");
+    const bool sameNetIsRejected = !editor.auditCanonical();
+    auto *auditButton = editor.findChild<QPushButton *>("b001CanonicalAudit");
+    if (auditButton) auditButton->click();
+    const bool buttonPreservesReason = auditButton &&
+        editor.summary().contains("RUST REJECTED / SIGNAL_REFERENCE_SAME_NET");
+    editor.selectReferenceNets("SIG", "GND");
+    editor.setSourceCopperInventory(sourceCopper("GND", 0), declaredNets, false);
+    const bool incompleteNetInventoryBlocks = editor.auditCanonical() &&
+        editor.summary().contains("NO_SOURCE_REFERENCE_EVIDENCE");
+    const QString incompleteInventoryProbe = editor.summary();
+    editor.setSourceCopperInventory(QJsonArray{}, QJsonArray{}, false);
+    editor.selectReferenceNets(QString(), QString());
     editor.setAuditFrequency("3000000000");
     const bool rustOutOfBandRejected = !editor.auditCanonical();
     editor.setAuditFrequency("1000000000");
@@ -2789,7 +2848,12 @@ static int runB001StackupSelftest() {
     editor.resetForImport(different.fileName(), 4);
     const bool foreignRejected = !editor.loadFrom(overlayPath) &&
         editor.validate().contains("RUN BLOCKED");
-    const bool pass = unknownBlocked && rustCanonicalAssumed && rustOutOfBandRejected &&
+    const bool pass = unknownBlocked && rustCanonicalAssumed &&
+                      sourceLabelsNotPhysicalReference && cutoutBlocksReference &&
+                      missingCopperNetIsNotGround &&
+                      sameNetIsRejected && buttonPreservesReason &&
+                      incompleteNetInventoryBlocks &&
+                      rustOutOfBandRejected &&
                       nonCopperRoleRejected && inputAccepted && invalidBlocked &&
                       sourceOverwriteRejected && symlinkRejected && saved && longFieldRejected &&
                       oversizedDocRejected && reset && restored && mutationRejected && foreignRejected;
@@ -2799,6 +2863,16 @@ static int runB001StackupSelftest() {
         {"user_input_validated", inputAccepted},
         {"canonical_assumed_and_reference_unsupported", rustCanonicalAssumed},
         {"canonical_out_of_band_blocked", rustOutOfBandRejected},
+        {"source_net_labels_never_certify_return", sourceLabelsNotPhysicalReference},
+        {"source_cutout_candidate_blocked", cutoutBlocksReference},
+        {"same_net_reference_rejected", sameNetIsRejected},
+        {"same_net_button_reason_preserved", buttonPreservesReason},
+        {"missing_copper_net_preserved", missingCopperNetIsNotGround},
+        {"incomplete_net_inventory_blocked", incompleteNetInventoryBlocks},
+        {"reference_inventory_probe_synthetic", referenceInventoryProbe},
+        {"cutout_inventory_probe_synthetic", cutoutInventoryProbe},
+        {"missing_net_probe_synthetic", missingNetProbe},
+        {"incomplete_inventory_probe_synthetic", incompleteInventoryProbe},
         {"noncopper_role_blocked", nonCopperRoleRejected},
         {"negative_df_blocked", invalidBlocked},
         {"overlay_saved", saved}, {"source_overwrite_blocked", sourceOverwriteRejected},
