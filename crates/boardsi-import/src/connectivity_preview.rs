@@ -327,6 +327,117 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
     Ok(audit)
 }
 
+/// Add only strict source-grid Pad-centre / Trace-centreline contact evidence
+/// after a separately accepted ROUTE pin-pair assigned an actual Pad Net.
+/// Unassigned pads and width-overlap contacts remain unqualified.
+pub fn augment_pad_centres(board: &mut BoardModel) -> Result<usize, &'static str> {
+    let source = board.sources.first().ok_or("MISSING_SOURCE")?.id.clone();
+    let mut nodes: BTreeMap<ObjectId, ConnectivityNode> = board
+        .connectivity
+        .nodes
+        .iter()
+        .map(|n| (n.meta.id.clone(), n.clone()))
+        .collect();
+    let mut new_edges = Vec::new();
+    let mut qualified = 0usize;
+    let mut cross_net = 0usize;
+    for pad in &board.pads {
+        let Some(pad_net) = &pad.net else {
+            continue;
+        };
+        let padstack = board
+            .padstacks
+            .iter()
+            .find(|stack| stack.meta.id == pad.padstack)
+            .ok_or("MISSING_PADSTACK")?;
+        for entry in padstack
+            .entries
+            .iter()
+            .filter(|entry| entry.role == PadRole::Conductive)
+        {
+            for trace in board.traces.iter().filter(|t| t.layer == entry.layer) {
+                if trace.centreline.len() != 2 {
+                    return Err("UNSUPPORTED_CONTACT_TRACE");
+                }
+                let a = &trace.centreline[0];
+                let b = &trace.centreline[1];
+                let p = &pad.position;
+                let (ax, ay) = (i128::from(a.ticks[0]), i128::from(a.ticks[1]));
+                let (bx, by) = (i128::from(b.ticks[0]), i128::from(b.ticks[1]));
+                let (px, py) = (i128::from(p.ticks[0]), i128::from(p.ticks[1]));
+                let cross = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+                let dot = (px - ax) * (px - bx) + (py - ay) * (py - by);
+                if a.frame != p.frame || b.frame != p.frame || cross != 0 || dot > 0 {
+                    continue;
+                }
+                let contact = if p.ticks == a.ticks {
+                    ContactSite::TraceVertex(0)
+                } else if p.ticks == b.ticks {
+                    ContactSite::TraceVertex(1)
+                } else {
+                    ContactSite::TraceInterior(p.clone())
+                };
+                let trace_name = if p.ticks == a.ticks {
+                    "start".to_owned()
+                } else if p.ticks == b.ticks {
+                    "end".to_owned()
+                } else {
+                    format!("pad-interior-{}-{}", p.ticks[0], p.ticks[1])
+                };
+                let trace_site = site(
+                    &source,
+                    trace.meta.id.clone(),
+                    trace.layer.clone(),
+                    trace.net.clone(),
+                    contact,
+                    &trace_name,
+                    None,
+                );
+                let pad_site = site(
+                    &source,
+                    pad.meta.id.clone(),
+                    entry.layer.clone(),
+                    pad.net.clone(),
+                    ContactSite::PadCentre,
+                    "centre",
+                    None,
+                );
+                if trace.net.as_ref() != Some(pad_net) {
+                    cross_net += 1;
+                    continue;
+                }
+                nodes
+                    .entry(trace_site.id.clone())
+                    .or_insert_with(|| contact_node(&source, &trace_site));
+                nodes
+                    .entry(pad_site.id.clone())
+                    .or_insert_with(|| contact_node(&source, &pad_site));
+                add_edge(
+                    &source,
+                    &mut new_edges,
+                    &trace_site.id,
+                    &pad_site.id,
+                    "pad-centre",
+                    ConnectionEvidence::SameLayerContact {
+                        evidence: "source ROUTE pin-pair Net assignment and exact PADS tick Pad centre on straight Trace centreline".into(),
+                    },
+                )?;
+                qualified += 1;
+            }
+        }
+    }
+    if board.connectivity.edges.len() + new_edges.len() > MAX_EDGES {
+        return Err("CONTACT_EDGE_LIMIT");
+    }
+    board.connectivity.nodes = nodes.into_values().collect();
+    board.connectivity.edges.extend(new_edges);
+    board.sources[0].capability.object_coverage.push(format!(
+        "B_003 strict Pad centre/Trace centreline verified local edges {}; cross-Net coincidences {} (not certified shorts); arbitrary width overlap NOT_EVALUATED",
+        qualified, cross_net
+    ));
+    Ok(qualified)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
