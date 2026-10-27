@@ -2,7 +2,8 @@
 //! Never certifies entire-board shorts/opens or areas/pins.
 //! Default legacy artwork stdout V1-V14 is byte-for-byte unaffected.
 use boardsi_model::{
-    BoardModel, ConnectionEvidence, ConnectivityNode, ContactSite, ObjectId, ObjectKind, PadRole, ViaKind,
+    BoardModel, ConnectionEvidence, ConnectivityNode, ContactSite, ObjectId, ObjectKind, PadRole,
+    ViaKind,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -281,9 +282,7 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         .connectivity
         .edges
         .iter()
-        .filter(|edge| {
-            legacy_sites.contains(&edge.a) && legacy_sites.contains(&edge.b)
-        })
+        .filter(|edge| legacy_sites.contains(&edge.a) && legacy_sites.contains(&edge.b))
         .collect();
     let conflicts = potential_conflicts(board, &layers)?;
     let count = legacy_edges
