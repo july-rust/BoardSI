@@ -682,10 +682,15 @@ public:
             for (const auto &via : vias) rememberNet(via.net);
             for (const auto &copper : coppers) {
                 rememberNet(copper.net);
-                acceptedCopper.append(QJsonArray{
-                    copper.layer, copper.name, copper.net == "-" ? QString() : copper.net, copper.sourceLine,
-                    static_cast<int>(copper.cutouts.size() + copper.roundCutouts.size()),
-                    copper.curved, copper.circle});
+                QJsonArray record;
+                record.append(copper.layer);
+                record.append(copper.name);
+                record.append(copper.net == "-" ? QString() : copper.net);
+                record.append(copper.sourceLine);
+                record.append(static_cast<int>(copper.cutouts.size() + copper.roundCutouts.size()));
+                record.append(copper.curved);
+                record.append(copper.circle);
+                acceptedCopper.append(record);
             }
             importedCopperEvidence_ = acceptedCopper;
             QJsonArray acceptedNames;
