@@ -4,7 +4,8 @@ use boardsi_import::{
 };
 use boardsi_model::{ConnectionEvidence, ContactSite};
 
-const HEADER: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n";
+const HEADER: &str =
+    "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n";
 const VIA: &str = "*VIA*\nSIMPLEVIA 15 2\n-2 35 R\n0 35 R\n";
 const AREA: &str = "*LINES*\nZONE COPPER 100 200 1 1 0 NET_A\nCOPCLS 5 0.01 0 4\n0 0\n100 0\n100 100\n0 100\n0 0\n";
 const ROUTE: &str = "*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 250 1 10 0\n150 250 1 10 0 SIMPLEVIA\n200 250 1 10 0\n";
@@ -19,7 +20,11 @@ fn assemble(input: &str) -> boardsi_model::BoardModel {
     let areas = copper_preview::parse(input.as_bytes(), route.max_layer).unwrap();
     copper_preview::augment(&mut board, &areas).unwrap();
     copper_contact::augment(&mut board, &areas).unwrap();
-    assert!(!board.validate().has_errors(), "{:#?}", board.validate().issues);
+    assert!(
+        !board.validate().has_errors(),
+        "{:#?}",
+        board.validate().issues
+    );
     board
 }
 
@@ -34,16 +39,33 @@ fn plated_through_via_local_area_witness_joins_existing_trace_layer() {
     assert_eq!(audit.local_contacts, 1);
     assert_eq!(audit.new_barrel_edges, 1);
     assert_eq!(board.vias[0].connected_layers.len(), 2);
-    assert!(!board.validate().has_errors(), "{:#?}", board.validate().issues);
-    assert!(board.connectivity.edges.iter().any(|e|
-        matches!(e.evidence, ConnectionEvidence::ViaBarrel { .. })));
-    let area = board.connectivity.nodes.iter()
-        .find(|n| matches!(n.site, ContactSite::AreaInterior(_))).unwrap();
-    let via_top = board.connectivity.nodes.iter()
-        .find(|n| n.conductor == board.vias[0].meta.id
-            && n.layer == board.vias[0].span.first_layer).unwrap();
-    assert!(board.validated_view().unwrap()
-        .connected(&area.meta.id, &via_top.meta.id).unwrap());
+    assert!(
+        !board.validate().has_errors(),
+        "{:#?}",
+        board.validate().issues
+    );
+    assert!(board
+        .connectivity
+        .edges
+        .iter()
+        .any(|e| matches!(e.evidence, ConnectionEvidence::ViaBarrel { .. })));
+    let area = board
+        .connectivity
+        .nodes
+        .iter()
+        .find(|n| matches!(n.site, ContactSite::AreaInterior(_)))
+        .unwrap();
+    let via_top = board
+        .connectivity
+        .nodes
+        .iter()
+        .find(|n| n.conductor == board.vias[0].meta.id && n.layer == board.vias[0].span.first_layer)
+        .unwrap();
+    assert!(board
+        .validated_view()
+        .unwrap()
+        .connected(&area.meta.id, &via_top.meta.id)
+        .unwrap());
     assert_eq!(before, contact_wire::legacy_v1_counts(&board));
 }
 
@@ -77,8 +99,12 @@ fn different_net_and_unknown_net_never_create_edges() {
 
 #[test]
 fn owned_cutout_fails_closed_without_fabricating_conductor() {
-    let area = AREA.replace("100 200 1 1 0 NET_A", "100 200 2 1 0 NET_A")
-        .replace("0 100\n0 0\n", "0 100\n0 0\nCOPCUT 5 0.01 0 4\n20 20\n40 20\n40 40\n20 40\n20 20\n");
+    let area = AREA
+        .replace("100 200 1 1 0 NET_A", "100 200 2 1 0 NET_A")
+        .replace(
+            "0 100\n0 0\n",
+            "0 100\n0 0\nCOPCUT 5 0.01 0 4\n20 20\n40 20\n40 40\n20 40\n20 20\n",
+        );
     let text = source(&area, ROUTE);
     let mut board = assemble(&text);
     let result = via_copper_contact::augment(&mut board, text.as_bytes()).unwrap();
@@ -91,8 +117,10 @@ fn mutated_original_bytes_and_canonical_via_fail_closed() {
     let text = source(AREA, ROUTE);
     let mut board = assemble(&text);
     let changed = text.replace("150 250 1 10 0 SIMPLEVIA", "151 250 1 10 0 SIMPLEVIA");
-    assert_eq!(via_copper_contact::augment(&mut board, changed.as_bytes()).unwrap_err(),
-        "B006_SOURCE_SHA_MISMATCH");
+    assert_eq!(
+        via_copper_contact::augment(&mut board, changed.as_bytes()).unwrap_err(),
+        "B006_SOURCE_SHA_MISMATCH"
+    );
     board.vias[0].position.ticks[0] += 1;
     assert!(via_copper_contact::augment(&mut board, text.as_bytes()).is_err());
 }
@@ -113,7 +141,8 @@ fn source_area_geometry_cannot_be_tampered() {
     let text = source(AREA, ROUTE);
     let mut board = assemble(&text);
     if let boardsi_model::BoundarySegment::Line { ref mut start, .. } =
-        board.areas[0].outer.segments[0] {
+        board.areas[0].outer.segments[0]
+    {
         start.ticks[0] += 1;
     }
     assert!(via_copper_contact::augment(&mut board, text.as_bytes()).is_err());
@@ -124,6 +153,8 @@ fn repeated_success_is_not_silently_accepted() {
     let text = source(AREA, ROUTE);
     let mut board = assemble(&text);
     via_copper_contact::augment(&mut board, text.as_bytes()).unwrap();
-    assert_eq!(via_copper_contact::augment(&mut board, text.as_bytes()).unwrap_err(),
-        "B006_ALREADY_APPLIED");
+    assert_eq!(
+        via_copper_contact::augment(&mut board, text.as_bytes()).unwrap_err(),
+        "B006_ALREADY_APPLIED"
+    );
 }
