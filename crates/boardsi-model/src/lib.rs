@@ -273,11 +273,14 @@ pub enum ContactSite {
     ArcEnd,
     PadCentre,
     ViaCentre,
-    /// B_004 only: supported simple-polygon strict-interior proof is rechecked by Canonical validation.
+    /// Geometry engine assertion only: containment/clearance proof is NOT performed here.
     AreaWitness {
         point: Point,
         evidence: String,
     },
+    /// B_004: exact strict interior witness on a simple source-filled polygon.
+    /// The Canonical validator rechecks the area geometry and containment.
+    AreaInterior(Point),
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConnectivityNode {
