@@ -1,11 +1,11 @@
-//! A_032 P2-W: conservative, source-grid exact ROUTE endpoint contacts.
-//! Only local endpoint coincidence is evidence; not full-board connectivity,
+//! B_003: source-grid exact ROUTE endpoint and bounded orthogonal T contacts.
+//! Source-exact centreline witnesses are evidence; not full-board connectivity,
 //! polygon contact, flooding, pad-pin assignment, or complete short/open proof.
 use boardsi_model::{
     BoardModel, ConnectionEvidence, ConnectivityEdge, ConnectivityNode, ContactSite,
-    GeometryProvenance, ObjectId, ObjectKind, ObjectMeta, PadRole, SourceId, ViaKind,
+    GeometryProvenance, ObjectId, ObjectKind, ObjectMeta, PadRole, Point, SourceId, ViaKind,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_SITES_PER_POINT: usize = 32;
 const MAX_EDGES: usize = 100_000;
@@ -73,7 +73,7 @@ fn contact_node(source: &SourceId, item: &Site) -> ConnectivityNode {
             source,
             ObjectKind::Node,
             &item.id.source_object,
-            "PADS V9.4 MILS exact original ROUTE endpoint/explicit via conductive layer",
+            "PADS V9.4 MILS exact original ROUTE endpoint/interior or explicit via conductive layer",
         ),
         conductor: item.conductor.clone(),
         layer: item.layer.clone(),
@@ -164,6 +164,67 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
                 None,
             );
             push_site(&mut locations, &arc.layer, point.ticks, candidate)?;
+        }
+    }
+    // Index source-exact endpoint and via-centre *candidate points* by both
+    // axes. Range lookups avoid an O(traces * endpoints) scan of the board.
+    // Only orthogonal straight centreline interiors are certified here.
+    // Diagonal-interior, trace-width and arc-interior contact stay NOT_EVALUATED.
+    let mut horizontal_points: BTreeSet<(ObjectId, i64, i64)> = BTreeSet::new();
+    let mut vertical_points: BTreeSet<(ObjectId, i64, i64)> = BTreeSet::new();
+    for (key, _) in &locations {
+        let (layer, point) = key;
+        horizontal_points.insert((layer.clone(), point[1], point[0]));
+        vertical_points.insert((layer.clone(), point[0], point[1]));
+    }
+    for via in &board.vias {
+        let drill = board.drills.iter().find(|x| x.meta.id == via.drill)
+            .ok_or("MISSING_CONTACT_DRILL")?;
+        if !drill.plated || via.kind != ViaKind::Through {
+            continue;
+        }
+        let padstack = board.padstacks.iter().find(|x| x.meta.id == via.padstack)
+            .ok_or("MISSING_CONTACT_PADSTACK")?;
+        for entry in padstack.entries.iter().filter(|e| e.role == PadRole::Conductive) {
+            let p = via.position.ticks;
+            horizontal_points.insert((entry.layer.clone(), p[1], p[0]));
+            vertical_points.insert((entry.layer.clone(), p[0], p[1]));
+        }
+    }
+
+    let mut skipped_diagonal_interior = 0usize;
+    for trace in &board.traces {
+        let a = trace.centreline[0].ticks;
+        let b = trace.centreline[1].ticks;
+        let mut witnesses = Vec::new();
+        if a[1] == b[1] && a[0] != b[0] {
+            let (lo, hi) = (a[0].min(b[0]), a[0].max(b[0]));
+            for (_, y, x) in horizontal_points.range(
+                (trace.layer.clone(), a[1], lo + 1)..
+                (trace.layer.clone(), a[1], hi)
+            ) {
+                witnesses.push([*x, *y]);
+            }
+        } else if a[0] == b[0] && a[1] != b[1] {
+            let (lo, hi) = (a[1].min(b[1]), a[1].max(b[1]));
+            for (_, x, y) in vertical_points.range(
+                (trace.layer.clone(), a[0], lo + 1)..
+                (trace.layer.clone(), a[0], hi)
+            ) {
+                witnesses.push([*x, *y]);
+            }
+        } else {
+            skipped_diagonal_interior += 1;
+        }
+        for ticks in witnesses {
+            let candidate = site(
+                &source, trace.meta.id.clone(), trace.layer.clone(), trace.net.clone(),
+                ContactSite::TraceInterior {
+                    point: Point { frame: trace.centreline[0].frame.clone(), ticks },
+                },
+                &format!("interior-{}-{}", ticks[0], ticks[1]), None,
+            );
+            push_site(&mut locations, &trace.layer, ticks, candidate)?;
         }
     }
     for (index, via) in board.vias.iter().enumerate() {
@@ -280,8 +341,8 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
     board.connectivity.nodes = nodes.into_values().collect();
     board.connectivity.edges = edges;
     board.sources[0].capability.object_coverage.push(format!(
-        "A_032 local endpoint-only contact edges {}; via barrel edges {}; potential net conflicts {}; non-endpoint/area contacts NOT_EVALUATED",
-        audit.local_edges, audit.via_barrel_edges, audit.potential_conflicts
+        "B_003 exact endpoint and orthogonal centreline-interior contact edges {}; via barrel edges {}; potential net conflicts {}; diagonal interior traces {} NOT_EVALUATED; pad-net/trace-width/area/arc-interior NOT_VERIFIED",
+        audit.local_edges, audit.via_barrel_edges, audit.potential_conflicts, skipped_diagonal_interior
     ));
     Ok(audit)
 }
