@@ -316,10 +316,11 @@ pub fn augment(
                             })
                     })
                     .map(|n| n.meta.id.clone());
+                let new_area_witness = !nodes.contains_key(&area_id);
                 nodes.entry(via_id.clone()).or_insert(via_node);
                 nodes.entry(area_id.clone()).or_insert(area_node);
                 if let Some(ref first) = anchor {
-                    if first != &area_id {
+                    if first != &area_id && new_area_witness {
                         append_edge(
                             &source,
                             &mut edges,
