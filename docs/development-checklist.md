@@ -73,6 +73,10 @@
 
 - [x] **B_004 제한 PADS Source Copper Area 내부 접촉** — 공개 합성 PADS V9.4 MILS의 소스 소유 단일 Hole-free Straight COPCLS Polygon과 명시적 ROUTE Net이 일치할 때, 정수 Source Tick 내부의 Trace Endpoint/선언된 SMD Pad Centre 접촉을 Canonical `AreaInterior` 증거로 검증하고 같은 Area 안의 두 국소 접점만 `AreaContinuity`로 연결. 직선상 정방향 Collinear 꼭짓점 허용·경계/역방향 중첩 거부, 타 Layer/Cross-Net/분리 Island 거짓 연결 방지, 변조된 증거와 구형 Qt V1 호환을 교차 시험. **체크일: 2026-10-27 KST** · **근거일: 2026-10-27 KST** · [B_004 PR #226](https://github.com/july-rust/BoardSI/pull/226), [코드 HEAD `7c68f9523b65999271fff5b510e984ec30dac72a`의 12 워크플로·23 Job 전부 SUCCESS](https://github.com/july-rust/BoardSI/commit/7c68f9523b65999271fff5b510e984ec30dac72a/checks), 동일 HEAD Codex 추가 지적 0·과거 스레드 4건 해결, [검증 원장](validation/b004-reference-copper-connectivity.md). **이 체크는 제한된 Rust Source-Geometry 기능에만 적용**되며 Arc/Hole/Cutout·Via-to-Plane·Pad 몸체/Trace 폭·Plane Return Path/P009/물리 SI/Cache 및 정식 U09/U10/U39·T02/T04/T24/T52는 여전히 미검증. 보호된 Signed Squash Merge 및 병합 후 main CI는 별도 확인하여 기록한다.
 
+### B_005 Reference 기하 범위 — 코드 시험 통과, 독립 최종 리뷰 대기
+
+- [ ] **B_005 제한 Source-bound Reference Plane Trace Centreline 기하 커버리지 감사** — 공개 합성 PADS V9.4 MILS의 지원 Straight/COPCLS Hole-free 단일 Polygon에 한정. 원본 파일 Source SHA·Net ID/이름·Layer 순서·Trace/Arc 원본 완전성·Copper Source ID/Net 및 원본 경계를 재파싱해 검증, 단일 Layer의 명시적 비분기 Trace 경로 전체가 하나의 Reference Polygon 엄격 내부인지 정수 기하로 판정. Backtrack/T/Arc/Via 분기, 분리 Island·Cutout·원본 변조는 거부하며 결과는 `SOURCE_ORDER_GEOMETRY_ONLY`일 뿐 실제 P009/Return Path 아님. [PR #227](https://github.com/july-rust/BoardSI/pull/227), [코드 HEAD `225489bedabc146e31b83137267aaa29d86f8503` 23/23 CI 성공](https://github.com/july-rust/BoardSI/commit/225489bedabc146e31b83137267aaa29d86f8503/checks), [Rust Debug/Release B_005 17/17 PASS 및 원장](validation/b005-reference-geometry.md) · **근거일: 2026-10-27 KST**. **독립 Codex 최신 HEAD 결과 대기: [x] 금지, 체크일 미기록.** `return_path_p009=UNSUPPORTED`, `solver_ready=false`, `physical_si=NOT_RUN`, `cache_reuse_eligible=false`. B_001 Issue #12 OPEN, 공식 U09/U10/U39 및 T02/T04/T24/T52 미완.
+
 - [ ] **B_001 전체 Issue #12 정식 인수** — B_004가 제한적으로 성공하더라도 물리 Reference Return Path/P009, Scenario/Cache, Material loss/roughness 및 공식 U09/U10/U39/T02/T04/T24/T52는 남는다. 원래 OPEN 상태 유지.
 
 ## 3. 후속 개발 체크리스트
@@ -236,6 +240,8 @@
 7. 각 단계 종료 후 아래 이력에 작업 번호, 변경된 U/T, 최종 `main` SHA, Native 테스트·Codex 리뷰 증빙 및 아직 미검증인 항목을 기록합니다.
 
 ### 변경 이력
+
+| 2026-10-27 | B_005 Source-bound Reference 기하 감사 코드 HEAD 검증(정식 체크 보류) | [PR #227](https://github.com/july-rust/BoardSI/pull/227), [`225489bedabc146e31b83137267aaa29d86f8503` 23/23 checks](https://github.com/july-rust/BoardSI/commit/225489bedabc146e31b83137267aaa29d86f8503/checks), Rust Debug/Release B_005 17/17 PASS | 원본 Net/Layer/Trace/Arc/Area 재검증, Return Path 기하 커버리지 한정 코드 PASS. 동일 코드 최신 Codex 후속 리뷰·보호 병합·main CI 확인 전에는 신규 [x] 및 최초 체크일 없음; B_001 Issue #12 OPEN/공식 U/T 미검증 유지. |
 
 | 2026-10-27 | B_004 제한 Copper Area 국소 접점 코드 인수 | [PR #226](https://github.com/july-rust/BoardSI/pull/226), [정확한 코드 HEAD `7c68f9523b65999271fff5b510e984ec30dac72a` CI](https://github.com/july-rust/BoardSI/commit/7c68f9523b65999271fff5b510e984ec30dac72a/checks), [검증 원장](validation/b004-reference-copper-connectivity.md) | 공개 합성 Straight COPCLS 내부 Trace/Pad Centre 및 동일 소스 Area의 제한적 Graph `[x]` 최초 체크일·근거일 **2026-10-27 KST**. 12 workflow/23 job 모두 성공, 동일 HEAD Codex findings 0·기존 4건 해결. 보호 병합·Post-main SHA는 PR 완료 후 별도 확인; B_001 Issue #12 OPEN, 정식 U/T·P009·물리 Solver 체크 없음. |
 
