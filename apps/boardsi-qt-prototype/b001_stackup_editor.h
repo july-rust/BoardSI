@@ -27,6 +27,11 @@ class B001StackupEditor final : public QWidget {
     QTableWidget *rows_ = nullptr;
     QLabel *message_ = nullptr;
     QLineEdit *auditFrequency_ = nullptr;
+    QLineEdit *signalNet_ = nullptr;
+    QLineEdit *referenceNet_ = nullptr;
+    QJsonArray acceptedCopperInventory_;
+    QJsonArray acceptedNetLabels_;
+    bool acceptedNetInventoryComplete_ = false;
     QString sourcePath_;
     QByteArray importDigest_; // Pinned at successful import; never trust a later path-only match.
     static constexpr int Columns = 16;
@@ -87,6 +92,14 @@ public:
         auditFrequency_->setObjectName("b001AuditFrequencyHz");
         auditFrequency_->setPlaceholderText("Analysis frequency in Hz (explicit, required for Rust audit)");
         layout->addWidget(auditFrequency_);
+        signalNet_ = new QLineEdit(this);
+        signalNet_->setObjectName("b001SignalNet");
+        signalNet_->setPlaceholderText("Signal Net (exact imported name; optional)");
+        layout->addWidget(signalNet_);
+        referenceNet_ = new QLineEdit(this);
+        referenceNet_->setObjectName("b001ReferenceNet");
+        referenceNet_->setPlaceholderText("Reference Net (exact imported name; not a layer role hint)");
+        layout->addWidget(referenceNet_);
         message_ = new QLabel("NO SOURCE / PHYSICAL SI NOT_RUN", this);
         message_->setObjectName("b001StackupStatus");
         message_->setWordWrap(true);
@@ -99,6 +112,11 @@ public:
         connect(auditFrequency_, &QLineEdit::textChanged, this, [this](const QString &) {
             status("AUDIT FREQUENCY MODIFIED / RE-AUDIT REQUIRED / SI NOT_RUN");
         });
+        for (auto *entry : {signalNet_, referenceNet_}) {
+            connect(entry, &QLineEdit::textChanged, this, [this](const QString &) {
+                status("REFERENCE NET SELECTION MODIFIED / RE-AUDIT REQUIRED / SI NOT_RUN");
+            });
+        }
         auto *commands = new QHBoxLayout;
         auto *check = new QPushButton("Validate input", this);
         auto *canonical = new QPushButton("Audit in Rust Canonical Model", this);
@@ -127,11 +145,27 @@ public:
     }
     QTableWidget *table() const { return rows_; }
     void setAuditFrequency(const QString &hz) { auditFrequency_->setText(hz); }
+    void selectReferenceNets(const QString &signal, const QString &reference) {
+        signalNet_->setText(signal);
+        referenceNet_->setText(reference);
+    }
+    void setSourceCopperInventory(const QJsonArray &copper, const QJsonArray &nets, bool complete) {
+        // Only the import controller may call this after accepted decode.
+        acceptedCopperInventory_ = copper;
+        acceptedNetLabels_ = nets;
+        acceptedNetInventoryComplete_ = complete;
+        status("SOURCE COPPER INVENTORY UPDATED / REFERENCE NOT_PROVED / SI NOT_RUN");
+    }
     QString summary() const { return message_->text(); }
     void resetForImport(const QString &path, int layerCount) {
         // Begin reimport by calling with 0; fail-closed regardless of import outcome.
         sourcePath_ = layerCount > 0 ? path : QString();
         importDigest_.clear();
+        acceptedCopperInventory_ = QJsonArray();
+        acceptedNetLabels_ = QJsonArray();
+        acceptedNetInventoryComplete_ = false;
+        signalNet_->clear();
+        referenceNet_->clear();
         rows_->setRowCount(0);
         if (sourcePath_.isEmpty() || layerCount < 1 || layerCount > 64) {
             status("NO QUALIFIED STACKUP / SI NOT_RUN");
@@ -225,6 +259,8 @@ public:
         const QJsonObject root{{"schema", "boardsi-b001-stackup-overlay-v2"},
             {"source_sha256", QString::fromLatin1(digest)}, {"layers", layers},
             {"audit_frequency_hz", auditFrequency_->text().trimmed()},
+            {"selected_signal_net", signalNet_->text().trimmed()},
+            {"selected_reference_net", referenceNet_->text().trimmed()},
             {"scope", "USER_OVERLAY_NOT_PHYSICAL_SI"}};
         const QByteArray bytes = QJsonDocument(root).toJson(QJsonDocument::Indented);
         if (bytes.size() > 65536) return false; // symmetric with loadFrom()
@@ -269,6 +305,12 @@ public:
         }
         auditFrequency_->setText(legacy ? QString() :
             root.value("audit_frequency_hz").toString());
+        const QString storedSignal = root.value("selected_signal_net").toString();
+        const QString storedReference = root.value("selected_reference_net").toString();
+        if (storedSignal.size() > 64 || storedReference.size() > 64) return false;
+        // Explicit choices are user input, not source-certified Net roles.
+        signalNet_->setText(legacy ? QString() : storedSignal);
+        referenceNet_->setText(legacy ? QString() : storedReference);
         status("OVERLAY LOADED / CANONICAL MUST BE RE-AUDITED / SI NOT_RUN");
         return true;
     }
@@ -294,6 +336,11 @@ public:
             {"source_sha256", QString::fromLatin1(digest)},
             {"scope", "USER_OVERLAY_NOT_PHYSICAL_SI"},
             {"audit_frequency_hz", auditFrequency_->text().trimmed()},
+            {"selected_signal_net", signalNet_->text().trimmed()},
+            {"selected_reference_net", referenceNet_->text().trimmed()},
+            {"reference_copper_inventory", acceptedCopperInventory_},
+            {"source_net_labels", acceptedNetLabels_},
+            {"net_inventory_complete", acceptedNetInventoryComplete_},
             {"layers", layers}});
         const QByteArray bytes = request.toJson(QJsonDocument::Compact);
         if (bytes.size() > 65536) return false;
@@ -327,7 +374,14 @@ public:
             auditFields.value("solver_ready").toBool(true) ||
             auditFields.value("source_sha256").toString().toLatin1() != digest ||
             auditFields.value("layer_count").toInt() != rows_->rowCount()) return false;
-        status("RUST CANONICAL STACKUP ASSUMED / REFERENCE UNSUPPORTED / SI NOT_RUN");
+        const QString candidate = auditFields.value("reference_candidate").toString();
+        if (candidate != "NOT_SELECTED" &&
+            candidate != "NO_SOURCE_REFERENCE_EVIDENCE" &&
+            candidate != "UNKNOWN_OR_MISSING_SOURCE_NET" &&
+            candidate != "OBSERVED_LABELS_NO_TOPOLOGY_PROOF" &&
+            candidate != "CUTOUT_OR_SPLIT_UNSUPPORTED") return false;
+        status("RUST CANONICAL STACKUP ASSUMED / SOURCE REFERENCE " + candidate +
+               " / RETURN PATH UNSUPPORTED / SI NOT_RUN");
         return true;
     }
 };
