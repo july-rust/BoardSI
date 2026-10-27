@@ -241,10 +241,32 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         return Err("CONTACT_WIRE_RECORD_LIMIT");
     }
 
-    let conflicts = potential_conflicts(board, &layers)?;
-    let count = board
+    // Legacy V1 suffix is *endpoint-only*. New B_003 interior and Pad-centre
+    // witnesses are kept in the Canonical graph, not misrepresented as V1
+    // endpoint records. V1 wire must remain backward compatible.
+    let legacy_edges: Vec<_> = board
         .connectivity
         .edges
+        .iter()
+        .filter(|edge| {
+            [nodes.get(&edge.a), nodes.get(&edge.b)]
+                .iter()
+                .all(|node| {
+                    node.is_some_and(|node| {
+                        objects.contains_key(&node.conductor)
+                            && matches!(
+                                node.site,
+                                ContactSite::TraceVertex(_)
+                                    | ContactSite::ArcStart
+                                    | ContactSite::ArcEnd
+                                    | ContactSite::ViaCentre
+                            )
+                    })
+                })
+        })
+        .collect();
+    let conflicts = potential_conflicts(board, &layers)?;
+    let count = legacy_edges
         .len()
         .checked_add(conflicts.len())
         .ok_or("CONTACT_WIRE_RECORD_LIMIT")?;
@@ -263,7 +285,7 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         write!(&mut out, "{b:02x}").map_err(|_| "CONTACT_WIRE_FORMAT")?;
     }
     out.push('\n');
-    for edge in &board.connectivity.edges {
+    for edge in legacy_edges {
         let a = resolve(
             board,
             &objects,
