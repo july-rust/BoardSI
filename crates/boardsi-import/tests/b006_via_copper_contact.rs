@@ -186,7 +186,11 @@ fn two_supported_areas_on_distinct_layers_get_independent_contacts() {
     let audit = via_copper_contact::augment(&mut board, text.as_bytes()).unwrap();
     assert_eq!(audit.local_contacts, 2);
     assert_eq!(board.vias[0].connected_layers.len(), 3);
-    assert!(!board.validate().has_errors(), "{:#?}", board.validate().issues);
+    assert!(
+        !board.validate().has_errors(),
+        "{:#?}",
+        board.validate().issues
+    );
     assert_eq!(board.areas.len(), 2);
 }
 
@@ -206,5 +210,9 @@ fn repeated_via_position_creates_only_one_area_continuity_witness() {
         board.connectivity.edges.iter().filter(|e|
             matches!(e.evidence, ConnectionEvidence::AreaContinuity { .. })).count(), 1
     );
-    assert!(!board.validate().has_errors(), "{:#?}", board.validate().issues);
+    assert!(
+        !board.validate().has_errors(),
+        "{:#?}",
+        board.validate().issues
+    );
 }
