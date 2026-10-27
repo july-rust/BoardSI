@@ -81,3 +81,40 @@ fn opt_in_suffix_preserves_old_artwork_for_every_copper_wire_version() {
         );
     }
 }
+
+#[test]
+fn b003_canonical_interior_edges_do_not_break_legacy_qt_audit_counts() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    for (filename, expected_local, expected_barrels, expected_records) in [
+        ("b003_t_junction_v94.asc", 0usize, 0usize, 0usize),
+        ("b003_via_interior_v94.asc", 1usize, 0usize, 1usize),
+    ] {
+        let fixture = root.join(filename);
+        let default = invoke(&fixture, false);
+        assert!(
+            default.status.success(),
+            "{filename} import failure: {}",
+            String::from_utf8_lossy(&default.stderr)
+        );
+        let extended = invoke(&fixture, true);
+        assert!(extended.status.success(), "{filename} opt-in import failure");
+        assert!(extended.stdout.starts_with(&default.stdout));
+        assert_eq!(extended.stderr, default.stderr);
+        let audit = String::from_utf8_lossy(&default.stderr);
+        assert!(
+            audit.contains(&format!(
+                "BOARDSI_CONTACT_AUDIT_V1|{expected_local}|{expected_barrels}|"
+            )),
+            "{filename} legacy stderr counters differ from wire: {audit}"
+        );
+        let suffix = &extended.stdout[default.stdout.len()..];
+        let text = String::from_utf8_lossy(suffix);
+        assert!(text.starts_with(&format!(
+            "BOARDSI_CONTACT_RECORDS_V1|{expected_records}|LOCAL_ENDPOINT_ONLY|"
+        )));
+        assert!(text.ends_with(&format!(
+            "BOARDSI_CONTACT_END_V1|{expected_records}\\n"
+        ).replace("\\n", "\n")));
+        assert_eq!(text.lines().count(), expected_records + 2);
+    }
+}
