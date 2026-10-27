@@ -217,28 +217,58 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
         }
     }
 
+    // Preserve an independent y-ordered lookup to prevent long horizontal
+    // traces from scanning every unrelated endpoint on the board.
+    let by_y: BTreeMap<(ObjectId, [i64; 2]), [i64; 2]> = locations
+        .keys()
+        .map(|(layer, point)| ((layer.clone(), [point[1], point[0]]), *point))
+        .collect();
     // Exact source-tick T-junctions: a different conductor's original
-    // endpoint strictly inside a straight centreline. This is NOT width
-    // overlap, arc-interior crossing, or complete copper connectivity.
+    // endpoint strictly inside a straight centreline. Not width overlap.
     for trace in &board.traces {
         let a = trace.centreline[0].ticks;
         let b = trace.centreline[1].ticks;
         let xmin = a[0].min(b[0]);
         let xmax = a[0].max(b[0]);
-        let witnesses: Vec<[i64; 2]> = locations
-            .range(
-                (trace.layer.clone(), [xmin, i64::MIN])..=(trace.layer.clone(), [xmax, i64::MAX]),
-            )
-            .filter_map(|((_, ticks), sites)| {
-                if !sites.iter().any(|s| s.conductor != trace.meta.id) {
-                    return None;
+        let ymin = a[1].min(b[1]);
+        let ymax = a[1].max(b[1]);
+        let scan_y = i128::from(ymax) - i128::from(ymin)
+            < i128::from(xmax) - i128::from(xmin);
+        let candidates: Vec<[i64; 2]> = if scan_y {
+            by_y
+                .range(
+                    (trace.layer.clone(), [ymin, i64::MIN])
+                        ..=(trace.layer.clone(), [ymax, i64::MAX]),
+                )
+                .map(|(_, point)| *point)
+                .collect()
+        } else {
+            locations
+                .range(
+                    (trace.layer.clone(), [xmin, i64::MIN])
+                        ..=(trace.layer.clone(), [xmax, i64::MAX]),
+                )
+                .map(|((_, point), _)| *point)
+                .collect()
+        };
+        let witnesses: Vec<[i64; 2]> = candidates
+            .into_iter()
+            .filter(|ticks| {
+                if ticks[0] < xmin || ticks[0] > xmax || ticks[1] < ymin || ticks[1] > ymax {
+                    return false;
+                }
+                if !locations
+                    .get(&(trace.layer.clone(), *ticks))
+                    .is_some_and(|sites| sites.iter().any(|s| s.conductor != trace.meta.id))
+                {
+                    return false;
                 }
                 let (ax, ay) = (i128::from(a[0]), i128::from(a[1]));
                 let (bx, by) = (i128::from(b[0]), i128::from(b[1]));
                 let (px, py) = (i128::from(ticks[0]), i128::from(ticks[1]));
                 let cross = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
                 let dot = (px - ax) * (px - bx) + (py - ay) * (py - by);
-                (cross == 0 && dot < 0).then_some(*ticks)
+                cross == 0 && dot < 0
             })
             .collect();
         for (index, ticks) in witnesses.into_iter().enumerate() {
