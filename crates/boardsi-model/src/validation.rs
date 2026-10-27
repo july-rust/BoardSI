@@ -922,7 +922,9 @@ impl BoardModel {
                     .copied()
                     .ok_or(ModelError::InvalidReference)?;
                 require(
-                    area.layer == node.layer && !evidence.trim().is_empty(),
+                    area.layer == node.layer
+                        && !evidence.trim().is_empty()
+                        && strict_simple_area_contains(area, point)?,
                     ModelError::InvalidConnection,
                 )?;
                 self.point(point)?;
@@ -958,6 +960,15 @@ impl BoardModel {
         match &edge.evidence {
             ConnectionEvidence::SameLayerContact { evidence } => require(
                 a.layer == b.layer && pos_a == pos_b && !evidence.trim().is_empty(),
+                ModelError::InvalidConnection,
+            ),
+            ConnectionEvidence::AreaContinuity { area } => require(
+                a.conductor == *area
+                    && b.conductor == *area
+                    && a.layer == b.layer
+                    && pos_a != pos_b
+                    && matches!(a.site, ContactSite::AreaWitness { .. })
+                    && matches!(b.site, ContactSite::AreaWitness { .. }),
                 ModelError::InvalidConnection,
             ),
             ConnectionEvidence::ViaBarrel { via } => {
