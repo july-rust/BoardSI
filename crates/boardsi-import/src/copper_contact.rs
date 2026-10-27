@@ -316,6 +316,9 @@ pub fn augment_source_bound(
     let route = crate::route_preview::parse(original_bytes).map_err(|_| "B007_SOURCE_ROUTE")?;
     let mut original = crate::route_preview::into_canonical(original_bytes, &route)
         .map_err(|_| "B007_SOURCE_MODEL")?;
+    let parts = crate::part_preview::parse(original_bytes, route.max_layer);
+    crate::part_preview::augment_source_bound(&mut original, &parts, original_bytes)
+        .map_err(|_| "B007_SOURCE_PARTS")?;
     let parsed = crate::copper_preview::parse(original_bytes, route.max_layer)
         .map_err(|_| "B007_SOURCE_COPPER")?;
     crate::copper_preview::augment(&mut original, &parsed).map_err(|_| "B007_SOURCE_COPPER")?;
@@ -327,6 +330,10 @@ pub fn augment_source_bound(
     if board.traces != original.traces
         || board.arcs != original.arcs
         || board.nets != original.nets
+        || board.pads != original.pads
+        || board.padstacks != original.padstacks
+        || board.drills != original.drills
+        || board.vias != original.vias
         || board.stackup.layers.len() != original.stackup.layers.len()
         || !board
             .stackup
