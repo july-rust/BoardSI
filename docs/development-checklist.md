@@ -61,6 +61,8 @@
 
 - [x] **B_002의 제한적 B_001 Qt 감사 최신성 보강** — Stackup/Material/주파수·Reference Net 및 원본 Copper/Net 정보 변경 뒤 과거 Rust 감사 결과 무효화, 입력 JSON SHA-256 비교, 검증 중 외부 PCB 변경 거절을 Qt Native 테스트로 확인. **체크일: 2026-10-27 KST** · **근거일: 2026-10-27 KST** ([PR #219](https://github.com/july-rust/BoardSI/pull/219), 최종 PR HEAD `f9deda898b97a42886cfbdbdae972924c3fcdc56` 26/26 검사 PASS, 동일 HEAD Codex 리뷰 주요 지적 0, [서명된 병합 `6e795049b6de920f99053ae6361d487a7caeec96`](https://github.com/july-rust/BoardSI/commit/6e795049b6de920f99053ae6361d487a7caeec96), [B_002 원장](validation/b002-b001-completion.md)). **UI 감사 세션 한정**이며 실제 물리 Scenario/Cache, Copper/Pad/Port 연결 및 Return Path, Material 손실/거칠기 모델과 정식 T02/T04/T24/T52는 아직 미검증. **B_001 전체 Issue #12는 미완료/OPEN 유지.**
 
+- [ ] **B_002 후속 — Rust Canonical 감사 Scenario Revision 계약** — 소스 SHA-256, Stackup/Material·Provenance, Reference Net·Copper Inventory 및 Audit Frequency로 결정적 감사 Revision을 생성하고 Qt가 최신성 및 비재사용 상태를 검증하는 신규 제한 구현 후보. [B_002 검증 원장](validation/b002-b001-completion.md). **Native CI/동일 HEAD Codex 리뷰/병합 미확정; Solver 물리 Scenario/Cache가 아닌 감사 입력 Revision이며 `cache_reuse_eligible=false`.** 근거 확보 전 체크일 미기입 및 B_001 전체 Issue #12 미완료 유지.
+
 ## 3. 후속 개발 체크리스트
 
 | 단계 | 상태 | 구체적 잔여 작업 (GitHub) |
