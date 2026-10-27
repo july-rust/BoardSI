@@ -349,7 +349,7 @@ mod tests {
         assert_eq!(board.connectivity.edges.len(), 1);
         assert!(board.connectivity.nodes.iter().any(|node| matches!(node.site, ContactSite::TraceInterior(_))));
         assert!(!board.validate().has_errors());
-        let offset = original.replace("300 200 1 10 0", "300.01 200 1 10 0");
+        let offset = original.replace("300 200 1 10 0", "300 200.01 1 10 0");
         let parsed = parse(offset.as_bytes()).unwrap();
         assert!(into_canonical(offset.as_bytes(), &parsed).unwrap().connectivity.edges.is_empty());
     }
