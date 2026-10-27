@@ -9,7 +9,13 @@ const SIGNAL: &str = "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n130 230 1 10 0\n150 
 fn source(area: &str, route: &str) -> String {
     format!("{HEADER}{area}{route}*END*\n")
 }
-fn assembled(input: &str) -> (boardsi_model::BoardModel, Vec<copper_preview::CopperArea>, String) {
+fn assembled(
+    input: &str,
+) -> (
+    boardsi_model::BoardModel,
+    Vec<copper_preview::CopperArea>,
+    String,
+) {
     let parsed = route_preview::parse(input.as_bytes()).unwrap();
     let mut board = route_preview::into_canonical(input.as_bytes(), &parsed).unwrap();
     let areas = copper_preview::parse(input.as_bytes(), parsed.max_layer).unwrap();
@@ -227,7 +233,10 @@ fn rejects_unselected_source_trace_branch_at_path_interior() {
 fn rejects_detached_reference_label_mutation() {
     let original = source(&AREA.replace(" 0 NET_REF", " 0 OTHER_NET"), SIGNAL);
     let (board, mut areas, raw) = assembled(&original);
-    let ids = [board.traces[0].meta.id.clone(), board.traces[1].meta.id.clone()];
+    let ids = [
+        board.traces[0].meta.id.clone(),
+        board.traces[1].meta.id.clone(),
+    ];
     areas[0].net_label = Some("NET_REF".into());
     let out = check(&board, &areas, &raw, &ids, "NET_REF", 1);
     assert_eq!(out.reason, "ORIGINAL_COPPER_INVENTORY_MISMATCH");
@@ -237,7 +246,10 @@ fn rejects_modified_trace_coordinates_against_original_route() {
     let modified_source = source(AREA, &SIGNAL.replace("130 230 1 10 0", "90 230 1 10 0"));
     let (mut board, areas, raw) = assembled(&modified_source);
     board.traces[0].centreline[0].ticks[0] = 13000;
-    let ids = [board.traces[0].meta.id.clone(), board.traces[1].meta.id.clone()];
+    let ids = [
+        board.traces[0].meta.id.clone(),
+        board.traces[1].meta.id.clone(),
+    ];
     let out = check(&board, &areas, &raw, &ids, "NET_REF", 1);
     assert_eq!(out.state, "UNSUPPORTED");
 }
@@ -248,6 +260,12 @@ fn rejects_source_arc_branch_at_exact_selected_trace_joint() {
         "U9.1 U10.2\n160 240 1 10 0\n150 240 1 10 4096 CW\n150 230 1 10 0\n*SIGNAL* NET_REF",
     );
     let (board, areas, raw) = assembled(&source(AREA, &branched));
-    let ids = [board.traces[0].meta.id.clone(), board.traces[1].meta.id.clone()];
-    assert_eq!(check(&board, &areas, &raw, &ids, "NET_REF", 1).reason, "UNSELECTED_ARC_BRANCH");
+    let ids = [
+        board.traces[0].meta.id.clone(),
+        board.traces[1].meta.id.clone(),
+    ];
+    assert_eq!(
+        check(&board, &areas, &raw, &ids, "NET_REF", 1).reason,
+        "UNSELECTED_ARC_BRANCH"
+    );
 }

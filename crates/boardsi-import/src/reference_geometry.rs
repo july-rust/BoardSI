@@ -222,7 +222,10 @@ pub fn audit(
             return unsupported("UNSUPPORTED_TRACE_GEOMETRY");
         }
         // Trace ID alone does not bind its points, layer or Net to PADS.
-        let Some(raw_trace) = source_board.traces.iter().find(|t| t.meta.id == trace.meta.id)
+        let Some(raw_trace) = source_board
+            .traces
+            .iter()
+            .find(|t| t.meta.id == trace.meta.id)
         else {
             return unsupported("ORIGINAL_TRACE_NOT_FOUND");
         };
