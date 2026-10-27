@@ -555,9 +555,11 @@ mod tests {
         let board = into_canonical(source.as_bytes(), &parsed).unwrap();
         assert_eq!(board.vias.len(), 1);
         assert_eq!(board.vias[0].connected_layers.len(), 2);
-        assert!(board.connectivity.edges.iter().any(|edge| {
-            matches!(edge.evidence, ConnectionEvidence::ViaBarrel { .. })
-        }));
+        assert!(board
+            .connectivity
+            .edges
+            .iter()
+            .any(|edge| { matches!(edge.evidence, ConnectionEvidence::ViaBarrel { .. }) }));
         assert!(!board.validate().has_errors());
         let shifted = source.replace("500 400 1 10 0", "500 400.01 1 10 0");
         let parsed = parse(shifted.as_bytes()).unwrap();
