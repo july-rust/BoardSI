@@ -4,7 +4,7 @@
 use boardsi_model::{
     BoardModel, ConnectionEvidence, ConnectivityEdge, ConnectivityNode, ContactSite, ObjectId, PadRole, ViaKind,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 const NM_PER_TICK: i64 = 254;
@@ -215,12 +215,36 @@ pub fn legacy_endpoint_edges(board: &BoardModel) -> Result<Vec<&ConnectivityEdge
         .iter()
         .map(|node| (&node.meta.id, node))
         .collect();
+    let mut supported_via_sites = BTreeSet::new();
+    // A V1 via barrel is legal only if BOTH of its ViaCentre sites have
+    // independent V1-visible same-layer endpoint contacts. A newly verified
+    // TraceInterior may qualify the Canonical barrel, but NOT legacy V1.
+    for edge in &board.connectivity.edges {
+        let a = nodes.get(&edge.a).ok_or("CONTACT_WIRE_NODE_MISSING")?;
+        let b = nodes.get(&edge.b).ok_or("CONTACT_WIRE_NODE_MISSING")?;
+        if matches!(edge.evidence, ConnectionEvidence::SameLayerContact { .. })
+            && !matches!(&a.site, ContactSite::TraceInterior { .. })
+            && !matches!(&b.site, ContactSite::TraceInterior { .. })
+        {
+            if matches!(&a.site, ContactSite::ViaCentre) {
+                supported_via_sites.insert(&edge.a);
+            }
+            if matches!(&b.site, ContactSite::ViaCentre) {
+                supported_via_sites.insert(&edge.b);
+            }
+        }
+    }
     let mut result = Vec::new();
     for edge in &board.connectivity.edges {
         let a = nodes.get(&edge.a).ok_or("CONTACT_WIRE_NODE_MISSING")?;
         let b = nodes.get(&edge.b).ok_or("CONTACT_WIRE_NODE_MISSING")?;
         if matches!(&a.site, ContactSite::TraceInterior { .. })
             || matches!(&b.site, ContactSite::TraceInterior { .. })
+        {
+            continue;
+        }
+        if matches!(edge.evidence, ConnectionEvidence::ViaBarrel { .. })
+            && !(supported_via_sites.contains(&edge.a) && supported_via_sites.contains(&edge.b))
         {
             continue;
         }
