@@ -149,6 +149,45 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
             push_site(&mut locations, &trace.layer, point.ticks, candidate)?;
         }
     }
+    // Exact source-tick T-junctions: a different conductor's original
+    // endpoint strictly inside a straight centreline. This is NOT width
+    // overlap, arc-interior crossing, or complete copper connectivity.
+    for trace in &board.traces {
+        let a = trace.centreline[0].ticks;
+        let b = trace.centreline[1].ticks;
+        let xmin = a[0].min(b[0]);
+        let xmax = a[0].max(b[0]);
+        let witnesses: Vec<[i64; 2]> = locations
+            .range((trace.layer.clone(), [xmin, i64::MIN])..=(trace.layer.clone(), [xmax, i64::MAX]))
+            .filter_map(|((_, ticks), sites)| {
+                if !sites.iter().any(|s| s.conductor != trace.meta.id) {
+                    return None;
+                }
+                let (ax, ay) = (i128::from(a[0]), i128::from(a[1]));
+                let (bx, by) = (i128::from(b[0]), i128::from(b[1]));
+                let (px, py) = (i128::from(ticks[0]), i128::from(ticks[1]));
+                let cross = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+                let dot = (px - ax) * (px - bx) + (py - ay) * (py - by);
+                (cross == 0 && dot < 0).then_some(*ticks)
+            })
+            .collect();
+        for (index, ticks) in witnesses.into_iter().enumerate() {
+            let point = boardsi_model::Point {
+                frame: trace.centreline[0].frame.clone(),
+                ticks,
+            };
+            let candidate = site(
+                &source,
+                trace.meta.id.clone(),
+                trace.layer.clone(),
+                trace.net.clone(),
+                ContactSite::TraceInterior(point),
+                &format!("interior-{}-{}-{}", index, ticks[0], ticks[1]),
+                None,
+            );
+            push_site(&mut locations, &trace.layer, ticks, candidate)?;
+        }
+    }
     for arc in &board.arcs {
         for (contact, point, name) in [
             (ContactSite::ArcStart, &arc.start, "start"),
@@ -300,6 +339,28 @@ mod tests {
         assert_eq!(a.connectivity.edges.len(), 1);
         assert_eq!(a.connectivity.nodes.len(), 2);
         assert!(!a.validate().has_errors());
+    }
+
+    #[test]
+    fn strict_t_junction_is_connected_but_near_miss_is_not() {
+        let original = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n500 200 1 10 0\nU3.1 U4.2\n300 400 1 10 0\n300 200 1 10 0\n*END*\n";
+        let parsed = parse(original.as_bytes()).unwrap();
+        let board = into_canonical(original.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.connectivity.edges.len(), 1);
+        assert!(board.connectivity.nodes.iter().any(|node| matches!(node.site, ContactSite::TraceInterior(_))));
+        assert!(!board.validate().has_errors());
+        let offset = original.replace("300 200 1 10 0", "300.01 200 1 10 0");
+        let parsed = parse(offset.as_bytes()).unwrap();
+        assert!(into_canonical(offset.as_bytes(), &parsed).unwrap().connectivity.edges.is_empty());
+    }
+
+    #[test]
+    fn cross_net_t_junction_is_not_certified_as_connected() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n500 200 1 10 0\n*SIGNAL* NET_B\nU3.1 U4.2\n300 400 1 10 0\n300 200 1 10 0\n*END*\n";
+        let parsed = parse(source.as_bytes()).unwrap();
+        let board = into_canonical(source.as_bytes(), &parsed).unwrap();
+        assert!(board.connectivity.edges.is_empty());
+        assert!(board.sources[0].capability.object_coverage.iter().any(|s| s.contains("potential net conflicts 1")));
     }
 
     #[test]
