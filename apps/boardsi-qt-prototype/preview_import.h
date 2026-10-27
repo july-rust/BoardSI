@@ -35,6 +35,7 @@ class PreviewImportPanel final : public QWidget {
     int importedLayerCount_ = 0;
     QJsonArray importedCopperEvidence_;
     QJsonArray importedNetLabels_;
+    bool importedNetInventoryComplete_ = false;
     QString status_ = "NOT IMPORTED / SI NOT_RUN";
     std::function<void(const QString &)> callback_;
     bool expired_ = false, overflow_ = false, stderr_overflow_ = false;
@@ -667,9 +668,14 @@ public:
             // This is an inventory, NOT a topology/connectivity certificate.
             QJsonArray acceptedCopper;
             QStringList acceptedNets;
-            const auto rememberNet = [&acceptedNets](const QString &name) {
-                if (!name.isEmpty() && !acceptedNets.contains(name))
-                    acceptedNets.append(name);
+            bool completeNetInventory = true;
+            const auto rememberNet = [&acceptedNets, &completeNetInventory](const QString &name) {
+                if (name.isEmpty() || acceptedNets.contains(name)) return;
+                if (name.size() > 64 || acceptedNets.size() >= 128) {
+                    completeNetInventory = false;
+                    return;
+                }
+                acceptedNets.append(name);
             };
             for (const auto &track : tracks) rememberNet(track.net);
             for (const auto &arc : arcs) rememberNet(arc.net);
@@ -685,6 +691,7 @@ public:
             QJsonArray acceptedNames;
             for (const QString &name : acceptedNets) acceptedNames.append(name);
             importedNetLabels_ = acceptedNames;
+            importedNetInventoryComplete_ = completeNetInventory;
             importedLayerCount_ = layers;
             imported_->setLocalContacts(contactMarkers);
             imported_->setLocalContactAudit(contactAudit);
@@ -728,6 +735,7 @@ public:
     int importedLayerCount() const { return importedLayerCount_; }
     QJsonArray importedCopperEvidence() const { return importedCopperEvidence_; }
     QJsonArray importedNetLabels() const { return importedNetLabels_; }
+    bool importedNetInventoryComplete() const { return importedNetInventoryComplete_; }
     void setStatusCallback(std::function<void(const QString &)> cb) { callback_ = std::move(cb); }
     bool openPath(const QString &path) {
         if (process_.state() != QProcess::NotRunning) return false;
@@ -737,6 +745,7 @@ public:
         importedLayerCount_ = 0;
         importedCopperEvidence_ = QJsonArray();
         importedNetLabels_ = QJsonArray();
+        importedNetInventoryComplete_ = false;
         tabs_->setTabText(1, "Imported Partial (none)");
         if (!QFileInfo(binary_).isAbsolute() || !QFileInfo(binary_).isExecutable()) {
             status("FAILED / IMPORTER_UNAVAILABLE / NOTHING IMPORTED");
