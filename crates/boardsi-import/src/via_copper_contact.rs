@@ -202,7 +202,10 @@ pub fn augment(
             != 1
             || area.cutouts.len() > 1
             || copper.cutouts.len() != area.cutouts.len()
-            || area.cutouts.iter().any(|h| !matches!(h, copper_preview::CopperGeometry::Polygon(_)))
+            || area
+                .cutouts
+                .iter()
+                .any(|h| !matches!(h, copper_preview::CopperGeometry::Polygon(_)))
             || !matches!(&area.geometry, copper_preview::CopperGeometry::Polygon(_))
             || copper.net.as_ref().is_some_and(|current| *current != net)
             || copper_source.net.is_some()
