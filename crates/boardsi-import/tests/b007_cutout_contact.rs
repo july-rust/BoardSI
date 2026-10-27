@@ -42,17 +42,26 @@ fn run(
 }
 
 #[test]
-fn plated_via_in_remaining_copper_connects_and_preserves_barrel() {
+fn plated_via_in_remaining_copper_same_layer_needs_no_new_barrel() {
     let (board, trace, via) = run(&text(AREA, ROUTE_VIA_FILL));
     assert_eq!(trace.exact_contacts, 2); // two source Trace segments meet at the via
     assert_eq!(via.local_contacts, 1);
+    assert_eq!(via.new_barrel_edges, 0);
+    assert_eq!(board.vias[0].connected_layers.len(), 1);
+}
+
+#[test]
+fn plated_via_connects_across_source_layers_only_with_second_cutout_area_contact() {
+    let area4 = AREA
+        .replace("COPCLS 5 0.01 0 1", "COPCLS 5 0.01 0 4")
+        .replace("COPCUT 5 0.01 0 1", "COPCUT 5 0.01 0 4");
+    let (board, trace, via) = run(&text(&area4, ROUTE_VIA_FILL));
+    assert_eq!(trace.exact_contacts, 0);
+    assert_eq!(via.local_contacts, 1);
     assert_eq!(via.new_barrel_edges, 1);
-    assert!(board
-        .connectivity
-        .edges
-        .iter()
-        .any(|e| matches!(e.evidence, ConnectionEvidence::ViaBarrel { .. })));
     assert_eq!(board.vias[0].connected_layers.len(), 2);
+    assert!(board.connectivity.edges.iter().any(|e|
+        matches!(e.evidence, ConnectionEvidence::ViaBarrel { .. })));
 }
 
 #[test]
