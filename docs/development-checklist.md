@@ -69,6 +69,12 @@
 
 - [ ] **B_001 전체 Issue #12 정식 인수** — B_003 제한 접속 기능 병합이 곧 전체 Copper/Plane 연결과 고주파 Return Path 물리 검증을 의미하지 않음. U09/U10/U39, T02/T04/T24/T52 전체 승인 보류. Issue #12 OPEN 유지.
 
+### B_004 — 단일 단순 Copper Area 국소 접촉 검증 (CI/리뷰 대기)
+
+- [ ] **B_004 제한 PADS Source Copper Area 내부 접촉** — Rust의 단순 직선형 Hole-free Polygon과 명시적 ROUTE Net이 교차 검증된 경우만 Trace Endpoint/Pad Centre 내부 접촉 및 동일 Area 내 국소 연속성 후보를 추가. Arc/Hole/Cutout, Via-to-Plane, 임의 Trace 폭 접촉, 전체 Reference Return Path는 **UNSUPPORTED**. **체크 전 필수:** 최신 HEAD Native/Rust CI, Canonical 변조·경계/Layer/Cross-Net/다중 Island/Legacy V1 테스트, 독립 Codex 검토, Verified Squash Main 병합·Post-main 증빙. 초기 체크 없음. ([Issue #12](https://github.com/july-rust/BoardSI/issues/12), [B_004 원장](validation/b004-reference-copper-connectivity.md)).
+
+- [ ] **B_001 전체 Issue #12 정식 인수** — B_004가 제한적으로 성공하더라도 물리 Reference Return Path/P009, Scenario/Cache, Material loss/roughness 및 공식 U09/U10/U39/T02/T04/T24/T52는 남는다. 원래 OPEN 상태 유지.
+
 ## 3. 후속 개발 체크리스트
 
 | 단계 | 상태 | 구체적 잔여 작업 (GitHub) |
