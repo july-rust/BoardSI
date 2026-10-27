@@ -97,7 +97,10 @@ fn b003_canonical_interior_edges_do_not_break_legacy_qt_audit_counts() {
             String::from_utf8_lossy(&default.stderr)
         );
         let extended = invoke(&fixture, true);
-        assert!(extended.status.success(), "{filename} opt-in import failure");
+        assert!(
+            extended.status.success(),
+            "{filename} opt-in import failure"
+        );
         assert!(extended.stdout.starts_with(&default.stdout));
         assert_eq!(extended.stderr, default.stderr);
         let audit = String::from_utf8_lossy(&default.stderr);
