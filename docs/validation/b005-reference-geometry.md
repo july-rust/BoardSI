@@ -1,6 +1,6 @@
 # B_005 — Restricted Reference geometry coverage audit
 
-Status: **IMPLEMENTATION CANDIDATE / NOT ACCEPTED** (2026-10-27 KST).
+Status: **SOURCE CODE CI PASS / FINAL REVIEW AND MERGE PENDING** (2026-10-27 KST).
 Tracking: [Issue #12](https://github.com/july-rust/BoardSI/issues/12).
 Baseline: protected `main@cc673ab285af6c8f11314e1b4677d543b5c67415`.
 Before implementation, the [development checklist](../development-checklist.md) was read.
@@ -67,3 +67,11 @@ These changes require fresh exact HEAD CI and independent Codex review.
 - Latest Codex P2: canonical source Net label/ID spoof and omitted unselected source branch. Added strict complete Net/Trace/Arc source inventory matching (ID, layer, net, coordinates, widths) and two negative tests. Gate remains NOT_ACCEPTED pending CI and latest-head Codex.
 
 - Latest Codex P2: original source Via touching selected straight Trace could make a through-layer branch. Reject ANY reparsed source Via centre on selected path (`SOURCE_VIA_CONTACT_UNSUPPORTED`) without inventing a physical Via/Reference model. Added synthetic Via negative test; verification pending.
+
+## Exact code HEAD CI and acceptance boundary — 2026-10-27 KST
+
+- Source code HEAD `225489bedabc146e31b83137267aaa29d86f8503`: **all 23/23 GitHub Check jobs SUCCESS** (12 workflows including numerical fmt/Clippy, Windows x64/ARM64, macOS ARM64, Linux, Qt/RHI/native, FEM and CodeQL). [Exact code checks](https://github.com/july-rust/BoardSI/commit/225489bedabc146e31b83137267aaa29d86f8503/checks).
+- Same source HEAD Rust Numerical CI ran new `b005_reference_geometry.rs`: **Debug 17/17 PASS, Release 17/17 PASS**. Existing importer/B_003/B_004 tests passed in Numerical CI. [Numerical check log](https://github.com/july-rust/BoardSI/actions/runs/40496366211).
+- Independent Codex review on earlier heads found 11 material findings (2 P1, 9 P2), fixed with synthetic regressions and all corresponding historical threads resolved. Requested fresh independent latest-head Codex re-review on `225489b`; its result **NOT_YET_VERIFIED** and is not preaccepted.
+- Later documentation-only commits necessarily have different PR head SHA: rerun protected CI and independent review before merge. Never confuse the reviewed source tree with updated document HEAD.
+- B_005 formal scoped checklist stays unchecked until the independent latest-code review is confirmed. Issue #12 remains OPEN; full U09/U10/U39/T02/T04/T24/T52 and physical Return Path/P009 UNSUPPORTED.
