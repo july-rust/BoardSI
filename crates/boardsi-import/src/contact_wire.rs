@@ -2,7 +2,7 @@
 //! Never certifies entire-board shorts/opens or areas/pins.
 //! Default legacy artwork stdout V1-V14 is byte-for-byte unaffected.
 use boardsi_model::{
-    BoardModel, ConnectionEvidence, ConnectivityNode, ContactSite, ObjectId, PadRole, ViaKind,
+    BoardModel, ConnectionEvidence, ConnectivityEdge, ConnectivityNode, ContactSite, ObjectId, PadRole, ViaKind,
 };
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -205,6 +205,30 @@ fn potential_conflicts(
     Ok(conflicts)
 }
 
+/// Strictly V1 transportable contact edges. Shared by the encoded suffix
+/// and the CLI stderr audit so a new Canonical-only edge cannot make Qt reject
+/// its source payload due to mismatched counts.
+pub fn legacy_endpoint_edges(board: &BoardModel) -> Result<Vec<&ConnectivityEdge>, &'static str> {
+    let nodes: BTreeMap<_, _> = board
+        .connectivity
+        .nodes
+        .iter()
+        .map(|node| (&node.meta.id, node))
+        .collect();
+    let mut result = Vec::new();
+    for edge in &board.connectivity.edges {
+        let a = nodes.get(&edge.a).ok_or("CONTACT_WIRE_NODE_MISSING")?;
+        let b = nodes.get(&edge.b).ok_or("CONTACT_WIRE_NODE_MISSING")?;
+        if matches!(&a.site, ContactSite::TraceInterior { .. })
+            || matches!(&b.site, ContactSite::TraceInterior { .. })
+        {
+            continue;
+        }
+        result.push(edge);
+    }
+    Ok(result)
+}
+
 /// A strictly opt-in suffix AFTER the unchanged legacy END line. The caller
 /// must not silently interpret these records using a V1-V14 decoder.
 pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
@@ -237,21 +261,10 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         .iter()
         .map(|n| (n.meta.id.clone(), n))
         .collect();
-    // V1 explicitly transports *endpoints only*. B_003 interior witnesses
-    // stay in the validated Canonical graph but MUST NOT be encoded as fake
-    // TraceVertex(0/1) or silently change the V1 wire contract.
-    let compatible_edges: Vec<_> = board
-        .connectivity
-        .edges
-        .iter()
-        .filter(|edge| {
-            [&edge.a, &edge.b].into_iter().all(|id| {
-                nodes.get(id).map_or(false, |node| {
-                    !matches!(&node.site, ContactSite::TraceInterior { .. })
-                })
-            })
-        })
-        .collect();
+    // Use exactly the same endpoint-only selection as the public CLI
+    // BOARDSI_CONTACT_AUDIT_V1 stderr counts. The canonical graph can
+    // contain additional validated interior witnesses not representable by V1.
+    let compatible_edges = legacy_endpoint_edges(board)?;
     if compatible_edges.len() > MAX_RECORDS {
         return Err("CONTACT_WIRE_RECORD_LIMIT");
     }
