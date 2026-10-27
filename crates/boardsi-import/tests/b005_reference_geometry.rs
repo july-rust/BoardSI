@@ -130,7 +130,10 @@ fn no_net_alias_join_no_cross_layer_reference_or_missing_source() {
 fn rejects_disjoint_same_net_areas_and_unknown_geometry() {
     let split = format!("{AREA}OTHER COPPER 300 200 1 1 0 NET_REF\nCOPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\n");
     let (board, areas) = assembled(&source(&split, SIGNAL));
-    let ids = [board.traces[0].meta.id.clone(), board.traces[1].meta.id.clone()];
+    let ids = [
+        board.traces[0].meta.id.clone(),
+        board.traces[1].meta.id.clone(),
+    ];
     assert_eq!(
         check(&board, &areas, &ids, "NET_REF", 1).state,
         "SOURCE_ORDER_GEOMETRY_ONLY"
