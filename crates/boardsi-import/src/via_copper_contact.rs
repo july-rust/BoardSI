@@ -115,6 +115,7 @@ pub fn augment(board: &mut BoardModel, original_bytes: &[u8]) -> Result<ViaAreaA
     let mut edges = Vec::new();
     let mut audit = ViaAreaAudit::default();
     let mut visited = BTreeSet::new();
+    let mut area_updates = BTreeSet::new();
     // Via lookup is Layer + source-tick X indexed; only bounding-box candidates
     // on the same layer undergo the exact strict polygon predicate.
     let mut index: BTreeMap<(ObjectId, i64), Vec<usize>> = BTreeMap::new();
@@ -162,7 +163,7 @@ pub fn augment(board: &mut BoardModel, original_bytes: &[u8]) -> Result<ViaAreaA
         for ((_, x), indices) in index.range((layer.clone(), xmin)..=(layer.clone(), xmax)) {
             let _ = x;
             for &via_index in indices {
-                let via = &board.vias[via_index];
+                let via = board.vias[via_index].clone();
                 if !visited.insert((area_index, via_index)) {
                     continue;
                 }
@@ -213,6 +214,10 @@ pub fn augment(board: &mut BoardModel, original_bytes: &[u8]) -> Result<ViaAreaA
                     n.conductor == via.meta.id && n.layer != layer
                         && matches!(n.site, ContactSite::ViaCentre)
                         && via.connected_layers.contains(&n.layer)
+                        && board.connectivity.edges.iter().any(|e| {
+                            matches!(e.evidence, ConnectionEvidence::SameLayerContact { .. })
+                                && (e.a == n.meta.id || e.b == n.meta.id)
+                        })
                 ).map(|n| n.meta.id.clone());
                 nodes.entry(via_id.clone()).or_insert(via_node);
                 nodes.entry(area_id.clone()).or_insert(area_node);
@@ -236,7 +241,7 @@ pub fn augment(board: &mut BoardModel, original_bytes: &[u8]) -> Result<ViaAreaA
                         audit.new_barrel_edges += 1;
                     }
                 }
-                board.areas[area_index].net = Some(net.clone());
+                area_updates.insert((area_index, net.clone()));
                 audit.local_contacts += 1;
             }
         }
@@ -245,6 +250,9 @@ pub fn augment(board: &mut BoardModel, original_bytes: &[u8]) -> Result<ViaAreaA
         .is_none_or(|total| total > 100_000)
     {
         return Err("B006_GRAPH_LIMIT");
+    }
+    for (area_index, net) in area_updates {
+        board.areas[area_index].net = Some(net);
     }
     board.connectivity.nodes = nodes.into_values().collect();
     board.connectivity.edges.extend(edges);
