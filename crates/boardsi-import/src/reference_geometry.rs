@@ -210,9 +210,10 @@ pub fn audit(
     // In particular a deleted unselected branch must not become a valid path.
     if board.nets.len() != source_board.nets.len()
         || !board.nets.iter().all(|net| {
-            source_board.nets.iter().any(|original| {
-                original.meta.id == net.meta.id && original.name == net.name
-            })
+            source_board
+                .nets
+                .iter()
+                .any(|original| original.meta.id == net.meta.id && original.name == net.name)
         })
     {
         return unsupported("ORIGINAL_NET_IDENTITY_MISMATCH");
