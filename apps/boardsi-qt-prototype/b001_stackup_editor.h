@@ -362,12 +362,26 @@ public:
         process.closeWriteChannel();
         if (!process.waitForFinished(5000)) { process.kill(); process.waitForFinished(1000); return false; }
         const QByteArray resultBytes = process.readAllStandardOutput();
-        if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0 ||
-            resultBytes.size() > 4096) return false;
+        if (process.exitStatus() != QProcess::NormalExit || resultBytes.size() > 4096)
+            return false;
         QJsonParseError error;
         const QJsonDocument result = QJsonDocument::fromJson(resultBytes, &error);
         if (error.error != QJsonParseError::NoError || !result.isObject()) return false;
         const QJsonObject auditFields = result.object();
+        if (process.exitCode() != 0) {
+            // Display only the native fixed reason code, never raw stdout or
+            // proprietary Net/source names. This is not a solver waiver.
+            const QString reason = auditFields.value("reason").toString();
+            if (!reason.isEmpty() && reason.size() <= 64) {
+                bool codeOnly = true;
+                for (const QChar c : reason)
+                    if ((c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '_')
+                        codeOnly = false;
+                if (codeOnly)
+                    status("RUST REJECTED / " + reason + " / SI NOT_RUN");
+            }
+            return false;
+        }
         if (auditFields.value("schema").toString() != "boardsi-b001-canonical-audit-v1" ||
             auditFields.value("canonical_stackup").toString() != "ASSUMED" ||
             auditFields.value("reference_continuity").toString() != "UNSUPPORTED_NO_COPPER_NET_EVIDENCE" ||
