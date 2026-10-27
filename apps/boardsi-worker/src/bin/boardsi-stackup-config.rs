@@ -163,6 +163,35 @@ fn reference_inventory_audit(
     ))
 }
 
+/// Domain-scoped, deterministic immutable audit-input identity. This is NOT a
+/// physics cache key: no complete PCB geometry, port/load or solver version exists.
+/// Serialize only validated semantic audit fields, never unrelated UI display state.
+/// Retaining original validated number strings is conservative: equivalent spellings
+/// can invalidate an audit, but differing physical assumptions cannot share one.
+fn audit_scenario_revision(
+    object: &serde_json::Map<String, Value>,
+    frequency_hz: f64,
+) -> Result<String, &'static str> {
+    use std::fmt::Write as _;
+    let snapshot = json!({
+        "schema": "boardsi-b002-limited-audit-snapshot-v1",
+        "source_sha256": object.get("source_sha256"),
+        "layers": object.get("layers"),
+        "frequency_hz": frequency_hz,
+        "selected_signal_net": object.get("selected_signal_net"),
+        "selected_reference_net": object.get("selected_reference_net"),
+        "source_net_labels": object.get("source_net_labels"),
+        "reference_copper_inventory": object.get("reference_copper_inventory"),
+        "net_inventory_complete": object.get("net_inventory_complete"),
+    });
+    let bytes = serde_json::to_vec(&snapshot).map_err(|_| "INVALID_AUDIT_SNAPSHOT")?;
+    let mut result = String::with_capacity(64);
+    for b in boardsi_import::digest::sha256(&bytes) {
+        write!(&mut result, "{b:02x}").map_err(|_| "INVALID_AUDIT_SNAPSHOT")?;
+    }
+    Ok(result)
+}
+
 fn audit(input: &Value) -> Result<Value, &'static str> {
     let object = input.as_object().ok_or("INVALID_DOCUMENT")?;
     if object.get("schema").and_then(Value::as_str) != Some("boardsi-b001-stackup-overlay-v2")
@@ -267,8 +296,13 @@ fn audit(input: &Value) -> Result<Value, &'static str> {
     if material_overlay_report_has_blocker(&report) {
         return Err("CANONICAL_VALIDATION_REJECTED");
     }
+    let scenario_revision = audit_scenario_revision(object, frequency)?;
     Ok(json!({
         "schema": "boardsi-b001-canonical-audit-v1",
+        "audit_scenario_revision_schema": "boardsi-b002-limited-audit-snapshot-v1",
+        "audit_scenario_revision_sha256": scenario_revision,
+        "audit_revision_scope": "SOURCE_BOUND_ASSUMED_MATERIAL_ONLY",
+        "cache_reuse_eligible": false,
         "canonical_stackup": "ASSUMED",
         "canonical_materials": "ASSUMED_VALID_IN_BAND",
         "reference_continuity": "UNSUPPORTED_NO_COPPER_NET_EVIDENCE",
@@ -452,6 +486,95 @@ mod tests {
         );
     }
 
+    /// Strict public fixture; no source copper, netlist, port or solver.
+    fn snapshot_fixture() -> Value {
+        json!({
+            "schema":"boardsi-b001-stackup-overlay-v2",
+            "scope":"USER_OVERLAY_NOT_PHYSICAL_SI",
+            "source_sha256":"00000000000000000000000000000000000000000000000000000000abcdef12",
+            "audit_frequency_hz":"1000000000",
+            "selected_signal_net":"",
+            "selected_reference_net":"",
+            "net_inventory_complete":false,
+            "source_net_labels":[],
+            "reference_copper_inventory":[],
+            "layers":[
+                ["1","Copper","35","public copper","","","58000000","Signal","","public synthetic","r1","test","1000000000","25","1000000","2000000000"],
+                ["2","Core","100","public core","4.2","0.02","","Unknown","","public synthetic","r1","test","1000000000","25","1000000","2000000000"]
+            ]
+        })
+    }
+    fn revision(v: &Value) -> String {
+        let result = audit(v).expect("valid public synthetic input");
+        assert_eq!(result["cache_reuse_eligible"], json!(false));
+        assert_eq!(result["solver_ready"], json!(false));
+        assert_eq!(result["return_path_p009"], "UNSUPPORTED");
+        assert_eq!(
+            result["reference_continuity"],
+            "UNSUPPORTED_NO_COPPER_NET_EVIDENCE"
+        );
+        assert_eq!(
+            result["audit_revision_scope"],
+            "SOURCE_BOUND_ASSUMED_MATERIAL_ONLY"
+        );
+        result["audit_scenario_revision_sha256"]
+            .as_str()
+            .expect("revision string")
+            .to_owned()
+    }
+    #[test]
+    fn source_bound_assumed_scenario_revision_is_deterministic_and_fail_closed() {
+        let original = snapshot_fixture();
+        let baseline = revision(&original);
+        assert_eq!(baseline.len(), 64);
+        assert!(baseline.bytes().all(|c| c.is_ascii_hexdigit()));
+        assert_eq!(baseline, revision(&original));
+        let mut zoom = original.clone();
+        zoom["ui_zoom"] = json!(1.5);
+        zoom["theme"] = json!("dark");
+        assert_eq!(
+            baseline,
+            revision(&zoom),
+            "display-only fields must not invalidate"
+        );
+        // Reordered object keys and JSON whitespace do not alter the identity.
+        let reparsed: Value =
+            serde_json::from_str(&serde_json::to_string_pretty(&original).unwrap()).unwrap();
+        assert_eq!(baseline, revision(&reparsed));
+        let mut modified = original.clone();
+        modified["layers"][1][4] = json!("4.3"); // Dk
+        assert_ne!(baseline, revision(&modified));
+        modified = original.clone();
+        modified["layers"][1][2] = json!("110"); // dielectric height changes z and total
+        assert_ne!(baseline, revision(&modified));
+        modified = original.clone();
+        modified["layers"][1][10] = json!("r2"); // source provenance revision
+        assert_ne!(baseline, revision(&modified));
+        modified = original.clone();
+        modified["layers"][0][8] = json!(""); // already blank, then switch reference
+        modified["layers"][0][7] = json!("Ground");
+        assert_ne!(baseline, revision(&modified));
+        modified = original.clone();
+        modified["source_sha256"] =
+            json!("00000000000000000000000000000000000000000000000000000000abcdef13");
+        assert_ne!(baseline, revision(&modified));
+        modified = original.clone();
+        modified["audit_frequency_hz"] = json!("1100000000");
+        assert_ne!(baseline, revision(&modified));
+        modified = original.clone();
+        modified["selected_signal_net"] = json!("SIG");
+        modified["selected_reference_net"] = json!("GND");
+        assert_ne!(baseline, revision(&modified));
+        modified = original.clone();
+        modified["reference_copper_inventory"] = json!([[1, "PLANE", "", 123, 0, false, false]]);
+        assert_ne!(baseline, revision(&modified));
+        modified = original.clone();
+        modified["source_net_labels"] = json!(["GND"]);
+        assert_ne!(baseline, revision(&modified));
+        modified = original.clone();
+        modified["net_inventory_complete"] = json!(true);
+        assert_ne!(baseline, revision(&modified));
+    }
     #[test]
     fn invalid_source_is_not_canonical() {
         assert!(sha_bytes("not-sha").is_err());

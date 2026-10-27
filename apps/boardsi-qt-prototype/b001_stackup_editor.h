@@ -35,6 +35,7 @@ class B001StackupEditor final : public QWidget {
     QString sourcePath_;
     QByteArray importDigest_; // Pinned at successful import; never trust a later path-only match.
     QByteArray auditedRevision_; // Session-only digest of the last successful Rust audit input.
+    QString validatedScenarioRevision_; // Rust-scoped audit revision, NEVER a Solver cache key.
     static constexpr int Columns = 16;
     // Layer ID / kind / thickness in micrometres / material / Dk / Df /
     // conductivity S/m / net-role hint / reference layer / source document / revision /
@@ -109,15 +110,18 @@ public:
         // Rust receipt immediately: no stale 'ASSUMED' result survives a scenario edit.
         connect(rows_, &QTableWidget::itemChanged, this, [this](QTableWidgetItem *) {
             auditedRevision_.clear();
+            validatedScenarioRevision_.clear();
             status("STACKUP INPUT MODIFIED / RE-AUDIT REQUIRED / SI NOT_RUN");
         });
         connect(auditFrequency_, &QLineEdit::textChanged, this, [this](const QString &) {
             auditedRevision_.clear();
+            validatedScenarioRevision_.clear();
             status("AUDIT FREQUENCY MODIFIED / RE-AUDIT REQUIRED / SI NOT_RUN");
         });
         for (auto *entry : {signalNet_, referenceNet_}) {
             connect(entry, &QLineEdit::textChanged, this, [this](const QString &) {
                 auditedRevision_.clear();
+            validatedScenarioRevision_.clear();
                 status("REFERENCE NET SELECTION MODIFIED / RE-AUDIT REQUIRED / SI NOT_RUN");
             });
         }
@@ -160,23 +164,29 @@ public:
         acceptedNetLabels_ = nets;
         acceptedNetInventoryComplete_ = complete;
         auditedRevision_.clear();
+        validatedScenarioRevision_.clear();
         status("SOURCE COPPER INVENTORY UPDATED / REFERENCE NOT_PROVED / SI NOT_RUN");
     }
     QString summary() const { return message_->text(); }
     // A receipt is only fresh for this session's audited input and pinned board bytes.
     // This is NOT a Solver/Reference qualification or a persistent cache key.
     bool currentAuditIsFresh() const {
-        if (auditedRevision_.isEmpty() || sourcePath_.isEmpty() ||
-            sourceDigest(sourcePath_) != importDigest_) return false;
+        if (auditedRevision_.isEmpty() || validatedScenarioRevision_.isEmpty() ||
+            sourcePath_.isEmpty() || sourceDigest(sourcePath_) != importDigest_) return false;
         const QByteArray bytes = auditRequestBytes(importDigest_);
         return !bytes.isEmpty() &&
                QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex() == auditedRevision_;
+    }
+    // Deliberately empty for stale, changed or unverified source and scenario.
+    QString auditScenarioRevision() const {
+        return currentAuditIsFresh() ? validatedScenarioRevision_ : QString();
     }
     void resetForImport(const QString &path, int layerCount) {
         // Begin reimport by calling with 0; fail-closed regardless of import outcome.
         sourcePath_ = layerCount > 0 ? path : QString();
         importDigest_.clear();
         auditedRevision_.clear();
+        validatedScenarioRevision_.clear();
         acceptedCopperInventory_ = QJsonArray();
         acceptedNetLabels_ = QJsonArray();
         acceptedNetInventoryComplete_ = false;
@@ -331,6 +341,7 @@ public:
         signalNet_->setText(legacy ? QString() : storedSignal);
         referenceNet_->setText(legacy ? QString() : storedReference);
         auditedRevision_.clear();
+        validatedScenarioRevision_.clear();
         status("OVERLAY LOADED / CANONICAL MUST BE RE-AUDITED / SI NOT_RUN");
         return true;
     }
@@ -365,6 +376,7 @@ public:
     }
     bool auditCanonical() {
         auditedRevision_.clear();
+        validatedScenarioRevision_.clear();
         if (!validate().startsWith("INPUT FIELDS VALID")) return false;
         bool valid = false;
         const double freq = auditFrequency_->text().trimmed().toDouble(&valid);
@@ -417,6 +429,11 @@ public:
             return false;
         }
         if (auditFields.value("schema").toString() != "boardsi-b001-canonical-audit-v1" ||
+            auditFields.value("audit_scenario_revision_schema").toString() !=
+                "boardsi-b002-limited-audit-snapshot-v1" ||
+            auditFields.value("audit_revision_scope").toString() !=
+                "SOURCE_BOUND_ASSUMED_MATERIAL_ONLY" ||
+            auditFields.value("cache_reuse_eligible").toBool(true) ||
             auditFields.value("canonical_stackup").toString() != "ASSUMED" ||
             auditFields.value("reference_continuity").toString() != "UNSUPPORTED_NO_COPPER_NET_EVIDENCE" ||
             auditFields.value("solver_ready").toBool(true) ||
@@ -428,6 +445,13 @@ public:
             candidate != "UNKNOWN_OR_MISSING_SOURCE_NET" &&
             candidate != "OBSERVED_LABELS_NO_TOPOLOGY_PROOF" &&
             candidate != "CUTOUT_OR_SPLIT_UNSUPPORTED") return false;
+        const QString scenario = auditFields.value("audit_scenario_revision_sha256").toString();
+        if (scenario.size() != 64) return false;
+        for (const QChar digit : scenario) {
+            if (!((digit >= '0' && digit <= '9') || (digit >= 'a' && digit <= 'f')))
+                return false;
+        }
+        validatedScenarioRevision_ = scenario;
         auditedRevision_ = QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex();
         status("RUST CANONICAL STACKUP ASSUMED / SOURCE REFERENCE " + candidate +
                " / RETURN PATH UNSUPPORTED / SI NOT_RUN");
