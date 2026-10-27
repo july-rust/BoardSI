@@ -253,8 +253,11 @@ impl BoardModel {
             points.push(&v.position);
         }
         for n in &self.connectivity.nodes {
-            if let ContactSite::AreaWitness { point, .. } = &n.site {
-                points.push(point);
+            match &n.site {
+                ContactSite::AreaWitness { point, .. } | ContactSite::AreaInterior(point) => {
+                    points.push(point);
+                }
+                _ => {}
             }
         }
         points
@@ -922,9 +925,20 @@ impl BoardModel {
                     .copied()
                     .ok_or(ModelError::InvalidReference)?;
                 require(
-                    area.layer == node.layer
-                        && !evidence.trim().is_empty()
-                        && strict_simple_area_contains(area, point)?,
+                    area.layer == node.layer && !evidence.trim().is_empty(),
+                    ModelError::InvalidConnection,
+                )?;
+                self.point(point)?;
+                (&area.net, point)
+            }
+            ContactSite::AreaInterior(point) => {
+                let area = lookup
+                    .areas
+                    .get(&node.conductor)
+                    .copied()
+                    .ok_or(ModelError::InvalidReference)?;
+                require(
+                    area.layer == node.layer && strict_simple_area_contains(area, point)?,
                     ModelError::InvalidConnection,
                 )?;
                 self.point(point)?;
@@ -967,8 +981,8 @@ impl BoardModel {
                     && b.conductor == *area
                     && a.layer == b.layer
                     && pos_a != pos_b
-                    && matches!(a.site, ContactSite::AreaWitness { .. })
-                    && matches!(b.site, ContactSite::AreaWitness { .. }),
+                    && matches!(a.site, ContactSite::AreaInterior(_))
+                    && matches!(b.site, ContactSite::AreaInterior(_)),
                 ModelError::InvalidConnection,
             ),
             ConnectionEvidence::ViaBarrel { via } => {
