@@ -429,7 +429,9 @@ mod tests {
         // Empty Copper Net is a genuine missing source label, never GND.
         evidence["reference_copper_inventory"][0][2] = json!("");
         assert_eq!(
-            reference_inventory_audit(evidence.as_object().unwrap(), &layers).unwrap().0,
+            reference_inventory_audit(evidence.as_object().unwrap(), &layers)
+                .unwrap()
+                .0,
             "UNKNOWN_OR_MISSING_SOURCE_NET"
         );
         // A bounded/incomplete Net inventory must not block Material audit,
