@@ -202,3 +202,34 @@ fn source_declared_smd_pad_inside_copper_but_not_cutout_is_a_witness() {
         .any(|n| matches!(n.site, ContactSite::PadCentre)
             && board.pads.iter().any(|p| p.meta.id == n.conductor)));
 }
+
+#[test]
+fn source_pad_in_cutout_cannot_be_moved_into_copper_or_redefined() {
+    let sample = include_str!("fixtures/pads_component_simple_v94.asc").replace("\r\n", "\n");
+    let original = "*ROUTE*\n*SIGNAL* NET_A\nU9.1 U9.2\n100 200 1 10 0\n300 200 1 10 0\n";
+    // Pad U1.1 is at source (200,300); the owned COPCUT strictly encloses it.
+    let replacement = "*LINES*\nZONE COPPER 150 250 2 1 0 NET_A\nCOPCLS 5 0.01 0 1\n0 0\n100 0\n100 100\n0 100\n0 0\nCOPCUT 5 0.01 0 1\n40 40\n60 40\n60 60\n40 60\n40 40\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U9.2\n300 400 1 10 0\n350 400 1 10 0\n";
+    assert!(sample.contains(original));
+    let input = sample.replace(original, replacement);
+    let parsed = route_preview::parse(input.as_bytes()).unwrap();
+    let mut board = route_preview::into_canonical(input.as_bytes(), &parsed).unwrap();
+    let pads = boardsi_import::part_preview::parse(input.as_bytes(), parsed.max_layer);
+    boardsi_import::part_preview::augment_source_bound(&mut board, &pads, input.as_bytes()).unwrap();
+    let areas = copper_preview::parse(input.as_bytes(), parsed.max_layer).unwrap();
+    copper_preview::augment(&mut board, &areas).unwrap();
+    let empty = copper_contact::augment_source_bound(&mut board, &areas, input.as_bytes()).unwrap();
+    assert_eq!(empty.exact_contacts, 0);
+    assert!(board.areas[0].net.is_none());
+    let mut moved = board.clone();
+    moved.pads[0].position.ticks[0] += 2000;
+    assert_eq!(
+        copper_contact::augment_source_bound(&mut moved, &areas, input.as_bytes()).unwrap_err(),
+        "B007_SOURCE_INVENTORY_MISMATCH"
+    );
+    let mut redefined = board;
+    redefined.padstacks[0].entries.pop();
+    assert_eq!(
+        copper_contact::augment_source_bound(&mut redefined, &areas, input.as_bytes()).unwrap_err(),
+        "B007_SOURCE_INVENTORY_MISMATCH"
+    );
+}
