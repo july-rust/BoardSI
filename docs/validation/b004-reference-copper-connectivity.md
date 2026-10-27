@@ -64,9 +64,25 @@ M1 full U09/U10/U39 or T02/T04/T24/T52 acceptance. Preserve
   legacy general witness contract.
 - An added public synthetic SMD pad-source regression exercises actual
   `part_preview::augment_source_bound` then Copper graph creation.
-- **Until final exact HEAD CI, independent review, protected Verified signed
-  Squash Merge and post-main checks are independently verified, B_004 remains
-  PENDING and checklist B_004 [ ] remains unchecked.**
+- Source code HEAD `7c68f9523b65999271fff5b510e984ec30dac72a`:
+  **12/12 GitHub Actions workflows SUCCESS, 23/23 recorded jobs SUCCESS**,
+  including Rust fmt/clippy/numerical and Rust Native Windows x64/ARM64,
+  macOS ARM64, Linux, native Qt Windows x64/ARM64, macOS ARM64 and Linux.
+  [Exact source HEAD CI](https://github.com/july-rust/BoardSI/commit/7c68f9523b65999271fff5b510e984ec30dac72a/checks).
+- Independent Codex review against that same source HEAD:
+  `status=completed`, `has_any_findings=false`,
+  `has_unresolved_findings=false`. Four historical review threads
+  were resolved after code remediation. [Review evidence PR #226](https://github.com/july-rust/BoardSI/pull/226).
+- New public synthetic PADS regression additionally verifies forward
+  collinear Copper vertices, declared component SMD Pad centre contact,
+  unsupported Cutout, source-grid one-tick miss, disjoint same-Net Area
+  isolation, forged witness, legacy Qt V1 compatibility.
+- The documentation and checked-date commit following the above **source
+  HEAD** is a different PR HEAD and MUST rerun CI/review gates before merge.
+  A signed protected squash and post-merge `main` result are **not yet
+  asserted** by this ledger.
 
-First checked KST: NOT_RECORDED. Evidence KST: NOT_YET_VERIFIED.
+**First scoped checklist check: 2026-10-27 KST. Evidence date: 2026-10-27 KST.**
+Only the bounded B_004 Rust local Copper contact behavior is checked.
 No product physics qualification or full B_001 completion is claimed.
+Issue #12 stays **OPEN**.
