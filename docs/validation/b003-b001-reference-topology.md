@@ -8,7 +8,7 @@ Starting protected `main@fca3ffda5fcd03a44510c57a4a253caa603d991c`, verified sig
 
 First implementation increment: strictly collinear original PADS source-tick straight-trace T-junction witnesses, validated again by the Canonical model using i128 cross and dot products. Same Layer plus equal source-declared Net IDs are still required for a contact edge; a cross-Net coincidence adds only a potential-conflict count and never an edge. One tick off centreline must not connect. This evidence does not validate trace widths, Pad contacts, arbitrary crossings, Area/Plane, reference return path or whole-board Open/Short.
 
-The importer currently assigns `Pad.net=None` to restricted source PARTDECAL/PART pads, as the Net association is not qualified. B_003 MUST NOT fabricate Pad-Net membership or accept Pad electrical connectivity based on proximity. This is an explicit blocker for the rest of B_003 until an independently source-backed pin/net binding is available.
+The new source-bound production CLI path derives *declared* component Pad/Pin Net only from accepted PADS ROUTE SIGNAL pin-pair declarations and the real importer Net inventory. No matching declaration => `Pad.net=None`; conflicting declarations fail closed. New geometric witnesses qualify **only exact Pad-centre points on straight Trace centrelines on the same conductive Layer and declared Net**, not Pad body/width overlap or full physical electrical connectivity. The original `part_preview::augment` remains unknown-Net by default for legacy callers. The existing opt-in Qt V1 contact records remain endpoint-only and omit newer Pad/interior evidence to avoid mislabeling.
 
 ## Verification ledger — do not pre-accept
 
@@ -23,9 +23,9 @@ The importer currently assigns `Pad.net=None` to restricted source PARTDECAL/PAR
 
 ## Additional work remaining for bounded B_003
 
-1. Verify actual accepted PADS Pad-to-source-Net association rather than inventing connectivity from a pad label or geometric overlap.
-2. Implement qualified Trace-to-Pad contact for supported Pad geometries, including negative tests for unknown-net pads.
-3. Extend qualified Via-to-Trace contact beyond matching endpoints only where exact geometric support and validation are available; preserve Via Span/anti-pad fail-closed boundaries.
+1. Review and qualify source-declared Pad/Pin Net binding and exact-centre geometry cases against positive, negative and contradictory fixtures. These are **candidates pending final CI**.
+2. Trace-to-Pad width/body overlap and source-net-complete general Pad binding are **NOT_IMPLEMENTED**.
+3. Via-to-Trace contacts currently require supported exact endpoint/centre contacts; broader Via shape interior intersection remains **NOT_IMPLEMENTED**, subject to B_003 declared scope review.
 4. Verify same-HEAD native CI, independent review, protected merge, post-main checks and then update dated checklist.
 
 No code capability is checked complete until exact-head CI and independent review pass.
