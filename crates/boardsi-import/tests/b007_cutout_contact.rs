@@ -60,8 +60,11 @@ fn plated_via_connects_across_source_layers_only_with_second_cutout_area_contact
     assert_eq!(via.local_contacts, 1);
     assert_eq!(via.new_barrel_edges, 1);
     assert_eq!(board.vias[0].connected_layers.len(), 2);
-    assert!(board.connectivity.edges.iter().any(|e|
-        matches!(e.evidence, ConnectionEvidence::ViaBarrel { .. })));
+    assert!(board
+        .connectivity
+        .edges
+        .iter()
+        .any(|e| matches!(e.evidence, ConnectionEvidence::ViaBarrel { .. })));
 }
 
 #[test]
