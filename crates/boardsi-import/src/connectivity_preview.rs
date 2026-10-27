@@ -178,14 +178,24 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
         vertical_points.insert((layer.clone(), point[0], point[1]));
     }
     for via in &board.vias {
-        let drill = board.drills.iter().find(|x| x.meta.id == via.drill)
+        let drill = board
+            .drills
+            .iter()
+            .find(|x| x.meta.id == via.drill)
             .ok_or("MISSING_CONTACT_DRILL")?;
         if !drill.plated || via.kind != ViaKind::Through {
             continue;
         }
-        let padstack = board.padstacks.iter().find(|x| x.meta.id == via.padstack)
+        let padstack = board
+            .padstacks
+            .iter()
+            .find(|x| x.meta.id == via.padstack)
             .ok_or("MISSING_CONTACT_PADSTACK")?;
-        for entry in padstack.entries.iter().filter(|e| e.role == PadRole::Conductive) {
+        for entry in padstack
+            .entries
+            .iter()
+            .filter(|e| e.role == PadRole::Conductive)
+        {
             let p = via.position.ticks;
             horizontal_points.insert((entry.layer.clone(), p[1], p[0]));
             vertical_points.insert((entry.layer.clone(), p[0], p[1]));
@@ -199,18 +209,16 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
         let mut witnesses = Vec::new();
         if a[1] == b[1] && a[0] != b[0] {
             let (lo, hi) = (a[0].min(b[0]), a[0].max(b[0]));
-            for (_, y, x) in horizontal_points.range(
-                (trace.layer.clone(), a[1], lo + 1)..
-                (trace.layer.clone(), a[1], hi)
-            ) {
+            for (_, y, x) in horizontal_points
+                .range((trace.layer.clone(), a[1], lo + 1)..(trace.layer.clone(), a[1], hi))
+            {
                 witnesses.push([*x, *y]);
             }
         } else if a[0] == b[0] && a[1] != b[1] {
             let (lo, hi) = (a[1].min(b[1]), a[1].max(b[1]));
-            for (_, x, y) in vertical_points.range(
-                (trace.layer.clone(), a[0], lo + 1)..
-                (trace.layer.clone(), a[0], hi)
-            ) {
+            for (_, x, y) in vertical_points
+                .range((trace.layer.clone(), a[0], lo + 1)..(trace.layer.clone(), a[0], hi))
+            {
                 witnesses.push([*x, *y]);
             }
         } else {
@@ -218,11 +226,18 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
         }
         for ticks in witnesses {
             let candidate = site(
-                &source, trace.meta.id.clone(), trace.layer.clone(), trace.net.clone(),
+                &source,
+                trace.meta.id.clone(),
+                trace.layer.clone(),
+                trace.net.clone(),
                 ContactSite::TraceInterior {
-                    point: Point { frame: trace.centreline[0].frame.clone(), ticks },
+                    point: Point {
+                        frame: trace.centreline[0].frame.clone(),
+                        ticks,
+                    },
                 },
-                &format!("interior-{}-{}", ticks[0], ticks[1]), None,
+                &format!("interior-{}-{}", ticks[0], ticks[1]),
+                None,
             );
             push_site(&mut locations, &trace.layer, ticks, candidate)?;
         }
@@ -494,9 +509,12 @@ mod tests {
         assert!(!board.validate().has_errors());
         // The independent canonical validator must reject a forged witness.
         let mut tampered = board;
-        let node = tampered.connectivity.nodes.iter_mut().find(|n|
-            matches!(&n.site, ContactSite::TraceInterior { .. })
-        ).unwrap();
+        let node = tampered
+            .connectivity
+            .nodes
+            .iter_mut()
+            .find(|n| matches!(&n.site, ContactSite::TraceInterior { .. }))
+            .unwrap();
         if let ContactSite::TraceInterior { point } = &mut node.site {
             point.ticks[1] += 1;
         }
@@ -520,9 +538,15 @@ mod tests {
         assert_eq!(board.vias.len(), 1);
         assert_eq!(board.vias[0].connected_layers.len(), 2);
         assert_eq!(board.connectivity.edges.len(), 3);
-        assert_eq!(board.connectivity.edges.iter().filter(|e|
-            matches!(e.evidence, ConnectionEvidence::ViaBarrel { .. })
-        ).count(), 1);
+        assert_eq!(
+            board
+                .connectivity
+                .edges
+                .iter()
+                .filter(|e| matches!(e.evidence, ConnectionEvidence::ViaBarrel { .. }))
+                .count(),
+            1
+        );
         assert!(!board.validate().has_errors());
     }
 
@@ -536,5 +560,4 @@ mod tests {
         let header = std::str::from_utf8(&wire).unwrap();
         assert!(header.starts_with("BOARDSI_CONTACT_RECORDS_V1|0|LOCAL_ENDPOINT_ONLY|"));
     }
-
 }
