@@ -147,7 +147,7 @@ fn area_witness_is_independently_checked_by_canonical_model() {
 }
 #[test]
 fn source_declared_component_pad_centre_inside_filled_area() {
-    let sample = include_str!("fixtures/pads_component_simple_v94.asc");
+    let sample = include_str!("fixtures/pads_component_simple_v94.asc").replace("\r\n", "\n");
     let original = "*ROUTE*\n*SIGNAL* NET_A\nU9.1 U9.2\n100 200 1 10 0\n300 200 1 10 0\n";
     let replacement = "*LINES*\nZONE COPPER 150 250 1 1 0 NET_A\nCOPCLS 5 0.01 0 1\n0 0\n100 0\n100 100\n0 100\n0 0\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U9.2\n300 400 1 10 0\n350 400 1 10 0\n";
     assert!(sample.contains(original));
