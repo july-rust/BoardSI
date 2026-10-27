@@ -428,6 +428,31 @@ pub fn augment_pad_centres(board: &mut BoardModel) -> Result<usize, &'static str
     let mut new_edges = Vec::new();
     let mut qualified = 0usize;
     let mut cross_net = 0usize;
+    // Source-grid Pad-centre queries use an axis/Layers index. No quadratic
+    // all-Pads x all-Traces scan for supported horizontal/vertical routes.
+    let mut horizontal: BTreeMap<(ObjectId, i64), Vec<usize>> = BTreeMap::new();
+    let mut vertical: BTreeMap<(ObjectId, i64), Vec<usize>> = BTreeMap::new();
+    let mut diagonal: BTreeMap<ObjectId, Vec<usize>> = BTreeMap::new();
+    for (i, trace) in board.traces.iter().enumerate() {
+        if trace.centreline.len() != 2 {
+            return Err("UNSUPPORTED_CONTACT_TRACE");
+        }
+        let a = trace.centreline[0].ticks;
+        let b = trace.centreline[1].ticks;
+        if a[1] == b[1] {
+            horizontal
+                .entry((trace.layer.clone(), a[1]))
+                .or_default()
+                .push(i);
+        } else if a[0] == b[0] {
+            vertical
+                .entry((trace.layer.clone(), a[0]))
+                .or_default()
+                .push(i);
+        } else {
+            diagonal.entry(trace.layer.clone()).or_default().push(i);
+        }
+    }
     for pad in &board.pads {
         let Some(pad_net) = &pad.net else {
             continue;
@@ -442,10 +467,25 @@ pub fn augment_pad_centres(board: &mut BoardModel) -> Result<usize, &'static str
             .iter()
             .filter(|entry| entry.role == PadRole::Conductive)
         {
-            for trace in board.traces.iter().filter(|t| t.layer == entry.layer) {
-                if trace.centreline.len() != 2 {
-                    return Err("UNSUPPORTED_CONTACT_TRACE");
-                }
+            let p = pad.position.ticks;
+            let candidates = horizontal
+                .get(&(entry.layer.clone(), p[1]))
+                .into_iter()
+                .flat_map(|ids| ids.iter())
+                .chain(
+                    vertical
+                        .get(&(entry.layer.clone(), p[0]))
+                        .into_iter()
+                        .flat_map(|ids| ids.iter()),
+                )
+                .chain(
+                    diagonal
+                        .get(&entry.layer)
+                        .into_iter()
+                        .flat_map(|ids| ids.iter()),
+                );
+            for &trace_index in candidates {
+                let trace = &board.traces[trace_index];
                 let a = &trace.centreline[0];
                 let b = &trace.centreline[1];
                 let p = &pad.position;
