@@ -207,8 +207,13 @@ fn repeated_via_position_creates_only_one_area_continuity_witness() {
     let result = via_copper_contact::augment(&mut board, text.as_bytes()).unwrap();
     assert_eq!(result.local_contacts, 3);
     assert_eq!(
-        board.connectivity.edges.iter().filter(|e|
-            matches!(e.evidence, ConnectionEvidence::AreaContinuity { .. })).count(), 1
+        board
+            .connectivity
+            .edges
+            .iter()
+            .filter(|e| matches!(e.evidence, ConnectionEvidence::AreaContinuity { .. }))
+            .count(),
+        1
     );
     assert!(
         !board.validate().has_errors(),
