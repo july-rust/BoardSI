@@ -491,7 +491,7 @@ mod tests {
         json!({
             "schema":"boardsi-b001-stackup-overlay-v2",
             "scope":"USER_OVERLAY_NOT_PHYSICAL_SI",
-            "source_sha256":"0000000000000000000000000000000000000000000000000000abcdef12",
+            "source_sha256":"00000000000000000000000000000000000000000000000000000000abcdef12",
             "audit_frequency_hz":"1000000000",
             "selected_signal_net":"",
             "selected_reference_net":"",
@@ -544,7 +544,7 @@ mod tests {
         assert_ne!(baseline, revision(&modified));
         modified = original.clone();
         modified["source_sha256"] = json!(
-            "0000000000000000000000000000000000000000000000000000abcdef13");
+            "00000000000000000000000000000000000000000000000000000000abcdef13");
         assert_ne!(baseline, revision(&modified));
         modified = original.clone();
         modified["audit_frequency_hz"] = json!("1100000000");
