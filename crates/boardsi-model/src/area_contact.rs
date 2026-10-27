@@ -30,6 +30,7 @@ pub fn strict_simple_area_contains(area: &CopperArea, p: &Point) -> Result<bool,
         return Err(ModelError::InvalidConnection);
     }
     let mut ring = Vec::with_capacity(segs.len());
+    let mut previous_end = None;
     for segment in segs {
         let BoundarySegment::Line { start, end } = segment else {
             return Err(ModelError::InvalidConnection);
@@ -37,7 +38,7 @@ pub fn strict_simple_area_contains(area: &CopperArea, p: &Point) -> Result<bool,
         if start.frame != p.frame
             || end.frame != p.frame
             || start.ticks == end.ticks
-            || ring.last().is_some_and(|&prev| prev != start.ticks)
+            || previous_end.is_some_and(|prior| prior != start.ticks)
             || start
                 .ticks
                 .iter()
@@ -48,6 +49,7 @@ pub fn strict_simple_area_contains(area: &CopperArea, p: &Point) -> Result<bool,
             return Err(ModelError::InvalidConnection);
         }
         ring.push(start.ticks);
+        previous_end = Some(end.ticks);
     }
     let BoundarySegment::Line { end, .. } = segs.last().unwrap() else {
         return Err(ModelError::InvalidConnection);
