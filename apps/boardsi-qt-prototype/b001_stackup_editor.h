@@ -130,7 +130,8 @@ public:
         layout->addLayout(commands);
         connect(check, &QPushButton::clicked, this, [this] { status(validate()); });
         connect(canonical, &QPushButton::clicked, this, [this] {
-            if (!auditCanonical()) status("CANONICAL AUDIT BLOCKED / SI NOT_RUN");
+            if (!auditCanonical() && !summary().startsWith("RUST REJECTED /"))
+                status("CANONICAL AUDIT BLOCKED / SI NOT_RUN");
         });
         connect(save, &QPushButton::clicked, this, [this] {
             const QString path = QFileDialog::getSaveFileName(
