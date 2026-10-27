@@ -172,7 +172,7 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
     // Diagonal-interior, trace-width and arc-interior contact stay NOT_EVALUATED.
     let mut horizontal_points: BTreeSet<(ObjectId, i64, i64)> = BTreeSet::new();
     let mut vertical_points: BTreeSet<(ObjectId, i64, i64)> = BTreeSet::new();
-    for (key, _) in &locations {
+    for key in locations.keys() {
         let (layer, point) = key;
         horizontal_points.insert((layer.clone(), point[1], point[0]));
         vertical_points.insert((layer.clone(), point[0], point[1]));
