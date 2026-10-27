@@ -61,3 +61,5 @@ bytes, rechecks original Source SHA and reparsed Copper inventory, independently
 reparses each selected ROUTE Trace ID/Layer/Net/endpoints, and rejects established
 same-Net Arc contact at selected path. Added three negative regression cases.
 These changes require fresh exact HEAD CI and independent Codex review.
+
+- Original layer ordering is revalidated against reparsed source Layer IDs/order/kind; user-mutated layer adjacency must return `ORIGINAL_LAYER_ORDER_MISMATCH`. Added anti-spoof regression (still CI/review pending).

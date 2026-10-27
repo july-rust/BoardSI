@@ -269,3 +269,14 @@ fn rejects_source_arc_branch_at_exact_selected_trace_joint() {
         "UNSELECTED_ARC_BRANCH"
     );
 }
+
+#[test]
+fn refuses_reordered_canonical_layers_despite_unchanged_original_source() {
+    let area_layer3 = AREA.replace("COPCLS 5 0.01 0 2", "COPCLS 5 0.01 0 3");
+    let (mut board, areas, raw) = assembled(&source(&area_layer3, SIGNAL));
+    let ids = [board.traces[0].meta.id.clone(), board.traces[1].meta.id.clone()];
+    assert_eq!(check(&board, &areas, &raw, &ids, "NET_REF", 2).state, "UNSUPPORTED");
+    board.stackup.layers[1].order = 2;
+    board.stackup.layers[2].order = 1;
+    assert_eq!(check(&board, &areas, &raw, &ids, "NET_REF", 2).reason, "ORIGINAL_LAYER_ORDER_MISMATCH");
+}

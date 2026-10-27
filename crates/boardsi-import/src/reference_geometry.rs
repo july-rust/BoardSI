@@ -256,6 +256,18 @@ pub fn audit(
     if reference_net.meta.id == *signal_net {
         return unsupported("SIGNAL_REFERENCE_NET_IDENTICAL");
     }
+    // Never take positional adjacency from user-mutated Canonical orders.
+    // Imported PADS source layers supply only SOURCE ORDER, not physical z.
+    if board.stackup.layers.len() != source_board.stackup.layers.len()
+        || !board
+            .stackup
+            .layers
+            .iter()
+            .zip(&source_board.stackup.layers)
+            .all(|(a, b)| a.meta.id == b.meta.id && a.order == b.order && a.kind == b.kind)
+    {
+        return unsupported("ORIGINAL_LAYER_ORDER_MISMATCH");
+    }
     let sl = board
         .stackup
         .layers
