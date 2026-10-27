@@ -142,6 +142,7 @@ fn area_witness_is_independently_checked_by_canonical_model() {
         point.ticks[0] = 30000;
     }
     assert!(b.validate().has_errors());
+    assert_eq!(copper_contact::local_reference_candidate(&b, "NET_A").state, "UNSUPPORTED");
 }
 #[test]
 fn legacy_v1_contact_counts_are_unchanged() {
