@@ -347,14 +347,14 @@ fn refuses_deleted_unselected_original_t_branch() {
 #[test]
 fn rejects_original_via_contact_on_selected_centreline() {
     let via_defs = "*VIA*\nSIMPLEVIA 15 2\n-2 35 R\n0 35 R\n";
-    let via_route = SIGNAL.replace(
-        "150 230 1 10 0\nU2.2",
-        "150 230 1 10 0 SIMPLEVIA\nU2.2",
-    );
+    let via_route = SIGNAL.replace("150 230 1 10 0\nU2.2", "150 230 1 10 0 SIMPLEVIA\nU2.2");
     let lines = format!("{via_defs}{AREA}");
     let (board, areas, raw) = assembled(&source(&lines, &via_route));
     assert!(!board.vias.is_empty());
-    let ids = [board.traces[0].meta.id.clone(), board.traces[1].meta.id.clone()];
+    let ids = [
+        board.traces[0].meta.id.clone(),
+        board.traces[1].meta.id.clone(),
+    ];
     assert_eq!(
         check(&board, &areas, &raw, &ids, "NET_REF", 1).reason,
         "SOURCE_VIA_CONTACT_UNSUPPORTED"

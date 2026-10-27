@@ -388,7 +388,11 @@ pub fn audit(
     // inventory cannot hide a source-through conductor.
     if source_board.vias.iter().any(|via| {
         selected.iter().any(|trace| {
-            on(trace.centreline[0].ticks, trace.centreline[1].ticks, via.position.ticks)
+            on(
+                trace.centreline[0].ticks,
+                trace.centreline[1].ticks,
+                via.position.ticks,
+            )
         })
     }) {
         return unsupported("SOURCE_VIA_CONTACT_UNSUPPORTED");
