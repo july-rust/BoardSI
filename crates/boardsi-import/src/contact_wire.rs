@@ -523,7 +523,13 @@ mod tests {
         assert_eq!(board.vias[0].connected_layers.len(), 3);
         assert_eq!(legacy_v1_counts(&board).1, 1);
         let encoded = String::from_utf8(encode(&board).unwrap()).unwrap();
-        assert_eq!(encoded.lines().filter(|line| line.starts_with("E|B|")).count(), 1);
+        assert_eq!(
+            encoded
+                .lines()
+                .filter(|line| line.starts_with("E|B|"))
+                .count(),
+            1
+        );
         assert!(!board.validate().has_errors());
     }
 
