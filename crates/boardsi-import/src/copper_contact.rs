@@ -162,7 +162,10 @@ fn augment_impl(
             || ring.len() > 65
             || (!input.cutouts.is_empty() && !allow_cutout)
             || input.cutouts.len() > 1
-            || input.cutouts.iter().any(|hole| !matches!(hole, CopperGeometry::Polygon(_)))
+            || input
+                .cutouts
+                .iter()
+                .any(|hole| !matches!(hole, CopperGeometry::Polygon(_)))
         {
             audit.unsupported_areas += 1;
             continue;
@@ -171,14 +174,20 @@ fn augment_impl(
             if area.cutouts.len() != 1
                 || area.outer.segments.len() != ring.len() - 1
                 || area.cutouts[0].boundary.segments.len() != hole.len() - 1
-                || !ring.windows(2).zip(&area.outer.segments).all(|(pair, seg)| {
-                    matches!(seg, boardsi_model::BoundarySegment::Line { start, end }
+                || !ring
+                    .windows(2)
+                    .zip(&area.outer.segments)
+                    .all(|(pair, seg)| {
+                        matches!(seg, boardsi_model::BoundarySegment::Line { start, end }
                         if start.ticks == pair[0] && end.ticks == pair[1])
-                })
-                || !hole.windows(2).zip(&area.cutouts[0].boundary.segments).all(|(pair, seg)| {
-                    matches!(seg, boardsi_model::BoundarySegment::Line { start, end }
+                    })
+                || !hole
+                    .windows(2)
+                    .zip(&area.cutouts[0].boundary.segments)
+                    .all(|(pair, seg)| {
+                        matches!(seg, boardsi_model::BoundarySegment::Line { start, end }
                         if start.ticks == pair[0] && end.ticks == pair[1])
-                })
+                    })
             {
                 return Err("B007_CUTOUT_CANONICAL_MISMATCH");
             }
@@ -288,7 +297,6 @@ fn augment_impl(
     Ok(audit)
 }
 
-
 /// Legacy B_004 path remains hole-free and unchanged.
 pub fn augment(
     board: &mut BoardModel,
@@ -310,8 +318,7 @@ pub fn augment_source_bound(
         .map_err(|_| "B007_SOURCE_MODEL")?;
     let parsed = crate::copper_preview::parse(original_bytes, route.max_layer)
         .map_err(|_| "B007_SOURCE_COPPER")?;
-    crate::copper_preview::augment(&mut original, &parsed)
-        .map_err(|_| "B007_SOURCE_COPPER")?;
+    crate::copper_preview::augment(&mut original, &parsed).map_err(|_| "B007_SOURCE_COPPER")?;
     if source_areas != parsed
         || board.sources.first().map(|s| &s.id) != original.sources.first().map(|s| &s.id)
     {
@@ -321,9 +328,12 @@ pub fn augment_source_bound(
         || board.arcs != original.arcs
         || board.nets != original.nets
         || board.stackup.layers.len() != original.stackup.layers.len()
-        || !board.stackup.layers.iter().zip(&original.stackup.layers).all(|(a, b)| {
-            a.meta.id == b.meta.id && a.order == b.order && a.kind == b.kind
-        })
+        || !board
+            .stackup
+            .layers
+            .iter()
+            .zip(&original.stackup.layers)
+            .all(|(a, b)| a.meta.id == b.meta.id && a.order == b.order && a.kind == b.kind)
         || board.areas != original.areas
     {
         return Err("B007_SOURCE_INVENTORY_MISMATCH");
