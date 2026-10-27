@@ -50,3 +50,25 @@ The limited Qt Stackup editor previously displayed an audited receipt and reset 
 6. Finish native CI, exact-head independent review, protected merge, post-main CI and dated checklist before final Issue closure.
 
 Do not mark the larger features as complete or close Issue #12 without full independently checkable proof.
+
+## B_002 continuation: immutable limited Stackup audit Scenario revision (candidate 2026-10-27 KST)
+
+Implementation branch: `b002-b001-scenario-revision-contract` (starting from `main@9b7cb3c9e544b5ddbe25cff1833bf6579de889a0`; baseline post-main checks **21/21 SUCCESS**).
+
+The existing Qt session digest detects UI edits but was **not** a Rust-owned audit Scenario revision. The new Rust Worker `boardsi-stackup-config` now constructs a deterministic SHA-256 identity over the **validated, accepted audit inputs**: source PCB SHA-256, all Layer order/thickness/Material Dk/Df/conductivity/bands and provenance strings, chosen Signal/Reference Nets, Source Copper/Net inventory, inventory completeness and requested audit frequency. It reuses the existing dependency-free SHA-256 from `boardsi-import::digest`.
+
+- Rust emits `audit_scenario_revision_schema=boardsi-b002-limited-audit-snapshot-v1`, `audit_scenario_revision_sha256`, and `audit_revision_scope=SOURCE_BOUND_ASSUMED_MATERIAL_ONLY`.
+- The UI verifies this contract and exposes a revision **only while** the source and exact last-audited overlay remain fresh; all UI edits invalidate the receipt, including changes when notifications are suppressed.
+- Rust tests assert that Dk, thickness, provenance Revision, chosen Net, Net/Copper inventory and holes, source identity and frequency edits change revision. Unrelated zoom/theme changes do not.
+- Qt Native selftest exercises change/revert stable identity, changed Reference inventory, changed Cutout, and stale-receipt refusal.
+- For safety, **`cache_reuse_eligible=false`**: this is an immutable identity of an assumed Material/Reference **audit input**, **not** a full physics solver Scenario or reusable result cache. All `reference_continuity`, `return_path_p009`, `solver_ready` and `physical_si` hard stops remain unchanged.
+
+### Candidate verification (do not mark PASS before CI)
+
+- [ ] Rust Worker model and snapshot revision unit tests, Rust numerical checks.
+- [ ] Native Qt Windows x64, Windows ARM64 and macOS ARM64 B_001 Stackup test.
+- [ ] Linux x86_64 Qt regression, earlier PADS Artwork/IPC tests.
+- [ ] Exact final HEAD required checks and independent Codex review.
+- [ ] Protected merge and separate post-main verification.
+
+**Remaining full B_001 blockers:** electrical Reference Copper/Net/Pad/Via/Port graph and planar cutouts, qualified Return Path, physical solver Scenario and cache, validated Material loss/roughness, formal full U09/U10/U39 + T02/T04/T24/T52. Issue #12 remains **OPEN**. This limited implementation alone is not full B_001 completion.
