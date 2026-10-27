@@ -46,10 +46,8 @@ fn run() -> Result<(usize, usize), &'static str> {
     // byte-for-byte compatible. This small, bounded stderr *success* record
     // reports only local, source-grid exact contact evidence. The GUI must
     // never interpret it as a complete electrical connectivity result.
-    let local_contacts = board
-        .connectivity
-        .edges
-        .iter()
+    let endpoint_edges = boardsi_import::contact_wire::legacy_endpoint_edges(&board)?;
+    let local_contacts = endpoint_edges.iter()
         .filter(|e| {
             matches!(
                 e.evidence,
@@ -57,10 +55,7 @@ fn run() -> Result<(usize, usize), &'static str> {
             )
         })
         .count();
-    let via_barrels = board
-        .connectivity
-        .edges
-        .iter()
+    let via_barrels = endpoint_edges.iter()
         .filter(|e| {
             matches!(
                 e.evidence,
