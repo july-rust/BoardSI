@@ -2,9 +2,9 @@
 //! Never certifies entire-board shorts/opens or areas/pins.
 //! Default legacy artwork stdout V1-V14 is byte-for-byte unaffected.
 use boardsi_model::{
-    BoardModel, ConnectionEvidence, ConnectivityNode, ContactSite, ObjectId, PadRole, ViaKind,
+    BoardModel, ConnectionEvidence, ConnectivityNode, ContactSite, ObjectId, ObjectKind, PadRole, ViaKind,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 const NM_PER_TICK: i64 = 254;
@@ -74,6 +74,41 @@ fn resolve(
         ticks,
         net,
     })
+}
+
+fn legacy_site_ids(board: &BoardModel) -> BTreeSet<ObjectId> {
+    board
+        .connectivity
+        .nodes
+        .iter()
+        .filter(|node| {
+            matches!(
+                (&node.conductor.kind, &node.site),
+                (ObjectKind::Trace, ContactSite::TraceVertex(0 | 1))
+                    | (ObjectKind::Arc, ContactSite::ArcStart | ContactSite::ArcEnd)
+                    | (ObjectKind::Via, ContactSite::ViaCentre)
+            )
+        })
+        .map(|node| node.meta.id.clone())
+        .collect()
+}
+
+/// Counts the exact same restricted endpoint-only edges as the V1 suffix.
+/// B_003 interior and Pad edges are deliberately not encoded by legacy V1.
+pub fn legacy_v1_counts(board: &BoardModel) -> (usize, usize) {
+    let eligible = legacy_site_ids(board);
+    let mut contacts = 0usize;
+    let mut barrels = 0usize;
+    for edge in &board.connectivity.edges {
+        if !eligible.contains(&edge.a) || !eligible.contains(&edge.b) {
+            continue;
+        }
+        match edge.evidence {
+            ConnectionEvidence::SameLayerContact { .. } => contacts += 1,
+            ConnectionEvidence::ViaBarrel { .. } => barrels += 1,
+        }
+    }
+    (contacts, barrels)
 }
 
 fn bounded_push(
@@ -241,26 +276,13 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         return Err("CONTACT_WIRE_RECORD_LIMIT");
     }
 
-    // Legacy V1 suffix is *endpoint-only*. New B_003 interior and Pad-centre
-    // witnesses are kept in the Canonical graph, not misrepresented as V1
-    // endpoint records. V1 wire must remain backward compatible.
+    let legacy_sites = legacy_site_ids(board);
     let legacy_edges: Vec<_> = board
         .connectivity
         .edges
         .iter()
         .filter(|edge| {
-            [nodes.get(&edge.a), nodes.get(&edge.b)].iter().all(|node| {
-                node.is_some_and(|node| {
-                    objects.contains_key(&node.conductor)
-                        && matches!(
-                            node.site,
-                            ContactSite::TraceVertex(_)
-                                | ContactSite::ArcStart
-                                | ContactSite::ArcEnd
-                                | ContactSite::ViaCentre
-                        )
-                })
-            })
+            legacy_sites.contains(&edge.a) && legacy_sites.contains(&edge.b)
         })
         .collect();
     let conflicts = potential_conflicts(board, &layers)?;
