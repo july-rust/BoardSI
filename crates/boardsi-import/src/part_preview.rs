@@ -825,13 +825,15 @@ mod tests {
 
     #[test]
     fn source_route_pair_plus_exact_copper_geometry_qualifies_one_pad_contact() {
-        for (end, expected) in [("200 300 1 10 0", 1), ("300 300 1 10 0", 1),
-            ("200 300.01 1 10 0", 0)]
-        {
+        for (end, expected) in [
+            ("200 300 1 10 0", 1),
+            ("300 300 1 10 0", 1),
+            ("200 300.01 1 10 0", 0),
+        ] {
             let source = with_source_route(end);
             let parsed = crate::route_preview::parse(source.as_bytes()).unwrap();
-            let mut board = crate::route_preview::into_canonical(source.as_bytes(), &parsed)
-                .unwrap();
+            let mut board =
+                crate::route_preview::into_canonical(source.as_bytes(), &parsed).unwrap();
             let pads = parse(source.as_bytes(), parsed.max_layer);
             augment_source_bound(&mut board, &pads, source.as_bytes()).unwrap();
             assert_eq!(board.connectivity.edges.len(), expected);
@@ -843,10 +845,12 @@ mod tests {
 
     #[test]
     fn different_declared_pin_nets_fail_closed_before_adding_pad_edges() {
-        let source = with_source_route("200 300 1 10 0").replace(
-            "*END*",
-            "*SIGNAL* NET_B\\nU1.1 U7.7\\n100 400 1 10 0\\n200 400 1 10 0\\n*END*",
-        ).replace("\\n", "\n");
+        let source = with_source_route("200 300 1 10 0")
+            .replace(
+                "*END*",
+                "*SIGNAL* NET_B\\nU1.1 U7.7\\n100 400 1 10 0\\n200 400 1 10 0\\n*END*",
+            )
+            .replace("\\n", "\n");
         let route = crate::route_preview::parse(source.as_bytes()).unwrap();
         let mut board = crate::route_preview::into_canonical(source.as_bytes(), &route).unwrap();
         let pads = parse(source.as_bytes(), route.max_layer);
