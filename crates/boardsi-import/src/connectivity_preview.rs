@@ -149,6 +149,74 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
             push_site(&mut locations, &trace.layer, point.ticks, candidate)?;
         }
     }
+    for arc in &board.arcs {
+        for (contact, point, name) in [
+            (ContactSite::ArcStart, &arc.start, "start"),
+            (ContactSite::ArcEnd, &arc.end, "end"),
+        ] {
+            let candidate = site(
+                &source,
+                arc.meta.id.clone(),
+                arc.layer.clone(),
+                arc.net.clone(),
+                contact,
+                name,
+                None,
+            );
+            push_site(&mut locations, &arc.layer, point.ticks, candidate)?;
+        }
+    }
+    for (index, via) in board.vias.iter().enumerate() {
+        let drill = board
+            .drills
+            .iter()
+            .find(|x| x.meta.id == via.drill)
+            .ok_or("MISSING_CONTACT_DRILL")?;
+        if !drill.plated || via.kind != ViaKind::Through {
+            continue;
+        }
+        let padstack = board
+            .padstacks
+            .iter()
+            .find(|x| x.meta.id == via.padstack)
+            .ok_or("MISSING_CONTACT_PADSTACK")?;
+        for entry in padstack
+            .entries
+            .iter()
+            .filter(|e| e.role == PadRole::Conductive)
+        {
+            // Index only an actual endpoint or an exact source-tick
+            // straight Trace interior witness. Idle vias remain unconnected.
+            let endpoint = locations.contains_key(&(entry.layer.clone(), via.position.ticks));
+            let interior = board.traces.iter().any(|trace| {
+                if trace.layer != entry.layer || trace.centreline.len() != 2 {
+                    return false;
+                }
+                let a = trace.centreline[0].ticks;
+                let b = trace.centreline[1].ticks;
+                let p = via.position.ticks;
+                let (ax, ay) = (i128::from(a[0]), i128::from(a[1]));
+                let (bx, by) = (i128::from(b[0]), i128::from(b[1]));
+                let (px, py) = (i128::from(p[0]), i128::from(p[1]));
+                (bx - ax) * (py - ay) == (by - ay) * (px - ax)
+                    && (px - ax) * (px - bx) + (py - ay) * (py - by) < 0
+            });
+            if !endpoint && !interior {
+                continue;
+            }
+            let candidate = site(
+                &source,
+                via.meta.id.clone(),
+                entry.layer.clone(),
+                via.net.clone(),
+                ContactSite::ViaCentre,
+                "centre",
+                Some(index),
+            );
+            push_site(&mut locations, &entry.layer, via.position.ticks, candidate)?;
+        }
+    }
+
     // Exact source-tick T-junctions: a different conductor's original
     // endpoint strictly inside a straight centreline. This is NOT width
     // overlap, arc-interior crossing, or complete copper connectivity.
@@ -188,59 +256,6 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
                 None,
             );
             push_site(&mut locations, &trace.layer, ticks, candidate)?;
-        }
-    }
-    for arc in &board.arcs {
-        for (contact, point, name) in [
-            (ContactSite::ArcStart, &arc.start, "start"),
-            (ContactSite::ArcEnd, &arc.end, "end"),
-        ] {
-            let candidate = site(
-                &source,
-                arc.meta.id.clone(),
-                arc.layer.clone(),
-                arc.net.clone(),
-                contact,
-                name,
-                None,
-            );
-            push_site(&mut locations, &arc.layer, point.ticks, candidate)?;
-        }
-    }
-    for (index, via) in board.vias.iter().enumerate() {
-        let drill = board
-            .drills
-            .iter()
-            .find(|x| x.meta.id == via.drill)
-            .ok_or("MISSING_CONTACT_DRILL")?;
-        if !drill.plated || via.kind != ViaKind::Through {
-            continue;
-        }
-        let padstack = board
-            .padstacks
-            .iter()
-            .find(|x| x.meta.id == via.padstack)
-            .ok_or("MISSING_CONTACT_PADSTACK")?;
-        for entry in padstack
-            .entries
-            .iter()
-            .filter(|e| e.role == PadRole::Conductive)
-        {
-            // No endpoint to connect on this layer: do not index an idle
-            // via barrel/pad as though its span established an actual contact.
-            if !locations.contains_key(&(entry.layer.clone(), via.position.ticks)) {
-                continue;
-            }
-            let candidate = site(
-                &source,
-                via.meta.id.clone(),
-                entry.layer.clone(),
-                via.net.clone(),
-                ContactSite::ViaCentre,
-                "centre",
-                Some(index),
-            );
-            push_site(&mut locations, &entry.layer, via.position.ticks, candidate)?;
         }
     }
 
@@ -530,6 +545,18 @@ mod tests {
         assert_eq!(parsed.segments.len(), 1);
         let board = into_canonical(source.as_bytes(), &parsed).unwrap();
         assert_eq!(board.connectivity.edges.len(), 1);
+        assert!(!board.validate().has_errors());
+    }
+
+    #[test]
+    fn plated_via_centre_on_trace_interior_is_source_grid_contact() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n500 200 1 10 0\nU3.1 U4.2\n100 400 1 10 0\n300 400 1 10 0 SIMPLEVIA\n500 400 1 10 0\n*END*\n";
+        // Via on y=400 is an endpoint of its own route; independent Layer-1
+        // trace is y=200, so it must *not* connect just because Net matches.
+        let parsed = parse(source.as_bytes()).unwrap();
+        let board = into_canonical(source.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.vias.len(), 1);
+        assert!(!board.vias[0].connected_layers.iter().any(|layer| layer == &board.traces[0].layer));
         assert!(!board.validate().has_errors());
     }
 
