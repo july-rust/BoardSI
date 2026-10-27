@@ -253,8 +253,11 @@ impl BoardModel {
             points.push(&v.position);
         }
         for n in &self.connectivity.nodes {
-            if let ContactSite::AreaWitness { point, .. } = &n.site {
-                points.push(point);
+            match &n.site {
+                ContactSite::AreaWitness { point, .. } | ContactSite::AreaInterior(point) => {
+                    points.push(point);
+                }
+                _ => {}
             }
         }
         points
@@ -928,6 +931,19 @@ impl BoardModel {
                 self.point(point)?;
                 (&area.net, point)
             }
+            ContactSite::AreaInterior(point) => {
+                let area = lookup
+                    .areas
+                    .get(&node.conductor)
+                    .copied()
+                    .ok_or(ModelError::InvalidReference)?;
+                require(
+                    area.layer == node.layer && strict_simple_area_contains(area, point)?,
+                    ModelError::InvalidConnection,
+                )?;
+                self.point(point)?;
+                (&area.net, point)
+            }
         };
         lookup.known_net(net)?;
         Ok((net.as_ref(), self.exact_point_m(point)?))
@@ -958,6 +974,15 @@ impl BoardModel {
         match &edge.evidence {
             ConnectionEvidence::SameLayerContact { evidence } => require(
                 a.layer == b.layer && pos_a == pos_b && !evidence.trim().is_empty(),
+                ModelError::InvalidConnection,
+            ),
+            ConnectionEvidence::AreaContinuity { area } => require(
+                a.conductor == *area
+                    && b.conductor == *area
+                    && a.layer == b.layer
+                    && pos_a != pos_b
+                    && matches!(a.site, ContactSite::AreaInterior(_))
+                    && matches!(b.site, ContactSite::AreaInterior(_)),
                 ModelError::InvalidConnection,
             ),
             ConnectionEvidence::ViaBarrel { via } => {

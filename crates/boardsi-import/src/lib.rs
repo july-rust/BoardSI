@@ -185,6 +185,7 @@ mod tests {
 pub mod circle_cutout_topology;
 pub mod connectivity_preview;
 pub mod copper_arc_preflight;
+pub mod copper_contact;
 pub mod copper_preview;
 pub mod curved_cutout_topology;
 pub mod digest;

@@ -387,6 +387,9 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
                 }
                 'S'
             }
+            ConnectionEvidence::AreaContinuity { .. } => {
+                return Err("CONTACT_WIRE_B004_AREA_NOT_IN_LEGACY_V1");
+            }
             ConnectionEvidence::ViaBarrel { via } => {
                 if a.layer == b.layer
                     || a.kind != 'V'

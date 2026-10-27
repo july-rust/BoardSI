@@ -1,8 +1,10 @@
 //! Format-neutral, dependency-free M0 data contract. Not an importer or physical validator.
+mod area_contact;
 mod coordinates;
 mod identity;
 mod stackup_configuration;
 mod validation;
+pub use area_contact::*;
 pub use coordinates::*;
 pub use identity::*;
 pub use stackup_configuration::*;
@@ -276,6 +278,9 @@ pub enum ContactSite {
         point: Point,
         evidence: String,
     },
+    /// B_004: exact strict interior witness on a simple source-filled polygon.
+    /// The Canonical validator rechecks the area geometry and containment.
+    AreaInterior(Point),
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConnectivityNode {
@@ -290,6 +295,8 @@ pub enum ConnectionEvidence {
     SameLayerContact { evidence: String },
     /// Only one plated via's explicitly connected conductive layers may be joined.
     ViaBarrel { via: ObjectId },
+    /// Local continuity between interior witness points on the same source-filled simple area.
+    AreaContinuity { area: ObjectId },
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConnectivityEdge {

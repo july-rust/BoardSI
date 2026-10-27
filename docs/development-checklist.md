@@ -69,6 +69,12 @@
 
 - [ ] **B_001 전체 Issue #12 정식 인수** — B_003 제한 접속 기능 병합이 곧 전체 Copper/Plane 연결과 고주파 Return Path 물리 검증을 의미하지 않음. U09/U10/U39, T02/T04/T24/T52 전체 승인 보류. Issue #12 OPEN 유지.
 
+### B_004 제한 완료 — 단일 단순 Copper Area 국소 접촉 검증
+
+- [x] **B_004 제한 PADS Source Copper Area 내부 접촉** — 공개 합성 PADS V9.4 MILS의 소스 소유 단일 Hole-free Straight COPCLS Polygon과 명시적 ROUTE Net이 일치할 때, 정수 Source Tick 내부의 Trace Endpoint/선언된 SMD Pad Centre 접촉을 Canonical `AreaInterior` 증거로 검증하고 같은 Area 안의 두 국소 접점만 `AreaContinuity`로 연결. 직선상 정방향 Collinear 꼭짓점 허용·경계/역방향 중첩 거부, 타 Layer/Cross-Net/분리 Island 거짓 연결 방지, 변조된 증거와 구형 Qt V1 호환을 교차 시험. **체크일: 2026-10-27 KST** · **근거일: 2026-10-27 KST** · [B_004 PR #226](https://github.com/july-rust/BoardSI/pull/226), [코드 HEAD `7c68f9523b65999271fff5b510e984ec30dac72a`의 12 워크플로·23 Job 전부 SUCCESS](https://github.com/july-rust/BoardSI/commit/7c68f9523b65999271fff5b510e984ec30dac72a/checks), 동일 HEAD Codex 추가 지적 0·과거 스레드 4건 해결, [검증 원장](validation/b004-reference-copper-connectivity.md). **이 체크는 제한된 Rust Source-Geometry 기능에만 적용**되며 Arc/Hole/Cutout·Via-to-Plane·Pad 몸체/Trace 폭·Plane Return Path/P009/물리 SI/Cache 및 정식 U09/U10/U39·T02/T04/T24/T52는 여전히 미검증. 보호된 Signed Squash Merge 및 병합 후 main CI는 별도 확인하여 기록한다.
+
+- [ ] **B_001 전체 Issue #12 정식 인수** — B_004가 제한적으로 성공하더라도 물리 Reference Return Path/P009, Scenario/Cache, Material loss/roughness 및 공식 U09/U10/U39/T02/T04/T24/T52는 남는다. 원래 OPEN 상태 유지.
+
 ## 3. 후속 개발 체크리스트
 
 | 단계 | 상태 | 구체적 잔여 작업 (GitHub) |
@@ -230,6 +236,9 @@
 7. 각 단계 종료 후 아래 이력에 작업 번호, 변경된 U/T, 최종 `main` SHA, Native 테스트·Codex 리뷰 증빙 및 아직 미검증인 항목을 기록합니다.
 
 ### 변경 이력
+
+| 2026-10-27 | B_004 제한 Copper Area 국소 접점 코드 인수 | [PR #226](https://github.com/july-rust/BoardSI/pull/226), [정확한 코드 HEAD `7c68f9523b65999271fff5b510e984ec30dac72a` CI](https://github.com/july-rust/BoardSI/commit/7c68f9523b65999271fff5b510e984ec30dac72a/checks), [검증 원장](validation/b004-reference-copper-connectivity.md) | 공개 합성 Straight COPCLS 내부 Trace/Pad Centre 및 동일 소스 Area의 제한적 Graph `[x]` 최초 체크일·근거일 **2026-10-27 KST**. 12 workflow/23 job 모두 성공, 동일 HEAD Codex findings 0·기존 4건 해결. 보호 병합·Post-main SHA는 PR 완료 후 별도 확인; B_001 Issue #12 OPEN, 정식 U/T·P009·물리 Solver 체크 없음. |
+
 
 | 날짜(KST) | 작업 | 기준/증거 | 변경 사항 |
 | --- | --- | --- | --- |
