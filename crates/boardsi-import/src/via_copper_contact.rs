@@ -120,6 +120,7 @@ pub fn augment(
             || actual.span != expected.span
             || actual.kind != expected.kind
             || actual.net != expected.net
+            || actual.connected_layers != expected.connected_layers
         {
             return Err("B006_VIA_SOURCE_MISMATCH");
         }
