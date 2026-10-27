@@ -248,8 +248,26 @@ pub fn audit(
         if previous_joint == Some(joint) {
             return unsupported("BACKTRACK_OR_AMBIGUOUS_PATH");
         }
-        // Do not silently certify a selected path passing through an
-        // unselected straight Trace branch on the same source layer/Net.
+        // Oppositely oriented collinear segments may overlap even when the
+        // exact contact graph has an unambiguous endpoint edge.
+        let a_other = pair[0].centreline.iter().find(|p| p.ticks != joint).unwrap().ticks;
+        let b_other = pair[1].centreline.iter().find(|p| p.ticks != joint).unwrap().ticks;
+        if on(a_other, joint, b_other) || on(joint, b_other, a_other) {
+            return unsupported("COLLINEAR_BACKTRACK");
+        }
+        previous_joint = Some(joint);
+    }
+    // A declared path cannot silently cross itself or pass an unselected
+    // same-Net straight Trace. Check every selected centreline, not just joins,
+    // including paths of one Trace and interior T junctions from B_003.
+    for (i, trace) in selected.iter().enumerate() {
+        let a = trace.centreline[0].ticks;
+        let b = trace.centreline[1].ticks;
+        for later in selected.iter().skip(i + 2) {
+            if touches(a, b, later.centreline[0].ticks, later.centreline[1].ticks) {
+                return unsupported("SELF_INTERSECTING_PATH");
+            }
+        }
         for other in &board.traces {
             if selected.iter().any(|t| t.meta.id == other.meta.id)
                 || other.layer != first.layer
@@ -260,13 +278,10 @@ pub fn audit(
             if other.centreline.len() != 2 {
                 return unsupported("BRANCH_GEOMETRY_UNSUPPORTED");
             }
-            let a = other.centreline[0].ticks;
-            let b = other.centreline[1].ticks;
-            if on(a, b, joint) {
-                return unsupported("BRANCH_AT_JOIN");
+            if touches(a, b, other.centreline[0].ticks, other.centreline[1].ticks) {
+                return unsupported("UNSELECTED_TRACE_TOUCHES_PATH");
             }
         }
-        previous_joint = Some(joint);
     }
     let source_id = &board.sources[0].id;
     let frame_id = &board.frames[0].meta.id;

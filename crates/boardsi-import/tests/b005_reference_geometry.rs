@@ -4,7 +4,7 @@ use boardsi_model::ObjectId;
 
 const HEADER: &str =
     "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n";
-const AREA: &str = "*LINES*\nREF COPPER 100 200 1 2 0 NET_REF\nCOPCLS 5 0.01 0 1\n0 0\n100 0\n100 100\n0 100\n0 0\n";
+const AREA: &str = "*LINES*\nREF COPPER 100 200 1 1 0 NET_REF\nCOPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\n";
 const SIGNAL: &str = "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n130 230 1 10 0\n150 230 1 10 0\nU2.2 U3.3\n150 230 1 10 0\n170 230 1 10 0\n*SIGNAL* NET_REF\nR1.1 R2.2\n300 400 2 10 0\n350 400 2 10 0\n";
 fn source(area: &str, route: &str) -> String {
     format!("{HEADER}{area}{route}*END*\n")
@@ -53,19 +53,21 @@ fn exact_two_segment_path_inside_source_area_is_geometry_only() {
 }
 #[test]
 fn single_segment_inside_and_reversed_order_are_supported() {
+    let one_signal = SIGNAL.replace(
+        "U2.2 U3.3\n150 230 1 10 0\n170 230 1 10 0\n",
+        "",
+    );
+    let (one_board, one_areas) = assembled(&source(AREA, &one_signal));
+    assert_eq!(
+        check(&one_board, &one_areas, &[one_board.traces[0].meta.id.clone()], "NET_REF", 1).state,
+        "SOURCE_ORDER_GEOMETRY_ONLY"
+    );
     let (board, areas) = assembled(&source(AREA, SIGNAL));
-    for ids in [
-        vec![board.traces[0].meta.id.clone()],
-        vec![
-            board.traces[1].meta.id.clone(),
-            board.traces[0].meta.id.clone(),
-        ],
-    ] {
-        assert_eq!(
-            check(&board, &areas, &ids, "NET_REF", 1).state,
-            "SOURCE_ORDER_GEOMETRY_ONLY"
-        );
-    }
+    let ids = [board.traces[1].meta.id.clone(), board.traces[0].meta.id.clone()];
+    assert_eq!(
+        check(&board, &areas, &ids, "NET_REF", 1).state,
+        "SOURCE_ORDER_GEOMETRY_ONLY"
+    );
 }
 #[test]
 fn refuses_boundary_crossing_and_one_tick_outside() {
@@ -87,7 +89,7 @@ fn refuses_boundary_crossing_and_one_tick_outside() {
 }
 #[test]
 fn concave_polygon_both_endpoints_inside_but_line_exits() {
-    let concave = "*LINES*\nREF COPPER 100 200 1 2 0 NET_REF\nCOPCLS 7 0.01 0 1\n0 0\n100 0\n100 40\n40 40\n40 100\n0 100\n0 0\n";
+    let concave = "*LINES*\nREF COPPER 100 200 1 1 0 NET_REF\nCOPCLS 7 0.01 0 2\n0 0\n100 0\n100 40\n40 40\n40 100\n0 100\n0 0\n";
     let route = "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n130 270 1 10 0\n170 230 1 10 0\n*SIGNAL* NET_REF\nR1.1 R2.2\n300 400 2 10 0\n350 400 2 10 0\n";
     let (board, areas) = assembled(&source(concave, route));
     let ids = [board.traces[0].meta.id.clone()];
@@ -119,7 +121,7 @@ fn no_net_alias_join_no_cross_layer_reference_or_missing_source() {
 }
 #[test]
 fn rejects_disjoint_same_net_areas_and_unknown_geometry() {
-    let split = format!("{AREA}OTHER COPPER 300 200 1 2 0 NET_REF\nCOPCLS 5 0.01 0 1\n0 0\n100 0\n100 100\n0 100\n0 0\n");
+    let split = format!("{AREA}OTHER COPPER 300 200 1 1 0 NET_REF\nCOPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\n");
     let (board, areas) = assembled(&source(&split, SIGNAL));
     let ids = [board.traces[0].meta.id.clone()];
     assert_eq!(
@@ -171,4 +173,23 @@ fn unknown_hole_owner_is_not_positive_and_old_graph_stays_unmodified() {
     let _ = check(&board, &areas, &ids, "NET_REF", 1);
     assert_eq!(board.connectivity.edges, edges);
     assert!(!board.validate().has_errors());
+}
+
+#[test]
+fn collinear_backtracking_is_not_accepted_as_a_forward_path() {
+    let backward = SIGNAL.replace("170 230 1 10 0", "140 230 1 10 0");
+    let (board, areas) = assembled(&source(AREA, &backward));
+    let ids: Vec<_> = board.traces[..2].iter().map(|t| t.meta.id.clone()).collect();
+    assert_eq!(check(&board, &areas, &ids, "NET_REF", 1).reason, "COLLINEAR_BACKTRACK");
+}
+#[test]
+fn rejects_unselected_source_trace_branch_at_path_interior() {
+    let branch = SIGNAL.replace(
+        "*SIGNAL* NET_REF",
+        "U9.1 U10.2\n140 230 1 10 0\n140 250 1 10 0\n*SIGNAL* NET_REF",
+    );
+    let (board, areas) = assembled(&source(AREA, &branch));
+    let ids: Vec<_> = board.traces[..2].iter().map(|t| t.meta.id.clone()).collect();
+    assert_eq!(check(&board, &areas, &ids, "NET_REF", 1).reason, "UNSELECTED_TRACE_TOUCHES_PATH");
+    assert_eq!(check(&board, &areas, &ids[..1], "NET_REF", 1).reason, "UNSELECTED_TRACE_TOUCHES_PATH");
 }

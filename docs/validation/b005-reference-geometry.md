@@ -32,6 +32,14 @@ Return Path and frequency-dependent current distributions are NOT_VERIFIED.
 B_001 overall remains OPEN. U09/U10/U39/T02/T04/T24/T52 stay formally
 unchecked.
 
+## Review remediation (before acceptance)
+
+- Initial PR HEAD `6c0cd6f2` failed Rustfmt; formatted with exact CI diff at `3c2dde1`.
+- Independent Codex found incorrect synthetic COPPER source headers,
+  collinear backtracking and unselected interior branch false positives.
+  Corrected COPPER piece/layer fields and added full-path branch/overlap
+  rejection plus negative regression tests. CI and re-review remain required.
+
 ## Mandatory acceptance gates — update after actual CI
 
 - [ ] Exact HEAD Rust fmt, Clippy, numerical/importer tests
