@@ -50,7 +50,7 @@ fn area_connects_only_its_own_interior_witnesses() {
         .connectivity
         .nodes
         .iter()
-        .filter(|n| matches!(n.site, ContactSite::AreaWitness { .. }))
+        .filter(|n| matches!(n.site, ContactSite::AreaInterior(_)))
         .map(|n| n.meta.id.clone())
         .collect();
     assert_eq!(root.len(), 2);
@@ -95,7 +95,7 @@ fn two_disconnected_areas_with_same_name_do_not_join() {
         .connectivity
         .nodes
         .iter()
-        .filter(|n| matches!(n.site, ContactSite::AreaWitness { .. }))
+        .filter(|n| matches!(n.site, ContactSite::AreaInterior(_)))
         .collect();
     assert_eq!(area_nodes.len(), 2);
     assert!(!b
@@ -134,9 +134,9 @@ fn area_witness_is_independently_checked_by_canonical_model() {
         .connectivity
         .nodes
         .iter()
-        .position(|n| matches!(n.site, ContactSite::AreaWitness { .. }))
+        .position(|n| matches!(n.site, ContactSite::AreaInterior(_)))
         .unwrap();
-    if let ContactSite::AreaWitness { ref mut point, .. } = b.connectivity.nodes[index].site {
+    if let ContactSite::AreaInterior(ref mut point) = b.connectivity.nodes[index].site {
         point.ticks[0] = 30000;
     }
     assert!(b.validate().has_errors());
