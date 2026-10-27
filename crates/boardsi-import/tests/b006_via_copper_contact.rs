@@ -158,3 +158,31 @@ fn repeated_success_is_not_silently_accepted() {
         "B006_ALREADY_APPLIED"
     );
 }
+
+#[test]
+fn source_unknown_extra_connected_layer_is_rejected() {
+    let text = source(AREA, ROUTE);
+    let mut board = assemble(&text);
+    let layer = board.vias[0].span.last_layer.clone();
+    board.vias[0].connected_layers.push(layer);
+    assert!(!board.validate().has_errors());
+    assert_eq!(
+        via_copper_contact::augment(&mut board, text.as_bytes()).unwrap_err(),
+        "B006_VIA_SOURCE_MISMATCH"
+    );
+}
+
+#[test]
+fn two_supported_areas_on_distinct_layers_get_independent_contacts() {
+    let via = VIA.replace("SIMPLEVIA 15 2\\n-2 35 R\\n0 35 R",
+        "SIMPLEVIA 15 3\\n-2 35 R\\n-1 35 R\\n0 35 R");
+    let second = AREA.replace("ZONE COPPER", "SECOND COPPER")
+        .replace("COPCLS 5 0.01 0 4", "COPCLS 5 0.01 0 2");
+    let text = format!("{HEADER}{via}{AREA}{second}{ROUTE}*END*\\n");
+    let mut board = assemble(&text);
+    let audit = via_copper_contact::augment(&mut board, text.as_bytes()).unwrap();
+    assert_eq!(audit.local_contacts, 2);
+    assert_eq!(board.vias[0].connected_layers.len(), 3);
+    assert!(!board.validate().has_errors(), "{:#?}", board.validate().issues);
+    assert_eq!(board.areas.len(), 2);
+}
