@@ -158,7 +158,9 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
         let xmin = a[0].min(b[0]);
         let xmax = a[0].max(b[0]);
         let witnesses: Vec<[i64; 2]> = locations
-            .range((trace.layer.clone(), [xmin, i64::MIN])..=(trace.layer.clone(), [xmax, i64::MAX]))
+            .range(
+                (trace.layer.clone(), [xmin, i64::MIN])..=(trace.layer.clone(), [xmax, i64::MAX]),
+            )
             .filter_map(|((_, ticks), sites)| {
                 if !sites.iter().any(|s| s.conductor != trace.meta.id) {
                     return None;
@@ -347,11 +349,19 @@ mod tests {
         let parsed = parse(original.as_bytes()).unwrap();
         let board = into_canonical(original.as_bytes(), &parsed).unwrap();
         assert_eq!(board.connectivity.edges.len(), 1);
-        assert!(board.connectivity.nodes.iter().any(|node| matches!(node.site, ContactSite::TraceInterior(_))));
+        assert!(board
+            .connectivity
+            .nodes
+            .iter()
+            .any(|node| matches!(node.site, ContactSite::TraceInterior(_))));
         assert!(!board.validate().has_errors());
         let offset = original.replace("300 200 1 10 0", "300 200.01 1 10 0");
         let parsed = parse(offset.as_bytes()).unwrap();
-        assert!(into_canonical(offset.as_bytes(), &parsed).unwrap().connectivity.edges.is_empty());
+        assert!(into_canonical(offset.as_bytes(), &parsed)
+            .unwrap()
+            .connectivity
+            .edges
+            .is_empty());
     }
 
     #[test]
@@ -360,7 +370,11 @@ mod tests {
         let parsed = parse(source.as_bytes()).unwrap();
         let board = into_canonical(source.as_bytes(), &parsed).unwrap();
         assert!(board.connectivity.edges.is_empty());
-        assert!(board.sources[0].capability.object_coverage.iter().any(|s| s.contains("potential net conflicts 1")));
+        assert!(board.sources[0]
+            .capability
+            .object_coverage
+            .iter()
+            .any(|s| s.contains("potential net conflicts 1")));
     }
 
     #[test]
