@@ -178,11 +178,9 @@ fn unsupported_owner_hole_shapes_fail_closed() {
 fn source_declared_smd_pad_inside_copper_but_not_cutout_is_a_witness() {
     let sample = include_str!("fixtures/pads_component_simple_v94.asc").replace("\r\n", "\n");
     let existing = "*ROUTE*\n*SIGNAL* NET_A\nU9.1 U9.2\n100 200 1 10 0\n300 200 1 10 0\n";
-    let replacement = format!(
-        "*LINES*\nZONE COPPER 150 250 2 1 0 NET_A\nCOPCLS 5 0.01 0 1\n0 0\n100 0\n100 100\n0 100\n0 0\nCOPCUT 5 0.01 0 1\n60 60\n80 60\n80 80\n60 80\n60 60\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U9.2\n300 400 1 10 0\n350 400 1 10 0\n"
-    );
+    let replacement = "*LINES*\nZONE COPPER 150 250 2 1 0 NET_A\nCOPCLS 5 0.01 0 1\n0 0\n100 0\n100 100\n0 100\n0 0\nCOPCUT 5 0.01 0 1\n60 60\n80 60\n80 80\n60 80\n60 60\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U9.2\n300 400 1 10 0\n350 400 1 10 0\n";
     assert!(sample.contains(existing));
-    let input = sample.replace(existing, &replacement);
+    let input = sample.replace(existing, replacement);
     let parsed = route_preview::parse(input.as_bytes()).unwrap();
     let mut board = route_preview::into_canonical(input.as_bytes(), &parsed).unwrap();
     let pads = boardsi_import::part_preview::parse(input.as_bytes(), parsed.max_layer);
