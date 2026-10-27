@@ -47,7 +47,8 @@ fn run() -> Result<(usize, usize), &'static str> {
     // reports only local, source-grid exact contact evidence. The GUI must
     // never interpret it as a complete electrical connectivity result.
     let endpoint_edges = boardsi_import::contact_wire::legacy_endpoint_edges(&board)?;
-    let local_contacts = endpoint_edges.iter()
+    let local_contacts = endpoint_edges
+        .iter()
         .filter(|e| {
             matches!(
                 e.evidence,
@@ -55,7 +56,8 @@ fn run() -> Result<(usize, usize), &'static str> {
             )
         })
         .count();
-    let via_barrels = endpoint_edges.iter()
+    let via_barrels = endpoint_edges
+        .iter()
         .filter(|e| {
             matches!(
                 e.evidence,
