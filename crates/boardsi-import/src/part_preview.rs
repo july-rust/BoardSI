@@ -453,7 +453,87 @@ fn meta(source: &SourceId, kind: ObjectKind, key: &str, description: &str) -> Ob
         },
     }
 }
+/// Legacy artwork-only import: a decal pin label alone never proves its Net.
 pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'static str> {
+    augment_inner(board, imported, &BTreeMap::new())
+}
+
+/// Source ROUTE pin-pair declarations establish *declared* Pad/Pin Net ownership.
+/// A graph edge still requires independently matching copper geometry and layer.
+pub fn augment_source_bound(
+    board: &mut BoardModel,
+    imported: &PadImport,
+    source_bytes: &[u8],
+) -> Result<(), &'static str> {
+    let assignments = declared_route_pin_nets(source_bytes)?;
+    augment_inner(board, imported, &assignments)?;
+    crate::connectivity_preview::augment_pad_centres(board)?;
+    if board.validate().has_errors() {
+        return Err("PAD_SOURCE_CONTACT_INVALID");
+    }
+    Ok(())
+}
+
+fn declared_route_pin_nets(source_bytes: &[u8]) -> Result<BTreeMap<String, String>, &'static str> {
+    // This function is called only after route_preview::parse accepted the source.
+    // Restrict declarations to the first END and the explicit ROUTE/SIGNAL section.
+    let source = String::from_utf8_lossy(source_bytes);
+    let mut in_route = false;
+    let mut current_net: Option<&str> = None;
+    let mut pins = BTreeMap::<String, String>::new();
+    for line in source.lines().skip(1) {
+        let line = line.trim();
+        let fields: Vec<&str> = line.split_ascii_whitespace().collect();
+        if fields.is_empty() || fields[0] == "*REMARK*" || fields[0] == "REMARK" {
+            continue;
+        }
+        if fields[0] == "*END*" {
+            break;
+        }
+        if fields[0].starts_with('*') {
+            match fields[0] {
+                "*ROUTE*" => {
+                    in_route = true;
+                    current_net = None;
+                }
+                "*SIGNAL*" if in_route => current_net = fields.get(1).copied(),
+                _ => {
+                    in_route = false;
+                    current_net = None;
+                }
+            }
+            continue;
+        }
+        if !in_route || fields.len() != 2 {
+            continue;
+        }
+        let (Some(a), Some(b), Some(net)) = (
+            fields[0].rsplit_once('.'),
+            fields[1].rsplit_once('.'),
+            current_net,
+        ) else {
+            continue;
+        };
+        for (reference, pin) in [a, b] {
+            if reference.is_empty() || pin.is_empty() {
+                continue;
+            }
+            let key = format!("{}.{}", reference, pin);
+            if let Some(previous) = pins.insert(key, net.to_owned()) {
+                if previous != net {
+                    return Err("CONFLICTING_SOURCE_PIN_NET");
+                }
+            }
+        }
+    }
+    Ok(pins)
+}
+
+fn augment_inner(
+    board: &mut BoardModel,
+    imported: &PadImport,
+    assignments: &BTreeMap<String, String>,
+) -> Result<(), &'static str> {
     if imported.pads.is_empty() {
         return Ok(());
     }
@@ -528,6 +608,14 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
                 shape,
             }],
         });
+        let source_pin = format!("{}.{}", pad.reference, pad.pin);
+        let proven_net = assignments.get(&source_pin).and_then(|name| {
+            board
+                .nets
+                .iter()
+                .find(|net| net.name == *name)
+                .map(|net| net.meta.id.clone())
+        });
         let pad_key = format!("p2c-pad-{}", key);
         let pad_id = ObjectId::new(&source, ObjectKind::Pad, &pad_key, "");
         board.pads.push(Pad {
@@ -546,24 +634,24 @@ pub fn augment(board: &mut BoardModel, imported: &PadImport) -> Result<(), &'sta
                 mirror_x: false,
             },
             padstack: stack_id,
-            net: None,
+            net: proven_net.clone(),
         });
         board.pins.push(Pin {
             meta: meta(
                 &source,
                 ObjectKind::Pin,
                 &format!("p2c-pin-{}", key),
-                "PADS PARTDECAL pin ID, net not verified",
+                "PADS PARTDECAL pin; optional Net from explicit parsed ROUTE source declaration",
             ),
             component: component_id,
             number: pad.pin.clone(),
             pad: pad_id,
-            net: None,
+            net: proven_net,
         });
     }
     board.sources[0].capability.pin_pad = CapabilityState::Partial;
     board.sources[0].capability.object_coverage.push(
-        "PARTDECAL/PARTTYPE/PART: restricted top/bottom drill-free R/S/RF SMD; net NOT_VERIFIED"
+        "PARTDECAL/PARTTYPE/PART: restricted top/bottom drill-free R/S/RF SMD; only explicit ROUTE pair Net optionally declared; contact NOT_VERIFIED without source geometry"
             .into(),
     );
     if board.validate().has_errors() {
@@ -722,6 +810,61 @@ mod tests {
             assert!(parsed.skipped > 0);
         }
     }
+    fn with_source_route(end: &str) -> String {
+        SAMPLE
+            .replacen("*PARTDECAL*", "*PCB*\\nMAXLAYER 4\\n*PARTDECAL*", 1)
+            .replace(
+                "*END*",
+                &format!(
+                    "*ROUTE*\\n*SIGNAL* NET_A\\nU1.1 U9.2\\n100 300 1 10 0\\n{}\\n*END*",
+                    end
+                ),
+            )
+            .replace("\\n", "\n")
+    }
+
+    #[test]
+    fn source_route_pair_plus_exact_copper_geometry_qualifies_one_pad_contact() {
+        for (end, expected) in [
+            ("200 300 1 10 0", 1),
+            ("300 300 1 10 0", 1),
+            ("200 300.01 1 10 0", 0),
+        ] {
+            let source = with_source_route(end);
+            let parsed = crate::route_preview::parse(source.as_bytes()).unwrap();
+            let mut board =
+                crate::route_preview::into_canonical(source.as_bytes(), &parsed).unwrap();
+            let pads = parse(source.as_bytes(), parsed.max_layer);
+            augment_source_bound(&mut board, &pads, source.as_bytes()).unwrap();
+            assert_eq!(board.connectivity.edges.len(), expected);
+            assert!(board.pads[0].net.is_some());
+            assert!(board.pads[1].net.is_none());
+            assert!(!board.validate().has_errors());
+            // The established V1 suffix/audit are strictly endpoint-only.
+            // New Pad/interior evidence must not change its record counts.
+            assert_eq!(crate::contact_wire::legacy_v1_counts(&board), (0, 0));
+            let suffix = crate::contact_wire::encode(&board).unwrap();
+            assert!(suffix.starts_with(b"BOARDSI_CONTACT_RECORDS_V1|0|LOCAL_ENDPOINT_ONLY|"));
+        }
+    }
+
+    #[test]
+    fn different_declared_pin_nets_fail_closed_before_adding_pad_edges() {
+        let source = with_source_route("200 300 1 10 0")
+            .replace(
+                "*END*",
+                "*SIGNAL* NET_B\\nU1.1 U7.7\\n100 400 1 10 0\\n200 400 1 10 0\\n*END*",
+            )
+            .replace("\\n", "\n");
+        let route = crate::route_preview::parse(source.as_bytes()).unwrap();
+        let mut board = crate::route_preview::into_canonical(source.as_bytes(), &route).unwrap();
+        let pads = parse(source.as_bytes(), route.max_layer);
+        assert_eq!(
+            augment_source_bound(&mut board, &pads, source.as_bytes()),
+            Err("CONFLICTING_SOURCE_PIN_NET")
+        );
+    }
+
     #[test]
     fn pad_only_board_creates_canonical_objects_without_fake_net() {
         let source = SAMPLE.replace("*PARTDECAL*", "*PCB*\nMAXLAYER 4\n*PARTDECAL*");

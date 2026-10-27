@@ -29,7 +29,7 @@ fn run() -> Result<(usize, usize), &'static str> {
     let coppers = copper_preview::parse(&bytes, result.max_layer)?;
     let mut board = into_canonical(&bytes, &result)?;
     let pad_data = part_preview::parse(&bytes, result.max_layer);
-    part_preview::augment(&mut board, &pad_data)?;
+    part_preview::augment_source_bound(&mut board, &pad_data, &bytes)?;
     outline_preview::augment(&mut board, &outlines)?;
     copper_preview::augment(&mut board, &coppers)?;
     if board.arcs.len() != result.arcs.len()
@@ -46,28 +46,7 @@ fn run() -> Result<(usize, usize), &'static str> {
     // byte-for-byte compatible. This small, bounded stderr *success* record
     // reports only local, source-grid exact contact evidence. The GUI must
     // never interpret it as a complete electrical connectivity result.
-    let local_contacts = board
-        .connectivity
-        .edges
-        .iter()
-        .filter(|e| {
-            matches!(
-                e.evidence,
-                boardsi_model::ConnectionEvidence::SameLayerContact { .. }
-            )
-        })
-        .count();
-    let via_barrels = board
-        .connectivity
-        .edges
-        .iter()
-        .filter(|e| {
-            matches!(
-                e.evidence,
-                boardsi_model::ConnectionEvidence::ViaBarrel { .. }
-            )
-        })
-        .count();
+    let (local_contacts, via_barrels) = boardsi_import::contact_wire::legacy_v1_counts(&board);
     let mut out = Vec::new();
     // Preserve the established P2A/P2B V1 wire contract whenever no pad
     // records are actually emitted. Rejected PART rows are not P2C geometry.

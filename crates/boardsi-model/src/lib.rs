@@ -264,6 +264,9 @@ pub struct Outline {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ContactSite {
     TraceVertex(usize),
+    /// Source-grid exact point strictly inside a straight trace centreline.
+    /// Width-overlap and arbitrary crossing remain unsupported.
+    TraceInterior(Point),
     ArcStart,
     ArcEnd,
     PadCentre,

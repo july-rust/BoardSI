@@ -2,9 +2,10 @@
 //! Never certifies entire-board shorts/opens or areas/pins.
 //! Default legacy artwork stdout V1-V14 is byte-for-byte unaffected.
 use boardsi_model::{
-    BoardModel, ConnectionEvidence, ConnectivityNode, ContactSite, ObjectId, PadRole, ViaKind,
+    BoardModel, ConnectionEvidence, ConnectivityNode, ContactSite, ObjectId, ObjectKind, PadRole,
+    ViaKind,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 const NM_PER_TICK: i64 = 254;
@@ -74,6 +75,95 @@ fn resolve(
         ticks,
         net,
     })
+}
+
+fn legacy_site_ids(board: &BoardModel) -> BTreeSet<ObjectId> {
+    let mut sites: BTreeSet<ObjectId> = board
+        .connectivity
+        .nodes
+        .iter()
+        .filter(|node| {
+            matches!(
+                (&node.conductor.kind, &node.site),
+                (ObjectKind::Trace, ContactSite::TraceVertex(0 | 1))
+                    | (ObjectKind::Arc, ContactSite::ArcStart | ContactSite::ArcEnd)
+            )
+        })
+        .map(|node| node.meta.id.clone())
+        .collect();
+    // A ViaCentre may be part of V1 only when a supported legacy Trace/Arc
+    // endpoint proves an actual same-layer contact. A Via contact found only
+    // at B_003 TraceInterior must not leak as an orphan barrel into V1.
+    let via_ids: BTreeSet<ObjectId> = board
+        .connectivity
+        .nodes
+        .iter()
+        .filter(|node| {
+            matches!(
+                (&node.conductor.kind, &node.site),
+                (ObjectKind::Via, ContactSite::ViaCentre)
+            )
+        })
+        .map(|node| node.meta.id.clone())
+        .collect();
+    for edge in &board.connectivity.edges {
+        if !matches!(edge.evidence, ConnectionEvidence::SameLayerContact { .. }) {
+            continue;
+        }
+        if sites.contains(&edge.a) && via_ids.contains(&edge.b) {
+            sites.insert(edge.b.clone());
+        }
+        if sites.contains(&edge.b) && via_ids.contains(&edge.a) {
+            sites.insert(edge.a.clone());
+        }
+    }
+    sites
+}
+
+// Recreate the legacy barrel chain over endpoint-qualified layers only.
+// Intermediate Canonical ViaCentre contacts discovered by B_003 must neither
+// delete formerly valid V1 outer-layer barrels nor appear as orphan V1 links.
+fn legacy_v1_barrels(
+    board: &BoardModel,
+    eligible: &BTreeSet<ObjectId>,
+) -> Vec<(ObjectId, ObjectId)> {
+    let mut via_sites: BTreeMap<ObjectId, Vec<&ConnectivityNode>> = BTreeMap::new();
+    for node in &board.connectivity.nodes {
+        if eligible.contains(&node.meta.id)
+            && matches!(node.site, ContactSite::ViaCentre)
+            && node.conductor.kind == ObjectKind::Via
+        {
+            via_sites
+                .entry(node.conductor.clone())
+                .or_default()
+                .push(node);
+        }
+    }
+    let mut barrels = Vec::new();
+    for (_, mut sites) in via_sites {
+        sites.sort_by(|a, b| a.layer.cmp(&b.layer));
+        for pair in sites.windows(2) {
+            barrels.push((pair[0].meta.id.clone(), pair[1].meta.id.clone()));
+        }
+    }
+    barrels
+}
+
+/// Counts the exact same restricted endpoint-only edges as the V1 suffix.
+/// B_003 interior and Pad edges are deliberately not encoded by legacy V1.
+pub fn legacy_v1_counts(board: &BoardModel) -> (usize, usize) {
+    let eligible = legacy_site_ids(board);
+    let contacts = board
+        .connectivity
+        .edges
+        .iter()
+        .filter(|edge| {
+            eligible.contains(&edge.a)
+                && eligible.contains(&edge.b)
+                && matches!(edge.evidence, ConnectionEvidence::SameLayerContact { .. })
+        })
+        .count();
+    (contacts, legacy_v1_barrels(board, &eligible).len())
 }
 
 fn bounded_push(
@@ -241,12 +331,23 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         return Err("CONTACT_WIRE_RECORD_LIMIT");
     }
 
-    let conflicts = potential_conflicts(board, &layers)?;
-    let count = board
+    let legacy_sites = legacy_site_ids(board);
+    let legacy_edges: Vec<_> = board
         .connectivity
         .edges
+        .iter()
+        .filter(|edge| {
+            legacy_sites.contains(&edge.a)
+                && legacy_sites.contains(&edge.b)
+                && matches!(edge.evidence, ConnectionEvidence::SameLayerContact { .. })
+        })
+        .collect();
+    let legacy_barrels = legacy_v1_barrels(board, &legacy_sites);
+    let conflicts = potential_conflicts(board, &layers)?;
+    let count = legacy_edges
         .len()
-        .checked_add(conflicts.len())
+        .checked_add(legacy_barrels.len())
+        .and_then(|count| count.checked_add(conflicts.len()))
         .ok_or("CONTACT_WIRE_RECORD_LIMIT")?;
     if count > MAX_RECORDS {
         return Err("CONTACT_WIRE_RECORD_LIMIT");
@@ -263,7 +364,7 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         write!(&mut out, "{b:02x}").map_err(|_| "CONTACT_WIRE_FORMAT")?;
     }
     out.push('\n');
-    for edge in &board.connectivity.edges {
+    for edge in legacy_edges {
         let a = resolve(
             board,
             &objects,
@@ -307,6 +408,44 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         writeln!(
             &mut out,
             "E|{class}|{}|{}|{}|{}|{}|{}|{}|{}|{x}|{y}",
+            a.kind, a.index, a.site, a.layer, b.kind, b.index, b.site, b.layer
+        )
+        .map_err(|_| "CONTACT_WIRE_FORMAT")?;
+        if out.len() > MAX_RECORD_BYTES {
+            return Err("CONTACT_WIRE_OUTPUT_LIMIT");
+        }
+    }
+    for (a_id, b_id) in legacy_barrels {
+        let a = resolve(
+            board,
+            &objects,
+            &layers,
+            nodes.get(&a_id).ok_or("CONTACT_WIRE_NODE_MISSING")?,
+        )?;
+        let b = resolve(
+            board,
+            &objects,
+            &layers,
+            nodes.get(&b_id).ok_or("CONTACT_WIRE_NODE_MISSING")?,
+        )?;
+        if a.kind != 'V'
+            || b.kind != 'V'
+            || a.index != b.index
+            || a.layer == b.layer
+            || a.net != b.net
+            || a.ticks != b.ticks
+        {
+            return Err("CONTACT_WIRE_BARREL_MISMATCH");
+        }
+        let x = a.ticks[0]
+            .checked_mul(NM_PER_TICK)
+            .ok_or("CONTACT_WIRE_OVERFLOW")?;
+        let y = a.ticks[1]
+            .checked_mul(NM_PER_TICK)
+            .ok_or("CONTACT_WIRE_OVERFLOW")?;
+        writeln!(
+            &mut out,
+            "E|B|{}|{}|{}|{}|{}|{}|{}|{}|{x}|{y}",
             a.kind, a.index, a.site, a.layer, b.kind, b.index, b.site, b.layer
         )
         .map_err(|_| "CONTACT_WIRE_FORMAT")?;
@@ -375,6 +514,25 @@ mod tests {
         assert!(wire.contains("X|C|T|0|1|1|T|1|0|1|"));
         assert!(!wire.contains("E|S|"));
     }
+    #[test]
+    fn legacy_barrel_survives_new_interior_only_via_layer() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 4 10 0 SIMPLEVIA\n500 200 4 10 0\nU3.1 U4.2\n100 200 2 10 0\n500 200 2 10 0\n*END*\n";
+        let parsed = parse(source.as_bytes()).unwrap();
+        let board = into_canonical(source.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.vias.len(), 1);
+        assert_eq!(board.vias[0].connected_layers.len(), 3);
+        assert_eq!(legacy_v1_counts(&board).1, 1);
+        let encoded = String::from_utf8(encode(&board).unwrap()).unwrap();
+        assert_eq!(
+            encoded
+                .lines()
+                .filter(|line| line.starts_with("E|B|"))
+                .count(),
+            1
+        );
+        assert!(!board.validate().has_errors());
+    }
+
     #[test]
     fn output_is_deterministic_for_same_source() {
         let parsed = parse(TWO.as_bytes()).unwrap();

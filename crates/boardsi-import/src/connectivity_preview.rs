@@ -166,6 +166,35 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
             push_site(&mut locations, &arc.layer, point.ticks, candidate)?;
         }
     }
+    // Via-to-trace centreline lookup: index exact horizontal/vertical
+    // source-tick axes by Layer. Unsupported diagonal candidates stay layer-
+    // bounded. Never scan every unrelated Layer for every plated Via.
+    let mut horizontal: BTreeMap<(ObjectId, i64), Vec<usize>> = BTreeMap::new();
+    let mut vertical: BTreeMap<(ObjectId, i64), Vec<usize>> = BTreeMap::new();
+    let mut diagonal: BTreeMap<ObjectId, Vec<usize>> = BTreeMap::new();
+    for (trace_index, trace) in board.traces.iter().enumerate() {
+        if trace.centreline.len() != 2 {
+            return Err("UNSUPPORTED_CONTACT_TRACE");
+        }
+        let a = trace.centreline[0].ticks;
+        let b = trace.centreline[1].ticks;
+        if a[1] == b[1] {
+            horizontal
+                .entry((trace.layer.clone(), a[1]))
+                .or_default()
+                .push(trace_index);
+        } else if a[0] == b[0] {
+            vertical
+                .entry((trace.layer.clone(), a[0]))
+                .or_default()
+                .push(trace_index);
+        } else {
+            diagonal
+                .entry(trace.layer.clone())
+                .or_default()
+                .push(trace_index);
+        }
+    }
     for (index, via) in board.vias.iter().enumerate() {
         let drill = board
             .drills
@@ -185,10 +214,40 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
             .iter()
             .filter(|e| e.role == PadRole::Conductive)
         {
-            // No endpoint to connect on this layer: do not index an idle
-            // via barrel/pad as though its span established an actual contact.
-            if !locations.contains_key(&(entry.layer.clone(), via.position.ticks)) {
-                continue;
+            // Index only an actual endpoint or an exact source-tick
+            // straight Trace interior witness. Idle vias remain unconnected.
+            let endpoint = locations.contains_key(&(entry.layer.clone(), via.position.ticks));
+            if !endpoint {
+                let p = via.position.ticks;
+                let candidate_traces = horizontal
+                    .get(&(entry.layer.clone(), p[1]))
+                    .into_iter()
+                    .flat_map(|indices| indices.iter())
+                    .chain(
+                        vertical
+                            .get(&(entry.layer.clone(), p[0]))
+                            .into_iter()
+                            .flat_map(|indices| indices.iter()),
+                    )
+                    .chain(
+                        diagonal
+                            .get(&entry.layer)
+                            .into_iter()
+                            .flat_map(|indices| indices.iter()),
+                    );
+                let interior = candidate_traces.into_iter().any(|&trace_index| {
+                    let trace = &board.traces[trace_index];
+                    let a = trace.centreline[0].ticks;
+                    let b = trace.centreline[1].ticks;
+                    let (ax, ay) = (i128::from(a[0]), i128::from(a[1]));
+                    let (bx, by) = (i128::from(b[0]), i128::from(b[1]));
+                    let (px, py) = (i128::from(p[0]), i128::from(p[1]));
+                    (bx - ax) * (py - ay) == (by - ay) * (px - ax)
+                        && (px - ax) * (px - bx) + (py - ay) * (py - by) < 0
+                });
+                if !interior {
+                    continue;
+                }
             }
             let candidate = site(
                 &source,
@@ -200,6 +259,75 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
                 Some(index),
             );
             push_site(&mut locations, &entry.layer, via.position.ticks, candidate)?;
+        }
+    }
+
+    // Preserve an independent y-ordered lookup to prevent long horizontal
+    // traces from scanning every unrelated endpoint on the board.
+    let by_y: BTreeMap<(ObjectId, [i64; 2]), [i64; 2]> = locations
+        .keys()
+        .map(|(layer, point)| ((layer.clone(), [point[1], point[0]]), *point))
+        .collect();
+    // Exact source-tick T-junctions: a different conductor's original
+    // endpoint strictly inside a straight centreline. Not width overlap.
+    for trace in &board.traces {
+        let a = trace.centreline[0].ticks;
+        let b = trace.centreline[1].ticks;
+        let xmin = a[0].min(b[0]);
+        let xmax = a[0].max(b[0]);
+        let ymin = a[1].min(b[1]);
+        let ymax = a[1].max(b[1]);
+        let scan_y = i128::from(ymax) - i128::from(ymin) < i128::from(xmax) - i128::from(xmin);
+        let candidates: Vec<[i64; 2]> = if scan_y {
+            by_y.range(
+                (trace.layer.clone(), [ymin, i64::MIN])..=(trace.layer.clone(), [ymax, i64::MAX]),
+            )
+            .map(|(_, point)| *point)
+            .collect()
+        } else {
+            locations
+                .range(
+                    (trace.layer.clone(), [xmin, i64::MIN])
+                        ..=(trace.layer.clone(), [xmax, i64::MAX]),
+                )
+                .map(|((_, point), _)| *point)
+                .collect()
+        };
+        let witnesses: Vec<[i64; 2]> = candidates
+            .into_iter()
+            .filter(|ticks| {
+                if ticks[0] < xmin || ticks[0] > xmax || ticks[1] < ymin || ticks[1] > ymax {
+                    return false;
+                }
+                if !locations
+                    .get(&(trace.layer.clone(), *ticks))
+                    .is_some_and(|sites| sites.iter().any(|s| s.conductor != trace.meta.id))
+                {
+                    return false;
+                }
+                let (ax, ay) = (i128::from(a[0]), i128::from(a[1]));
+                let (bx, by) = (i128::from(b[0]), i128::from(b[1]));
+                let (px, py) = (i128::from(ticks[0]), i128::from(ticks[1]));
+                let cross = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+                let dot = (px - ax) * (px - bx) + (py - ay) * (py - by);
+                cross == 0 && dot < 0
+            })
+            .collect();
+        for (index, ticks) in witnesses.into_iter().enumerate() {
+            let point = boardsi_model::Point {
+                frame: trace.centreline[0].frame.clone(),
+                ticks,
+            };
+            let candidate = site(
+                &source,
+                trace.meta.id.clone(),
+                trace.layer.clone(),
+                trace.net.clone(),
+                ContactSite::TraceInterior(point),
+                &format!("interior-{}-{}-{}", index, ticks[0], ticks[1]),
+                None,
+            );
+            push_site(&mut locations, &trace.layer, ticks, candidate)?;
         }
     }
 
@@ -286,6 +414,157 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
     Ok(audit)
 }
 
+/// Add only strict source-grid Pad-centre / Trace-centreline contact evidence
+/// after a separately accepted ROUTE pin-pair assigned an actual Pad Net.
+/// Unassigned pads and width-overlap contacts remain unqualified.
+pub fn augment_pad_centres(board: &mut BoardModel) -> Result<usize, &'static str> {
+    let source = board.sources.first().ok_or("MISSING_SOURCE")?.id.clone();
+    let mut nodes: BTreeMap<ObjectId, ConnectivityNode> = board
+        .connectivity
+        .nodes
+        .iter()
+        .map(|n| (n.meta.id.clone(), n.clone()))
+        .collect();
+    let mut new_edges = Vec::new();
+    let mut qualified = 0usize;
+    let mut cross_net = 0usize;
+    // Source-grid Pad-centre queries use an axis/Layers index. No quadratic
+    // all-Pads x all-Traces scan for supported horizontal/vertical routes.
+    let mut horizontal: BTreeMap<(ObjectId, i64), Vec<usize>> = BTreeMap::new();
+    let mut vertical: BTreeMap<(ObjectId, i64), Vec<usize>> = BTreeMap::new();
+    let mut diagonal: BTreeMap<ObjectId, Vec<usize>> = BTreeMap::new();
+    for (i, trace) in board.traces.iter().enumerate() {
+        if trace.centreline.len() != 2 {
+            return Err("UNSUPPORTED_CONTACT_TRACE");
+        }
+        let a = trace.centreline[0].ticks;
+        let b = trace.centreline[1].ticks;
+        if a[1] == b[1] {
+            horizontal
+                .entry((trace.layer.clone(), a[1]))
+                .or_default()
+                .push(i);
+        } else if a[0] == b[0] {
+            vertical
+                .entry((trace.layer.clone(), a[0]))
+                .or_default()
+                .push(i);
+        } else {
+            diagonal.entry(trace.layer.clone()).or_default().push(i);
+        }
+    }
+    for pad in &board.pads {
+        let Some(pad_net) = &pad.net else {
+            continue;
+        };
+        let padstack = board
+            .padstacks
+            .iter()
+            .find(|stack| stack.meta.id == pad.padstack)
+            .ok_or("MISSING_PADSTACK")?;
+        for entry in padstack
+            .entries
+            .iter()
+            .filter(|entry| entry.role == PadRole::Conductive)
+        {
+            let p = pad.position.ticks;
+            let candidates = horizontal
+                .get(&(entry.layer.clone(), p[1]))
+                .into_iter()
+                .flat_map(|ids| ids.iter())
+                .chain(
+                    vertical
+                        .get(&(entry.layer.clone(), p[0]))
+                        .into_iter()
+                        .flat_map(|ids| ids.iter()),
+                )
+                .chain(
+                    diagonal
+                        .get(&entry.layer)
+                        .into_iter()
+                        .flat_map(|ids| ids.iter()),
+                );
+            for &trace_index in candidates {
+                let trace = &board.traces[trace_index];
+                let a = &trace.centreline[0];
+                let b = &trace.centreline[1];
+                let p = &pad.position;
+                let (ax, ay) = (i128::from(a.ticks[0]), i128::from(a.ticks[1]));
+                let (bx, by) = (i128::from(b.ticks[0]), i128::from(b.ticks[1]));
+                let (px, py) = (i128::from(p.ticks[0]), i128::from(p.ticks[1]));
+                let cross = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+                let dot = (px - ax) * (px - bx) + (py - ay) * (py - by);
+                if a.frame != p.frame || b.frame != p.frame || cross != 0 || dot > 0 {
+                    continue;
+                }
+                let contact = if p.ticks == a.ticks {
+                    ContactSite::TraceVertex(0)
+                } else if p.ticks == b.ticks {
+                    ContactSite::TraceVertex(1)
+                } else {
+                    ContactSite::TraceInterior(p.clone())
+                };
+                let trace_name = if p.ticks == a.ticks {
+                    "start".to_owned()
+                } else if p.ticks == b.ticks {
+                    "end".to_owned()
+                } else {
+                    format!("pad-interior-{}-{}", p.ticks[0], p.ticks[1])
+                };
+                let trace_site = site(
+                    &source,
+                    trace.meta.id.clone(),
+                    trace.layer.clone(),
+                    trace.net.clone(),
+                    contact,
+                    &trace_name,
+                    None,
+                );
+                let pad_site = site(
+                    &source,
+                    pad.meta.id.clone(),
+                    entry.layer.clone(),
+                    pad.net.clone(),
+                    ContactSite::PadCentre,
+                    "centre",
+                    None,
+                );
+                if trace.net.as_ref() != Some(pad_net) {
+                    cross_net += 1;
+                    continue;
+                }
+                nodes
+                    .entry(trace_site.id.clone())
+                    .or_insert_with(|| contact_node(&source, &trace_site));
+                nodes
+                    .entry(pad_site.id.clone())
+                    .or_insert_with(|| contact_node(&source, &pad_site));
+                add_edge(
+                    &source,
+                    &mut new_edges,
+                    &trace_site.id,
+                    &pad_site.id,
+                    "pad-centre",
+                    ConnectionEvidence::SameLayerContact {
+                        evidence: "source ROUTE pin-pair Net assignment and exact PADS tick Pad centre on straight Trace centreline".into(),
+                    },
+                )?;
+                qualified += 1;
+            }
+        }
+    }
+    if board.connectivity.edges.len() + new_edges.len() > MAX_EDGES {
+        return Err("CONTACT_EDGE_LIMIT");
+    }
+    board.connectivity.nodes = nodes.into_values().collect();
+    board.connectivity.edges.extend(new_edges);
+    board.sources[0].capability.object_coverage.push(format!(
+        "B_003 strict Pad centre/Trace centreline verified local edges {}; cross-Net coincidences {} (not certified shorts); arbitrary width overlap NOT_EVALUATED",
+        qualified, cross_net
+    ));
+    Ok(qualified)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -300,6 +579,40 @@ mod tests {
         assert_eq!(a.connectivity.edges.len(), 1);
         assert_eq!(a.connectivity.nodes.len(), 2);
         assert!(!a.validate().has_errors());
+    }
+
+    #[test]
+    fn strict_t_junction_is_connected_but_near_miss_is_not() {
+        let original = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n500 200 1 10 0\nU3.1 U4.2\n300 400 1 10 0\n300 200 1 10 0\n*END*\n";
+        let parsed = parse(original.as_bytes()).unwrap();
+        let board = into_canonical(original.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.connectivity.edges.len(), 1);
+        assert!(board
+            .connectivity
+            .nodes
+            .iter()
+            .any(|node| matches!(node.site, ContactSite::TraceInterior(_))));
+        assert!(!board.validate().has_errors());
+        let offset = original.replace("300 200 1 10 0", "300 200.01 1 10 0");
+        let parsed = parse(offset.as_bytes()).unwrap();
+        assert!(into_canonical(offset.as_bytes(), &parsed)
+            .unwrap()
+            .connectivity
+            .edges
+            .is_empty());
+    }
+
+    #[test]
+    fn cross_net_t_junction_is_not_certified_as_connected() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n500 200 1 10 0\n*SIGNAL* NET_B\nU3.1 U4.2\n300 400 1 10 0\n300 200 1 10 0\n*END*\n";
+        let parsed = parse(source.as_bytes()).unwrap();
+        let board = into_canonical(source.as_bytes(), &parsed).unwrap();
+        assert!(board.connectivity.edges.is_empty());
+        assert!(board.sources[0]
+            .capability
+            .object_coverage
+            .iter()
+            .any(|s| s.contains("potential net conflicts 1")));
     }
 
     #[test]
@@ -344,6 +657,26 @@ mod tests {
         assert_eq!(parsed.segments.len(), 1);
         let board = into_canonical(source.as_bytes(), &parsed).unwrap();
         assert_eq!(board.connectivity.edges.len(), 1);
+        assert!(!board.validate().has_errors());
+    }
+
+    #[test]
+    fn plated_via_at_exact_trace_interior_proves_second_layer_contact() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 400 1 10 0\n500 400 1 10 0\nU3.1 U4.2\n100 400 4 10 0\n300 400 4 10 0 SIMPLEVIA\n500 400 4 10 0\n*END*\n";
+        let parsed = parse(source.as_bytes()).unwrap();
+        let board = into_canonical(source.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.vias.len(), 1);
+        assert_eq!(board.vias[0].connected_layers.len(), 2);
+        assert!(board
+            .connectivity
+            .edges
+            .iter()
+            .any(|edge| { matches!(edge.evidence, ConnectionEvidence::ViaBarrel { .. }) }));
+        assert!(!board.validate().has_errors());
+        let shifted = source.replace("500 400 1 10 0", "500 400.01 1 10 0");
+        let parsed = parse(shifted.as_bytes()).unwrap();
+        let board = into_canonical(shifted.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.vias[0].connected_layers.len(), 1);
         assert!(!board.validate().has_errors());
     }
 

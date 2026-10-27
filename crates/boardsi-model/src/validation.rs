@@ -839,6 +839,42 @@ impl BoardModel {
                         .ok_or(ModelError::InvalidReference)?,
                 )
             }
+            ContactSite::TraceInterior(point) => {
+                let trace = lookup
+                    .traces
+                    .get(&node.conductor)
+                    .copied()
+                    .ok_or(ModelError::InvalidReference)?;
+                require(trace.layer == node.layer, ModelError::InvalidConnection)?;
+                require(trace.centreline.len() == 2, ModelError::InvalidConnection)?;
+                let a = &trace.centreline[0];
+                let b = &trace.centreline[1];
+                // PADS source ticks are bounded. i128 avoids i64 cross-product overflow.
+                let (ax, ay) = (i128::from(a.ticks[0]), i128::from(a.ticks[1]));
+                let (bx, by) = (i128::from(b.ticks[0]), i128::from(b.ticks[1]));
+                let (px, py) = (i128::from(point.ticks[0]), i128::from(point.ticks[1]));
+                let cross = (bx - ax)
+                    .checked_mul(py - ay)
+                    .and_then(|left| {
+                        (by - ay)
+                            .checked_mul(px - ax)
+                            .and_then(|right| left.checked_sub(right))
+                    })
+                    .ok_or(ModelError::InvalidConnection)?;
+                let dot = (px - ax)
+                    .checked_mul(px - bx)
+                    .and_then(|left| {
+                        (py - ay)
+                            .checked_mul(py - by)
+                            .and_then(|right| left.checked_add(right))
+                    })
+                    .ok_or(ModelError::InvalidConnection)?;
+                require(
+                    a.frame == point.frame && b.frame == point.frame && cross == 0 && dot < 0,
+                    ModelError::InvalidConnection,
+                )?;
+                (&trace.net, point)
+            }
             ContactSite::ArcStart | ContactSite::ArcEnd => {
                 let arc = lookup
                     .arcs
