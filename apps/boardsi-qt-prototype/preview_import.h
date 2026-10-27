@@ -670,7 +670,7 @@ public:
             QStringList acceptedNets;
             bool completeNetInventory = true;
             const auto rememberNet = [&acceptedNets, &completeNetInventory](const QString &name) {
-                if (name.isEmpty() || acceptedNets.contains(name)) return;
+                if (name.isEmpty() || name == "-" || acceptedNets.contains(name)) return;
                 if (name.size() > 64 || acceptedNets.size() >= 128) {
                     completeNetInventory = false;
                     return;
@@ -683,7 +683,7 @@ public:
             for (const auto &copper : coppers) {
                 rememberNet(copper.net);
                 acceptedCopper.append(QJsonArray{
-                    copper.layer, copper.name, copper.net, copper.sourceLine,
+                    copper.layer, copper.name, copper.net == "-" ? QString() : copper.net, copper.sourceLine,
                     static_cast<int>(copper.cutouts.size() + copper.roundCutouts.size()),
                     copper.curved, copper.circle});
             }
