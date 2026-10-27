@@ -195,8 +195,8 @@ pub mod outline_topology;
 pub mod part_preview;
 pub mod polygon_topology;
 pub mod pour_preview;
-pub mod route_preview;
 pub mod reference_geometry;
+pub mod route_preview;
 
 // A_032_2 opt-in local endpoint-evidence wire adapter.
 pub mod contact_wire;

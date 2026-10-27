@@ -2,7 +2,8 @@
 use boardsi_import::{copper_contact, copper_preview, reference_geometry, route_preview};
 use boardsi_model::ObjectId;
 
-const HEADER: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n";
+const HEADER: &str =
+    "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n";
 const AREA: &str = "*LINES*\nREF COPPER 100 200 1 2 0 NET_REF\nCOPCLS 5 0.01 0 1\n0 0\n100 0\n100 100\n0 100\n0 0\n";
 const SIGNAL: &str = "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n130 230 1 10 0\n150 230 1 10 0\nU2.2 U3.3\n150 230 1 10 0\n170 230 1 10 0\n*SIGNAL* NET_REF\nR1.1 R2.2\n300 400 2 10 0\n350 400 2 10 0\n";
 fn source(area: &str, route: &str) -> String {
@@ -14,7 +15,11 @@ fn assembled(input: &str) -> (boardsi_model::BoardModel, Vec<copper_preview::Cop
     let areas = copper_preview::parse(input.as_bytes(), parsed.max_layer).unwrap();
     copper_preview::augment(&mut board, &areas).unwrap();
     copper_contact::augment(&mut board, &areas).unwrap();
-    assert!(!board.validate().has_errors(), "{:#?}", board.validate().issues);
+    assert!(
+        !board.validate().has_errors(),
+        "{:#?}",
+        board.validate().issues
+    );
     (board, areas)
 }
 fn check(
@@ -25,13 +30,20 @@ fn check(
     layer: usize,
 ) -> reference_geometry::ReferenceGeometryAudit {
     reference_geometry::audit(
-        board, areas, ids, reference, &board.stackup.layers[layer].meta.id,
+        board,
+        areas,
+        ids,
+        reference,
+        &board.stackup.layers[layer].meta.id,
     )
 }
 #[test]
 fn exact_two_segment_path_inside_source_area_is_geometry_only() {
     let (board, areas) = assembled(&source(AREA, SIGNAL));
-    let ids: Vec<_> = board.traces[..2].iter().map(|t| t.meta.id.clone()).collect();
+    let ids: Vec<_> = board.traces[..2]
+        .iter()
+        .map(|t| t.meta.id.clone())
+        .collect();
     let result = check(&board, &areas, &ids, "NET_REF", 1);
     assert_eq!(result.state, "SOURCE_ORDER_GEOMETRY_ONLY");
     assert!(result.area_id.is_some());
@@ -44,9 +56,15 @@ fn single_segment_inside_and_reversed_order_are_supported() {
     let (board, areas) = assembled(&source(AREA, SIGNAL));
     for ids in [
         vec![board.traces[0].meta.id.clone()],
-        vec![board.traces[1].meta.id.clone(), board.traces[0].meta.id.clone()],
+        vec![
+            board.traces[1].meta.id.clone(),
+            board.traces[0].meta.id.clone(),
+        ],
     ] {
-        assert_eq!(check(&board, &areas, &ids, "NET_REF", 1).state, "SOURCE_ORDER_GEOMETRY_ONLY");
+        assert_eq!(
+            check(&board, &areas, &ids, "NET_REF", 1).state,
+            "SOURCE_ORDER_GEOMETRY_ONLY"
+        );
     }
 }
 #[test]
@@ -57,8 +75,14 @@ fn refuses_boundary_crossing_and_one_tick_outside() {
         SIGNAL.replace("130 230 1 10 0", "99.99 230 1 10 0"),
     ] {
         let (board, areas) = assembled(&source(AREA, &route));
-        let ids: Vec<_> = board.traces[..2].iter().map(|t| t.meta.id.clone()).collect();
-        assert_eq!(check(&board, &areas, &ids, "NET_REF", 1).state, "UNSUPPORTED");
+        let ids: Vec<_> = board.traces[..2]
+            .iter()
+            .map(|t| t.meta.id.clone())
+            .collect();
+        assert_eq!(
+            check(&board, &areas, &ids, "NET_REF", 1).state,
+            "UNSUPPORTED"
+        );
     }
 }
 #[test]
@@ -67,40 +91,77 @@ fn concave_polygon_both_endpoints_inside_but_line_exits() {
     let route = "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n130 270 1 10 0\n170 230 1 10 0\n*SIGNAL* NET_REF\nR1.1 R2.2\n300 400 2 10 0\n350 400 2 10 0\n";
     let (board, areas) = assembled(&source(concave, route));
     let ids = [board.traces[0].meta.id.clone()];
-    assert_eq!(check(&board, &areas, &ids, "NET_REF", 1).state, "UNSUPPORTED");
+    assert_eq!(
+        check(&board, &areas, &ids, "NET_REF", 1).state,
+        "UNSUPPORTED"
+    );
 }
 #[test]
 fn no_net_alias_join_no_cross_layer_reference_or_missing_source() {
     let (board, areas) = assembled(&source(AREA, SIGNAL));
     let ids = [board.traces[0].meta.id.clone()];
-    assert_eq!(check(&board, &areas, &ids, "NET_SIG", 1).reason, "SIGNAL_REFERENCE_NET_IDENTICAL");
-    assert_eq!(check(&board, &areas, &ids, "NET_REF", 3).state, "UNSUPPORTED");
-    assert_eq!(check(&board, &[], &ids, "NET_REF", 1).reason, "SOURCE_INVENTORY_MISMATCH");
-    assert_eq!(check(&board, &areas, &ids, "MISSING", 1).state, "UNSUPPORTED");
+    assert_eq!(
+        check(&board, &areas, &ids, "NET_SIG", 1).reason,
+        "SIGNAL_REFERENCE_NET_IDENTICAL"
+    );
+    assert_eq!(
+        check(&board, &areas, &ids, "NET_REF", 3).state,
+        "UNSUPPORTED"
+    );
+    assert_eq!(
+        check(&board, &[], &ids, "NET_REF", 1).reason,
+        "SOURCE_INVENTORY_MISMATCH"
+    );
+    assert_eq!(
+        check(&board, &areas, &ids, "MISSING", 1).state,
+        "UNSUPPORTED"
+    );
 }
 #[test]
 fn rejects_disjoint_same_net_areas_and_unknown_geometry() {
     let split = format!("{AREA}OTHER COPPER 300 200 1 2 0 NET_REF\nCOPCLS 5 0.01 0 1\n0 0\n100 0\n100 100\n0 100\n0 0\n");
     let (board, areas) = assembled(&source(&split, SIGNAL));
     let ids = [board.traces[0].meta.id.clone()];
-    assert_eq!(check(&board, &areas, &ids, "NET_REF", 1).state, "SOURCE_ORDER_GEOMETRY_ONLY");
+    assert_eq!(
+        check(&board, &areas, &ids, "NET_REF", 1).state,
+        "SOURCE_ORDER_GEOMETRY_ONLY"
+    );
     let no_area = AREA.replace(" 0 NET_REF", " 0 NET_UNKNOWN");
     let (board, areas) = assembled(&source(&no_area, SIGNAL));
     let ids = [board.traces[0].meta.id.clone()];
-    assert_eq!(check(&board, &areas, &ids, "NET_REF", 1).state, "UNSUPPORTED");
+    assert_eq!(
+        check(&board, &areas, &ids, "NET_REF", 1).state,
+        "UNSUPPORTED"
+    );
 }
 #[test]
 fn rejects_wrong_path_order_duplicates_and_modified_source_polygon() {
     let (board, areas) = assembled(&source(AREA, SIGNAL));
     let first = board.traces[0].meta.id.clone();
     let last = board.traces[2].meta.id.clone();
-    assert_eq!(check(&board, &areas, &[first.clone(), last], "NET_REF", 1).state, "UNSUPPORTED");
-    assert_eq!(check(&board, &areas, &[first.clone(), first.clone()], "NET_REF", 1).reason, "DUPLICATE_TRACE");
+    assert_eq!(
+        check(&board, &areas, &[first.clone(), last], "NET_REF", 1).state,
+        "UNSUPPORTED"
+    );
+    assert_eq!(
+        check(
+            &board,
+            &areas,
+            &[first.clone(), first.clone()],
+            "NET_REF",
+            1
+        )
+        .reason,
+        "DUPLICATE_TRACE"
+    );
     let mut altered = areas.clone();
     if let copper_preview::CopperGeometry::Polygon(ref mut ring) = altered[0].geometry {
         ring[1][0] += 1;
     }
-    assert_eq!(check(&board, &altered, &[first], "NET_REF", 1).state, "UNSUPPORTED");
+    assert_eq!(
+        check(&board, &altered, &[first], "NET_REF", 1).state,
+        "UNSUPPORTED"
+    );
 }
 #[test]
 fn unknown_hole_owner_is_not_positive_and_old_graph_stays_unmodified() {
