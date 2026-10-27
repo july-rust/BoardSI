@@ -314,6 +314,71 @@ fn main() {
 mod tests {
     use super::*;
     #[test]
+    fn observed_source_net_labels_never_certify_a_return_path() {
+        let source = PropertySource {
+            document: "PUBLIC_TEST_ONLY".into(), revision: "1".into(),
+            method: "test".into(), reference_frequency_hz: Some(1e9),
+            temperature_c: Some(25.0),
+        };
+        let edit = StackupLayerEdit {
+            source_layer_id: 1, kind: LayerKind::Copper, thickness_um: 35,
+            material_name: "public".into(), dk: None, df: None,
+            conductivity_s_per_m: Some(5.8e7), band_hz: Some(FrequencyRange {
+                min_hz: 1e6, max_hz: 2e9,
+            }), evidence: source.clone(), role_hint: NetRole::Signal,
+            reference_layer_id: Some(3),
+        };
+        let core = StackupLayerEdit {
+            source_layer_id: 2, kind: LayerKind::Dielectric(DielectricKind::Core),
+            thickness_um: 100, material_name: "public core".into(),
+            dk: Some(4.2), df: Some(0.02), conductivity_s_per_m: None,
+            band_hz: edit.band_hz, evidence: source.clone(),
+            role_hint: NetRole::Unknown, reference_layer_id: None,
+        };
+        let gnd = StackupLayerEdit {
+            source_layer_id: 3, reference_layer_id: None,
+            role_hint: NetRole::Ground, ..edit.clone()
+        };
+        let layers = [edit, core, gnd];
+        let mut evidence = json!({
+            "selected_signal_net":"SIG", "selected_reference_net":"GND",
+            "source_net_labels":["SIG","GND"],
+            "reference_copper_inventory":[[3,"PLANE","GND",120,0,false,false]],
+            "net_inventory_complete":true
+        });
+        let obj = evidence.as_object().unwrap();
+        assert_eq!(reference_inventory_audit(obj, &layers).unwrap().0,
+                   "OBSERVED_LABELS_NO_TOPOLOGY_PROOF");
+        evidence["reference_copper_inventory"][0][4] = json!(1);
+        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers).unwrap().0,
+                   "CUTOUT_OR_SPLIT_UNSUPPORTED");
+        evidence["reference_copper_inventory"][0][4] = json!(0);
+        evidence["reference_copper_inventory"]
+            .as_array_mut().unwrap().push(json!([3,"ISLAND","GND",130,0,false,false]));
+        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers).unwrap().0,
+                   "CUTOUT_OR_SPLIT_UNSUPPORTED");
+        evidence["reference_copper_inventory"].as_array_mut().unwrap().pop();
+        evidence["selected_reference_net"] = json!("SIG");
+        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers),
+                   Err("SIGNAL_REFERENCE_SAME_NET"));
+        evidence["selected_reference_net"] = json!("UNKNOWN");
+        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers).unwrap().0,
+                   "UNKNOWN_OR_MISSING_SOURCE_NET");
+        evidence["selected_reference_net"] = json!("GND");
+        evidence["net_inventory_complete"] = json!(false);
+        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers).unwrap().0,
+                   "NO_SOURCE_REFERENCE_EVIDENCE");
+        evidence["net_inventory_complete"] = json!(true);
+        evidence["reference_copper_inventory"][0][0] = json!(2);
+        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers),
+                   Err("SOURCE_COPPER_INVENTORY_CONFLICT"));
+        evidence["reference_copper_inventory"][0][0] = json!(3);
+        evidence["reference_copper_inventory"][0][2] = json!("OTHER_NET");
+        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers),
+                   Err("SOURCE_COPPER_INVENTORY_CONFLICT"));
+    }
+
+    #[test]
     fn invalid_source_is_not_canonical() {
         assert!(sha_bytes("not-sha").is_err());
         let obj = json!({"schema":"boardsi-b001-stackup-overlay-v2","scope":"USER_OVERLAY_NOT_PHYSICAL_SI",
