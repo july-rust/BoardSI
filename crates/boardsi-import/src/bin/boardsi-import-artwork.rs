@@ -29,7 +29,7 @@ fn run() -> Result<(usize, usize), &'static str> {
     let coppers = copper_preview::parse(&bytes, result.max_layer)?;
     let mut board = into_canonical(&bytes, &result)?;
     let pad_data = part_preview::parse(&bytes, result.max_layer);
-    part_preview::augment(&mut board, &pad_data)?;
+    part_preview::augment_source_bound(&mut board, &pad_data, &bytes)?;
     outline_preview::augment(&mut board, &outlines)?;
     copper_preview::augment(&mut board, &coppers)?;
     if board.arcs.len() != result.arcs.len()
