@@ -840,6 +840,11 @@ mod tests {
             assert!(board.pads[0].net.is_some());
             assert!(board.pads[1].net.is_none());
             assert!(!board.validate().has_errors());
+            // The established V1 suffix/audit are strictly endpoint-only.
+            // New Pad/interior evidence must not change its record counts.
+            assert_eq!(crate::contact_wire::legacy_v1_counts(&board), (0, 0));
+            let suffix = crate::contact_wire::encode(&board).unwrap();
+            assert!(suffix.starts_with(b"BOARDSI_CONTACT_RECORDS_V1|0|LOCAL_ENDPOINT_ONLY|"));
         }
     }
 
