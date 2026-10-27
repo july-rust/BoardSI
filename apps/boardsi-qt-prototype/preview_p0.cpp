@@ -2765,16 +2765,19 @@ static int runB001StackupSelftest() {
     const bool sourceLabelsNotPhysicalReference = editor.auditCanonical() &&
         editor.summary().contains("OBSERVED_LABELS_NO_TOPOLOGY_PROOF") &&
         editor.summary().contains("RETURN PATH UNSUPPORTED");
+    const QString referenceInventoryProbe = editor.summary();
     editor.setSourceCopperInventory(
         QJsonArray{QJsonArray{3, "PUBLIC_PLANE", "GND", 123, 1, false, false}},
         QJsonArray{"SIG", "GND"}, true);
     const bool cutoutBlocksReference = editor.auditCanonical() &&
         editor.summary().contains("CUTOUT_OR_SPLIT_UNSUPPORTED");
+    const QString cutoutInventoryProbe = editor.summary();
     editor.setSourceCopperInventory(
         QJsonArray{QJsonArray{3, "PUBLIC_PLANE", "", 123, 0, false, false}},
         QJsonArray{"SIG", "GND"}, true);
     const bool missingCopperNetIsNotGround = editor.auditCanonical() &&
         editor.summary().contains("UNKNOWN_OR_MISSING_SOURCE_NET");
+    const QString missingNetProbe = editor.summary();
     editor.selectReferenceNets("SIG", "SIG");
     const bool sameNetIsRejected = !editor.auditCanonical();
     editor.selectReferenceNets("SIG", "GND");
@@ -2783,6 +2786,7 @@ static int runB001StackupSelftest() {
         QJsonArray{"SIG", "GND"}, false);
     const bool incompleteNetInventoryBlocks = editor.auditCanonical() &&
         editor.summary().contains("NO_SOURCE_REFERENCE_EVIDENCE");
+    const QString incompleteInventoryProbe = editor.summary();
     editor.setSourceCopperInventory(QJsonArray{}, QJsonArray{}, false);
     editor.selectReferenceNets(QString(), QString());
     editor.setAuditFrequency("3000000000");
@@ -2850,6 +2854,10 @@ static int runB001StackupSelftest() {
         {"same_net_reference_rejected", sameNetIsRejected},
         {"missing_copper_net_preserved", missingCopperNetIsNotGround},
         {"incomplete_net_inventory_blocked", incompleteNetInventoryBlocks},
+        {"reference_inventory_probe_synthetic", referenceInventoryProbe},
+        {"cutout_inventory_probe_synthetic", cutoutInventoryProbe},
+        {"missing_net_probe_synthetic", missingNetProbe},
+        {"incomplete_inventory_probe_synthetic", incompleteInventoryProbe},
         {"noncopper_role_blocked", nonCopperRoleRejected},
         {"negative_df_blocked", invalidBlocked},
         {"overlay_saved", saved}, {"source_overwrite_blocked", sourceOverwriteRejected},
