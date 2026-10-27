@@ -482,4 +482,50 @@ mod tests {
             "CONTACT_BUCKET_LIMIT"
         );
     }
+    #[test]
+    fn b003_exact_orthogonal_t_junction_is_validated_in_canonical_graph() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n500 200 1 10 0\nU3.3 U4.4\n300 100 1 10 0\n300 200 1 10 0\n*END*\n";
+        let parsed = parse(source.as_bytes()).unwrap();
+        let board = into_canonical(source.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.connectivity.edges.len(), 1);
+        assert!(board.connectivity.nodes.iter().any(|n|
+            matches!(&n.site, ContactSite::TraceInterior { point } if point.ticks == [30_000, 20_000])
+        ));
+        assert!(!board.validate().has_errors());
+    }
+
+    #[test]
+    fn b003_one_source_tick_off_trace_is_not_t_junction() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n500 200 1 10 0\nU3.3 U4.4\n300 100 1 10 0\n300 199.99 1 10 0\n*END*\n";
+        let parsed = parse(source.as_bytes()).unwrap();
+        let board = into_canonical(source.as_bytes(), &parsed).unwrap();
+        assert!(board.connectivity.edges.is_empty());
+        assert!(!board.validate().has_errors());
+    }
+
+    #[test]
+    fn b003_plated_via_centre_on_trace_interior_needs_both_layer_contacts() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n500 200 1 10 0\nU3.3 U4.4\n300 100 4 10 0\n300 200 4 10 0 SIMPLEVIA\n*END*\n";
+        let parsed = parse(source.as_bytes()).unwrap();
+        let board = into_canonical(source.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.vias.len(), 1);
+        assert_eq!(board.vias[0].connected_layers.len(), 2);
+        assert_eq!(board.connectivity.edges.len(), 3);
+        assert_eq!(board.connectivity.edges.iter().filter(|e|
+            matches!(e.evidence, ConnectionEvidence::ViaBarrel { .. })
+        ).count(), 1);
+        assert!(!board.validate().has_errors());
+    }
+
+    #[test]
+    fn b003_legacy_v1_contact_wire_remains_endpoint_only() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n500 200 1 10 0\nU3.3 U4.4\n300 100 1 10 0\n300 200 1 10 0\n*END*\n";
+        let parsed = parse(source.as_bytes()).unwrap();
+        let board = into_canonical(source.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.connectivity.edges.len(), 1);
+        let wire = crate::contact_wire::encode(&board).unwrap();
+        let header = std::str::from_utf8(&wire).unwrap();
+        assert!(header.starts_with("BOARDSI_CONTACT_RECORDS_V1|0|LOCAL_ENDPOINT_ONLY|"));
+    }
+
 }
