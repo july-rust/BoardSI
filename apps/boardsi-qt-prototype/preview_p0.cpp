@@ -2855,13 +2855,16 @@ static int runB001StackupSelftest() {
     const bool reset = editor.table()->item(0, 1)->text() == "Unknown";
     const bool restored = editor.loadFrom(overlayPath) &&
         editor.validate().startsWith("INPUT FIELDS VALID");
+    const bool restoredReaudited = restored && editor.auditCanonical() &&
+        editor.currentAuditIsFresh();
     QFile changed(source.fileName());
     const bool changedWritten = changed.open(QIODevice::WriteOnly | QIODevice::Append) &&
         changed.write("MODIFIED AFTER IMPORT\n") > 0;
     changed.close();
     const bool mutationRejected = changedWritten &&
+        !editor.currentAuditIsFresh() &&
         !editor.saveTo(overlayPath) && !editor.loadFrom(overlayPath) &&
-        !editor.auditCanonical() && !editor.currentAuditIsFresh();
+        !editor.auditCanonical();
     editor.resetForImport(different.fileName(), 4);
     const bool foreignRejected = !editor.loadFrom(overlayPath) &&
         editor.validate().contains("RUN BLOCKED");
@@ -2876,7 +2879,8 @@ static int runB001StackupSelftest() {
                       rustOutOfBandRejected &&
                       nonCopperRoleRejected && inputAccepted && invalidBlocked &&
                       sourceOverwriteRejected && symlinkRejected && saved && longFieldRejected &&
-                      oversizedDocRejected && reset && restored && mutationRejected && foreignRejected;
+                      oversizedDocRejected && reset && restored && restoredReaudited &&
+                      mutationRejected && foreignRejected;
     const QJsonDocument report(QJsonObject{
         {"schema", "b001-stackup-native-test-v1"},
         {"pass", pass}, {"missing_fields_blocked", unknownBlocked},
@@ -2905,7 +2909,8 @@ static int runB001StackupSelftest() {
         {"oversized_field_blocked", longFieldRejected},
         {"oversized_document_blocked", oversizedDocRejected},
         {"reimport_reset", reset},
-        {"same_source_roundtrip", restored}, {"post_import_mutation_rejected", mutationRejected},
+        {"same_source_roundtrip", restored}, {"restored_requires_fresh_audit", restoredReaudited},
+        {"post_import_mutation_rejected", mutationRejected},
         {"different_source_rejected", foreignRejected},
         {"reference_electrical_contact", "NOT_VERIFIED"},
         {"material_physics", "NOT_VERIFIED"}, {"physical_si", "NOT_RUN"}
