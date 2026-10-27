@@ -121,8 +121,8 @@ fn source_owned_cutout_is_explicitly_unsupported() {
     let hole_area = AREA
         .replace("1 1 0 NET_A", "2 1 0 NET_A")
         .replace(
-            "0 100\\n0 0\\n",
-            "0 100\\n0 0\\nCOPCUT 5 0.01 0 1\\n20 20\\n40 20\\n40 40\\n20 40\\n20 20\\n",
+            "0 100\n0 0\n",
+            "0 100\n0 0\nCOPCUT 5 0.01 0 1\n20 20\n40 20\n40 40\n20 40\n20 20\n",
         );
     let (board, report) = assemble(&source(&hole_area, ROUTE));
     assert_eq!(report.exact_contacts, 0);
