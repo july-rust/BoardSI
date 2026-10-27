@@ -32,6 +32,7 @@ fn run() -> Result<(usize, usize), &'static str> {
     part_preview::augment_source_bound(&mut board, &pad_data, &bytes)?;
     outline_preview::augment(&mut board, &outlines)?;
     copper_preview::augment(&mut board, &coppers)?;
+    boardsi_import::copper_contact::augment(&mut board, &coppers)?;
     if board.arcs.len() != result.arcs.len()
         || board.traces.len() != result.segments.len()
         || board.vias.len() != result.vias.len()
