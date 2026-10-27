@@ -125,7 +125,8 @@ pub fn strict_simple_area_contains(area: &CopperArea, p: &Point) -> Result<bool,
                 let BoundarySegment::Line {
                     start: outer_start,
                     end: outer_end,
-                } = outer_segment else {
+                } = outer_segment
+                else {
                     return Err(ModelError::InvalidConnection);
                 };
                 if touch(start.ticks, end.ticks, outer_start.ticks, outer_end.ticks) {
