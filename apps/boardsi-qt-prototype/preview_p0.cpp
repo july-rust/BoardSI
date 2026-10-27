@@ -2759,6 +2759,11 @@ static int runB001StackupSelftest() {
         QJsonArray{"SIG", "GND"}, true);
     const bool cutoutBlocksReference = editor.auditCanonical() &&
         editor.summary().contains("CUTOUT_OR_SPLIT_UNSUPPORTED");
+    editor.setSourceCopperInventory(
+        QJsonArray{QJsonArray{3, "PUBLIC_PLANE", "", 123, 0, false, false}},
+        QJsonArray{"SIG", "GND"}, true);
+    const bool missingCopperNetIsNotGround = editor.auditCanonical() &&
+        editor.summary().contains("UNKNOWN_OR_MISSING_SOURCE_NET");
     editor.selectReferenceNets("SIG", "SIG");
     const bool sameNetIsRejected = !editor.auditCanonical();
     editor.selectReferenceNets("SIG", "GND");
@@ -2817,6 +2822,7 @@ static int runB001StackupSelftest() {
         editor.validate().contains("RUN BLOCKED");
     const bool pass = unknownBlocked && rustCanonicalAssumed &&
                       sourceLabelsNotPhysicalReference && cutoutBlocksReference &&
+                      missingCopperNetIsNotGround &&
                       sameNetIsRejected && incompleteNetInventoryBlocks &&
                       rustOutOfBandRejected &&
                       nonCopperRoleRejected && inputAccepted && invalidBlocked &&
@@ -2831,6 +2837,7 @@ static int runB001StackupSelftest() {
         {"source_net_labels_never_certify_return", sourceLabelsNotPhysicalReference},
         {"source_cutout_candidate_blocked", cutoutBlocksReference},
         {"same_net_reference_rejected", sameNetIsRejected},
+        {"missing_copper_net_preserved", missingCopperNetIsNotGround},
         {"incomplete_net_inventory_blocked", incompleteNetInventoryBlocks},
         {"noncopper_role_blocked", nonCopperRoleRejected},
         {"negative_df_blocked", invalidBlocked},
