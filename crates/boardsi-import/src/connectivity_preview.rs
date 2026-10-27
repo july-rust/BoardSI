@@ -492,6 +492,15 @@ mod tests {
             matches!(&n.site, ContactSite::TraceInterior { point } if point.ticks == [30_000, 20_000])
         ));
         assert!(!board.validate().has_errors());
+        // The independent canonical validator must reject a forged witness.
+        let mut tampered = board;
+        let node = tampered.connectivity.nodes.iter_mut().find(|n|
+            matches!(&n.site, ContactSite::TraceInterior { .. })
+        ).unwrap();
+        if let ContactSite::TraceInterior { point } = &mut node.site {
+            point.ticks[1] += 1;
+        }
+        assert!(tampered.validate().has_errors());
     }
 
     #[test]
