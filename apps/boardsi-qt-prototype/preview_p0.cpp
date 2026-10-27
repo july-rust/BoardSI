@@ -2759,11 +2759,18 @@ static int runB001StackupSelftest() {
         editor.summary().contains("RETURN PATH UNSUPPORTED") &&
         editor.summary().contains("SI NOT_RUN");
     const bool firstAuditFresh = editor.currentAuditIsFresh();
+    const QString originalScenario = editor.auditScenarioRevision();
+    const bool originalScenarioIsScoped = originalScenario.size() == 64;
     set(1, 5, "0.03");
     const bool changedMaterialInvalidatesAudit = !editor.currentAuditIsFresh() &&
+        editor.auditScenarioRevision().isEmpty() &&
         editor.summary().contains("RE-AUDIT REQUIRED");
+    const bool changedMaterialGetsNewScenario = editor.auditCanonical() &&
+        editor.currentAuditIsFresh() && editor.auditScenarioRevision() != originalScenario &&
+        editor.auditScenarioRevision().size() == 64;
     set(1, 5, "0.02");
-    const bool secondAuditRefreshes = editor.auditCanonical() && editor.currentAuditIsFresh();
+    const bool secondAuditRefreshes = editor.auditCanonical() && editor.currentAuditIsFresh() &&
+        editor.auditScenarioRevision() == originalScenario;
     // Simulate a direct model mutation with notifications suppressed: the request
     // content itself (not just GUI change signals) must invalidate the receipt.
     editor.table()->blockSignals(true);
@@ -2796,10 +2803,15 @@ static int runB001StackupSelftest() {
     const bool sourceLabelsNotPhysicalReference = editor.auditCanonical() &&
         editor.summary().contains("OBSERVED_LABELS_NO_TOPOLOGY_PROOF") &&
         editor.summary().contains("RETURN PATH UNSUPPORTED");
+    const QString sourceBoundRevision = editor.auditScenarioRevision();
+    const bool sourceInventoryChangesScenario = sourceBoundRevision.size() == 64 &&
+        sourceBoundRevision != originalScenario;
     const QString referenceInventoryProbe = editor.summary();
     editor.setSourceCopperInventory(sourceCopper("GND", 1), declaredNets, true);
     const bool cutoutBlocksReference = editor.auditCanonical() &&
         editor.summary().contains("CUTOUT_OR_SPLIT_UNSUPPORTED");
+    const bool cutoutChangesScenario = editor.auditScenarioRevision().size() == 64 &&
+        editor.auditScenarioRevision() != sourceBoundRevision;
     const QString cutoutInventoryProbe = editor.summary();
     editor.setSourceCopperInventory(sourceCopper(QString(), 0), declaredNets, true);
     const bool missingCopperNetIsNotGround = editor.auditCanonical() &&
@@ -2869,8 +2881,10 @@ static int runB001StackupSelftest() {
     const bool foreignRejected = !editor.loadFrom(overlayPath) &&
         editor.validate().contains("RUN BLOCKED");
     const bool pass = unknownBlocked && rustCanonicalAssumed &&
-                      firstAuditFresh && changedMaterialInvalidatesAudit &&
-                      secondAuditRefreshes && silentMaterialChangeInvalidates &&
+                      firstAuditFresh && originalScenarioIsScoped &&
+                      changedMaterialInvalidatesAudit && changedMaterialGetsNewScenario &&
+                      secondAuditRefreshes && sourceInventoryChangesScenario &&
+                      cutoutChangesScenario && silentMaterialChangeInvalidates &&
                       silentChangeReauditRestores && changedSourceInventoryInvalidates &&
                       sourceLabelsNotPhysicalReference && cutoutBlocksReference &&
                       missingCopperNetIsNotGround &&
@@ -2887,6 +2901,10 @@ static int runB001StackupSelftest() {
         {"user_input_validated", inputAccepted},
         {"canonical_assumed_and_reference_unsupported", rustCanonicalAssumed},
         {"fresh_audit_binds_session_revision", firstAuditFresh && secondAuditRefreshes},
+        {"rust_audit_revision_is_scoped", originalScenarioIsScoped},
+        {"edited_material_generates_new_audit_revision", changedMaterialGetsNewScenario},
+        {"changed_copper_inventory_generates_new_revision", sourceInventoryChangesScenario},
+        {"cutout_inventory_generates_new_revision", cutoutChangesScenario},
         {"changed_material_invalidates_audit", changedMaterialInvalidatesAudit},
         {"silent_change_invalidates_audit", silentMaterialChangeInvalidates},
         {"silent_change_reaudit_refreshes", silentChangeReauditRestores},
