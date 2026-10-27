@@ -189,3 +189,22 @@ fn two_supported_areas_on_distinct_layers_get_independent_contacts() {
     assert!(!board.validate().has_errors(), "{:#?}", board.validate().issues);
     assert_eq!(board.areas.len(), 2);
 }
+
+#[test]
+fn repeated_via_position_creates_only_one_area_continuity_witness() {
+    let mut route = ROUTE.to_owned();
+    for id in ["U3.1 U4.2", "U5.1 U6.2"] {
+        route.push_str(&format!(
+            "{id}\n110 250 1 10 0\n160 250 1 10 0 SIMPLEVIA\n190 250 1 10 0\n"
+        ));
+    }
+    let text = source(AREA, &route);
+    let mut board = assemble(&text);
+    let result = via_copper_contact::augment(&mut board, text.as_bytes()).unwrap();
+    assert_eq!(result.local_contacts, 3);
+    assert_eq!(
+        board.connectivity.edges.iter().filter(|e|
+            matches!(e.evidence, ConnectionEvidence::AreaContinuity { .. })).count(), 1
+    );
+    assert!(!board.validate().has_errors(), "{:#?}", board.validate().issues);
+}
