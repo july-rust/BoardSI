@@ -839,6 +839,28 @@ impl BoardModel {
                         .ok_or(ModelError::InvalidReference)?,
                 )
             }
+            ContactSite::TraceInterior(point) => {
+                let trace = lookup
+                    .traces
+                    .get(&node.conductor)
+                    .copied()
+                    .ok_or(ModelError::InvalidReference)?;
+                require(trace.layer == node.layer, ModelError::InvalidConnection)?;
+                require(trace.centreline.len() == 2, ModelError::InvalidConnection)?;
+                let a = &trace.centreline[0];
+                let b = &trace.centreline[1];
+                // PADS source ticks are bounded. i128 avoids i64 cross-product overflow.
+                let (ax, ay) = (i128::from(a.ticks[0]), i128::from(a.ticks[1]));
+                let (bx, by) = (i128::from(b.ticks[0]), i128::from(b.ticks[1]));
+                let (px, py) = (i128::from(point.ticks[0]), i128::from(point.ticks[1]));
+                let cross = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+                let dot = (px - ax) * (px - bx) + (py - ay) * (py - by);
+                require(
+                    a.frame == point.frame && b.frame == point.frame && cross == 0 && dot < 0,
+                    ModelError::InvalidConnection,
+                )?;
+                (&trace.net, point)
+            }
             ContactSite::ArcStart | ContactSite::ArcEnd => {
                 let arc = lookup
                     .arcs
