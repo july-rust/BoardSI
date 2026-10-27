@@ -161,11 +161,18 @@ fn source_declared_component_pad_centre_inside_filled_area() {
     copper_preview::augment(&mut board, &areas).unwrap();
     let result = copper_contact::augment(&mut board, &areas).unwrap();
     assert_eq!(result.exact_contacts, 1);
-    assert!(!board.validate().has_errors(), "{:#?}",board.validate().issues);
+    assert!(
+        !board.validate().has_errors(),
+        "{:#?}",
+        board.validate().issues
+    );
     let reference = copper_contact::local_reference_candidate(&board, "NET_A");
     assert_eq!(reference.state, "LOCAL_CONTACT_VERIFIED");
-    assert_eq!(reference.conductor_ids.len(),1);
-    assert!(board.pads.iter().any(|p| p.meta.id == reference.conductor_ids[0]));
+    assert_eq!(reference.conductor_ids.len(), 1);
+    assert!(board
+        .pads
+        .iter()
+        .any(|p| p.meta.id == reference.conductor_ids[0]));
 }
 #[test]
 fn legacy_v1_contact_counts_are_unchanged() {
