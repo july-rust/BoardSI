@@ -244,8 +244,12 @@ public:
         rightLayout->addWidget(validBox);
         importUI->setStatusCallback([this](const QString &state) {
             importResultStatus = state;
-            if (state.startsWith("PARTIAL"))
+            if (state.startsWith("PARTIAL")) {
                 stackup->resetForImport(chosenSourcePath, importUI->importedLayerCount());
+                stackup->setSourceCopperInventory(importUI->importedCopperEvidence(),
+                                                   importUI->importedNetLabels(),
+                                                   importUI->importedNetInventoryComplete());
+            }
             else if (state.startsWith("RUNNING") || state.startsWith("FAILED") ||
                      state.startsWith("CANCELLED"))
                 stackup->resetForImport(QString(), 0);
