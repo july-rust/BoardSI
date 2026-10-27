@@ -2780,6 +2780,10 @@ static int runB001StackupSelftest() {
     const QString missingNetProbe = editor.summary();
     editor.selectReferenceNets("SIG", "SIG");
     const bool sameNetIsRejected = !editor.auditCanonical();
+    auto *auditButton = editor.findChild<QPushButton *>("b001CanonicalAudit");
+    if (auditButton) auditButton->click();
+    const bool buttonPreservesReason = auditButton &&
+        editor.summary().contains("RUST REJECTED / SIGNAL_REFERENCE_SAME_NET");
     editor.selectReferenceNets("SIG", "GND");
     editor.setSourceCopperInventory(
         QJsonArray{QJsonArray{3, "PUBLIC_PLANE", "GND", 123, 0, false, false}},
@@ -2838,7 +2842,8 @@ static int runB001StackupSelftest() {
     const bool pass = unknownBlocked && rustCanonicalAssumed &&
                       sourceLabelsNotPhysicalReference && cutoutBlocksReference &&
                       missingCopperNetIsNotGround &&
-                      sameNetIsRejected && incompleteNetInventoryBlocks &&
+                      sameNetIsRejected && buttonPreservesReason &&
+                      incompleteNetInventoryBlocks &&
                       rustOutOfBandRejected &&
                       nonCopperRoleRejected && inputAccepted && invalidBlocked &&
                       sourceOverwriteRejected && symlinkRejected && saved && longFieldRejected &&
@@ -2852,6 +2857,7 @@ static int runB001StackupSelftest() {
         {"source_net_labels_never_certify_return", sourceLabelsNotPhysicalReference},
         {"source_cutout_candidate_blocked", cutoutBlocksReference},
         {"same_net_reference_rejected", sameNetIsRejected},
+        {"same_net_button_reason_preserved", buttonPreservesReason},
         {"missing_copper_net_preserved", missingCopperNetIsNotGround},
         {"incomplete_net_inventory_blocked", incompleteNetInventoryBlocks},
         {"reference_inventory_probe_synthetic", referenceInventoryProbe},
