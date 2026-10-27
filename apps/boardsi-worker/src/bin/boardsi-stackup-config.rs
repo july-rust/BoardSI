@@ -104,12 +104,12 @@ fn reference_inventory_audit(
             || edits[(layer - 1) as usize].kind != LayerKind::Copper
             || name.is_empty()
             || name.len() > 16
-            || net.is_empty()
+            // Empty means imported PADS Net label missing; preserve the gap.
             || net.len() > 47
             || line == 0
             || holes > 8
             || (curved && circle)
-            || !observed.contains(net)
+            || (!net.is_empty() && !observed.contains(net))
             || !seen_names.insert(name)
         {
             return Err("SOURCE_COPPER_INVENTORY_CONFLICT");
@@ -426,6 +426,12 @@ mod tests {
             Err("SOURCE_COPPER_INVENTORY_CONFLICT")
         );
         evidence["reference_copper_inventory"][0][0] = json!(3);
+        // Empty Copper Net is a genuine missing source label, never GND.
+        evidence["reference_copper_inventory"][0][2] = json!("");
+        assert_eq!(
+            reference_inventory_audit(evidence.as_object().unwrap(), &layers).unwrap().0,
+            "UNKNOWN_OR_MISSING_SOURCE_NET"
+        );
         evidence["reference_copper_inventory"][0][2] = json!("OTHER_NET");
         assert_eq!(
             reference_inventory_audit(evidence.as_object().unwrap(), &layers),
