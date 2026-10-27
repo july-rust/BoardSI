@@ -29,3 +29,20 @@ The new source-bound production CLI path derives *declared* component Pad/Pin Ne
 4. Verify same-HEAD native CI, independent review, protected merge, post-main checks and then update dated checklist.
 
 No code capability is checked complete until exact-head CI and independent review pass.
+
+## Final accepted bounded B_003 implementation — 2026-10-27 KST
+
+The above candidate/pending sections are retained as historical stages; the following is the later, controlling evidence.
+
+- Source PR [#224](https://github.com/july-rust/BoardSI/pull/224) final HEAD `e211b2e626afd89ac7a880eaeace40e91c8abc50` completed **28/28 GitHub checks SUCCESS**, including Rust numerical/fmt/clippy, Windows x64, Windows ARM64, macOS ARM64, Linux Qt and existing Artwork/IPC regression.
+- Independent Codex zero-major review on prior commit `e40d45d157277d81ac8f50afef4a6b038c63f7bc` and resolved six historic threads. Git Trees of `e40d45d1` and final `e211b2e6` are **identical**: `aa5ac263f50044c79d97f27585e883010cab5633`; intervening commit did not change code content. A second review was requested at exact final SHA; its receipt, if available, should be recorded separately rather than assumed.
+- Protected GitHub Verified signed squash [`main@1c11d08be6e7c83d3f6b697f515f61a8c1a43ba8`](https://github.com/july-rust/BoardSI/commit/1c11d08be6e7c83d3f6b697f515f61a8c1a43ba8) completed, signature reason `valid`.
+- Merge automatically closed Issue #12; it was immediately explicitly reopened because B_001 full scope remains incomplete.
+- **First scoped checklist acceptance: 2026-10-27 KST; evidence date: 2026-10-27 KST.**
+- Post-source-main check results are **NOT YET RECORDED** in this ledger and must be verified independently; this evidence follow-up PR also requires its own checks/review/merge.
+
+### B_003 acceptance boundary
+
+**B_003 code subset: COMPLETE** only for source-grid exact restricted PADS Trace/Pad/Via contacts and test coverage described in PR #224. B_001 whole Issue #12 **PARTIAL / OPEN**.
+
+Still NOT_IMPLEMENTED/NOT_VERIFIED: arbitrary SMD pad-body overlap and non-centre contact, unsupported PADS Pin/Net associations, arbitrary Via anti-pad/thermal/blind/buried spans, whole-board Copper Area/Plane Split/Cutout geometry, quantitative actual Reference Return Path, P009 proof, physical Scenario/Cache, Material loss/roughness, formal full U09/U10/U39/T02/T04/T24/T52. Keep `return_path_p009=UNSUPPORTED`, `solver_ready=false`, `physical_si=NOT_RUN`.
