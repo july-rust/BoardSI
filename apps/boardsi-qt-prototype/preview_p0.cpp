@@ -2747,6 +2747,28 @@ static int runB001StackupSelftest() {
     const bool rustCanonicalAssumed = editor.auditCanonical() &&
         editor.summary().contains("REFERENCE UNSUPPORTED") &&
         editor.summary().contains("SI NOT_RUN");
+    editor.setSourceCopperInventory(
+        QJsonArray{QJsonArray{3, "PUBLIC_PLANE", "GND", 123, 0, false, false}},
+        QJsonArray{"SIG", "GND"}, true);
+    editor.selectReferenceNets("SIG", "GND");
+    const bool sourceLabelsNotPhysicalReference = editor.auditCanonical() &&
+        editor.summary().contains("OBSERVED_LABELS_NO_TOPOLOGY_PROOF") &&
+        editor.summary().contains("RETURN PATH UNSUPPORTED");
+    editor.setSourceCopperInventory(
+        QJsonArray{QJsonArray{3, "PUBLIC_PLANE", "GND", 123, 1, false, false}},
+        QJsonArray{"SIG", "GND"}, true);
+    const bool cutoutBlocksReference = editor.auditCanonical() &&
+        editor.summary().contains("CUTOUT_OR_SPLIT_UNSUPPORTED");
+    editor.selectReferenceNets("SIG", "SIG");
+    const bool sameNetIsRejected = !editor.auditCanonical();
+    editor.selectReferenceNets("SIG", "GND");
+    editor.setSourceCopperInventory(
+        QJsonArray{QJsonArray{3, "PUBLIC_PLANE", "GND", 123, 0, false, false}},
+        QJsonArray{"SIG", "GND"}, false);
+    const bool incompleteNetInventoryBlocks = editor.auditCanonical() &&
+        editor.summary().contains("NO_SOURCE_REFERENCE_EVIDENCE");
+    editor.setSourceCopperInventory(QJsonArray{}, QJsonArray{}, false);
+    editor.selectReferenceNets(QString(), QString());
     editor.setAuditFrequency("3000000000");
     const bool rustOutOfBandRejected = !editor.auditCanonical();
     editor.setAuditFrequency("1000000000");
@@ -2793,7 +2815,10 @@ static int runB001StackupSelftest() {
     editor.resetForImport(different.fileName(), 4);
     const bool foreignRejected = !editor.loadFrom(overlayPath) &&
         editor.validate().contains("RUN BLOCKED");
-    const bool pass = unknownBlocked && rustCanonicalAssumed && rustOutOfBandRejected &&
+    const bool pass = unknownBlocked && rustCanonicalAssumed &&
+                      sourceLabelsNotPhysicalReference && cutoutBlocksReference &&
+                      sameNetIsRejected && incompleteNetInventoryBlocks &&
+                      rustOutOfBandRejected &&
                       nonCopperRoleRejected && inputAccepted && invalidBlocked &&
                       sourceOverwriteRejected && symlinkRejected && saved && longFieldRejected &&
                       oversizedDocRejected && reset && restored && mutationRejected && foreignRejected;
@@ -2803,6 +2828,10 @@ static int runB001StackupSelftest() {
         {"user_input_validated", inputAccepted},
         {"canonical_assumed_and_reference_unsupported", rustCanonicalAssumed},
         {"canonical_out_of_band_blocked", rustOutOfBandRejected},
+        {"source_net_labels_never_certify_return", sourceLabelsNotPhysicalReference},
+        {"source_cutout_candidate_blocked", cutoutBlocksReference},
+        {"same_net_reference_rejected", sameNetIsRejected},
+        {"incomplete_net_inventory_blocked", incompleteNetInventoryBlocks},
         {"noncopper_role_blocked", nonCopperRoleRejected},
         {"negative_df_blocked", invalidBlocked},
         {"overlay_saved", saved}, {"source_overwrite_blocked", sourceOverwriteRejected},
