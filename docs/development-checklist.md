@@ -63,6 +63,12 @@
 
 - [x] **B_002 후속 — 제한적 Rust 감사 Scenario Revision 계약** — 원본 SHA-256, Stackup/Material 두께·Dk/Df·출처, Reference Net, Copper Inventory 및 주파수 변경을 구분하는 결정적 감사 Revision을 Rust Worker가 생성하며, Qt는 최신 감사 입력에만 이를 연결. 무관한 Zoom/Theme 변경은 Revision에 영향 없음. **체크일: 2026-10-27 KST** · **근거일: 2026-10-27 KST** ([PR #221](https://github.com/july-rust/BoardSI/pull/221), 최종 HEAD `dd5a2ac7efb0007e4624fb19a275a281b5381128` **27/27 CI PASS**, 동일 HEAD Codex 주요 지적 0·미해결 스레드 0, [GitHub 서명된 병합 `222552c9f92808e67ba06c80cb6de50756fcf3c2`](https://github.com/july-rust/BoardSI/commit/222552c9f92808e67ba06c80cb6de50756fcf3c2), [B_002 원장](validation/b002-b001-completion.md)). **감사 입력 전용**이며 `cache_reuse_eligible=false`; 실제 물리 Scenario/Cache, Reference/Return Path, Copper/Pad/Port 연결 및 정식 T02/T04/T24/T52는 미검증. **B_001 전체 Issue #12는 미완료/OPEN 유지.**
 
+### B_003 제한 완료 — Trace/Pad/Via 원본 접촉 근거 (Issue #12 연속 작업)
+
+- [x] **B_003 지원 PADS V9.4 MILS Trace/Pad/Via 정확 좌표 접촉 그래프** — 제한 Straight Trace 내부 T-Junction, PADS ROUTE/SIGNAL Pin-pair에서 명시된 SMD Pad/Pin Net, Pad centre와 Straight Trace centreline 동일 층·동일 선언 Net 접점, 명시된 도금 Through Via의 해당 Conductive Layer 접점과 검증된 Layer 간 Barrel Edge를 Canonical Rust 증거로 구성. 동일 Net 레이블만으로 일반 접촉을 가정하지 않고, 충돌/미확인 Net·미지원 형상은 Fail-closed. 기존 Qt V1 Source Endpoint Audit/Record 호환과 성능 회귀 유지. **최초 체크일: 2026-10-27 KST · 근거일: 2026-10-27 KST** · [PR #224](https://github.com/july-rust/BoardSI/pull/224), 최종 HEAD `e211b2e626afd89ac7a880eaeace40e91c8abc50` **28/28 GitHub Checks SUCCESS**, [Codex 무결점 코드 Tree 동일성 비교](https://github.com/july-rust/BoardSI/compare/e40d45d157277d81ac8f50afef4a6b038c63f7bc...e211b2e626afd89ac7a880eaeace40e91c8abc50) (검토된 `e40d45d1`과 최종 HEAD의 Git Tree SHA 둘 다 `aa5ac263f50044c79d97f27585e883010cab5633`; 리뷰 6개 스레드 해결), [Verified 서명된 Squash Merge `1c11d08be6e7c83d3f6b697f515f61a8c1a43ba8`](https://github.com/july-rust/BoardSI/commit/1c11d08be6e7c83d3f6b697f515f61a8c1a43ba8), [세부 검증 원장](validation/b003-b001-reference-topology.md). **일반 Pad 몸체·Trace 폭 겹침, 전체 Plane/Cutout/Reference Return Path, 물리 Solver/Cache, 정식 T04/T24 및 B_001 전체는 여전히 미완료.** 병합 후 `main` CI는 별도 확인 대상.
+
+- [ ] **B_001 전체 Issue #12 정식 인수** — B_003 제한 접속 기능 병합이 곧 전체 Copper/Plane 연결과 고주파 Return Path 물리 검증을 의미하지 않음. U09/U10/U39, T02/T04/T24/T52 전체 승인 보류. Issue #12 OPEN 유지.
+
 ## 3. 후속 개발 체크리스트
 
 | 단계 | 상태 | 구체적 잔여 작업 (GitHub) |
