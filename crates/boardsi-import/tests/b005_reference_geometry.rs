@@ -61,6 +61,7 @@ fn single_segment_inside_and_reversed_order_are_supported() {
         check(
             &one_board,
             &one_areas,
+            &one_raw,
             &[one_board.traces[0].meta.id.clone()],
             "NET_REF",
             1
@@ -161,6 +162,7 @@ fn rejects_wrong_path_order_duplicates_and_modified_source_polygon() {
         check(
             &board,
             &areas,
+            &raw,
             &[first.clone(), first.clone()],
             "NET_REF",
             1
