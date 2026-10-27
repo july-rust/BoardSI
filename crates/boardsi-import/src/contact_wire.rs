@@ -2,7 +2,8 @@
 //! Never certifies entire-board shorts/opens or areas/pins.
 //! Default legacy artwork stdout V1-V14 is byte-for-byte unaffected.
 use boardsi_model::{
-    BoardModel, ConnectionEvidence, ConnectivityEdge, ConnectivityNode, ContactSite, ObjectId, PadRole, ViaKind,
+    BoardModel, ConnectionEvidence, ConnectivityEdge, ConnectivityNode, ContactSite, ObjectId,
+    PadRole, ViaKind,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
