@@ -249,20 +249,18 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         .edges
         .iter()
         .filter(|edge| {
-            [nodes.get(&edge.a), nodes.get(&edge.b)]
-                .iter()
-                .all(|node| {
-                    node.is_some_and(|node| {
-                        objects.contains_key(&node.conductor)
-                            && matches!(
-                                node.site,
-                                ContactSite::TraceVertex(_)
-                                    | ContactSite::ArcStart
-                                    | ContactSite::ArcEnd
-                                    | ContactSite::ViaCentre
-                            )
-                    })
+            [nodes.get(&edge.a), nodes.get(&edge.b)].iter().all(|node| {
+                node.is_some_and(|node| {
+                    objects.contains_key(&node.conductor)
+                        && matches!(
+                            node.site,
+                            ContactSite::TraceVertex(_)
+                                | ContactSite::ArcStart
+                                | ContactSite::ArcEnd
+                                | ContactSite::ViaCentre
+                        )
                 })
+            })
         })
         .collect();
     let conflicts = potential_conflicts(board, &layers)?;
