@@ -232,16 +232,13 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
         let xmax = a[0].max(b[0]);
         let ymin = a[1].min(b[1]);
         let ymax = a[1].max(b[1]);
-        let scan_y = i128::from(ymax) - i128::from(ymin)
-            < i128::from(xmax) - i128::from(xmin);
+        let scan_y = i128::from(ymax) - i128::from(ymin) < i128::from(xmax) - i128::from(xmin);
         let candidates: Vec<[i64; 2]> = if scan_y {
-            by_y
-                .range(
-                    (trace.layer.clone(), [ymin, i64::MIN])
-                        ..=(trace.layer.clone(), [ymax, i64::MAX]),
-                )
-                .map(|(_, point)| *point)
-                .collect()
+            by_y.range(
+                (trace.layer.clone(), [ymin, i64::MIN])..=(trace.layer.clone(), [ymax, i64::MAX]),
+            )
+            .map(|(_, point)| *point)
+            .collect()
         } else {
             locations
                 .range(
