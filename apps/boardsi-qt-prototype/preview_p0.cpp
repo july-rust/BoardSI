@@ -2542,7 +2542,7 @@ static int runCopperSmoke(PreviewWindow &window,const QString &fixture) {
                 copperSource[0].toArray()[2].toString() == "GND" &&
                 copperSource[1].toArray()[2].toString().isEmpty() &&
                 declaredNets.contains("GND") && !declaredNets.contains("-") &&
-                window.findChild<B001StackupEditor *>("b001StackupEditor") != nullptr;
+                window.findChild<QWidget *>("b001StackupEditor") != nullptr;
             properties=panel->selectCopper(0) &&
                 window.displayedProperties().contains("COPPER COP_A") &&
                 window.displayedProperties().contains("COPCLS") &&
