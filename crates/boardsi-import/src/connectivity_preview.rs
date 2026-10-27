@@ -549,14 +549,20 @@ mod tests {
     }
 
     #[test]
-    fn plated_via_centre_on_trace_interior_is_source_grid_contact() {
-        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n500 200 1 10 0\nU3.1 U4.2\n100 400 1 10 0\n300 400 1 10 0 SIMPLEVIA\n500 400 1 10 0\n*END*\n";
-        // Via on y=400 is an endpoint of its own route; independent Layer-1
-        // trace is y=200, so it must *not* connect just because Net matches.
+    fn plated_via_at_exact_trace_interior_proves_second_layer_contact() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 400 1 10 0\n500 400 1 10 0\nU3.1 U4.2\n100 400 4 10 0\n300 400 4 10 0 SIMPLEVIA\n500 400 4 10 0\n*END*\n";
         let parsed = parse(source.as_bytes()).unwrap();
         let board = into_canonical(source.as_bytes(), &parsed).unwrap();
         assert_eq!(board.vias.len(), 1);
-        assert!(!board.vias[0].connected_layers.iter().any(|layer| layer == &board.traces[0].layer));
+        assert_eq!(board.vias[0].connected_layers.len(), 2);
+        assert!(board.connectivity.edges.iter().any(|edge| {
+            matches!(edge.evidence, ConnectionEvidence::ViaBarrel { .. })
+        }));
+        assert!(!board.validate().has_errors());
+        let shifted = source.replace("500 400 1 10 0", "500 400.01 1 10 0");
+        let parsed = parse(shifted.as_bytes()).unwrap();
+        let board = into_canonical(shifted.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.vias[0].connected_layers.len(), 1);
         assert!(!board.validate().has_errors());
     }
 
