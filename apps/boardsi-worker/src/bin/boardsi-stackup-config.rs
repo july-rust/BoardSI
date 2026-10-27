@@ -57,7 +57,7 @@ fn sha_bytes(s: &str) -> Result<[u8; 32], &'static str> {
     Ok(bytes)
 }
 /// This is source-owned *object inventory*, not conductor connectivity.
- /// It can invalidate an unsafe Reference candidate but can never certify P009.
+/// It can invalidate an unsafe Reference candidate but can never certify P009.
 fn reference_inventory_audit(
     obj: &serde_json::Map<String, Value>,
     edits: &[StackupLayerEdit],
@@ -99,12 +99,18 @@ fn reference_inventory_audit(
         let holes = row[4].as_u64().ok_or("INVALID_COPPER_CUTOUTS")?;
         let curved = row[5].as_bool().ok_or("INVALID_COPPER_CURVE")?;
         let circle = row[6].as_bool().ok_or("INVALID_COPPER_CIRCLE")?;
-        if layer == 0 || layer as usize > edits.len()
+        if layer == 0
+            || layer as usize > edits.len()
             || edits[(layer - 1) as usize].kind != LayerKind::Copper
-            || name.is_empty() || name.len() > 16
-            || net.is_empty() || net.len() > 47
-            || line == 0 || holes > 8 || (curved && circle)
-            || !observed.contains(net) || !seen_names.insert(name)
+            || name.is_empty()
+            || name.len() > 16
+            || net.is_empty()
+            || net.len() > 47
+            || line == 0
+            || holes > 8
+            || (curved && circle)
+            || !observed.contains(net)
+            || !seen_names.insert(name)
         {
             return Err("SOURCE_COPPER_INVENTORY_CONFLICT");
         }
@@ -133,10 +139,8 @@ fn reference_inventory_audit(
     if !observed.contains(sig) || !observed.contains(reference) {
         return Ok(("UNKNOWN_OR_MISSING_SOURCE_NET", nets.len(), copper.len()));
     }
-    let possible_layers: BTreeSet<u32> = edits
-        .iter()
-        .filter_map(|e| e.reference_layer_id)
-        .collect();
+    let possible_layers: BTreeSet<u32> =
+        edits.iter().filter_map(|e| e.reference_layer_id).collect();
     if possible_layers.is_empty() {
         return Ok(("UNKNOWN_OR_MISSING_SOURCE_NET", nets.len(), copper.len()));
     }
@@ -152,7 +156,11 @@ fn reference_inventory_audit(
     if matching.len() > 1 || matching.iter().any(|(_, _, holes)| *holes > 0) {
         return Ok(("CUTOUT_OR_SPLIT_UNSUPPORTED", nets.len(), copper.len()));
     }
-    Ok(("OBSERVED_LABELS_NO_TOPOLOGY_PROOF", nets.len(), copper.len()))
+    Ok((
+        "OBSERVED_LABELS_NO_TOPOLOGY_PROOF",
+        nets.len(),
+        copper.len(),
+    ))
 }
 
 fn audit(input: &Value) -> Result<Value, &'static str> {
@@ -316,28 +324,46 @@ mod tests {
     #[test]
     fn observed_source_net_labels_never_certify_a_return_path() {
         let source = PropertySource {
-            document: "PUBLIC_TEST_ONLY".into(), revision: "1".into(),
-            method: "test".into(), reference_frequency_hz: Some(1e9),
+            document: "PUBLIC_TEST_ONLY".into(),
+            revision: "1".into(),
+            method: "test".into(),
+            reference_frequency_hz: Some(1e9),
             temperature_c: Some(25.0),
         };
         let edit = StackupLayerEdit {
-            source_layer_id: 1, kind: LayerKind::Copper, thickness_um: 35,
-            material_name: "public".into(), dk: None, df: None,
-            conductivity_s_per_m: Some(5.8e7), band_hz: Some(FrequencyRange {
-                min_hz: 1e6, max_hz: 2e9,
-            }), evidence: source.clone(), role_hint: NetRole::Signal,
+            source_layer_id: 1,
+            kind: LayerKind::Copper,
+            thickness_um: 35,
+            material_name: "public".into(),
+            dk: None,
+            df: None,
+            conductivity_s_per_m: Some(5.8e7),
+            band_hz: Some(FrequencyRange {
+                min_hz: 1e6,
+                max_hz: 2e9,
+            }),
+            evidence: source.clone(),
+            role_hint: NetRole::Signal,
             reference_layer_id: Some(3),
         };
         let core = StackupLayerEdit {
-            source_layer_id: 2, kind: LayerKind::Dielectric(DielectricKind::Core),
-            thickness_um: 100, material_name: "public core".into(),
-            dk: Some(4.2), df: Some(0.02), conductivity_s_per_m: None,
-            band_hz: edit.band_hz, evidence: source.clone(),
-            role_hint: NetRole::Unknown, reference_layer_id: None,
+            source_layer_id: 2,
+            kind: LayerKind::Dielectric(DielectricKind::Core),
+            thickness_um: 100,
+            material_name: "public core".into(),
+            dk: Some(4.2),
+            df: Some(0.02),
+            conductivity_s_per_m: None,
+            band_hz: edit.band_hz,
+            evidence: source.clone(),
+            role_hint: NetRole::Unknown,
+            reference_layer_id: None,
         };
         let gnd = StackupLayerEdit {
-            source_layer_id: 3, reference_layer_id: None,
-            role_hint: NetRole::Ground, ..edit.clone()
+            source_layer_id: 3,
+            reference_layer_id: None,
+            role_hint: NetRole::Ground,
+            ..edit.clone()
         };
         let layers = [edit, core, gnd];
         let mut evidence = json!({
@@ -347,35 +373,64 @@ mod tests {
             "net_inventory_complete":true
         });
         let obj = evidence.as_object().unwrap();
-        assert_eq!(reference_inventory_audit(obj, &layers).unwrap().0,
-                   "OBSERVED_LABELS_NO_TOPOLOGY_PROOF");
+        assert_eq!(
+            reference_inventory_audit(obj, &layers).unwrap().0,
+            "OBSERVED_LABELS_NO_TOPOLOGY_PROOF"
+        );
         evidence["reference_copper_inventory"][0][4] = json!(1);
-        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers).unwrap().0,
-                   "CUTOUT_OR_SPLIT_UNSUPPORTED");
+        assert_eq!(
+            reference_inventory_audit(evidence.as_object().unwrap(), &layers)
+                .unwrap()
+                .0,
+            "CUTOUT_OR_SPLIT_UNSUPPORTED"
+        );
         evidence["reference_copper_inventory"][0][4] = json!(0);
         evidence["reference_copper_inventory"]
-            .as_array_mut().unwrap().push(json!([3,"ISLAND","GND",130,0,false,false]));
-        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers).unwrap().0,
-                   "CUTOUT_OR_SPLIT_UNSUPPORTED");
-        evidence["reference_copper_inventory"].as_array_mut().unwrap().pop();
+            .as_array_mut()
+            .unwrap()
+            .push(json!([3, "ISLAND", "GND", 130, 0, false, false]));
+        assert_eq!(
+            reference_inventory_audit(evidence.as_object().unwrap(), &layers)
+                .unwrap()
+                .0,
+            "CUTOUT_OR_SPLIT_UNSUPPORTED"
+        );
+        evidence["reference_copper_inventory"]
+            .as_array_mut()
+            .unwrap()
+            .pop();
         evidence["selected_reference_net"] = json!("SIG");
-        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers),
-                   Err("SIGNAL_REFERENCE_SAME_NET"));
+        assert_eq!(
+            reference_inventory_audit(evidence.as_object().unwrap(), &layers),
+            Err("SIGNAL_REFERENCE_SAME_NET")
+        );
         evidence["selected_reference_net"] = json!("UNKNOWN");
-        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers).unwrap().0,
-                   "UNKNOWN_OR_MISSING_SOURCE_NET");
+        assert_eq!(
+            reference_inventory_audit(evidence.as_object().unwrap(), &layers)
+                .unwrap()
+                .0,
+            "UNKNOWN_OR_MISSING_SOURCE_NET"
+        );
         evidence["selected_reference_net"] = json!("GND");
         evidence["net_inventory_complete"] = json!(false);
-        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers).unwrap().0,
-                   "NO_SOURCE_REFERENCE_EVIDENCE");
+        assert_eq!(
+            reference_inventory_audit(evidence.as_object().unwrap(), &layers)
+                .unwrap()
+                .0,
+            "NO_SOURCE_REFERENCE_EVIDENCE"
+        );
         evidence["net_inventory_complete"] = json!(true);
         evidence["reference_copper_inventory"][0][0] = json!(2);
-        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers),
-                   Err("SOURCE_COPPER_INVENTORY_CONFLICT"));
+        assert_eq!(
+            reference_inventory_audit(evidence.as_object().unwrap(), &layers),
+            Err("SOURCE_COPPER_INVENTORY_CONFLICT")
+        );
         evidence["reference_copper_inventory"][0][0] = json!(3);
         evidence["reference_copper_inventory"][0][2] = json!("OTHER_NET");
-        assert_eq!(reference_inventory_audit(evidence.as_object().unwrap(), &layers),
-                   Err("SOURCE_COPPER_INVENTORY_CONFLICT"));
+        assert_eq!(
+            reference_inventory_audit(evidence.as_object().unwrap(), &layers),
+            Err("SOURCE_COPPER_INVENTORY_CONFLICT")
+        );
     }
 
     #[test]
