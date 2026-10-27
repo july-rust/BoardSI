@@ -166,8 +166,11 @@ public:
     // A receipt is only fresh for this session's audited input and pinned board bytes.
     // This is NOT a Solver/Reference qualification or a persistent cache key.
     bool currentAuditIsFresh() const {
-        return !auditedRevision_.isEmpty() && !sourcePath_.isEmpty() &&
-               sourceDigest(sourcePath_) == importDigest_;
+        if (auditedRevision_.isEmpty() || sourcePath_.isEmpty() ||
+            sourceDigest(sourcePath_) != importDigest_) return false;
+        const QByteArray bytes = auditRequestBytes(importDigest_);
+        return !bytes.isEmpty() &&
+               QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex() == auditedRevision_;
     }
     void resetForImport(const QString &path, int layerCount) {
         // Begin reimport by calling with 0; fail-closed regardless of import outcome.
@@ -331,20 +334,17 @@ public:
         status("OVERLAY LOADED / CANONICAL MUST BE RE-AUDITED / SI NOT_RUN");
         return true;
     }
-    bool auditCanonical() {
-        auditedRevision_.clear();
-        if (!validate().startsWith("INPUT FIELDS VALID")) return false;
-        bool valid = false;
-        const double freq = auditFrequency_->text().trimmed().toDouble(&valid);
-        if (!valid || !std::isfinite(freq) || freq < 0.0) return false;
-        const QByteArray digest = sourceDigest(sourcePath_);
-        if (digest != importDigest_ || digest.size() != 64) return false;
+    // Exact source+user input snapshot shared by audit and freshness checks.
+    // No digest-only shortcut: detect even edits whose Qt notification was suppressed.
+    QByteArray auditRequestBytes(const QByteArray &digest) const {
+        if (digest.size() != 64 || rows_->rowCount() < 1 || rows_->rowCount() > 64)
+            return {};
         QJsonArray layers;
         for (int r = 0; r < rows_->rowCount(); ++r) {
             QJsonArray row;
             for (int c = 0; c < Columns; ++c) {
                 const QString value = field(r, c);
-                if (value.size() > 512) return false;
+                if (value.size() > 512) return {};
                 row.append(value);
             }
             layers.append(row);
@@ -361,7 +361,18 @@ public:
             {"net_inventory_complete", acceptedNetInventoryComplete_},
             {"layers", layers}});
         const QByteArray bytes = request.toJson(QJsonDocument::Compact);
-        if (bytes.size() > 65536) return false;
+        return bytes.size() <= 65536 ? bytes : QByteArray();
+    }
+    bool auditCanonical() {
+        auditedRevision_.clear();
+        if (!validate().startsWith("INPUT FIELDS VALID")) return false;
+        bool valid = false;
+        const double freq = auditFrequency_->text().trimmed().toDouble(&valid);
+        if (!valid || !std::isfinite(freq) || freq < 0.0) return false;
+        const QByteArray digest = sourceDigest(sourcePath_);
+        if (digest != importDigest_ || digest.size() != 64) return false;
+        const QByteArray bytes = auditRequestBytes(digest);
+        if (bytes.isEmpty()) return false;
         QString executable = qEnvironmentVariable("BOARDSI_STACKUP_VALIDATOR");
         if (executable.isEmpty()) {
 #ifdef Q_OS_WIN
