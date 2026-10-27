@@ -225,7 +225,9 @@ public:
     }
     bool saveTo(const QString &path) const {
         if (sourcePath_.isEmpty() || rows_->rowCount() < 1 ||
-            rows_->rowCount() > 64) return false;
+            rows_->rowCount() > 64 ||
+            signalNet_->text().trimmed().size() > 64 ||
+            referenceNet_->text().trimmed().size() > 64) return false;
         const QByteArray digest = sourceDigest(sourcePath_);
         if (digest.size() != 64 || digest != importDigest_) return false;
         // Reject destructive save destinations, including source symlinks or aliases
@@ -298,6 +300,10 @@ public:
             for (const auto &v : values)
                 if (!v.isString() || v.toString().size() > 512) return false;
         }
+        const QString storedSignal = root.value("selected_signal_net").toString();
+        const QString storedReference = root.value("selected_reference_net").toString();
+        if (storedSignal.size() > 64 || storedReference.size() > 64 ||
+            root.value("audit_frequency_hz").toString().size() > 64) return false;
         for (int r = 0; r < layers.size(); ++r) {
             const QJsonArray values = layers[r].toArray();
             for (int c = 1; c < Columns; ++c)
@@ -305,9 +311,6 @@ public:
         }
         auditFrequency_->setText(legacy ? QString() :
             root.value("audit_frequency_hz").toString());
-        const QString storedSignal = root.value("selected_signal_net").toString();
-        const QString storedReference = root.value("selected_reference_net").toString();
-        if (storedSignal.size() > 64 || storedReference.size() > 64) return false;
         // Explicit choices are user input, not source-certified Net roles.
         signalNet_->setText(legacy ? QString() : storedSignal);
         referenceNet_->setText(legacy ? QString() : storedReference);
