@@ -174,11 +174,14 @@ fn source_unknown_extra_connected_layer_is_rejected() {
 
 #[test]
 fn two_supported_areas_on_distinct_layers_get_independent_contacts() {
-    let via = VIA.replace("SIMPLEVIA 15 2\\n-2 35 R\\n0 35 R",
-        "SIMPLEVIA 15 3\\n-2 35 R\\n-1 35 R\\n0 35 R");
-    let second = AREA.replace("ZONE COPPER", "SECOND COPPER")
+    let via = VIA.replace(
+        "SIMPLEVIA 15 2\n-2 35 R\n0 35 R",
+        "SIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R",
+    );
+    let second = AREA
+        .replace("ZONE COPPER", "SECOND COPPER")
         .replace("COPCLS 5 0.01 0 4", "COPCLS 5 0.01 0 2");
-    let text = format!("{HEADER}{via}{AREA}{second}{ROUTE}*END*\\n");
+    let text = format!("{HEADER}{via}{AREA}{second}{ROUTE}*END*\n");
     let mut board = assemble(&text);
     let audit = via_copper_contact::augment(&mut board, text.as_bytes()).unwrap();
     assert_eq!(audit.local_contacts, 2);
