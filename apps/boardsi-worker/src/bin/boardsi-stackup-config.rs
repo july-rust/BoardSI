@@ -509,10 +509,18 @@ mod tests {
         assert_eq!(result["cache_reuse_eligible"], json!(false));
         assert_eq!(result["solver_ready"], json!(false));
         assert_eq!(result["return_path_p009"], "UNSUPPORTED");
-        assert_eq!(result["reference_continuity"], "UNSUPPORTED_NO_COPPER_NET_EVIDENCE");
-        assert_eq!(result["audit_revision_scope"], "SOURCE_BOUND_ASSUMED_MATERIAL_ONLY");
+        assert_eq!(
+            result["reference_continuity"],
+            "UNSUPPORTED_NO_COPPER_NET_EVIDENCE"
+        );
+        assert_eq!(
+            result["audit_revision_scope"],
+            "SOURCE_BOUND_ASSUMED_MATERIAL_ONLY"
+        );
         result["audit_scenario_revision_sha256"]
-            .as_str().expect("revision string").to_owned()
+            .as_str()
+            .expect("revision string")
+            .to_owned()
     }
     #[test]
     fn source_bound_assumed_scenario_revision_is_deterministic_and_fail_closed() {
@@ -524,10 +532,14 @@ mod tests {
         let mut zoom = original.clone();
         zoom["ui_zoom"] = json!(1.5);
         zoom["theme"] = json!("dark");
-        assert_eq!(baseline, revision(&zoom), "display-only fields must not invalidate");
+        assert_eq!(
+            baseline,
+            revision(&zoom),
+            "display-only fields must not invalidate"
+        );
         // Reordered object keys and JSON whitespace do not alter the identity.
-        let reparsed: Value = serde_json::from_str(
-            &serde_json::to_string_pretty(&original).unwrap()).unwrap();
+        let reparsed: Value =
+            serde_json::from_str(&serde_json::to_string_pretty(&original).unwrap()).unwrap();
         assert_eq!(baseline, revision(&reparsed));
         let mut modified = original.clone();
         modified["layers"][1][4] = json!("4.3"); // Dk
@@ -543,8 +555,8 @@ mod tests {
         modified["layers"][0][7] = json!("Ground");
         assert_ne!(baseline, revision(&modified));
         modified = original.clone();
-        modified["source_sha256"] = json!(
-            "00000000000000000000000000000000000000000000000000000000abcdef13");
+        modified["source_sha256"] =
+            json!("00000000000000000000000000000000000000000000000000000000abcdef13");
         assert_ne!(baseline, revision(&modified));
         modified = original.clone();
         modified["audit_frequency_hz"] = json!("1100000000");
@@ -554,7 +566,7 @@ mod tests {
         modified["selected_reference_net"] = json!("GND");
         assert_ne!(baseline, revision(&modified));
         modified = original.clone();
-        modified["reference_copper_inventory"] = json!([[1,"PLANE","",123,0,false,false]]);
+        modified["reference_copper_inventory"] = json!([[1, "PLANE", "", 123, 0, false, false]]);
         assert_ne!(baseline, revision(&modified));
         modified = original.clone();
         modified["source_net_labels"] = json!(["GND"]);
