@@ -109,17 +109,25 @@ fn missing_or_unsupported_area_net_stays_unknown() {
     for area in [
         AREA.replace(" 0 NET_A", " 0 UNKNOWN_NET"),
         AREA.replace(" 0 NET_A", ""),
-        AREA.replace("COPCLS 5 0.01 0 1", "COPCLS 5 0.01 0 1")
-            .replace("*LINES*", "*LINES*"),
-    ]
-    .into_iter()
-    .take(2)
-    {
+    ] {
         let (b, a) = assemble(&source(&area, ROUTE));
         assert_eq!(a.exact_contacts, 0);
         assert!(a.unsupported_areas > 0);
         assert!(b.areas[0].net.is_none());
     }
+}
+#[test]
+fn source_owned_cutout_is_explicitly_unsupported() {
+    let hole_area = AREA
+        .replace("1 1 0 NET_A", "2 1 0 NET_A")
+        .replace(
+            "0 100\\n0 0\\n",
+            "0 100\\n0 0\\nCOPCUT 5 0.01 0 1\\n20 20\\n40 20\\n40 40\\n20 40\\n20 20\\n",
+        );
+    let (board, report) = assemble(&source(&hole_area, ROUTE));
+    assert_eq!(report.exact_contacts, 0);
+    assert_eq!(report.unsupported_areas, 1);
+    assert!(board.areas[0].net.is_none());
 }
 #[test]
 fn area_witness_is_independently_checked_by_canonical_model() {
