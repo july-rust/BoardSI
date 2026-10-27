@@ -2518,7 +2518,7 @@ static int runCurvedCopperSmoke(PreviewWindow &window,const QString &fixture,boo
 // CPU/RHI filled geometry, selection/filter parity and state clearing.
 static int runCopperSmoke(PreviewWindow &window,const QString &fixture) {
     bool pass=false,imported=false,properties=false,filtered=false;
-    bool malformed=false,reset=false,rhiSource=false;
+    bool malformed=false,reset=false,rhiSource=false,sourceInventory=false;
     QString failure;
     if(!window.openCandidate(fixture)) failure="A022 fixture unavailable";
     else {
@@ -2533,6 +2533,16 @@ static int runCopperSmoke(PreviewWindow &window,const QString &fixture) {
             auto *panel=window.importPanel()->imported();
             imported=panel->copperCount()==2 && panel->outlineCount()==4 &&
                      panel->segmentCount()==1 && state.contains("2 filled source copper areas");
+            const QJsonArray copperSource = window.importPanel()->importedCopperEvidence();
+            const QJsonArray declaredNets = window.importPanel()->importedNetLabels();
+            sourceInventory = window.importPanel()->importedNetInventoryComplete() &&
+                copperSource.size() == 2 &&
+                copperSource[0].toArray().size() == 7 &&
+                copperSource[1].toArray().size() == 7 &&
+                copperSource[0].toArray()[2].toString() == "GND" &&
+                copperSource[1].toArray()[2].toString().isEmpty() &&
+                declaredNets.contains("GND") && !declaredNets.contains("-") &&
+                window.findChild<B001StackupEditor *>("b001StackupEditor") != nullptr;
             properties=panel->selectCopper(0) &&
                 window.displayedProperties().contains("COPPER COP_A") &&
                 window.displayedProperties().contains("COPCLS") &&
@@ -2579,7 +2589,7 @@ static int runCopperSmoke(PreviewWindow &window,const QString &fixture) {
 #endif
             panel->clearArtwork();
             reset=panel->copperCount()==0 && panel->segmentCount()==0;
-            pass=imported && properties && filtered && malformed && reset && rhiSource;
+            pass=imported && properties && filtered && malformed && reset && rhiSource && sourceInventory;
             if(!pass) failure="A022 source-filled import, properties, filters, decoder or RHI mismatch";
             loop.quit();
         });
@@ -2590,7 +2600,8 @@ static int runCopperSmoke(PreviewWindow &window,const QString &fixture) {
     const QJsonObject report{
         {"schema","boardsi-preview-a022-copper-v1"},
         {"pass",pass},{"fixture_import",imported},
-        {"source_properties",properties},{"filter_parity",filtered},
+        {"source_properties",properties},
+        {"source_copper_net_inventory",sourceInventory},{"filter_parity",filtered},
         {"malformed_rejected",malformed},{"clear_resets",reset},
         {"rhi_source_checked",rhiSource},
         {"fabricated_copper","NOT_VERIFIED"},
