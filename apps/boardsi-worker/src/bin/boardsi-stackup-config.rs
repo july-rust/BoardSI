@@ -439,7 +439,9 @@ mod tests {
         evidence["net_inventory_complete"] = json!(false);
         evidence["reference_copper_inventory"][0][2] = json!("NET_129");
         assert_eq!(
-            reference_inventory_audit(evidence.as_object().unwrap(), &layers).unwrap().0,
+            reference_inventory_audit(evidence.as_object().unwrap(), &layers)
+                .unwrap()
+                .0,
             "NO_SOURCE_REFERENCE_EVIDENCE"
         );
         evidence["net_inventory_complete"] = json!(true);
