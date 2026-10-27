@@ -250,8 +250,18 @@ pub fn audit(
         }
         // Oppositely oriented collinear segments may overlap even when the
         // exact contact graph has an unambiguous endpoint edge.
-        let a_other = pair[0].centreline.iter().find(|p| p.ticks != joint).unwrap().ticks;
-        let b_other = pair[1].centreline.iter().find(|p| p.ticks != joint).unwrap().ticks;
+        let a_other = pair[0]
+            .centreline
+            .iter()
+            .find(|p| p.ticks != joint)
+            .unwrap()
+            .ticks;
+        let b_other = pair[1]
+            .centreline
+            .iter()
+            .find(|p| p.ticks != joint)
+            .unwrap()
+            .ticks;
         if on(a_other, joint, b_other) || on(joint, b_other, a_other) {
             return unsupported("COLLINEAR_BACKTRACK");
         }

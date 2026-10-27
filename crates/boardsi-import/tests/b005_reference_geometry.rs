@@ -53,17 +53,24 @@ fn exact_two_segment_path_inside_source_area_is_geometry_only() {
 }
 #[test]
 fn single_segment_inside_and_reversed_order_are_supported() {
-    let one_signal = SIGNAL.replace(
-        "U2.2 U3.3\n150 230 1 10 0\n170 230 1 10 0\n",
-        "",
-    );
+    let one_signal = SIGNAL.replace("U2.2 U3.3\n150 230 1 10 0\n170 230 1 10 0\n", "");
     let (one_board, one_areas) = assembled(&source(AREA, &one_signal));
     assert_eq!(
-        check(&one_board, &one_areas, &[one_board.traces[0].meta.id.clone()], "NET_REF", 1).state,
+        check(
+            &one_board,
+            &one_areas,
+            &[one_board.traces[0].meta.id.clone()],
+            "NET_REF",
+            1
+        )
+        .state,
         "SOURCE_ORDER_GEOMETRY_ONLY"
     );
     let (board, areas) = assembled(&source(AREA, SIGNAL));
-    let ids = [board.traces[1].meta.id.clone(), board.traces[0].meta.id.clone()];
+    let ids = [
+        board.traces[1].meta.id.clone(),
+        board.traces[0].meta.id.clone(),
+    ];
     assert_eq!(
         check(&board, &areas, &ids, "NET_REF", 1).state,
         "SOURCE_ORDER_GEOMETRY_ONLY"
@@ -179,8 +186,14 @@ fn unknown_hole_owner_is_not_positive_and_old_graph_stays_unmodified() {
 fn collinear_backtracking_is_not_accepted_as_a_forward_path() {
     let backward = SIGNAL.replace("170 230 1 10 0", "140 230 1 10 0");
     let (board, areas) = assembled(&source(AREA, &backward));
-    let ids: Vec<_> = board.traces[..2].iter().map(|t| t.meta.id.clone()).collect();
-    assert_eq!(check(&board, &areas, &ids, "NET_REF", 1).reason, "COLLINEAR_BACKTRACK");
+    let ids: Vec<_> = board.traces[..2]
+        .iter()
+        .map(|t| t.meta.id.clone())
+        .collect();
+    assert_eq!(
+        check(&board, &areas, &ids, "NET_REF", 1).reason,
+        "COLLINEAR_BACKTRACK"
+    );
 }
 #[test]
 fn rejects_unselected_source_trace_branch_at_path_interior() {
@@ -189,7 +202,16 @@ fn rejects_unselected_source_trace_branch_at_path_interior() {
         "U9.1 U10.2\n140 230 1 10 0\n140 250 1 10 0\n*SIGNAL* NET_REF",
     );
     let (board, areas) = assembled(&source(AREA, &branch));
-    let ids: Vec<_> = board.traces[..2].iter().map(|t| t.meta.id.clone()).collect();
-    assert_eq!(check(&board, &areas, &ids, "NET_REF", 1).reason, "UNSELECTED_TRACE_TOUCHES_PATH");
-    assert_eq!(check(&board, &areas, &ids[..1], "NET_REF", 1).reason, "UNSELECTED_TRACE_TOUCHES_PATH");
+    let ids: Vec<_> = board.traces[..2]
+        .iter()
+        .map(|t| t.meta.id.clone())
+        .collect();
+    assert_eq!(
+        check(&board, &areas, &ids, "NET_REF", 1).reason,
+        "UNSELECTED_TRACE_TOUCHES_PATH"
+    );
+    assert_eq!(
+        check(&board, &areas, &ids[..1], "NET_REF", 1).reason,
+        "UNSELECTED_TRACE_TOUCHES_PATH"
+    );
 }
