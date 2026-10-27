@@ -168,7 +168,7 @@ pub fn augment(
         if matched > 0 { board.areas[index].net = Some(net); }
     }
     if board.connectivity.edges.len().checked_add(edges.len())
-        .is_none_or(|count|count > MAX_AREA_CONTACT_EDGES) {
+        .map_or(true, |count| count > MAX_AREA_CONTACT_EDGES) {
         return Err("B004_EDGE_LIMIT");
     }
     board.connectivity.nodes = nodes.into_values().collect();
