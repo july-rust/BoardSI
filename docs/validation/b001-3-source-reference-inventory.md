@@ -16,11 +16,17 @@ The existing native `boardsi-stackup-config --audit-stdin-v1` rejects malformed 
 
 | Test | Claim boundary | Exact HEAD result |
 | --- | --- | --- |
-| Native Rust strict inventory tests | T04 different Net names remain distinct; equal name rejected; incomplete inventory / wrong reference Layer error | NOT_RUN until CI |
-| Native Qt-to-Rust selftest | Source candidate remains unqualified; explicit hole/split candidate blocked, same Net rejected, incomplete input visible | NOT_RUN until CI |
-| Windows x64 / ARM64, macOS ARM64 & Linux Qt | GUI and native companion round-trip, plus existing artwork RHI | NOT_RUN until CI |
+| Native Rust strict inventory tests | Different source Net labels remain electrically unqualified; same Net denied, cutout/split Unsupported, truncated/missing inventory degrades without material failure | **PASS** at code SHA `d15b86db4cc044da07930fbc9baad41ea0bc891a` ([Numerical workflow](https://github.com/july-rust/BoardSI/actions/runs/40428481561)) |
+| Native Qt-to-Rust selftest | Source candidate never qualifies return; explicit holes and split, same Net, empty declared Net, truncation and GUI rejection reason checks | **PASS**; [Linux 11/11 CTest](https://github.com/july-rust/BoardSI/actions/runs/40428481598/job/121940089361) with all B001 flags true |
+| Windows x64 / ARM64, macOS ARM64 & Linux Qt | 3 Native plus Linux runtime, source Import Artwork GPU/RHI and packaging | **PASS** at code SHA `d15b86db4cc044da07930fbc9baad41ea0bc891a`: [Win x64](https://github.com/july-rust/BoardSI/actions/runs/40428481598/job/121940089822), [Win ARM64](https://github.com/july-rust/BoardSI/actions/runs/40428481598/job/121940089804), [macOS ARM64](https://github.com/july-rust/BoardSI/actions/runs/40428481598/job/121940089680), [Linux](https://github.com/july-rust/BoardSI/actions/runs/40428481598/job/121940089361) |
 | Independent Codex latest SHA | Reviewer findings resolved | NOT_RUN until CI |
 | Actual topology/Port/Return Path | Imported complete Copper connectivity, P009 T24 physical proof | NOT_IMPLEMENTED |
 | Whole Issue #12 / U09 U10 U39 T02 T04 T24 T52 | Production complete definition of done | NOT_QUALIFIED |
 
 No uploaded company PCB or vendor material; all test data synthetic and source identifiers fictitious. Do not mark full B_001 complete until actual imported geometry and full acceptance gates are independently demonstrated.
+
+## Limited test checkpoint (2026-10-27 KST)
+
+**Code SHA `d15b86db4cc044da07930fbc9baad41ea0bc891a` 27/27 GitHub Checks SUCCESS, 17 required contexts subject to latest docs HEAD reconfirmation.** The public synthetic `pads_copper_filled_v94.asc` import produced `source_copper_net_inventory=true`: the GND source Area remained declared while the other Area had no Net and **was not substituted**. A short/return path was neither connected nor certified. The native validator distinguishes `OBSERVED_LABELS_NO_TOPOLOGY_PROOF`, `CUTOUT_OR_SPLIT_UNSUPPORTED`, `NO_SOURCE_REFERENCE_EVIDENCE`, and `UNKNOWN_OR_MISSING_SOURCE_NET`; same-Net user choices are denied. Qt GUI preserves fixed Rust rejection reasons. Source/new board reimport clears stale evidence.
+
+This ledger modification is a **new PR HEAD**, requiring its own exact-head CI, Codex review and protected signed merge. Formal U09/U10/U39/T02/T04/T24/T52 and physical P009 Return Path still unqualified.
