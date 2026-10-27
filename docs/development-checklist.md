@@ -63,6 +63,8 @@
 
 - [x] **B_002 후속 — 제한적 Rust 감사 Scenario Revision 계약** — 원본 SHA-256, Stackup/Material 두께·Dk/Df·출처, Reference Net, Copper Inventory 및 주파수 변경을 구분하는 결정적 감사 Revision을 Rust Worker가 생성하며, Qt는 최신 감사 입력에만 이를 연결. 무관한 Zoom/Theme 변경은 Revision에 영향 없음. **체크일: 2026-10-27 KST** · **근거일: 2026-10-27 KST** ([PR #221](https://github.com/july-rust/BoardSI/pull/221), 최종 HEAD `dd5a2ac7efb0007e4624fb19a275a281b5381128` **27/27 CI PASS**, 동일 HEAD Codex 주요 지적 0·미해결 스레드 0, [GitHub 서명된 병합 `222552c9f92808e67ba06c80cb6de50756fcf3c2`](https://github.com/july-rust/BoardSI/commit/222552c9f92808e67ba06c80cb6de50756fcf3c2), [B_002 원장](validation/b002-b001-completion.md)). **감사 입력 전용**이며 `cache_reuse_eligible=false`; 실제 물리 Scenario/Cache, Reference/Return Path, Copper/Pad/Port 연결 및 정식 T02/T04/T24/T52는 미검증. **B_001 전체 Issue #12는 미완료/OPEN 유지.**
 
+- [ ] **B_003 후보 — 정확한 PADS Trace 내부 T-Junction / plated Via 접점 그래프** — 보호 `main@fca3ffda5fcd03a44510c57a4a253caa603d991c`에서 분기. 정수 Source-tick 기반 직교 Straight-Trace 내부 Witness와 독립 Canonical 검사 및 기존 endpoint-only Viewer Wire 호환성을 개발 중 ([B_003 검증 원장](validation/b003-b001-reference-topology.md)). **아직 CI·Codex·보호 병합·완료 증거 없음.** 특히 PADS SMD Pad/Pin Net은 미검증이므로 Pad-Trace 전기적 접속은 미완료. Reference/P009/Material/Scenario/Cache 및 정식 T 시험도 미완료. 검증 후에만 첫 체크일(KST)과 근거일·SHA·시험 링크를 작성한다.
+
 ## 3. 후속 개발 체크리스트
 
 | 단계 | 상태 | 구체적 잔여 작업 (GitHub) |
