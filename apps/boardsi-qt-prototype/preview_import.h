@@ -4,6 +4,8 @@
 #include "imported_artwork.h"
 #include "a032_contact_records.h"
 #include <QCoreApplication>
+#include <QJsonArray>
+#include <QStringList>
 #include <QFileInfo>
 #include <QProcess>
 #include <QTimer>
@@ -31,6 +33,8 @@ class PreviewImportPanel final : public QWidget {
     QString binary_;
     QString candidatePath_;
     int importedLayerCount_ = 0;
+    QJsonArray importedCopperEvidence_;
+    QJsonArray importedNetLabels_;
     QString status_ = "NOT IMPORTED / SI NOT_RUN";
     std::function<void(const QString &)> callback_;
     bool expired_ = false, overflow_ = false, stderr_overflow_ = false;
@@ -658,6 +662,30 @@ public:
                 status("FAILED / INVALID_GEOMETRY / NOTHING IMPORTED");
                 return;
             }
+            // Evidence is generated solely from objects accepted by the PADS
+            // decoder and artwork validator, never from editable user hints.
+            // This is an inventory, NOT a topology/connectivity certificate.
+            QJsonArray acceptedCopper;
+            QStringList acceptedNets;
+            const auto rememberNet = [&acceptedNets](const QString &name) {
+                if (!name.isEmpty() && !acceptedNets.contains(name))
+                    acceptedNets.append(name);
+            };
+            for (const auto &track : tracks) rememberNet(track.net);
+            for (const auto &arc : arcs) rememberNet(arc.net);
+            for (const auto &via : vias) rememberNet(via.net);
+            for (const auto &pad : pads) rememberNet(pad.net);
+            for (const auto &copper : coppers) {
+                rememberNet(copper.net);
+                acceptedCopper.append(QJsonArray{
+                    copper.layer, copper.name, copper.net, copper.sourceLine,
+                    static_cast<int>(copper.cutouts.size() + copper.roundCutouts.size()),
+                    copper.curved, copper.circle});
+            }
+            importedCopperEvidence_ = acceptedCopper;
+            QJsonArray acceptedNames;
+            for (const QString &name : acceptedNets) acceptedNames.append(name);
+            importedNetLabels_ = acceptedNames;
             importedLayerCount_ = layers;
             imported_->setLocalContacts(contactMarkers);
             imported_->setLocalContactAudit(contactAudit);
@@ -699,6 +727,8 @@ public:
     bool showingImported() const { return tabs_->currentWidget() == imported_; }
     QString importStatus() const { return status_; }
     int importedLayerCount() const { return importedLayerCount_; }
+    QJsonArray importedCopperEvidence() const { return importedCopperEvidence_; }
+    QJsonArray importedNetLabels() const { return importedNetLabels_; }
     void setStatusCallback(std::function<void(const QString &)> cb) { callback_ = std::move(cb); }
     bool openPath(const QString &path) {
         if (process_.state() != QProcess::NotRunning) return false;
@@ -706,6 +736,8 @@ public:
         // Never show previous geometry with the current "NOTHING IMPORTED" result.
         imported_->clearArtwork();
         importedLayerCount_ = 0;
+        importedCopperEvidence_ = QJsonArray();
+        importedNetLabels_ = QJsonArray();
         tabs_->setTabText(1, "Imported Partial (none)");
         if (!QFileInfo(binary_).isAbsolute() || !QFileInfo(binary_).isExecutable()) {
             status("FAILED / IMPORTER_UNAVAILABLE / NOTHING IMPORTED");
