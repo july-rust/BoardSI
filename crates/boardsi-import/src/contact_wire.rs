@@ -78,7 +78,7 @@ fn resolve(
 }
 
 fn legacy_site_ids(board: &BoardModel) -> BTreeSet<ObjectId> {
-    board
+    let mut sites: BTreeSet<ObjectId> = board
         .connectivity
         .nodes
         .iter()
@@ -87,11 +87,37 @@ fn legacy_site_ids(board: &BoardModel) -> BTreeSet<ObjectId> {
                 (&node.conductor.kind, &node.site),
                 (ObjectKind::Trace, ContactSite::TraceVertex(0 | 1))
                     | (ObjectKind::Arc, ContactSite::ArcStart | ContactSite::ArcEnd)
-                    | (ObjectKind::Via, ContactSite::ViaCentre)
             )
         })
         .map(|node| node.meta.id.clone())
-        .collect()
+        .collect();
+    // A ViaCentre may be part of V1 only when a supported legacy Trace/Arc
+    // endpoint proves an actual same-layer contact. A Via contact found only
+    // at B_003 TraceInterior must not leak as an orphan barrel into V1.
+    let via_ids: BTreeSet<ObjectId> = board
+        .connectivity
+        .nodes
+        .iter()
+        .filter(|node| {
+            matches!(
+                (&node.conductor.kind, &node.site),
+                (ObjectKind::Via, ContactSite::ViaCentre)
+            )
+        })
+        .map(|node| node.meta.id.clone())
+        .collect();
+    for edge in &board.connectivity.edges {
+        if !matches!(edge.evidence, ConnectionEvidence::SameLayerContact { .. }) {
+            continue;
+        }
+        if sites.contains(&edge.a) && via_ids.contains(&edge.b) {
+            sites.insert(edge.b.clone());
+        }
+        if sites.contains(&edge.b) && via_ids.contains(&edge.a) {
+            sites.insert(edge.a.clone());
+        }
+    }
+    sites
 }
 
 /// Counts the exact same restricted endpoint-only edges as the V1 suffix.
