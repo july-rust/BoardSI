@@ -1,13 +1,13 @@
 # B_006 — Bounded PADS Through Via to COPCLS local contact evidence
 
-Status: **CANDIDATE; NOT ACCEPTED UNTIL EXACT-HEAD CI, CODEX, SIGNED MERGE AND POST-MAIN CHECKS.**
+Status: **LIMITED B_006 SOURCE-GEOMETRY FEATURE MERGED; POST-MAIN PUSH CHECK AND SIGNATURE BADGE NOT YET INDEPENDENTLY VERIFIED** (2026-10-27 KST).
 
 Tracking: [M1 Issue #12](https://github.com/july-rust/BoardSI/issues/12).
 Baseline: `main@92965d428fca4a3f1782273d86d41a571f8197c9`.
 Prior scoped acceptance: [B_003](b003-b001-reference-topology.md), [B_004](b004-reference-copper-connectivity.md), [B_005](b005-reference-geometry.md).
 [Living checklist](../development-checklist.md) read before implementation.
 
-## Candidate scope (not yet qualified)
+## Qualified limited scope — not physical reference
 
 - Fresh reparsing of the exact original PADS V9.4 MILS source bytes, source SHA identity, Route/Via original inventory, Drill/Padstack definitions, and complete accepted Copper geometry.
 - Only a single source COPCLS hole-free simple polygon on a layer, exact strict integer source-grid Via **centre** containment, same declared source Net, explicit plated Through Via, and explicitly conductive Padstack on that copper layer.
@@ -20,14 +20,15 @@ Prior scoped acceptance: [B_003](b003-b001-reference-topology.md), [B_004](b004-
 
 Blind/buried/microvia, cutouts, thermal, antipads, clearance unverified, split/multiple source Areas per layer, pad-body/trace-width overlaps, arbitrary stacks, inter-plane stitching, physical SI/solver, material loss/roughness, scenario/cache, full U09/U10/U39 or T02/T04/T24/T52 acceptance.
 
-## Required evidence (pending)
+## Scoped code acceptance evidence — 2026-10-27 KST
 
-- [ ] Source Rustfmt, Clippy, import/model numerical tests; new B_006 synthetic suite
-- [ ] B_003/B_004/B_005 and Qt V1 + GPU RHI regression
-- [ ] Native CI Windows x64, Windows ARM64, macOS ARM64, Linux
-- [ ] Exact final HEAD required checks SUCCESS and independent Codex latest-HEAD review
-- [ ] All relevant review threads resolved
-- [ ] GitHub protected Verified Squash Merge and separate post-main Push CI success
-- [ ] Checklist first-check date (KST), evidence day, PR and SHA recorded after passing gates
+- [x] Final source HEAD `68cd29313d4b3ccfd340321196e286af0ef4ff80` Rustfmt, Clippy, importer/model tests SUCCESS; B_006 11/11 Debug and 11/11 Release public synthetic cases — [Numerical CI #40510123992](https://github.com/july-rust/BoardSI/actions/runs/40510123992)
+- [x] B_003/B_004/B_005 + unchanged opt-in Qt V1 and GPU RHI regression in passing numerical and Qt CI — [Qt Native run #40510123737](https://github.com/july-rust/BoardSI/actions/runs/40510123737)
+- [x] Rust Native Windows x64/ARM64, macOS ARM64; Qt Native Windows x64/ARM64, macOS ARM64, Linux offscreen SUCCESS — [Rust CI](https://github.com/july-rust/BoardSI/actions/runs/40510123992), [Qt CI](https://github.com/july-rust/BoardSI/actions/runs/40510123737)
+- [x] Nine separate PR-head Actions workflows SUCCESS; independent Codex same final HEAD `68cd293` status completed, `has_any_findings=false`, `has_unresolved_findings=false` — [PR #229](https://github.com/july-rust/BoardSI/pull/229)
+- [x] Both earlier Codex P2 review threads (source `connected_layers` spoof and duplicate area witness edges) resolved after code fixes and synthetic regression — [PR discussion](https://github.com/july-rust/BoardSI/pull/229)
+- [x] GitHub accepted protected **Squash Merge** [PR #229](https://github.com/july-rust/BoardSI/pull/229), `main@d7a22f8230086cdf8aeb326882708dfee48d9ee1` (connector reports merged=true); **independent Signed Verified badge NOT_VERIFIED** until an authoritative signature response is available.
+- [ ] **Separate post-main Push CI** and official **Verified signature badge** to be checked independently; do not infer them from successful PR-head CI.
+- [x] Scope-only first checklist check date **2026-10-27 KST**, evidence date **2026-10-27 KST**, exact PR/code/main references — [living checklist](../development-checklist.md). Post-main item remains unchecked.
 
-**Do not mark B_006 or B_001 full complete before evidence.** Issue #12 remains OPEN, formal U/T items unchecked.
+**Only the bounded source-geometry B_006 code functionality is accepted; do not claim full B_001, physical return-current P009 or a qualified SI Solver.** [Issue #12](https://github.com/july-rust/BoardSI/issues/12) remains OPEN and formal U/T items unchecked. Post-main Push CI/Verified badge is tracked separately.
