@@ -44,7 +44,7 @@ fn run(
 #[test]
 fn plated_via_in_remaining_copper_connects_and_preserves_barrel() {
     let (board, trace, via) = run(&text(AREA, ROUTE_VIA_FILL));
-    assert_eq!(trace.exact_contacts, 1);
+    assert_eq!(trace.exact_contacts, 2); // two source Trace segments meet at the via
     assert_eq!(via.local_contacts, 1);
     assert_eq!(via.new_barrel_edges, 1);
     assert!(board
@@ -117,7 +117,7 @@ fn cross_net_or_cross_layer_does_not_create_cutout_contact() {
 fn independent_source_sha_inventory_and_cutout_geometry_are_required() {
     let source = text(AREA, ROUTE_VIA_FILL);
     let (mut board, areas) = pre_audit(&source);
-    let changed = source.replace("20 20\n40 20", "21 20\n40 20");
+    let changed = source.replace("ZONE COPPER", "ZONE2 COPPER");
     assert_eq!(
         copper_contact::augment_source_bound(&mut board, &areas, changed.as_bytes()).unwrap_err(),
         "B007_SOURCE_SHA_MISMATCH"
