@@ -200,11 +200,7 @@ pub fn augment(
                         owner: area.meta.id.clone(),
                         net: net.clone(),
                         layer: area.layer.clone(),
-                        site: ContactSite::AreaWitness {
-                            point: p.clone(),
-                            evidence: "source-filled single simple COPCLS exact strict interior"
-                                .into(),
-                        },
+                        site: ContactSite::AreaInterior(p.clone()),
                         label: "area-interior",
                     },
                 );
@@ -303,7 +299,7 @@ pub fn local_reference_candidate(board: &BoardModel, name: &str) -> ReferenceLoc
         for (a, b) in [(&edge.a, &edge.b), (&edge.b, &edge.a)] {
             if let (Some(area), Some(other)) = (lookup.get(a), lookup.get(b)) {
                 if area_ids.contains(&area.conductor)
-                    && matches!(area.site, ContactSite::AreaWitness { .. })
+                    && matches!(area.site, ContactSite::AreaInterior(_))
                 {
                     contacts.insert(other.conductor.clone());
                 }
