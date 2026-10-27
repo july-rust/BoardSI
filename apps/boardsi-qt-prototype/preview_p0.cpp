@@ -2745,7 +2745,7 @@ static int runB001StackupSelftest() {
     set(0, 8, "3");
     editor.setAuditFrequency("1000000000");
     const bool rustCanonicalAssumed = editor.auditCanonical() &&
-        editor.summary().contains("REFERENCE UNSUPPORTED") &&
+        editor.summary().contains("RETURN PATH UNSUPPORTED") &&
         editor.summary().contains("SI NOT_RUN");
     editor.setSourceCopperInventory(
         QJsonArray{QJsonArray{3, "PUBLIC_PLANE", "GND", 123, 0, false, false}},
