@@ -1,6 +1,6 @@
 # B_005 — Restricted Reference geometry coverage audit
 
-Status: **B_005 RESTRICTED FUNCTION MERGED; post-main Push CI evidence pending** (2026-10-27 KST).
+Status: **B_005 RESTRICTED FEATURE COMPLETE — SIGNED MERGE & POST-MAIN PUSH CI VERIFIED** (2026-10-27 KST).
 Tracking: [Issue #12](https://github.com/july-rust/BoardSI/issues/12).
 Baseline: protected `main@cc673ab285af6c8f11314e1b4677d543b5c67415`.
 Before implementation, the [development checklist](../development-checklist.md) was read.
@@ -81,11 +81,12 @@ These changes require fresh exact HEAD CI and independent Codex review.
 - Independent Codex reviewed exact final PR HEAD `284f5f04fe` with **no major issues**. All eleven historical inline P1/P2 threads resolved.
 - PR HEAD `284f5f04fe3e1d5a07826c0c158893a6c685ea87` had **23/23 SUCCESS**.
 - PR #227 integrated via protected **Squash Merge**: `main@7a1ed48bf905df8357691a1f51b73e130a74537c`, GitHub signature **Verified / valid**. No ruleset bypass.
-- Scoped feature checklist checked first on **2026-10-27 KST**, evidence date **2026-10-27 KST**. Main Push CI is separately unchecked until that commit's checks and Push on main workflow complete.
+- Scoped feature checklist first checked **2026-10-27 KST**, evidence **2026-10-27 KST**. Distinct Post-main Push CI checklist item also checked **2026-10-27 KST** on verified success evidence.
 - Result stays **SOURCE_ORDER_GEOMETRY_ONLY**, NOT physical Return Path/P009. Full B_001 Issue #12 and formal U09/U10/U39/T02/T04/T24/T52 remain OPEN/unchecked.
 
-### Post-main CI verification pending
+### Post-main CI verification — COMPLETE
 
-https://github.com/july-rust/BoardSI/commit/7a1ed48bf905df8357691a1f51b73e130a74537c/checks
+- Protected `main@7a1ed48bf905df8357691a1f51b73e130a74537c`: 21/21 commit GitHub Checks **SUCCESS**, no failed or pending checks. https://github.com/july-rust/BoardSI/commit/7a1ed48bf905df8357691a1f51b73e130a74537c/checks
+- Separate `Push on main` workflow run #40501517050 **SUCCESS**: https://github.com/july-rust/BoardSI/actions/runs/40501517050
+- Evidence and checked date: **2026-10-27 KST**. Scoped B_005 acceptance is complete. Full B_001 Issue #12 remains OPEN and P009, physical SI, formal U09/U10/U39/T02/T04/T24/T52 remain UNSUPPORTED/unchecked.
 
-Declare post-main verification complete only after all checks and separate Push on main workflow succeed.
