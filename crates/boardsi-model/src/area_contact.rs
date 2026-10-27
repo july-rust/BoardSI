@@ -62,7 +62,15 @@ pub fn strict_simple_area_contains(area: &CopperArea, p: &Point) -> Result<bool,
     for i in 0..n {
         let (a, b, c) = (ring[i], ring[(i + 1) % n], ring[(i + 2) % n]);
         if cross(a, b, c) == 0 {
-            return Err(ModelError::InvalidConnection);
+            // Forward collinear source vertices preserve the same filled area.
+            // Reject a segment that reverses or doubles back over copper edges.
+            let ab = [i128::from(b[0]) - i128::from(a[0]),
+                      i128::from(b[1]) - i128::from(a[1])];
+            let bc = [i128::from(c[0]) - i128::from(b[0]),
+                      i128::from(c[1]) - i128::from(b[1])];
+            if ab[0] * bc[0] + ab[1] * bc[1] <= 0 {
+                return Err(ModelError::InvalidConnection);
+            }
         }
         area2 += i128::from(a[0]) * i128::from(b[1]) - i128::from(b[0]) * i128::from(a[1]);
         for j in i + 1..n {
