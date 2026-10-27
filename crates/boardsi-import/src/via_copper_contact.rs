@@ -310,7 +310,7 @@ pub fn augment(
                             && n.layer != layer
                             && matches!(n.site, ContactSite::ViaCentre)
                             && via.connected_layers.contains(&n.layer)
-                            && board.connectivity.edges.iter().any(|e| {
+                            && board.connectivity.edges.iter().chain(edges.iter()).any(|e| {
                                 matches!(e.evidence, ConnectionEvidence::SameLayerContact { .. })
                                     && (e.a == n.meta.id || e.b == n.meta.id)
                             })
