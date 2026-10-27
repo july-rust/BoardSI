@@ -123,7 +123,10 @@ fn legacy_site_ids(board: &BoardModel) -> BTreeSet<ObjectId> {
 // Recreate the legacy barrel chain over endpoint-qualified layers only.
 // Intermediate Canonical ViaCentre contacts discovered by B_003 must neither
 // delete formerly valid V1 outer-layer barrels nor appear as orphan V1 links.
-fn legacy_v1_barrels(board: &BoardModel, eligible: &BTreeSet<ObjectId>) -> Vec<(ObjectId, ObjectId)> {
+fn legacy_v1_barrels(
+    board: &BoardModel,
+    eligible: &BTreeSet<ObjectId>,
+) -> Vec<(ObjectId, ObjectId)> {
     let mut via_sites: BTreeMap<ObjectId, Vec<&ConnectivityNode>> = BTreeMap::new();
     for node in &board.connectivity.nodes {
         if eligible.contains(&node.meta.id)
@@ -511,6 +514,19 @@ mod tests {
         assert!(wire.contains("X|C|T|0|1|1|T|1|0|1|"));
         assert!(!wire.contains("E|S|"));
     }
+    #[test]
+    fn legacy_barrel_survives_new_interior_only_via_layer() {
+        let source = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 4 10 0 SIMPLEVIA\n500 200 4 10 0\nU3.1 U4.2\n100 200 2 10 0\n500 200 2 10 0\n*END*\n";
+        let parsed = parse(source.as_bytes()).unwrap();
+        let board = into_canonical(source.as_bytes(), &parsed).unwrap();
+        assert_eq!(board.vias.len(), 1);
+        assert_eq!(board.vias[0].connected_layers.len(), 3);
+        assert_eq!(legacy_v1_counts(&board).1, 1);
+        let encoded = String::from_utf8(encode(&board).unwrap()).unwrap();
+        assert_eq!(encoded.lines().filter(|line| line.starts_with("E|B|")).count(), 1);
+        assert!(!board.validate().has_errors());
+    }
+
     #[test]
     fn output_is_deterministic_for_same_source() {
         let parsed = parse(TWO.as_bytes()).unwrap();
