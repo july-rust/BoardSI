@@ -1,6 +1,6 @@
 # B_007 — PADS Source-bound COPCUT-aware local contact acceptance ledger
 
-Status: **IMPLEMENTATION CANDIDATE; NOT ACCEPTED PENDING EXACT-HEAD NATIVE CI, INDEPENDENT REVIEW, PROTECTED SIGNED SQUASH MERGE AND POST-MAIN TESTS.**
+Status: **BOUNDED IMPLEMENTATION/PR CI/PROTECTED SIGNED SQUASH/POST-MAIN CI VERIFIED (2026-10-28 KST); LATEST-HEAD CODEX REVIEW CLOSURE STILL PENDING.**
 
 Tracking: [M1 Issue #12](https://github.com/july-rust/BoardSI/issues/12); prior B_003 [#224](https://github.com/july-rust/BoardSI/pull/224), B_004 [#226](https://github.com/july-rust/BoardSI/pull/226), B_005 [#227](https://github.com/july-rust/BoardSI/pull/227), B_006 [#229](https://github.com/july-rust/BoardSI/pull/229). Initial protected main: `f3fd85076c9d2cc57d69b21c91a3a2ce15e42bd9` (2026-10-28 KST). [Development checklist](../development-checklist.md) was read before any code changes.
 
@@ -13,15 +13,16 @@ Tracking: [M1 Issue #12](https://github.com/july-rust/BoardSI/issues/12); prior 
 - Qt V1 local contact counts and CPU/RHI Artwork wire contract stay unchanged.
 - Conservative exclusions: multiple COPCUT, circle/curved cutout, curved/arc outer, split/overlapping areas, thermal/antipad clearance, pad body/trace width crossings, fabricated fill/Return Path. Signal/Reference same-named areas never join merely by labels.
 
-## Mandatory acceptance evidence — remain unchecked until directly proved
+## Actual verified acceptance evidence — 2026-10-28 KST
 
-- [ ] Exact PR HEAD Rustfmt, Clippy, Numerical Debug/Release B_007 tests and all B_003–B_006 regression SUCCESS.
-- [ ] Exact PR HEAD Windows x64/Windows ARM64/macOS ARM64 Rust/Qt Native and Linux CI SUCCESS; legacy Qt V1 and RHI artwork regression.
-- [ ] Independent Codex **exact latest HEAD** review no blocking findings; any historical review threads resolved.
-- [ ] All protected GitHub required checks SUCCESS.
-- [ ] Protected ruleset preserved; **Signed Verified Squash Merge** to main.
-- [ ] Independently verified post-main exact merged SHA Checks and separate Push on main workflow.
-- [ ] First checked KST date, evidence date, exact PR/CI/commit references reconciled in [checklist](../development-checklist.md).
+- [x] [PR #231](https://github.com/july-rust/BoardSI/pull/231) exact final code HEAD `6a75eb5c5616d86407a04a946bc994958fb55ea6`: **28/28 PR checks SUCCESS**, including native Windows x64, Windows ARM64, macOS ARM64, Linux Qt; Rustfmt, Clippy, numerical and existing B_003–B_006 plus Qt V1/GPU artwork regression. [Exact HEAD checks](https://github.com/july-rust/BoardSI/commit/6a75eb5c5616d86407a04a946bc994958fb55ea6/checks).
+- [x] [Numerical core PR HEAD](https://github.com/july-rust/BoardSI/actions/runs/40600884752) runs `b007_cutout_contact`: Debug **11/11 PASS**, Release **11/11 PASS**. Added negative source Pad moved from original hole to Copper, Padstack spoof, altered source bytes, altered Canonical cutout, wrong Net/Layer, boundary/tick, disjoint area and Via Barrel conditions.
+- [x] All three previous Codex P2 review threads fixed and resolved. **Do not confuse this with exact latest HEAD final Codex completed review.**
+- [x] [Protected Squash Merge PR #231](https://github.com/july-rust/BoardSI/pull/231) to [`main@8aae7504417f6aa8d212a0906de658ed173c4ef9`](https://github.com/july-rust/BoardSI/commit/8aae7504417f6aa8d212a0906de658ed173c4ef9), GitHub REST verification `verified=true, reason=valid`, and protected `main` at this SHA confirmed.
+- [x] Independent post-merge `main@8aae7504` [Check runs](https://github.com/july-rust/BoardSI/commit/8aae7504417f6aa8d212a0906de658ed173c4ef9/checks): **21/21 SUCCESS**; all 9 post-merge Actions workflow runs **SUCCESS**, [Push on main #40602499013](https://github.com/july-rust/BoardSI/actions/runs/40602499013) and [Qt Runtime #40602499442](https://github.com/july-rust/BoardSI/actions/runs/40602499442) included.
+- [x] Initial limited implementation/post-main checklist check date **2026-10-28 KST**, evidence date **2026-10-28 KST**, SHA/PR/CI links documented in [living checklist](../development-checklist.md).
+- [ ] **Independent Codex exact code HEAD `6a75eb5c` final review NOT VERIFIED** — automatic Codex review receipt currently `status=running` (previous reviewed HEAD `da0d2042` had `has_any_findings=false`; latest head differs in regression assertions). Do not mark final Code Review PASS until receipt is `status=completed` with no findings/unresolved threads.
+- [ ] This **documentation PR** final HEAD protected CI, independent review, signed Squash Merge and its separate post-main checks must be recorded after they actually succeed.
 
 ## Safety boundary
 
