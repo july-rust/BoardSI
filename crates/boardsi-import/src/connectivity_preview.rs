@@ -560,4 +560,24 @@ mod tests {
         let header = std::str::from_utf8(&wire).unwrap();
         assert!(header.starts_with("BOARDSI_CONTACT_RECORDS_V1|0|LOCAL_ENDPOINT_ONLY|"));
     }
+    #[test]
+    fn b003_extreme_canonical_coordinates_fail_validation_without_overflow_panic() {
+        const T: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n500 200 1 10 0\nU3.3 U4.4\n300 100 1 10 0\n300 200 1 10 0\n*END*\n";
+        let parsed = parse(T.as_bytes()).unwrap();
+        let mut board = into_canonical(T.as_bytes(), &parsed).unwrap();
+        let owner = board.connectivity.nodes.iter().find(|n|
+            matches!(&n.site, ContactSite::TraceInterior { .. })
+        ).unwrap().conductor.clone();
+        let trace = board.traces.iter_mut().find(|t| t.meta.id == owner).unwrap();
+        trace.centreline[0].ticks = [i64::MIN, 0];
+        trace.centreline[1].ticks = [i64::MAX, 0];
+        let node = board.connectivity.nodes.iter_mut().find(|n|
+            matches!(&n.site, ContactSite::TraceInterior { .. })
+        ).unwrap();
+        if let ContactSite::TraceInterior { point } = &mut node.site {
+            point.ticks = [0, 0];
+        }
+        assert!(board.validate().has_errors());
+    }
+
 }
