@@ -674,7 +674,6 @@ public:
             for (const auto &track : tracks) rememberNet(track.net);
             for (const auto &arc : arcs) rememberNet(arc.net);
             for (const auto &via : vias) rememberNet(via.net);
-            for (const auto &pad : pads) rememberNet(pad.net);
             for (const auto &copper : coppers) {
                 rememberNet(copper.net);
                 acceptedCopper.append(QJsonArray{
