@@ -171,8 +171,7 @@ fn augment_impl(
             continue;
         }
         // Exact ordered Source/Canonical contour parity, including every void.
-        let ring_matches = |original: &[[i64; 2]],
-                            segments: &[boardsi_model::BoundarySegment]| {
+        let ring_matches = |original: &[[i64; 2]], segments: &[boardsi_model::BoundarySegment]| {
             original.len() == segments.len() + 1
                 && original.windows(2).zip(segments).all(|(pair, segment)| {
                     matches!(segment, boardsi_model::BoundarySegment::Line { start, end }
@@ -182,34 +181,40 @@ fn augment_impl(
                 })
         };
         if !ring_matches(ring, &area.outer.segments)
-            || !input.cutouts.iter().zip(&area.cutouts).all(|(hole, canonical)| {
-                matches!(hole, CopperGeometry::Polygon(vertices)
+            || !input
+                .cutouts
+                .iter()
+                .zip(&area.cutouts)
+                .all(|(hole, canonical)| {
+                    matches!(hole, CopperGeometry::Polygon(vertices)
                     if ring_matches(vertices, &canonical.boundary.segments))
-            })
+                })
         {
             return Err("C001_CUTOUT_CANONICAL_MISMATCH");
         }
         // Multiple same-layer source areas are accepted only with separated
         // bounding boxes. Ambiguous overlaps/tangencies stay Unsupported.
-        if max_cutouts > 1 && source_areas.iter().enumerate().any(|(other_index, other)| {
-            if index == other_index || input.layer != other.layer {
-                return false;
-            }
-            let CopperGeometry::Polygon(other_ring) = &other.geometry else {
-                return true;
-            };
-            let bounds = |points: &[[i64; 2]]| {
-                (
-                    points.iter().map(|p| p[0]).min().unwrap_or(0),
-                    points.iter().map(|p| p[0]).max().unwrap_or(0),
-                    points.iter().map(|p| p[1]).min().unwrap_or(0),
-                    points.iter().map(|p| p[1]).max().unwrap_or(0),
-                )
-            };
-            let (ax0, ax1, ay0, ay1) = bounds(ring);
-            let (bx0, bx1, by0, by1) = bounds(other_ring);
-            ax0 <= bx1 && bx0 <= ax1 && ay0 <= by1 && by0 <= ay1
-        }) {
+        if max_cutouts > 1
+            && source_areas.iter().enumerate().any(|(other_index, other)| {
+                if index == other_index || input.layer != other.layer {
+                    return false;
+                }
+                let CopperGeometry::Polygon(other_ring) = &other.geometry else {
+                    return true;
+                };
+                let bounds = |points: &[[i64; 2]]| {
+                    (
+                        points.iter().map(|p| p[0]).min().unwrap_or(0),
+                        points.iter().map(|p| p[0]).max().unwrap_or(0),
+                        points.iter().map(|p| p[1]).min().unwrap_or(0),
+                        points.iter().map(|p| p[1]).max().unwrap_or(0),
+                    )
+                };
+                let (ax0, ax1, ay0, ay1) = bounds(ring);
+                let (bx0, bx1, by0, by1) = bounds(other_ring);
+                ax0 <= bx1 && bx0 <= ax1 && ay0 <= by1 && by0 <= ay1
+            })
+        {
             audit.unsupported_areas += 1;
             continue;
         }
