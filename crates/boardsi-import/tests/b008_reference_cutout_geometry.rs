@@ -41,7 +41,8 @@ fn first_id(board: &boardsi_model::BoardModel) -> Vec<ObjectId> {
 }
 #[test]
 fn cutout_free_legacy_geometry_is_preserved() {
-    let raw = source(OUTER, &single("130 250", "170 250"));
+    let holefree = OUTER.replace("100 200 2 1 0", "100 200 1 1 0");
+    let raw = source(&holefree, &single("130 250", "170 250"));
     let (board, areas) = prepare(&raw);
     let ids = first_id(&board);
     assert_eq!(audit(&board, &areas, &raw, &ids, "NET_REF", 1).state,
@@ -137,7 +138,8 @@ fn rejects_original_sha_and_canonical_cutout_spoof() {
 }
 #[test]
 fn rejects_multiple_cutouts_without_claiming_reference_pass() {
-    let two = format!("{OUTER}{HOLE}COPCUT 5 0.01 0 2\n60 60\n80 60\n80 80\n60 80\n60 60\n");
+    let outer_three = OUTER.replace("100 200 2 1 0", "100 200 3 1 0");
+    let two = format!("{outer_three}{HOLE}COPCUT 5 0.01 0 2\n60 60\n80 60\n80 80\n60 80\n60 60\n");
     let raw = source(&two, &single("110 250", "170 250"));
     let parsed = route_preview::parse(raw.as_bytes()).unwrap();
     let mut board = route_preview::into_canonical(raw.as_bytes(), &parsed).unwrap();
