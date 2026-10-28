@@ -32,7 +32,10 @@ fn deterministic_snapshot_and_separate_run_identity() {
     assert!(!a.cache_reuse_eligible());
     let one = ResultScope::new("run-one", a.clone()).unwrap();
     let two = ResultScope::new("run-two", a).unwrap();
-    assert_eq!(one.snapshot().snapshot_sha256(), two.snapshot().snapshot_sha256());
+    assert_eq!(
+        one.snapshot().snapshot_sha256(),
+        two.snapshot().snapshot_sha256()
+    );
     assert_ne!(
         one.synthetic_receipt().unwrap().run_id,
         two.synthetic_receipt().unwrap().run_id
@@ -86,7 +89,10 @@ fn sweep_rejects_previous_completion_but_preserves_condition_identity() {
     assert_eq!(before.conditions_sha256(), after.conditions_sha256());
     assert_eq!(before.compatibility_sha256(), after.compatibility_sha256());
     assert_ne!(before.snapshot_sha256(), after.snapshot_sha256());
-    let receipt = ResultScope::new("run", before).unwrap().synthetic_receipt().unwrap();
+    let receipt = ResultScope::new("run", before)
+        .unwrap()
+        .synthetic_receipt()
+        .unwrap();
     assert_eq!(receipt.freshness(&after), ResultFreshness::OutOfDate);
     assert!(!after.cache_reuse_eligible());
 }
@@ -105,7 +111,10 @@ fn ui_only_theme_zoom_changes_have_no_physics_input() {
 #[test]
 fn engine_model_and_precision_are_incompatible() {
     let a = draft().freeze().unwrap();
-    let receipt = ResultScope::new("run", a).unwrap().synthetic_receipt().unwrap();
+    let receipt = ResultScope::new("run", a)
+        .unwrap()
+        .synthetic_receipt()
+        .unwrap();
     let mut changes = Vec::new();
     let mut item = draft();
     item.engine_version = "engine-new".into();
@@ -151,7 +160,10 @@ fn reject_missing_fields_bad_digests_and_reference_alias() {
     assert_eq!(item.freeze().unwrap_err(), ScenarioError::OversizedInput);
     let mut item = draft();
     item.reference_net = "SIG".into();
-    assert_eq!(item.freeze().unwrap_err(), ScenarioError::SameSignalReference);
+    assert_eq!(
+        item.freeze().unwrap_err(),
+        ScenarioError::SameSignalReference
+    );
 }
 
 #[test]
@@ -165,7 +177,10 @@ fn invalid_frequency_grids_fail_closed() {
     ] {
         let mut item = draft();
         item.frequencies_hz = frequencies;
-        assert_eq!(item.freeze().unwrap_err(), ScenarioError::InvalidFrequencyGrid);
+        assert_eq!(
+            item.freeze().unwrap_err(),
+            ScenarioError::InvalidFrequencyGrid
+        );
     }
 }
 
