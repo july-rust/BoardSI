@@ -6,7 +6,9 @@ use std::fmt::Write;
 const TICK_NM: i64 = 254;
 fn hex(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes { write!(&mut out, "{byte:02x}").expect("writing to String"); }
+    for byte in bytes {
+        write!(&mut out, "{byte:02x}").expect("writing to String");
+    }
     out
 }
 fn nm(tick: i64) -> Result<i64, &'static str> {
@@ -21,11 +23,16 @@ pub fn encode(
     reference_net: &str,
     reference_layer_numbers: &[usize],
 ) -> Result<String, &'static str> {
-    if bytes.is_empty() || bytes.len() > route_preview::MAX_FILE_BYTES
-        || indices.is_empty() || indices.len() > 2
+    if bytes.is_empty()
+        || bytes.len() > route_preview::MAX_FILE_BYTES
+        || indices.is_empty()
+        || indices.len() > 2
         || indices.len() != reference_layer_numbers.len()
-        || reference_net.is_empty() || reference_net.len() > 64
-        || reference_net.chars().any(|c| c == '\n' || c == '\r' || c == '|')
+        || reference_net.is_empty()
+        || reference_net.len() > 64
+        || reference_net
+            .chars()
+            .any(|c| c == '\n' || c == '\r' || c == '|')
     {
         return Err("INVALID_REQUEST");
     }
@@ -40,9 +47,7 @@ pub fn encode(
     let mut ids = Vec::with_capacity(indices.len());
     let mut layers = Vec::with_capacity(indices.len());
     for (&index, &layer_number) in indices.iter().zip(reference_layer_numbers) {
-        if !unique.insert(index) || layer_number == 0
-            || layer_number > board.stackup.layers.len()
-        {
+        if !unique.insert(index) || layer_number == 0 || layer_number > board.stackup.layers.len() {
             return Err("INVALID_SELECTION");
         }
         let trace = board.traces.get(index).ok_or("TRACE_NOT_FOUND")?;
@@ -52,43 +57,75 @@ pub fn encode(
     let result = reference_topology::audit(&board, bytes, &ids, reference_net, &layers);
     let source = board.sources.first().ok_or("MISSING_SOURCE")?;
     let file = source.id.files.first().ok_or("MISSING_FILE_SHA")?;
-    if source.id.files.len() != 1 { return Err("AMBIGUOUS_SOURCE"); }
+    if source.id.files.len() != 1 {
+        return Err("AMBIGUOUS_SOURCE");
+    }
     let marker_count = result.risk_source_ticks.len();
-    if marker_count > 1 || (marker_count == 1 &&
-        result.state != "REFERENCE_SPLIT_RISK" &&
-        result.state != "LAYER_TRANSITION_RISK")
+    if marker_count > 1
+        || (marker_count == 1
+            && result.state != "REFERENCE_SPLIT_RISK"
+            && result.state != "LAYER_TRANSITION_RISK")
     {
         return Err("INVALID_AUDIT_WITNESS");
     }
     let mut out = format!(
         "BOARDSI_REFERENCE_RISK_V1|{}|{}|{}|{}|0|UNSUPPORTED|NOT_RUN|0\n",
-        hex(&file.sha256), result.state, result.reason, indices.len()
+        hex(&file.sha256),
+        result.state,
+        result.reason,
+        indices.len()
     );
     for (&index, trace) in indices.iter().zip(&ids) {
         let item = &board.traces[index];
-        if item.centreline.len() != 2 { return Err("UNSUPPORTED_TRACE"); }
+        if item.centreline.len() != 2 {
+            return Err("UNSUPPORTED_TRACE");
+        }
         let a = item.centreline[0].ticks;
         let b = item.centreline[1].ticks;
-        let name = board.nets.iter()
+        let name = board
+            .nets
+            .iter()
             .find(|net| Some(&net.meta.id) == item.net.as_ref())
             .ok_or("UNKNOWN_TRACE_NET")?;
-        writeln!(&mut out, "T|{}|{}|{}|{}|{}|{}|{}|{}|{}",
-            index, board.stackup.layers.iter()
+        writeln!(
+            &mut out,
+            "T|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+            index,
+            board
+                .stackup
+                .layers
+                .iter()
                 .position(|layer| layer.meta.id == item.layer)
-                .ok_or("MISSING_TRACE_LAYER")? + 1,
+                .ok_or("MISSING_TRACE_LAYER")?
+                + 1,
             hex(name.name.as_bytes()),
-            hex(trace.source_object.as_bytes()), hex(trace.part.as_bytes()),
-            nm(a[0])?, nm(a[1])?, nm(b[0])?, nm(b[1])?
-        ).map_err(|_| "FORMAT")?;
+            hex(trace.source_object.as_bytes()),
+            hex(trace.part.as_bytes()),
+            nm(a[0])?,
+            nm(a[1])?,
+            nm(b[0])?,
+            nm(b[1])?
+        )
+        .map_err(|_| "FORMAT")?;
     }
     if let Some(point) = result.risk_source_ticks.first() {
-        let via = result.via_id.as_ref().map(|v| hex(v.source_object.as_bytes()))
+        let via = result
+            .via_id
+            .as_ref()
+            .map(|v| hex(v.source_object.as_bytes()))
             .unwrap_or_else(|| "-".to_string());
         writeln!(&mut out, "M|{}|{}|{}", nm(point[0])?, nm(point[1])?, via)
             .map_err(|_| "FORMAT")?;
     }
-    writeln!(&mut out, "END|{}|{}|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL",
-        indices.len(), marker_count).map_err(|_| "FORMAT")?;
-    if out.len() > 4096 { return Err("OUTPUT_LIMIT"); }
+    writeln!(
+        &mut out,
+        "END|{}|{}|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL",
+        indices.len(),
+        marker_count
+    )
+    .map_err(|_| "FORMAT")?;
+    if out.len() > 4096 {
+        return Err("OUTPUT_LIMIT");
+    }
     Ok(out)
 }
