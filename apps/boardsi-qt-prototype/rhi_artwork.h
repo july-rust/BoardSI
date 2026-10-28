@@ -870,12 +870,14 @@ protected:
                                                 -(m.startY_nm-originY_)/1e6));
                     const QPointF b=pixel(QPointF((m.endX_nm-originX_)/1e6,
                                                 -(m.endY_nm-originY_)/1e6));
-                    const QPointF d=b-a;
-                    const qreal len2=d.x()*d.x()+d.y()*d.y();
+                    const QPointF segmentDelta=b-a;
+                    const qreal len2=segmentDelta.x()*segmentDelta.x()+
+                                     segmentDelta.y()*segmentDelta.y();
                     const QPointF v=event->position()-a;
-                    const qreal t=len2>0?std::clamp((v.x()*d.x()+v.y()*d.y())/len2,
-                                                   qreal(0),qreal(1)):0;
-                    const QPointF nearest=a+t*d;
+                    const qreal t=len2>0?std::clamp(
+                        (v.x()*segmentDelta.x()+v.y()*segmentDelta.y())/len2,
+                        qreal(0),qreal(1)):0;
+                    const QPointF nearest=a+t*segmentDelta;
                     hit=std::hypot(event->position().x()-nearest.x(),
                                    event->position().y()-nearest.y())<=8.0;
                 }
