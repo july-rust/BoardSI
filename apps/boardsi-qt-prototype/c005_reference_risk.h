@@ -132,6 +132,89 @@ inline bool decode(const QByteArray &wire,const QByteArray &sourceSha,
 }
 } // namespace c005
 
+// C_006 V2: source-authenticated, bounded parametric gap intervals.
+// All rational parameters remain authoritative in Rust; doubles are DISPLAY ONLY.
+namespace c006 {
+inline bool decode(const QByteArray &wire,const QByteArray &sourceSha,
+                   const ImportedArtworkPanel *panel,const std::vector<int> &selected,
+                   c005::Receipt &out) {
+    if(!panel || selected.size()!=1 || wire.isEmpty() || wire.size()>8192 ||
+       !wire.endsWith('\n'))return false;
+    const auto lines=wire.split('\n');
+    if(lines.size()<4 || !lines.last().isEmpty())return false;
+    const auto head=lines[0].split('|');
+    if(head.size()!=9 || head[0]!="BOARDSI_REFERENCE_GAP_V2" ||
+       head[1]!=sourceSha || sourceSha.size()!=64 ||
+       head[4]!="1" || head[5]!="0" || head[6]!="UNSUPPORTED" ||
+       head[7]!="NOT_RUN" || head[8]!="0" || !c005::reasonCode(head[3]))return false;
+    const QString state=QString::fromLatin1(head[2]);
+    if(state!="REFERENCE_SPLIT_RISK" && state!="SOURCE_GEOMETRY_ONLY" &&
+       state!="UNSUPPORTED")return false;
+    const auto row=lines[1].split('|');
+    if(row.size()!=10 || row[0]!="T")return false;
+    bool ok=false;
+    const int traceIndex=row[1].toInt(&ok);
+    if(!ok || traceIndex!=selected[0])return false;
+    const int layer=row[2].toInt(&ok);
+    ImportedTrack track;
+    if(!ok || !panel->importedTrack(traceIndex,track) || layer!=track.layer)return false;
+    QByteArray netBytes,objectBytes,partBytes;
+    if(!c005::boundedHex(row[3],netBytes) ||
+       !c005::boundedHex(row[4],objectBytes) ||
+       (row[5]!="-" && !c005::boundedHex(row[5],partBytes)) ||
+       QString::fromUtf8(netBytes)!=track.net)return false;
+    qint64 coords[4]{};
+    for(int k=0;k<4;++k)if(!c005::readCoordinate(row[6+k],coords[k]))return false;
+    if(coords[0]!=track.x0_nm || coords[1]!=track.y0_nm ||
+       coords[2]!=track.x1_nm || coords[3]!=track.y1_nm)return false;
+    const int count=lines.size()-4;
+    if(count<0 || count>32 || (state=="REFERENCE_SPLIT_RISK")!=(count>0))return false;
+    const auto end=lines[2+count].split('|');
+    if(end.size()!=4 || end[0]!="END" || end[1]!="1" ||
+       end[2]!=QByteArray::number(count) ||
+       end[3]!="SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL")return false;
+    c005::Receipt candidate;
+    candidate.state=state;candidate.reason=QString::fromLatin1(head[3]);
+    long double previous=0;
+    for(int i=0;i<count;++i) {
+        const auto interval=lines[i+2].split('|');
+        if(interval.size()!=5 || interval[0]!="I")return false;
+        qint64 frac[4]{};
+        for(int k=0;k<4;++k) {
+            frac[k]=interval[k+1].toLongLong(&ok);
+            if(!ok)return false;
+        }
+        if(frac[1]<=0 || frac[3]<=0 ||
+           frac[1]>1000000000000000LL || frac[3]>1000000000000000LL ||
+           frac[0]<0 || frac[2]<0 || frac[0]>frac[1] || frac[2]>frac[3])return false;
+        const long double lo=static_cast<long double>(frac[0])/frac[1];
+        const long double hi=static_cast<long double>(frac[2])/frac[3];
+        if(!(lo>=previous && hi>lo && hi<=1))return false;
+        previous=hi;
+        ImportedReferenceRiskMarker m;
+        m.state=state;m.reason=candidate.reason;m.net=track.net;m.layer=track.layer;
+        m.sourceObject=QString::fromUtf8(objectBytes);m.viaObject="-";
+        m.exactGap=true;
+        const auto interpolate=[](qint64 start,qint64 finish,long double t)->qreal {
+            return static_cast<qreal>(static_cast<long double>(start) +
+                (static_cast<long double>(finish)-start)*t);
+        };
+        m.startX_nm=interpolate(track.x0_nm,track.x1_nm,lo);
+        m.startY_nm=interpolate(track.y0_nm,track.y1_nm,lo);
+        m.endX_nm=interpolate(track.x0_nm,track.x1_nm,hi);
+        m.endY_nm=interpolate(track.y0_nm,track.y1_nm,hi);
+        m.x_nm=static_cast<qint64>((m.startX_nm+m.endX_nm)/2);
+        m.y_nm=static_cast<qint64>((m.startY_nm+m.endY_nm)/2);
+        m.intervalParameters=QString("%1/%2..%3/%4")
+            .arg(frac[0]).arg(frac[1]).arg(frac[2]).arg(frac[3]);
+        candidate.markers.push_back(m);
+    }
+    out=std::move(candidate);
+    return true;
+}
+} // namespace c006
+
+
 class C005ReferenceRiskController final: public QWidget {
     ImportedArtworkPanel *artwork_ = nullptr;
     QString importer_,source_;
@@ -172,8 +255,10 @@ class C005ReferenceRiskController final: public QWidget {
             return;
         }
         c005::Receipt receipt;
-        if(exitStatus!=QProcess::NormalExit || exitCode!=0 ||
-           !c005::decode(bytes,requestedSha_,artwork_,requestedIndices_,receipt)) {
+        const bool parsed=requestedIndices_.size()==1
+            ? c006::decode(bytes,requestedSha_,artwork_,requestedIndices_,receipt)
+            : c005::decode(bytes,requestedSha_,artwork_,requestedIndices_,receipt);
+        if(exitStatus!=QProcess::NormalExit || exitCode!=0 || !parsed) {
             status_->setText("UNSUPPORTED / INVALID OR UNAVAILABLE RUST AUDIT / SI NOT_RUN");
             return;
         }
@@ -187,7 +272,7 @@ public:
         :QWidget(parent),artwork_(artwork),importer_(importer),process_(this),deadline_(this) {
         setObjectName("c005ReferenceRiskPanel");
         auto *layout=new QVBoxLayout(this);
-        layout->addWidget(new QLabel("C_005 — Source reference geometry risk ONLY; no electrical Return Path.",this));
+        layout->addWidget(new QLabel("C_006 — exact Source-reference gap intervals where supported; NOT electrical Return Path.",this));
         auto *controls=new QHBoxLayout;
         first_=new QSpinBox(this);first_->setRange(0,9999);first_->setObjectName("c005TraceIndex");
         second_=new QSpinBox(this);second_->setRange(-1,9999);second_->setValue(-1);
@@ -253,6 +338,7 @@ public:
         requestedIndices_={first_->value()};
         QStringList args{source_,"--reference-risk-v1",
             QString::number(first_->value()),net_->text(),QString::number(refA_->value())};
+        if(second_->value()<0)args[1]="--reference-gap-v2";
         if(second_->value()>=0) {
             requestedIndices_.push_back(second_->value());
             args << QString::number(second_->value()) << QString::number(refB_->value());
