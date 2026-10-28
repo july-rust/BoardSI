@@ -84,7 +84,7 @@ fn add(
 fn augment_impl(
     board: &mut BoardModel,
     source_areas: &[SourceArea],
-    allow_cutout: bool,
+    max_cutouts: usize,
 ) -> Result<AreaContactAudit, &'static str> {
     if source_areas.len() != board.areas.len() {
         return Err("B004_AREA_SOURCE_MISMATCH");
@@ -160,8 +160,8 @@ fn augment_impl(
         };
         if ring.len() < 4
             || ring.len() > 65
-            || (!input.cutouts.is_empty() && !allow_cutout)
-            || input.cutouts.len() > 1
+            || input.cutouts.len() > max_cutouts
+            || area.cutouts.len() != input.cutouts.len()
             || input
                 .cutouts
                 .iter()
@@ -170,27 +170,48 @@ fn augment_impl(
             audit.unsupported_areas += 1;
             continue;
         }
-        if let Some(CopperGeometry::Polygon(hole)) = input.cutouts.first() {
-            if area.cutouts.len() != 1
-                || area.outer.segments.len() != ring.len() - 1
-                || area.cutouts[0].boundary.segments.len() != hole.len() - 1
-                || !ring
-                    .windows(2)
-                    .zip(&area.outer.segments)
-                    .all(|(pair, seg)| {
-                        matches!(seg, boardsi_model::BoundarySegment::Line { start, end }
-                        if start.ticks == pair[0] && end.ticks == pair[1])
-                    })
-                || !hole
-                    .windows(2)
-                    .zip(&area.cutouts[0].boundary.segments)
-                    .all(|(pair, seg)| {
-                        matches!(seg, boardsi_model::BoundarySegment::Line { start, end }
-                        if start.ticks == pair[0] && end.ticks == pair[1])
-                    })
-            {
-                return Err("B007_CUTOUT_CANONICAL_MISMATCH");
+        // Exact ordered Source/Canonical contour parity, including every void.
+        let ring_matches = |original: &[[i64; 2]],
+                            segments: &[boardsi_model::BoundarySegment]| {
+            original.len() == segments.len() + 1
+                && original.windows(2).zip(segments).all(|(pair, segment)| {
+                    matches!(segment, boardsi_model::BoundarySegment::Line { start, end }
+                        if start.ticks == pair[0] && end.ticks == pair[1]
+                            && start.frame == board.frames[0].meta.id
+                            && end.frame == board.frames[0].meta.id)
+                })
+        };
+        if !ring_matches(ring, &area.outer.segments)
+            || !input.cutouts.iter().zip(&area.cutouts).all(|(hole, canonical)| {
+                matches!(hole, CopperGeometry::Polygon(vertices)
+                    if ring_matches(vertices, &canonical.boundary.segments))
+            })
+        {
+            return Err("C001_CUTOUT_CANONICAL_MISMATCH");
+        }
+        // Multiple same-layer source areas are accepted only with separated
+        // bounding boxes. Ambiguous overlaps/tangencies stay Unsupported.
+        if max_cutouts > 1 && source_areas.iter().enumerate().any(|(other_index, other)| {
+            if index == other_index || input.layer != other.layer {
+                return false;
             }
+            let CopperGeometry::Polygon(other_ring) = &other.geometry else {
+                return true;
+            };
+            let bounds = |points: &[[i64; 2]]| {
+                (
+                    points.iter().map(|p| p[0]).min().unwrap_or(0),
+                    points.iter().map(|p| p[0]).max().unwrap_or(0),
+                    points.iter().map(|p| p[1]).min().unwrap_or(0),
+                    points.iter().map(|p| p[1]).max().unwrap_or(0),
+                )
+            };
+            let (ax0, ax1, ay0, ay1) = bounds(ring);
+            let (bx0, bx1, by0, by1) = bounds(other_ring);
+            ax0 <= bx1 && bx0 <= ax1 && ay0 <= by1 && by0 <= ay1
+        }) {
+            audit.unsupported_areas += 1;
+            continue;
         }
         let Some(label) = &input.net_label else {
             audit.unsupported_areas += 1;
@@ -302,7 +323,7 @@ pub fn augment(
     board: &mut BoardModel,
     source_areas: &[SourceArea],
 ) -> Result<AreaContactAudit, &'static str> {
-    augment_impl(board, source_areas, false)
+    augment_impl(board, source_areas, 0)
 }
 
 /// B_007 cutout-aware contacts require independent original-file reparsing.
@@ -312,6 +333,24 @@ pub fn augment_source_bound(
     board: &mut BoardModel,
     source_areas: &[SourceArea],
     original_bytes: &[u8],
+) -> Result<AreaContactAudit, &'static str> {
+    augment_source_bound_impl(board, source_areas, original_bytes, 1)
+}
+
+/// C_001 opt-in: multiple source-owned straight polygon cutouts.
+pub fn augment_source_bound_multi(
+    board: &mut BoardModel,
+    source_areas: &[SourceArea],
+    original_bytes: &[u8],
+) -> Result<AreaContactAudit, &'static str> {
+    augment_source_bound_impl(board, source_areas, original_bytes, 8)
+}
+
+fn augment_source_bound_impl(
+    board: &mut BoardModel,
+    source_areas: &[SourceArea],
+    original_bytes: &[u8],
+    max_cutouts: usize,
 ) -> Result<AreaContactAudit, &'static str> {
     let route = crate::route_preview::parse(original_bytes).map_err(|_| "B007_SOURCE_ROUTE")?;
     let mut original = crate::route_preview::into_canonical(original_bytes, &route)
@@ -345,7 +384,7 @@ pub fn augment_source_bound(
     {
         return Err("B007_SOURCE_INVENTORY_MISMATCH");
     }
-    augment_impl(board, source_areas, true)
+    augment_impl(board, source_areas, max_cutouts)
 }
 
 /// Local candidate report only. No contact never proves whole-board disconnection.
