@@ -269,6 +269,8 @@ inline bool decode(const QByteArray &wire, const QByteArray &sourceSha,
         if(gaps>16*32)return false;
         for(auto &m:single.markers) {
             m.reason="SOURCE_ROUTE_REFERENCE_GAP_NOT_PHYSICAL";
+            m.intervalParameters=QString("Route segment %1/%2: %3")
+                .arg(i+1).arg(count).arg(m.intervalParameters);
             candidate.markers.push_back(std::move(m));
         }
     }
@@ -336,7 +338,10 @@ class C005ReferenceRiskController final: public QWidget {
             return;
         }
         artwork_->setReferenceRisks(receipt.markers);
-        status_->setText(receipt.state+" / "+receipt.reason+
+        const QString routeStats=route_->text().trimmed().isEmpty()?QString():
+            QString(" / %1 route segments / %2 reference gap spans (display only)")
+                .arg(requestedIndices_.size()).arg(receipt.markers.size());
+        status_->setText(receipt.state+" / "+receipt.reason+routeStats+
             " / SOURCE GEOMETRY ONLY / P009 UNSUPPORTED / Solver BLOCKED");
     }
 public:
@@ -345,7 +350,7 @@ public:
         :QWidget(parent),artwork_(artwork),importer_(importer),process_(this),deadline_(this) {
         setObjectName("c005ReferenceRiskPanel");
         auto *layout=new QVBoxLayout(this);
-        layout->addWidget(new QLabel("C_006 — exact Source-reference gap intervals where supported; NOT electrical Return Path.",this));
+        layout->addWidget(new QLabel("C_007 — multi-segment source Reference gap audit (C_006 V2 preserved); NOT electrical Return Path.",this));
         auto *controls=new QHBoxLayout;
         first_=new QSpinBox(this);first_->setRange(0,9999);first_->setObjectName("c005TraceIndex");
         second_=new QSpinBox(this);second_->setRange(-1,9999);second_->setValue(-1);
@@ -432,7 +437,9 @@ public:
                 }
                 requestedIndices_.push_back(idx);
             }
-            args={source_,"--reference-route-v3",routeText,net_->text(),
+            QStringList canonical;
+            for(int idx:requestedIndices_)canonical << QString::number(idx);
+            args={source_,"--reference-route-v3",canonical.join(','),net_->text(),
                   QString::number(refA_->value())};
         } else {
             if(second_->value()<0)args[1]="--reference-gap-v2";
