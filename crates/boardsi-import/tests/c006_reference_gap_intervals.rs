@@ -1,7 +1,7 @@
 //! Public synthetic C_006 rational Source Reference gap regression; no physical SI.
 use boardsi_import::reference_gap_intervals::encode;
 const HEADER:&str="!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n";
-const AREA:&str="*LINES*\nREF COPPER 100 200 2 1 0 NET_REF\nCOPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\n";
+const AREA:&str="*LINES*\nREF COPPER 100 200 1 1 0 NET_REF\nCOPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\n";
 const CUT:&str="COPCUT 5 0.01 0 2\n20 20\n40 20\n40 40\n20 40\n20 20\n";
 const CUT2:&str="COPCUT 5 0.01 0 2\n50 20\n60 20\n60 40\n50 40\n50 20\n";
 fn source(area:&str,route:&str)->String {
@@ -26,13 +26,13 @@ fn whole_uncovered_is_exact_full_interval() {
 }
 #[test]
 fn one_cutout_returns_exact_fractions() {
-    let s=audit(&format!("{AREA}{CUT}"),"110 230 1 10 0\n170 230 1 10 0");
+    let s=audit(&format!("{}{CUT}", AREA.replace("100 200 1 1", "100 200 2 1")),"110 230 1 10 0\n170 230 1 10 0");
     assert!(s.contains("\nI|1|6|1|2\n"),"{s}");
     assert!(s.ends_with("END|1|1|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL\n"));
 }
 #[test]
 fn multiple_cutouts_return_ordered_distinct_gaps() {
-    let s=audit(&format!("{AREA}{CUT}{CUT2}"),"110 230 1 10 0\n170 230 1 10 0");
+    let s=audit(&format!("{}{CUT}{CUT2}", AREA.replace("100 200 1 1", "100 200 3 1")),"110 230 1 10 0\n170 230 1 10 0");
     assert!(s.contains("\nI|1|6|1|2\nI|2|3|5|6\n"),"{s}");
     assert!(s.contains("END|1|2|"));
 }
@@ -43,7 +43,7 @@ fn partial_outer_reference_uses_actual_crossing() {
 }
 #[test]
 fn diagonal_crossing_uses_exact_rational_parameter() {
-    let s=audit(&format!("{AREA}{CUT}"),"110 222 1 10 0\n170 248 1 10 0");
+    let s=audit(&format!("{}{CUT}", AREA.replace("100 200 1 1", "100 200 2 1")),"110 222 1 10 0\n170 248 1 10 0");
     assert!(s.contains("\nI|1|6|1|2\n"),"{s}");
 }
 #[test]
@@ -63,7 +63,7 @@ fn unknown_reference_or_layer_is_not_a_positive_result() {
 }
 #[test]
 fn original_v1_remains_unchanged_in_opt_in_v2() {
-    let bytes=source(&format!("{AREA}{CUT}"),"110 230 1 10 0\n170 230 1 10 0");
+    let bytes=source(&format!("{}{CUT}", AREA.replace("100 200 1 1", "100 200 2 1")),"110 230 1 10 0\n170 230 1 10 0");
     let v1=boardsi_import::reference_risk_wire::encode(bytes.as_bytes(),&[0],"NET_REF",&[2]).unwrap();
     let v2=encode(bytes.as_bytes(),0,"NET_REF",2).unwrap();
     assert!(v1.starts_with("BOARDSI_REFERENCE_RISK_V1|"));
