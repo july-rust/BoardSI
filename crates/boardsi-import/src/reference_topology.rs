@@ -66,11 +66,7 @@ fn boundary_clear(segs: &[BoundarySegment], a: [i64; 2], b: [i64; 2]) -> bool {
         _ => false,
     })
 }
-fn covered(
-    area: &boardsi_model::CopperArea,
-    a: &Point,
-    b: &Point,
-) -> Result<bool, &'static str> {
+fn covered(area: &boardsi_model::CopperArea, a: &Point, b: &Point) -> Result<bool, &'static str> {
     if a.frame != b.frame || a.ticks == b.ticks {
         return Err("INVALID_REFERENCE_TRACE_FRAME");
     }
