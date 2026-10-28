@@ -328,7 +328,10 @@ struct ImportedContactMarker {
 struct ImportedReferenceRiskMarker {
     QString state, reason, net, sourceObject, viaObject;
     int layer=0;
-    qint64 x_nm=0,y_nm=0; // exact source-grid witness; not a split intersection
+    qint64 x_nm=0,y_nm=0; // V1 witness or V2 representative anchor
+    bool exactGap=false; // C_006: source-rational parametric interval, display interpolation only
+    qreal startX_nm=0,startY_nm=0,endX_nm=0,endY_nm=0;
+    QString intervalParameters;
 };
 #ifdef BOARDSI_RHI_ARTWORK
 #include "rhi_artwork.h"
@@ -362,7 +365,7 @@ class ImportedArtworkPanel final : public QWidget {
     std::function<void(const QString &)> detailsCallback_;
     int skipped_ = 0;
     std::vector<std::pair<QGraphicsEllipseItem*,ImportedContactMarker>> contacts_;
-    std::vector<std::pair<QGraphicsEllipseItem*,ImportedReferenceRiskMarker>> risks_;
+    std::vector<std::pair<QGraphicsItem*,ImportedReferenceRiskMarker>> risks_;
     QString localContactAudit_ = "Local endpoint contact evidence: NOT_EXPOSED; full-board connectivity NOT_VERIFIED";
     void refresh() {
 #ifdef BOARDSI_RHI_ARTWORK
@@ -788,20 +791,36 @@ public:
             detailsCallback_("C_005 RISK RECEIPT INVALIDATED / RE-AUDIT REQUIRED / SI NOT_RUN");
         for(const auto &m:markers) {
             if(m.state!="REFERENCE_SPLIT_RISK" && m.state!="LAYER_TRANSITION_RISK") continue;
-            auto *item=scene_->addEllipse(QRectF(-6,-6,12,12),
-                QPen(QColor("#ffcb75"),2),
-                QBrush(QColor(m.state=="REFERENCE_SPLIT_RISK"?"#9b551b":"#825eae")));
-            item->setPos(m.x_nm/1e6,-m.y_nm/1e6);
-            item->setFlag(QGraphicsItem::ItemIgnoresTransformations);
+            QGraphicsItem *item=nullptr;
+            if(m.exactGap) {
+                auto *line=scene_->addLine(
+                    QLineF(m.startX_nm/1e6,-m.startY_nm/1e6,
+                           m.endX_nm/1e6,-m.endY_nm/1e6),
+                    QPen(QColor("#ff9e55"),5));
+                item=line;
+            } else {
+                auto *dot=scene_->addEllipse(QRectF(-6,-6,12,12),
+                    QPen(QColor("#ffcb75"),2),
+                    QBrush(QColor(m.state=="REFERENCE_SPLIT_RISK"?"#9b551b":"#825eae")));
+                dot->setPos(m.x_nm/1e6,-m.y_nm/1e6);
+                dot->setFlag(QGraphicsItem::ItemIgnoresTransformations);
+                item=dot;
+            }
             item->setFlag(QGraphicsItem::ItemIsSelectable);
             item->setZValue(18);
             item->setData(0,m.net);
             item->setData(3,"C005ReferenceRisk");
-            item->setData(2,QString("C_005 %1 / %2 / Source %3 / Via %4 / "
-                "Witness %5,%6 nm (representative only) / P009 UNSUPPORTED / "
-                "physical SI NOT_RUN / Solver BLOCKED")
-                .arg(m.state,m.reason,m.sourceObject,m.viaObject)
-                .arg(m.x_nm).arg(m.y_nm));
+            item->setData(2,m.exactGap
+                ? QString("C_005 REFERENCE_SPLIT_RISK / C_006 exact source-rational gap %1 / "
+                    "Source %2 / interval %3 / approximately %4 mm (display only) / "
+                    "P009 UNSUPPORTED / physical SI NOT_RUN / Solver BLOCKED")
+                    .arg(m.reason,m.sourceObject,m.intervalParameters)
+                    .arg(std::hypot(m.endX_nm-m.startX_nm,m.endY_nm-m.startY_nm)/1e6,0,'f',6)
+                : QString("C_005 %1 / %2 / Source %3 / Via %4 / "
+                    "Witness %5,%6 nm (representative only) / P009 UNSUPPORTED / "
+                    "physical SI NOT_RUN / Solver BLOCKED")
+                    .arg(m.state,m.reason,m.sourceObject,m.viaObject)
+                    .arg(m.x_nm).arg(m.y_nm));
             risks_.push_back({item,m});
         }
 #ifdef BOARDSI_RHI_ARTWORK
