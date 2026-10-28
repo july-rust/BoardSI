@@ -3023,23 +3023,46 @@ static int runC005RiskSelftest(const QString &importer) {
         !pickedDetails.contains("SOURCE_REFERENCE_GAP_OR_CUTOUT");
     const bool staleCleared=panel.imported()->referenceRiskCountForTest()==0 &&
         controller.currentStatusForTest().contains("NOT_AUDITED");
-    // Mutating only Reference Copper after accepted Artwork must never
-    // generate a new positive risk verdict for the stale displayed board.
-    QFile changed(source.fileName());
-    const bool wrote=changed.open(QIODevice::Append) && changed.write("changed copper source\\n")>0;
-    changed.close();
+    // Recreate a visible risk and mutate the same accepted PCB file without
+    // changing any Qt input: QFileSystemWatcher must clear it automatically.
     reference->setText("NET_REF");
     run->click();
-    const bool sourceMutationBlocked=wrote &&
+    QEventLoop secondAudit;
+    QTimer secondPoll;
+    QObject::connect(&secondPoll,&QTimer::timeout,&secondAudit,[&] {
+        if(!controller.auditRunningForTest())secondAudit.quit();
+    });
+    QTimer::singleShot(8000,&secondAudit,&QEventLoop::quit);
+    secondPoll.start(20);secondAudit.exec();secondPoll.stop();
+    const bool rebuilt=panel.imported()->referenceRiskCountForTest()==1;
+    QFile changed(source.fileName());
+    const bool wrote=changed.open(QIODevice::Append) &&
+        changed.write("changed copper source\\n")>0;
+    changed.close();
+    QEventLoop sourceWatch;
+    QTimer watchPoll;
+    QObject::connect(&watchPoll,&QTimer::timeout,&sourceWatch,[&] {
+        if(controller.currentStatusForTest().contains("SOURCE FILE CHANGED"))
+            sourceWatch.quit();
+    });
+    QTimer::singleShot(2500,&sourceWatch,&QEventLoop::quit);
+    watchPoll.start(30);sourceWatch.exec();watchPoll.stop();
+    const bool sourceWatchClearsMarker=rebuilt && wrote &&
+        controller.currentStatusForTest().contains("REIMPORT REQUIRED") &&
+        panel.imported()->referenceRiskCountForTest()==0;
+    run->click();
+    const bool sourceMutationBlocked=sourceWatchClearsMarker &&
         controller.currentStatusForTest().contains("REIMPORT REQUIRED") &&
         panel.imported()->referenceRiskCountForTest()==0;
     controller.resetSource(QString(),QByteArray());
     const bool reimportCleared=panel.imported()->referenceRiskCountForTest()==0;
     const bool pass=marked && sourceMarker && riskDetailWasPicked &&
-        riskDetailCleared && staleCleared && sourceMutationBlocked && reimportCleared;
+        riskDetailCleared && staleCleared && rebuilt && sourceWatchClearsMarker &&
+        sourceMutationBlocked && reimportCleared;
     qInfo() << "C005_NATIVE_QT_RISK" << pass << marked << sourceMarker
             << riskDetailWasPicked << riskDetailCleared << staleCleared
-            << sourceMutationBlocked << reimportCleared << "SI_NOT_RUN";
+            << rebuilt << sourceWatchClearsMarker << sourceMutationBlocked
+            << reimportCleared << "SI_NOT_RUN";
     return pass?0:1;
 }
 
