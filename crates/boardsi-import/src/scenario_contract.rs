@@ -56,7 +56,13 @@ fn digest(domain: &[u8], bytes: &[u8]) -> String {
     let mut data = Vec::with_capacity(domain.len() + bytes.len());
     data.extend_from_slice(domain);
     data.extend_from_slice(bytes);
-    sha256(&data).iter().map(|b| format!("{b:02x}")).collect()
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(64);
+    for byte in sha256(&data) {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 15) as usize] as char);
+    }
+    out
 }
 
 /// Owned, immutable snapshot, NOT an authorization to invoke a physical solver.
