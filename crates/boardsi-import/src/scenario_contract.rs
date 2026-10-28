@@ -62,6 +62,7 @@ fn digest(domain: &[u8], bytes: &[u8]) -> String {
 /// Owned, immutable snapshot, NOT an authorization to invoke a physical solver.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FrozenScenario {
+    validated_inputs: ScenarioDraft,
     conditions_sha256: String,
     compatibility_sha256: String,
     snapshot_sha256: String,
@@ -69,6 +70,11 @@ pub struct FrozenScenario {
 }
 
 impl FrozenScenario {
+    /// Immutable view of the exact accepted draft fields; caller can only clone and edit a copy.
+    pub fn input(&self) -> &ScenarioDraft {
+        &self.validated_inputs
+    }
+
     pub fn conditions_sha256(&self) -> &str {
         &self.conditions_sha256
     }
@@ -171,6 +177,7 @@ impl ScenarioDraft {
         }
         let snapshot_sha256 = digest(SNAPSHOT_DOMAIN, &run);
         Ok(FrozenScenario {
+            validated_inputs: self.clone(),
             conditions_sha256,
             compatibility_sha256,
             snapshot_sha256,
@@ -187,6 +194,17 @@ pub enum ResultFreshness {
     OutOfDate,
     Incompatible,
     Rejected,
+}
+
+/// Receipt absence is not a successful or failed physics result.
+pub fn classify_result(
+    receipt: Option<&ResultReceipt>,
+    current: &FrozenScenario,
+) -> ResultFreshness {
+    match receipt {
+        Some(receipt) => receipt.freshness(current),
+        None => ResultFreshness::NotRun,
+    }
 }
 
 /// A provisional synthetic result envelope; public fields model untrusted transport.
