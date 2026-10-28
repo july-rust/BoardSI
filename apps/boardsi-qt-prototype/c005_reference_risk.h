@@ -194,7 +194,9 @@ public:
         refB_=new QSpinBox(this);refB_->setRange(1,64);refB_->setValue(2);
         net_=new QLineEdit(this);net_->setPlaceholderText("Exact Reference Net");
         net_->setObjectName("c005ReferenceNet");
-        for(auto *w:{static_cast<QWidget*>(first_),second_,refA_,refB_,net_})
+        for(QWidget *w:{static_cast<QWidget*>(first_),static_cast<QWidget*>(second_),
+                       static_cast<QWidget*>(refA_),static_cast<QWidget*>(refB_),
+                       static_cast<QWidget*>(net_)})
             controls->addWidget(w);
         layout->addLayout(controls);
         layout->addWidget(new QLabel("Trace # (0-based), optional 2nd Trace, Ref Layer 1/2, Reference Net",this));
