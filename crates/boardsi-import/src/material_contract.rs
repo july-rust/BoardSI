@@ -310,9 +310,10 @@ pub fn audit_material(
                 };
                 // Comparison is only valid when the supplied values represent the SAME frequency.
                 // Exact bit matching is not appropriate for measured decimal datasets.
-                let tolerance = 1e-10_f64.max(1e-8 * dk.abs().max(expected_imag.abs()));
-                if (value.real - dk).abs() > tolerance
-                    || (normalized - expected_imag).abs() > tolerance
+                let real_tolerance = 1e-10_f64.max(1e-8 * dk.abs());
+                let imag_tolerance = 1e-10_f64.max(1e-8 * expected_imag.abs());
+                if (value.real - dk).abs() > real_tolerance
+                    || (normalized - expected_imag).abs() > imag_tolerance
                 {
                     return Err(MaterialAuditError::InvalidMaterial);
                 }
@@ -566,6 +567,38 @@ mod tests {
                 Err(MaterialAuditError::InvalidMaterial)
             );
         }
+    }
+
+    #[test]
+    fn c004_compare_complex_real_and_imag_independently() {
+        let (layer, mut material) = fixture(false);
+        material.df = property(1e10);
+        let wrong_real = RelativePermittivity {
+            real: 1.0,
+            signed_imag: -4e10,
+            source_convention: TimeConvention::ExpPlusJ,
+            includes_bulk_conduction: false,
+        };
+        assert_eq!(
+            audit_material(
+                &layer,
+                &material,
+                1e9,
+                &CopperSurface::Unknown,
+                Some(wrong_real),
+                false
+            ),
+            Err(MaterialAuditError::InvalidMaterial)
+        );
+        let correct = RelativePermittivity { real: 4.0, ..wrong_real };
+        assert!(audit_material(
+            &layer,
+            &material,
+            1e9,
+            &CopperSurface::Unknown,
+            Some(correct),
+            false
+        ).is_ok());
     }
 
     #[test]
