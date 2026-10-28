@@ -590,7 +590,10 @@ mod tests {
             ),
             Err(MaterialAuditError::InvalidMaterial)
         );
-        let correct = RelativePermittivity { real: 4.0, ..wrong_real };
+        let correct = RelativePermittivity {
+            real: 4.0,
+            ..wrong_real
+        };
         let accepted = audit_material(
             &layer,
             &material,
