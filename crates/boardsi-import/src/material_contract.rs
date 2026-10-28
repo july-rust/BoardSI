@@ -212,7 +212,7 @@ pub fn audit_material(
             bytes.push(1);
             add_number(&mut bytes, *sigma);
             add_source(&mut bytes, evidence);
-            resistivity = Some(1.0 / sigma);
+            resistivity = Some(1.0 / *sigma);
             if !resistivity.is_some_and(valid_positive) {
                 return Err(MaterialAuditError::InvalidMaterial);
             }
@@ -476,11 +476,17 @@ mod tests {
         };
         let audit = audit_material(&layer, &material, 1e9, &surf, None, false).unwrap();
         assert!(!audit.roughness_qualified_for_loss && !audit.solver_ready);
-        let alt = CopperSurface::Measured { metric: RoughnessMetric::Ra, ..surf.clone_measured_for_test() };
+        let mut alt = surf.clone();
+        if let CopperSurface::Measured { metric, .. } = &mut alt {
+            *metric = RoughnessMetric::Ra;
+        }
         let alt_audit = audit_material(&layer, &material, 1e9, &alt, None, false).unwrap();
         assert_ne!(audit.material_revision_sha256, alt_audit.material_revision_sha256);
         assert_eq!(audit_material(&layer, &material, 1e6, &surf, None, false), Err(MaterialAuditError::OutsideValidBand));
-        let bad = CopperSurface::Measured { height_m: f64::NAN, ..surf.clone_measured_for_test() };
+        let mut bad = surf.clone();
+        if let CopperSurface::Measured { height_m, .. } = &mut bad {
+            *height_m = f64::NAN;
+        }
         assert_eq!(audit_material(&layer, &material, 1e9, &bad, None, false), Err(MaterialAuditError::InvalidMaterial));
     }
 
@@ -513,12 +519,4 @@ mod tests {
         assert_eq!(run(&layer, &material, 1e9), Err(MaterialAuditError::InvalidMaterial));
     }
 
-    trait CloneMeasured {
-        fn clone_measured_for_test(&self) -> CopperSurface;
-    }
-    impl CloneMeasured for CopperSurface {
-        fn clone_measured_for_test(&self) -> CopperSurface {
-            self.clone()
-        }
-    }
 }
