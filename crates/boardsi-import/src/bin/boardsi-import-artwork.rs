@@ -667,6 +667,56 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // C_008: explicit two-layer split plus one plated-through source via; geometry only.
+    if args.len() == 9 && args[2] == std::ffi::OsStr::new("--reference-route-v4") {
+        let result = (|| -> Result<String, &'static str> {
+            let raw = args[3].to_str().ok_or("INVALID_ROUTE_INDICES")?;
+            if raw.len() > 95 || raw.is_empty() {
+                return Err("INVALID_ROUTE_INDICES");
+            }
+            let indices: Vec<usize> = raw
+                .split(',')
+                .map(|part| part.parse::<usize>().map_err(|_| "INVALID_ROUTE_INDEX"))
+                .collect::<Result<_, _>>()?;
+            let split = args[4]
+                .to_str()
+                .and_then(|s| s.parse::<usize>().ok())
+                .ok_or("INVALID_ROUTE_SPLIT")?;
+            let ref_a = args[5].to_str().ok_or("INVALID_REFERENCE_A")?;
+            let layer_a = args[6]
+                .to_str()
+                .and_then(|s| s.parse::<usize>().ok())
+                .ok_or("INVALID_REFERENCE_LAYER_A")?;
+            let ref_b = args[7].to_str().ok_or("INVALID_REFERENCE_B")?;
+            let layer_b = args[8]
+                .to_str()
+                .and_then(|s| s.parse::<usize>().ok())
+                .ok_or("INVALID_REFERENCE_LAYER_B")?;
+            let path = std::path::Path::new(&args[1]);
+            let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
+            if !metadata.is_file()
+                || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
+            {
+                return Err("FILE_LIMIT");
+            }
+            let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
+            boardsi_import::reference_route_v4::encode(
+                &bytes,
+                &indices,
+                split,
+                [ref_a, ref_b],
+                [layer_a, layer_b],
+            )
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("C008_REFERENCE_ROUTE_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // C_007: opt-in bounded multi-straight-route geometry-only V3.
     if args.len() == 6 && args[2] == std::ffi::OsStr::new("--reference-route-v3") {
         let result = (|| -> Result<String, &'static str> {
