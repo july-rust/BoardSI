@@ -211,7 +211,12 @@ fn augment_impl(
         let copper_source = &original.areas[area_index];
         // Exactly one source Area on the current Layer: no ambiguous overlapping,
         // split or separate island selection can be promoted into a contact.
-        if (!multi && source_areas.iter().filter(|a| a.layer == area.layer).count() != 1)
+        if (!multi
+            && source_areas
+                .iter()
+                .filter(|a| a.layer == area.layer)
+                .count()
+                != 1)
             || area.cutouts.len() > (if multi { 8 } else { 1 })
             || copper.cutouts.len() != area.cutouts.len()
             || area
@@ -234,25 +239,27 @@ fn augment_impl(
         }
         // Same-layer source island ambiguity: reject touching or overlapping
         // outer bounding boxes, including coincident source labels.
-        if multi && source_areas.iter().enumerate().any(|(other_index, other)| {
-            if area_index == other_index || other.layer != area.layer {
-                return false;
-            }
-            let copper_preview::CopperGeometry::Polygon(other_ring) = &other.geometry else {
-                return true;
-            };
-            let bounds = |points: &[[i64; 2]]| {
-                (
-                    points.iter().map(|p| p[0]).min().unwrap_or(0),
-                    points.iter().map(|p| p[0]).max().unwrap_or(0),
-                    points.iter().map(|p| p[1]).min().unwrap_or(0),
-                    points.iter().map(|p| p[1]).max().unwrap_or(0),
-                )
-            };
-            let (ax0, ax1, ay0, ay1) = bounds(ring);
-            let (bx0, bx1, by0, by1) = bounds(other_ring);
-            ax0 <= bx1 && bx0 <= ax1 && ay0 <= by1 && by0 <= ay1
-        }) {
+        if multi
+            && source_areas.iter().enumerate().any(|(other_index, other)| {
+                if area_index == other_index || other.layer != area.layer {
+                    return false;
+                }
+                let copper_preview::CopperGeometry::Polygon(other_ring) = &other.geometry else {
+                    return true;
+                };
+                let bounds = |points: &[[i64; 2]]| {
+                    (
+                        points.iter().map(|p| p[0]).min().unwrap_or(0),
+                        points.iter().map(|p| p[0]).max().unwrap_or(0),
+                        points.iter().map(|p| p[1]).min().unwrap_or(0),
+                        points.iter().map(|p| p[1]).max().unwrap_or(0),
+                    )
+                };
+                let (ax0, ax1, ay0, ay1) = bounds(ring);
+                let (bx0, bx1, by0, by1) = bounds(other_ring);
+                ax0 <= bx1 && bx0 <= ax1 && ay0 <= by1 && by0 <= ay1
+            })
+        {
             audit.unsupported_candidates += 1;
             continue;
         }
