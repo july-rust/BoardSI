@@ -66,16 +66,25 @@ fn boundary_clear(segs: &[BoundarySegment], a: [i64; 2], b: [i64; 2]) -> bool {
         _ => false,
     })
 }
-fn covered(area: &boardsi_model::CopperArea, a: &Point, b: &Point) -> bool {
-    a.frame == b.frame
-        && a.ticks != b.ticks
-        && strict_simple_area_contains(area, a).ok() == Some(true)
-        && strict_simple_area_contains(area, b).ok() == Some(true)
+fn covered(
+    area: &boardsi_model::CopperArea,
+    a: &Point,
+    b: &Point,
+) -> Result<bool, &'static str> {
+    if a.frame != b.frame || a.ticks == b.ticks {
+        return Err("INVALID_REFERENCE_TRACE_FRAME");
+    }
+    let is_inside_a = strict_simple_area_contains(area, a)
+        .map_err(|_| "REFERENCE_GEOMETRY_PREDICATE_UNSUPPORTED")?;
+    let is_inside_b = strict_simple_area_contains(area, b)
+        .map_err(|_| "REFERENCE_GEOMETRY_PREDICATE_UNSUPPORTED")?;
+    Ok(is_inside_a
+        && is_inside_b
         && boundary_clear(&area.outer.segments, a.ticks, b.ticks)
         && area
             .cutouts
             .iter()
-            .all(|hole| boundary_clear(&hole.boundary.segments, a.ticks, b.ticks))
+            .all(|hole| boundary_clear(&hole.boundary.segments, a.ticks, b.ticks)))
 }
 fn bounds(area: &boardsi_model::CopperArea) -> Option<[i64; 4]> {
     let mut pts = area.outer.segments.iter().map(|s| match s {
@@ -258,10 +267,15 @@ pub fn audit(
             .iter()
             .filter(|a| a.layer == reference_layers[0])
             .collect();
-        let mut result = if candidates
-            .iter()
-            .any(|area| covered(area, &t.centreline[0], &t.centreline[1]))
-        {
+        let mut fully_covered = false;
+        for area in &candidates {
+            match covered(area, &t.centreline[0], &t.centreline[1]) {
+                Ok(true) => fully_covered = true,
+                Ok(false) => {}
+                Err(reason) => return reject(reason),
+            }
+        }
+        let mut result = if fully_covered {
             TopologyRiskAudit::new(
                 "SOURCE_GEOMETRY_ONLY",
                 "SOURCE_CENTRELINE_COVERED_NOT_PHYSICAL",
