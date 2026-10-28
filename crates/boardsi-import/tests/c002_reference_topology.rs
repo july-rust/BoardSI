@@ -147,3 +147,45 @@ fn overlapping_reference_bounds_are_unsupported_not_false_split() {
         "AMBIGUOUS_REFERENCE_AREA_BOUNDS"
     );
 }
+
+#[test]
+fn over_64_edge_source_reference_is_unsupported_not_split_risk() {
+    let mut points = Vec::new();
+    for x in 0..=20 {
+        points.push(format!("{} 0", x * 5));
+    }
+    for y in 1..=20 {
+        points.push(format!("100 {}", y * 5));
+    }
+    for x in (0..20).rev() {
+        points.push(format!("{} 100", x * 5));
+    }
+    for y in (1..20).rev() {
+        points.push(format!("0 {}", y * 5));
+    }
+    points.push("0 0".to_string());
+    assert_eq!(points.len(), 81);
+    let area = format!(
+        "*LINES*\nREF COPPER 100 200 1 1 0 NET_REF\nCOPCLS 81 0.01 0 2\n{}\n",
+        points.join("\n")
+    );
+    let raw = input(&area, "130 250 1 10 0\n170 250 1 10 0", "");
+    let b = board(&raw);
+    let result = check(&b, &raw, &selected(&b), &[1]);
+    assert_eq!(result.state, "UNSUPPORTED", "{result:#?}");
+    assert_eq!(result.reason, "REFERENCE_GEOMETRY_PREDICATE_UNSUPPORTED");
+}
+
+#[test]
+fn multiple_valid_source_cutouts_keep_source_only_coverage() {
+    let cut = AREA.replace("100 200 1 1 0", "100 200 3 1 0");
+    let second = "COPCUT 5 0.01 0 2\n60 60\n80 60\n80 80\n60 80\n60 60\n";
+    let raw = input(
+        &format!("{cut}{HOLE}{second}"),
+        "110 250 1 10 0\n170 250 1 10 0",
+        "",
+    );
+    let b = board(&raw);
+    let result = check(&b, &raw, &selected(&b), &[1]);
+    assert_eq!(result.state, "SOURCE_GEOMETRY_ONLY", "{result:#?}");
+}
