@@ -56,7 +56,10 @@ fn invalid_split_duplicate_reversed_and_wrong_layers_rejected() {
         (vec![1, 0], 1),
         (vec![0, 999], 1),
     ] {
-        assert!(audit(&data, &indices, split).is_err(), "{indices:?}/{split}");
+        assert!(
+            audit(&data, &indices, split).is_err(),
+            "{indices:?}/{split}"
+        );
     }
 }
 #[test]
@@ -75,7 +78,10 @@ fn cross_net_reference_or_source_change_never_promotes_physical_status() {
         AREAS,
     );
     let other = audit(&changed, &[0, 1], 1).unwrap();
-    assert_ne!(audit(&data, &[0, 1], 1).unwrap().lines().next(), other.lines().next());
+    assert_ne!(
+        audit(&data, &[0, 1], 1).unwrap().lines().next(),
+        other.lines().next()
+    );
 }
 #[test]
 fn v2_and_v3_legacy_audits_remain_unchanged() {
