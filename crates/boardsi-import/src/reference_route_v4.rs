@@ -120,7 +120,10 @@ pub fn encode(
     if first_layer == second_layer {
         return Err("TWO_DISTINCT_LAYERS_REQUIRED");
     }
-    if reference_layers.iter().any(|&layer| layer == 0 || layer > parsed.max_layer as usize) {
+    if reference_layers
+        .iter()
+        .any(|&layer| layer == 0 || layer > parsed.max_layer as usize)
+    {
         return Err("INVALID_REFERENCE_LAYER");
     }
     // A geometric crossing or an unselected contact on either route layer can
@@ -136,9 +139,11 @@ pub fn encode(
             return Err("UNSELECTED_BRANCH_OR_CROSSING");
         }
     }
-    if parsed.arcs.iter().any(|a| {
-        a.net == route[0].net && (a.layer == first_layer || a.layer == second_layer)
-    }) {
+    if parsed
+        .arcs
+        .iter()
+        .any(|a| a.net == route[0].net && (a.layer == first_layer || a.layer == second_layer))
+    {
         return Err("SAME_NET_ARC_UNSUPPORTED");
     }
     let joint = route[split - 1].b;
@@ -198,12 +203,8 @@ pub fn encode(
     let mut unsupported = false;
     for (order, &index) in indices.iter().enumerate() {
         let leg = usize::from(order >= split);
-        let wire = reference_gap_intervals::encode(
-            bytes,
-            index,
-            references[leg],
-            reference_layers[leg],
-        )?;
+        let wire =
+            reference_gap_intervals::encode(bytes, index, references[leg], reference_layers[leg])?;
         let header: Vec<_> = wire
             .lines()
             .next()
@@ -255,8 +256,7 @@ pub fn encode(
     )
     .map_err(|_| "FORMAT")?;
     for (&index, wire) in indices.iter().zip(&receipts) {
-        writeln!(&mut out, "SEG|{index}|{}", wire.lines().count())
-            .map_err(|_| "FORMAT")?;
+        writeln!(&mut out, "SEG|{index}|{}", wire.lines().count()).map_err(|_| "FORMAT")?;
         out.push_str(wire);
     }
     writeln!(
