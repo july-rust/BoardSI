@@ -3070,9 +3070,87 @@ static int runC005RiskSelftest(const QString &importer) {
     return pass?0:1;
 }
 
+// C_007 actual Rust importer -> Qt multi-route risk, picking and stale invalidation.
+static int runC007RouteSelftest(const QString &importer) {
+    QTemporaryFile source;
+    if(!source.open())return 2;
+    const QByteArray bytes(
+        "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n"
+        "*PCB*\nMAXLAYER 4\n"
+        "*LINES*\nREF COPPER 100 200 2 1 0 NET_REF\n"
+        "COPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\n"
+        "COPCUT 5 0.01 0 2\n20 20\n40 20\n40 40\n20 40\n20 20\n"
+        "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n"
+        "110 230 1 10 0\n170 230 1 10 0\n190 230 1 10 0\n"
+        "*SIGNAL* NET_REF\nR1.1 R2.2\n"
+        "300 400 2 10 0\n350 400 2 10 0\n*END*\n");
+    if(source.write(bytes)!=bytes.size() || !source.flush())return 2;
+    PreviewImportPanel panel(importer);
+    QEventLoop load;
+    panel.setStatusCallback([&load](const QString &s) {
+        if(s.startsWith("PARTIAL") || s.startsWith("FAILED"))load.quit();
+    });
+    if(!panel.openPath(source.fileName()))return 2;
+    QTimer::singleShot(8000,&load,&QEventLoop::quit);
+    load.exec();
+    if(!panel.importStatus().startsWith("PARTIAL"))return 1;
+    C005ReferenceRiskController controller(panel.imported(),importer);
+    controller.resetSource(source.fileName(),panel.acceptedSourceSha256());
+    auto *net=controller.findChild<QLineEdit *>("c005ReferenceNet");
+    auto *route=controller.findChild<QLineEdit *>("c007RouteIndices");
+    auto *run=controller.findChild<QPushButton *>("c005RunAudit");
+    if(!net || !route || !run)return 2;
+    QString detail;
+    panel.imported()->setDetailsCallback([&detail](const QString &d){detail=d;});
+    net->setText("NET_REF");
+    route->setText("0,1");
+    run->click();
+    QEventLoop audit;
+    QTimer poll;
+    QObject::connect(&poll,&QTimer::timeout,&audit,[&] {
+        if(!controller.auditRunningForTest())audit.quit();
+    });
+    QTimer::singleShot(8000,&audit,&QEventLoop::quit);
+    poll.start(20);audit.exec();poll.stop();
+    const bool marked=controller.currentStatusForTest().contains("REFERENCE_SPLIT_RISK") &&
+        panel.imported()->referenceRiskCountForTest()==1;
+    auto *scene=panel.imported()->findChild<QGraphicsScene *>();
+    bool picked=false;
+    if(scene)for(auto *item:scene->items()) {
+        if(item->data(3).toString()=="C005ReferenceRisk" &&
+           item->data(2).toString().contains("1/6..1/2")) {
+            item->setSelected(true);
+            picked=true;
+        }
+    }
+    const bool detailValid=picked && detail.contains("P009 UNSUPPORTED") &&
+        detail.contains("display only");
+    route->setText("1,0");
+    const bool invalidated=panel.imported()->referenceRiskCountForTest()==0 &&
+        controller.currentStatusForTest().contains("NOT_AUDITED");
+    run->click();
+    QEventLoop bad;
+    QTimer badPoll;
+    QObject::connect(&badPoll,&QTimer::timeout,&bad,[&] {
+        if(!controller.auditRunningForTest())bad.quit();
+    });
+    QTimer::singleShot(8000,&bad,&QEventLoop::quit);
+    badPoll.start(20);bad.exec();badPoll.stop();
+    const bool refused=panel.imported()->referenceRiskCountForTest()==0 &&
+        controller.currentStatusForTest().contains("UNSUPPORTED");
+    controller.resetSource(QString(),QByteArray());
+    const bool cleaned=panel.imported()->referenceRiskCountForTest()==0;
+    const bool pass=marked && detailValid && invalidated && refused && cleaned;
+    qInfo() << "C007_NATIVE_QT_ROUTE" << pass << marked << detailValid
+            << invalidated << refused << cleaned << "SI_NOT_RUN";
+    return pass?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--c007-route-selftest")
+        return runC007RouteSelftest(args.at(2));
     if(args.size()==3 && (args.at(1)=="--c005-risk-selftest" ||
                          args.at(1)=="--c006-gap-selftest"))
         return runC005RiskSelftest(args.at(2));
