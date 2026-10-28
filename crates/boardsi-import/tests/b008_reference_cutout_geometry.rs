@@ -103,7 +103,8 @@ fn rejects_outer_boundary_and_concave_polygon_excursion() {
                "UNSUPPORTED");
 
     let concave = "*LINES*\nREF COPPER 100 200 2 1 0 NET_REF\nCOPCLS 7 0.01 0 2\n0 0\n100 0\n100 40\n40 40\n40 100\n0 100\n0 0\n";
-    let raw = source(&format!("{concave}{HOLE}"), &single("130 270", "170 230"));
+    let inner = HOLE.replace("20 20", "10 10").replace("40 20", "20 10").replace("40 40", "20 20").replace("20 40", "10 20");
+    let raw = source(&format!("{concave}{inner}"), &single("130 270", "170 230"));
     let (board, areas) = prepare(&raw);
     assert_eq!(audit(&board, &areas, &raw, &first_id(&board), "NET_REF", 1).state,
                "UNSUPPORTED");
