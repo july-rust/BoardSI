@@ -124,12 +124,13 @@ fn source_exact(board: &BoardModel, bytes: &[u8]) -> Result<Vec<copper_preview::
         if actual.meta.id != original.meta.id || actual.layer != original.layer
             || actual.outer != original.outer || actual.cutouts != original.cutouts
             || actual.net.as_ref().is_some_and(|n| {
-                areas.iter().find(|src| src.name == original.meta.id.source_object)
-                    .is_none() && !board.nets.iter().any(|net|
-                        net.meta.id == *n && areas.iter().any(|s|
-                            s.net_label.as_deref() == Some(net.name.as_str())
-                            && s.layer as usize == board.stackup.layers.iter()
-                                .position(|l| l.meta.id == actual.layer).unwrap_or(usize::MAX) + 1))
+                !board.nets.iter().any(|net| {
+                    net.meta.id == *n
+                        && areas.iter().zip(&expected.areas).any(|(src, imported)| {
+                            imported.meta.id == actual.meta.id
+                                && src.net_label.as_deref() == Some(net.name.as_str())
+                        })
+                })
             })
         {
             return Err("SOURCE_AREA_MISMATCH");
@@ -152,8 +153,9 @@ pub fn audit(
     if !(1..=2).contains(&trace_ids.len()) || reference_layers.len() != trace_ids.len() {
         return reject("BOUNDED_PATH_OR_REFERENCE_COUNT");
     }
-    let Ok(source_areas) = source_exact(board, original_bytes) else {
-        return reject("SOURCE_VALIDATION_FAILED");
+    let source_areas = match source_exact(board, original_bytes) {
+        Ok(areas) => areas,
+        Err(reason) => return reject(reason),
     };
     let mut unique = BTreeSet::new();
     let mut traces = Vec::new();
