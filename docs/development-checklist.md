@@ -153,9 +153,9 @@
 
 **주의:** M0/M1/M2는 사양서의 제품 개발 단계이며 A_001…A_036, B_001… 명령 번호와 다릅니다. 제한 P2 Preview를 마쳤다고 M0/M1/M2 전체의 정식 인수를 완료 처리하면 안 됩니다.
 
-### C_007 — Multi-Segment Source Reference Route / Qt Risk (검증 대기)
+### C_007 — Multi-Segment Source Reference Route / Qt Risk (제한 코드 인수 완료 · 2026-10-29 KST)
 
-- [ ] **C_007 2–16개 Straight Trace 경로의 Source Reference 구간 검사와 Qt CPU/RHI 표시의 제한 기능 최종 인수** — [Issue #255](https://github.com/july-rust/BoardSI/issues/255), [C_007 검증 원장](validation/c007-multi-segment-reference-coverage.md). Explicit Source-order, 동일 Net/Layer, Endpoint 연결 검증, 기존 C_006 Rational V2를 V3로 다중 전달. **실제 최종 HEAD CI, Native Qt, 독립 Codex, 서명된 보호 병합 및 병합 후 CI 증빙 전에는 [x] 금지.** 원본 B/C 제한 이력은 보존, 상위 Issue #12 OPEN, P009/Return Current/물리 RLGC/S/Cache/정식 U/T 미인수.
+- [x] **C_007 2–16개 Source-order Straight Trace 경로의 Reference Gap Source Geometry 검사 및 Qt CPU/RHI 표시 — 한정 코드·Native 및 병합 후 인수** — [Issue #255](https://github.com/july-rust/BoardSI/issues/255), [C_007 검증 원장](validation/c007-multi-segment-reference-coverage.md), [코드 PR #256](https://github.com/july-rust/BoardSI/pull/256). 동일 Signal Net/Layer, 정확한 Source Endpoint 연결·Source SHA와 C_006 V2 Rational 각 Segment 증명, 미접촉/분기/역행 겹침·Arc/Via 미지원 차단 및 Qt stale-result 제거. **최종 코드 HEAD** [`fdfad35931805e47d6658aeed7966ed3d778b741` 27/27 CI SUCCESS](https://github.com/july-rust/BoardSI/commit/fdfad35931805e47d6658aeed7966ed3d778b741/checks) (Rustfmt/Clippy, Debug/Release Rust 및 기존 B/C, Qt Windows x64/ARM64·macOS ARM64 Native 실프로세스 C_007 테스트, Linux Qt). **독립 Codex 동일 HEAD completed / findings 0 / unresolved 0**, 기존 역방향 중첩 리뷰 수정·스레드 해결. **보호된 Signed Verified Squash** [`main@08849e3fdf048f60a8a06265792acd4f51316b2f`](https://github.com/july-rust/BoardSI/commit/08849e3fdf048f60a8a06265792acd4f51316b2f) (`verified=true, reason=valid`), **독립 post-main [21/21 Checks SUCCESS](https://github.com/july-rust/BoardSI/commit/08849e3fdf048f60a8a06265792acd4f51316b2f/checks) 및 9/9 Workflow SUCCESS** ([Push main #40781834140](https://github.com/july-rust/BoardSI/actions/runs/40781834140), [Qt Native #40781834617](https://github.com/july-rust/BoardSI/actions/runs/40781834617)). **체크일: 2026-10-29 KST** (최초) · **근거일: 2026-10-29 KST**. **제한 Source Geometry와 Qt 위험 표시만 [x]**, 물리 Reference 전류·P009·RLGC/S·Solver/Cache·정식 U09/U10/U39·T02/T04/T24/T52는 [ ] 유지, 상위 [M1 Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN.
 
 ## 4. 요구사항 U01–U48 체크리스트
 
@@ -299,6 +299,9 @@
 7. 각 단계 종료 후 아래 이력에 작업 번호, 변경된 U/T, 최종 `main` SHA, Native 테스트·Codex 리뷰 증빙 및 아직 미검증인 항목을 기록합니다.
 
 ### 변경 이력
+
+
+| 2026-10-29 | C_007 다중 Straight Route Source Reference Gap / Qt Native 제한 인수 | [Issue #255](https://github.com/july-rust/BoardSI/issues/255), [PR #256](https://github.com/july-rust/BoardSI/pull/256), [정확한 코드 HEAD 27/27](https://github.com/july-rust/BoardSI/commit/fdfad35931805e47d6658aeed7966ed3d778b741/checks), [Signed Verified main@08849e3f, post-main 21/21 Checks](https://github.com/july-rust/BoardSI/commit/08849e3fdf048f60a8a06265792acd4f51316b2f/checks), [Push on main #40781834140](https://github.com/july-rust/BoardSI/actions/runs/40781834140), [Qt runtime #40781834617](https://github.com/july-rust/BoardSI/actions/runs/40781834617) | **체크일: 2026-10-29 KST** · **근거일: 2026-10-29 KST**. 독립 Codex 최신 HEAD 지적 0·미해결 0, Windows x64/ARM64·macOS ARM64 실프로세스와 Linux Qt PASS, post-code-main 9/9 Workflow SUCCESS. **Source Geometry/Qt 한정**, P009/Return Current/물리 Solver 및 정식 U/T 불승인, M1 #12 OPEN. |
 
 | 2026-10-28 | C_006 Source Reference gap intervals / Qt Native 제한 인수 | [Issue #252](https://github.com/july-rust/BoardSI/issues/252), [코드 PR #253](https://github.com/july-rust/BoardSI/pull/253), [exact HEAD 27/27 checks](https://github.com/july-rust/BoardSI/commit/ed5e137bbb8b1bebcfde832961038d43286a7753/checks), [Signed Verified main 5e4de47 + 21/21 post-main checks](https://github.com/july-rust/BoardSI/commit/5e4de472a90539221f69e5cf11b88e20d9fd7361/checks), [main Push](https://github.com/july-rust/BoardSI/actions/runs/40697041065) | **체크일: 2026-10-28 KST** · **근거일: 2026-10-28 KST**. C_006 한정 Source-geometry interval 및 CPU/RHI·Native 3 OS + Linux Qt PASS. 동일 HEAD Codex 0 findings/0 unresolved; post-main 9/9 Workflow SUCCESS. M1 #12와 정식 U/T 및 P009·물리 Solver 미완. |
 
