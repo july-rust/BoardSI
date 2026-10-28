@@ -80,7 +80,7 @@ inline bool decode(const QByteArray &wire,const QByteArray &sourceSha,
         if(!ok || !panel->importedTrack(idx,track) || layer!=track.layer)return false;
         QByteArray netBytes,objBytes,partBytes;
         if(!boundedHex(row[3],netBytes) || !boundedHex(row[4],objBytes) ||
-           !boundedHex(row[5],partBytes) || QString::fromUtf8(netBytes)!=track.net)
+           (row[5]!="-" && !boundedHex(row[5],partBytes)) || QString::fromUtf8(netBytes)!=track.net)
             return false;
         qint64 coords[4]={};
         for(int k=0;k<4;++k)if(!readCoordinate(row[6+k],coords[k]))return false;
