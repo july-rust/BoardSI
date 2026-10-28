@@ -3001,14 +3001,26 @@ static int runC005RiskSelftest(const QString &importer) {
     });
     QTimer::singleShot(8000,&riskLoop,&QEventLoop::quit);
     poll.start(20);riskLoop.exec();poll.stop();
+    QString pickedDetails;
+    panel.imported()->setDetailsCallback([&pickedDetails](const QString &text) {
+        pickedDetails=text;
+    });
     const bool marked=controller.currentStatusForTest().contains("REFERENCE_SPLIT_RISK") &&
         panel.imported()->referenceRiskCountForTest()==1;
     auto *scene=panel.imported()->findChild<QGraphicsScene *>();
     bool sourceMarker=false;
     if(scene)for(auto *item:scene->items())
         if(item->data(3).toString()=="C005ReferenceRisk" &&
-           item->data(2).toString().contains("P009 UNSUPPORTED"))sourceMarker=true;
+           item->data(2).toString().contains("P009 UNSUPPORTED")) {
+            sourceMarker=true;
+            item->setSelected(true);
+        }
+    const bool riskDetailWasPicked=pickedDetails.contains("C_005 REFERENCE") ||
+        pickedDetails.contains("C_005 REFERENCE_SPLIT_RISK");
     reference->setText("CHANGED_NET");
+    const bool riskDetailCleared=!pickedDetails.contains("C_005 REFERENCE_SPLIT_RISK") &&
+        !pickedDetails.contains("Witness ") &&
+        !pickedDetails.contains("SOURCE_REFERENCE_GAP_OR_CUTOUT");
     const bool staleCleared=panel.imported()->referenceRiskCountForTest()==0 &&
         controller.currentStatusForTest().contains("NOT_AUDITED");
     // Mutating only Reference Copper after accepted Artwork must never
@@ -3023,9 +3035,11 @@ static int runC005RiskSelftest(const QString &importer) {
         panel.imported()->referenceRiskCountForTest()==0;
     controller.resetSource(QString(),QByteArray());
     const bool reimportCleared=panel.imported()->referenceRiskCountForTest()==0;
-    const bool pass=marked && sourceMarker && staleCleared && sourceMutationBlocked && reimportCleared;
+    const bool pass=marked && sourceMarker && riskDetailWasPicked &&
+        riskDetailCleared && staleCleared && sourceMutationBlocked && reimportCleared;
     qInfo() << "C005_NATIVE_QT_RISK" << pass << marked << sourceMarker
-            << staleCleared << sourceMutationBlocked << reimportCleared << "SI_NOT_RUN";
+            << riskDetailWasPicked << riskDetailCleared << staleCleared
+            << sourceMutationBlocked << reimportCleared << "SI_NOT_RUN";
     return pass?0:1;
 }
 
