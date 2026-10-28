@@ -99,6 +99,13 @@
 - [x] **B_008 보호된 main 병합 후 독립 Push/Native CI 최종 확인** — 정확한 [Signed Verified Squash `main@9cba34f1eb1135da8e187c8ecb945ad90c78d073`](https://github.com/july-rust/BoardSI/commit/9cba34f1eb1135da8e187c8ecb945ad90c78d073/checks)에서 **21/21 GitHub Check Runs SUCCESS**, 9/9 Workflow Runs SUCCESS, 별도 [Push on main #40612009982](https://github.com/july-rust/BoardSI/actions/runs/40612009982) 및 [Qt Runtime #40612010054](https://github.com/july-rust/BoardSI/actions/runs/40612010054) SUCCESS를 GitHub REST로 확인. **체크일: 2026-10-28 KST** · **근거일: 2026-10-28 KST**. 제한 Source Geometry 기능만 완료. [B_008 검증 원장](validation/b008-reference-cutout-geometry.md).
 
 
+### B_009 — B-series 제한 범위 최종 감사 및 C 단계 인계 (2026-10-28 KST)
+
+- [x] **B_009 실행 전 보호 main 및 체크리스트 감사** — 보호 `main@972c6663a5d3cd0fd9d7f9cfe2d22c24dbc21ef3` GitHub 서명 `verified=true, reason=valid`, [동일 SHA 검사](https://github.com/july-rust/BoardSI/commit/972c6663a5d3cd0fd9d7f9cfe2d22c24dbc21ef3/checks) **21/21 Check Runs SUCCESS**, 9/9 Workflow Runs SUCCESS를 실제 GitHub REST에서 조회하고 이 문서 및 [B_008 원장](validation/b008-reference-cutout-geometry.md), [B_007 원장](validation/b007-copper-cutout-connectivity.md), [Issue #12](https://github.com/july-rust/BoardSI/issues/12)를 대조했다. **체크일: 2026-10-28 KST** · **근거일: 2026-10-28 KST**. 이는 기존 main 증거이며 **B_009 신규 PR 시험 결과는 아님**.
+- [ ] **B_009 제한 기능 통합·종료 문서 최종 병합** — [B_009 검증 원장](validation/b009-b-series-final-acceptance.md)에 B_001~B_008의 제한 기능, B_001 전체 잔여 Gate, C단계 인계를 정리했다. 신규 PR 최종 HEAD CI·독립 리뷰·서명 Squash Merge·병합 후 main 검증의 실제 증거가 확보되어야만 체크한다.
+- [ ] **B_007 최종 Source HEAD 독립 Codex 리뷰 종결** — 원본 PR [#231](https://github.com/july-rust/BoardSI/pull/231)의 정확한 `6a75eb5c5616d86407a04a946bc994958fb55ea6`에 대한 [Codex 최신 상태](https://github.com/july-rust/BoardSI/pull/231#issuecomment-6455692908)는 `status=running`. 3개 이전 스레드 resolved 및 28/28 Checks PASS는 확인되나 **최종 HEAD 리뷰 완료가 아님**. `completed`, 발견 사항/미해결 0을 확인하기 전 체크 금지.
+- [ ] **B_001 Issue #12 전체 정식 인수** — 제한 Source Geometry와 실제 전기적 Reference/Return Path, Material Loss, 물리 Solver Scenario/Cache, U09/U10/U39 및 T02/T04/T24/T52 전체 시험을 혼동하지 않는다. [Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN 유지. 미완 사항은 C단계 후보로 명확히 이관하지만 정식 M1 종료로 간주하지 않는다.
+
 ## 3. 후속 개발 체크리스트
 
 | 단계 | 상태 | 구체적 잔여 작업 (GitHub) |
