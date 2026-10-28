@@ -1,7 +1,7 @@
 //! C_004: source-bounded Canonical Material/Layer INPUT contract, not a loss solver.
 //! The import/source identity is a caller claim here. No physical or cache authorization.
-use boardsi_model::{FrequencyRange, Layer, LayerKind, Material, Property, PropertySource};
 use crate::digest::sha256;
+use boardsi_model::{FrequencyRange, Layer, LayerKind, Material, Property, PropertySource};
 
 const MATERIAL_DOMAIN: &[u8] = b"BoardSI C004 canonical material input v1\0";
 const AUDIT_DOMAIN: &[u8] = b"BoardSI C004 frequency audit v1\0";
@@ -42,7 +42,9 @@ pub enum RoughnessMetric {
 #[derive(Clone, Debug, PartialEq)]
 pub enum CopperSurface {
     Unknown,
-    ExplicitSmooth { evidence: PropertySource },
+    ExplicitSmooth {
+        evidence: PropertySource,
+    },
     /// Measurement is recorded but cannot enable an unqualified Huray/Hammerstad
     /// correction. RMS, Ra and Rz are not interchangeable.
     Measured {
@@ -85,14 +87,17 @@ fn valid_band(band: FrequencyRange, hz: f64) -> bool {
         && hz <= band.max_hz
 }
 
-fn validate_evidence(source: &PropertySource, band: FrequencyRange) -> Result<(), MaterialAuditError> {
-    if !valid_text(&source.document)
-        || !valid_text(&source.revision)
-        || !valid_text(&source.method)
+fn validate_evidence(
+    source: &PropertySource,
+    band: FrequencyRange,
+) -> Result<(), MaterialAuditError> {
+    if !valid_text(&source.document) || !valid_text(&source.revision) || !valid_text(&source.method)
     {
         return Err(MaterialAuditError::MissingRequiredData);
     }
-    let reference = source.reference_frequency_hz.ok_or(MaterialAuditError::MissingRequiredData)?;
+    let reference = source
+        .reference_frequency_hz
+        .ok_or(MaterialAuditError::MissingRequiredData)?;
     if !valid_positive(reference) || !valid_band(band, reference) {
         return Err(MaterialAuditError::OutsideValidBand);
     }
@@ -102,7 +107,9 @@ fn validate_evidence(source: &PropertySource, band: FrequencyRange) -> Result<()
     Ok(())
 }
 
-fn assumed<'a, T>(prop: &'a Property<T>) -> Result<(&'a T, &'a PropertySource), MaterialAuditError> {
+fn assumed<'a, T>(
+    prop: &'a Property<T>,
+) -> Result<(&'a T, &'a PropertySource), MaterialAuditError> {
     match prop {
         Property::Assumed { value, source } => Ok((value, source)),
         Property::Missing => Err(MaterialAuditError::MissingRequiredData),
@@ -129,7 +136,10 @@ fn add_source(bytes: &mut Vec<u8>, source: &PropertySource) {
     add_text(bytes, &source.document);
     add_text(bytes, &source.revision);
     add_text(bytes, &source.method);
-    add_number(bytes, source.reference_frequency_hz.expect("validated source"));
+    add_number(
+        bytes,
+        source.reference_frequency_hz.expect("validated source"),
+    );
     match source.temperature_c {
         Some(t) => {
             bytes.push(1);
@@ -201,7 +211,11 @@ pub fn audit_material(
     let mut epsilon_imag = None;
     match layer.kind {
         LayerKind::Copper => {
-            if !empty(&material.dk) || !empty(&material.df) || complex.is_some() || explicit_lossless_dielectric {
+            if !empty(&material.dk)
+                || !empty(&material.df)
+                || complex.is_some()
+                || explicit_lossless_dielectric
+            {
                 return Err(MaterialAuditError::InvalidMaterial);
             }
             let (sigma, evidence) = assumed(&material.conductivity_s_per_m)?;
@@ -223,8 +237,19 @@ pub fn audit_material(
                     bytes.push(1);
                     add_source(&mut bytes, evidence);
                 }
-                CopperSurface::Measured { metric, height_m, evidence, band_hz, model_id, model_revision } => {
-                    if !height_m.is_finite() || *height_m < 0.0 || !valid_text(model_id) || !valid_text(model_revision) {
+                CopperSurface::Measured {
+                    metric,
+                    height_m,
+                    evidence,
+                    band_hz,
+                    model_id,
+                    model_revision,
+                } => {
+                    if !height_m.is_finite()
+                        || *height_m < 0.0
+                        || !valid_text(model_id)
+                        || !valid_text(model_revision)
+                    {
                         return Err(MaterialAuditError::InvalidMaterial);
                     }
                     if !valid_band(*band_hz, frequency_hz) {
@@ -232,7 +257,11 @@ pub fn audit_material(
                     }
                     validate_evidence(evidence, *band_hz)?;
                     bytes.push(2);
-                    bytes.push(match metric { RoughnessMetric::Rq => 1, RoughnessMetric::Ra => 2, RoughnessMetric::Rz => 3 });
+                    bytes.push(match metric {
+                        RoughnessMetric::Rq => 1,
+                        RoughnessMetric::Ra => 2,
+                        RoughnessMetric::Rz => 3,
+                    });
                     add_number(&mut bytes, *height_m);
                     add_number(&mut bytes, band_hz.min_hz);
                     add_number(&mut bytes, band_hz.max_hz);
@@ -244,12 +273,17 @@ pub fn audit_material(
             }
         }
         LayerKind::Dielectric(_) | LayerKind::Mask => {
-            if !empty(&material.conductivity_s_per_m) || !matches!(surface, CopperSurface::Unknown) {
+            if !empty(&material.conductivity_s_per_m) || !matches!(surface, CopperSurface::Unknown)
+            {
                 return Err(MaterialAuditError::InvalidMaterial);
             }
             let (dk, dk_source) = assumed(&material.dk)?;
             let (df, df_source) = assumed(&material.df)?;
-            if !valid_positive(*dk) || !df.is_finite() || *df < 0.0 || (*df == 0.0 && !explicit_lossless_dielectric) {
+            if !valid_positive(*dk)
+                || !df.is_finite()
+                || *df < 0.0
+                || (*df == 0.0 && !explicit_lossless_dielectric)
+            {
                 return Err(MaterialAuditError::InvalidMaterial);
             }
             validate_evidence(dk_source, *band)?;
@@ -261,7 +295,10 @@ pub fn audit_material(
             add_source(&mut bytes, df_source);
             bytes.push(u8::from(explicit_lossless_dielectric));
             if let Some(value) = complex {
-                if !valid_positive(value.real) || !value.signed_imag.is_finite() || value.includes_bulk_conduction {
+                if !valid_positive(value.real)
+                    || !value.signed_imag.is_finite()
+                    || value.includes_bulk_conduction
+                {
                     return Err(MaterialAuditError::InvalidMaterial);
                 }
                 let normalized = match value.source_convention {
@@ -278,7 +315,11 @@ pub fn audit_material(
                 bytes.push(1);
                 add_number(&mut bytes, value.real);
                 add_number(&mut bytes, value.signed_imag);
-                bytes.push(match value.source_convention { TimeConvention::ExpPlusJ => 1, TimeConvention::ExpMinusJ => 2, TimeConvention::Unspecified => 0 });
+                bytes.push(match value.source_convention {
+                    TimeConvention::ExpPlusJ => 1,
+                    TimeConvention::ExpMinusJ => 2,
+                    TimeConvention::Unspecified => 0,
+                });
                 epsilon_imag = Some(normalized);
             } else {
                 bytes.push(0);
@@ -304,8 +345,8 @@ pub fn audit_material(
 mod tests {
     use super::*;
     use boardsi_model::{
-        ConversionQuality, ConversionStep, DielectricKind, GeometryProvenance,
-        ObjectId, ObjectKind, ObjectMeta, SourceFormat, SourceIdentity,
+        ConversionQuality, ConversionStep, DielectricKind, GeometryProvenance, ObjectId,
+        ObjectKind, ObjectMeta, SourceFormat, SourceIdentity,
     };
     use std::sync::Arc;
 
@@ -320,7 +361,10 @@ mod tests {
     }
 
     fn property(x: f64) -> Property<f64> {
-        Property::Assumed { value: x, source: source() }
+        Property::Assumed {
+            value: x,
+            source: source(),
+        }
     }
 
     fn fixture(copper: bool) -> (Layer, Material) {
@@ -345,20 +389,42 @@ mod tests {
                 }],
             },
         };
-        let band = FrequencyRange { min_hz: 1e6, max_hz: 10e9 };
+        let band = FrequencyRange {
+            min_hz: 1e6,
+            max_hz: 10e9,
+        };
         let material = Material {
             meta: meta(material_id.clone()),
             name: if copper { "Cu" } else { "dielectric" }.into(),
-            dk: if copper { Property::Missing } else { property(4.0) },
-            df: if copper { Property::Missing } else { property(0.02) },
-            conductivity_s_per_m: if copper { property(5.8e7) } else { Property::Missing },
-            valid_band: Property::Assumed { value: band, source: source() },
+            dk: if copper {
+                Property::Missing
+            } else {
+                property(4.0)
+            },
+            df: if copper {
+                Property::Missing
+            } else {
+                property(0.02)
+            },
+            conductivity_s_per_m: if copper {
+                property(5.8e7)
+            } else {
+                Property::Missing
+            },
+            valid_band: Property::Assumed {
+                value: band,
+                source: source(),
+            },
         };
         let layer = Layer {
             meta: meta(layer_id),
             name: "L1".into(),
             order: 0,
-            kind: if copper { LayerKind::Copper } else { LayerKind::Dielectric(DielectricKind::Core) },
+            kind: if copper {
+                LayerKind::Copper
+            } else {
+                LayerKind::Dielectric(DielectricKind::Core)
+            },
             z_m: Property::Missing,
             thickness_m: Property::Missing,
             material: Some(material_id),
@@ -366,7 +432,11 @@ mod tests {
         (layer, material)
     }
 
-    fn run(layer: &Layer, material: &Material, freq: f64) -> Result<MaterialAudit, MaterialAuditError> {
+    fn run(
+        layer: &Layer,
+        material: &Material,
+        freq: f64,
+    ) -> Result<MaterialAudit, MaterialAuditError> {
         audit_material(layer, material, freq, &CopperSurface::Unknown, None, false)
     }
 
@@ -375,11 +445,19 @@ mod tests {
         let (layer, material) = fixture(false);
         let good = run(&layer, &material, 1e9).unwrap();
         assert_eq!(good.resistivity_ohm_m, None);
-        assert!(!good.solver_ready && !good.cache_reuse_eligible && !good.roughness_qualified_for_loss);
+        assert!(
+            !good.solver_ready && !good.cache_reuse_eligible && !good.roughness_qualified_for_loss
+        );
         assert!(run(&layer, &material, 1e6).is_ok());
         assert!(run(&layer, &material, 10e9).is_ok());
-        assert_eq!(run(&layer, &material, 1e3), Err(MaterialAuditError::OutsideValidBand));
-        assert_eq!(run(&layer, &material, 11e9), Err(MaterialAuditError::OutsideValidBand));
+        assert_eq!(
+            run(&layer, &material, 1e3),
+            Err(MaterialAuditError::OutsideValidBand)
+        );
+        assert_eq!(
+            run(&layer, &material, 11e9),
+            Err(MaterialAuditError::OutsideValidBand)
+        );
     }
 
     #[test]
@@ -388,33 +466,101 @@ mod tests {
         let audit = run(&layer, &material, 1e9).unwrap();
         let rho = audit.resistivity_ohm_m.unwrap();
         assert!((rho * 5.8e7 - 1.0).abs() < 1e-12);
-        let smooth = audit_material(&layer, &material, 1e9, &CopperSurface::ExplicitSmooth { evidence: source() }, None, false).unwrap();
-        assert_ne!(audit.material_revision_sha256, smooth.material_revision_sha256);
+        let smooth = audit_material(
+            &layer,
+            &material,
+            1e9,
+            &CopperSurface::ExplicitSmooth { evidence: source() },
+            None,
+            false,
+        )
+        .unwrap();
+        assert_ne!(
+            audit.material_revision_sha256,
+            smooth.material_revision_sha256
+        );
         assert!(!smooth.roughness_qualified_for_loss);
     }
 
     #[test]
     fn c004_complex_sign_normalization_and_rejection() {
         let (layer, material) = fixture(false);
-        let minus = RelativePermittivity { real: 4.0, signed_imag: 0.08, source_convention: TimeConvention::ExpMinusJ, includes_bulk_conduction: false };
-        let plus = RelativePermittivity { signed_imag: -0.08, source_convention: TimeConvention::ExpPlusJ, ..minus };
-        let r1 = audit_material(&layer, &material, 1e9, &CopperSurface::Unknown, Some(minus), false).unwrap();
-        let r2 = audit_material(&layer, &material, 1e9, &CopperSurface::Unknown, Some(plus), false).unwrap();
+        let minus = RelativePermittivity {
+            real: 4.0,
+            signed_imag: 0.08,
+            source_convention: TimeConvention::ExpMinusJ,
+            includes_bulk_conduction: false,
+        };
+        let plus = RelativePermittivity {
+            signed_imag: -0.08,
+            source_convention: TimeConvention::ExpPlusJ,
+            ..minus
+        };
+        let r1 = audit_material(
+            &layer,
+            &material,
+            1e9,
+            &CopperSurface::Unknown,
+            Some(minus),
+            false,
+        )
+        .unwrap();
+        let r2 = audit_material(
+            &layer,
+            &material,
+            1e9,
+            &CopperSurface::Unknown,
+            Some(plus),
+            false,
+        )
+        .unwrap();
         assert_eq!(r1.normalized_relative_epsilon_imag, Some(0.08));
         assert_eq!(r2.normalized_relative_epsilon_imag, Some(0.08));
         assert_ne!(r1.material_revision_sha256, r2.material_revision_sha256);
         for bad in [
-            RelativePermittivity { source_convention: TimeConvention::Unspecified, ..minus },
-            RelativePermittivity { signed_imag: -0.08, ..minus },
+            RelativePermittivity {
+                source_convention: TimeConvention::Unspecified,
+                ..minus
+            },
+            RelativePermittivity {
+                signed_imag: -0.08,
+                ..minus
+            },
         ] {
-            assert_eq!(audit_material(&layer, &material, 1e9, &CopperSurface::Unknown, Some(bad), false), Err(MaterialAuditError::UnsupportedLossModel));
+            assert_eq!(
+                audit_material(
+                    &layer,
+                    &material,
+                    1e9,
+                    &CopperSurface::Unknown,
+                    Some(bad),
+                    false
+                ),
+                Err(MaterialAuditError::UnsupportedLossModel)
+            );
         }
         for bad in [
-            RelativePermittivity { includes_bulk_conduction: true, ..minus },
+            RelativePermittivity {
+                includes_bulk_conduction: true,
+                ..minus
+            },
             RelativePermittivity { real: 4.1, ..minus },
-            RelativePermittivity { signed_imag: 0.09, ..minus },
+            RelativePermittivity {
+                signed_imag: 0.09,
+                ..minus
+            },
         ] {
-            assert_eq!(audit_material(&layer, &material, 1e9, &CopperSurface::Unknown, Some(bad), false), Err(MaterialAuditError::InvalidMaterial));
+            assert_eq!(
+                audit_material(
+                    &layer,
+                    &material,
+                    1e9,
+                    &CopperSurface::Unknown,
+                    Some(bad),
+                    false
+                ),
+                Err(MaterialAuditError::InvalidMaterial)
+            );
         }
     }
 
@@ -423,15 +569,24 @@ mod tests {
         let (layer, mut mat) = fixture(false);
         for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
             mat.dk = property(bad);
-            assert_eq!(run(&layer, &mat, 1e9), Err(MaterialAuditError::InvalidMaterial));
+            assert_eq!(
+                run(&layer, &mat, 1e9),
+                Err(MaterialAuditError::InvalidMaterial)
+            );
         }
         mat.dk = property(4.0);
         for bad in [-0.01, f64::NAN, f64::INFINITY] {
             mat.df = property(bad);
-            assert_eq!(run(&layer, &mat, 1e9), Err(MaterialAuditError::InvalidMaterial));
+            assert_eq!(
+                run(&layer, &mat, 1e9),
+                Err(MaterialAuditError::InvalidMaterial)
+            );
         }
         mat.df = property(0.0);
-        assert_eq!(run(&layer, &mat, 1e9), Err(MaterialAuditError::InvalidMaterial));
+        assert_eq!(
+            run(&layer, &mat, 1e9),
+            Err(MaterialAuditError::InvalidMaterial)
+        );
         assert!(audit_material(&layer, &mat, 1e9, &CopperSurface::Unknown, None, true).is_ok());
         let (cl, mut cm) = fixture(true);
         for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
@@ -444,23 +599,41 @@ mod tests {
     fn c004_fail_closed_metadata_and_canonical_link() {
         let (mut layer, mut material) = fixture(false);
         material.df = Property::Missing;
-        assert_eq!(run(&layer, &material, 1e9), Err(MaterialAuditError::MissingRequiredData));
+        assert_eq!(
+            run(&layer, &material, 1e9),
+            Err(MaterialAuditError::MissingRequiredData)
+        );
         material.df = property(0.02);
         if let Property::Assumed { source, .. } = &mut material.df {
             source.document = " ".into();
         }
-        assert_eq!(run(&layer, &material, 1e9), Err(MaterialAuditError::MissingRequiredData));
+        assert_eq!(
+            run(&layer, &material, 1e9),
+            Err(MaterialAuditError::MissingRequiredData)
+        );
         material.df = property(0.02);
         if let Property::Assumed { source, .. } = &mut material.df {
             source.reference_frequency_hz = Some(11e9);
         }
-        assert_eq!(run(&layer, &material, 1e9), Err(MaterialAuditError::OutsideValidBand));
+        assert_eq!(
+            run(&layer, &material, 1e9),
+            Err(MaterialAuditError::OutsideValidBand)
+        );
         material.df = property(0.02);
-        material.df = Property::Confirmed { value: 0.02, source: source() };
-        assert_eq!(run(&layer, &material, 1e9), Err(MaterialAuditError::UnsupportedLossModel));
+        material.df = Property::Confirmed {
+            value: 0.02,
+            source: source(),
+        };
+        assert_eq!(
+            run(&layer, &material, 1e9),
+            Err(MaterialAuditError::UnsupportedLossModel)
+        );
         material.df = property(0.02);
         layer.material = None;
-        assert_eq!(run(&layer, &material, 1e9), Err(MaterialAuditError::InvalidMaterial));
+        assert_eq!(
+            run(&layer, &material, 1e9),
+            Err(MaterialAuditError::InvalidMaterial)
+        );
     }
 
     #[test]
@@ -470,7 +643,10 @@ mod tests {
             metric: RoughnessMetric::Rq,
             height_m: 1e-6,
             evidence: source(),
-            band_hz: FrequencyRange { min_hz: 1e7, max_hz: 10e9 },
+            band_hz: FrequencyRange {
+                min_hz: 1e7,
+                max_hz: 10e9,
+            },
             model_id: "model declaration only".into(),
             model_revision: "unqualified".into(),
         };
@@ -481,13 +657,22 @@ mod tests {
             *metric = RoughnessMetric::Ra;
         }
         let alt_audit = audit_material(&layer, &material, 1e9, &alt, None, false).unwrap();
-        assert_ne!(audit.material_revision_sha256, alt_audit.material_revision_sha256);
-        assert_eq!(audit_material(&layer, &material, 1e6, &surf, None, false), Err(MaterialAuditError::OutsideValidBand));
+        assert_ne!(
+            audit.material_revision_sha256,
+            alt_audit.material_revision_sha256
+        );
+        assert_eq!(
+            audit_material(&layer, &material, 1e6, &surf, None, false),
+            Err(MaterialAuditError::OutsideValidBand)
+        );
         let mut bad = surf.clone();
         if let CopperSurface::Measured { height_m, .. } = &mut bad {
             *height_m = f64::NAN;
         }
-        assert_eq!(audit_material(&layer, &material, 1e9, &bad, None, false), Err(MaterialAuditError::InvalidMaterial));
+        assert_eq!(
+            audit_material(&layer, &material, 1e9, &bad, None, false),
+            Err(MaterialAuditError::InvalidMaterial)
+        );
     }
 
     #[test]
@@ -496,27 +681,46 @@ mod tests {
         let initial = run(&layer, &material, 1e9).unwrap();
         assert_eq!(initial, run(&layer, &material, 1e9).unwrap());
         let another_frequency = run(&layer, &material, 2e9).unwrap();
-        assert_eq!(initial.material_revision_sha256, another_frequency.material_revision_sha256);
-        assert_ne!(initial.audit_revision_sha256, another_frequency.audit_revision_sha256);
+        assert_eq!(
+            initial.material_revision_sha256,
+            another_frequency.material_revision_sha256
+        );
+        assert_ne!(
+            initial.audit_revision_sha256,
+            another_frequency.audit_revision_sha256
+        );
         material.df = property(0.03);
         let edit = run(&layer, &material, 1e9).unwrap();
-        assert_ne!(initial.material_revision_sha256, edit.material_revision_sha256);
+        assert_ne!(
+            initial.material_revision_sha256,
+            edit.material_revision_sha256
+        );
         material.df = property(0.02);
         assert_eq!(initial, run(&layer, &material, 1e9).unwrap());
         if let Property::Assumed { source, .. } = &mut material.df {
             source.revision = "r2".into();
         }
-        assert_ne!(initial.material_revision_sha256, run(&layer, &material, 1e9).unwrap().material_revision_sha256);
+        assert_ne!(
+            initial.material_revision_sha256,
+            run(&layer, &material, 1e9)
+                .unwrap()
+                .material_revision_sha256
+        );
     }
 
     #[test]
     fn c004_prevent_copper_dielectric_confusion() {
         let (layer, mut material) = fixture(true);
         material.dk = property(4.0);
-        assert_eq!(run(&layer, &material, 1e9), Err(MaterialAuditError::InvalidMaterial));
+        assert_eq!(
+            run(&layer, &material, 1e9),
+            Err(MaterialAuditError::InvalidMaterial)
+        );
         let (layer, mut material) = fixture(false);
         material.conductivity_s_per_m = property(1.0);
-        assert_eq!(run(&layer, &material, 1e9), Err(MaterialAuditError::InvalidMaterial));
+        assert_eq!(
+            run(&layer, &material, 1e9),
+            Err(MaterialAuditError::InvalidMaterial)
+        );
     }
-
 }
