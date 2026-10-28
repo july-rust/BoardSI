@@ -311,7 +311,9 @@ pub fn audit_material(
                 // Comparison is only valid when the supplied values represent the SAME frequency.
                 // Exact bit matching is not appropriate for measured decimal datasets.
                 let tolerance = 1e-10_f64.max(1e-8 * dk.abs().max(expected_imag.abs()));
-                if (value.real - dk).abs() > tolerance || (normalized - expected_imag).abs() > tolerance {
+                if (value.real - dk).abs() > tolerance
+                    || (normalized - expected_imag).abs() > tolerance
+                {
                     return Err(MaterialAuditError::InvalidMaterial);
                 }
                 bytes.push(1);
@@ -582,7 +584,14 @@ mod tests {
             includes_bulk_conduction: false,
         };
         assert_eq!(
-            audit_material(&layer, &material, 1e9, &CopperSurface::Unknown, Some(complex), false),
+            audit_material(
+                &layer,
+                &material,
+                1e9,
+                &CopperSurface::Unknown,
+                Some(complex),
+                false
+            ),
             Err(MaterialAuditError::InvalidMaterial)
         );
     }
