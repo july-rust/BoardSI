@@ -18,18 +18,36 @@ fn route(bytes: &[u8], ids: &[usize]) -> Result<String, &'static str> {
 #[test]
 fn connected_two_segment_route_has_segment_indexed_v2_receipts() {
     let result = route(&make(ROUTE, ""), &[0, 1]).unwrap();
-    assert!(result.starts_with("BOARDSI_REFERENCE_ROUTE_V3|"), "{result}");
-    assert!(result.contains("|2|REFERENCE_SPLIT_RISK|UNSUPPORTED|NOT_RUN|0"), "{result}");
-    assert!(result.contains("SEG|0|") && result.contains("SEG|1|"), "{result}");
+    assert!(
+        result.starts_with("BOARDSI_REFERENCE_ROUTE_V3|"),
+        "{result}"
+    );
+    assert!(
+        result.contains("|2|REFERENCE_SPLIT_RISK|UNSUPPORTED|NOT_RUN|0"),
+        "{result}"
+    );
+    assert!(
+        result.contains("SEG|0|") && result.contains("SEG|1|"),
+        "{result}"
+    );
     assert!(result.contains("I|1|6|1|2"), "{result}");
-    assert!(result.contains("END|2|1|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL"), "{result}");
+    assert!(
+        result.contains("END|2|1|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL"),
+        "{result}"
+    );
 }
 #[test]
 fn every_segment_fully_covered_is_still_not_physics() {
     let bytes = make("130 250 1 10 0\n150 250 1 10 0\n170 250 1 10 0", "");
     let result = route(&bytes, &[0, 1]).unwrap();
-    assert!(result.contains("|2|SOURCE_GEOMETRY_ONLY|UNSUPPORTED|NOT_RUN|0"), "{result}");
-    assert!(result.contains("END|2|0|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL"), "{result}");
+    assert!(
+        result.contains("|2|SOURCE_GEOMETRY_ONLY|UNSUPPORTED|NOT_RUN|0"),
+        "{result}"
+    );
+    assert!(
+        result.contains("END|2|0|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL"),
+        "{result}"
+    );
 }
 #[test]
 fn multiple_gaps_across_segments_stay_source_ordered() {
@@ -46,8 +64,14 @@ fn duplicate_reversed_and_missing_indices_are_rejected() {
 }
 #[test]
 fn same_name_without_physical_joint_is_not_continuity() {
-    let bytes = make(ROUTE, "*SIGNAL* NET_SIG\nU3.1 U4.2\n240 270 1 10 0\n260 270 1 10 0\n");
-    assert_eq!(route(&bytes, &[0, 2]), Err("ROUTE_ENDPOINT_DISCONNECTED_OR_REVERSED"));
+    let bytes = make(
+        ROUTE,
+        "*SIGNAL* NET_SIG\nU3.1 U4.2\n240 270 1 10 0\n260 270 1 10 0\n",
+    );
+    assert_eq!(
+        route(&bytes, &[0, 2]),
+        Err("ROUTE_ENDPOINT_DISCONNECTED_OR_REVERSED")
+    );
 }
 #[test]
 fn cross_net_is_not_a_route() {
@@ -56,14 +80,20 @@ fn cross_net_is_not_a_route() {
 }
 #[test]
 fn unselected_touching_branch_is_fail_closed() {
-    let bytes = make(ROUTE, "*SIGNAL* NET_SIG\nU3.1 U4.2\n170 230 1 10 0\n170 270 1 10 0\n");
+    let bytes = make(
+        ROUTE,
+        "*SIGNAL* NET_SIG\nU3.1 U4.2\n170 230 1 10 0\n170 270 1 10 0\n",
+    );
     assert_eq!(route(&bytes, &[0, 1]), Err("UNSELECTED_BRANCH_OR_CROSSING"));
 }
 #[test]
 fn unsupported_reference_never_becomes_a_positive_coverage_state() {
     let bytes = make(ROUTE, "");
     let result = encode(&bytes, &[0, 1], "NOT_A_REFERENCE", 2).unwrap();
-    assert!(result.contains("|2|UNSUPPORTED|UNSUPPORTED|NOT_RUN|0"), "{result}");
+    assert!(
+        result.contains("|2|UNSUPPORTED|UNSUPPORTED|NOT_RUN|0"),
+        "{result}"
+    );
 }
 #[test]
 fn source_change_recomputes_hash_and_prevents_receipt_reuse() {
