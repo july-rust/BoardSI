@@ -123,7 +123,8 @@
 
 ### C_004 — Material Provenance / Loss Input Gate (검증 중 · 2026-10-28 KST)
 
-- [ ] **C_004 Canonical Material/Layer의 제한 입력 검증** — [Issue #245](https://github.com/july-rust/BoardSI/issues/245), [검증 원장](validation/c004-material-loss-conductivity-roughness.md). Rust의 Dk/Df·σ·거칠기·복소 유전율 부호·Provenance/유효대역·Revision 계약 구현 후보. **정확한 Source HEAD CI/독립 Codex·보호 병합 및 post-main 검증 전까지 미완.** 실제 물리 Loss/PH-12~16, C_003 실제 Solver/Cache, P009와 U09/U10/U39/T02/T04/T24/T52 인수 미완. B_001 Issue #12 OPEN.
+- [x] **C_004 Canonical Material/Layer의 제한 Rust 입력 계약 구현·최종 코드 PR 검증·보호 병합** — [Issue #245](https://github.com/july-rust/BoardSI/issues/245), [PR #246](https://github.com/july-rust/BoardSI/pull/246), [검증 원장](validation/c004-material-loss-conductivity-roughness.md). Dk/Df·σ·거칠기 출처/유효대역·복소 유전율 부호와 오버플로·Material Revision을 제한 Native Rust로 검증. 정확한 코드 HEAD [`3c17b723b5d2508e71808d186c78869ece56ee06`](https://github.com/july-rust/BoardSI/commit/3c17b723b5d2508e71808d186c78869ece56ee06/checks) **23/23 CI SUCCESS·9/9 Workflows SUCCESS**, 3 Native Rust/Qt + Linux Qt, 동일 HEAD 독립 Codex completed / 주요 지적 0 / 미해결 스레드 0. [Verified Squash `main@02cc35b51dfe4263f3e3d3f02f9151d47d696849`](https://github.com/july-rust/BoardSI/commit/02cc35b51dfe4263f3e3d3f02f9151d47d696849), GitHub `verified=true`, `reason=valid`. **체크일: 2026-10-28 KST** · **근거일: 2026-10-28 KST**. 이 체크는 제한 입력 계약/코드 병합만 의미하며 실제 물리 Loss/PH-12~16, C_003 물리 Solver/Cache, P009 및 정식 U09/U10/U39/T02/T04/T24/T52 인수는 미완, Issue #12 OPEN.
+- [ ] **C_004 보호 `main@02cc35b` 독립 병합 후 21/21 CI·9/9 워크플로 및 문서 PR 최종 종료** — 본 체크는 코드 범위 수용과 별도. GitHub runner 대기 중인 FEM macOS ARM64를 포함하여 성공 증빙을 최종 SHA로 확인한 뒤에만 체크한다.
 
 ## 3. 후속 개발 체크리스트
 
