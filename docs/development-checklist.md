@@ -110,6 +110,10 @@
 
 - [x] **C_001 제한 다중 Source-owned Straight Polygon COPCUT 및 분리 Copper Island 국소 접점 — 정식 한정 구현 인수** — [C_001 검증 원장](validation/c001-multi-cutout-island-connectivity.md), [코드 PR #237](https://github.com/july-rust/BoardSI/pull/237), 최종 PR Source HEAD `1db862985505427f8f3fcd58b6ae6c9530cbac6a`의 **28/28 Checks SUCCESS**, Rust C_001 신규 Debug·Release **각 10/10 PASS**, 독립 Codex 동일 HEAD `completed`/findings 0/unresolved 0, 과거 P2 스레드 resolved; [Verified 보호된 Squash `main@df1fde8648fd48f9ee884a3d9ad68fdf266e5f35`](https://github.com/july-rust/BoardSI/commit/df1fde8648fd48f9ee884a3d9ad68fdf266e5f35/checks) `verified=true, reason=valid`, **독립 병합 후 21/21 Checks·9/9 Workflows SUCCESS** ([Push main #40629876739](https://github.com/july-rust/BoardSI/actions/runs/40629876739), [Qt Native #40629877037](https://github.com/july-rust/BoardSI/actions/runs/40629877037)). **체크일: 2026-10-28 KST** · **근거일: 2026-10-28 KST**. (최초 체크일) 지원된 Source Geometry/국소 접촉만 `[x]`; 분리 Island는 Net 레이블만으로 연결하지 않으며 모호한 중첩 Area는 Unsupported. **B_007 원본 최종 HEAD Codex 리뷰 및 B_001 Issue #12 전체/P009/Solver/Cache/정식 U09/U10/U39/T02/T04/T24/T52는 여전히 `[ ]`/OPEN.**
 
+### C_002 — Reference Split 및 Layer Transition Topology Risk (검증 전)
+
+- [ ] **C_002 제한 Source-backed Reference Gap/Cutout 및 Plated Through Via Transition Risk 판정** — [C_002 검증 원장](validation/c002-reference-split-transition-topology.md). 신규 Rust opt-in Audit/공개 합성 Fixture 후보 작성. PR의 정확한 최종 HEAD Native CI, Rust fmt/Clippy, Debug/Release, 독립 Codex 완료, 보호된 Verified Squash 및 post-main CI를 직접 확인하기 전에는 완료 체크하지 않는다. 실제 Return Path P009, 물리 Solver/Cache 및 정식 U09/U10/U39/T02/T04/T24/T52 인수는 별개이며 M1 Issue #12 OPEN 유지. 최초 체크일은 성공 증빙 후에만 기록한다.
+
 ## 3. 후속 개발 체크리스트
 
 | 단계 | 상태 | 구체적 잔여 작업 (GitHub) |
