@@ -212,7 +212,7 @@ fn augment_impl(
         // Exactly one source Area on the current Layer: no ambiguous overlapping,
         // split or separate island selection can be promoted into a contact.
         if (!multi && source_areas.iter().filter(|a| a.layer == area.layer).count() != 1)
-            || area.cutouts.len() > if multi { 8 } else { 1 }
+            || area.cutouts.len() > (if multi { 8 } else { 1 })
             || copper.cutouts.len() != area.cutouts.len()
             || area
                 .cutouts
