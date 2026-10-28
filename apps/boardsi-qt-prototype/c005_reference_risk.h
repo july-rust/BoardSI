@@ -5,6 +5,7 @@
 #include <QCryptographicHash>
 #include <QFile>
 #include <QFileInfo>
+#include <QFileSystemWatcher>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -140,6 +141,7 @@ class C005ReferenceRiskController final: public QWidget {
     QPushButton *run_=nullptr;
     QProcess process_;
     QTimer deadline_;
+    QFileSystemWatcher sourceWatcher_;
     QByteArray requestedSha_, acceptedSha_;
     QString requestedOptions_;
     std::vector<int> requestedIndices_;
@@ -213,6 +215,16 @@ public:
         connect(net_,&QLineEdit::textChanged,this,[this](const QString &){invalidate();});
         connect(&process_,&QProcess::finished,this,
             [this](int code,QProcess::ExitStatus state){finished(code,state);});
+        // A previously accepted audit cannot remain visible when source copper
+        // bytes are externally edited after the worker has completed.
+        // Watcher is event-driven; do not hash large PCBs on the GUI timer.
+        connect(&sourceWatcher_,&QFileSystemWatcher::fileChanged,this,
+                [this](const QString &path) {
+            if(path!=source_ || acceptedSha_.isEmpty())return;
+            invalidate();
+            acceptedSha_.clear();
+            status_->setText("SOURCE FILE CHANGED / REIMPORT REQUIRED / SI NOT_RUN");
+        });
         deadline_.setSingleShot(true);deadline_.setInterval(5000);
         connect(&deadline_,&QTimer::timeout,this,[this] {
             invalidate();status_->setText("AUDIT TIMEOUT / SI NOT_RUN");
@@ -220,8 +232,11 @@ public:
     }
     void resetSource(const QString &path,const QByteArray &acceptedSha) {
         invalidate();
+        if(!sourceWatcher_.files().isEmpty())
+            sourceWatcher_.removePaths(sourceWatcher_.files());
         source_=acceptedSha.size()==64?path:QString();
         acceptedSha_=acceptedSha;
+        if(!source_.isEmpty())sourceWatcher_.addPath(source_);
     }
     void audit() {
         invalidate();
