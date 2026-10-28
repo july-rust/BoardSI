@@ -667,6 +667,29 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // C_006 opt-in exact Reference gap intervals; C_005 V1 unchanged.
+    if args.len() == 6 && args[2] == std::ffi::OsStr::new("--reference-gap-v2") {
+        let result = (|| -> Result<String, &'static str> {
+            let index = args[3].to_str().and_then(|s|s.parse::<usize>().ok())
+                .ok_or("INVALID_TRACE_INDEX")?;
+            let reference = args[4].to_str().ok_or("INVALID_REFERENCE_NET")?;
+            let layer = args[5].to_str().and_then(|s|s.parse::<usize>().ok())
+                .ok_or("INVALID_REFERENCE_LAYER")?;
+            let path = std::path::Path::new(&args[1]);
+            let metadata = std::fs::metadata(path).map_err(|_|"FILE_UNAVAILABLE")?;
+            if !metadata.is_file() ||
+                metadata.len()>boardsi_import::route_preview::MAX_FILE_BYTES as u64 {
+                return Err("FILE_LIMIT");
+            }
+            let bytes = std::fs::read(path).map_err(|_|"FILE_READ_FAILED")?;
+            boardsi_import::reference_gap_intervals::encode(&bytes,index,reference,layer)
+        })();
+        match result {
+            Ok(wire)=>print!("{wire}"),
+            Err(reason)=>{eprintln!("C006_REFERENCE_GAP_ERROR:{reason}");std::process::exit(3);}
+        }
+        return;
+    }
     if args.len() >= 6 && args[2] == std::ffi::OsStr::new("--reference-risk-v1") {
         let parse_index = |index: usize| {
             args[index]
