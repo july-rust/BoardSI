@@ -106,6 +106,10 @@
 - [ ] **B_007 최종 Source HEAD 독립 Codex 리뷰 종결** — 원본 PR [#231](https://github.com/july-rust/BoardSI/pull/231)의 정확한 `6a75eb5c5616d86407a04a946bc994958fb55ea6`에 대한 [Codex 최신 상태](https://github.com/july-rust/BoardSI/pull/231#issuecomment-6455692908)는 `status=running`. 3개 이전 스레드 resolved 및 28/28 Checks PASS는 확인되나 **최종 HEAD 리뷰 완료가 아님**. `completed`, 발견 사항/미해결 0을 확인하기 전 체크 금지.
 - [ ] **B_001 Issue #12 전체 정식 인수** — 제한 Source Geometry와 실제 전기적 Reference/Return Path, Material Loss, 물리 Solver Scenario/Cache, U09/U10/U39 및 T02/T04/T24/T52 전체 시험을 혼동하지 않는다. [Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN 유지. 미완 사항은 C단계 후보로 명확히 이관하지만 정식 M1 종료로 간주하지 않는다.
 
+### C_001 — 다중 Source-owned COPCUT / Disconnected Island (실행 중)
+
+- [ ] **C_001 제한 다중 Polygon COPCUT 및 분리 Copper Island 국소 접점 최종 인수** — [C_001 검증 원장](validation/c001-multi-cutout-island-connectivity.md). 코드 후보 및 공개 합성 시험을 생성했으나, **신규 최신 Source HEAD CI, 독립 Codex 리뷰, Verified 보호 병합 및 독립 병합 후 main CI 증빙 전에는 완료 체크 또는 최초 체크일을 부여하지 않는다.** B_001 Issue #12 전체, P009, Solver/Cache, 정식 U09/U10/U39/T02/T04/T24/T52는 미완 상태 그대로 유지한다.
+
 ## 3. 후속 개발 체크리스트
 
 | 단계 | 상태 | 구체적 잔여 작업 (GitHub) |

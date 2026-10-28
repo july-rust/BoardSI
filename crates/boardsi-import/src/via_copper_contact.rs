@@ -59,6 +59,22 @@ pub fn augment(
     board: &mut BoardModel,
     original_bytes: &[u8],
 ) -> Result<ViaAreaAudit, &'static str> {
+    augment_impl(board, original_bytes, false)
+}
+
+/// C_001 opt-in: supported separate source Area islands and polygon cutouts.
+pub fn augment_multi(
+    board: &mut BoardModel,
+    original_bytes: &[u8],
+) -> Result<ViaAreaAudit, &'static str> {
+    augment_impl(board, original_bytes, true)
+}
+
+fn augment_impl(
+    board: &mut BoardModel,
+    original_bytes: &[u8],
+    multi: bool,
+) -> Result<ViaAreaAudit, &'static str> {
     if board.validate().has_errors() {
         return Err("B006_INVALID_CANONICAL");
     }
@@ -195,12 +211,13 @@ pub fn augment(
         let copper_source = &original.areas[area_index];
         // Exactly one source Area on the current Layer: no ambiguous overlapping,
         // split or separate island selection can be promoted into a contact.
-        if source_areas
-            .iter()
-            .filter(|a| a.layer == area.layer)
-            .count()
-            != 1
-            || area.cutouts.len() > 1
+        if (!multi
+            && source_areas
+                .iter()
+                .filter(|a| a.layer == area.layer)
+                .count()
+                != 1)
+            || area.cutouts.len() > (if multi { 8 } else { 1 })
             || copper.cutouts.len() != area.cutouts.len()
             || area
                 .cutouts
@@ -217,6 +234,32 @@ pub fn augment(
             continue;
         };
         if ring.len() < 4 || ring.len() > 65 || ring.first() != ring.last() {
+            audit.unsupported_candidates += 1;
+            continue;
+        }
+        // Same-layer source island ambiguity: reject touching or overlapping
+        // outer bounding boxes, including coincident source labels.
+        if multi
+            && source_areas.iter().enumerate().any(|(other_index, other)| {
+                if area_index == other_index || other.layer != area.layer {
+                    return false;
+                }
+                let copper_preview::CopperGeometry::Polygon(other_ring) = &other.geometry else {
+                    return true;
+                };
+                let bounds = |points: &[[i64; 2]]| {
+                    (
+                        points.iter().map(|p| p[0]).min().unwrap_or(0),
+                        points.iter().map(|p| p[0]).max().unwrap_or(0),
+                        points.iter().map(|p| p[1]).min().unwrap_or(0),
+                        points.iter().map(|p| p[1]).max().unwrap_or(0),
+                    )
+                };
+                let (ax0, ax1, ay0, ay1) = bounds(ring);
+                let (bx0, bx1, by0, by1) = bounds(other_ring);
+                ax0 <= bx1 && bx0 <= ax1 && ay0 <= by1 && by0 <= ay1
+            })
+        {
             audit.unsupported_candidates += 1;
             continue;
         }
