@@ -769,8 +769,18 @@ protected:
             for(const auto &m:referenceRisks_) {
                 const bool split=m.state=="REFERENCE_SPLIT_RISK";
                 if((split?0:1)!=kind || !visible(m.layer) || !includedNet(m.net)) continue;
-                const QPointF centre=pixel(world(m.x_nm,m.y_nm));
-                if(inView(centre,9,width(),height()))disk(geometry,centre,6.0,12);
+                if(m.exactGap) {
+                    const QPointF a=pixel(QPointF((m.startX_nm-originX_)/1e6,
+                                                -(m.startY_nm-originY_)/1e6));
+                    const QPointF b=pixel(QPointF((m.endX_nm-originX_)/1e6,
+                                                -(m.endY_nm-originY_)/1e6));
+                    if(QRectF(a,b).normalized().adjusted(-8,-8,8,8)
+                        .intersects(QRectF(0,0,width(),height())))
+                        thickLine(geometry,a,b,3.0,deviceRatio);
+                } else {
+                    const QPointF centre=pixel(world(m.x_nm,m.y_nm));
+                    if(inView(centre,9,width(),height()))disk(geometry,centre,6.0,12);
+                }
             }
             if(geometry.empty())continue;
             auto *node=new QSGGeometryNode();
@@ -853,8 +863,25 @@ protected:
                 const size_t i=k-1;const auto &m=referenceRisks_[i];
                 if(!visible(m.layer) || !includedNet(m.net))continue;
                 const QPointF p=pixel(world(m.x_nm,m.y_nm));
-                if(std::hypot(event->position().x()-p.x(),
-                              event->position().y()-p.y())<=8.0) {
+                bool hit=std::hypot(event->position().x()-p.x(),
+                                    event->position().y()-p.y())<=8.0;
+                if(m.exactGap) {
+                    const QPointF a=pixel(QPointF((m.startX_nm-originX_)/1e6,
+                                                -(m.startY_nm-originY_)/1e6));
+                    const QPointF b=pixel(QPointF((m.endX_nm-originX_)/1e6,
+                                                -(m.endY_nm-originY_)/1e6));
+                    const QPointF segmentDelta=b-a;
+                    const qreal len2=segmentDelta.x()*segmentDelta.x()+
+                                     segmentDelta.y()*segmentDelta.y();
+                    const QPointF v=event->position()-a;
+                    const qreal t=len2>0?std::clamp(
+                        (v.x()*segmentDelta.x()+v.y()*segmentDelta.y())/len2,
+                        qreal(0),qreal(1)):0;
+                    const QPointF nearest=a+t*segmentDelta;
+                    hit=std::hypot(event->position().x()-nearest.x(),
+                                   event->position().y()-nearest.y())<=8.0;
+                }
+                if(hit) {
                     picked_(11,static_cast<int>(i));event->accept();return;
                 }
             }

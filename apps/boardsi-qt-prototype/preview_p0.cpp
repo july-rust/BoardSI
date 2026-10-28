@@ -3017,6 +3017,10 @@ static int runC005RiskSelftest(const QString &importer) {
         }
     const bool riskDetailWasPicked=pickedDetails.contains("C_005 REFERENCE") ||
         pickedDetails.contains("C_005 REFERENCE_SPLIT_RISK");
+    // C_006: the supported synthetic cutout has exact t=1/6..1/2.
+    const bool exactInterval= pickedDetails.contains("C_006 exact source-rational gap") &&
+        pickedDetails.contains("1/6..1/2") &&
+        pickedDetails.contains("P009 UNSUPPORTED");
     reference->setText("CHANGED_NET");
     const bool riskDetailCleared=!pickedDetails.contains("C_005 REFERENCE_SPLIT_RISK") &&
         !pickedDetails.contains("Witness ") &&
@@ -3056,11 +3060,11 @@ static int runC005RiskSelftest(const QString &importer) {
         panel.imported()->referenceRiskCountForTest()==0;
     controller.resetSource(QString(),QByteArray());
     const bool reimportCleared=panel.imported()->referenceRiskCountForTest()==0;
-    const bool pass=marked && sourceMarker && riskDetailWasPicked &&
+    const bool pass=marked && sourceMarker && riskDetailWasPicked && exactInterval &&
         riskDetailCleared && staleCleared && rebuilt && sourceWatchClearsMarker &&
         sourceMutationBlocked && reimportCleared;
-    qInfo() << "C005_NATIVE_QT_RISK" << pass << marked << sourceMarker
-            << riskDetailWasPicked << riskDetailCleared << staleCleared
+    qInfo() << "C006_NATIVE_QT_GAP" << pass << marked << sourceMarker
+            << riskDetailWasPicked << exactInterval << riskDetailCleared << staleCleared
             << rebuilt << sourceWatchClearsMarker << sourceMutationBlocked
             << reimportCleared << "SI_NOT_RUN";
     return pass?0:1;
@@ -3069,7 +3073,8 @@ static int runC005RiskSelftest(const QString &importer) {
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
-    if(args.size()==3 && args.at(1)=="--c005-risk-selftest")
+    if(args.size()==3 && (args.at(1)=="--c005-risk-selftest" ||
+                         args.at(1)=="--c006-gap-selftest"))
         return runC005RiskSelftest(args.at(2));
     if (args.size() == 2 && args.at(1) == "--b001-stackup-selftest")
         return runB001StackupSelftest();

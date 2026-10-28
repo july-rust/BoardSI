@@ -197,6 +197,15 @@ jobs:
           suffix=''
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c005-risk-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      - name: C_006 Native source-rational Reference gap and stale source smoke
+        shell: bash
+        env:
+          BOARDSI_ARTWORK_RENDERER: cpu
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --c006-gap-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: Execute actual native Qt backend
         id: native_qt_execution
         shell: bash
