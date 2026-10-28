@@ -23,11 +23,11 @@ fn touch(a: [i64; 2], b: [i64; 2], c: [i64; 2], d: [i64; 2]) -> bool {
         || (w == 0 && on(c, d, b))
         || ((x > 0) != (y > 0) && (z > 0) != (w > 0))
 }
-/// B_007: strict integer copper containment for no hole or ONE source-owned straight hole.
+/// C_001: strict integer containment for up to eight source-owned polygon holes.
 /// Every boundary touch is excluded; malformed topology and unsupported holes fail closed.
 pub fn strict_simple_area_contains(area: &CopperArea, p: &Point) -> Result<bool, ModelError> {
     let segs = &area.outer.segments;
-    if area.cutouts.len() > 1 || !(3..=64).contains(&segs.len()) {
+    if area.cutouts.len() > 8 || !(3..=64).contains(&segs.len()) {
         return Err(ModelError::InvalidConnection);
     }
     let mut ring = Vec::with_capacity(segs.len());
@@ -100,12 +100,13 @@ pub fn strict_simple_area_contains(area: &CopperArea, p: &Point) -> Result<bool,
             }
         }
     }
-    if let Some(cutout) = area.cutouts.first() {
+    let mut in_void = false;
+    for (hole_index, cutout) in area.cutouts.iter().enumerate() {
         if !(3..=64).contains(&cutout.boundary.segments.len()) {
             return Err(ModelError::InvalidConnection);
         }
         // Revalidate both rings in the Canonical model, not only the importer.
-        // The one strictly enclosed simple hole cannot split a simple outer fill.
+        // Strictly enclosed mutually disjoint simple holes cannot split a simple outer fill.
         let mut outer_only = area.clone();
         outer_only.cutouts.clear();
         let mut hole_only = outer_only.clone();
@@ -134,14 +135,38 @@ pub fn strict_simple_area_contains(area: &CopperArea, p: &Point) -> Result<bool,
                 }
             }
         }
-        // Hole interiors AND the exact hole boundary are electrically void.
-        if strict_simple_area_contains(&hole_only, p)?
+        // Fail closed on any pairwise cutout intersection, overlap or nesting.
+        for earlier in &area.cutouts[..hole_index] {
+            let mut earlier_only = outer_only.clone();
+            earlier_only.outer = earlier.boundary.clone();
+            strict_simple_area_contains(&earlier_only, p)?;
+            for first in &earlier_only.outer.segments {
+                let BoundarySegment::Line { start: a, end: b } = first else {
+                    return Err(ModelError::InvalidConnection);
+                };
+                if strict_simple_area_contains(&hole_only, a)? {
+                    return Err(ModelError::InvalidConnection);
+                }
+                for second in &hole_only.outer.segments {
+                    let BoundarySegment::Line { start: c, end: d } = second else {
+                        return Err(ModelError::InvalidConnection);
+                    };
+                    if touch(a.ticks, b.ticks, c.ticks, d.ticks) {
+                        return Err(ModelError::InvalidConnection);
+                    }
+                }
+            }
+            if let BoundarySegment::Line { start, .. } = &hole_only.outer.segments[0] {
+                if strict_simple_area_contains(&earlier_only, start)? {
+                    return Err(ModelError::InvalidConnection);
+                }
+            }
+        }
+        // All hole interiors and exact hole boundaries are electrically void.
+        in_void |= strict_simple_area_contains(&hole_only, p)?
             || hole_only.outer.segments.iter().any(|segment| {
                 matches!(segment, BoundarySegment::Line { start, end } if on(start.ticks, end.ticks, p.ticks))
-            })
-        {
-            return Ok(false);
-        }
+            });
     }
-    Ok(inside)
+    Ok(inside && !in_void)
 }
