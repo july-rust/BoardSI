@@ -102,6 +102,11 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --c005-risk-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-c005-reference-risk PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # C_007: source-route actual importer and stale selection.
+    add_test(NAME qt-preview-c007-route-reference-risk
+      COMMAND boardsi-preview-p0 --c007-route-selftest "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-c007-route-reference-risk PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     add_test(NAME qt-preview-p2a-partial-import COMMAND boardsi-preview-p0 --selftest
       "${BOARDSI_WORKER}" "${CMAKE_CURRENT_BINARY_DIR}/qt-model-a.frame"
       "${CMAKE_CURRENT_BINARY_DIR}/qt-model-b.frame" "${BOARDSI_IMPORTER}"

@@ -199,6 +199,7 @@ pub mod pour_preview;
 pub mod reference_gap_intervals;
 pub mod reference_geometry;
 pub mod reference_risk_wire;
+pub mod reference_route_v3;
 pub mod reference_topology;
 pub mod route_preview;
 pub mod scenario_contract;

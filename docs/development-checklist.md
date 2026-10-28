@@ -153,6 +153,10 @@
 
 **주의:** M0/M1/M2는 사양서의 제품 개발 단계이며 A_001…A_036, B_001… 명령 번호와 다릅니다. 제한 P2 Preview를 마쳤다고 M0/M1/M2 전체의 정식 인수를 완료 처리하면 안 됩니다.
 
+### C_007 — Multi-Segment Source Reference Route / Qt Risk (검증 대기)
+
+- [ ] **C_007 2–16개 Straight Trace 경로의 Source Reference 구간 검사와 Qt CPU/RHI 표시의 제한 기능 최종 인수** — [Issue #255](https://github.com/july-rust/BoardSI/issues/255), [C_007 검증 원장](validation/c007-multi-segment-reference-coverage.md). Explicit Source-order, 동일 Net/Layer, Endpoint 연결 검증, 기존 C_006 Rational V2를 V3로 다중 전달. **실제 최종 HEAD CI, Native Qt, 독립 Codex, 서명된 보호 병합 및 병합 후 CI 증빙 전에는 [x] 금지.** 원본 B/C 제한 이력은 보존, 상위 Issue #12 OPEN, P009/Return Current/물리 RLGC/S/Cache/정식 U/T 미인수.
+
 ## 4. 요구사항 U01–U48 체크리스트
 
 원문: [사양서 2장 요구사항 표](specification/BoardSI_Development_Spec_v1.0.md). `[ ]`는 전체 요구의 정식 인수 **미완료**. U16만 실제 제품명 적용 여부를 확인할 수 있어 체크하였으며 상표권·법률 검증은 별개입니다.
