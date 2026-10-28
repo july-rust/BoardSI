@@ -140,7 +140,7 @@ class C005ReferenceRiskController final: public QWidget {
     QPushButton *run_=nullptr;
     QProcess process_;
     QTimer deadline_;
-    QByteArray requestedSha_;
+    QByteArray requestedSha_, acceptedSha_;
     QString requestedOptions_;
     std::vector<int> requestedIndices_;
     quint64 generation_=0;
@@ -164,7 +164,8 @@ class C005ReferenceRiskController final: public QWidget {
         deadline_.stop();
         const QByteArray bytes=process_.readAllStandardOutput();
         if(activeGeneration_!=generation_ || requestedSha_.isEmpty() ||
-           options()!=requestedOptions_ || c005::hashSource(source_)!=requestedSha_) {
+           options()!=requestedOptions_ || c005::hashSource(source_)!=requestedSha_ ||
+           acceptedSha_!=requestedSha_) {
             status_->setText("STALE INPUT / RE-AUDIT REQUIRED / SI NOT_RUN");
             return;
         }
@@ -217,9 +218,10 @@ public:
             invalidate();status_->setText("AUDIT TIMEOUT / SI NOT_RUN");
         });
     }
-    void resetSource(const QString &path,bool accepted) {
+    void resetSource(const QString &path,const QByteArray &acceptedSha) {
         invalidate();
-        source_=accepted?path:QString();
+        source_=acceptedSha.size()==64?path:QString();
+        acceptedSha_=acceptedSha;
     }
     void audit() {
         invalidate();
@@ -230,8 +232,8 @@ public:
             status_->setText("MISSING/INVALID AUDIT INPUT / SI NOT_RUN");return;
         }
         const QByteArray sha=c005::hashSource(source_);
-        if(sha.size()!=64) {
-            status_->setText("SOURCE UNAVAILABLE / SI NOT_RUN");return;
+        if(sha.size()!=64 || acceptedSha_.size()!=64 || sha!=acceptedSha_) {
+            status_->setText("SOURCE CHANGED / REIMPORT REQUIRED / SI NOT_RUN");return;
         }
         requestedIndices_={first_->value()};
         QStringList args{source_,"--reference-risk-v1",
