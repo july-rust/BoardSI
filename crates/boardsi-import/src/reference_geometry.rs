@@ -67,27 +67,43 @@ fn exact_source_ring(
     area: &boardsi_model::CopperArea,
     source: &SourceArea,
     frame: &ObjectId,
+    allow_cutout: bool,
 ) -> bool {
     let CopperGeometry::Polygon(ring) = &source.geometry else {
         return false;
     };
-    if !source.cutouts.is_empty()
+    if source.cutouts.len() > usize::from(allow_cutout)
         || !(4..=65).contains(&ring.len())
         || ring.first() != ring.last()
         || area.outer.segments.len() + 1 != ring.len()
-        || !area.cutouts.is_empty()
+        || area.cutouts.len() != source.cutouts.len()
     {
         return false;
     }
-    area.outer
-        .segments
-        .iter()
-        .zip(ring.windows(2))
-        .all(|(seg, pair)| {
-            matches!(seg, BoundarySegment::Line { start, end }
-            if start.frame == *frame && end.frame == *frame
-               && start.ticks == pair[0] && end.ticks == pair[1])
-        })
+    let exact_ring = |source_ring: &[[i64; 2]], segments: &[BoundarySegment]| {
+        source_ring.len() == segments.len() + 1
+            && segments
+                .iter()
+                .zip(source_ring.windows(2))
+                .all(|(seg, pair)| {
+                    matches!(seg, BoundarySegment::Line { start, end }
+                if start.frame == *frame && end.frame == *frame
+                    && start.ticks == pair[0] && end.ticks == pair[1])
+                })
+    };
+    exact_ring(ring, &area.outer.segments)
+        && source
+            .cutouts
+            .iter()
+            .zip(&area.cutouts)
+            .all(|(source_hole, canonical_hole)| {
+                let CopperGeometry::Polygon(hole) = source_hole else {
+                    return false;
+                };
+                (4..=65).contains(&hole.len())
+                    && hole.first() == hole.last()
+                    && exact_ring(hole, &canonical_hole.boundary.segments)
+            })
 }
 fn segment_strictly_inside(
     area: &boardsi_model::CopperArea,
@@ -97,8 +113,9 @@ fn segment_strictly_inside(
     if a.frame != b.frame || a.ticks == b.ticks {
         return false;
     }
-    // The existing canonical predicate validates the entire simple polygon,
-    // rejects self intersection, unsupported bounds, holes, arcs and boundary points.
+    // Canonical strict containment excludes points in voids and on EVERY
+    // contour boundary. The straight segment must also avoid every hole edge.
+    // Endpoint-only checking is insufficient for a path that crosses a cutout.
     if strict_simple_area_contains(area, a).ok() != Some(true)
         || strict_simple_area_contains(area, b).ok() != Some(true)
     {
@@ -107,10 +124,15 @@ fn segment_strictly_inside(
     // Endpoints inside a valid simple polygon + NO intersection with ANY
     // boundary edge is an exact containment certificate for this straight line.
     // This catches concave excursions even when both endpoints are inside.
-    area.outer.segments.iter().all(|s| match s {
+    let misses_boundary = |s: &BoundarySegment| match s {
         BoundarySegment::Line { start, end } => !touches(a.ticks, b.ticks, start.ticks, end.ticks),
         _ => false,
-    })
+    };
+    area.outer.segments.iter().all(misses_boundary)
+        && area
+            .cutouts
+            .iter()
+            .all(|hole| hole.boundary.segments.iter().all(misses_boundary))
 }
 fn exact_join(
     board: &BoardModel,
@@ -172,6 +194,48 @@ pub fn audit(
     ordered_trace_ids: &[ObjectId],
     reference_net_name: &str,
     reference_layer_id: &ObjectId,
+) -> ReferenceGeometryAudit {
+    audit_impl(
+        board,
+        source_areas,
+        original_bytes,
+        ordered_trace_ids,
+        reference_net_name,
+        reference_layer_id,
+        false,
+    )
+}
+
+/// B_008: restrict the same source-bound audit to one straight polygon COPCUT.
+/// This proves only geometric centreline coverage in source-layer order.
+/// It never certifies electrical Reference/Return Path continuity or P009.
+pub fn audit_cutout_aware(
+    board: &BoardModel,
+    source_areas: &[SourceArea],
+    original_bytes: &[u8],
+    ordered_trace_ids: &[ObjectId],
+    reference_net_name: &str,
+    reference_layer_id: &ObjectId,
+) -> ReferenceGeometryAudit {
+    audit_impl(
+        board,
+        source_areas,
+        original_bytes,
+        ordered_trace_ids,
+        reference_net_name,
+        reference_layer_id,
+        true,
+    )
+}
+
+fn audit_impl(
+    board: &BoardModel,
+    source_areas: &[SourceArea],
+    original_bytes: &[u8],
+    ordered_trace_ids: &[ObjectId],
+    reference_net_name: &str,
+    reference_layer_id: &ObjectId,
+    allow_cutout: bool,
 ) -> ReferenceGeometryAudit {
     let unsupported = ReferenceGeometryAudit::unsupported;
     if board.validate().has_errors() {
@@ -438,7 +502,7 @@ pub fn audit(
             return unsupported("INVALID_SOURCE_LAYER");
         };
         if source_layer.meta.id != area.layer
-            || !exact_source_ring(area, src, frame_id)
+            || !exact_source_ring(area, src, frame_id, allow_cutout)
             || area
                 .net
                 .as_ref()
