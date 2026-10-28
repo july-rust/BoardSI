@@ -24,7 +24,7 @@ struct Receipt {
 };
 inline QByteArray hashSource(const QString &path) {
     QFile f(path);
-    if (!f.open(QIODevice::ReadOnly) || !f.isFile() ||
+    if (!f.open(QIODevice::ReadOnly) || !QFileInfo(path).isFile() ||
         f.size() < 1 || f.size() > 64 * 1024 * 1024) return {};
     QCryptographicHash sha(QCryptographicHash::Sha256);
     while(!f.atEnd()) {
@@ -153,7 +153,9 @@ class C005ReferenceRiskController final: public QWidget {
     void invalidate() {
         ++generation_;
         deadline_.stop();
-        if(process_.state()!=QProcess::NotRunning)process_.kill();
+        if(process_.state()!=QProcess::NotRunning) {
+            process_.kill();process_.waitForFinished(100);
+        }
         requestedSha_.clear();requestedOptions_.clear();requestedIndices_.clear();
         artwork_->setReferenceRisks({});
         status_->setText("NOT_AUDITED / SI NOT_RUN / Solver BLOCKED");
