@@ -25,7 +25,7 @@ pub fn encode(
         || indices.is_empty() || indices.len() > 2
         || indices.len() != reference_layer_numbers.len()
         || reference_net.is_empty() || reference_net.len() > 64
-        || reference_net.contains(['\n', '\r', '|'])
+        || reference_net.chars().any(|c| c == '\n' || c == '\r' || c == '|')
     {
         return Err("INVALID_REQUEST");
     }
