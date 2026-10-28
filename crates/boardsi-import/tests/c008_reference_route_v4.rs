@@ -33,7 +33,7 @@ fn accepted_two_layer_route_has_source_via_and_independent_v2_receipts() {
 #[test]
 fn source_cutout_produces_layer_a_gap_and_still_unverified_transition() {
     let first = AREAS.replace("RA COPPER 100 200 1 1 0", "RA COPPER 100 200 2 1 0");
-    let extra = "COPCUT 5 0.01 0 2\n40 20\n60 20\n60 40\n40 40\n40 20\n";
+    let extra = "COPCUT 5 0.01 0 2\n40 40\n60 40\n60 60\n40 60\n40 40\n";
     let modified = first.replace("RB COPPER", &format!("{extra}RB COPPER"));
     let out = audit(&source(GOOD, "", &modified), &[0, 1], 1).unwrap();
     assert!(out.contains("|REFERENCE_SPLIT_RISK"), "{out}");
@@ -43,8 +43,10 @@ fn source_cutout_produces_layer_a_gap_and_still_unverified_transition() {
 fn requires_one_explicit_connected_plated_via_at_transition() {
     let missing = GOOD.replace(" SIMPLEVIA", "");
     assert!(audit(&source(&missing, "", AREAS), &[0, 1], 1).is_err());
-    let shifted = GOOD.replace("150 250 4 10 0 SIMPLEVIA", "151 250 4 10 0 SIMPLEVIA");
-    assert!(audit(&source(&shifted, "", AREAS), &[0, 1], 1).is_err());
+    // A changed VIA vertex also moves its adjacent trace endpoint, and is
+    // therefore still connected. Select an actually disjoint same-net trace.
+    let other = "*SIGNAL* NET_SIG\nU3.1 U4.2\n190 280 4 10 0\n210 280 4 10 0\n";
+    assert!(audit(&source(GOOD, other, AREAS), &[0, 2], 1).is_err());
 }
 #[test]
 fn invalid_split_duplicate_reversed_and_wrong_layers_rejected() {
@@ -66,6 +68,14 @@ fn invalid_split_duplicate_reversed_and_wrong_layers_rejected() {
 fn selected_route_rejects_unselected_contact_and_same_net_arc() {
     let branch = "*SIGNAL* NET_SIG\nU3.1 U4.2\n135 250 1 10 0\n135 270 1 10 0\n";
     assert!(audit(&source(GOOD, branch, AREAS), &[0, 1], 1).is_err());
+}
+#[test]
+fn third_conductive_layer_branch_at_selected_via_is_unsupported() {
+    // SIMPLEVIA declares conductive pads on 1/2/3/4; layer 2 branch
+    // at the source via centre must not be silently treated as unbranched.
+    let branch = "*SIGNAL* NET_SIG\nU3.1 U4.2\n150 250 2 10 0\n150 270 2 10 0\n";
+    let result = audit(&source(GOOD, branch, AREAS), &[0, 1], 1);
+    assert_eq!(result, Err("UNSELECTED_VIA_BRANCH"));
 }
 #[test]
 fn cross_net_reference_or_source_change_never_promotes_physical_status() {
