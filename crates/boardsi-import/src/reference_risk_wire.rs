@@ -100,7 +100,11 @@ pub fn encode(
                 + 1,
             hex(name.name.as_bytes()),
             hex(trace.source_object.as_bytes()),
-            hex(trace.part.as_bytes()),
+            if trace.part.is_empty() {
+                "-".to_owned()
+            } else {
+                hex(trace.part.as_bytes())
+            },
             nm(a[0])?,
             nm(a[1])?,
             nm(b[0])?,
