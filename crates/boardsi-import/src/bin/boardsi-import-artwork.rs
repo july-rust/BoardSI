@@ -667,27 +667,47 @@ fn main() {
     let args: Vec<_> = std::env::args().collect();
     if args.len() >= 6 && args[2] == "--reference-risk-v1" {
         let selection = if args.len() == 6 {
-            args[3].parse::<usize>().ok().zip(args[5].parse::<usize>().ok())
+            args[3]
+                .parse::<usize>()
+                .ok()
+                .zip(args[5].parse::<usize>().ok())
                 .map(|(index, layer)| (vec![index], vec![layer]))
         } else if args.len() == 8 {
-            args[3].parse::<usize>().ok().zip(args[5].parse::<usize>().ok())
-                .zip(args[6].parse::<usize>().ok().zip(args[7].parse::<usize>().ok()))
+            args[3]
+                .parse::<usize>()
+                .ok()
+                .zip(args[5].parse::<usize>().ok())
+                .zip(
+                    args[6]
+                        .parse::<usize>()
+                        .ok()
+                        .zip(args[7].parse::<usize>().ok()),
+                )
                 .map(|((i, l), (j, m))| (vec![i, j], vec![l, m]))
         } else {
             None
         };
-        let result = selection.ok_or("INVALID_SELECTION").and_then(|(ids, layers)| {
-            let path = std::path::Path::new(&args[1]);
-            let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
-            if !metadata.is_file() || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64 {
-                return Err("FILE_LIMIT");
-            }
-            let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
-            boardsi_import::reference_risk_wire::encode(&bytes, &ids, &args[4], &layers)
-        });
+        let result = selection
+            .ok_or("INVALID_SELECTION")
+            .and_then(|(ids, layers)| {
+                let path = std::path::Path::new(&args[1]);
+                let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
+                if !metadata.is_file()
+                    || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
+                {
+                    return Err("FILE_LIMIT");
+                }
+                let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
+                boardsi_import::reference_risk_wire::encode(&bytes, &ids, &args[4], &layers)
+            });
         match result {
-            Ok(wire) => { print!("{wire}"); }
-            Err(reason) => { eprintln!("C005_REFERENCE_RISK_ERROR:{reason}"); std::process::exit(3); }
+            Ok(wire) => {
+                print!("{wire}");
+            }
+            Err(reason) => {
+                eprintln!("C005_REFERENCE_RISK_ERROR:{reason}");
+                std::process::exit(3);
+            }
         }
         return;
     }
