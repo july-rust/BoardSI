@@ -779,6 +779,10 @@ public:
         if(index<0 || index>=static_cast<int>(tracks_.size())) return false;
         out=tracks_[static_cast<size_t>(index)].second; return true;
     }
+    bool importedVia(int index, ImportedVia &out) const {
+        if(index<0 || index>=static_cast<int>(vias_.size()))return false;
+        out=vias_[static_cast<size_t>(index)].second; return true;
+    }
     int importedTraceCount() const { return static_cast<int>(tracks_.size()); }
     int referenceRiskCountForTest() const { return static_cast<int>(risks_.size()); }
     void setReferenceRisks(const std::vector<ImportedReferenceRiskMarker> &markers) {
