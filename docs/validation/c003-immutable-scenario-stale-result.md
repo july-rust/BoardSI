@@ -26,12 +26,14 @@ Required unqualified states:
 
 No U09/U10/U39/T02/T04/T24/T52 formal signoff or complete M1 parent [Issue #12](https://github.com/july-rust/BoardSI/issues/12) closure. C_002 Qt Viewer markers and B_007 original final-HEAD Codex review remain independent TODOs.
 
-## Required validation evidence (fill after actual checks)
+## Exact-head validation and protected integration — 2026-10-28 KST
 
-- [ ] Exact source-HEAD Rust fmt, Clippy, cargo tests in Debug and Release, C_003 synthetic test suite and B/C regressions.
-- [ ] Windows x64 / Windows ARM64 / macOS ARM64 / Linux Qt Native matrix green.
-- [ ] Independent Codex final same-HEAD review completed with no unresolved findings or threads.
-- [ ] Protected signed Verified Squash; independent post-main Check Runs and Workflow Runs.
-- [ ] Final dated checklist first-check/evidence dates with exact PR, SHA, test references **after** acceptance.
+- [x] [Code PR #243](https://github.com/july-rust/BoardSI/pull/243) final exact Source HEAD [f1d9c2d66e94d7228326ee009c3c0ae902a1ba3f](https://github.com/july-rust/BoardSI/commit/f1d9c2d66e94d7228326ee009c3c0ae902a1ba3f/checks): 9/9 PR-head GitHub Actions Workflows SUCCESS; Rustfmt, Clippy -D warnings, Debug and Release full workspace, C_003 synthetic test suite **12/12 Debug and 12/12 Release PASS**, previous B_003–B_008/C_001/C_002 suites remain green. First/evidence date: **2026-10-28 KST**.
+- [x] Rust Native Windows x64, Windows ARM64 and macOS ARM64; Qt Native Windows x64, Windows ARM64, macOS ARM64 and Linux: all PR-head workflow jobs SUCCESS.
+- [x] Independent Codex latest final HEAD f1d9c2d6: review completed, findings false, unresolved false, open review threads **0**. Confirmed independently before merge.
+- [x] Protected GitHub **Squash** [main@7edff0b9766a1ae70ab26e7010e356d64bad7046](https://github.com/july-rust/BoardSI/commit/7edff0b9766a1ae70ab26e7010e356d64bad7046) verified=true, reason=valid via REST commit.verification. Verified post-main exact SHA: [21/21 Check Runs SUCCESS](https://github.com/july-rust/BoardSI/commit/7edff0b9766a1ae70ab26e7010e356d64bad7046/checks) and 9/9 Workflow Runs SUCCESS, including [Push on main #40648767875](https://github.com/july-rust/BoardSI/actions/runs/40648767875), [Qt runtime #40648767924](https://github.com/july-rust/BoardSI/actions/runs/40648767924), [Numerical core #40648767849](https://github.com/july-rust/BoardSI/actions/runs/40648767849).
+- [x] First limited implementation checklist acceptance **2026-10-28 KST**, evidence **2026-10-28 KST**, linked to PR #243 and immutable code merge SHA; all prior first-check dates preserved.
+
+**Scoped verdict:** PASS for deterministic immutable Rust provisional input field ownership, synthetic result provenance/freshness and failure handling only. Caller-provided source/model digests are NOT independently verified. Real PCB full Canonical physical snapshot, physical Solver/cache reuse and actual Qt Worker transport are **NOT IMPLEMENTED/NOT VERIFIED**. No physical SI computation, AC Return Path/P009 or U09/U10/U39/T02/T04/T24/T52 formal product PASS. M1 Issue #12 stays OPEN; B_007 original final-HEAD Codex and C_002 Qt Viewer overlays remain pending.
 
 Prior B_002 audit_scenario_revision_sha256 is NOT this C_003 input identity. Future full physical Scenario/Cache, real Run receipt transport, geometry/port completeness, loss models and solver-ready criteria require separate evidence.
