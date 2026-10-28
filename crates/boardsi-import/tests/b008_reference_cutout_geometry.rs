@@ -53,12 +53,22 @@ fn cutout_free_legacy_geometry_is_preserved() {
     let raw = source(&holefree, &single("130 250", "170 250"));
     let (board, areas) = prepare(&raw);
     let ids = first_id(&board);
-    assert_eq!(audit(&board, &areas, &raw, &ids, "NET_REF", 1).state,
-               "SOURCE_ORDER_GEOMETRY_ONLY");
-    assert_eq!(reference_geometry::audit(
-        &board, &areas, raw.as_bytes(), &ids, "NET_REF",
-        &board.stackup.layers[1].meta.id).state,
-        "SOURCE_ORDER_GEOMETRY_ONLY");
+    assert_eq!(
+        audit(&board, &areas, &raw, &ids, "NET_REF", 1).state,
+        "SOURCE_ORDER_GEOMETRY_ONLY"
+    );
+    assert_eq!(
+        reference_geometry::audit(
+            &board,
+            &areas,
+            raw.as_bytes(),
+            &ids,
+            "NET_REF",
+            &board.stackup.layers[1].meta.id,
+        )
+        .state,
+        "SOURCE_ORDER_GEOMETRY_ONLY"
+    );
 }
 #[test]
 fn single_hole_non_intersecting_route_is_geometry_only_not_physical() {
@@ -124,11 +134,17 @@ fn one_source_tick_outside_hole_stays_eligible() {
 fn rejects_outer_boundary_and_concave_polygon_excursion() {
     let raw = source(&format!("{OUTER}{HOLE}"), &single("100 250", "170 250"));
     let (board, areas) = prepare(&raw);
-    assert_eq!(audit(&board, &areas, &raw, &first_id(&board), "NET_REF", 1).state,
-               "UNSUPPORTED");
+    assert_eq!(
+        audit(&board, &areas, &raw, &first_id(&board), "NET_REF", 1).state,
+        "UNSUPPORTED"
+    );
 
     let concave = "*LINES*\nREF COPPER 100 200 2 1 0 NET_REF\nCOPCLS 7 0.01 0 2\n0 0\n100 0\n100 40\n40 40\n40 100\n0 100\n0 0\n";
-    let inner = HOLE.replace("20 20", "10 10").replace("40 20", "20 10").replace("40 40", "20 20").replace("20 40", "10 20");
+    let inner = HOLE
+        .replace("20 20", "10 10")
+        .replace("40 20", "20 10")
+        .replace("40 40", "20 20")
+        .replace("20 40", "10 20");
     let raw = source(&format!("{concave}{inner}"), &single("130 270", "170 230"));
     let (board, areas) = prepare(&raw);
     assert_eq!(
