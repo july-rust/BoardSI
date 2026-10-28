@@ -1,6 +1,6 @@
 //! Public synthetic-only C_003 identity/freshness regression.
 use boardsi_import::scenario_contract::{
-    ReceiptError, ResultFreshness, ResultScope, ScenarioDraft, ScenarioError, SCHEMA,
+    classify_result, ReceiptError, ResultFreshness, ResultScope, ScenarioDraft, ScenarioError, SCHEMA,
 };
 
 fn draft() -> ScenarioDraft {
@@ -135,7 +135,9 @@ fn engine_model_and_precision_are_incompatible() {
 fn freeze_clones_values_and_edit_revert_restores_identity() {
     let mut editable = draft();
     let frozen = editable.freeze().unwrap();
+    assert_eq!(frozen.input().material_provenance_revision, "assumed-dk-df-source-1");
     editable.material_provenance_revision = "changed".into();
+    assert_eq!(frozen.input().material_provenance_revision, "assumed-dk-df-source-1");
     assert_ne!(frozen, editable.freeze().unwrap());
     editable.material_provenance_revision = "assumed-dk-df-source-1".into();
     assert_eq!(frozen, editable.freeze().unwrap());
@@ -241,4 +243,18 @@ fn invalid_run_ids_fail() {
     assert!(ResultScope::new("", scenario.clone()).is_err());
     assert!(ResultScope::new("evil/run", scenario.clone()).is_err());
     assert!(ResultScope::new(&"x".repeat(129), scenario).is_err());
+}
+
+#[test]
+fn missing_result_has_distinct_not_run_state() {
+    let current = draft().freeze().unwrap();
+    assert_eq!(classify_result(None, &current), ResultFreshness::NotRun);
+    let receipt = ResultScope::new("run", current.clone())
+        .unwrap()
+        .synthetic_receipt()
+        .unwrap();
+    assert_eq!(
+        classify_result(Some(&receipt), &current),
+        ResultFreshness::Current
+    );
 }
