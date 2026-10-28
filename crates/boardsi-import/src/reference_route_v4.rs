@@ -197,6 +197,34 @@ pub fn encode(
         }
     }
 
+    // A source-via connecting a third conductive layer can introduce a branch
+    // through its padstack even when the selected two-layer route is valid.
+    // Only the selected trace on each leg is allowed to contact this via.
+    if parsed.segments.iter().enumerate().any(|(index, segment)| {
+        !seen.contains(&index)
+            && segment.net == via.net
+            && on(segment.a, segment.b, joint)
+            && board
+                .stackup
+                .layers
+                .get((segment.layer - 1) as usize)
+                .map(|layer| actual.connected_layers.contains(&layer.meta.id))
+                .unwrap_or(false)
+    }) {
+        return Err("UNSELECTED_VIA_BRANCH");
+    }
+    if parsed.arcs.iter().any(|arc| {
+        arc.net == via.net
+            && board
+                .stackup
+                .layers
+                .get((arc.layer - 1) as usize)
+                .map(|layer| actual.connected_layers.contains(&layer.meta.id))
+                .unwrap_or(false)
+    }) {
+        return Err("VIA_CONNECTED_LAYER_ARC_UNSUPPORTED");
+    }
+
     let mut receipts = Vec::with_capacity(indices.len());
     let mut source_sha = String::new();
     let mut gaps = 0usize;
