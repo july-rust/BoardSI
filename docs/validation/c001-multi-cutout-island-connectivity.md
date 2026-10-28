@@ -26,5 +26,11 @@ Safety invariants remain `return_path_p009=UNSUPPORTED`, `solver_ready=false`, `
 - [x] Independent post-main **21/21 Check Runs SUCCESS**, **9/9 Workflow Runs SUCCESS** at exact merged SHA. [Push on main #40629876739](https://github.com/july-rust/BoardSI/actions/runs/40629876739), [Qt Runtime #40629877037](https://github.com/july-rust/BoardSI/actions/runs/40629877037), [commit checks](https://github.com/july-rust/BoardSI/commit/df1fde8648fd48f9ee884a3d9ad68fdf266e5f35/checks).
 - [x] Scoped checklist first check: **2026-10-28 KST**; evidence date **2026-10-28 KST**. Historical first dates preserved.
 
+## C_001 documentary closeout independently verified (2026-10-28 KST)
+
+- [x] [Final checklist / ledger PR #238](https://github.com/july-rust/BoardSI/pull/238), exact docs source HEAD `2f788cf771dae55ca0e78d57c7c0ef8752d2543e`: **22/22 Check Runs SUCCESS**, same-head Codex `completed`, findings 0 and unresolved 0.
+- [x] Protected Verified signed squash `main@1167b0d531a685705900117f6097217f6a8e2312`; independent **21/21 post-main Checks SUCCESS and 9/9 Workflows SUCCESS** ([exact main checks](https://github.com/july-rust/BoardSI/commit/1167b0d531a685705900117f6097217f6a8e2312/checks)).
+- [x] C_001 scope completed and dated in living checklist. This final heading clarification does not expand the limited physical acceptance or close parent Issue #12.
+
 **Not accepted:** [M1 Issue #12](https://github.com/july-rust/BoardSI/issues/12) remains OPEN; B_007 independent exact-final-HEAD Codex receipt unresolved; true electrical Reference and P009 return current, physical SI solver/cache, and full U09/U10/U39/T02/T04/T24/T52 all remain unchecked. No claim of whole-board copper islands beyond bounded disjoint outer bounding boxes.
 
