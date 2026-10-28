@@ -26,12 +26,13 @@ Errors distinguish missing evidence, invalid material, out-of-band requests and 
 - PH-12–PH-16 and U09/U10/U39/T02/T04/T24/T52 remain Not Run / unchecked, B_001 parent [Issue #12](https://github.com/july-rust/BoardSI/issues/12) stays OPEN.
 - C_002 Qt risk markers and B_007 original final-HEAD Codex review remain separate incomplete items.
 
-## Acceptance evidence (must be completed, not assumed)
+## Acceptance evidence — 2026-10-28 KST
 
-- [ ] Exact code PR head Rustfmt and Clippy -D warnings, Debug/Release tests incl. C_004 synthetic cases and all old B/C regressions
-- [ ] Windows x64, Windows ARM64, macOS ARM64 Rust/Qt Native and Linux Qt Native tests
-- [ ] Same-final-HEAD independent Codex review completed, zero unresolved findings/threads
-- [ ] Protected Squash Merge, GitHub Verified signature, independent post-main CI
-- [ ] Dated original checklist acceptance only for narrow input contract, preserving all earlier check dates
+- [x] Code [PR #246](https://github.com/july-rust/BoardSI/pull/246), exact final PR HEAD [3c17b723b5d2508e71808d186c78869ece56ee06](https://github.com/july-rust/BoardSI/commit/3c17b723b5d2508e71808d186c78869ece56ee06/checks): **23/23 Check Runs SUCCESS**, 9/9 PR Workflow Runs SUCCESS. Rustfmt, Clippy -D warnings, Debug/Release and existing B/C regression gates succeeded, including 10 scoped synthetic C_004 regression tests.
+- [x] Windows x64/ARM64 and macOS ARM64 Rust + Qt Native, Linux Qt Native, and related cross-platform regressions: exact PR HEAD CI SUCCESS.
+- [x] Independent Codex exact final HEAD 3c17b723b5: completed, has_any_findings=false, has_unresolved_findings=false, all historical inline threads resolved (0 open). Two prior real/imag loss consistency findings were fixed and independently re-reviewed.
+- [x] Protected Squash Merge [main@02cc35b51dfe4263f3e3d3f02f9151d47d696849](https://github.com/july-rust/BoardSI/commit/02cc35b51dfe4263f3e3d3f02f9151d47d696849), verified=true, reason=valid (GitHub REST commit verification).
+- [x] Independent post-main on exact protected merge [main@02cc35b51dfe4263f3e3d3f02f9151d47d696849](https://github.com/july-rust/BoardSI/commit/02cc35b51dfe4263f3e3d3f02f9151d47d696849/checks): **21/21 Check Runs SUCCESS**, **9/9 Workflow Runs SUCCESS** (including [Push on main #40673838011](https://github.com/july-rust/BoardSI/actions/runs/40673838011), [Qt runtime #40673838211](https://github.com/july-rust/BoardSI/actions/runs/40673838211), [Numerical core #40673838276](https://github.com/july-rust/BoardSI/actions/runs/40673838276), [M2 FEM native #40673838163](https://github.com/july-rust/BoardSI/actions/runs/40673838163)). FEM macOS ARM64 first attempt was cancelled; retried **attempt 2**, ultimately SUCCESS. First-check/evidence: **2026-10-28 KST**.
+- [x] Dated living checklist C_004 **limited input-contract/code** acceptance and separate code post-main evidence are updated in the same documentation branch; initial check date **2026-10-28 KST**, evidence date **2026-10-28 KST**, all prior dates preserved. The documentation PR's own review, CI, protected merge and post-main verification must be independently completed and reported; these are not pre-claimed.
 
-A successful test is limited input-contract acceptance only; it must not be presented as an independent F/X oracle or real PCB lossy RLGC completion.
+This is a limited input-contract implementation only, not an independent F/X oracle nor verified real-PCB lossy RLGC. **Issue #12 OPEN**, PH-12–PH-16/physical loss/P009/Cache still blocked. C_002 Qt risk overlay and B_007 original exact-head review stay pending.
