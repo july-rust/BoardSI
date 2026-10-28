@@ -117,6 +117,7 @@ class BoardSiRhiItem final : public QQuickItem {
     std::vector<ImportedTrack> tracks_;
     std::vector<ImportedVia> vias_;
     std::vector<ImportedContactMarker> contactMarkers_;
+    std::vector<ImportedReferenceRiskMarker> referenceRisks_;
     std::vector<ImportedPad> pads_;
     std::vector<ImportedArc> arcs_;
     std::vector<ImportedOutlineEdge> outlineEdges_;
@@ -762,6 +763,29 @@ protected:
             node->setFlag(QSGNode::OwnsMaterial);
             root->appendChildNode(node);
         }
+        // C_005 risk markers are source-geometric warnings only, never EM results.
+        for (int kind=0;kind<2;++kind) {
+            Vertices geometry;
+            for(const auto &m:referenceRisks_) {
+                const bool split=m.state=="REFERENCE_SPLIT_RISK";
+                if((split?0:1)!=kind || !visible(m.layer) || !includedNet(m.net)) continue;
+                const QPointF centre=pixel(world(m.x_nm,m.y_nm));
+                if(inView(centre,9,width(),height()))disk(geometry,centre,6.0,12);
+            }
+            if(geometry.empty())continue;
+            auto *node=new QSGGeometryNode();
+            auto *g=new QSGGeometry(QSGGeometry::defaultAttributes_Point2D(),
+                static_cast<int>(geometry.size()));
+            g->setDrawingMode(QSGGeometry::DrawTriangles);
+            auto *dst=g->vertexDataAsPoint2D();
+            for(size_t i=0;i<geometry.size();++i)
+                dst[i].set(static_cast<float>(geometry[i].x()),static_cast<float>(geometry[i].y()));
+            auto *material=new QSGFlatColorMaterial();
+            material->setColor(QColor(kind==0?"#ffcb75":"#c8abfc"));
+            node->setGeometry(g);node->setMaterial(material);
+            node->setFlag(QSGNode::OwnsGeometry);node->setFlag(QSGNode::OwnsMaterial);
+            root->appendChildNode(node);
+        }
         // Screen-space markers share the exact source-nm / net/layer filters
         // used by CPU. They are display hints, never a solver-ready netlist.
         for(int markerClass=0;markerClass<3;++markerClass) {
@@ -823,6 +847,15 @@ protected:
                                   event->position().y()-point.y())<=6.0) {
                         picked_(10,static_cast<int>(i));event->accept();return;
                     }
+                }
+            }
+            for(size_t k=referenceRisks_.size();k>0;--k) {
+                const size_t i=k-1;const auto &m=referenceRisks_[i];
+                if(!visible(m.layer) || !includedNet(m.net))continue;
+                const QPointF p=pixel(world(m.x_nm,m.y_nm));
+                if(std::hypot(event->position().x()-p.x(),
+                              event->position().y()-p.y())<=8.0) {
+                    picked_(11,static_cast<int>(i));event->accept();return;
                 }
             }
             // Screen-space picking is independent of float GPU coordinates.
@@ -905,6 +938,7 @@ public:
                const std::vector<ImportedPourEdge> &pours = {},
                const std::vector<ImportedCopperArea> &copper = {}) {
         contactMarkers_.clear();
+        referenceRisks_.clear();
         tracks_=tracks; vias_=vias; pads_=pads; arcs_=arcs;
         outlineEdges_=outlines; circles_=circles; boundaries_=boundary; pours_=pours; copper_=copper; layers_=layers;
         adapterProof_->store(0,std::memory_order_release);
@@ -991,6 +1025,9 @@ public:
         pan_=QPointF();zoom_=1.0;
         modelGeneration_.fetch_add(1,std::memory_order_release);
         requestSceneUpdate();
+    }
+    void setReferenceRisks(const std::vector<ImportedReferenceRiskMarker> &markers) {
+        referenceRisks_=markers;requestSceneUpdate();
     }
     void setLocalContacts(const std::vector<ImportedContactMarker> &markers) {
         contactMarkers_=markers;
@@ -1471,6 +1508,7 @@ public:
         if (changed_) changed_();
     }
     void setLocalContacts(const std::vector<ImportedContactMarker> &markers) {artwork_->setLocalContacts(markers);}
+    void setReferenceRisks(const std::vector<ImportedReferenceRiskMarker> &markers) {artwork_->setReferenceRisks(markers);}
     void filter(QVector<bool> layers,const QString &net,bool onlySelectedNet=false) {artwork_->filter(std::move(layers),net,onlySelectedNet);}
     void fit() {artwork_->fit();}
     void zoom(qreal factor) {artwork_->zoom(factor);}

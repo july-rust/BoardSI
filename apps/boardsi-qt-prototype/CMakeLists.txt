@@ -97,6 +97,11 @@ if(BUILD_TESTING)
   # Optional P2-A import smoke: actual Rust binary and a public synthetic fixture.
   set(BOARDSI_IMPORTER "" CACHE FILEPATH "Absolute built PADS route importer")
   if(BOARDSI_IMPORTER)
+    # C_005: source-verified Rust topology → Qt CPU/RHI marker and stale removal.
+    add_test(NAME qt-preview-c005-reference-risk
+      COMMAND boardsi-preview-p0 --c005-risk-selftest "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-c005-reference-risk PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     add_test(NAME qt-preview-p2a-partial-import COMMAND boardsi-preview-p0 --selftest
       "${BOARDSI_WORKER}" "${CMAKE_CURRENT_BINARY_DIR}/qt-model-a.frame"
       "${CMAKE_CURRENT_BINARY_DIR}/qt-model-b.frame" "${BOARDSI_IMPORTER}"

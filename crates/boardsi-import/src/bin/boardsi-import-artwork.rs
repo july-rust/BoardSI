@@ -664,6 +664,52 @@ fn run() -> Result<(usize, usize), &'static str> {
     Ok((local_contacts, via_barrels))
 }
 fn main() {
+    // Preserve the ordinary importer contract on Unix paths containing
+    // non-Unicode bytes: only textual audit parameters require UTF-8.
+    let args: Vec<_> = std::env::args_os().collect();
+    if args.len() >= 6 && args[2] == std::ffi::OsStr::new("--reference-risk-v1") {
+        let parse_index = |index: usize| {
+            args[index]
+                .to_str()
+                .and_then(|value| value.parse::<usize>().ok())
+        };
+        let selection = if args.len() == 6 {
+            parse_index(3)
+                .zip(parse_index(5))
+                .map(|(index, layer)| (vec![index], vec![layer]))
+        } else if args.len() == 8 {
+            parse_index(3)
+                .zip(parse_index(5))
+                .zip(parse_index(6).zip(parse_index(7)))
+                .map(|((i, l), (j, m))| (vec![i, j], vec![l, m]))
+        } else {
+            None
+        };
+        let result = selection
+            .ok_or("INVALID_SELECTION")
+            .and_then(|(ids, layers)| {
+                let reference = args[4].to_str().ok_or("INVALID_REFERENCE_NET")?;
+                let path = std::path::Path::new(&args[1]);
+                let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
+                if !metadata.is_file()
+                    || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
+                {
+                    return Err("FILE_LIMIT");
+                }
+                let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
+                boardsi_import::reference_risk_wire::encode(&bytes, &ids, reference, &layers)
+            });
+        match result {
+            Ok(wire) => {
+                print!("{wire}");
+            }
+            Err(reason) => {
+                eprintln!("C005_REFERENCE_RISK_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     match run() {
         Ok((contacts, barrels)) => {
             // Emit success diagnostics only after the complete bounded artwork

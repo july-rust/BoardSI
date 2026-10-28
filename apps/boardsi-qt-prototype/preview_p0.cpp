@@ -8,6 +8,7 @@
 #include "synthetic_artwork.h"
 #include "preview_import.h"
 #include "b001_stackup_editor.h"
+#include "c005_reference_risk.h"
 #include "a019_gpu_benchmark.h"
 #include "a019_interaction_validation.h"
 #include "a020_explorer_validation.h"
@@ -48,6 +49,7 @@ class PreviewWindow : public QMainWindow {
     SyntheticArtworkPanel *artwork = nullptr;
     PreviewImportPanel *importUI = nullptr;
     B001StackupEditor *stackup = nullptr;
+    C005ReferenceRiskController *referenceRisk = nullptr;
     QString chosenSourcePath;
     QString importResultStatus = "NOT IMPORTED";
     QLabel *properties = nullptr;
@@ -200,6 +202,8 @@ public:
         tabs->addTab(resultSummary, "Results");
         stackup = new B001StackupEditor(tabs);
         tabs->addTab(stackup, "Stackup / Reference");
+        referenceRisk = new C005ReferenceRiskController(importUI->imported(),importBinary,tabs);
+        tabs->addTab(referenceRisk, "Reference Risk (Source)");
         tabs->addTab(unsupportedTab(
             "S-PARAMETERS - NOT AVAILABLE\nSynthetic Worker data are not physical PCB SI results.", tabs),
             "S-Parameters");
@@ -244,6 +248,8 @@ public:
         rightLayout->addWidget(validBox);
         importUI->setStatusCallback([this](const QString &state) {
             importResultStatus = state;
+            referenceRisk->resetSource(chosenSourcePath,
+                state.startsWith("PARTIAL")?importUI->acceptedSourceSha256():QByteArray());
             if (state.startsWith("PARTIAL")) {
                 stackup->resetForImport(chosenSourcePath, importUI->importedLayerCount());
                 stackup->setSourceCopperInventory(importUI->importedCopperEvidence(),
@@ -256,6 +262,21 @@ public:
             log->appendPlainText("PCB Import: " + state);
             refreshProperties();
         });
+        // Edits to the independent Stackup editor invalidate the source-risk
+        // display, never authorize physical Solver readiness.
+        connect(stackup->table(),&QTableWidget::itemChanged,this,[this](QTableWidgetItem *) {
+            referenceRisk->resetSource(chosenSourcePath,
+                        importResultStatus.startsWith("PARTIAL")?
+                        importUI->acceptedSourceSha256():QByteArray());
+        });
+        for(const char *name:{"b001AuditFrequencyHz","b001SignalNet","b001ReferenceNet"}) {
+            if(auto *field=stackup->findChild<QLineEdit *>(name))
+                connect(field,&QLineEdit::textChanged,this,[this](const QString &) {
+                    referenceRisk->resetSource(chosenSourcePath,
+                        importResultStatus.startsWith("PARTIAL")?
+                        importUI->acceptedSourceSha256():QByteArray());
+                });
+        }
         artwork->setDetailsCallback([this](const QString &details) {
             syntheticDetails = details;
             if (!importUI->showingImported()) refreshProperties();
@@ -339,6 +360,7 @@ public:
     SyntheticArtworkPanel *artworkPanel() const { return artwork; }
     PreviewImportPanel *importPanel() const { return importUI; }
     B001StackupEditor *stackupEditor() const { return stackup; }
+    C005ReferenceRiskController *referenceRiskEditor() const {return referenceRisk;}
 
 protected:
     void closeEvent(QCloseEvent *event) override {
@@ -2942,9 +2964,113 @@ static int runB001StackupSelftest() {
     return pass ? 0 : 1;
 }
 
+// C_005 native Qt+Rust end-to-end public synthetic Reference split smoke.
+static int runC005RiskSelftest(const QString &importer) {
+    QTemporaryFile source;
+    if(!source.open())return 2;
+    const QByteArray bytes(
+        "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n"
+        "*PCB*\nMAXLAYER 4\n"
+        "*LINES*\nREF COPPER 100 200 2 1 0 NET_REF\n"
+        "COPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\n"
+        "COPCUT 5 0.01 0 2\n20 20\n40 20\n40 40\n20 40\n20 20\n"
+        "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n"
+        "110 230 1 10 0\n170 230 1 10 0\n"
+        "*SIGNAL* NET_REF\nR1.1 R2.2\n"
+        "300 400 2 10 0\n350 400 2 10 0\n*END*\n");
+    if(source.write(bytes)!=bytes.size() || !source.flush())return 2;
+    PreviewImportPanel panel(importer);
+    QEventLoop loadLoop;
+    panel.setStatusCallback([&loadLoop](const QString &s) {
+        if(s.startsWith("PARTIAL") || s.startsWith("FAILED"))loadLoop.quit();
+    });
+    if(!panel.openPath(source.fileName()))return 2;
+    QTimer::singleShot(8000,&loadLoop,&QEventLoop::quit);
+    loadLoop.exec();
+    if(!panel.importStatus().startsWith("PARTIAL"))return 1;
+    C005ReferenceRiskController controller(panel.imported(),importer);
+    controller.resetSource(source.fileName(),panel.acceptedSourceSha256());
+    auto *reference=controller.findChild<QLineEdit *>("c005ReferenceNet");
+    auto *run=controller.findChild<QPushButton *>("c005RunAudit");
+    if(!reference || !run)return 2;
+    reference->setText("NET_REF");run->click();
+    QEventLoop riskLoop;
+    QTimer poll;
+    QObject::connect(&poll,&QTimer::timeout,&riskLoop,[&] {
+        if(!controller.auditRunningForTest())riskLoop.quit();
+    });
+    QTimer::singleShot(8000,&riskLoop,&QEventLoop::quit);
+    poll.start(20);riskLoop.exec();poll.stop();
+    QString pickedDetails;
+    panel.imported()->setDetailsCallback([&pickedDetails](const QString &text) {
+        pickedDetails=text;
+    });
+    const bool marked=controller.currentStatusForTest().contains("REFERENCE_SPLIT_RISK") &&
+        panel.imported()->referenceRiskCountForTest()==1;
+    auto *scene=panel.imported()->findChild<QGraphicsScene *>();
+    bool sourceMarker=false;
+    if(scene)for(auto *item:scene->items())
+        if(item->data(3).toString()=="C005ReferenceRisk" &&
+           item->data(2).toString().contains("P009 UNSUPPORTED")) {
+            sourceMarker=true;
+            item->setSelected(true);
+        }
+    const bool riskDetailWasPicked=pickedDetails.contains("C_005 REFERENCE") ||
+        pickedDetails.contains("C_005 REFERENCE_SPLIT_RISK");
+    reference->setText("CHANGED_NET");
+    const bool riskDetailCleared=!pickedDetails.contains("C_005 REFERENCE_SPLIT_RISK") &&
+        !pickedDetails.contains("Witness ") &&
+        !pickedDetails.contains("SOURCE_REFERENCE_GAP_OR_CUTOUT");
+    const bool staleCleared=panel.imported()->referenceRiskCountForTest()==0 &&
+        controller.currentStatusForTest().contains("NOT_AUDITED");
+    // Recreate a visible risk and mutate the same accepted PCB file without
+    // changing any Qt input: QFileSystemWatcher must clear it automatically.
+    reference->setText("NET_REF");
+    run->click();
+    QEventLoop secondAudit;
+    QTimer secondPoll;
+    QObject::connect(&secondPoll,&QTimer::timeout,&secondAudit,[&] {
+        if(!controller.auditRunningForTest())secondAudit.quit();
+    });
+    QTimer::singleShot(8000,&secondAudit,&QEventLoop::quit);
+    secondPoll.start(20);secondAudit.exec();secondPoll.stop();
+    const bool rebuilt=panel.imported()->referenceRiskCountForTest()==1;
+    QFile changed(source.fileName());
+    const bool wrote=changed.open(QIODevice::Append) &&
+        changed.write("changed copper source\\n")>0;
+    changed.close();
+    QEventLoop sourceWatch;
+    QTimer watchPoll;
+    QObject::connect(&watchPoll,&QTimer::timeout,&sourceWatch,[&] {
+        if(controller.currentStatusForTest().contains("SOURCE FILE CHANGED"))
+            sourceWatch.quit();
+    });
+    QTimer::singleShot(2500,&sourceWatch,&QEventLoop::quit);
+    watchPoll.start(30);sourceWatch.exec();watchPoll.stop();
+    const bool sourceWatchClearsMarker=rebuilt && wrote &&
+        controller.currentStatusForTest().contains("REIMPORT REQUIRED") &&
+        panel.imported()->referenceRiskCountForTest()==0;
+    run->click();
+    const bool sourceMutationBlocked=sourceWatchClearsMarker &&
+        controller.currentStatusForTest().contains("REIMPORT REQUIRED") &&
+        panel.imported()->referenceRiskCountForTest()==0;
+    controller.resetSource(QString(),QByteArray());
+    const bool reimportCleared=panel.imported()->referenceRiskCountForTest()==0;
+    const bool pass=marked && sourceMarker && riskDetailWasPicked &&
+        riskDetailCleared && staleCleared && rebuilt && sourceWatchClearsMarker &&
+        sourceMutationBlocked && reimportCleared;
+    qInfo() << "C005_NATIVE_QT_RISK" << pass << marked << sourceMarker
+            << riskDetailWasPicked << riskDetailCleared << staleCleared
+            << rebuilt << sourceWatchClearsMarker << sourceMutationBlocked
+            << reimportCleared << "SI_NOT_RUN";
+    return pass?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--c005-risk-selftest")
+        return runC005RiskSelftest(args.at(2));
     if (args.size() == 2 && args.at(1) == "--b001-stackup-selftest")
         return runB001StackupSelftest();
     if (args.size() == 2 && args.at(1) == "--explorer-selftest")

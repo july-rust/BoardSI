@@ -4,6 +4,8 @@
 #include "imported_artwork.h"
 #include "a032_contact_records.h"
 #include <QCoreApplication>
+#include <QCryptographicHash>
+#include <QFile>
 #include <QJsonArray>
 #include <QStringList>
 #include <QFileInfo>
@@ -32,6 +34,7 @@ class PreviewImportPanel final : public QWidget {
     QByteArray errors_; // Small bounded diagnostic (fixed importer error codes only).
     QString binary_;
     QString candidatePath_;
+    QByteArray candidateDigest_, acceptedDigest_;
     int importedLayerCount_ = 0;
     QJsonArray importedCopperEvidence_;
     QJsonArray importedNetLabels_;
@@ -39,6 +42,18 @@ class PreviewImportPanel final : public QWidget {
     QString status_ = "NOT IMPORTED / SI NOT_RUN";
     std::function<void(const QString &)> callback_;
     bool expired_ = false, overflow_ = false, stderr_overflow_ = false;
+    static QByteArray sourceDigest(const QString &path) {
+        QFile source(path);
+        if(!source.open(QIODevice::ReadOnly) || !QFileInfo(path).isFile() ||
+           source.size()<1 || source.size()>64*1024*1024)return {};
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        while(!source.atEnd()) {
+            const QByteArray chunk=source.read(65536);
+            if(chunk.isEmpty())return {};
+            hash.addData(chunk);
+        }
+        return hash.result().toHex();
+    }
     void status(const QString &message) {
         status_ = message;
         if (importLabel_) importLabel_->setText(message);
@@ -659,6 +674,12 @@ public:
                 status("FAILED / INVALID_CONTACT_RECORDS / NOTHING IMPORTED");
                 return;
             }
+            // C_005: no source may change between accepted Import launch
+            // and accepted Qt Artwork; hold this verified digest for risk audit.
+            if(candidateDigest_.size()!=64 || sourceDigest(candidatePath_)!=candidateDigest_) {
+                status("FAILED / SOURCE_CHANGED_REIMPORT_REQUIRED / NOTHING IMPORTED");
+                return;
+            }
             if (!imported_->load(layers, skipped, tracks, vias, pads, arcs, outlines, circles, boundary,pours,coppers)) {
                 status("FAILED / INVALID_GEOMETRY / NOTHING IMPORTED");
                 return;
@@ -698,6 +719,7 @@ public:
             importedNetLabels_ = acceptedNames;
             importedNetInventoryComplete_ = completeNetInventory;
             importedLayerCount_ = layers;
+            acceptedDigest_ = candidateDigest_;
             imported_->setLocalContacts(contactMarkers);
             imported_->setLocalContactAudit(contactAudit);
             tabs_->setTabText(1, "Imported Partial");
@@ -738,6 +760,7 @@ public:
     bool showingImported() const { return tabs_->currentWidget() == imported_; }
     QString importStatus() const { return status_; }
     int importedLayerCount() const { return importedLayerCount_; }
+    QByteArray acceptedSourceSha256() const { return acceptedDigest_; }
     QJsonArray importedCopperEvidence() const { return importedCopperEvidence_; }
     QJsonArray importedNetLabels() const { return importedNetLabels_; }
     bool importedNetInventoryComplete() const { return importedNetInventoryComplete_; }
@@ -748,6 +771,7 @@ public:
         // Never show previous geometry with the current "NOTHING IMPORTED" result.
         imported_->clearArtwork();
         importedLayerCount_ = 0;
+        candidateDigest_.clear();acceptedDigest_.clear();
         importedCopperEvidence_ = QJsonArray();
         importedNetLabels_ = QJsonArray();
         importedNetInventoryComplete_ = false;
@@ -761,6 +785,10 @@ public:
             return false;
         }
         candidatePath_=path;
+        candidateDigest_=sourceDigest(path);
+        if(candidateDigest_.size()!=64) {
+            status("FAILED / SOURCE_HASH_UNAVAILABLE / NOTHING IMPORTED");return false;
+        }
         data_.clear();
         errors_.clear();
         expired_ = false;

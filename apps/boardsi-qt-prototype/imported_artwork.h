@@ -325,6 +325,11 @@ struct ImportedContactMarker {
     QString net;
     QString otherNet;
 };
+struct ImportedReferenceRiskMarker {
+    QString state, reason, net, sourceObject, viaObject;
+    int layer=0;
+    qint64 x_nm=0,y_nm=0; // exact source-grid witness; not a split intersection
+};
 #ifdef BOARDSI_RHI_ARTWORK
 #include "rhi_artwork.h"
 #endif
@@ -357,6 +362,7 @@ class ImportedArtworkPanel final : public QWidget {
     std::function<void(const QString &)> detailsCallback_;
     int skipped_ = 0;
     std::vector<std::pair<QGraphicsEllipseItem*,ImportedContactMarker>> contacts_;
+    std::vector<std::pair<QGraphicsEllipseItem*,ImportedReferenceRiskMarker>> risks_;
     QString localContactAudit_ = "Local endpoint contact evidence: NOT_EXPOSED; full-board connectivity NOT_VERIFIED";
     void refresh() {
 #ifdef BOARDSI_RHI_ARTWORK
@@ -452,6 +458,12 @@ class ImportedArtworkPanel final : public QWidget {
             entry.first->setVisible(shown);
             entry.first->setOpacity(net=="All nets" || net==e.net ? 1.0 : 0.12);
             if(shown) ++visibleCopper;
+        }
+        for (const auto &entry : risks_) {
+            const auto &m=entry.second;
+            const bool shown=m.layer>0 && m.layer<layerVisible_.size() &&
+                layerVisible_[m.layer] && (!netOnly || m.net==net);
+            entry.first->setVisible(shown);
         }
         // Declared layers are NOT necessarily copper layers with accepted traces.
         // Counts below describe only rendered straight-route data, not inferred geometry.
@@ -694,6 +706,9 @@ public:
                 else if (kind == 7) selectOutline(index);
                 else if (kind == 8) selectPour(index);
                 else if (kind == 9) selectCopper(index);
+                else if (kind == 11 && index>=0 && index<static_cast<int>(risks_.size())) {
+                    if(detailsCallback_) detailsCallback_(risks_[static_cast<size_t>(index)].first->data(2).toString());
+                }
                 else if (kind == 10 && index>=0 && index<static_cast<int>(contacts_.size())) {
                     if(detailsCallback_) detailsCallback_(contacts_[static_cast<size_t>(index)].first->data(2).toString());
                 }
@@ -738,7 +753,8 @@ public:
             }
             refresh();
             for(auto *item:scene_->selectedItems()) {
-                if(item->data(3).toString()=="A032Contact") {
+                if(item->data(3).toString()=="C005ReferenceRisk" ||
+                   item->data(3).toString()=="A032Contact") {
                     if(detailsCallback_) detailsCallback_(item->data(2).toString());
                     break;
                 }
@@ -755,6 +771,43 @@ public:
     }
     void setDetailsCallback(std::function<void(const QString &)> callback) {
         detailsCallback_ = std::move(callback);
+    }
+    bool importedTrack(int index, ImportedTrack &out) const {
+        if(index<0 || index>=static_cast<int>(tracks_.size())) return false;
+        out=tracks_[static_cast<size_t>(index)].second; return true;
+    }
+    int importedTraceCount() const { return static_cast<int>(tracks_.size()); }
+    int referenceRiskCountForTest() const { return static_cast<int>(risks_.size()); }
+    void setReferenceRisks(const std::vector<ImportedReferenceRiskMarker> &markers) {
+        const QSignalBlocker muteSelection(scene_);
+        for(const auto &entry:risks_) {scene_->removeItem(entry.first);delete entry.first;}
+        risks_.clear();
+        // C_005: clearing a selected marker must also clear the Properties
+        // cache; suppressed scene selection events cannot leave stale risk data.
+        if(detailsCallback_)
+            detailsCallback_("C_005 RISK RECEIPT INVALIDATED / RE-AUDIT REQUIRED / SI NOT_RUN");
+        for(const auto &m:markers) {
+            if(m.state!="REFERENCE_SPLIT_RISK" && m.state!="LAYER_TRANSITION_RISK") continue;
+            auto *item=scene_->addEllipse(QRectF(-6,-6,12,12),
+                QPen(QColor("#ffcb75"),2),
+                QBrush(QColor(m.state=="REFERENCE_SPLIT_RISK"?"#9b551b":"#825eae")));
+            item->setPos(m.x_nm/1e6,-m.y_nm/1e6);
+            item->setFlag(QGraphicsItem::ItemIgnoresTransformations);
+            item->setFlag(QGraphicsItem::ItemIsSelectable);
+            item->setZValue(18);
+            item->setData(0,m.net);
+            item->setData(3,"C005ReferenceRisk");
+            item->setData(2,QString("C_005 %1 / %2 / Source %3 / Via %4 / "
+                "Witness %5,%6 nm (representative only) / P009 UNSUPPORTED / "
+                "physical SI NOT_RUN / Solver BLOCKED")
+                .arg(m.state,m.reason,m.sourceObject,m.viaObject)
+                .arg(m.x_nm).arg(m.y_nm));
+            risks_.push_back({item,m});
+        }
+#ifdef BOARDSI_RHI_ARTWORK
+        if(rhi_)rhi_->setReferenceRisks(markers);
+#endif
+        refresh();
     }
     void setLocalContacts(const std::vector<ImportedContactMarker> &markers) {
         const QSignalBlocker muteSelection(scene_);
@@ -821,6 +874,7 @@ public:
         // selectionChanged. Prevent callbacks from iterating freed pointers.
         const QSignalBlocker muteSelection(scene_);
         contacts_.clear();
+        risks_.clear();
         tracks_.clear();
         arcs_.clear();
         vias_.clear();
@@ -1035,6 +1089,7 @@ public:
         {
             const QSignalBlocker muteSelection(scene_);
             contacts_.clear();
+            risks_.clear();
             tracks_.clear();
             arcs_.clear();
             vias_.clear();
