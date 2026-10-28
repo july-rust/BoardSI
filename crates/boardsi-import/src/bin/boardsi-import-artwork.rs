@@ -669,13 +669,17 @@ fn main() {
     let args: Vec<_> = std::env::args_os().collect();
     if args.len() >= 6 && args[2] == std::ffi::OsStr::new("--reference-risk-v1") {
         let parse_index = |index: usize| {
-            args[index].to_str().and_then(|value| value.parse::<usize>().ok())
+            args[index]
+                .to_str()
+                .and_then(|value| value.parse::<usize>().ok())
         };
         let selection = if args.len() == 6 {
-            parse_index(3).zip(parse_index(5))
+            parse_index(3)
+                .zip(parse_index(5))
                 .map(|(index, layer)| (vec![index], vec![layer]))
         } else if args.len() == 8 {
-            parse_index(3).zip(parse_index(5))
+            parse_index(3)
+                .zip(parse_index(5))
                 .zip(parse_index(6).zip(parse_index(7)))
                 .map(|((i, l), (j, m))| (vec![i, j], vec![l, m]))
         } else {
