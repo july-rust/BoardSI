@@ -41,7 +41,10 @@ pub enum ScenarioError {
 }
 
 fn valid_digest(value: &str) -> bool {
-    value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
 }
 
 fn append_field(dst: &mut Vec<u8>, value: &str) {
@@ -113,7 +116,10 @@ impl ScenarioDraft {
             &self.engine_version,
             &self.backend_precision,
         ];
-        if texts.iter().any(|v| v.trim().is_empty() || v.contains('\0')) {
+        if texts
+            .iter()
+            .any(|v| v.trim().is_empty() || v.contains('\0'))
+        {
             return Err(ScenarioError::MissingInput);
         }
         if texts.iter().any(|v| v.len() > 512) {
@@ -299,15 +305,18 @@ impl ResultScope {
 
     /// Test-only generator: cannot be used as a physical Solver receipt.
     pub fn synthetic_receipt(&self) -> Option<ResultReceipt> {
-        self.frozen.frequencies_hz.get(self.accepted).map(|&frequency_hz| ResultReceipt {
-            schema: SCHEMA.to_owned(),
-            run_id: self.run_id.clone(),
-            snapshot_sha256: self.frozen.snapshot_sha256.clone(),
-            conditions_sha256: self.frozen.conditions_sha256.clone(),
-            compatibility_sha256: self.frozen.compatibility_sha256.clone(),
-            sequence: self.accepted as u64 + 1,
-            frequency_hz,
-            synthetic: true,
-        })
+        self.frozen
+            .frequencies_hz
+            .get(self.accepted)
+            .map(|&frequency_hz| ResultReceipt {
+                schema: SCHEMA.to_owned(),
+                run_id: self.run_id.clone(),
+                snapshot_sha256: self.frozen.snapshot_sha256.clone(),
+                conditions_sha256: self.frozen.conditions_sha256.clone(),
+                compatibility_sha256: self.frozen.compatibility_sha256.clone(),
+                sequence: self.accepted as u64 + 1,
+                frequency_hz,
+                synthetic: true,
+            })
     }
 }
