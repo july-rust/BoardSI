@@ -248,7 +248,8 @@ public:
         rightLayout->addWidget(validBox);
         importUI->setStatusCallback([this](const QString &state) {
             importResultStatus = state;
-            referenceRisk->resetSource(chosenSourcePath,state.startsWith("PARTIAL"));
+            referenceRisk->resetSource(chosenSourcePath,
+                state.startsWith("PARTIAL")?importUI->acceptedSourceSha256():QByteArray());
             if (state.startsWith("PARTIAL")) {
                 stackup->resetForImport(chosenSourcePath, importUI->importedLayerCount());
                 stackup->setSourceCopperInventory(importUI->importedCopperEvidence(),
@@ -264,12 +265,16 @@ public:
         // Edits to the independent Stackup editor invalidate the source-risk
         // display, never authorize physical Solver readiness.
         connect(stackup->table(),&QTableWidget::itemChanged,this,[this](QTableWidgetItem *) {
-            referenceRisk->resetSource(chosenSourcePath,importResultStatus.startsWith("PARTIAL"));
+            referenceRisk->resetSource(chosenSourcePath,
+                        importResultStatus.startsWith("PARTIAL")?
+                        importUI->acceptedSourceSha256():QByteArray());
         });
         for(const char *name:{"b001AuditFrequencyHz","b001SignalNet","b001ReferenceNet"}) {
             if(auto *field=stackup->findChild<QLineEdit *>(name))
                 connect(field,&QLineEdit::textChanged,this,[this](const QString &) {
-                    referenceRisk->resetSource(chosenSourcePath,importResultStatus.startsWith("PARTIAL"));
+                    referenceRisk->resetSource(chosenSourcePath,
+                        importResultStatus.startsWith("PARTIAL")?
+                        importUI->acceptedSourceSha256():QByteArray());
                 });
         }
         artwork->setDetailsCallback([this](const QString &details) {
@@ -2984,7 +2989,7 @@ static int runC005RiskSelftest(const QString &importer) {
     loadLoop.exec();
     if(!panel.importStatus().startsWith("PARTIAL"))return 1;
     C005ReferenceRiskController controller(panel.imported(),importer);
-    controller.resetSource(source.fileName(),true);
+    controller.resetSource(source.fileName(),panel.acceptedSourceSha256());
     auto *reference=controller.findChild<QLineEdit *>("c005ReferenceNet");
     auto *run=controller.findChild<QPushButton *>("c005RunAudit");
     if(!reference || !run)return 2;
@@ -3006,11 +3011,21 @@ static int runC005RiskSelftest(const QString &importer) {
     reference->setText("CHANGED_NET");
     const bool staleCleared=panel.imported()->referenceRiskCountForTest()==0 &&
         controller.currentStatusForTest().contains("NOT_AUDITED");
-    controller.resetSource(QString(),false);
+    // Mutating only Reference Copper after accepted Artwork must never
+    // generate a new positive risk verdict for the stale displayed board.
+    QFile changed(source.fileName());
+    const bool wrote=changed.open(QIODevice::Append) && changed.write("changed copper source\\n")>0;
+    changed.close();
+    reference->setText("NET_REF");
+    run->click();
+    const bool sourceMutationBlocked=wrote &&
+        controller.currentStatusForTest().contains("REIMPORT REQUIRED") &&
+        panel.imported()->referenceRiskCountForTest()==0;
+    controller.resetSource(QString(),QByteArray());
     const bool reimportCleared=panel.imported()->referenceRiskCountForTest()==0;
-    const bool pass=marked && sourceMarker && staleCleared && reimportCleared;
+    const bool pass=marked && sourceMarker && staleCleared && sourceMutationBlocked && reimportCleared;
     qInfo() << "C005_NATIVE_QT_RISK" << pass << marked << sourceMarker
-            << staleCleared << reimportCleared << "SI_NOT_RUN";
+            << staleCleared << sourceMutationBlocked << reimportCleared << "SI_NOT_RUN";
     return pass?0:1;
 }
 
