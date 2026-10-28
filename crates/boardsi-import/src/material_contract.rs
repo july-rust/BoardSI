@@ -292,6 +292,10 @@ pub fn audit_material(
             add_source(&mut bytes, dk_source);
             add_source(&mut bytes, df_source);
             bytes.push(u8::from(explicit_lossless_dielectric));
+            let expected_imag = *dk * *df;
+            if !expected_imag.is_finite() {
+                return Err(MaterialAuditError::InvalidMaterial);
+            }
             if let Some(value) = complex {
                 if !valid_positive(value.real)
                     || !value.signed_imag.is_finite()
@@ -306,10 +310,6 @@ pub fn audit_material(
                 };
                 // Comparison is only valid when the supplied values represent the SAME frequency.
                 // Exact bit matching is not appropriate for measured decimal datasets.
-                let expected_imag = *dk * *df;
-                if !expected_imag.is_finite() {
-                    return Err(MaterialAuditError::InvalidMaterial);
-                }
                 let tolerance = 1e-10_f64.max(1e-8 * dk.abs().max(expected_imag.abs()));
                 if (value.real - dk).abs() > tolerance || (normalized - expected_imag).abs() > tolerance {
                     return Err(MaterialAuditError::InvalidMaterial);
@@ -564,6 +564,27 @@ mod tests {
                 Err(MaterialAuditError::InvalidMaterial)
             );
         }
+    }
+
+    #[test]
+    fn c004_reject_finite_but_overflowing_dielectric_loss() {
+        let (layer, mut material) = fixture(false);
+        material.dk = property(1e200);
+        material.df = property(1e200);
+        assert_eq!(
+            run(&layer, &material, 1e9),
+            Err(MaterialAuditError::InvalidMaterial)
+        );
+        let complex = RelativePermittivity {
+            real: 1e200,
+            signed_imag: -1.0,
+            source_convention: TimeConvention::ExpPlusJ,
+            includes_bulk_conduction: false,
+        };
+        assert_eq!(
+            audit_material(&layer, &material, 1e9, &CopperSurface::Unknown, Some(complex), false),
+            Err(MaterialAuditError::InvalidMaterial)
+        );
     }
 
     #[test]
