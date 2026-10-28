@@ -107,9 +107,7 @@ fn validate_evidence(
     Ok(())
 }
 
-fn assumed<'a, T>(
-    prop: &'a Property<T>,
-) -> Result<(&'a T, &'a PropertySource), MaterialAuditError> {
+fn assumed<T>(prop: &Property<T>) -> Result<(&T, &PropertySource), MaterialAuditError> {
     match prop {
         Property::Assumed { value, source } => Ok((value, source)),
         Property::Missing => Err(MaterialAuditError::MissingRequiredData),
@@ -308,8 +306,12 @@ pub fn audit_material(
                 };
                 // Comparison is only valid when the supplied values represent the SAME frequency.
                 // Exact bit matching is not appropriate for measured decimal datasets.
-                let tolerance = 1e-10_f64.max(1e-8 * dk.abs().max((dk * df).abs()));
-                if (value.real - dk).abs() > tolerance || (normalized - dk * df).abs() > tolerance {
+                let expected_imag = *dk * *df;
+                if !expected_imag.is_finite() {
+                    return Err(MaterialAuditError::InvalidMaterial);
+                }
+                let tolerance = 1e-10_f64.max(1e-8 * dk.abs().max(expected_imag.abs()));
+                if (value.real - dk).abs() > tolerance || (normalized - expected_imag).abs() > tolerance {
                     return Err(MaterialAuditError::InvalidMaterial);
                 }
                 bytes.push(1);
