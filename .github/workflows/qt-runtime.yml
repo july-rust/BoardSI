@@ -215,6 +215,15 @@ jobs:
           suffix=''
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c007-route-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      - name: C_008 Native two-layer via Reference and Qt stale smoke
+        shell: bash
+        env:
+          BOARDSI_ARTWORK_RENDERER: cpu
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --c008-via-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: Execute actual native Qt backend
         id: native_qt_execution
         shell: bash
