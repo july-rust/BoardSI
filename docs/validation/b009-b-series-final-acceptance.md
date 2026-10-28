@@ -1,6 +1,6 @@
 # B_009 — B-series Final Integration Acceptance & C-stage Handoff
 
-**기록일:** 2026-10-28 KST · **판정:** 제한 기능 감사 및 문서 PR 진행, 정식 B_001 인수 미완  
+**기록일:** 2026-10-28 KST · **판정:** B_009 제한 기능 문서 감사/보호된 main 병합/병합 후 Native CI 완료, 정식 B_001 전체 인수는 미완  
 **기준:** 보호된 [`main@972c6663a5d3cd0fd9d7f9cfe2d22c24dbc21ef3`](https://github.com/july-rust/BoardSI/commit/972c6663a5d3cd0fd9d7f9cfe2d22c24dbc21ef3) · 상위 [M1 Issue #12](https://github.com/july-rust/BoardSI/issues/12) **OPEN**  
 **필수 비교:** [개발 체크리스트](../development-checklist.md), [사양서 v1.0](../specification/BoardSI_Development_Spec_v1.0.md), [프로젝트 계획](../project-plan.json), [B_002](b002-b001-completion.md), [B_007](b007-copper-cutout-connectivity.md), [B_008](b008-reference-cutout-geometry.md).
 
@@ -68,14 +68,15 @@ cache_reuse_eligible  = false
 
 각 명령은 하나의 리뷰 가능한 범위로 구현→시험→체크리스트→보호 병합까지 종료한다. 연결되는 Port/M1b, RLGC/M2, Cache/M2b 및 Issue #12 전체 정식 인수는 별도 게이트로 남긴다.
 
-## 6. B_009 확인 및 종료 조건
+## 6. B_009 실제 최종 병합 및 완료 증거
 
-- [x] 2026-10-28 KST 기존 `main@972c6663` 서명 Verified / 21/21 Checks / 9/9 Workflow Runs 조회.
-- [x] 2026-10-28 KST 원본 체크리스트 선확인 및 B_001–B_008 제한 인수와 C 후보 분류.
-- [ ] B_007 exact final HEAD Codex review `completed` / zero findings / zero unresolved threads — **현재 NOT_VERIFIED**.
-- [ ] B_009 최종 PR HEAD CI, Debug/Release Rust 및 Native Qt OS matrix 실제 SUCCESS.
-- [ ] B_009 동일 HEAD 독립 Codex 리뷰 및 미해결 스레드 0.
-- [ ] GitHub 보호된 Verified Signed Squash Merge.
-- [ ] 병합 후 정확한 `main` SHA의 별도 Push/Native CI 성공과 체크리스트 최종 체크.
+- [x] **사전 감사:** 2026-10-28 KST 기준 `main@972c6663` 서명 Verified, 21/21 Checks 및 9/9 Workflows 조회. 원본 체크리스트 최초 날짜 보존.
+- [x] **검증 원장과 C단계 인계:** 이 문서는 제한 B_001–B_008 기하 기능을 인정하되 B_001 Issue #12 전체 인수는 승인하지 않는다.
+- [x] **PR 검사:** [PR #235](https://github.com/july-rust/BoardSI/pull/235) 최종 HEAD `a38facad54b457947009e3a364ce5bfdb3a6a37d`에서 **22/22 Checks SUCCESS**(Windows x64/ARM64, macOS ARM64 및 Linux Qt 포함).
+- [x] **독립 리뷰:** 같은 HEAD Codex Review `completed`, `has_any_findings=false`, `has_unresolved_findings=false`, 미해결 Review Thread 0.
+- [x] **보호 Squash Merge:** 2026-10-28 KST, [`main@47f4a6de7125eb49cb504c3b5d91aa59d908031f`](https://github.com/july-rust/BoardSI/commit/47f4a6de7125eb49cb504c3b5d91aa59d908031f), GitHub REST 서명 `verified=true, reason=valid`, branch protected.
+- [x] **별도 병합 후 검증:** 정확히 `47f4a6de` SHA의 [21/21 Check Runs SUCCESS](https://github.com/july-rust/BoardSI/commit/47f4a6de7125eb49cb504c3b5d91aa59d908031f/checks), **9/9 Workflow Runs SUCCESS**, [Push on main #40623750981](https://github.com/july-rust/BoardSI/actions/runs/40623750981), [Qt Runtime #40623751051](https://github.com/july-rust/BoardSI/actions/runs/40623751051).
+- [ ] **B_007 final SOURCE HEAD Codex closure:** [PR #231](https://github.com/july-rust/BoardSI/pull/231) `6a75eb5c` review receipt remains `status=running` / NOT_VERIFIED despite its separate 28/28 CI and resolved prior comments.
+- [ ] **B_001 full formal M1 acceptance:** [Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN; actual P009/Return Path, physical Scenario/Cache, losses, T02/T04/T24/T52 and U09/U10/U39 remain unchecked.
 
-**현시점 판정:** B_009 **감사 내용 작성**, 최종 병합 Gate **미검증**. B-series의 제한 구현은 `main`에 통합되어 있으나 B_007 마지막 리뷰 증빙이 남았다. **B_001 Issue #12는 PARTIAL/OPEN**.
+**B_009 제한 범위 판정: PASS** — signed merge and post-main CI independently verified. **B_001 전체 인수: PARTIAL/OPEN**. This documentation closeout update itself is a separate PR and must not be reported as merged until its own CI/merge evidence exists.
