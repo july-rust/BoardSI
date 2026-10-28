@@ -67,8 +67,7 @@ pub fn encode(
                 return Err("ROUTE_ENDPOINT_DISCONNECTED_OR_REVERSED");
             }
             if cross(previous.a, previous.b, segment.b) == 0
-                && (on(previous.a, previous.b, segment.b)
-                    || on(segment.a, segment.b, previous.a))
+                && (on(previous.a, previous.b, segment.b) || on(segment.a, segment.b, previous.a))
             {
                 return Err("OVERLAPPING_ROUTE_SEGMENTS");
             }
