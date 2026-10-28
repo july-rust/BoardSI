@@ -591,14 +591,15 @@ mod tests {
             Err(MaterialAuditError::InvalidMaterial)
         );
         let correct = RelativePermittivity { real: 4.0, ..wrong_real };
-        assert!(audit_material(
+        let accepted = audit_material(
             &layer,
             &material,
             1e9,
             &CopperSurface::Unknown,
             Some(correct),
-            false
-        ).is_ok());
+            false,
+        );
+        assert!(accepted.is_ok());
     }
 
     #[test]
