@@ -82,21 +82,28 @@ fn exact_source_ring(
     }
     let exact_ring = |source_ring: &[[i64; 2]], segments: &[BoundarySegment]| {
         source_ring.len() == segments.len() + 1
-            && segments.iter().zip(source_ring.windows(2)).all(|(seg, pair)| {
-                matches!(seg, BoundarySegment::Line { start, end }
+            && segments
+                .iter()
+                .zip(source_ring.windows(2))
+                .all(|(seg, pair)| {
+                    matches!(seg, BoundarySegment::Line { start, end }
                 if start.frame == *frame && end.frame == *frame
                     && start.ticks == pair[0] && end.ticks == pair[1])
-            })
+                })
     };
     exact_ring(ring, &area.outer.segments)
-        && source.cutouts.iter().zip(&area.cutouts).all(|(source_hole, canonical_hole)| {
-            let CopperGeometry::Polygon(hole) = source_hole else {
-                return false;
-            };
-            (4..=65).contains(&hole.len())
-                && hole.first() == hole.last()
-                && exact_ring(hole, &canonical_hole.boundary.segments)
-        })
+        && source
+            .cutouts
+            .iter()
+            .zip(&area.cutouts)
+            .all(|(source_hole, canonical_hole)| {
+                let CopperGeometry::Polygon(hole) = source_hole else {
+                    return false;
+                };
+                (4..=65).contains(&hole.len())
+                    && hole.first() == hole.last()
+                    && exact_ring(hole, &canonical_hole.boundary.segments)
+            })
 }
 fn segment_strictly_inside(
     area: &boardsi_model::CopperArea,
@@ -122,9 +129,10 @@ fn segment_strictly_inside(
         _ => false,
     };
     area.outer.segments.iter().all(misses_boundary)
-        && area.cutouts.iter().all(|hole| {
-            hole.boundary.segments.iter().all(misses_boundary)
-        })
+        && area
+            .cutouts
+            .iter()
+            .all(|hole| hole.boundary.segments.iter().all(misses_boundary))
 }
 fn exact_join(
     board: &BoardModel,
@@ -188,8 +196,13 @@ pub fn audit(
     reference_layer_id: &ObjectId,
 ) -> ReferenceGeometryAudit {
     audit_impl(
-        board, source_areas, original_bytes, ordered_trace_ids,
-        reference_net_name, reference_layer_id, false,
+        board,
+        source_areas,
+        original_bytes,
+        ordered_trace_ids,
+        reference_net_name,
+        reference_layer_id,
+        false,
     )
 }
 
@@ -205,8 +218,13 @@ pub fn audit_cutout_aware(
     reference_layer_id: &ObjectId,
 ) -> ReferenceGeometryAudit {
     audit_impl(
-        board, source_areas, original_bytes, ordered_trace_ids,
-        reference_net_name, reference_layer_id, true,
+        board,
+        source_areas,
+        original_bytes,
+        ordered_trace_ids,
+        reference_net_name,
+        reference_layer_id,
+        true,
     )
 }
 
