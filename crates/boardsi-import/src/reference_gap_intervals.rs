@@ -52,7 +52,8 @@ fn on_segment(a: [i64; 2], b: [i64; 2], p: [i64; 2]) -> bool {
         && (a[0].min(b[0])..=a[0].max(b[0])).contains(&p[0])
         && (a[1].min(b[1])..=a[1].max(b[1])).contains(&p[1])
 }
-fn boundary_points(segs: &[BoundarySegment]) -> Result<Vec<([i64; 2], [i64; 2])>, &'static str> {
+type SourceEdge = ([i64; 2], [i64; 2]);
+fn boundary_points(segs: &[BoundarySegment]) -> Result<Vec<SourceEdge>, &'static str> {
     let mut out = Vec::with_capacity(segs.len());
     for seg in segs {
         let BoundarySegment::Line { start, end } = seg else {
