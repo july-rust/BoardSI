@@ -18,7 +18,12 @@ fn on(a: [i64; 2], b: [i64; 2], p: [i64; 2]) -> bool {
         && (a[1].min(b[1])..=a[1].max(b[1])).contains(&p[1])
 }
 fn intersects(a: [i64; 2], b: [i64; 2], c: [i64; 2], d: [i64; 2]) -> bool {
-    let (p, q, r, s) = (cross(a, b, c), cross(a, b, d), cross(c, d, a), cross(c, d, b));
+    let (p, q, r, s) = (
+        cross(a, b, c),
+        cross(a, b, d),
+        cross(c, d, a),
+        cross(c, d, b),
+    );
     (p == 0 && on(a, b, c))
         || (q == 0 && on(a, b, d))
         || (r == 0 && on(c, d, a))
@@ -91,11 +96,12 @@ pub fn encode(
     }
     // Conservative: a same-net via or arc on this layer could introduce a
     // branch or unsupported connection even if the artwork subset is incomplete.
-    if parsed.arcs.iter().any(|a| a.net == first.net && a.layer == first.layer)
+    if parsed
+        .arcs
+        .iter()
+        .any(|a| a.net == first.net && a.layer == first.layer)
         || parsed.vias.iter().any(|v| {
-            v.net == first.net
-                && first.layer >= v.first_layer
-                && first.layer <= v.last_layer
+            v.net == first.net && first.layer >= v.first_layer && first.layer <= v.last_layer
         })
     {
         return Err("ROUTE_ARC_OR_VIA_UNSUPPORTED");
@@ -118,9 +124,7 @@ pub fn encode(
         }
         if fields[2] == "UNSUPPORTED" {
             unsupported = true;
-        } else if fields[2] != "REFERENCE_SPLIT_RISK"
-            && fields[2] != "SOURCE_GEOMETRY_ONLY"
-        {
+        } else if fields[2] != "REFERENCE_SPLIT_RISK" && fields[2] != "SOURCE_GEOMETRY_ONLY" {
             return Err("INVALID_V2_STATE");
         }
         total_gaps += wire.lines().filter(|line| line.starts_with("I|")).count();
