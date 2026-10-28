@@ -17,6 +17,7 @@
 #include <QWidget>
 #include <QStringList>
 #include <vector>
+#include <algorithm>
 
 namespace c005 {
 struct Receipt {
@@ -215,11 +216,81 @@ inline bool decode(const QByteArray &wire,const QByteArray &sourceSha,
 } // namespace c006
 
 
+// C_007 V3: explicit multi-trace route envelope around unchanged C_006 V2.
+// Each segment is independently verified against imported Qt source geometry.
+namespace c007 {
+inline bool decode(const QByteArray &wire, const QByteArray &sourceSha,
+                   const ImportedArtworkPanel *panel, const std::vector<int> &selected,
+                   c005::Receipt &out) {
+    if(!panel || selected.size()<2 || selected.size()>16 ||
+       wire.isEmpty() || wire.size()>140000 || !wire.endsWith('\n'))return false;
+    const auto lines=wire.split('\n');
+    if(lines.size()<10 || !lines.last().isEmpty())return false;
+    const auto head=lines[0].split('|');
+    if(head.size()!=7 || head[0]!="BOARDSI_REFERENCE_ROUTE_V3" ||
+       head[1]!=sourceSha || sourceSha.size()!=64 ||
+       head[4]!="UNSUPPORTED" || head[5]!="NOT_RUN" || head[6]!="0")
+        return false;
+    bool ok=false;
+    const int count=head[2].toInt(&ok);
+    if(!ok || count!=static_cast<int>(selected.size()))return false;
+    const QString status=QString::fromLatin1(head[3]);
+    if(status!="UNSUPPORTED" && status!="SOURCE_GEOMETRY_ONLY" &&
+       status!="REFERENCE_SPLIT_RISK")return false;
+    c005::Receipt candidate;
+    candidate.state=status;
+    candidate.reason="SOURCE_ROUTE_REFERENCE_GEOMETRY_NOT_PHYSICAL";
+    int line=1, gaps=0;
+    bool sawUnsupported=false;
+    ImportedTrack previous;
+    for(int i=0;i<count;++i) {
+        if(line>=lines.size()-1)return false;
+        const auto segment=lines[line++].split('|');
+        if(segment.size()!=3 || segment[0]!="SEG")return false;
+        const int index=segment[1].toInt(&ok);
+        if(!ok || index!=selected[static_cast<size_t>(i)])return false;
+        const int rows=segment[2].toInt(&ok);
+        if(!ok || rows<3 || rows>35 || line+rows>=lines.size())return false;
+        QByteArray original;
+        for(int r=0;r<rows;++r) {
+            original+=lines[line++];
+            original+='\n';
+        }
+        c005::Receipt single;
+        if(!c006::decode(original,sourceSha,panel,{index},single))return false;
+        ImportedTrack current;
+        if(!panel->importedTrack(index,current))return false;
+        if(i>0 && (current.net!=previous.net || current.layer!=previous.layer ||
+           current.x0_nm!=previous.x1_nm || current.y0_nm!=previous.y1_nm))
+            return false;
+        previous=current;
+        if(single.state=="UNSUPPORTED")sawUnsupported=true;
+        gaps+=static_cast<int>(single.markers.size());
+        if(gaps>16*32)return false;
+        for(auto &m:single.markers) {
+            m.reason="SOURCE_ROUTE_REFERENCE_GAP_NOT_PHYSICAL";
+            candidate.markers.push_back(std::move(m));
+        }
+    }
+    if(line!=lines.size()-2)return false;
+    const auto end=lines[line].split('|');
+    if(end.size()!=4 || end[0]!="END" ||
+       end[1]!=QByteArray::number(count) || end[2]!=QByteArray::number(gaps) ||
+       end[3]!="SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL")return false;
+    const QString expected=sawUnsupported?"UNSUPPORTED":
+        gaps>0?"REFERENCE_SPLIT_RISK":"SOURCE_GEOMETRY_ONLY";
+    if(status!=expected)return false;
+    if(sawUnsupported)candidate.markers.clear(); // no partial route PASS
+    out=std::move(candidate);
+    return true;
+}
+} // namespace c007
+
 class C005ReferenceRiskController final: public QWidget {
     ImportedArtworkPanel *artwork_ = nullptr;
     QString importer_,source_;
     QSpinBox *first_=nullptr,*second_=nullptr,*refA_=nullptr,*refB_=nullptr;
-    QLineEdit *net_=nullptr;
+    QLineEdit *net_=nullptr,*route_=nullptr;
     QLabel *status_=nullptr;
     QPushButton *run_=nullptr;
     QProcess process_;
@@ -231,9 +302,9 @@ class C005ReferenceRiskController final: public QWidget {
     quint64 generation_=0;
     quint64 activeGeneration_=0;
     QString options() const {
-        return QString("%1\n%2\n%3\n%4\n%5")
+        return QString("%1\n%2\n%3\n%4\n%5\n%6")
             .arg(first_->value()).arg(second_->value()).arg(refA_->value())
-            .arg(refB_->value()).arg(net_->text());
+            .arg(refB_->value()).arg(net_->text()).arg(route_->text());
     }
     void invalidate() {
         ++generation_;
@@ -255,9 +326,11 @@ class C005ReferenceRiskController final: public QWidget {
             return;
         }
         c005::Receipt receipt;
-        const bool parsed=requestedIndices_.size()==1
-            ? c006::decode(bytes,requestedSha_,artwork_,requestedIndices_,receipt)
-            : c005::decode(bytes,requestedSha_,artwork_,requestedIndices_,receipt);
+        const bool parsed=!route_->text().trimmed().isEmpty()
+            ? c007::decode(bytes,requestedSha_,artwork_,requestedIndices_,receipt)
+            : requestedIndices_.size()==1
+                ? c006::decode(bytes,requestedSha_,artwork_,requestedIndices_,receipt)
+                : c005::decode(bytes,requestedSha_,artwork_,requestedIndices_,receipt);
         if(exitStatus!=QProcess::NormalExit || exitCode!=0 || !parsed) {
             status_->setText("UNSUPPORTED / INVALID OR UNAVAILABLE RUST AUDIT / SI NOT_RUN");
             return;
@@ -288,6 +361,10 @@ public:
             controls->addWidget(w);
         layout->addLayout(controls);
         layout->addWidget(new QLabel("Trace # (0-based), optional 2nd Trace, Ref Layer 1/2, Reference Net",this));
+        route_=new QLineEdit(this);
+        route_->setObjectName("c007RouteIndices");
+        route_->setPlaceholderText("C_007 route (optional): 0,1,2 — 2..16 source-order traces");
+        layout->addWidget(route_);
         run_=new QPushButton("Audit selected source trace(s)",this);
         run_->setObjectName("c005RunAudit");
         layout->addWidget(run_);
@@ -298,6 +375,7 @@ public:
         for(auto *s:{first_,second_,refA_,refB_})
             connect(s,QOverload<int>::of(&QSpinBox::valueChanged),this,[this](int){invalidate();});
         connect(net_,&QLineEdit::textChanged,this,[this](const QString &){invalidate();});
+        connect(route_,&QLineEdit::textChanged,this,[this](const QString &){invalidate();});
         connect(&process_,&QProcess::finished,this,
             [this](int code,QProcess::ExitStatus state){finished(code,state);});
         // A previously accepted audit cannot remain visible when source copper
@@ -328,7 +406,7 @@ public:
         if(source_.isEmpty() || importer_.isEmpty() ||
            !QFileInfo(importer_).isExecutable() ||
            net_->text().isEmpty() || net_->text().size()>64 ||
-           second_->value()==first_->value()) {
+           (route_->text().trimmed().isEmpty() && second_->value()==first_->value())) {
             status_->setText("MISSING/INVALID AUDIT INPUT / SI NOT_RUN");return;
         }
         const QByteArray sha=c005::hashSource(source_);
@@ -338,10 +416,30 @@ public:
         requestedIndices_={first_->value()};
         QStringList args{source_,"--reference-risk-v1",
             QString::number(first_->value()),net_->text(),QString::number(refA_->value())};
-        if(second_->value()<0)args[1]="--reference-gap-v2";
-        if(second_->value()>=0) {
-            requestedIndices_.push_back(second_->value());
-            args << QString::number(second_->value()) << QString::number(refB_->value());
+        const QString routeText=route_->text().trimmed();
+        if(!routeText.isEmpty()) {
+            const auto parts=routeText.split(',');
+            if(parts.size()<2 || parts.size()>16 || routeText.size()>95) {
+                status_->setText("INVALID C_007 ROUTE SELECTION / SI NOT_RUN");return;
+            }
+            requestedIndices_.clear();
+            for(const QString &part:parts) {
+                bool ok=false;
+                const int idx=part.toInt(&ok);
+                if(!ok || idx<0 || idx>9999 ||
+                   std::find(requestedIndices_.begin(),requestedIndices_.end(),idx)!=requestedIndices_.end()) {
+                    status_->setText("INVALID OR DUPLICATE C_007 TRACE / SI NOT_RUN");return;
+                }
+                requestedIndices_.push_back(idx);
+            }
+            args={source_,"--reference-route-v3",routeText,net_->text(),
+                  QString::number(refA_->value())};
+        } else {
+            if(second_->value()<0)args[1]="--reference-gap-v2";
+            if(second_->value()>=0) {
+                requestedIndices_.push_back(second_->value());
+                args << QString::number(second_->value()) << QString::number(refB_->value());
+            }
         }
         ImportedTrack witness;
         for(int idx:requestedIndices_)if(!artwork_->importedTrack(idx,witness)) {
