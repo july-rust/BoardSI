@@ -664,25 +664,19 @@ fn run() -> Result<(usize, usize), &'static str> {
     Ok((local_contacts, via_barrels))
 }
 fn main() {
-    let args: Vec<_> = std::env::args().collect();
-    if args.len() >= 6 && args[2] == "--reference-risk-v1" {
+    // Preserve the ordinary importer contract on Unix paths containing
+    // non-Unicode bytes: only textual audit parameters require UTF-8.
+    let args: Vec<_> = std::env::args_os().collect();
+    if args.len() >= 6 && args[2] == std::ffi::OsStr::new("--reference-risk-v1") {
+        let parse_index = |index: usize| {
+            args[index].to_str().and_then(|value| value.parse::<usize>().ok())
+        };
         let selection = if args.len() == 6 {
-            args[3]
-                .parse::<usize>()
-                .ok()
-                .zip(args[5].parse::<usize>().ok())
+            parse_index(3).zip(parse_index(5))
                 .map(|(index, layer)| (vec![index], vec![layer]))
         } else if args.len() == 8 {
-            args[3]
-                .parse::<usize>()
-                .ok()
-                .zip(args[5].parse::<usize>().ok())
-                .zip(
-                    args[6]
-                        .parse::<usize>()
-                        .ok()
-                        .zip(args[7].parse::<usize>().ok()),
-                )
+            parse_index(3).zip(parse_index(5))
+                .zip(parse_index(6).zip(parse_index(7)))
                 .map(|((i, l), (j, m))| (vec![i, j], vec![l, m]))
         } else {
             None
@@ -690,6 +684,7 @@ fn main() {
         let result = selection
             .ok_or("INVALID_SELECTION")
             .and_then(|(ids, layers)| {
+                let reference = args[4].to_str().ok_or("INVALID_REFERENCE_NET")?;
                 let path = std::path::Path::new(&args[1]);
                 let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
                 if !metadata.is_file()
@@ -698,7 +693,7 @@ fn main() {
                     return Err("FILE_LIMIT");
                 }
                 let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
-                boardsi_import::reference_risk_wire::encode(&bytes, &ids, &args[4], &layers)
+                boardsi_import::reference_risk_wire::encode(&bytes, &ids, reference, &layers)
             });
         match result {
             Ok(wire) => {
