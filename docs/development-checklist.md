@@ -93,6 +93,10 @@
 
 - [ ] **B_001 전체 Issue #12 정식 인수** — B_006이 제한적으로 성공하더라도 물리 Reference Return Path/P009, Scenario/Cache, Material loss/roughness 및 공식 U09/U10/U39/T02/T04/T24/T52는 남는다. 원래 OPEN 상태 유지.
 
+### B_008 — 단일 COPCUT Reference 경로 기하 감사 (2026-10-28 KST)
+
+- [ ] **B_008 Source-bound Reference 전체 Trace Centreline의 단일 Polygon COPCUT 통과/접촉 검증** — B_005 Source Layer/Net/Trace 원본 및 정확한 그래프 경로 검증을 B_007의 하나의 Source-owned Polygon Hole로 확장, Reference Copper 양 끝점뿐 아니라 **전체 선분**의 Cutout/외곽 Boundary 간섭을 거부. `reference_geometry::audit_cutout_aware` 후보 코드와 [테스트](../crates/boardsi-import/tests/b008_reference_cutout_geometry.rs), [검증 원장](validation/b008-reference-cutout-geometry.md). **2026-10-28 KST 착수; 구현 Branch 후보이며 체크일 미부여: 실제 CI/독립 Codex/보호 병합/후속 main CI가 검증되기 전에는 [x] 금지.** `return_path_p009=UNSUPPORTED`, `solver_ready=false`, `physical_si=NOT_RUN`, `cache_reuse_eligible=false`. B_001 Issue #12 및 정식 U09/U10/U39/T02/T04/T24/T52 미완.
+
 ## 3. 후속 개발 체크리스트
 
 | 단계 | 상태 | 구체적 잔여 작업 (GitHub) |
