@@ -185,6 +185,18 @@ jobs:
             echo "B001_RECEIPT_MISSING"
           fi
           exit "$rc"
+      # C_005 has a Linux CTest but previously lacked the same real Rust→Qt
+      # source-risk acceptance smoke on the three Native desktop matrices.
+      # Keep source-only geometry claims: this is not a physical SI solver.
+      - name: C_005 Native Qt/Rust reference risk and stale source smoke
+        shell: bash
+        env:
+          BOARDSI_ARTWORK_RENDERER: cpu
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --c005-risk-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: Execute actual native Qt backend
         id: native_qt_execution
         shell: bash
