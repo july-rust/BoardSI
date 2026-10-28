@@ -782,6 +782,10 @@ public:
         const QSignalBlocker muteSelection(scene_);
         for(const auto &entry:risks_) {scene_->removeItem(entry.first);delete entry.first;}
         risks_.clear();
+        // C_005: clearing a selected marker must also clear the Properties
+        // cache; suppressed scene selection events cannot leave stale risk data.
+        if(detailsCallback_)
+            detailsCallback_("C_005 RISK RECEIPT INVALIDATED / RE-AUDIT REQUIRED / SI NOT_RUN");
         for(const auto &m:markers) {
             if(m.state!="REFERENCE_SPLIT_RISK" && m.state!="LAYER_TRANSITION_RISK") continue;
             auto *item=scene_->addEllipse(QRectF(-6,-6,12,12),
