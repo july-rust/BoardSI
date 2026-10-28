@@ -793,10 +793,11 @@ public:
             if(m.state!="REFERENCE_SPLIT_RISK" && m.state!="LAYER_TRANSITION_RISK") continue;
             QGraphicsItem *item=nullptr;
             if(m.exactGap) {
+                QPen gapPen(QColor("#ff9e55"),5);
+                gapPen.setCosmetic(true); // 5 screen pixels, not 5 mm of PCB width.
                 auto *line=scene_->addLine(
                     QLineF(m.startX_nm/1e6,-m.startY_nm/1e6,
-                           m.endX_nm/1e6,-m.endY_nm/1e6),
-                    QPen(QColor("#ff9e55"),5));
+                           m.endX_nm/1e6,-m.endY_nm/1e6), gapPen);
                 item=line;
             } else {
                 auto *dot=scene_->addEllipse(QRectF(-6,-6,12,12),
