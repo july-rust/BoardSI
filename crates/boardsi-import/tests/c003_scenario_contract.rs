@@ -1,6 +1,7 @@
 //! Public synthetic-only C_003 identity/freshness regression.
 use boardsi_import::scenario_contract::{
-    classify_result, ReceiptError, ResultFreshness, ResultScope, ScenarioDraft, ScenarioError, SCHEMA,
+    classify_result, ReceiptError, ResultFreshness, ResultScope, ScenarioDraft, ScenarioError,
+    SCHEMA,
 };
 
 fn draft() -> ScenarioDraft {
@@ -135,9 +136,15 @@ fn engine_model_and_precision_are_incompatible() {
 fn freeze_clones_values_and_edit_revert_restores_identity() {
     let mut editable = draft();
     let frozen = editable.freeze().unwrap();
-    assert_eq!(frozen.input().material_provenance_revision, "assumed-dk-df-source-1");
+    assert_eq!(
+        frozen.input().material_provenance_revision,
+        "assumed-dk-df-source-1"
+    );
     editable.material_provenance_revision = "changed".into();
-    assert_eq!(frozen.input().material_provenance_revision, "assumed-dk-df-source-1");
+    assert_eq!(
+        frozen.input().material_provenance_revision,
+        "assumed-dk-df-source-1"
+    );
     assert_ne!(frozen, editable.freeze().unwrap());
     editable.material_provenance_revision = "assumed-dk-df-source-1".into();
     assert_eq!(frozen, editable.freeze().unwrap());
