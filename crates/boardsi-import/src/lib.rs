@@ -196,6 +196,7 @@ pub mod part_preview;
 pub mod polygon_topology;
 pub mod pour_preview;
 pub mod reference_geometry;
+pub mod reference_topology;
 pub mod route_preview;
 pub mod via_copper_contact;
 
