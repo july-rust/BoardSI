@@ -7,8 +7,7 @@ const HEADER: &str =
 const AREA: &str = "*LINES*\nREF COPPER 100 200 1 1 0 NET_REF\nCOPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\n";
 const HOLE: &str = "COPCUT 5 0.01 0 2\n20 20\n40 20\n40 40\n20 40\n20 20\n";
 const VIA: &str = "*VIA*\nSIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R\n";
-const REF_ROUTE: &str =
-    "*SIGNAL* NET_REF\nR1.1 R2.2\n300 400 2 10 0\n350 400 2 10 0\n";
+const REF_ROUTE: &str = "*SIGNAL* NET_REF\nR1.1 R2.2\n300 400 2 10 0\n350 400 2 10 0\n";
 fn input(area: &str, route: &str, via: &str) -> String {
     format!("{HEADER}{via}{area}*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n{route}\n{REF_ROUTE}*END*\n")
 }
@@ -20,13 +19,24 @@ fn board(raw: &str) -> BoardModel {
     assert!(!b.validate().has_errors(), "{:#?}", b.validate().issues);
     b
 }
-fn check(b: &BoardModel, raw: &str, trace_ids: &[ObjectId], ref_layers: &[usize]) -> reference_topology::TopologyRiskAudit {
-    let layers: Vec<_> = ref_layers.iter().map(|&i| b.stackup.layers[i].meta.id.clone()).collect();
+fn check(
+    b: &BoardModel,
+    raw: &str,
+    trace_ids: &[ObjectId],
+    ref_layers: &[usize],
+) -> reference_topology::TopologyRiskAudit {
+    let layers: Vec<_> = ref_layers
+        .iter()
+        .map(|&i| b.stackup.layers[i].meta.id.clone())
+        .collect();
     reference_topology::audit(b, raw.as_bytes(), trace_ids, "NET_REF", &layers)
 }
 fn selected(b: &BoardModel) -> Vec<ObjectId> {
-    b.traces.iter().filter(|t| t.net == b.traces[0].net)
-        .map(|t| t.meta.id.clone()).collect()
+    b.traces
+        .iter()
+        .filter(|t| t.net == b.traces[0].net)
+        .map(|t| t.meta.id.clone())
+        .collect()
 }
 #[test]
 fn continuous_reference_is_only_source_geometry_not_si() {
@@ -41,7 +51,11 @@ fn continuous_reference_is_only_source_geometry_not_si() {
 #[test]
 fn cutout_crossing_with_both_endpoints_on_copper_is_split_risk() {
     let cut = AREA.replace("100 200 1 1 0", "100 200 2 1 0");
-    let raw = input(&format!("{cut}{HOLE}"), "110 230 1 10 0\n170 230 1 10 0", "");
+    let raw = input(
+        &format!("{cut}{HOLE}"),
+        "110 230 1 10 0\n170 230 1 10 0",
+        "",
+    );
     let b = board(&raw);
     let v = check(&b, &raw, &selected(&b), &[1]);
     assert_eq!(v.state, "REFERENCE_SPLIT_RISK");
@@ -49,8 +63,13 @@ fn cutout_crossing_with_both_endpoints_on_copper_is_split_risk() {
 }
 #[test]
 fn separated_source_areas_never_become_one_continuous_reference() {
-    let second = "REF2 COPPER 230 200 1 1 0 NET_REF\nCOPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\n";
-    let raw = input(&format!("{AREA}{second}"), "130 250 1 10 0\n270 250 1 10 0", "");
+    let second =
+        "REF2 COPPER 230 200 1 1 0 NET_REF\nCOPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\n";
+    let raw = input(
+        &format!("{AREA}{second}"),
+        "130 250 1 10 0\n270 250 1 10 0",
+        "",
+    );
     let b = board(&raw);
     let v = check(&b, &raw, &selected(&b), &[1]);
     assert_eq!(v.state, "REFERENCE_SPLIT_RISK");
@@ -61,7 +80,10 @@ fn original_sha_or_canonical_contour_tampering_fails_closed() {
     let raw = input(AREA, "130 250 1 10 0\n170 250 1 10 0", "");
     let mut b = board(&raw);
     let altered = raw.replace("REF COPPER", "BAD COPPER");
-    assert_eq!(check(&b, &altered, &selected(&b), &[1]).reason, "SOURCE_SHA_MISMATCH");
+    assert_eq!(
+        check(&b, &altered, &selected(&b), &[1]).reason,
+        "SOURCE_SHA_MISMATCH"
+    );
     if let BoundarySegment::Line { ref mut start, .. } = b.areas[0].outer.segments[0] {
         start.ticks[0] += 1;
     }
@@ -74,12 +96,18 @@ fn reference_unknown_net_and_wrong_layer_do_not_create_risk_certificates() {
     let ids = selected(&b);
     assert_eq!(check(&b, &raw, &ids, &[3]).state, "UNSUPPORTED");
     let layer = [b.stackup.layers[1].meta.id.clone()];
-    assert_eq!(reference_topology::audit(&b, raw.as_bytes(), &ids, "NET_SIG", &layer).state, "UNSUPPORTED");
+    assert_eq!(
+        reference_topology::audit(&b, raw.as_bytes(), &ids, "NET_SIG", &layer).state,
+        "UNSUPPORTED"
+    );
 }
 #[test]
 fn source_plated_through_via_with_adjacent_reference_is_transition_risk_only() {
-    let raw = input(AREA,
-        "130 250 1 10 0\n150 250 3 10 0 SIMPLEVIA\n170 250 3 10 0", VIA);
+    let raw = input(
+        AREA,
+        "130 250 1 10 0\n150 250 3 10 0 SIMPLEVIA\n170 250 3 10 0",
+        VIA,
+    );
     let b = board(&raw);
     let ids = selected(&b);
     assert_eq!(ids.len(), 2, "{:#?}", b.traces);
@@ -91,8 +119,11 @@ fn source_plated_through_via_with_adjacent_reference_is_transition_risk_only() {
 }
 #[test]
 fn via_without_source_or_plating_is_never_transition_evidence() {
-    let raw = input(AREA,
-        "130 250 1 10 0\n150 250 3 10 0 SIMPLEVIA\n170 250 3 10 0", VIA);
+    let raw = input(
+        AREA,
+        "130 250 1 10 0\n150 250 3 10 0 SIMPLEVIA\n170 250 3 10 0",
+        VIA,
+    );
     let mut b = board(&raw);
     let ids = selected(&b);
     b.drills[0].plated = false;
@@ -103,8 +134,16 @@ fn via_without_source_or_plating_is_never_transition_evidence() {
 }
 #[test]
 fn overlapping_reference_bounds_are_unsupported_not_false_split() {
-    let second = "REF2 COPPER 150 200 1 1 0 NET_REF\nCOPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\n";
-    let raw = input(&format!("{AREA}{second}"), "130 250 1 10 0\n170 250 1 10 0", "");
+    let second =
+        "REF2 COPPER 150 200 1 1 0 NET_REF\nCOPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\n";
+    let raw = input(
+        &format!("{AREA}{second}"),
+        "130 250 1 10 0\n170 250 1 10 0",
+        "",
+    );
     let b = board(&raw);
-    assert_eq!(check(&b, &raw, &selected(&b), &[1]).reason, "AMBIGUOUS_REFERENCE_AREA_BOUNDS");
+    assert_eq!(
+        check(&b, &raw, &selected(&b), &[1]).reason,
+        "AMBIGUOUS_REFERENCE_AREA_BOUNDS"
+    );
 }
