@@ -1,6 +1,6 @@
 # B_008 — Source-bound single polygon COPCUT Reference centreline coverage
 
-Status: **SOURCE PR VERIFIED AND MERGED; POST-MAIN CHECKS PENDING** (2026-10-28 KST).
+Status: **B_008 RESTRICTED GEOMETRY IMPLEMENTATION, SIGNED SQUASH AND INDEPENDENT POST-MAIN CI VERIFIED** (2026-10-28 KST).
 Tracking: [M1 parent Issue #12](https://github.com/july-rust/BoardSI/issues/12).
 Baseline: protected `main@43c5d54d5af58d110e98a3260f0e93221c2e4896`.
 Original living [development checklist](../development-checklist.md) and original B_005/B_006/B_007 acceptance ledgers read before work.
@@ -42,15 +42,19 @@ New public synthetic fixture: `crates/boardsi-import/tests/b008_reference_cutout
 - [x] Native Windows x64/ARM64 and macOS ARM64 Rust/Qt, Linux Qt passed in PR-head Numerical and Qt workflows.
 - [x] Same-head independent Codex review completed with zero findings and zero unresolved review threads.
 - [x] Signed protected squash merge to `main@9cba34f1eb1135da8e187c8ecb945ad90c78d073` verified=true (valid).
-- [ ] Independent post-main 21 checks / 9 workflows still running; do not claim final acceptance before verification.
+- [x] Independently fetched signed code-merge `main@9cba34f1` post-main: **21/21 Check Runs SUCCESS, 9/9 Workflow Runs SUCCESS**, including [Push on main #40612009982](https://github.com/july-rust/BoardSI/actions/runs/40612009982) and [Qt runtime #40612010054](https://github.com/july-rust/BoardSI/actions/runs/40612010054). These are separate from PR HEAD checks.
 ## Required post-implementation acceptance ledger (to fill ONLY with evidence)
 
-- [ ] Same-head Rust fmt, Clippy, Debug/Release new and existing tests
-- [ ] Windows x64/ARM64, macOS ARM64 and existing Linux Qt CI
-- [ ] Independent Codex final source HEAD completed review, no unresolved issues
-- [ ] Protected branch 17/17 required checks; do not bypass
-- [ ] Verified signed Squash merge and separate post-main Push CI
-- [ ] KST checklist first-check date/evidence date, PR/head SHA, actual checks
-- [ ] Parent Issue #12 stays OPEN; formal U09/U10/U39 and T02/T04/T24/T52 remain unchecked
+- [x] Same-head Rust fmt, Clippy, Debug/Release new and existing tests (PR #233)
+- [x] Windows x64/ARM64, macOS ARM64 and existing Linux Qt CI (PR #233)
+- [x] Independent Codex final source HEAD completed review, no unresolved issues
+- [x] GitHub protected merge accepted without bypass, 23/23 PR-head Checks
+- [x] Verified signed Squash merge and independently successful 21/21 post-main Checks, 9/9 Workflows
+- [x] Checklist scoped code check date 2026-10-28 KST and evidence date 2026-10-28 KST; final post-main check recorded on docs closeout branch for protected integration
+- [x] Parent Issue #12 stays OPEN; formal U09/U10/U39 and T02/T04/T24/T52 remain unchecked (scope distinction retained)
 
 B_009 will consolidate the bounded B-series implementations and explicitly carry remaining physical/model/official acceptance work forward. Never claim completion of full B_001 merely because this geometry subset passes.
+
+## B_009 handoff
+
+Reconcile B_001–B_008 restricted source-geometry acceptance and legacy B_007 latest-head Codex receipt (still independently pending in its original ledger); do not silently mark B_001 Issue #12 or real P009/physical material/scenario/cache acceptance. Track the unqualified return-path model, material loss/roughness and official T02/T04/T24/T52 separately for future stages.
