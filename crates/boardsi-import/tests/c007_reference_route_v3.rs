@@ -56,6 +56,12 @@ fn multiple_gaps_across_segments_stay_source_ordered() {
     assert!(route(&bytes, &[0, 1]).is_err());
 }
 #[test]
+fn codex_backtracking_past_previous_start_is_rejected() {
+    // 130 -> 170 -> 110 retraces the entire previous source segment.
+    let bytes = make("130 250 1 10 0\n170 250 1 10 0\n110 250 1 10 0", "");
+    assert_eq!(route(&bytes, &[0, 1]), Err("OVERLAPPING_ROUTE_SEGMENTS"));
+}
+#[test]
 fn duplicate_reversed_and_missing_indices_are_rejected() {
     let bytes = make(ROUTE, "");
     for indices in [&[0, 0][..], &[1, 0][..], &[0, 999][..], &[0][..]] {
