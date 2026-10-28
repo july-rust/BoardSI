@@ -116,6 +116,10 @@
 - [ ] **C_002 Qt Viewer의 실제 Reference Split/Transition 마커·상태 표시 통합 및 Native UI 수용** — 이번 코드 PR은 Opt-in Rust 감사 API만 추가했고 Qt Viewer 연계 UI는 미구현. 별도 구현·시험 증빙 전까지 미완 유지.
 - [ ] **B_001 Issue #12 및 정식 U09/U10/U39·T02/T04/T24/T52 전체 인수** — Reference 전기적 연속성, 실제 P009 Return Path, Solver/Cache/Material Loss는 모두 미승인. [Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN 유지. B_007 원본 마지막 HEAD Codex 리뷰도 별도 NOT_VERIFIED 상태 보존.
 
+### C_003 — Immutable Scenario and Stale Result (검증 진행 중 · 2026-10-28 KST)
+
+- [ ] **C_003 제한 Rust Snapshot/Receipt 계약 검증 및 보호 병합** — [Issue #242](https://github.com/july-rust/BoardSI/issues/242), [검증 원장](validation/c003-immutable-scenario-stale-result.md). 소스/Canonical SHA는 외부 제공 주장이므로 완전한 실물 PCB 직렬화가 아니며, Solver/Cache/P009 정식 자격이 아니다. 최종 HEAD Rust Debug/Release, Native Qt 전 플랫폼 CI, 독립 Codex 같은 HEAD, 서명된 보호 병합 및 독립 post-main 증거 후에만 [x], **최초 체크일·근거일 및 PR/Commit/테스트 링크를 기록**한다. 기존 C_002 Qt 표시 미완, B_007 HEAD 리뷰 미확인 및 M1 #12 OPEN 유지.
+
 ## 3. 후속 개발 체크리스트
 
 | 단계 | 상태 | 구체적 잔여 작업 (GitHub) |
