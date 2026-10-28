@@ -20,7 +20,11 @@ fn prepare(input: &str) -> (boardsi_model::BoardModel, Vec<copper_preview::Coppe
     let areas = copper_preview::parse(input.as_bytes(), parsed.max_layer).unwrap();
     copper_preview::augment(&mut board, &areas).unwrap();
     copper_contact::augment_source_bound(&mut board, &areas, input.as_bytes()).unwrap();
-    assert!(!board.validate().has_errors(), "{:#?}", board.validate().issues);
+    assert!(
+        !board.validate().has_errors(),
+        "{:#?}",
+        board.validate().issues
+    );
     (board, areas)
 }
 fn audit(
@@ -32,7 +36,11 @@ fn audit(
     layer_index: usize,
 ) -> reference_geometry::ReferenceGeometryAudit {
     reference_geometry::audit_cutout_aware(
-        board, areas, input.as_bytes(), traces, reference,
+        board,
+        areas,
+        input.as_bytes(),
+        traces,
+        reference,
         &board.stackup.layers[layer_index].meta.id,
     )
 }
@@ -64,16 +72,27 @@ fn single_hole_non_intersecting_route_is_geometry_only_not_physical() {
     assert_eq!(v.physical_si, "NOT_RUN");
     assert!(!v.solver_ready && !v.cache_reuse_eligible);
     // Original B_005 entrypoint deliberately remains hole-free.
-    assert_eq!(reference_geometry::audit(
-        &board, &areas, raw.as_bytes(), &ids, "NET_REF",
-        &board.stackup.layers[1].meta.id).state, "UNSUPPORTED");
+    assert_eq!(
+        reference_geometry::audit(
+            &board,
+            &areas,
+            raw.as_bytes(),
+            &ids,
+            "NET_REF",
+            &board.stackup.layers[1].meta.id
+        )
+        .state,
+        "UNSUPPORTED"
+    );
 }
 #[test]
 fn rejects_segment_with_both_endpoints_outside_hole_but_crossing_void() {
     let raw = source(&format!("{OUTER}{HOLE}"), &single("110 230", "170 230"));
     let (board, areas) = prepare(&raw);
-    assert_eq!(audit(&board, &areas, &raw, &first_id(&board), "NET_REF", 1).state,
-               "UNSUPPORTED");
+    assert_eq!(
+        audit(&board, &areas, &raw, &first_id(&board), "NET_REF", 1).state,
+        "UNSUPPORTED"
+    );
 }
 #[test]
 fn rejects_vertex_touch_and_hole_boundary_even_when_endpoints_are_clear() {
@@ -91,10 +110,15 @@ fn rejects_vertex_touch_and_hole_boundary_even_when_endpoints_are_clear() {
 }
 #[test]
 fn one_source_tick_outside_hole_stays_eligible() {
-    let raw = source(&format!("{OUTER}{HOLE}"), &single("110 219.99", "170 219.99"));
+    let raw = source(
+        &format!("{OUTER}{HOLE}"),
+        &single("110 219.99", "170 219.99"),
+    );
     let (board, areas) = prepare(&raw);
-    assert_eq!(audit(&board, &areas, &raw, &first_id(&board), "NET_REF", 1).state,
-               "SOURCE_ORDER_GEOMETRY_ONLY");
+    assert_eq!(
+        audit(&board, &areas, &raw, &first_id(&board), "NET_REF", 1).state,
+        "SOURCE_ORDER_GEOMETRY_ONLY"
+    );
 }
 #[test]
 fn rejects_outer_boundary_and_concave_polygon_excursion() {
@@ -107,20 +131,29 @@ fn rejects_outer_boundary_and_concave_polygon_excursion() {
     let inner = HOLE.replace("20 20", "10 10").replace("40 20", "20 10").replace("40 40", "20 20").replace("20 40", "10 20");
     let raw = source(&format!("{concave}{inner}"), &single("130 270", "170 230"));
     let (board, areas) = prepare(&raw);
-    assert_eq!(audit(&board, &areas, &raw, &first_id(&board), "NET_REF", 1).state,
-               "UNSUPPORTED");
+    assert_eq!(
+        audit(&board, &areas, &raw, &first_id(&board), "NET_REF", 1).state,
+        "UNSUPPORTED"
+    );
 }
 #[test]
 fn refuses_wrong_reference_net_or_source_layer_order() {
     let raw = source(&format!("{OUTER}{HOLE}"), &single("130 250", "170 250"));
     let (mut board, areas) = prepare(&raw);
     let ids = first_id(&board);
-    assert_eq!(audit(&board, &areas, &raw, &ids, "NET_SIG", 1).reason,
-               "SIGNAL_REFERENCE_NET_IDENTICAL");
-    assert_eq!(audit(&board, &areas, &raw, &ids, "NET_REF", 3).state, "UNSUPPORTED");
+    assert_eq!(
+        audit(&board, &areas, &raw, &ids, "NET_SIG", 1).reason,
+        "SIGNAL_REFERENCE_NET_IDENTICAL"
+    );
+    assert_eq!(
+        audit(&board, &areas, &raw, &ids, "NET_REF", 3).state,
+        "UNSUPPORTED"
+    );
     board.stackup.layers[0].order = 5;
-    assert_eq!(audit(&board, &areas, &raw, &ids, "NET_REF", 1).reason,
-               "ORIGINAL_LAYER_ORDER_MISMATCH");
+    assert_eq!(
+        audit(&board, &areas, &raw, &ids, "NET_REF", 1).reason,
+        "ORIGINAL_LAYER_ORDER_MISMATCH"
+    );
 }
 #[test]
 fn rejects_original_sha_and_canonical_cutout_spoof() {
@@ -128,13 +161,19 @@ fn rejects_original_sha_and_canonical_cutout_spoof() {
     let (mut board, areas) = prepare(&raw);
     let ids = first_id(&board);
     let altered = raw.replace("REF COPPER", "NEWREF COPPER");
-    assert_eq!(audit(&board, &areas, &altered, &ids, "NET_REF", 1).reason,
-               "ORIGINAL_SOURCE_SHA_MISMATCH");
+    assert_eq!(
+        audit(&board, &areas, &altered, &ids, "NET_REF", 1).reason,
+        "ORIGINAL_SOURCE_SHA_MISMATCH"
+    );
     if let BoundarySegment::Line { ref mut start, .. } =
-        board.areas[0].cutouts[0].boundary.segments[0] {
+        board.areas[0].cutouts[0].boundary.segments[0]
+    {
         start.ticks[0] += 1;
     }
-    assert_eq!(audit(&board, &areas, &raw, &ids, "NET_REF", 1).state, "UNSUPPORTED");
+    assert_eq!(
+        audit(&board, &areas, &raw, &ids, "NET_REF", 1).state,
+        "UNSUPPORTED"
+    );
 }
 #[test]
 fn rejects_multiple_cutouts_without_claiming_reference_pass() {
@@ -146,8 +185,10 @@ fn rejects_multiple_cutouts_without_claiming_reference_pass() {
     let areas = copper_preview::parse(raw.as_bytes(), parsed.max_layer).unwrap();
     copper_preview::augment(&mut board, &areas).unwrap();
     let ids = first_id(&board);
-    assert_eq!(audit(&board, &areas, &raw, &ids, "NET_REF", 1).state,
-               "UNSUPPORTED");
+    assert_eq!(
+        audit(&board, &areas, &raw, &ids, "NET_REF", 1).state,
+        "UNSUPPORTED"
+    );
 }
 #[test]
 fn rejects_source_trace_modified_in_canonical_model() {
@@ -155,6 +196,8 @@ fn rejects_source_trace_modified_in_canonical_model() {
     let (mut board, areas) = prepare(&raw);
     let ids = first_id(&board);
     board.traces[0].centreline[0].ticks[0] += 1;
-    assert_eq!(audit(&board, &areas, &raw, &ids, "NET_REF", 1).state,
-               "UNSUPPORTED");
+    assert_eq!(
+        audit(&board, &areas, &raw, &ids, "NET_REF", 1).state,
+        "UNSUPPORTED"
+    );
 }
