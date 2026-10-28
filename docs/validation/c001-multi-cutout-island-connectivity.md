@@ -1,6 +1,6 @@
 # C_001 — PADS multi-COPCUT and disconnected Copper Island connectivity
 
-**Status:** implementation candidate; independent exact-HEAD CI, Codex and protected main acceptance **PENDING**. 2026-10-28 KST.
+**Status:** C_001 limited Source Geometry and local connectivity CODE ACCEPTED on protected signed main, with independent post-main CI. Not full M1/physical acceptance. 2026-10-28 KST.
 
 Tracking: [M1 Issue #12](https://github.com/july-rust/BoardSI/issues/12), [B_009 C-stage handoff](b009-b-series-final-acceptance.md), [development checklist](../development-checklist.md).
 
@@ -17,13 +17,14 @@ Tracking: [M1 Issue #12](https://github.com/july-rust/BoardSI/issues/12), [B_009
 
 Safety invariants remain `return_path_p009=UNSUPPORTED`, `solver_ready=false`, `physical_si=NOT_RUN`, `cache_reuse_eligible=false`. Parent Issue #12 remains OPEN, and U09/U10/U39/T02/T04/T24/T52 full acceptance is NOT_VERIFIED.
 
-## Immutable evidence ledger
+## Immutable evidence ledger — verified on 2026-10-28 KST
 
-- [ ] Final exact source HEAD Rust fmt/Clippy/Debug+Release C_001 and B_003–B_008 regressions PASS.
-- [ ] Windows x64/ARM64, macOS ARM64 and Linux Qt Native matrix PASS.
-- [ ] Independent Codex same-final-HEAD review completed with zero unresolved findings.
-- [ ] Protected signed Verified Squash Merge accepted.
-- [ ] Independent post-main CI PASS on exact merge SHA.
-- [ ] Checklist first-check and evidence dates/PR/SHA/test links updated with preserved historical dates.
+- [x] Exact final [PR #237](https://github.com/july-rust/BoardSI/pull/237) Source HEAD `1db862985505427f8f3fcd58b6ae6c9530cbac6a`: **28/28 GitHub Check Runs SUCCESS**. Numerical workflow [#40628842300](https://github.com/july-rust/BoardSI/actions/runs/40628842300) Rust fmt/Clippy and C_001 Debug **10/10**, Release **10/10** PASS, B_003–B_008 regressions PASS.
+- [x] Windows x64, Windows ARM64, macOS ARM64, Linux Qt Native PR checks PASS at the same HEAD, Qt IPC and artwork regressions.
+- [x] Same-head independent Codex review receipt `status=completed`, `has_any_findings=false`, `has_unresolved_findings=false`; a previous fixture P2 review comment was fixed and its sole stale thread explicitly resolved, zero unresolved threads.
+- [x] Protected [Squash Merge `main@df1fde8648fd48f9ee884a3d9ad68fdf266e5f35`](https://github.com/july-rust/BoardSI/commit/df1fde8648fd48f9ee884a3d9ad68fdf266e5f35) GitHub `verified=true`, `reason=valid`. No bypass, `main` protected.
+- [x] Independent post-main **21/21 Check Runs SUCCESS**, **9/9 Workflow Runs SUCCESS** at exact merged SHA. [Push on main #40629876739](https://github.com/july-rust/BoardSI/actions/runs/40629876739), [Qt Runtime #40629877037](https://github.com/july-rust/BoardSI/actions/runs/40629877037), [commit checks](https://github.com/july-rust/BoardSI/commit/df1fde8648fd48f9ee884a3d9ad68fdf266e5f35/checks).
+- [x] Scoped checklist first check: **2026-10-28 KST**; evidence date **2026-10-28 KST**. Historical first dates preserved.
 
-Do not mark this gate PASS based on code creation or prior B-series CI. B_007 exact-final-HEAD independent review closure is tracked separately and remains NOT_VERIFIED until proven.
+**Not accepted:** [M1 Issue #12](https://github.com/july-rust/BoardSI/issues/12) remains OPEN; B_007 independent exact-final-HEAD Codex receipt unresolved; true electrical Reference and P009 return current, physical SI solver/cache, and full U09/U10/U39/T02/T04/T24/T52 all remain unchecked. No claim of whole-board copper islands beyond bounded disjoint outer bounding boxes.
+

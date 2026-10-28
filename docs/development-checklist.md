@@ -108,7 +108,7 @@
 
 ### C_001 — 다중 Source-owned COPCUT / Disconnected Island (실행 중)
 
-- [ ] **C_001 제한 다중 Polygon COPCUT 및 분리 Copper Island 국소 접점 최종 인수** — [C_001 검증 원장](validation/c001-multi-cutout-island-connectivity.md). 코드 후보 및 공개 합성 시험을 생성했으나, **신규 최신 Source HEAD CI, 독립 Codex 리뷰, Verified 보호 병합 및 독립 병합 후 main CI 증빙 전에는 완료 체크 또는 최초 체크일을 부여하지 않는다.** B_001 Issue #12 전체, P009, Solver/Cache, 정식 U09/U10/U39/T02/T04/T24/T52는 미완 상태 그대로 유지한다.
+- [x] **C_001 제한 다중 Source-owned Straight Polygon COPCUT 및 분리 Copper Island 국소 접점 — 정식 한정 구현 인수** — [C_001 검증 원장](validation/c001-multi-cutout-island-connectivity.md), [코드 PR #237](https://github.com/july-rust/BoardSI/pull/237), 최종 PR Source HEAD `1db862985505427f8f3fcd58b6ae6c9530cbac6a`의 **28/28 Checks SUCCESS**, Rust C_001 신규 Debug·Release **각 10/10 PASS**, 독립 Codex 동일 HEAD `completed`/findings 0/unresolved 0, 과거 P2 스레드 resolved; [Verified 보호된 Squash `main@df1fde8648fd48f9ee884a3d9ad68fdf266e5f35`](https://github.com/july-rust/BoardSI/commit/df1fde8648fd48f9ee884a3d9ad68fdf266e5f35/checks) `verified=true, reason=valid`, **독립 병합 후 21/21 Checks·9/9 Workflows SUCCESS** ([Push main #40629876739](https://github.com/july-rust/BoardSI/actions/runs/40629876739), [Qt Native #40629877037](https://github.com/july-rust/BoardSI/actions/runs/40629877037)). **체크일: 2026-10-28 KST** · **근거일: 2026-10-28 KST**. (최초 체크일) 지원된 Source Geometry/국소 접촉만 `[x]`; 분리 Island는 Net 레이블만으로 연결하지 않으며 모호한 중첩 Area는 Unsupported. **B_007 원본 최종 HEAD Codex 리뷰 및 B_001 Issue #12 전체/P009/Solver/Cache/정식 U09/U10/U39/T02/T04/T24/T52는 여전히 `[ ]`/OPEN.**
 
 ## 3. 후속 개발 체크리스트
 
