@@ -19,6 +19,7 @@
 #include <QStringList>
 #include <vector>
 #include <algorithm>
+#include <cmath>
 
 namespace c005 {
 struct Receipt {
@@ -646,18 +647,132 @@ inline bool decode(const QByteArray &wire,const QByteArray &sourceSha,
 }
 } // namespace c011
 
+// C_012: independently validate bounded V8 Source ticks and literal V7 receipt.
+namespace c012 {
+inline bool decode(const QByteArray &wire,const QByteArray &sourceSha,
+                   const ImportedArtworkPanel *panel,const std::vector<int> &selected,
+                   int split,int referenceViaIndex,const QString &referenceNet,
+                   const std::array<int,2> &layers,c005::Receipt &out) {
+    if(!panel || wire.isEmpty() || wire.size()>220000 || !wire.endsWith('\n'))return false;
+    const auto lines=wire.split('\n');
+    if(lines.size()<25 || !lines.last().isEmpty())return false;
+    const auto h=lines[0].split('|');
+    if(h.size()!=13 || h[0]!="BOARDSI_REFERENCE_ROUTE_V8" ||
+       sourceSha.size()!=64 || h[1]!=sourceSha || h[3]!="UNSUPPORTED" ||
+       h[4]!="NOT_RUN" || h[5]!="0" || h[6]!="REFERENCE_TRANSFER_UNVERIFIED" ||
+       h[7]!="2" || h[8]!=QByteArray::number(static_cast<int>(selected.size())) ||
+       h[9]!=QByteArray::number(split) || h[10]!=QByteArray::number(referenceViaIndex))
+        return false;
+    bool ok=false;
+    const int signalIndex=h[11].toInt(&ok);
+    if(!ok || signalIndex<0 || signalIndex==referenceViaIndex)return false;
+    const auto wrap=lines[3].split('|');
+    if(wrap.size()!=2 || wrap[0]!="V7")return false;
+    const int count=wrap[1].toInt(&ok);
+    if(!ok || count<15 || count>850 || 4+count!=lines.size()-2 ||
+       lines[4+count]!="END|2|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL")return false;
+    QByteArray v7;
+    for(int i=0;i<count;++i){v7+=lines[4+i];v7+='\n';}
+    c005::Receipt receipt;
+    if(!c011::decode(v7,sourceSha,panel,selected,split,referenceViaIndex,
+                     referenceNet,layers,receipt) ||
+       h[12]!=receipt.state.toLatin1())return false;
+    ImportedVia signal,reference;
+    ImportedTrack before,after;
+    if(split<=0 || split>=static_cast<int>(selected.size()) ||
+       !panel->importedVia(signalIndex,signal) ||
+       !panel->importedVia(referenceViaIndex,reference) ||
+       !panel->importedTrack(selected[static_cast<size_t>(split-1)],before) ||
+       !panel->importedTrack(selected[static_cast<size_t>(split)],after) ||
+       before.net!=after.net ||
+       signal.x_nm!=before.x1_nm || signal.y_nm!=before.y1_nm ||
+       signal.x_nm!=after.x0_nm || signal.y_nm!=after.y0_nm ||
+       signal.firstLayer>before.layer || signal.lastLayer<before.layer ||
+       signal.firstLayer>after.layer || signal.lastLayer<after.layer ||
+       signal.net!=before.net || reference.net!=referenceNet ||
+       signal.net.isEmpty() || reference.net.isEmpty() ||
+       signal.net==reference.net || signal.diameter_nm<=signal.drill_nm ||
+       reference.diameter_nm<=reference.drill_nm)return false;
+    QString overall=receipt.state=="PAD_FOOTPRINT_CONTAINED_CANDIDATE"
+        ?"SOURCE_PAD_SEPARATE_OBSERVED":"V7_REFERENCE_FOOTPRINT_RISK";
+    QStringList descriptions;
+    std::vector<ImportedReferenceRiskMarker> additions;
+    for(int i=0;i<2;++i){
+        const auto row=lines[1+i].split('|');
+        const int layer=layers[static_cast<size_t>(i)];
+        if(row.size()!=13 || row[0]!="CLEARANCE" ||
+           row[1]!=QByteArray::number(layer) ||
+           row[2]!=QByteArray::number(signalIndex) ||
+           row[3]!=QByteArray::number(referenceViaIndex) ||
+           layer<1 || signal.firstLayer>layer || signal.lastLayer<layer ||
+           reference.firstLayer>layer || reference.lastLayer<layer)return false;
+        qint64 t[8]={};
+        for(int j=0;j<8;++j) {
+            t[j]=row[4+j].toLongLong(&ok);
+            if(!ok)return false;
+            if(j<4 && (t[j]<-5600000 || t[j]>5600000))return false;
+            if(j>=4 && (t[j]<=0 || t[j]>5600000))return false;
+        }
+        if(t[0]*254!=signal.x_nm || t[1]*254!=signal.y_nm ||
+           t[2]*254!=reference.x_nm || t[3]*254!=reference.y_nm ||
+           t[4]*254!=signal.diameter_nm || t[5]*254!=reference.diameter_nm ||
+           t[6]*254!=signal.drill_nm || t[7]*254!=reference.drill_nm ||
+           t[4]<=t[6] || t[5]<=t[7])return false;
+        const qint64 dx=t[0]-t[2],dy=t[1]-t[3];
+        // All source coordinates are bounded to +/-5,600,000 ticks;
+        // the following signed 64-bit products are bounded below 1.1e15.
+        const qint64 fourDist=4*(dx*dx+dy*dy);
+        const qint64 sum=t[4]+t[5];
+        const qint64 sumSquare=sum*sum;
+        const QByteArray state=fourDist<sumSquare?"SOURCE_PAD_OVERLAP_RISK"
+            :fourDist==sumSquare?"SOURCE_PAD_TANGENT_RISK"
+            :"SOURCE_PAD_SEPARATE_OBSERVED";
+        if(row[12]!=state)return false;
+        if(overall=="SOURCE_PAD_SEPARATE_OBSERVED" &&
+           state!="SOURCE_PAD_SEPARATE_OBSERVED")overall=QString::fromLatin1(state);
+        const qreal approximateMm=
+            (std::hypot(static_cast<qreal>(dx),static_cast<qreal>(dy))
+              -static_cast<qreal>(sum)/2.0)*0.000254;
+        const QString details=QString("L%1 SignalVia=%2 %3 %4 mm / StitchVia=%5 %6 %7 mm / approximate signed edge gap=%8 mm / %9")
+            .arg(layer).arg(signalIndex).arg(signal.net)
+            .arg(signal.diameter_nm/1e6,0,'f',6)
+            .arg(referenceViaIndex).arg(reference.net)
+            .arg(reference.diameter_nm/1e6,0,'f',6)
+            .arg(approximateMm,0,'f',6).arg(QString::fromLatin1(state));
+        descriptions << details;
+        for(const auto &via:{signal,reference}){
+            ImportedReferenceRiskMarker m;
+            m.state="VIA_PAD_CLEARANCE_RISK";
+            m.reason=QString("C_012 %1 / %2 / SOURCE GEOMETRY ONLY / P009 UNSUPPORTED / SI NOT_RUN")
+                .arg(QString::fromLatin1(state),details);
+            m.net=via.net;m.viaObject=via.name;m.sourceObject=details;
+            m.layer=layer;m.x_nm=via.x_nm;m.y_nm=via.y_nm;
+            m.diameter_nm=via.diameter_nm;
+            additions.push_back(std::move(m));
+        }
+    }
+    if(h[2]!=overall.toLatin1())return false;
+    receipt.markers.insert(receipt.markers.end(),additions.begin(),additions.end());
+    receipt.state=overall;
+    receipt.reason="C_012 SOURCE VIA PAD GEOMETRY ONLY / P009 UNSUPPORTED / SI NOT_RUN";
+    out=std::move(receipt);
+    return true;
+}
+} // namespace c012
+
 class C005ReferenceRiskController final: public QWidget {
     ImportedArtworkPanel *artwork_ = nullptr;
     QString importer_,source_;
     QSpinBox *first_=nullptr,*second_=nullptr,*refA_=nullptr,*refB_=nullptr;
     QLineEdit *net_=nullptr,*route_=nullptr,*netB_=nullptr;
-    QCheckBox *viaMode_=nullptr,*stitchMode_=nullptr,*corridorMode_=nullptr,*padMode_=nullptr;
+    QCheckBox *viaMode_=nullptr,*stitchMode_=nullptr,*corridorMode_=nullptr,*padMode_=nullptr,*clearanceMode_=nullptr;
     QSpinBox *stitchVia_=nullptr;
     QSpinBox *split_=nullptr;
     bool requestedV4_=false;
     bool requestedV5_=false;
     bool requestedV6_=false;
     bool requestedV7_=false;
+    bool requestedV8_=false;
     QLabel *status_=nullptr;
     QPushButton *run_=nullptr;
     QProcess process_;
@@ -678,7 +793,8 @@ class C005ReferenceRiskController final: public QWidget {
             QString::number(stitchMode_->isChecked()),
             QString::number(stitchVia_->value()),
              QString::number(corridorMode_->isChecked()),
-             QString::number(padMode_->isChecked())
+             QString::number(padMode_->isChecked()),
+             QString::number(clearanceMode_->isChecked())
         }.join('\n');
     }
     void invalidate() {
@@ -692,6 +808,7 @@ class C005ReferenceRiskController final: public QWidget {
         requestedV5_=false;
         requestedV6_=false;
         requestedV7_=false;
+        requestedV8_=false;
         artwork_->setReferenceRisks({});
         status_->setText("NOT_AUDITED / SI NOT_RUN / Solver BLOCKED");
     }
@@ -705,7 +822,11 @@ class C005ReferenceRiskController final: public QWidget {
             return;
         }
         c005::Receipt receipt;
-        const bool parsed=requestedV7_
+        const bool parsed=requestedV8_
+            ? c012::decode(bytes,requestedSha_,artwork_,requestedIndices_,
+                 split_->value(),stitchVia_->value(),net_->text(),
+                 {refA_->value(),refB_->value()},receipt)
+            : requestedV7_
             ? c011::decode(bytes,requestedSha_,artwork_,requestedIndices_,
                  split_->value(),stitchVia_->value(),net_->text(),
                  {refA_->value(),refB_->value()},receipt)
@@ -791,6 +912,9 @@ public:
         padMode_=new QCheckBox("C_011 Source Stitch Pad Footprint V7 (geometric risk only)",this);
         padMode_->setObjectName("c011PadMode");
         layout->addWidget(padMode_);
+        clearanceMode_=new QCheckBox("C_012 Signal-Stitch Via Pad-to-Pad V8 (geometry only)",this);
+        clearanceMode_->setObjectName("c012ClearanceMode");
+        layout->addWidget(clearanceMode_);
 
         run_=new QPushButton("Audit selected source trace(s)",this);
         run_->setObjectName("c005RunAudit");
@@ -809,6 +933,7 @@ public:
         connect(stitchMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(corridorMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(padMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
+        connect(clearanceMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(stitchVia_,QOverload<int>::of(&QSpinBox::valueChanged),
                 this,[this](int){invalidate();});
         connect(&process_,&QProcess::finished,this,
@@ -852,6 +977,9 @@ public:
         QStringList args{source_,"--reference-risk-v1",
             QString::number(first_->value()),net_->text(),QString::number(refA_->value())};
         const QString routeText=route_->text().trimmed();
+        if(clearanceMode_->isChecked() && !padMode_->isChecked()) {
+            status_->setText("C_012 REQUIRES C_011 V7 / SI NOT_RUN");return;
+        }
         if(padMode_->isChecked() && !corridorMode_->isChecked()) {
             status_->setText("C_011 REQUIRES C_010 V6 / SI NOT_RUN");return;
         }
@@ -890,7 +1018,7 @@ public:
                 if(split_->value()>=static_cast<int>(requestedIndices_.size())) {
                     status_->setText("INVALID C_008 VIA SPLIT / SI NOT_RUN");return;
                 }
-                args={source_,padMode_->isChecked()?"--reference-route-v7":corridorMode_->isChecked()?"--reference-route-v6":stitchMode_->isChecked()?"--reference-route-v5":"--reference-route-v4",canonical.join(','),
+                args={source_,clearanceMode_->isChecked()?"--reference-route-v8":padMode_->isChecked()?"--reference-route-v7":corridorMode_->isChecked()?"--reference-route-v6":stitchMode_->isChecked()?"--reference-route-v5":"--reference-route-v4",canonical.join(','),
                       QString::number(split_->value()),net_->text(),
                       QString::number(refA_->value()),netB_->text(),
                       QString::number(refB_->value())};
@@ -914,6 +1042,7 @@ public:
         requestedV5_=stitchMode_->isChecked();
         requestedV6_=corridorMode_->isChecked();
         requestedV7_=padMode_->isChecked();
+        requestedV8_=clearanceMode_->isChecked();
         requestedSha_=sha;requestedOptions_=options();activeGeneration_=generation_;
         process_.setProgram(importer_);process_.setArguments(args);process_.start();
         deadline_.start();

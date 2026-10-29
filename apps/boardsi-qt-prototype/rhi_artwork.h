@@ -770,7 +770,8 @@ protected:
                 const bool split=m.state=="REFERENCE_SPLIT_RISK";
                 const bool stitch=m.state=="STITCH_CANDIDATE_RISK" ||
                                    m.state=="CORRIDOR_CANDIDATE_RISK" ||
-                                   m.state=="STITCH_PAD_FOOTPRINT_RISK";
+                                   m.state=="STITCH_PAD_FOOTPRINT_RISK" ||
+                                    m.state=="VIA_PAD_CLEARANCE_RISK";
                 if((split?0:stitch?2:1)!=kind || !visible(m.layer) || !includedNet(m.net)) continue;
                 if(m.exactGap) {
                     const QPointF a=pixel(QPointF((m.startX_nm-originX_)/1e6,
@@ -780,7 +781,8 @@ protected:
                     if(QRectF(a,b).normalized().adjusted(-8,-8,8,8)
                         .intersects(QRectF(0,0,width(),height())))
                         thickLine(geometry,a,b,3.0,deviceRatio);
-                } else if(m.state=="STITCH_PAD_FOOTPRINT_RISK" && m.diameter_nm>0) {
+                } else if((m.state=="STITCH_PAD_FOOTPRINT_RISK" ||
+                           m.state=="VIA_PAD_CLEARANCE_RISK") && m.diameter_nm>0) {
                     // Source-based round Pad rim (display only): avoid a fixed-size
                     // marker that would conceal an overhang or Cutout collision.
                     constexpr qreal tau=6.2831853071795864769;
@@ -900,7 +902,8 @@ protected:
                 const qreal distance=std::hypot(event->position().x()-p.x(),
                                                  event->position().y()-p.y());
                 bool hit=distance<=8.0;
-                if(m.state=="STITCH_PAD_FOOTPRINT_RISK" && m.diameter_nm>0 && !hit) {
+                if((m.state=="STITCH_PAD_FOOTPRINT_RISK" ||
+                           m.state=="VIA_PAD_CLEARANCE_RISK") && m.diameter_nm>0 && !hit) {
                     // Hit-test the exact same polygon CHORDS drawn above, not
                     // the ideal circle. This remains correct even at maximum
                     // zoom where tessellation reaches the bounded 2048 cap.
