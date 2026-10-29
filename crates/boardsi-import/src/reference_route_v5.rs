@@ -46,8 +46,7 @@ pub fn encode(
     copper_preview::augment(&mut board, &source_copper)?;
     // The B_006/C_001 graph emitter independently reparses the original and
     // only emits a SameLayerContact for strict supported COPCLS interiors.
-    let contact_audit = via_copper_contact::augment_multi(&mut board, bytes)?;
-    eprintln!("C009_DEBUG source contacts {} unsupported {} graph_edges {}", contact_audit.local_contacts, contact_audit.unsupported_candidates, board.connectivity.edges.len());
+    via_copper_contact::augment_multi(&mut board, bytes)?;
     if board.validate().has_errors() || board.vias.len() != parsed.vias.len() {
         return Err("INVALID_CONTACT_GRAPH");
     }
@@ -115,7 +114,6 @@ pub fn encode(
             }
             None
         }).collect();
-        eprintln!("C009_DEBUG layer {layer_number} witness_count {} area_nets {:?}", witnesses.len(), board.areas.iter().map(|a| (a.meta.id.source_object.clone(), a.net.is_some())).collect::<Vec<_>>());
         if witnesses.len() != 1 || !areas.insert((layer_number, witnesses[0].clone())) {
             return Err("REFERENCE_CONTACT_NOT_UNIQUE_OR_UNSUPPORTED");
         }
