@@ -632,10 +632,13 @@ inline bool decode(const QByteArray &wire,const QByteArray &sourceSha,
     m.reason=QString("C_011 %1 / %2 / SOURCE GEOMETRY ONLY / P009 UNSUPPORTED / SI NOT_RUN")
         .arg(firstBad,details.join(" / "));
     m.net=referenceNet;
-    m.layer=referenceLayers[0];m.x_nm=via.x_nm;m.y_nm=via.y_nm;
+    m.x_nm=via.x_nm;m.y_nm=via.y_nm;
     m.diameter_nm=via.diameter_nm; // Source-checked, viewer-only Pad extent
     m.sourceObject=details.join(" / ");m.viaObject=via.name;
-    receipt.markers.push_back(std::move(m));
+    for(int layer:referenceLayers) {
+        m.layer=layer;
+        receipt.markers.push_back(m); // One source-sized pad rim per Reference Layer.
+    }
     receipt.state=firstBad;
     receipt.reason="REFERENCE_TRANSFER_UNVERIFIED / P009 UNSUPPORTED / SI NOT_RUN";
     out=std::move(receipt);
