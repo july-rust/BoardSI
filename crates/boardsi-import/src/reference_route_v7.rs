@@ -124,8 +124,8 @@ pub fn encode(
             .ok_or("V7_LAYER")?).ok_or("V7_LAYER")?;
         let pads: Vec<_> = padstack.entries.iter()
             .filter(|entry| entry.layer == layer.meta.id).collect();
-        if pads.len() != 1 || !matches!(pads[0].shape,
-            PadShape::Circle { diameter_m } if diameter_m == expected_diameter)
+        if pads.len() != 1 || !matches!(&pads[0].shape,
+            PadShape::Circle { diameter_m } if *diameter_m == expected_diameter)
         {
             return Err("V7_ROUND_PAD_UNSUPPORTED");
         }
