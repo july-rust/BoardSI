@@ -397,14 +397,100 @@ inline bool decode(const QByteArray &wire, const QByteArray &sourceSha,
 }
 } // namespace c008
 
+// C_009: V5 wraps an intact C_008 V4 receipt and two source-bound Copper
+// contacts. Qt rechecks source identity and Via geometry; this is not P009.
+namespace c009 {
+inline bool decode(const QByteArray &wire, const QByteArray &sourceSha,
+                   const ImportedArtworkPanel *panel, const std::vector<int> &selected,
+                   int split, int referenceViaIndex, const QString &referenceNet,
+                   const std::array<int, 2> &referenceLayers, c005::Receipt &out) {
+    if (!panel || wire.isEmpty() || wire.size()>170000 || !wire.endsWith('\n'))
+        return false;
+    const auto lines=wire.split('\n');
+    if (lines.size()<17 || !lines.last().isEmpty()) return false;
+    const auto head=lines[0].split('|');
+    if (head.size()!=14 || head[0]!="BOARDSI_REFERENCE_ROUTE_V5" ||
+        head[1]!=sourceSha || sourceSha.size()!=64 ||
+        head[2]!="VERIFIED_SOURCE_STITCH_CANDIDATE" ||
+        head[3]!="UNSUPPORTED" || head[4]!="NOT_RUN" || head[5]!="0" ||
+        head[6]!="REFERENCE_TRANSFER_UNVERIFIED") return false;
+    QByteArray decodedNet, sourceObject;
+    if (!c005::boundedHex(head[7],decodedNet) ||
+        !c005::boundedHex(head[9],sourceObject) ||
+        QString::fromUtf8(decodedNet)!=referenceNet ||
+        !QString::fromUtf8(sourceObject).startsWith("via-line-")) return false;
+    bool ok=false;
+    const int viaIndex=head[8].toInt(&ok);
+    if(!ok || viaIndex!=referenceViaIndex) return false;
+    ImportedVia via;
+    if(!panel->importedVia(viaIndex,via) || via.net!=referenceNet ||
+       via.firstLayer>referenceLayers[0] || via.lastLayer<referenceLayers[0] ||
+       via.firstLayer>referenceLayers[1] || via.lastLayer<referenceLayers[1])
+        return false;
+    qint64 x=0,y=0;
+    if(!c005::readCoordinate(head[10],x) || !c005::readCoordinate(head[11],y) ||
+       x!=via.x_nm || y!=via.y_nm) return false;
+    for(int i=0;i<2;++i) {
+        const auto fields=lines[1+i].split('|');
+        if(fields.size()!=3 || fields[0]!="CONTACT" ||
+           fields[1]!=QByteArray::number(referenceLayers[static_cast<size_t>(i)]))
+            return false;
+        QByteArray areaId;
+        if(!c005::boundedHex(fields[2],areaId) ||
+           !panel->importedCopperSource(QString::fromUtf8(areaId),
+               referenceLayers[static_cast<size_t>(i)],referenceNet))
+            return false;
+    }
+    const auto record=lines[3].split('|');
+    if(record.size()!=2 || record[0]!="V4") return false;
+    const int n=record[1].toInt(&ok);
+    if(!ok || n<5 || n>600 || 4+n!=lines.size()-2) return false;
+    QByteArray legacy;
+    for(int i=0;i<n;++i) {legacy+=lines[4+i];legacy+='\n';}
+    if(lines[4+n]!="END|2|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL") return false;
+    c005::Receipt verified;
+    if(!c008::decode(legacy,sourceSha,panel,selected,split,verified))
+        return false;
+    const auto signal=lines[5].split('|');
+    if(signal.size()!=10 || signal[0]!="VIA") return false;
+    qint64 sx=0,sy=0;
+    if(!c005::readCoordinate(signal[4],sx) ||
+       !c005::readCoordinate(signal[5],sy)) return false;
+    const qint64 dx=(sx-x)/254,dy=(sy-y)/254;
+    // Both coordinates are source-bounded to ±5.6M ticks; the square fits qint64.
+    const qint64 squared=dx*dx+dy*dy;
+    if(squared<=0 || head[12]!=QByteArray::number(squared)) return false;
+    const double declared=head[13].toDouble(&ok);
+    if(!ok || !std::isfinite(declared) ||
+       std::abs(declared-std::sqrt(static_cast<double>(squared))*0.000254)>0.000001)
+        return false;
+    ImportedReferenceRiskMarker marker;
+    marker.state="STITCH_CANDIDATE_RISK";
+    marker.reason=QString("VERIFIED_SOURCE_STITCH_CANDIDATE / "
+        "REFERENCE_TRANSFER_UNVERIFIED / %1 mm (display only)").arg(declared,0,'f',6);
+    marker.net=referenceNet;
+    marker.layer=referenceLayers[0];
+    marker.x_nm=x;marker.y_nm=y;
+    marker.sourceObject=QString::fromUtf8(sourceObject);
+    marker.viaObject=via.name;
+    verified.markers.push_back(marker);
+    verified.state="VERIFIED_SOURCE_STITCH_CANDIDATE";
+    verified.reason="REFERENCE_TRANSFER_UNVERIFIED / P009 UNSUPPORTED / SI NOT_RUN";
+    out=std::move(verified);
+    return true;
+}
+} // namespace c009
+
 class C005ReferenceRiskController final: public QWidget {
     ImportedArtworkPanel *artwork_ = nullptr;
     QString importer_,source_;
     QSpinBox *first_=nullptr,*second_=nullptr,*refA_=nullptr,*refB_=nullptr;
     QLineEdit *net_=nullptr,*route_=nullptr,*netB_=nullptr;
-    QCheckBox *viaMode_=nullptr;
+    QCheckBox *viaMode_=nullptr,*stitchMode_=nullptr;
+    QSpinBox *stitchVia_=nullptr;
     QSpinBox *split_=nullptr;
     bool requestedV4_=false;
+    bool requestedV5_=false;
     QLabel *status_=nullptr;
     QPushButton *run_=nullptr;
     QProcess process_;
@@ -416,10 +502,15 @@ class C005ReferenceRiskController final: public QWidget {
     quint64 generation_=0;
     quint64 activeGeneration_=0;
     QString options() const {
-        return QString("%1\n%2\n%3\n%4\n%5\n%6\n%7\n%8\n%9")
-            .arg(first_->value()).arg(second_->value()).arg(refA_->value())
-            .arg(refB_->value()).arg(net_->text()).arg(route_->text())
-            .arg(netB_->text()).arg(split_->value()).arg(viaMode_->isChecked());
+        return QStringList{
+            QString::number(first_->value()),QString::number(second_->value()),
+            QString::number(refA_->value()),QString::number(refB_->value()),
+            net_->text(),route_->text(),netB_->text(),
+            QString::number(split_->value()),
+            QString::number(viaMode_->isChecked()),
+            QString::number(stitchMode_->isChecked()),
+            QString::number(stitchVia_->value())
+        }.join('\n');
     }
     void invalidate() {
         ++generation_;
@@ -429,6 +520,7 @@ class C005ReferenceRiskController final: public QWidget {
         }
         requestedSha_.clear();requestedOptions_.clear();requestedIndices_.clear();
         requestedV4_=false;
+        requestedV5_=false;
         artwork_->setReferenceRisks({});
         status_->setText("NOT_AUDITED / SI NOT_RUN / Solver BLOCKED");
     }
@@ -442,7 +534,11 @@ class C005ReferenceRiskController final: public QWidget {
             return;
         }
         c005::Receipt receipt;
-        const bool parsed=requestedV4_
+        const bool parsed=requestedV5_
+            ? c009::decode(bytes,requestedSha_,artwork_,requestedIndices_,
+                split_->value(),stitchVia_->value(),net_->text(),
+                {refA_->value(),refB_->value()},receipt)
+            : requestedV4_
             ? c008::decode(bytes,requestedSha_,artwork_,requestedIndices_,split_->value(),receipt)
             : !route_->text().trimmed().isEmpty()
             ? c007::decode(bytes,requestedSha_,artwork_,requestedIndices_,receipt)
@@ -466,7 +562,7 @@ public:
         :QWidget(parent),artwork_(artwork),importer_(importer),process_(this),deadline_(this) {
         setObjectName("c005ReferenceRiskPanel");
         auto *layout=new QVBoxLayout(this);
-        layout->addWidget(new QLabel("C_008 — opt-in two-layer / plated Via source Reference risk (V1-V3 preserved); NEVER electrical Return Path.",this));
+        layout->addWidget(new QLabel("C_009 — opt-in Source Stitching Via candidate (V1-V4 preserved); NEVER electrical Return Path.",this));
         auto *controls=new QHBoxLayout;
         first_=new QSpinBox(this);first_->setRange(0,9999);first_->setObjectName("c005TraceIndex");
         second_=new QSpinBox(this);second_->setRange(-1,9999);second_->setValue(-1);
@@ -498,6 +594,18 @@ public:
         viaControls->addWidget(split_);
         viaControls->addWidget(netB_);
         layout->addLayout(viaControls);
+        stitchMode_=new QCheckBox("C_009 Reference Stitch Via V5",this);
+        stitchMode_->setObjectName("c009StitchMode");
+        stitchVia_=new QSpinBox(this);
+        stitchVia_->setRange(-1,9999);
+        stitchVia_->setValue(-1);
+        stitchVia_->setSpecialValueText("No candidate");
+        stitchVia_->setObjectName("c009StitchViaIndex");
+        auto *stitchControls=new QHBoxLayout;
+        stitchControls->addWidget(stitchMode_);
+        stitchControls->addWidget(new QLabel("Source Reference Via index",this));
+        stitchControls->addWidget(stitchVia_);
+        layout->addLayout(stitchControls);
 
         run_=new QPushButton("Audit selected source trace(s)",this);
         run_->setObjectName("c005RunAudit");
@@ -513,6 +621,9 @@ public:
         connect(netB_,&QLineEdit::textChanged,this,[this](const QString &){invalidate();});
         connect(split_,QOverload<int>::of(&QSpinBox::valueChanged),this,[this](int){invalidate();});
         connect(viaMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
+        connect(stitchMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
+        connect(stitchVia_,QOverload<int>::of(&QSpinBox::valueChanged),
+                this,[this](int){invalidate();});
         connect(&process_,&QProcess::finished,this,
             [this](int code,QProcess::ExitStatus state){finished(code,state);});
         // A previously accepted audit cannot remain visible when source copper
@@ -554,6 +665,12 @@ public:
         QStringList args{source_,"--reference-risk-v1",
             QString::number(first_->value()),net_->text(),QString::number(refA_->value())};
         const QString routeText=route_->text().trimmed();
+        if(stitchMode_->isChecked() &&
+            (!viaMode_->isChecked() || stitchVia_->value()<0 ||
+             net_->text()!=netB_->text() || refA_->value()==refB_->value())) {
+            status_->setText("INVALID C_009 REFERENCE VIA CANDIDATE / SI NOT_RUN");
+            return;
+        }
         if(viaMode_->isChecked() &&
            (routeText.isEmpty() || netB_->text().isEmpty() ||
             netB_->text().size()>64)) {
@@ -580,10 +697,11 @@ public:
                 if(split_->value()>=static_cast<int>(requestedIndices_.size())) {
                     status_->setText("INVALID C_008 VIA SPLIT / SI NOT_RUN");return;
                 }
-                args={source_,"--reference-route-v4",canonical.join(','),
+                args={source_,stitchMode_->isChecked()?"--reference-route-v5":"--reference-route-v4",canonical.join(','),
                       QString::number(split_->value()),net_->text(),
                       QString::number(refA_->value()),netB_->text(),
                       QString::number(refB_->value())};
+                if(stitchMode_->isChecked()) args << QString::number(stitchVia_->value());
             } else {
                 args={source_,"--reference-route-v3",canonical.join(','),net_->text(),
                       QString::number(refA_->value())};
@@ -600,6 +718,7 @@ public:
             status_->setText("TRACE INDEX NOT IMPORTED / SI NOT_RUN");return;
         }
         requestedV4_=viaMode_->isChecked();
+        requestedV5_=stitchMode_->isChecked();
         requestedSha_=sha;requestedOptions_=options();activeGeneration_=generation_;
         process_.setProgram(importer_);process_.setArguments(args);process_.start();
         deadline_.start();

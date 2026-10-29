@@ -764,11 +764,12 @@ protected:
             root->appendChildNode(node);
         }
         // C_005 risk markers are source-geometric warnings only, never EM results.
-        for (int kind=0;kind<2;++kind) {
+        for (int kind=0;kind<3;++kind) {
             Vertices geometry;
             for(const auto &m:referenceRisks_) {
                 const bool split=m.state=="REFERENCE_SPLIT_RISK";
-                if((split?0:1)!=kind || !visible(m.layer) || !includedNet(m.net)) continue;
+                const bool stitch=m.state=="STITCH_CANDIDATE_RISK";
+                if((split?0:stitch?2:1)!=kind || !visible(m.layer) || !includedNet(m.net)) continue;
                 if(m.exactGap) {
                     const QPointF a=pixel(QPointF((m.startX_nm-originX_)/1e6,
                                                 -(m.startY_nm-originY_)/1e6));
@@ -791,7 +792,7 @@ protected:
             for(size_t i=0;i<geometry.size();++i)
                 dst[i].set(static_cast<float>(geometry[i].x()),static_cast<float>(geometry[i].y()));
             auto *material=new QSGFlatColorMaterial();
-            material->setColor(QColor(kind==0?"#ffcb75":"#c8abfc"));
+            material->setColor(QColor(kind==0?"#ffcb75":kind==2?"#67c2bd":"#c8abfc"));
             node->setGeometry(g);node->setMaterial(material);
             node->setFlag(QSGNode::OwnsGeometry);node->setFlag(QSGNode::OwnsMaterial);
             root->appendChildNode(node);

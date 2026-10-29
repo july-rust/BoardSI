@@ -102,6 +102,11 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --c005-risk-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-c005-reference-risk PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # C_009: strict Reference Stitch candidate and real Rust->Qt stale smoke.
+    add_test(NAME qt-preview-c009-reference-stitch-candidate
+      COMMAND boardsi-preview-p0 --c009-stitch-selftest "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-c009-reference-stitch-candidate PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # C_008: two-layer plated-via actual importer + Qt stale/risk smoke.
     add_test(NAME qt-preview-c008-via-reference-risk
       COMMAND boardsi-preview-p0 --c008-via-selftest "${BOARDSI_IMPORTER}")
