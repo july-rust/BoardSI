@@ -6,7 +6,7 @@ use std::fmt::Write;
 
 const MAX_WIRE: usize = 220_000;
 
-fn verify_round_pad(
+pub(crate) fn verify_round_pad(
     board: &BoardModel,
     source: &route_preview::ViaInstance,
     index: usize,

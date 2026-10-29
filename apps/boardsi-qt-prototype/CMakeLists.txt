@@ -102,6 +102,11 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --c005-risk-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-c005-reference-risk PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # C_013: Signal Via Pad versus explicitly source-owned Reference COPCUT.
+    add_test(NAME qt-preview-c013-signal-via-cutout
+      COMMAND boardsi-preview-p0 --c013-cutout-selftest "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-c013-signal-via-cutout PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # C_012: exact Source Signal/Stitch Via Pad-to-Pad rim and stale GUI.
     add_test(NAME qt-preview-c012-via-pad-clearance
       COMMAND boardsi-preview-p0 --c012-clearance-selftest "${BOARDSI_IMPORTER}")
