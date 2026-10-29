@@ -329,6 +329,7 @@ struct ImportedReferenceRiskMarker {
     QString state, reason, net, sourceObject, viaObject;
     int layer=0;
     qint64 x_nm=0,y_nm=0; // V1 witness or V2 representative anchor
+    qint64 diameter_nm=0; // C_011 source round pad footprint, display-only
     bool exactGap=false; // C_006: source-rational parametric interval, display interpolation only
     qreal startX_nm=0,startY_nm=0,endX_nm=0,endY_nm=0;
     QString intervalParameters;
@@ -817,6 +818,15 @@ public:
                     QLineF(m.startX_nm/1e6,-m.startY_nm/1e6,
                            m.endX_nm/1e6,-m.endY_nm/1e6), gapPen);
                 item=line;
+            } else if(m.state=="STITCH_PAD_FOOTPRINT_RISK" && m.diameter_nm>0) {
+                // Draw actual source round Pad extent, not a screen-space dot.
+                // This overlay is a source-risk candidate, NEVER electrical SI.
+                const qreal radiusMm=static_cast<qreal>(m.diameter_nm)/2e6;
+                auto *rim=scene_->addEllipse(
+                    QRectF(-radiusMm,-radiusMm,2*radiusMm,2*radiusMm),
+                    QPen(QColor("#f0a34e"),0),Qt::NoBrush);
+                rim->setPos(m.x_nm/1e6,-m.y_nm/1e6);
+                item=rim;
             } else {
                 auto *dot=scene_->addEllipse(QRectF(-6,-6,12,12),
                     QPen(QColor("#ffcb75"),2),
