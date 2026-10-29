@@ -3511,14 +3511,19 @@ static int runC011PadFootprintSelftest(const QString &importer) {
         panel.imported()->referenceRiskCountForTest()==4;
     auto *scene=panel.imported()->findChild<QGraphicsScene *>();
     bool picked=false;
+    bool fullRim=false;
     if(scene)for(auto *item:scene->items()) {
         if(item->data(3).toString()=="C005ReferenceRisk" &&
            item->data(2).toString().contains("STITCH_PAD_FOOTPRINT_RISK")) {
             item->setSelected(true);
             picked=true;
+            auto *rim=qgraphicsitem_cast<QGraphicsEllipseItem *>(item);
+            // Source 35 mil Pad = 0.889 mm; CPU outline must be true size.
+            fullRim=rim && std::abs(rim->rect().width()-0.889)<0.000001;
         }
     }
-    const bool detailValid=picked && detail.contains("P009 UNSUPPORTED") &&
+    const bool detailValid=picked && fullRim &&
+        detail.contains("P009 UNSUPPORTED") &&
         detail.contains("SOURCE GEOMETRY ONLY");
     route->setText("1,0");
     const bool invalidated=panel.imported()->referenceRiskCountForTest()==0;
