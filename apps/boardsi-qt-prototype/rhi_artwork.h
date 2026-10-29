@@ -769,7 +769,8 @@ protected:
             for(const auto &m:referenceRisks_) {
                 const bool split=m.state=="REFERENCE_SPLIT_RISK";
                 const bool stitch=m.state=="STITCH_CANDIDATE_RISK" ||
-                                   m.state=="CORRIDOR_CANDIDATE_RISK";
+                                   m.state=="CORRIDOR_CANDIDATE_RISK" ||
+                                   m.state=="STITCH_PAD_FOOTPRINT_RISK";
                 if((split?0:stitch?2:1)!=kind || !visible(m.layer) || !includedNet(m.net)) continue;
                 if(m.exactGap) {
                     const QPointF a=pixel(QPointF((m.startX_nm-originX_)/1e6,
