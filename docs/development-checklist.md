@@ -178,6 +178,10 @@
 
 - [x] **C_012 이종 Net Signal/Reference Via 원형 Conductive Pad의 Source Tick 기준 겹침·접촉·분리 판정 및 Qt CPU/RHI 위험 표시 — 한정 Source-geometry 코드 인수** · **체크일: 2026-10-29 KST** · **근거일: 2026-10-29 KST**. [Issue #270](https://github.com/july-rust/BoardSI/issues/270), [코드 PR #271](https://github.com/july-rust/BoardSI/pull/271), [V8 검증 원장](validation/c012-signal-reference-via-pad-clearance.md). 최종 코드 HEAD [`5874567053f2f7320e69fc674f0260808bc1deaa`](https://github.com/july-rust/BoardSI/commit/5874567053f2f7320e69fc674f0260808bc1deaa/checks) **27/27 PR Checks·11/11 PR Workflows SUCCESS**. 동일 HEAD Codex **completed / findings=0 / unresolved=0**, 기존 P1/P2 스레드 **2/2 해결**. 서명된 보호 Squash [`main@ae187f1f4437181676239106260b64238bc0afd8`](https://github.com/july-rust/BoardSI/commit/ae187f1f4437181676239106260b64238bc0afd8) **Verified/valid**·부모 1개, 독립 병합 후 **21/21 Checks·9/9 Workflows SUCCESS**, Ruleset #25046595 Strict/17개 필수/Bypass 없음. **이 체크는 공개 합성 PADS V9.4 MILS Source 기하 및 Qt Preview의 한정된 코드 완료만 표시한다.** 문서 PR [#272](https://github.com/july-rust/BoardSI/pull/272)의 최종 CI·Codex·서명된 병합·post-doc-main 및 Issue #270 종료는 **별도 미완료 게이트**로 유지한다. P009/Return Current, 제조 Copper·Antipad/Thermal, RLGC/S, 제품 Solver/Cache, U09/U10/U39/T02/T04/T24/T52 및 상위 M1 [#12](https://github.com/july-rust/BoardSI/issues/12)는 **미완료/OPEN**.
 
+### C_013 — Source Signal Via Pad / Reference COPCUT V9 (검증 진행 · 2026-10-29 KST)
+
+- [ ] **C_013 한정 Source COPCUT 직사각형과 Signal Via 원형 Pad Source Tick 간격 및 Qt CPU/RHI 마커** — [Issue #273](https://github.com/july-rust/BoardSI/issues/273), [검증 원장](validation/c013-signal-via-reference-cutout-clearance.md). V8 Byte-exact embedding, Source/Copper/Pad 역할 정합성, 정수 Tick 기반 Gap/Tangency/Overlap/Missing 분류 후보를 구현. **PR CI·독립 리뷰·보호 병합·post-main 미검증이므로 현재 완료 체크 금지**. 완료 시 최초 체크일 및 근거일(KST), 정확한 CI/PR/서명된 main Commit 링크를 추가한다. P009/실제 Return Current/제조 Copper/DRC/Solver/Cache/정식 U/T 및 M1 #12는 미완료.
+
 ## 4. 요구사항 U01–U48 체크리스트
 
 원문: [사양서 2장 요구사항 표](specification/BoardSI_Development_Spec_v1.0.md). `[ ]`는 전체 요구의 정식 인수 **미완료**. U16만 실제 제품명 적용 여부를 확인할 수 있어 체크하였으며 상표권·법률 검증은 별개입니다.
