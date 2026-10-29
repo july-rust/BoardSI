@@ -795,6 +795,14 @@ public:
         }
         return false;
     }
+    // Enforce the exact same per-layer reference-Area uniqueness as Rust V9.
+    // A caller-supplied Area identity alone must not hide a second Source Area.
+    int importedReferenceAreaCount(int layer,const QString &net) const {
+        int count=0;
+        for(const auto &entry:copper_)
+            if(entry.second.layer==layer && entry.second.net==net)++count;
+        return count;
+    }
     // C_013: source-bound geometry read-back for independent V9 receipt checking.
     // Returns an already imported, validated same-owner Area; never infers fill.
     bool importedCopperGeometry(const QString &sourceId, int layer,
