@@ -15,7 +15,7 @@ fn verify_round_pad(
     let via = board.vias.get(index).ok_or("V8_CANONICAL_VIA_MISSING")?;
     if via.kind != ViaKind::Through || via.position.ticks != source.point ||
         source.first_layer as usize > layer_index ||
-        source.last_layer as usize < layer_index ||
+        (source.last_layer as usize) < layer_index ||
         source.diameter_ticks <= source.drill_ticks || source.drill_ticks <= 0
     {
         return Err("V8_VIA_SOURCE_OR_SPAN_MISMATCH");
