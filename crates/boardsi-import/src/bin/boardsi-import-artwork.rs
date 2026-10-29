@@ -667,6 +667,54 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // C_011: source-exact Corridor/Reference Stitch Area identity, V6 untouched.
+    if args.len() == 10 && args[2] == std::ffi::OsStr::new("--reference-route-v7") {
+        let result = (|| -> Result<String, &'static str> {
+            let raw = args[3].to_str().ok_or("INVALID_ROUTE_INDICES")?;
+            if raw.len() > 95 || raw.is_empty() {
+                return Err("INVALID_ROUTE_INDICES");
+            }
+            let indices: Vec<usize> = raw
+                .split(',')
+                .map(|part| part.parse::<usize>().map_err(|_| "INVALID_ROUTE_INDEX"))
+                .collect::<Result<_, _>>()?;
+            let parse_usize = |index: usize| {
+                args[index]
+                    .to_str()
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .ok_or("INVALID_V7_INTEGER")
+            };
+            let split = parse_usize(4)?;
+            let ref_a = args[5].to_str().ok_or("INVALID_REFERENCE_A")?;
+            let ref_b = args[7].to_str().ok_or("INVALID_REFERENCE_B")?;
+            let layers = [parse_usize(6)?, parse_usize(8)?];
+            let candidate = parse_usize(9)?;
+            let path = std::path::Path::new(&args[1]);
+            let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
+            if !metadata.is_file()
+                || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
+            {
+                return Err("FILE_LIMIT");
+            }
+            let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
+            boardsi_import::reference_route_v7::encode(
+                &bytes,
+                &indices,
+                split,
+                [ref_a, ref_b],
+                layers,
+                candidate,
+            )
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("C011_STITCH_PAD_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // C_010: source-exact Corridor/Reference Stitch Area identity, V5 untouched.
     if args.len() == 10 && args[2] == std::ffi::OsStr::new("--reference-route-v6") {
         let result = (|| -> Result<String, &'static str> {
