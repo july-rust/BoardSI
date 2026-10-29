@@ -3255,7 +3255,7 @@ static int runC009StitchSelftest(const QString &importer) {
         "*SIGNAL* NET_REFA\nR1.1 R2.2\n300 400 2 10 0\n350 400 2 10 0\n"
         "*SIGNAL* NET_REFA\nR3.1 R4.2\n300 400 3 10 0\n350 400 3 10 0\n"
         "*SIGNAL* NET_REFA\nS1.1 S2.2\n"
-        "30 50 2 10 0\n50 50 3 10 0 SIMPLEVIA\n70 50 3 10 0\n"
+        "140 280 2 10 0\n180 280 3 10 0 SIMPLEVIA\n190 280 3 10 0\n"
         "*END*\n");
     if(source.write(bytes)!=bytes.size() || !source.flush())return 2;
     PreviewImportPanel panel(importer);
