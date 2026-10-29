@@ -3437,7 +3437,7 @@ static int runC010CorridorSelftest(const QString &importer) {
 }
 
 // C_013: two Source Via Pads -> Rust V9 -> Qt CPU/RHI original-size rims and stale.
-static int runC013PadClearanceSelftest(const QString &importer) {
+static int runC013CutoutClearanceSelftest(const QString &importer) {
     QTemporaryFile source;
     if(!source.open())return 2;
     const QByteArray bytes(
