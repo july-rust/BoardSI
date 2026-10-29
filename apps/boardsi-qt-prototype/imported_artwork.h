@@ -834,7 +834,8 @@ public:
                m.state!="CORRIDOR_CANDIDATE_RISK" &&
                m.state!="STITCH_PAD_FOOTPRINT_RISK" &&
                 m.state!="VIA_PAD_CLEARANCE_RISK" &&
-               m.state!="SIGNAL_CUTOUT_CLEARANCE_RISK") continue;
+               m.state!="SIGNAL_CUTOUT_CLEARANCE_RISK" &&
+               m.state!="SIGNAL_MULTI_CUTOUT_CLEARANCE_RISK") continue;
             QGraphicsItem *item=nullptr;
             if(m.exactGap) {
                 QPen gapPen(QColor("#ff9e55"),5);
@@ -845,7 +846,8 @@ public:
                 item=line;
             } else if((m.state=="STITCH_PAD_FOOTPRINT_RISK" ||
                   m.state=="VIA_PAD_CLEARANCE_RISK" ||
-                           m.state=="SIGNAL_CUTOUT_CLEARANCE_RISK") && m.diameter_nm>0) {
+                           m.state=="SIGNAL_CUTOUT_CLEARANCE_RISK" ||
+                           m.state=="SIGNAL_MULTI_CUTOUT_CLEARANCE_RISK") && m.diameter_nm>0) {
                 // Draw actual source round Pad extent, not a screen-space dot.
                 // This overlay is a source-risk candidate, NEVER electrical SI.
                 const qreal radiusMm=static_cast<qreal>(m.diameter_nm)/2e6;
