@@ -1,0 +1,79 @@
+name: C014 Post-Doc-Main Independent Evidence (temporary)
+on:
+  pull_request:
+    paths:
+      - .github/workflows/c014-post-doc-main-audit.yml
+permissions:
+  contents: read
+  checks: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Verify exact signed doc-main and independent push results
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          DOC_SHA: 8701b8b20548c92e4e429472791f2ce2c3abf57b
+          EXPECTED_PARENT: 83623c167c27cdb51c58d9a4feab434068d7ed40
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.parse
+          import urllib.request
+
+          base = "https://api.github.com/repos/" + os.environ["REPOSITORY"]
+          sha = os.environ["DOC_SHA"]
+          parent = os.environ["EXPECTED_PARENT"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": "Bearer " + os.environ["GITHUB_TOKEN"],
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "BoardSI-C014-PostDocMain-Audit",
+          }
+
+          def get(path):
+              req = urllib.request.Request(base + path, headers=headers)
+              with urllib.request.urlopen(req, timeout=40) as response:
+                  return json.load(response)
+
+          commit = get("/commits/" + sha)
+          assert commit["sha"] == sha
+          assert len(commit["parents"]) == 1 and commit["parents"][0]["sha"] == parent, "Unexpected squash ancestry"
+          v = commit["commit"]["verification"]
+          assert v["verified"] is True and v["reason"] == "valid", v
+          print("C014_DOC_MAIN_VERIFIED sha=" + sha + " reason=valid parents=1", flush=True)
+
+          for attempt in range(1, 13):
+              checks = get("/commits/" + sha + "/check-runs?per_page=100")
+              check_rows = checks.get("check_runs", [])
+              assert checks["total_count"] == len(check_rows), "Check Run pagination requires handling"
+              q = urllib.parse.urlencode({"head_sha": sha, "event": "push", "per_page": 100})
+              actions = get("/actions/runs?" + q)
+              run_rows = actions.get("workflow_runs", [])
+              assert actions["total_count"] == len(run_rows), "Workflow pagination requires handling"
+              check_ok = len(check_rows) >= 17 and all(
+                  x["status"] == "completed" and x["conclusion"] == "success" for x in check_rows
+              )
+              run_ok = len(run_rows) >= 8 and all(
+                  x["status"] == "completed" and x["conclusion"] == "success"
+                  and x["event"] == "push" and x["head_sha"] == sha for x in run_rows
+              )
+              print("C014_DOC_MAIN_PROGRESS attempt={} checks={}/{} push={}/{}".format(
+                  attempt, sum(x["conclusion"] == "success" for x in check_rows),
+                  len(check_rows), sum(x["conclusion"] == "success" for x in run_rows),
+                  len(run_rows)), flush=True)
+              if check_ok and run_ok:
+                  print("C014_DOC_MAIN_POSTMERGE_PASS checks={}/{} push_workflows={}/{}".format(
+                      len(check_rows), len(check_rows), len(run_rows), len(run_rows)), flush=True)
+                  break
+              if attempt < 12:
+                  time.sleep(30)
+          else:
+              raise SystemExit("C014 post-doc-main incomplete or unsuccessful; do not close #276")
+          PY
