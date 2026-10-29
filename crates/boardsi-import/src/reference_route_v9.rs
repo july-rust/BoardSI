@@ -132,7 +132,7 @@ pub fn encode(
             format!("{x0}|{y0}|{x1}|{y1}")
         } else { "-|-|-|-".to_owned() };
         writeln!(&mut rows,
-            "CUTOUT|{layer}|{signal_index}|{}|{}|{}|{diameter}|{}|{rect_text}|{state}",
+            "CUTOUT|{layer}|{signal_index}|{}|{}|{}|{diameter}|{rect_text}|{state}",
             hex(source_identity), signal.point[0], signal.point[1]
         ).map_err(|_| "V9_FORMAT")?;
     }
