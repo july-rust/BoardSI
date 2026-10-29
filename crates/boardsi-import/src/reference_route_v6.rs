@@ -1,6 +1,6 @@
 //! C_010: source-exact corridor-to-stitch Area identity; NEVER electrical Return Path.
 //! V6 opt-in embeds an unchanged C_009 V5 (and its V4/V2) source receipt.
-use crate::{copper_preview, reference_geometry, reference_route_v5, route_preview};
+use crate::{copper_preview, reference_geometry, reference_route_v5, route_preview, via_copper_contact};
 use std::fmt::Write;
 
 const MAX_WIRE: usize = 185_000;
@@ -33,6 +33,9 @@ pub fn encode(
     let mut board = route_preview::into_canonical(bytes, &parsed)?;
     let source_areas = copper_preview::parse(bytes, parsed.max_layer)?;
     copper_preview::augment(&mut board, &source_areas)?;
+    // Source COPPER labels remain unverified until strict ViaCentre/AreaInterior
+    // graph witnesses establish bounded candidate Net association (C_009).
+    via_copper_contact::augment_multi(&mut board, bytes)?;
     if board.validate().has_errors() || source_areas.len() != board.areas.len() {
         return Err("SOURCE_GEOMETRY_UNSUPPORTED");
     }
