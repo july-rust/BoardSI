@@ -70,4 +70,34 @@ jobs:
           print("C014_CODE_MAIN_PUSH_WORKFLOWS_SUCCESS", len(runs), "of", len(runs))
           for x in runs:
               print("MAIN_WORKFLOW", x["id"], x["name"], x["conclusion"], x["html_url"])
+          # The documentation merge does not yet exist on the PR's first run.
+          # A later manual re-run of this same successful PR job can independently
+          # check the signed documentation Squash and its actual post-main results.
+          doc_pr = get("/pulls/278")
+          if not doc_pr["merged"] or not doc_pr["merge_commit_sha"]:
+              print("C014_DOC_MAIN_PENDING_NOT_YET_MERGED")
+          else:
+              doc_sha = doc_pr["merge_commit_sha"]
+              doc_commit = get("/commits/" + doc_sha)
+              doc_ver = doc_commit["commit"]["verification"]
+              assert len(doc_commit["parents"]) == 1
+              assert doc_ver["verified"] and doc_ver["reason"] == "valid", doc_ver
+              print("C014_DOC_SIGNED_VERIFIED sha=" + doc_sha + " reason=valid parents=1")
+              doc_checks = get("/commits/" + doc_sha + "/check-runs?per_page=100")
+              records = doc_checks["check_runs"]
+              assert len(records) >= 21 and doc_checks["total_count"] == len(records)
+              bad = [(i["name"], i["status"], i["conclusion"]) for i in records
+                     if i["status"] != "completed" or i["conclusion"] != "success"]
+              assert not bad, "DOC_MAIN_CHECKS_PENDING_OR_FAILED " + repr(bad)
+              print("C014_DOC_MAIN_CHECKS_SUCCESS", len(records), "of", len(records))
+              doc_query = "/actions/runs?" + urllib.parse.urlencode(
+                  {"head_sha": doc_sha, "event": "push", "per_page": 100})
+              doc_data = get(doc_query)
+              doc_runs = [x for x in doc_data["workflow_runs"]
+                          if x["head_sha"] == doc_sha and x["event"] == "push"]
+              bad = [(x["name"], x["status"], x["conclusion"]) for x in doc_runs
+                     if x["status"] != "completed" or x["conclusion"] != "success"]
+              assert len(doc_runs) >= 8 and not bad, (
+                  f"DOC_MAIN_PUSH_PENDING_OR_FAILED total={len(doc_runs)} bad={bad}")
+              print("C014_DOC_MAIN_PUSH_WORKFLOWS_SUCCESS", len(doc_runs), "of", len(doc_runs))
           PY
