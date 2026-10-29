@@ -15,7 +15,7 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
        sha.size()!=64 || h[1]!=sha || h[3]!="UNSUPPORTED" ||
        h[4]!="NOT_RUN" || h[5]!="0" ||
        h[6]!="REFERENCE_TRANSFER_UNVERIFIED" || h[7]!="2" ||
-       h[8]!=QByteArray::number(selected.size()) ||
+       h[8]!=QByteArray::number(static_cast<int>(selected.size())) ||
        h[9]!=QByteArray::number(split) ||
        h[10]!=QByteArray::number(stitchIndex) ||
        (h[12]!="V8" && h[12]!="V9"))return false;
