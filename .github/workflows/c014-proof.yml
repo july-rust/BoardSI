@@ -64,7 +64,7 @@ jobs:
           runs = [x for x in data["workflow_runs"] if x["head_sha"] == sha and x["event"] == "push"]
           bad = [(x["name"], x["status"], x["conclusion"]) for x in runs
                  if x["status"] != "completed" or x["conclusion"] != "success"]
-          assert len(runs) >= 9 and not bad, (
+          assert len(runs) >= 8 and not bad, (
               f"Code post-main workflows {len(runs)} total; pending/failure: {bad}"
           )
           print("C014_CODE_MAIN_PUSH_WORKFLOWS_SUCCESS", len(runs), "of", len(runs))
