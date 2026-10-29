@@ -39,7 +39,7 @@ pub fn encode(
     if board.validate().has_errors() || source_areas.len() != board.areas.len() {
         return Err("SOURCE_GEOMETRY_UNSUPPORTED");
     }
-    let ref_net = board.nets.iter().find(|n| n.name == references[0])
+    let _ref_net = board.nets.iter().find(|n| n.name == references[0])
         .ok_or("REFERENCE_NET_UNKNOWN")?;
     let v5_header = v5.lines().next().ok_or("V5_HEADER_MISSING")?;
     let header: Vec<_> = v5_header.split('|').collect();
@@ -77,15 +77,19 @@ pub fn encode(
             }
             selected.push(trace);
         }
-        let candidates: Vec<_> = board.areas.iter().filter(|a| {
+        // An uncontacted Source Area intentionally has Canonical net=None.
+        // Its original declared Net label is only a *candidate* for corridor
+        // identity; never promote it to an electrical connection.
+        let candidates: Vec<_> = board.areas.iter().enumerate().filter(|(i,a)| {
             a.layer == layer.meta.id
-                && a.net.as_ref() == Some(&ref_net.meta.id)
+                && source_areas.get(*i)
+                    .and_then(|raw| raw.net_label.as_deref()) == Some(references[leg])
                 && selected.iter().all(|t| {
                     reference_geometry::segment_strictly_inside(
                         a, &t.centreline[0], &t.centreline[1]
                     )
                 })
-        }).collect();
+        }).map(|(_,a)|a).collect();
         let (area_hex, state) = match candidates.as_slice() {
             [] => ("-".to_string(), "REFERENCE_CORRIDOR_GAP"),
             [area] => {
