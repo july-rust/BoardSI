@@ -780,6 +780,27 @@ protected:
                     if(QRectF(a,b).normalized().adjusted(-8,-8,8,8)
                         .intersects(QRectF(0,0,width(),height())))
                         thickLine(geometry,a,b,3.0,deviceRatio);
+                } else if(m.state=="STITCH_PAD_FOOTPRINT_RISK" && m.diameter_nm>0) {
+                    // Source-based round Pad rim (display only): avoid a fixed-size
+                    // marker that would conceal an overhang or Cutout collision.
+                    constexpr int segments=32;
+                    constexpr qreal tau=6.2831853071795864769;
+                    const qreal radiusMm=static_cast<qreal>(m.diameter_nm)/2e6;
+                    const QPointF centre=world(m.x_nm,m.y_nm);
+                    const QPointF midpoint=pixel(centre);
+                    const QPointF edge=pixel(centre+QPointF(radiusMm,0));
+                    const qreal pixelRadius=std::abs(edge.x()-midpoint.x());
+                    if(inView(midpoint,pixelRadius+4,width(),height())) {
+                        for(int segment=0;segment<segments;++segment) {
+                            const qreal a=tau*segment/segments;
+                            const qreal b=tau*(segment+1)/segments;
+                            const QPointF pa=pixel(centre+QPointF(radiusMm*std::cos(a),
+                                                                  radiusMm*std::sin(a)));
+                            const QPointF pb=pixel(centre+QPointF(radiusMm*std::cos(b),
+                                                                  radiusMm*std::sin(b)));
+                            thickLine(geometry,pa,pb,1.5,deviceRatio);
+                        }
+                    }
                 } else {
                     const QPointF centre=pixel(world(m.x_nm,m.y_nm));
                     if(inView(centre,9,width(),height()))disk(geometry,centre,6.0,12);
