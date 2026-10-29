@@ -809,6 +809,10 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
     c005::Receipt receipt;
     if(!c012::decode(v8,sha,panel,selected,split,referenceViaIndex,
                      referenceNet,layers,receipt))return false;
+    // C_012 has independently verified that its Source Signal Via belongs to
+    // the selected transition. V9 must not substitute a different imported Via.
+    const auto v8Head=v8.split('\n').first().split('|');
+    if(v8Head.size()!=13 || v8Head[11]!=h[11] || v8Head[10]!=h[10])return false;
     ImportedVia signal;
     if(!panel->importedVia(signalIndex,signal) || signal.net.isEmpty() ||
        signal.net==referenceNet || signal.diameter_nm<=signal.drill_nm)return false;
