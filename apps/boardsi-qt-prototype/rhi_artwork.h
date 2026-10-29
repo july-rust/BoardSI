@@ -887,8 +887,16 @@ protected:
                 const size_t i=k-1;const auto &m=referenceRisks_[i];
                 if(!visible(m.layer) || !includedNet(m.net))continue;
                 const QPointF p=pixel(world(m.x_nm,m.y_nm));
-                bool hit=std::hypot(event->position().x()-p.x(),
-                                    event->position().y()-p.y())<=8.0;
+                const qreal distance=std::hypot(event->position().x()-p.x(),
+                                                 event->position().y()-p.y());
+                bool hit=distance<=8.0;
+                if(m.state=="STITCH_PAD_FOOTPRINT_RISK" && m.diameter_nm>0) {
+                    // The V7 rim is source-sized, not a screen-space dot. Match
+                    // its visible circumference as well as the centre picker.
+                    const qreal radiusPx=static_cast<qreal>(m.diameter_nm)/2e6*
+                                         scaleFactor();
+                    hit=hit || std::abs(distance-radiusPx)<=6.0;
+                }
                 if(m.exactGap) {
                     const QPointF a=pixel(QPointF((m.startX_nm-originX_)/1e6,
                                                 -(m.startY_nm-originY_)/1e6));
