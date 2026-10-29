@@ -27,17 +27,16 @@ pub fn encode(
     reference_layers: [usize; 2],
     reference_via_index: usize,
 ) -> Result<String, &'static str> {
-    if references[0].is_empty() || references[0] != references[1] ||
-        reference_layers[0] == reference_layers[1] {
+    if references[0].is_empty()
+        || references[0] != references[1]
+        || reference_layers[0] == reference_layers[1]
+    {
         return Err("REFERENCE_NET_OR_LAYER_MISMATCH");
     }
-    let v4 = reference_route_v4::encode(
-        bytes, indices, split, references, reference_layers
-    )?;
+    let v4 = reference_route_v4::encode(bytes, indices, split, references, reference_layers)?;
     let v4_head = v4.lines().next().ok_or("V4_MISSING")?;
     let v4_fields: Vec<_> = v4_head.split('|').collect();
-    if v4_fields.len() != 9 ||
-        v4_fields[0] != "BOARDSI_REFERENCE_ROUTE_V4" {
+    if v4_fields.len() != 9 || v4_fields[0] != "BOARDSI_REFERENCE_ROUTE_V4" {
         return Err("V4_INVALID");
     }
     let parsed = route_preview::parse(bytes)?;
@@ -50,70 +49,112 @@ pub fn encode(
     if board.validate().has_errors() || board.vias.len() != parsed.vias.len() {
         return Err("INVALID_CONTACT_GRAPH");
     }
-    let candidate = parsed.vias.get(reference_via_index)
+    let candidate = parsed
+        .vias
+        .get(reference_via_index)
         .ok_or("UNKNOWN_REFERENCE_VIA")?;
-    let via = board.vias.get(reference_via_index)
+    let via = board
+        .vias
+        .get(reference_via_index)
         .ok_or("CANONICAL_REFERENCE_VIA_MISSING")?;
-    if via.kind != ViaKind::Through ||
-        via.position.ticks != candidate.point ||
-        via.net.is_none() ||
-        candidate.net != references[0] ||
-        parsed.segments.get(indices[0]).map_or(true, |s| s.net == candidate.net) {
+    if via.kind != ViaKind::Through
+        || via.position.ticks != candidate.point
+        || via.net.is_none()
+        || candidate.net != references[0]
+        || parsed
+            .segments
+            .get(indices[0])
+            .map_or(true, |s| s.net == candidate.net)
+    {
         return Err("REFERENCE_VIA_SOURCE_MISMATCH");
     }
-    let reference_net = board.nets.iter()
+    let reference_net = board
+        .nets
+        .iter()
         .find(|n| n.name == references[0])
         .ok_or("REFERENCE_NET_NOT_FOUND")?;
     if via.net.as_ref() != Some(&reference_net.meta.id) {
         return Err("REFERENCE_CANONICAL_NET_MISMATCH");
     }
-    let drill = board.drills.iter()
+    let drill = board
+        .drills
+        .iter()
         .find(|d| d.meta.id == via.drill)
         .ok_or("REFERENCE_DRILL_UNKNOWN")?;
-    let padstack = board.padstacks.iter()
+    let padstack = board
+        .padstacks
+        .iter()
         .find(|p| p.meta.id == via.padstack)
         .ok_or("REFERENCE_PADSTACK_UNKNOWN")?;
-    if !drill.plated || drill.span != via.span ||
-        padstack.entries.iter().any(|p| p.role != PadRole::Conductive) {
+    if !drill.plated
+        || drill.span != via.span
+        || padstack
+            .entries
+            .iter()
+            .any(|p| p.role != PadRole::Conductive)
+    {
         return Err("REFERENCE_VIA_NOT_PLATED");
     }
     let mut contacts = Vec::new();
     let mut areas = BTreeSet::new();
     for &layer_number in &reference_layers {
-        let layer = board.stackup.layers.get(layer_number.checked_sub(1)
-            .ok_or("INVALID_REFERENCE_LAYER")?)
+        let layer = board
+            .stackup
+            .layers
+            .get(
+                layer_number
+                    .checked_sub(1)
+                    .ok_or("INVALID_REFERENCE_LAYER")?,
+            )
             .ok_or("INVALID_REFERENCE_LAYER")?;
-        if !via.connected_layers.contains(&layer.meta.id) ||
-            !padstack.entries.iter().any(|e|
-                e.layer == layer.meta.id && e.role == PadRole::Conductive) {
+        if !via.connected_layers.contains(&layer.meta.id)
+            || !padstack
+                .entries
+                .iter()
+                .any(|e| e.layer == layer.meta.id && e.role == PadRole::Conductive)
+        {
             return Err("REFERENCE_VIA_LAYER_NOT_CONDUCTIVE");
         }
         // Only an actual ViaCentre -> AreaInterior SameLayerContact edge,
         // grounded to the same Source Via/Net/Layer, qualifies as evidence.
-        let witnesses: Vec<_> = board.connectivity.edges.iter().filter_map(|edge| {
-            if !matches!(edge.evidence, ConnectionEvidence::SameLayerContact { .. }) {
-                return None;
-            }
-            let a = board.connectivity.nodes.iter()
-                .find(|n| n.meta.id == edge.a)?;
-            let b = board.connectivity.nodes.iter()
-                .find(|n| n.meta.id == edge.b)?;
-            for (via_node, area_node) in [(a, b), (b, a)] {
-                if via_node.conductor != via.meta.id ||
-                    via_node.layer != layer.meta.id ||
-                    !matches!(via_node.site, ContactSite::ViaCentre) ||
-                    area_node.layer != layer.meta.id ||
-                    !matches!(area_node.site, ContactSite::AreaInterior(_)) {
-                    continue;
+        let witnesses: Vec<_> = board
+            .connectivity
+            .edges
+            .iter()
+            .filter_map(|edge| {
+                if !matches!(edge.evidence, ConnectionEvidence::SameLayerContact { .. }) {
+                    return None;
                 }
-                let area = board.areas.iter()
-                    .find(|area| area.meta.id == area_node.conductor)?;
-                if area.net.as_ref() == Some(&reference_net.meta.id) {
-                    return Some(area.meta.id.source_object.clone());
+                let a = board
+                    .connectivity
+                    .nodes
+                    .iter()
+                    .find(|n| n.meta.id == edge.a)?;
+                let b = board
+                    .connectivity
+                    .nodes
+                    .iter()
+                    .find(|n| n.meta.id == edge.b)?;
+                for (via_node, area_node) in [(a, b), (b, a)] {
+                    if via_node.conductor != via.meta.id
+                        || via_node.layer != layer.meta.id
+                        || !matches!(via_node.site, ContactSite::ViaCentre)
+                        || area_node.layer != layer.meta.id
+                        || !matches!(area_node.site, ContactSite::AreaInterior(_))
+                    {
+                        continue;
+                    }
+                    let area = board
+                        .areas
+                        .iter()
+                        .find(|area| area.meta.id == area_node.conductor)?;
+                    if area.net.as_ref() == Some(&reference_net.meta.id) {
+                        return Some(area.meta.id.source_object.clone());
+                    }
                 }
-            }
-            None
-        }).collect();
+                None
+            })
+            .collect();
         if witnesses.len() != 1 || !areas.insert((layer_number, witnesses[0].clone())) {
             return Err("REFERENCE_CONTACT_NOT_UNIQUE_OR_UNSUPPORTED");
         }
@@ -132,7 +173,8 @@ pub fn encode(
     }
     let dx = i128::from(sx / 254) - i128::from(candidate.point[0]);
     let dy = i128::from(sy / 254) - i128::from(candidate.point[1]);
-    let squared = dx.checked_mul(dx)
+    let squared = dx
+        .checked_mul(dx)
         .and_then(|x| dy.checked_mul(dy).and_then(|y| x.checked_add(y)))
         .ok_or("DISTANCE_OVERFLOW")?;
     if squared == 0 {
@@ -146,11 +188,9 @@ pub fn encode(
         nm(candidate.point[0])?, nm(candidate.point[1])?
     );
     for (layer, area) in contacts {
-        writeln!(&mut out, "CONTACT|{layer}|{}", hex(area.as_bytes()))
-            .map_err(|_| "V5_FORMAT")?;
+        writeln!(&mut out, "CONTACT|{layer}|{}", hex(area.as_bytes())).map_err(|_| "V5_FORMAT")?;
     }
-    writeln!(&mut out, "V4|{}", v4.lines().count())
-        .map_err(|_| "V5_FORMAT")?;
+    writeln!(&mut out, "V4|{}", v4.lines().count()).map_err(|_| "V5_FORMAT")?;
     out.push_str(&v4);
     out.push_str("END|2|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL\n");
     if out.len() > MAX_V5_BYTES {
