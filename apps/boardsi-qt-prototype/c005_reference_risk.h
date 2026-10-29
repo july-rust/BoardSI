@@ -828,6 +828,7 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
         QByteArray sourceId;
         if(!c005::boundedHex(row[3],sourceId))return false;
         ImportedCopperArea area;
+        if(panel->importedReferenceAreaCount(layer,referenceNet)!=1)return false;
         if(!panel->importedCopperGeometry(QString::fromUtf8(sourceId),
                                            layer,referenceNet,area) ||
            area.circle || area.curved || !area.roundCutouts.empty() ||
