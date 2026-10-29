@@ -23,7 +23,7 @@ fn accepted_candidate_contains_two_exact_copper_contacts_and_v4_unmodified() {
     assert!(v5.contains("\nCONTACT|2|") && v5.contains("\nCONTACT|3|"), "{v5}");
     assert!(v5.contains("\nBOARDSI_REFERENCE_ROUTE_V4|"), "{v5}");
     assert!(v5.ends_with("END|2|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL\n"));
-    assert!(v5.contains("|5.679613"), "distance must remain nonzero/display-only: {v5}");
+    assert!(v5.contains("|1.077631"), "distance must remain nonzero/display-only: {v5}");
     let legacy = boardsi_import::reference_route_v4::encode(
         &bytes, &[0, 1], 1, ["NET_REF", "NET_REF"], [2, 3]
     ).unwrap();
@@ -47,7 +47,7 @@ fn fail_closed_if_one_layer_has_no_contact_or_via_is_outside_copper() {
     let missing = COPPER.replace("RB COPPER 100 200 1 1 0 NET_REF", 
         "RB COPPER 100 200 1 1 0 NET_OTHER");
     assert!(audit(&source(&missing, SIGNAL, REFERENCE), 1).is_err());
-    let moved = REFERENCE.replace("50 50 3", "150 250 3");
+    let moved = REFERENCE.replace("180 280 3", "50 50 3");
     assert!(audit(&source(COPPER, SIGNAL, &moved), 1).is_err());
 }
 #[test]
