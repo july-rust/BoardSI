@@ -407,7 +407,7 @@ inline bool decode(const QByteArray &wire, const QByteArray &sourceSha,
     if (!panel || wire.isEmpty() || wire.size()>170000 || !wire.endsWith('\n'))
         return false;
     const auto lines=wire.split('\n');
-    if (lines.size()<18 || !lines.last().isEmpty()) return false;
+    if (lines.size()<17 || !lines.last().isEmpty()) return false;
     const auto head=lines[0].split('|');
     if (head.size()!=14 || head[0]!="BOARDSI_REFERENCE_ROUTE_V5" ||
         head[1]!=sourceSha || sourceSha.size()!=64 ||
@@ -701,6 +701,7 @@ public:
                       QString::number(split_->value()),net_->text(),
                       QString::number(refA_->value()),netB_->text(),
                       QString::number(refB_->value())};
+                if(stitchMode_->isChecked()) args << QString::number(stitchVia_->value());
             } else {
                 args={source_,"--reference-route-v3",canonical.join(','),net_->text(),
                       QString::number(refA_->value())};
