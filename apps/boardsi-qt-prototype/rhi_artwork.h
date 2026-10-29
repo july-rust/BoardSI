@@ -772,7 +772,8 @@ protected:
                                    m.state=="CORRIDOR_CANDIDATE_RISK" ||
                                    m.state=="STITCH_PAD_FOOTPRINT_RISK" ||
                                     m.state=="VIA_PAD_CLEARANCE_RISK" ||
-                           m.state=="SIGNAL_CUTOUT_CLEARANCE_RISK";
+                           m.state=="SIGNAL_CUTOUT_CLEARANCE_RISK" ||
+                           m.state=="SIGNAL_MULTI_CUTOUT_CLEARANCE_RISK";
                 if((split?0:stitch?2:1)!=kind || !visible(m.layer) || !includedNet(m.net)) continue;
                 if(m.exactGap) {
                     const QPointF a=pixel(QPointF((m.startX_nm-originX_)/1e6,
@@ -784,7 +785,8 @@ protected:
                         thickLine(geometry,a,b,3.0,deviceRatio);
                 } else if((m.state=="STITCH_PAD_FOOTPRINT_RISK" ||
                            m.state=="VIA_PAD_CLEARANCE_RISK" ||
-                           m.state=="SIGNAL_CUTOUT_CLEARANCE_RISK") && m.diameter_nm>0) {
+                           m.state=="SIGNAL_CUTOUT_CLEARANCE_RISK" ||
+                           m.state=="SIGNAL_MULTI_CUTOUT_CLEARANCE_RISK") && m.diameter_nm>0) {
                     // Source-based round Pad rim (display only): avoid a fixed-size
                     // marker that would conceal an overhang or Cutout collision.
                     constexpr qreal tau=6.2831853071795864769;
@@ -906,7 +908,8 @@ protected:
                 bool hit=distance<=8.0;
                 if((m.state=="STITCH_PAD_FOOTPRINT_RISK" ||
                            m.state=="VIA_PAD_CLEARANCE_RISK" ||
-                           m.state=="SIGNAL_CUTOUT_CLEARANCE_RISK") && m.diameter_nm>0 && !hit) {
+                           m.state=="SIGNAL_CUTOUT_CLEARANCE_RISK" ||
+                           m.state=="SIGNAL_MULTI_CUTOUT_CLEARANCE_RISK") && m.diameter_nm>0 && !hit) {
                     // Hit-test the exact same polygon CHORDS drawn above, not
                     // the ideal circle. This remains correct even at maximum
                     // zoom where tessellation reaches the bounded 2048 cap.
