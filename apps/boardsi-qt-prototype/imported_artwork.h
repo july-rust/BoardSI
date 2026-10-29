@@ -783,6 +783,17 @@ public:
         if(index<0 || index>=static_cast<int>(vias_.size()))return false;
         out=vias_[static_cast<size_t>(index)].second; return true;
     }
+    // C_009: inspect exactly the imported Source Copper identity, not a guessed net.
+    bool importedCopperSource(const QString &sourceId, int layer,
+                              const QString &net) const {
+        for (const auto &entry : copper_) {
+            const auto &area = entry.second;
+            if (area.layer == layer && area.net == net &&
+                QString("source-copper-%1-%2").arg(area.name).arg(area.sourceLine)
+                    == sourceId) return true;
+        }
+        return false;
+    }
     int importedTraceCount() const { return static_cast<int>(tracks_.size()); }
     int referenceRiskCountForTest() const { return static_cast<int>(risks_.size()); }
     void setReferenceRisks(const std::vector<ImportedReferenceRiskMarker> &markers) {
@@ -794,7 +805,8 @@ public:
         if(detailsCallback_)
             detailsCallback_("C_005 RISK RECEIPT INVALIDATED / RE-AUDIT REQUIRED / SI NOT_RUN");
         for(const auto &m:markers) {
-            if(m.state!="REFERENCE_SPLIT_RISK" && m.state!="LAYER_TRANSITION_RISK") continue;
+            if(m.state!="REFERENCE_SPLIT_RISK" && m.state!="LAYER_TRANSITION_RISK" &&
+               m.state!="STITCH_CANDIDATE_RISK") continue;
             QGraphicsItem *item=nullptr;
             if(m.exactGap) {
                 QPen gapPen(QColor("#ff9e55"),5);
@@ -806,7 +818,8 @@ public:
             } else {
                 auto *dot=scene_->addEllipse(QRectF(-6,-6,12,12),
                     QPen(QColor("#ffcb75"),2),
-                    QBrush(QColor(m.state=="REFERENCE_SPLIT_RISK"?"#9b551b":"#825eae")));
+                    QBrush(QColor(m.state=="REFERENCE_SPLIT_RISK"?"#9b551b":
+                         m.state=="STITCH_CANDIDATE_RISK"?"#397f83":"#825eae")));
                 dot->setPos(m.x_nm/1e6,-m.y_nm/1e6);
                 dot->setFlag(QGraphicsItem::ItemIgnoresTransformations);
                 item=dot;
