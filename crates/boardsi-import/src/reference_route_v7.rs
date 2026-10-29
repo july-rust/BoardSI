@@ -69,9 +69,19 @@ pub fn encode(
     // The existing V6 source, exact Area identity, via centre and legacy
     // source receipts are independently re-evaluated, not supplied by caller.
     let v6 = reference_route_v6::encode(
-        bytes, indices, split, references, reference_layers, reference_via_index,
+        bytes,
+        indices,
+        split,
+        references,
+        reference_layers,
+        reference_via_index,
     )?;
-    let h: Vec<_> = v6.lines().next().ok_or("V6_HEADER_MISSING")?.split('|').collect();
+    let h: Vec<_> = v6
+        .lines()
+        .next()
+        .ok_or("V6_HEADER_MISSING")?
+        .split('|')
+        .collect();
     if h.len() != 11 || h[0] != "BOARDSI_REFERENCE_ROUTE_V6" || h[1].len() != 64 {
         return Err("V6_HEADER_INVALID");
     }
@@ -85,7 +95,10 @@ pub fn encode(
     }
 
     let source_via = parsed.vias.get(reference_via_index).ok_or("V7_VIA_INDEX")?;
-    let via = board.vias.get(reference_via_index).ok_or("V7_CANONICAL_VIA")?;
+    let via = board
+        .vias
+        .get(reference_via_index)
+        .ok_or("V7_CANONICAL_VIA")?;
     if via.kind != ViaKind::Through
         || via.position.ticks != source_via.point
         || source_via.net != references[0]
@@ -94,9 +107,15 @@ pub fn encode(
     {
         return Err("V7_SOURCE_PAD_MISMATCH");
     }
-    let padstack = board.padstacks.iter().find(|p| p.meta.id == via.padstack)
+    let padstack = board
+        .padstacks
+        .iter()
+        .find(|p| p.meta.id == via.padstack)
         .ok_or("V7_PADSTACK_UNSUPPORTED")?;
-    let drill = board.drills.iter().find(|d| d.meta.id == via.drill)
+    let drill = board
+        .drills
+        .iter()
+        .find(|d| d.meta.id == via.drill)
         .ok_or("V7_DRILL_UNSUPPORTED")?;
     if !drill.plated || drill.span != via.span {
         return Err("V7_DRILL_NOT_PLATED");
@@ -105,26 +124,42 @@ pub fn encode(
         .map_err(|_| "V7_PAD_DIMENSION")?;
     let expected_drill = Rational::new(i128::from(source_via.drill_ticks) * 127, 500_000_000)
         .map_err(|_| "V7_DRILL_DIMENSION")?;
-    if drill.diameter_m != expected_drill || padstack.entries.iter().any(|e| e.role != PadRole::Conductive) {
+    if drill.diameter_m != expected_drill
+        || padstack
+            .entries
+            .iter()
+            .any(|e| e.role != PadRole::Conductive)
+    {
         return Err("V7_UNSUPPORTED_PAD_ROLE");
     }
 
     let mut rows = Vec::with_capacity(2);
     let mut overall = "PAD_FOOTPRINT_CONTAINED_CANDIDATE";
     for leg in 0..2 {
-        let corridor: Vec<_> = v6.lines().nth(1 + leg)
-            .ok_or("V7_CORRIDOR_MISSING")?.split('|').collect();
+        let corridor: Vec<_> = v6
+            .lines()
+            .nth(1 + leg)
+            .ok_or("V7_CORRIDOR_MISSING")?
+            .split('|')
+            .collect();
         if corridor.len() != 5
             || corridor[0] != "CORRIDOR"
             || corridor[1] != reference_layers[leg].to_string()
         {
             return Err("V7_CORRIDOR_INVALID");
         }
-        let layer = board.stackup.layers.get(reference_layers[leg].checked_sub(1)
-            .ok_or("V7_LAYER")?).ok_or("V7_LAYER")?;
-        let pads: Vec<_> = padstack.entries.iter()
-            .filter(|entry| entry.layer == layer.meta.id).collect();
-        if pads.len() != 1 || !matches!(&pads[0].shape,
+        let layer = board
+            .stackup
+            .layers
+            .get(reference_layers[leg].checked_sub(1).ok_or("V7_LAYER")?)
+            .ok_or("V7_LAYER")?;
+        let pads: Vec<_> = padstack
+            .entries
+            .iter()
+            .filter(|entry| entry.layer == layer.meta.id)
+            .collect();
+        if pads.len() != 1
+            || !matches!(&pads[0].shape,
             PadShape::Circle { diameter_m } if *diameter_m == expected_diameter)
         {
             return Err("V7_ROUND_PAD_UNSUPPORTED");
@@ -133,23 +168,31 @@ pub fn encode(
         if corridor[4] != "SAME_SOURCE_AREA" || corridor[2] != corridor[3] {
             state = "V6_CORRIDOR_RISK";
         } else {
-            let matches: Vec<_> = board.areas.iter().enumerate()
-                .filter(|(_, area)| area.layer == layer.meta.id
-                    && hex(&area.meta.id.source_object) == corridor[2])
-                .map(|(i, _)| i).collect();
+            let matches: Vec<_> = board
+                .areas
+                .iter()
+                .enumerate()
+                .filter(|(_, area)| {
+                    area.layer == layer.meta.id && hex(&area.meta.id.source_object) == corridor[2]
+                })
+                .map(|(i, _)| i)
+                .collect();
             if matches.len() != 1 {
                 return Err("V7_SOURCE_AREA_AMBIGUOUS");
             }
             let source_area = &copper[matches[0]];
-            let copper_preview::CopperGeometry::Polygon(outer) = &source_area.geometry
-                else { return Err("V7_OUTER_UNSUPPORTED"); };
+            let copper_preview::CopperGeometry::Polygon(outer) = &source_area.geometry else {
+                return Err("V7_OUTER_UNSUPPORTED");
+            };
             if !circle_strictly_inside_edges(source_via.point, source_via.diameter_ticks, outer)? {
                 state = "PAD_BOUNDARY_RISK";
             }
             for cutout in &source_area.cutouts {
-                let copper_preview::CopperGeometry::Polygon(hole) = cutout
-                    else { return Err("V7_CUTOUT_UNSUPPORTED"); };
-                if !circle_strictly_inside_edges(source_via.point, source_via.diameter_ticks, hole)? {
+                let copper_preview::CopperGeometry::Polygon(hole) = cutout else {
+                    return Err("V7_CUTOUT_UNSUPPORTED");
+                };
+                if !circle_strictly_inside_edges(source_via.point, source_via.diameter_ticks, hole)?
+                {
                     if state == "PAD_FOOTPRINT_CONTAINED_CANDIDATE" {
                         state = "PAD_CUTOUT_RISK";
                     }
@@ -157,7 +200,10 @@ pub fn encode(
             }
         }
         if overall == "PAD_FOOTPRINT_CONTAINED_CANDIDATE"
-            && state != "PAD_FOOTPRINT_CONTAINED_CANDIDATE" { overall = state; }
+            && state != "PAD_FOOTPRINT_CONTAINED_CANDIDATE"
+        {
+            overall = state;
+        }
         rows.push((reference_layers[leg], corridor[3].to_string(), state));
     }
     let mut out = format!(
@@ -165,14 +211,19 @@ pub fn encode(
         h[1], overall, indices.len(), split, reference_via_index
     );
     for (layer, area, state) in rows {
-        writeln!(&mut out, "PAD|{layer}|{area}|{}|{}|{state}",
-            source_via.diameter_ticks, source_via.drill_ticks)
-            .map_err(|_| "V7_FORMAT")?;
+        writeln!(
+            &mut out,
+            "PAD|{layer}|{area}|{}|{}|{state}",
+            source_via.diameter_ticks, source_via.drill_ticks
+        )
+        .map_err(|_| "V7_FORMAT")?;
     }
     writeln!(&mut out, "V6|{}", v6.lines().count()).map_err(|_| "V7_FORMAT")?;
     out.push_str(&v6);
     out.push_str("END|2|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL\n");
-    if out.len() > MAX_V7_BYTES { return Err("V7_OUTPUT_LIMIT"); }
+    if out.len() > MAX_V7_BYTES {
+        return Err("V7_OUTPUT_LIMIT");
+    }
     Ok(out)
 }
 
@@ -181,10 +232,22 @@ mod tests {
     use super::*;
     #[test]
     fn exact_tangent_and_half_tick_radius_are_not_fuzzy() {
-        let rectangle = [[0,0],[100,0],[100,100],[0,100],[0,0]];
-        assert_eq!(circle_strictly_inside_edges([50,50], 99, &rectangle), Ok(true));
-        assert_eq!(circle_strictly_inside_edges([50,50], 100, &rectangle), Ok(false));
-        assert_eq!(circle_strictly_inside_edges([50,50], 101, &rectangle), Ok(false));
-        assert_eq!(circle_strictly_inside_edges([50,50], 1, &rectangle), Ok(true));
+        let rectangle = [[0, 0], [100, 0], [100, 100], [0, 100], [0, 0]];
+        assert_eq!(
+            circle_strictly_inside_edges([50, 50], 99, &rectangle),
+            Ok(true)
+        );
+        assert_eq!(
+            circle_strictly_inside_edges([50, 50], 100, &rectangle),
+            Ok(false)
+        );
+        assert_eq!(
+            circle_strictly_inside_edges([50, 50], 101, &rectangle),
+            Ok(false)
+        );
+        assert_eq!(
+            circle_strictly_inside_edges([50, 50], 1, &rectangle),
+            Ok(true)
+        );
     }
 }
