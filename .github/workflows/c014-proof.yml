@@ -1,4 +1,4 @@
-name: C014 temporary signed-main evidence
+name: C014 signed-main evidence audit
 on:
   pull_request:
     paths:
