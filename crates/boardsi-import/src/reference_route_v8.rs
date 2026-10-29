@@ -174,12 +174,10 @@ pub fn encode(
         let diameter_sum_squared = diameter_sum
             .checked_mul(diameter_sum)
             .ok_or("V8_DIAMETER_OVERFLOW")?;
-        let state = if four_dist < diameter_sum_squared {
-            "SOURCE_PAD_OVERLAP_RISK"
-        } else if four_dist == diameter_sum_squared {
-            "SOURCE_PAD_TANGENT_RISK"
-        } else {
-            "SOURCE_PAD_SEPARATE_OBSERVED"
+        let state = match four_dist.cmp(&diameter_sum_squared) {
+            std::cmp::Ordering::Less => "SOURCE_PAD_OVERLAP_RISK",
+            std::cmp::Ordering::Equal => "SOURCE_PAD_TANGENT_RISK",
+            std::cmp::Ordering::Greater => "SOURCE_PAD_SEPARATE_OBSERVED",
         };
         if overall == "SOURCE_PAD_SEPARATE_OBSERVED" && state != "SOURCE_PAD_SEPARATE_OBSERVED" {
             overall = state;
