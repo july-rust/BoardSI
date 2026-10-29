@@ -633,6 +633,7 @@ inline bool decode(const QByteArray &wire,const QByteArray &sourceSha,
         .arg(firstBad,details.join(" / "));
     m.net=referenceNet;
     m.layer=referenceLayers[0];m.x_nm=via.x_nm;m.y_nm=via.y_nm;
+    m.diameter_nm=via.diameter_nm; // Source-checked, viewer-only Pad extent
     m.sourceObject=details.join(" / ");m.viaObject=via.name;
     receipt.markers.push_back(std::move(m));
     receipt.state=firstBad;
