@@ -1,6 +1,8 @@
 //! C_010: source-exact corridor-to-stitch Area identity; NEVER electrical Return Path.
 //! V6 opt-in embeds an unchanged C_009 V5 (and its V4/V2) source receipt.
-use crate::{copper_preview, reference_geometry, reference_route_v5, route_preview, via_copper_contact};
+use crate::{
+    copper_preview, reference_geometry, reference_route_v5, route_preview, via_copper_contact,
+};
 use std::fmt::Write;
 
 const MAX_WIRE: usize = 185_000;
@@ -103,16 +105,26 @@ pub fn encode(
         // An uncontacted Source Area intentionally has Canonical net=None.
         // Its original declared Net label is only a *candidate* for corridor
         // identity; never promote it to an electrical connection.
-        let candidates: Vec<_> = board.areas.iter().enumerate().filter(|(i,a)| {
-            a.layer == layer.meta.id
-                && source_areas.get(*i)
-                    .and_then(|raw| raw.net_label.as_deref()) == Some(references[leg])
-                && selected.iter().all(|t| {
-                    reference_geometry::segment_strictly_inside(
-                        a, &t.centreline[0], &t.centreline[1]
-                    )
-                })
-        }).map(|(_,a)|a).collect();
+        let candidates: Vec<_> = board
+            .areas
+            .iter()
+            .enumerate()
+            .filter(|(i, a)| {
+                a.layer == layer.meta.id
+                    && source_areas
+                        .get(*i)
+                        .and_then(|raw| raw.net_label.as_deref())
+                        == Some(references[leg])
+                    && selected.iter().all(|t| {
+                        reference_geometry::segment_strictly_inside(
+                            a,
+                            &t.centreline[0],
+                            &t.centreline[1],
+                        )
+                    })
+            })
+            .map(|(_, a)| a)
+            .collect();
         let (area_hex, state) = match candidates.as_slice() {
             [] => ("-".to_string(), "REFERENCE_CORRIDOR_GAP"),
             [area] => {
