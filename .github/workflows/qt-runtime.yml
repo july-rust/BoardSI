@@ -27,6 +27,10 @@ jobs:
           echo "QT_PREFIX=$RUNNER_TEMP/qt/6.8.3/gcc_64" >> "$GITHUB_ENV"
       - name: Build unchanged Rust Worker
         run: |
+          # GitHub-hosted runner can expose a partially installed 1.75.0
+          # rustup inventory, causing a cargo-clippy component file conflict.
+          # Remove only this pinned toolchain, then install cleanly; no bypass.
+          rustup toolchain uninstall 1.75.0 || true
           rustup toolchain install 1.75.0 --profile minimal
           cargo +1.75.0 build --locked -p boardsi-worker
           cargo +1.75.0 build --locked -p boardsi-import --bin boardsi-import-artwork
@@ -233,6 +237,15 @@ jobs:
           suffix=''
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c009-stitch-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      - name: C_011 Native Source circular Stitch Pad footprint and Qt stale smoke
+        shell: bash
+        env:
+          BOARDSI_ARTWORK_RENDERER: cpu
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --c011-pad-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_010 Native Source Copper corridor to Stitch and Qt stale smoke
         shell: bash
         env:

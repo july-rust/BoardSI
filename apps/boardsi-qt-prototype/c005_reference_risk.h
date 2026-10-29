@@ -561,17 +561,103 @@ inline bool decode(const QByteArray &wire, const QByteArray &sourceSha,
 }
 } // namespace c010
 
+// C_011: exact Source Circular Pad Footprint risk wraps unchanged V6 receipt.
+// The GUI independently checks its imported Via geometry and V6 Area identity.
+namespace c011 {
+inline bool decode(const QByteArray &wire,const QByteArray &sourceSha,
+                   const ImportedArtworkPanel *panel,const std::vector<int> &selected,
+                   int split,int viaIndex,const QString &referenceNet,
+                   const std::array<int,2> &referenceLayers,c005::Receipt &out) {
+    if(!panel || wire.isEmpty() || wire.size()>200000 || !wire.endsWith('\n'))return false;
+    const auto lines=wire.split('\n');
+    if(lines.size()<20 || !lines.last().isEmpty())return false;
+    const auto h=lines[0].split('|');
+    if(h.size()!=11 || h[0]!="BOARDSI_REFERENCE_ROUTE_V7" ||
+       h[1]!=sourceSha || sourceSha.size()!=64 || h[3]!="UNSUPPORTED" ||
+       h[4]!="NOT_RUN" || h[5]!="0" ||
+       h[6]!="REFERENCE_TRANSFER_UNVERIFIED" || h[7]!="2" ||
+       h[8]!=QByteArray::number(static_cast<int>(selected.size())) ||
+       h[9]!=QByteArray::number(split) || h[10]!=QByteArray::number(viaIndex))
+        return false;
+    const auto wrap=lines[3].split('|');
+    bool ok=false;
+    if(wrap.size()!=2 || wrap[0]!="V6")return false;
+    const int count=wrap[1].toInt(&ok);
+    if(!ok || count<10 || count>750 || 4+count!=lines.size()-2 ||
+       lines[4+count]!="END|2|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL")return false;
+    QByteArray v6;
+    for(int i=0;i<count;++i) {v6+=lines[4+i];v6+='\n';}
+    c005::Receipt receipt;
+    if(!c010::decode(v6,sourceSha,panel,selected,split,viaIndex,
+                     referenceNet,referenceLayers,receipt))return false;
+    ImportedVia via;
+    if(!panel->importedVia(viaIndex,via) || via.net!=referenceNet ||
+       via.diameter_nm<=via.drill_nm || via.drill_nm<=0)return false;
+    QString firstBad="PAD_FOOTPRINT_CONTAINED_CANDIDATE";
+    QStringList details;
+    for(int i=0;i<2;++i) {
+        const auto row=lines[1+i].split('|');
+        const auto corridor=lines[5+i].split('|');
+        if(row.size()!=6 || row[0]!="PAD" ||
+           row[1]!=QByteArray::number(referenceLayers[static_cast<size_t>(i)]) ||
+           corridor.size()!=5 || corridor[0]!="CORRIDOR" ||
+           corridor[1]!=row[1] || corridor[3]!=row[2])return false;
+        QByteArray area;
+        if(!c005::boundedHex(row[2],area) ||
+           !panel->importedCopperSource(QString::fromUtf8(area),
+                referenceLayers[static_cast<size_t>(i)],referenceNet))return false;
+        const qint64 diameterTicks=row[3].toLongLong(&ok);
+        if(!ok || diameterTicks<=0 || diameterTicks>5600000 ||
+           diameterTicks*254!=via.diameter_nm)return false;
+        const qint64 drillTicks=row[4].toLongLong(&ok);
+        if(!ok || drillTicks<=0 || drillTicks>=diameterTicks ||
+           drillTicks*254!=via.drill_nm)return false;
+        const QString state=QString::fromLatin1(row[5]);
+        if(state!="PAD_FOOTPRINT_CONTAINED_CANDIDATE" &&
+           state!="PAD_BOUNDARY_RISK" && state!="PAD_CUTOUT_RISK" &&
+           state!="V6_CORRIDOR_RISK")return false;
+        if((corridor[4]!="SAME_SOURCE_AREA")!=(state=="V6_CORRIDOR_RISK"))
+            return false;
+        if(state!="PAD_FOOTPRINT_CONTAINED_CANDIDATE" &&
+           firstBad=="PAD_FOOTPRINT_CONTAINED_CANDIDATE")firstBad=state;
+        details << QString("L%1 area=%2 diameter=%3 mm drill=%4 mm %5")
+            .arg(referenceLayers[static_cast<size_t>(i)])
+            .arg(QString::fromUtf8(area))
+            .arg(via.diameter_nm/1e6,0,'f',6)
+            .arg(via.drill_nm/1e6,0,'f',6).arg(state);
+    }
+    if(h[2]!=firstBad.toLatin1())return false;
+    ImportedReferenceRiskMarker m;
+    m.state="STITCH_PAD_FOOTPRINT_RISK";
+    m.reason=QString("C_011 %1 / %2 / SOURCE GEOMETRY ONLY / P009 UNSUPPORTED / SI NOT_RUN")
+        .arg(firstBad,details.join(" / "));
+    m.net=referenceNet;
+    m.x_nm=via.x_nm;m.y_nm=via.y_nm;
+    m.diameter_nm=via.diameter_nm; // Source-checked, viewer-only Pad extent
+    m.sourceObject=details.join(" / ");m.viaObject=via.name;
+    for(int layer:referenceLayers) {
+        m.layer=layer;
+        receipt.markers.push_back(m); // One source-sized pad rim per Reference Layer.
+    }
+    receipt.state=firstBad;
+    receipt.reason="REFERENCE_TRANSFER_UNVERIFIED / P009 UNSUPPORTED / SI NOT_RUN";
+    out=std::move(receipt);
+    return true;
+}
+} // namespace c011
+
 class C005ReferenceRiskController final: public QWidget {
     ImportedArtworkPanel *artwork_ = nullptr;
     QString importer_,source_;
     QSpinBox *first_=nullptr,*second_=nullptr,*refA_=nullptr,*refB_=nullptr;
     QLineEdit *net_=nullptr,*route_=nullptr,*netB_=nullptr;
-    QCheckBox *viaMode_=nullptr,*stitchMode_=nullptr,*corridorMode_=nullptr;
+    QCheckBox *viaMode_=nullptr,*stitchMode_=nullptr,*corridorMode_=nullptr,*padMode_=nullptr;
     QSpinBox *stitchVia_=nullptr;
     QSpinBox *split_=nullptr;
     bool requestedV4_=false;
     bool requestedV5_=false;
     bool requestedV6_=false;
+    bool requestedV7_=false;
     QLabel *status_=nullptr;
     QPushButton *run_=nullptr;
     QProcess process_;
@@ -591,7 +677,8 @@ class C005ReferenceRiskController final: public QWidget {
             QString::number(viaMode_->isChecked()),
             QString::number(stitchMode_->isChecked()),
             QString::number(stitchVia_->value()),
-             QString::number(corridorMode_->isChecked())
+             QString::number(corridorMode_->isChecked()),
+             QString::number(padMode_->isChecked())
         }.join('\n');
     }
     void invalidate() {
@@ -604,6 +691,7 @@ class C005ReferenceRiskController final: public QWidget {
         requestedV4_=false;
         requestedV5_=false;
         requestedV6_=false;
+        requestedV7_=false;
         artwork_->setReferenceRisks({});
         status_->setText("NOT_AUDITED / SI NOT_RUN / Solver BLOCKED");
     }
@@ -617,7 +705,11 @@ class C005ReferenceRiskController final: public QWidget {
             return;
         }
         c005::Receipt receipt;
-        const bool parsed=requestedV6_
+        const bool parsed=requestedV7_
+            ? c011::decode(bytes,requestedSha_,artwork_,requestedIndices_,
+                 split_->value(),stitchVia_->value(),net_->text(),
+                 {refA_->value(),refB_->value()},receipt)
+            : requestedV6_
             ? c010::decode(bytes,requestedSha_,artwork_,requestedIndices_,
                  split_->value(),stitchVia_->value(),net_->text(),
                  {refA_->value(),refB_->value()},receipt)
@@ -696,6 +788,9 @@ public:
         corridorMode_=new QCheckBox("C_010 Source Copper Corridor V6 (not electrical Return Path)",this);
         corridorMode_->setObjectName("c010CorridorMode");
         layout->addWidget(corridorMode_);
+        padMode_=new QCheckBox("C_011 Source Stitch Pad Footprint V7 (geometric risk only)",this);
+        padMode_->setObjectName("c011PadMode");
+        layout->addWidget(padMode_);
 
         run_=new QPushButton("Audit selected source trace(s)",this);
         run_->setObjectName("c005RunAudit");
@@ -713,6 +808,7 @@ public:
         connect(viaMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(stitchMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(corridorMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
+        connect(padMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(stitchVia_,QOverload<int>::of(&QSpinBox::valueChanged),
                 this,[this](int){invalidate();});
         connect(&process_,&QProcess::finished,this,
@@ -756,6 +852,9 @@ public:
         QStringList args{source_,"--reference-risk-v1",
             QString::number(first_->value()),net_->text(),QString::number(refA_->value())};
         const QString routeText=route_->text().trimmed();
+        if(padMode_->isChecked() && !corridorMode_->isChecked()) {
+            status_->setText("C_011 REQUIRES C_010 V6 / SI NOT_RUN");return;
+        }
         if(corridorMode_->isChecked() && !stitchMode_->isChecked()) {
             status_->setText("C_010 REQUIRES C_009 V5 / SI NOT_RUN");return;
         }
@@ -791,7 +890,7 @@ public:
                 if(split_->value()>=static_cast<int>(requestedIndices_.size())) {
                     status_->setText("INVALID C_008 VIA SPLIT / SI NOT_RUN");return;
                 }
-                args={source_,corridorMode_->isChecked()?"--reference-route-v6":stitchMode_->isChecked()?"--reference-route-v5":"--reference-route-v4",canonical.join(','),
+                args={source_,padMode_->isChecked()?"--reference-route-v7":corridorMode_->isChecked()?"--reference-route-v6":stitchMode_->isChecked()?"--reference-route-v5":"--reference-route-v4",canonical.join(','),
                       QString::number(split_->value()),net_->text(),
                       QString::number(refA_->value()),netB_->text(),
                       QString::number(refB_->value())};
@@ -814,6 +913,7 @@ public:
         requestedV4_=viaMode_->isChecked();
         requestedV5_=stitchMode_->isChecked();
         requestedV6_=corridorMode_->isChecked();
+        requestedV7_=padMode_->isChecked();
         requestedSha_=sha;requestedOptions_=options();activeGeneration_=generation_;
         process_.setProgram(importer_);process_.setArguments(args);process_.start();
         deadline_.start();

@@ -769,7 +769,8 @@ protected:
             for(const auto &m:referenceRisks_) {
                 const bool split=m.state=="REFERENCE_SPLIT_RISK";
                 const bool stitch=m.state=="STITCH_CANDIDATE_RISK" ||
-                                   m.state=="CORRIDOR_CANDIDATE_RISK";
+                                   m.state=="CORRIDOR_CANDIDATE_RISK" ||
+                                   m.state=="STITCH_PAD_FOOTPRINT_RISK";
                 if((split?0:stitch?2:1)!=kind || !visible(m.layer) || !includedNet(m.net)) continue;
                 if(m.exactGap) {
                     const QPointF a=pixel(QPointF((m.startX_nm-originX_)/1e6,
@@ -779,6 +780,27 @@ protected:
                     if(QRectF(a,b).normalized().adjusted(-8,-8,8,8)
                         .intersects(QRectF(0,0,width(),height())))
                         thickLine(geometry,a,b,3.0,deviceRatio);
+                } else if(m.state=="STITCH_PAD_FOOTPRINT_RISK" && m.diameter_nm>0) {
+                    // Source-based round Pad rim (display only): avoid a fixed-size
+                    // marker that would conceal an overhang or Cutout collision.
+                    constexpr qreal tau=6.2831853071795864769;
+                    const qreal radiusMm=static_cast<qreal>(m.diameter_nm)/2e6;
+                    const QPointF centre=world(m.x_nm,m.y_nm);
+                    const QPointF midpoint=pixel(centre);
+                    const QPointF edge=pixel(centre+QPointF(radiusMm,0));
+                    const qreal pixelRadius=std::abs(edge.x()-midpoint.x());
+                    const int segments=sourcePadRimSegments(pixelRadius);
+                    if(inView(midpoint,pixelRadius+4,width(),height())) {
+                        for(int segment=0;segment<segments;++segment) {
+                            const qreal a=tau*segment/segments;
+                            const qreal b=tau*(segment+1)/segments;
+                            const QPointF pa=pixel(centre+QPointF(radiusMm*std::cos(a),
+                                                                  radiusMm*std::sin(a)));
+                            const QPointF pb=pixel(centre+QPointF(radiusMm*std::cos(b),
+                                                                  radiusMm*std::sin(b)));
+                            thickLine(geometry,pa,pb,1.5,deviceRatio);
+                        }
+                    }
                 } else {
                     const QPointF centre=pixel(world(m.x_nm,m.y_nm));
                     if(inView(centre,9,width(),height()))disk(geometry,centre,6.0,12);
@@ -831,6 +853,16 @@ protected:
         }
         return root;
     }
+    // Chord sagitta <= ~1 screen pixel whenever the bounded segment budget
+    // permits. Excessive projected radii still use identical polygons for
+    // rendering AND hit-testing; the display cannot silently imply exact RF SI.
+    static int sourcePadRimSegments(qreal radiusPx) {
+        constexpr qreal pi=3.14159265358979323846;
+        if(!std::isfinite(radiusPx) || radiusPx<=1.0)return 32;
+        const qreal angle=std::acos(1.0-std::min(qreal(1.0),1.0/radiusPx));
+        if(angle<=0.0)return 2048;
+        return static_cast<int>(std::clamp(std::ceil(pi/angle),qreal(32),qreal(2048)));
+    }
     void mousePressEvent(QMouseEvent *event) override {
         pressed_ = event->position(); dragging_ = false;
         event->accept();
@@ -865,8 +897,42 @@ protected:
                 const size_t i=k-1;const auto &m=referenceRisks_[i];
                 if(!visible(m.layer) || !includedNet(m.net))continue;
                 const QPointF p=pixel(world(m.x_nm,m.y_nm));
-                bool hit=std::hypot(event->position().x()-p.x(),
-                                    event->position().y()-p.y())<=8.0;
+                const qreal distance=std::hypot(event->position().x()-p.x(),
+                                                 event->position().y()-p.y());
+                bool hit=distance<=8.0;
+                if(m.state=="STITCH_PAD_FOOTPRINT_RISK" && m.diameter_nm>0 && !hit) {
+                    // Hit-test the exact same polygon CHORDS drawn above, not
+                    // the ideal circle. This remains correct even at maximum
+                    // zoom where tessellation reaches the bounded 2048 cap.
+                    constexpr qreal tau=6.2831853071795864769;
+                    constexpr qreal pi=3.14159265358979323846;
+                    const qreal radiusMm=static_cast<qreal>(m.diameter_nm)/2e6;
+                    const qreal radiusPx=radiusMm*scaleFactor();
+                    const int segments=sourcePadRimSegments(radiusPx);
+                    const qreal sagitta=radiusPx*(1.0-std::cos(pi/segments));
+                    if(std::abs(distance-radiusPx)<=6.0+sagitta) {
+                        const QPointF centre=world(m.x_nm,m.y_nm);
+                        for(int segment=0;segment<segments;++segment) {
+                            const qreal a=tau*segment/segments;
+                            const qreal b=tau*(segment+1)/segments;
+                            const QPointF from=pixel(centre+QPointF(
+                                radiusMm*std::cos(a),radiusMm*std::sin(a)));
+                            const QPointF to=pixel(centre+QPointF(
+                                radiusMm*std::cos(b),radiusMm*std::sin(b)));
+                            const QPointF delta=to-from;
+                            const qreal len2=delta.x()*delta.x()+delta.y()*delta.y();
+                            const QPointF v=event->position()-from;
+                            const qreal t=len2>0?std::clamp(
+                                (v.x()*delta.x()+v.y()*delta.y())/len2,
+                                qreal(0),qreal(1)):0;
+                            const QPointF nearest=from+t*delta;
+                            if(std::hypot(event->position().x()-nearest.x(),
+                                          event->position().y()-nearest.y())<=6.0) {
+                                hit=true;break;
+                            }
+                        }
+                    }
+                }
                 if(m.exactGap) {
                     const QPointF a=pixel(QPointF((m.startX_nm-originX_)/1e6,
                                                 -(m.startY_nm-originY_)/1e6));
