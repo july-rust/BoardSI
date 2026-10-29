@@ -135,7 +135,7 @@ pub fn encode(
 
     let mut rows = Vec::with_capacity(2);
     let mut overall = "PAD_FOOTPRINT_CONTAINED_CANDIDATE";
-    for leg in 0..2 {
+    for (leg, layer_number) in reference_layers.iter().copied().enumerate() {
         let corridor: Vec<_> = v6
             .lines()
             .nth(1 + leg)
@@ -144,14 +144,14 @@ pub fn encode(
             .collect();
         if corridor.len() != 5
             || corridor[0] != "CORRIDOR"
-            || corridor[1] != reference_layers[leg].to_string()
+            || corridor[1] != layer_number.to_string()
         {
             return Err("V7_CORRIDOR_INVALID");
         }
         let layer = board
             .stackup
             .layers
-            .get(reference_layers[leg].checked_sub(1).ok_or("V7_LAYER")?)
+            .get(layer_number.checked_sub(1).ok_or("V7_LAYER")?)
             .ok_or("V7_LAYER")?;
         let pads: Vec<_> = padstack
             .entries
@@ -192,10 +192,9 @@ pub fn encode(
                     return Err("V7_CUTOUT_UNSUPPORTED");
                 };
                 if !circle_strictly_inside_edges(source_via.point, source_via.diameter_ticks, hole)?
+                    && state == "PAD_FOOTPRINT_CONTAINED_CANDIDATE"
                 {
-                    if state == "PAD_FOOTPRINT_CONTAINED_CANDIDATE" {
-                        state = "PAD_CUTOUT_RISK";
-                    }
+                    state = "PAD_CUTOUT_RISK";
                 }
             }
         }
@@ -204,7 +203,7 @@ pub fn encode(
         {
             overall = state;
         }
-        rows.push((reference_layers[leg], corridor[3].to_string(), state));
+        rows.push((layer_number, corridor[3].to_string(), state));
     }
     let mut out = format!(
         "BOARDSI_REFERENCE_ROUTE_V7|{}|{}|UNSUPPORTED|NOT_RUN|0|REFERENCE_TRANSFER_UNVERIFIED|2|{}|{}|{}\n",
