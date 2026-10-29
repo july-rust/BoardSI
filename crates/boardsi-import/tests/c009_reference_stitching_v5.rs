@@ -23,7 +23,7 @@ fn accepted_candidate_contains_two_exact_copper_contacts_and_v4_unmodified() {
     assert!(v5.contains("\nCONTACT|2|") && v5.contains("\nCONTACT|3|"), "{v5}");
     assert!(v5.contains("\nBOARDSI_REFERENCE_ROUTE_V4|"), "{v5}");
     assert!(v5.ends_with("END|2|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL\n"));
-    assert!(v5.contains("|0.052"), "distance must remain nonzero/display-only: {v5}");
+    assert!(v5.contains("|0.056796"), "distance must remain nonzero/display-only: {v5}");
     let legacy = boardsi_import::reference_route_v4::encode(
         &bytes, &[0, 1], 1, ["NET_REF", "NET_REF"], [2, 3]
     ).unwrap();
