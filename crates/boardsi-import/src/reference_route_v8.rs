@@ -57,9 +57,9 @@ fn verify_round_pad(
         .layers
         .get(layer_index.checked_sub(1).ok_or("V8_LAYER_INVALID")?)
         .ok_or("V8_LAYER_INVALID")?;
-    if !via.connected_layers.contains(&layer.meta.id) {
-        return Err("V8_NONCONDUCTIVE_LAYER");
-    }
+    // C_012 inspects the explicitly described metal Pad, not a proven
+    // electrical contact. Canonical connected_layers only contains verified
+    // local contacts and must NOT be required or fabricated for inner pads.
     let pads: Vec<_> = padstack
         .entries
         .iter()
