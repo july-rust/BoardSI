@@ -760,12 +760,152 @@ inline bool decode(const QByteArray &wire,const QByteArray &sourceSha,
 }
 } // namespace c012
 
+// C_013: validate byte-identical V8, then cross-check Source COPCUT rectangle
+// against the actual imported Qt Copper Area. Source geometry, never DRC.
+namespace c013 {
+inline bool rectangle(const std::vector<std::pair<qint64,qint64>> &ring,
+                      qint64 xmin,qint64 ymin,qint64 xmax,qint64 ymax) {
+    if(ring.size()!=5 || ring.front()!=ring.back() ||
+       xmin>=xmax || ymin>=ymax)return false;
+    const std::array<std::pair<qint64,qint64>,4> corners{{
+        {xmin,ymin},{xmax,ymin},{xmax,ymax},{xmin,ymax}}};
+    for(const auto &corner:corners) {
+        int count=0;
+        for(size_t k=0;k<4;++k)if(ring[k]==corner)++count;
+        if(count!=1)return false;
+    }
+    return true;
+}
+inline int severity(const QString &s) {
+    if(s=="SOURCE_REFERENCE_COPPER_OVERLAP_RISK")return 3;
+    if(s=="SOURCE_CUTOUT_TANGENCY_RISK")return 2;
+    if(s=="SOURCE_CUTOUT_MISSING_RISK")return 1;
+    return s=="SOURCE_CUTOUT_GAP_OBSERVED"?0:-1;
+}
+inline bool decode(const QByteArray &wire,const QByteArray &sha,
+                   const ImportedArtworkPanel *panel,const std::vector<int> &selected,
+                   int split,int referenceViaIndex,const QString &referenceNet,
+                   const std::array<int,2> &layers,c005::Receipt &out) {
+    if(!panel || wire.isEmpty() || wire.size()>250000 || !wire.endsWith('\n'))return false;
+    const auto lines=wire.split('\n');
+    if(lines.size()<27 || !lines.last().isEmpty())return false;
+    const auto h=lines[0].split('|');
+    if(h.size()!=12 || h[0]!="BOARDSI_REFERENCE_ROUTE_V9" ||
+       sha.size()!=64 || h[1]!=sha || h[3]!="UNSUPPORTED" || h[4]!="NOT_RUN" ||
+       h[5]!="0" || h[6]!="REFERENCE_TRANSFER_UNVERIFIED" || h[7]!="2" ||
+       h[8]!=QByteArray::number(static_cast<int>(selected.size())) ||
+       h[9]!=QByteArray::number(split) ||
+       h[10]!=QByteArray::number(referenceViaIndex))return false;
+    bool ok=false;
+    const int signalIndex=h[11].toInt(&ok);
+    if(!ok || signalIndex<0 || signalIndex==referenceViaIndex)return false;
+    const auto wrapped=lines[3].split('|');
+    if(wrapped.size()!=2 || wrapped[0]!="V8")return false;
+    const int count=wrapped[1].toInt(&ok);
+    if(!ok || count<17 || count>900 || 4+count!=lines.size()-2 ||
+       lines[4+count]!="END|2|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL")return false;
+    QByteArray v8;
+    for(int i=0;i<count;++i){v8+=lines[4+i];v8+='\n';}
+    c005::Receipt receipt;
+    if(!c012::decode(v8,sha,panel,selected,split,referenceViaIndex,
+                     referenceNet,layers,receipt))return false;
+    ImportedVia signal;
+    if(!panel->importedVia(signalIndex,signal) || signal.net.isEmpty() ||
+       signal.net==referenceNet || signal.diameter_nm<=signal.drill_nm)return false;
+    QString overall="SOURCE_CUTOUT_GAP_OBSERVED";
+    QStringList descriptions;
+    std::vector<ImportedReferenceRiskMarker> markers;
+    for(int i=0;i<2;++i) {
+        const int layer=layers[static_cast<size_t>(i)];
+        const auto row=lines[1+i].split('|');
+        if(row.size()!=12 || row[0]!="CUTOUT" ||
+           row[1]!=QByteArray::number(layer) ||
+           row[2]!=QByteArray::number(signalIndex))return false;
+        QByteArray sourceId;
+        if(!c005::boundedHex(row[3],sourceId))return false;
+        ImportedCopperArea area;
+        if(!panel->importedCopperGeometry(QString::fromUtf8(sourceId),
+                                           layer,referenceNet,area) ||
+           area.circle || area.curved || !area.roundCutouts.empty() ||
+           area.cutouts.size()>1)return false;
+        qint64 x=row[4].toLongLong(&ok);
+        if(!ok || x*254!=signal.x_nm)return false;
+        qint64 y=row[5].toLongLong(&ok);
+        if(!ok || y*254!=signal.y_nm)return false;
+        qint64 diameter=row[6].toLongLong(&ok);
+        if(!ok || diameter<=0 || diameter*254!=signal.diameter_nm)return false;
+        // The rectangular Source outer is independently bounded as well.
+        if(area.ring.size()!=5)return false;
+        qint64 ominx=area.ring[0].first,ominy=area.ring[0].second;
+        qint64 omaxx=ominx,omaxy=ominy;
+        for(const auto &p:area.ring) {
+            ominx=std::min(ominx,p.first);ominy=std::min(ominy,p.second);
+            omaxx=std::max(omaxx,p.first);omaxy=std::max(omaxy,p.second);
+        }
+        if(!rectangle(area.ring,ominx,ominy,omaxx,omaxy) ||
+           2*(signal.x_nm-ominx)<=signal.diameter_nm ||
+           2*(omaxx-signal.x_nm)<=signal.diameter_nm ||
+           2*(signal.y_nm-ominy)<=signal.diameter_nm ||
+           2*(omaxy-signal.y_nm)<=signal.diameter_nm)return false;
+        QString state;
+        qreal approximateGapMm=0;
+        if(row[7]=="-" && row[8]=="-" && row[9]=="-" && row[10]=="-") {
+            if(!area.cutouts.empty())return false;
+            state="SOURCE_CUTOUT_MISSING_RISK";
+        } else {
+            qint64 b[4]{};
+            for(int j=0;j<4;++j) {
+                b[j]=row[7+j].toLongLong(&ok);
+                if(!ok || b[j]<-5600000 || b[j]>5600000)return false;
+            }
+            if(area.cutouts.size()!=1 ||
+               !rectangle(area.cutouts[0],b[0]*254,b[1]*254,b[2]*254,b[3]*254))
+                return false;
+            const qint64 distances[4]{x-b[0],b[2]-x,y-b[1],b[3]-y};
+            const qint64 minMargin=*std::min_element(std::begin(distances),
+                                                     std::end(distances));
+            // Coordinates and diameter are Source-bounded; all products
+            // remain within 64-bit. Only exact integer comparisons classify.
+            state=minMargin<=0 ||
+                2*minMargin<diameter?"SOURCE_REFERENCE_COPPER_OVERLAP_RISK":
+                2*minMargin==diameter?"SOURCE_CUTOUT_TANGENCY_RISK":
+                "SOURCE_CUTOUT_GAP_OBSERVED";
+            approximateGapMm=(static_cast<qreal>(minMargin)-
+                               static_cast<qreal>(diameter)/2.0)*0.000254;
+        }
+        if(row[11]!=state.toLatin1())return false;
+        if(severity(state)<0)return false;
+        if(severity(state)>severity(overall))overall=state;
+        const QString details=QString("L%1 SignalVia=%2 %3 / SourceArea=%4 / Pad=%5 mm / approximate Cutout edge gap=%6 mm / %7")
+            .arg(layer).arg(signalIndex).arg(signal.net)
+            .arg(QString::fromUtf8(sourceId))
+            .arg(signal.diameter_nm/1e6,0,'f',6)
+            .arg(approximateGapMm,0,'f',6).arg(state);
+        descriptions<<details;
+        ImportedReferenceRiskMarker m;
+        m.state="SIGNAL_CUTOUT_CLEARANCE_RISK";
+        m.reason="C_013 "+details+
+            " / SOURCE GEOMETRY ONLY / P009 UNSUPPORTED / SI NOT_RUN";
+        m.net=signal.net;m.viaObject=signal.name;m.sourceObject=details;
+        m.layer=layer;m.x_nm=signal.x_nm;m.y_nm=signal.y_nm;
+        m.diameter_nm=signal.diameter_nm;
+        markers.push_back(std::move(m));
+    }
+    if(h[2]!=overall.toLatin1())return false;
+    receipt.markers.insert(receipt.markers.end(),markers.begin(),markers.end());
+    receipt.state=overall;
+    receipt.reason="C_013 SOURCE COPCUT GEOMETRY ONLY / P009 UNSUPPORTED / SI NOT_RUN";
+    out=std::move(receipt);
+    return true;
+}
+} // namespace c013
+
 class C005ReferenceRiskController final: public QWidget {
     ImportedArtworkPanel *artwork_ = nullptr;
     QString importer_,source_;
     QSpinBox *first_=nullptr,*second_=nullptr,*refA_=nullptr,*refB_=nullptr;
     QLineEdit *net_=nullptr,*route_=nullptr,*netB_=nullptr;
-    QCheckBox *viaMode_=nullptr,*stitchMode_=nullptr,*corridorMode_=nullptr,*padMode_=nullptr,*clearanceMode_=nullptr;
+    QCheckBox *viaMode_=nullptr,*stitchMode_=nullptr,*corridorMode_=nullptr,*padMode_=nullptr,*clearanceMode_=nullptr,*cutoutMode_=nullptr;
     QSpinBox *stitchVia_=nullptr;
     QSpinBox *split_=nullptr;
     bool requestedV4_=false;
@@ -773,6 +913,7 @@ class C005ReferenceRiskController final: public QWidget {
     bool requestedV6_=false;
     bool requestedV7_=false;
     bool requestedV8_=false;
+    bool requestedV9_=false;
     QLabel *status_=nullptr;
     QPushButton *run_=nullptr;
     QProcess process_;
@@ -794,7 +935,8 @@ class C005ReferenceRiskController final: public QWidget {
             QString::number(stitchVia_->value()),
              QString::number(corridorMode_->isChecked()),
              QString::number(padMode_->isChecked()),
-             QString::number(clearanceMode_->isChecked())
+             QString::number(clearanceMode_->isChecked()),
+             QString::number(cutoutMode_->isChecked())
         }.join('\n');
     }
     void invalidate() {
@@ -809,6 +951,7 @@ class C005ReferenceRiskController final: public QWidget {
         requestedV6_=false;
         requestedV7_=false;
         requestedV8_=false;
+        requestedV9_=false;
         artwork_->setReferenceRisks({});
         status_->setText("NOT_AUDITED / SI NOT_RUN / Solver BLOCKED");
     }
@@ -822,7 +965,11 @@ class C005ReferenceRiskController final: public QWidget {
             return;
         }
         c005::Receipt receipt;
-        const bool parsed=requestedV8_
+        const bool parsed=requestedV9_
+            ? c013::decode(bytes,requestedSha_,artwork_,requestedIndices_,
+                 split_->value(),stitchVia_->value(),net_->text(),
+                 {refA_->value(),refB_->value()},receipt)
+            : requestedV8_
             ? c012::decode(bytes,requestedSha_,artwork_,requestedIndices_,
                  split_->value(),stitchVia_->value(),net_->text(),
                  {refA_->value(),refB_->value()},receipt)
@@ -915,6 +1062,9 @@ public:
         clearanceMode_=new QCheckBox("C_012 Signal-Stitch Via Pad-to-Pad V8 (geometry only)",this);
         clearanceMode_->setObjectName("c012ClearanceMode");
         layout->addWidget(clearanceMode_);
+        cutoutMode_=new QCheckBox("C_013 Signal Via Pad / Reference COPCUT V9 (Source geometry only)",this);
+        cutoutMode_->setObjectName("c013CutoutMode");
+        layout->addWidget(cutoutMode_);
 
         run_=new QPushButton("Audit selected source trace(s)",this);
         run_->setObjectName("c005RunAudit");
@@ -934,6 +1084,7 @@ public:
         connect(corridorMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(padMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(clearanceMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
+        connect(cutoutMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(stitchVia_,QOverload<int>::of(&QSpinBox::valueChanged),
                 this,[this](int){invalidate();});
         connect(&process_,&QProcess::finished,this,
@@ -977,6 +1128,9 @@ public:
         QStringList args{source_,"--reference-risk-v1",
             QString::number(first_->value()),net_->text(),QString::number(refA_->value())};
         const QString routeText=route_->text().trimmed();
+        if(cutoutMode_->isChecked() && !clearanceMode_->isChecked()) {
+            status_->setText("C_013 REQUIRES C_012 V8 / SI NOT_RUN");return;
+        }
         if(clearanceMode_->isChecked() && !padMode_->isChecked()) {
             status_->setText("C_012 REQUIRES C_011 V7 / SI NOT_RUN");return;
         }
@@ -1018,7 +1172,7 @@ public:
                 if(split_->value()>=static_cast<int>(requestedIndices_.size())) {
                     status_->setText("INVALID C_008 VIA SPLIT / SI NOT_RUN");return;
                 }
-                args={source_,clearanceMode_->isChecked()?"--reference-route-v8":padMode_->isChecked()?"--reference-route-v7":corridorMode_->isChecked()?"--reference-route-v6":stitchMode_->isChecked()?"--reference-route-v5":"--reference-route-v4",canonical.join(','),
+                args={source_,cutoutMode_->isChecked()?"--reference-route-v9":clearanceMode_->isChecked()?"--reference-route-v8":padMode_->isChecked()?"--reference-route-v7":corridorMode_->isChecked()?"--reference-route-v6":stitchMode_->isChecked()?"--reference-route-v5":"--reference-route-v4",canonical.join(','),
                       QString::number(split_->value()),net_->text(),
                       QString::number(refA_->value()),netB_->text(),
                       QString::number(refB_->value())};
@@ -1043,6 +1197,7 @@ public:
         requestedV6_=corridorMode_->isChecked();
         requestedV7_=padMode_->isChecked();
         requestedV8_=clearanceMode_->isChecked();
+        requestedV9_=cutoutMode_->isChecked();
         requestedSha_=sha;requestedOptions_=options();activeGeneration_=generation_;
         process_.setProgram(importer_);process_.setArguments(args);process_.start();
         deadline_.start();
