@@ -4,6 +4,7 @@
 #include "imported_artwork.h"
 #include <QCryptographicHash>
 #include <QFile>
+#include <QCheckBox>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QHBoxLayout>
@@ -288,11 +289,122 @@ inline bool decode(const QByteArray &wire, const QByteArray &sourceSha,
 }
 } // namespace c007
 
+// C_008 V4: TWO explicit conductor layers and ONE plated transition witness.
+// Independent C_006 V2 segment records are rechecked against accepted artwork.
+namespace c008 {
+inline bool decode(const QByteArray &wire, const QByteArray &sourceSha,
+                   const ImportedArtworkPanel *panel, const std::vector<int> &selected,
+                   int split, c005::Receipt &out) {
+    if(!panel || selected.size()<2 || selected.size()>16 ||
+       split<1 || split>=static_cast<int>(selected.size()) ||
+       wire.isEmpty() || wire.size()>150000 || !wire.endsWith('\n'))return false;
+    const auto lines=wire.split('\n');
+    if(lines.size()<12 || !lines.last().isEmpty())return false;
+    const auto head=lines[0].split('|');
+    if(head.size()!=9 || head[0]!="BOARDSI_REFERENCE_ROUTE_V4" ||
+       sourceSha.size()!=64 || head[1]!=sourceSha ||
+       head[4]!="UNSUPPORTED" || head[5]!="NOT_RUN" || head[6]!="0" ||
+       head[7]!="REFERENCE_TRANSFER_UNVERIFIED")return false;
+    bool ok=false;
+    const int count=head[2].toInt(&ok);
+    if(!ok || count!=static_cast<int>(selected.size()))return false;
+    const int receiptSplit=head[3].toInt(&ok);
+    if(!ok || receiptSplit!=split)return false;
+    const QString state=QString::fromLatin1(head[8]);
+    if(state!="SOURCE_GEOMETRY_ONLY" && state!="REFERENCE_SPLIT_RISK" &&
+       state!="UNSUPPORTED")return false;
+    const auto vr=lines[1].split('|');
+    if(vr.size()!=10 || vr[0]!="VIA")return false;
+    const int viaIndex=vr[1].toInt(&ok);
+    if(!ok)return false;
+    ImportedVia via;
+    if(!panel->importedVia(viaIndex,via))return false;
+    QByteArray viaName,viaObject;
+    if(!c005::boundedHex(vr[2],viaName) ||
+       !c005::boundedHex(vr[3],viaObject) ||
+       via.name!=QString::fromUtf8(viaName) ||
+       !QString::fromUtf8(viaObject).startsWith("via-line-"))return false;
+    qint64 x=0,y=0;
+    if(!c005::readCoordinate(vr[4],x) || !c005::readCoordinate(vr[5],y) ||
+       x!=via.x_nm || y!=via.y_nm)return false;
+    const int first=vr[6].toInt(&ok);
+    if(!ok || first!=via.firstLayer)return false;
+    const int last=vr[7].toInt(&ok);
+    if(!ok || last!=via.lastLayer)return false;
+    const int layerA=vr[8].toInt(&ok);
+    if(!ok || layerA<first || layerA>last)return false;
+    const int layerB=vr[9].toInt(&ok);
+    if(!ok || layerB<first || layerB>last || layerB==layerA)return false;
+    c005::Receipt candidate;
+    candidate.state=state;
+    candidate.reason="REFERENCE_TRANSFER_UNVERIFIED";
+    int line=2, gaps=0;
+    bool unsupported=false;
+    ImportedTrack previous;
+    for(int i=0;i<count;++i) {
+        if(line>=lines.size()-1)return false;
+        const auto seg=lines[line++].split('|');
+        if(seg.size()!=3 || seg[0]!="SEG")return false;
+        const int index=seg[1].toInt(&ok);
+        if(!ok || index!=selected[static_cast<size_t>(i)])return false;
+        const int rows=seg[2].toInt(&ok);
+        if(!ok || rows<3 || rows>35 || line+rows>=lines.size())return false;
+        QByteArray original;
+        for(int j=0;j<rows;++j) { original+=lines[line++];original+='\n'; }
+        c005::Receipt single;
+        if(!c006::decode(original,sourceSha,panel,{index},single))return false;
+        ImportedTrack current;
+        if(!panel->importedTrack(index,current) ||
+           current.net!=via.net ||
+           current.layer!=(i<split?layerA:layerB))return false;
+        if(i>0 &&
+           (current.x0_nm!=previous.x1_nm || current.y0_nm!=previous.y1_nm))
+            return false;
+        if(i==split &&
+           (previous.x1_nm!=x || previous.y1_nm!=y))return false;
+        if(single.state=="UNSUPPORTED")unsupported=true;
+        gaps+=static_cast<int>(single.markers.size());
+        if(gaps>16*32)return false;
+        for(auto &m:single.markers) {
+            m.reason="C008_LAYER_REFERENCE_GAP_NOT_PHYSICAL";
+            m.intervalParameters=QString("C_008 layer %1 segment %2/%3: %4")
+                .arg(current.layer).arg(i+1).arg(count).arg(m.intervalParameters);
+            candidate.markers.push_back(std::move(m));
+        }
+        previous=current;
+    }
+    if(line!=lines.size()-2)return false;
+    const auto end=lines[line].split('|');
+    if(end.size()!=5 || end[0]!="END" ||
+       end[1]!=QByteArray::number(count) ||
+       end[2]!=QByteArray::number(gaps) ||
+       end[3]!="1" ||
+       end[4]!="SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL")return false;
+    const QString expected=unsupported?"UNSUPPORTED":
+        gaps>0?"REFERENCE_SPLIT_RISK":"SOURCE_GEOMETRY_ONLY";
+    if(state!=expected)return false;
+    if(unsupported)candidate.markers.clear();
+    // No electrically certified layer-to-layer Return Path, even if all gaps = 0.
+    ImportedReferenceRiskMarker marker;
+    marker.state="LAYER_TRANSITION_RISK";
+    marker.reason="REFERENCE_TRANSFER_UNVERIFIED";
+    marker.sourceObject=QString::fromUtf8(viaObject);
+    marker.viaObject=QString::fromUtf8(viaName);
+    marker.net=via.net;marker.layer=layerA;marker.x_nm=x;marker.y_nm=y;
+    candidate.markers.push_back(marker);
+    out=std::move(candidate);
+    return true;
+}
+} // namespace c008
+
 class C005ReferenceRiskController final: public QWidget {
     ImportedArtworkPanel *artwork_ = nullptr;
     QString importer_,source_;
     QSpinBox *first_=nullptr,*second_=nullptr,*refA_=nullptr,*refB_=nullptr;
-    QLineEdit *net_=nullptr,*route_=nullptr;
+    QLineEdit *net_=nullptr,*route_=nullptr,*netB_=nullptr;
+    QCheckBox *viaMode_=nullptr;
+    QSpinBox *split_=nullptr;
+    bool requestedV4_=false;
     QLabel *status_=nullptr;
     QPushButton *run_=nullptr;
     QProcess process_;
@@ -304,9 +416,10 @@ class C005ReferenceRiskController final: public QWidget {
     quint64 generation_=0;
     quint64 activeGeneration_=0;
     QString options() const {
-        return QString("%1\n%2\n%3\n%4\n%5\n%6")
+        return QString("%1\n%2\n%3\n%4\n%5\n%6\n%7\n%8\n%9")
             .arg(first_->value()).arg(second_->value()).arg(refA_->value())
-            .arg(refB_->value()).arg(net_->text()).arg(route_->text());
+            .arg(refB_->value()).arg(net_->text()).arg(route_->text())
+            .arg(netB_->text()).arg(split_->value()).arg(viaMode_->isChecked());
     }
     void invalidate() {
         ++generation_;
@@ -315,6 +428,7 @@ class C005ReferenceRiskController final: public QWidget {
             process_.kill();process_.waitForFinished(100);
         }
         requestedSha_.clear();requestedOptions_.clear();requestedIndices_.clear();
+        requestedV4_=false;
         artwork_->setReferenceRisks({});
         status_->setText("NOT_AUDITED / SI NOT_RUN / Solver BLOCKED");
     }
@@ -328,7 +442,9 @@ class C005ReferenceRiskController final: public QWidget {
             return;
         }
         c005::Receipt receipt;
-        const bool parsed=!route_->text().trimmed().isEmpty()
+        const bool parsed=requestedV4_
+            ? c008::decode(bytes,requestedSha_,artwork_,requestedIndices_,split_->value(),receipt)
+            : !route_->text().trimmed().isEmpty()
             ? c007::decode(bytes,requestedSha_,artwork_,requestedIndices_,receipt)
             : requestedIndices_.size()==1
                 ? c006::decode(bytes,requestedSha_,artwork_,requestedIndices_,receipt)
@@ -339,7 +455,7 @@ class C005ReferenceRiskController final: public QWidget {
         }
         artwork_->setReferenceRisks(receipt.markers);
         const QString routeStats=route_->text().trimmed().isEmpty()?QString():
-            QString(" / %1 route segments / %2 reference gap spans (display only)")
+            QString(" / %1 route segments / %2 risk markers (source/display only)")
                 .arg(requestedIndices_.size()).arg(receipt.markers.size());
         status_->setText(receipt.state+" / "+receipt.reason+routeStats+
             " / SOURCE GEOMETRY ONLY / P009 UNSUPPORTED / Solver BLOCKED");
@@ -350,7 +466,7 @@ public:
         :QWidget(parent),artwork_(artwork),importer_(importer),process_(this),deadline_(this) {
         setObjectName("c005ReferenceRiskPanel");
         auto *layout=new QVBoxLayout(this);
-        layout->addWidget(new QLabel("C_007 — multi-segment source Reference gap audit (C_006 V2 preserved); NOT electrical Return Path.",this));
+        layout->addWidget(new QLabel("C_008 — opt-in two-layer / plated Via source Reference risk (V1-V3 preserved); NEVER electrical Return Path.",this));
         auto *controls=new QHBoxLayout;
         first_=new QSpinBox(this);first_->setRange(0,9999);first_->setObjectName("c005TraceIndex");
         second_=new QSpinBox(this);second_->setRange(-1,9999);second_->setValue(-1);
@@ -370,6 +486,19 @@ public:
         route_->setObjectName("c007RouteIndices");
         route_->setPlaceholderText("C_007 route (optional): 0,1,2 — 2..16 source-order traces");
         layout->addWidget(route_);
+        viaMode_=new QCheckBox("C_008 two-layer via transition V4",this);
+        viaMode_->setObjectName("c008ViaMode");
+        split_=new QSpinBox(this);split_->setRange(1,15);split_->setValue(1);
+        split_->setObjectName("c008RouteSplit");
+        netB_=new QLineEdit(this);netB_->setObjectName("c008ReferenceNetB");
+        netB_->setPlaceholderText("Exact Reference Net, Layer B");
+        auto *viaControls=new QHBoxLayout;
+        viaControls->addWidget(viaMode_);
+        viaControls->addWidget(new QLabel("First-layer trace count",this));
+        viaControls->addWidget(split_);
+        viaControls->addWidget(netB_);
+        layout->addLayout(viaControls);
+
         run_=new QPushButton("Audit selected source trace(s)",this);
         run_->setObjectName("c005RunAudit");
         layout->addWidget(run_);
@@ -381,6 +510,9 @@ public:
             connect(s,QOverload<int>::of(&QSpinBox::valueChanged),this,[this](int){invalidate();});
         connect(net_,&QLineEdit::textChanged,this,[this](const QString &){invalidate();});
         connect(route_,&QLineEdit::textChanged,this,[this](const QString &){invalidate();});
+        connect(netB_,&QLineEdit::textChanged,this,[this](const QString &){invalidate();});
+        connect(split_,QOverload<int>::of(&QSpinBox::valueChanged),this,[this](int){invalidate();});
+        connect(viaMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(&process_,&QProcess::finished,this,
             [this](int code,QProcess::ExitStatus state){finished(code,state);});
         // A previously accepted audit cannot remain visible when source copper
@@ -422,6 +554,11 @@ public:
         QStringList args{source_,"--reference-risk-v1",
             QString::number(first_->value()),net_->text(),QString::number(refA_->value())};
         const QString routeText=route_->text().trimmed();
+        if(viaMode_->isChecked() &&
+           (routeText.isEmpty() || netB_->text().isEmpty() ||
+            netB_->text().size()>64)) {
+            status_->setText("INVALID C_008 VIA REFERENCE INPUT / SI NOT_RUN");return;
+        }
         if(!routeText.isEmpty()) {
             const auto parts=routeText.split(',');
             if(parts.size()<2 || parts.size()>16 || routeText.size()>95) {
@@ -439,8 +576,18 @@ public:
             }
             QStringList canonical;
             for(int idx:requestedIndices_)canonical << QString::number(idx);
-            args={source_,"--reference-route-v3",canonical.join(','),net_->text(),
-                  QString::number(refA_->value())};
+            if(viaMode_->isChecked()) {
+                if(split_->value()>=static_cast<int>(requestedIndices_.size())) {
+                    status_->setText("INVALID C_008 VIA SPLIT / SI NOT_RUN");return;
+                }
+                args={source_,"--reference-route-v4",canonical.join(','),
+                      QString::number(split_->value()),net_->text(),
+                      QString::number(refA_->value()),netB_->text(),
+                      QString::number(refB_->value())};
+            } else {
+                args={source_,"--reference-route-v3",canonical.join(','),net_->text(),
+                      QString::number(refA_->value())};
+            }
         } else {
             if(second_->value()<0)args[1]="--reference-gap-v2";
             if(second_->value()>=0) {
@@ -452,6 +599,7 @@ public:
         for(int idx:requestedIndices_)if(!artwork_->importedTrack(idx,witness)) {
             status_->setText("TRACE INDEX NOT IMPORTED / SI NOT_RUN");return;
         }
+        requestedV4_=viaMode_->isChecked();
         requestedSha_=sha;requestedOptions_=options();activeGeneration_=generation_;
         process_.setProgram(importer_);process_.setArguments(args);process_.start();
         deadline_.start();
