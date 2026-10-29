@@ -807,7 +807,8 @@ public:
         for(const auto &m:markers) {
             if(m.state!="REFERENCE_SPLIT_RISK" && m.state!="LAYER_TRANSITION_RISK" &&
                m.state!="STITCH_CANDIDATE_RISK" &&
-               m.state!="CORRIDOR_CANDIDATE_RISK") continue;
+               m.state!="CORRIDOR_CANDIDATE_RISK" &&
+               m.state!="STITCH_PAD_FOOTPRINT_RISK") continue;
             QGraphicsItem *item=nullptr;
             if(m.exactGap) {
                 QPen gapPen(QColor("#ff9e55"),5);
