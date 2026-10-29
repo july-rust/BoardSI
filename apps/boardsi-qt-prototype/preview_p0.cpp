@@ -3510,6 +3510,13 @@ static int runC014MultiCutoutSelftest(const QString &importer) {
     auto *cutout=controller.findChild<QCheckBox *>("c014MultiCutoutMode");
     if(!cutout)return 2;
     cutout->setChecked(true);
+    QProcess wireProbe;
+    wireProbe.start(importer,QStringList{source.fileName(),"--reference-route-v10",
+                    "0,1","1","NET_REFA","2","NET_REFA","3","1"});
+    if(!wireProbe.waitForFinished(5000))return 2;
+    qInfo() << "C014_SOURCE_DIAGNOSTIC" << wireProbe.exitCode()
+            << wireProbe.readAllStandardError()
+            << wireProbe.readAllStandardOutput().left(160);
     run->click();
     QEventLoop audit;
     QTimer poll;
@@ -3518,6 +3525,8 @@ static int runC014MultiCutoutSelftest(const QString &importer) {
     });
     QTimer::singleShot(8000,&audit,&QEventLoop::quit);
     poll.start(20);audit.exec();poll.stop();
+    qInfo() << "C014_QT_DIAGNOSTIC" << controller.currentStatusForTest()
+            << panel.imported()->referenceRiskCountForTest();
     const bool marked=controller.currentStatusForTest().contains("SOURCE_CUTOUT_GAP_OBSERVED") &&
         panel.imported()->referenceRiskCountForTest()==11;
     auto *scene=panel.imported()->findChild<QGraphicsScene *>();
