@@ -206,6 +206,7 @@ pub mod reference_route_v6;
 pub mod reference_route_v7;
 pub mod reference_route_v8;
 pub mod reference_route_v9;
+pub mod reference_route_v10;
 pub mod reference_topology;
 pub mod route_preview;
 pub mod scenario_contract;
