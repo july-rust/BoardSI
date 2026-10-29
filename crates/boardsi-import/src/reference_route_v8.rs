@@ -149,7 +149,6 @@ pub fn encode(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     #[test]
     fn exact_separation_uses_integer_comparison() {
         let judge = |dx: i128, dy: i128, sum_diameter: i128| {
