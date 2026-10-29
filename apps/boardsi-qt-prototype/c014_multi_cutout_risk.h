@@ -110,7 +110,7 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
             }
         }
         if(row[8]!=state.toLatin1() ||
-           row[9]!=(chosen<0?"-":QByteArray::number(chosen)) ||
+           row[9]!=(chosen<0?QByteArray("-"):QByteArray::number(chosen)) ||
            c013::severity(state)<0)return false;
         if(c013::severity(state)>c013::severity(overall))overall=state;
         const QString detail=QString("L%1 SignalVia=%2 / %3 / SourceArea=%4 / COPCUT count=%5 / chosen=%6 / Pad=%7 mm / approximate gap=%8 mm / %9")
