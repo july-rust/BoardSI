@@ -1,8 +1,8 @@
-# C_014 — Multi-COPCUT Signal Via Pad Source geometry V10 (bounded code accepted; post-main audit pending)
+# C_014 — Multi-COPCUT Signal Via Pad Source geometry V10 (bounded code accepted; documentation integration pending)
 
 **Issue:** [#276](https://github.com/july-rust/BoardSI/issues/276) · **Parent M1:** [#12](https://github.com/july-rust/BoardSI/issues/12) **OPEN** · **Predecessor:** [C_013](c013-signal-via-reference-cutout-clearance.md) verified limited Source geometry.
 
-**Started:** 2026-10-30 KST. **Code acceptance (Source Geometry only): 2026-10-30 KST.** The implementation PR is merged and its exact code HEAD and protected code merge are verified below. **Final full stage closure remains pending independent post-code-main checks, dated checklist, documentation review and post-doc-main checks.**
+**Started:** 2026-10-30 KST. **Code acceptance (Source Geometry only): 2026-10-30 KST.** The implementation PR is merged and its exact code HEAD and protected code merge are verified below. **Final full stage closure remains pending documentation review, signed protected documentation merge, and post-doc-main checks.**
 
 ## V10 scope and format
 
@@ -24,15 +24,15 @@
 - [x] [Issue #276](https://github.com/july-rust/BoardSI/issues/276), [code PR #277](https://github.com/july-rust/BoardSI/pull/277): exact final code HEAD [`fd95810bb8e60ca57a0c42b59ba83c6297021bcb`](https://github.com/july-rust/BoardSI/commit/fd95810bb8e60ca57a0c42b59ba83c6297021bcb/checks), all **11/11 PR workflows SUCCESS** (required Rust fmt/Clippy/Debug/Release, Native Qt Windows x64/ARM64, macOS ARM64, Linux offscreen, prior B/C and M2 regressions).
 - [x] **Same exact HEAD Codex independent review:** `status=completed`, `has_any_findings=false`, `has_unresolved_findings=false`, [final review receipt](https://github.com/july-rust/BoardSI/pull/277#issuecomment-6509354755). Initial P1 CPU/RHI Marker and P2 Signal Via receipt identity resolved, **2/2 threads resolved**. Draft-to-ready second automatic review of same HEAD also completed with zero findings / zero unresolved.
 - [x] Protected [Squash code merge `main@83623c167c27cdb51c58d9a4feab434068d7ed40`](https://github.com/july-rust/BoardSI/commit/83623c167c27cdb51c58d9a4feab434068d7ed40): GitHub REST `commit.verification.verified=true`, `reason=valid`, **one parent** independently checked by [GitHub-native temporary evidence workflow](https://github.com/july-rust/BoardSI/actions/runs/40964398309). The run intentionally failed overall while post-main Native checks remained in progress; its *successful signature step* is separate from the pending CI gate.
-- [ ] **Independent post-code-main CI** — Signed commit had 21 Check Runs, but a Qt Windows ARM64 run was still `in_progress` at the latest independent verification; **not PASS until 21/21 and 9/9 successful push workflows**. [Temporary evidence workflow](https://github.com/july-rust/BoardSI/actions/runs/40964398309) will be rechecked before final acceptance.
+- [x] **Independent post-code-main acceptance** — [GitHub-native verification run #40965201300](https://github.com/july-rust/BoardSI/actions/runs/40965201300) succeeded on **2026-10-30 KST**, using a read-only scoped GitHub Actions token to re-query the immutable code merge SHA [`83623c167c27cdb51c58d9a4feab434068d7ed40`](https://github.com/july-rust/BoardSI/commit/83623c167c27cdb51c58d9a4feab434068d7ed40). Independent result: `C014_CODE_SIGNED_VERIFIED reason=valid parents=1`, **21/21 Check Runs SUCCESS**, **8/8 `event=push` Workflow Runs SUCCESS**. The count 8 is the actual GitHub API push-event result; no ninth workflow was fabricated. The temporary proof workflow is removed from the final documentation tree while its [original successful run](https://github.com/july-rust/BoardSI/actions/runs/40965201300) remains a permanent independent audit receipt. Original failed attempts explicitly refused to claim PASS when checks were pending or a guessed nine-workflow threshold was unmet.
 
 ## Acceptance gates
 
 - [x] Exact code PR final HEAD mandatory GitHub CI and Native OS run complete (2026-10-30 KST; PR #277).
 - [x] Independent same-HEAD Codex completed / zero findings / zero unresolved threads (2026-10-30 KST; PR #277).
 - [x] Signed Verified Squash through existing protected Ruleset; no bypass (2026-10-30 KST; main 83623c1).
-- [ ] Independent code post-main Checks and Push Workflow runs successful.
-- [ ] Final dated checklist with initial check date and evidence date updated for the limited verified C_014 scope; validation document protected review and merge/post-main independently verified.
+- [x] Independent code post-main checks 21/21 and push workflows 8/8 successful (2026-10-30 KST; run #40965201300).
+- [x] Dated checklist with first-check and evidence date authored in documentation PR #278 (2026-10-30 KST; scope limited to C_014 Source Geometry / Qt; not M1 or formal U/T).\n- [ ] Documentation PR #278 exact final HEAD independent review, required CI, protected Signed Verified Squash and independent post-doc-main checks.
 - [ ] Issue #276 closed only after all evidence reconciled. Parent #12 remains OPEN.
 
 ## Non-claims
