@@ -904,13 +904,14 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
     return true;
 }
 } // namespace c013
+#include "c014_multi_cutout_risk.h"
 
 class C005ReferenceRiskController final: public QWidget {
     ImportedArtworkPanel *artwork_ = nullptr;
     QString importer_,source_;
     QSpinBox *first_=nullptr,*second_=nullptr,*refA_=nullptr,*refB_=nullptr;
     QLineEdit *net_=nullptr,*route_=nullptr,*netB_=nullptr;
-    QCheckBox *viaMode_=nullptr,*stitchMode_=nullptr,*corridorMode_=nullptr,*padMode_=nullptr,*clearanceMode_=nullptr,*cutoutMode_=nullptr;
+    QCheckBox *viaMode_=nullptr,*stitchMode_=nullptr,*corridorMode_=nullptr,*padMode_=nullptr,*clearanceMode_=nullptr,*cutoutMode_=nullptr,*multiCutoutMode_=nullptr;
     QSpinBox *stitchVia_=nullptr;
     QSpinBox *split_=nullptr;
     bool requestedV4_=false;
@@ -919,6 +920,7 @@ class C005ReferenceRiskController final: public QWidget {
     bool requestedV7_=false;
     bool requestedV8_=false;
     bool requestedV9_=false;
+    bool requestedV10_=false;
     QLabel *status_=nullptr;
     QPushButton *run_=nullptr;
     QProcess process_;
@@ -941,7 +943,8 @@ class C005ReferenceRiskController final: public QWidget {
              QString::number(corridorMode_->isChecked()),
              QString::number(padMode_->isChecked()),
              QString::number(clearanceMode_->isChecked()),
-             QString::number(cutoutMode_->isChecked())
+             QString::number(cutoutMode_->isChecked()),
+             QString::number(multiCutoutMode_->isChecked())
         }.join('\n');
     }
     void invalidate() {
@@ -957,6 +960,7 @@ class C005ReferenceRiskController final: public QWidget {
         requestedV7_=false;
         requestedV8_=false;
         requestedV9_=false;
+        requestedV10_=false;
         artwork_->setReferenceRisks({});
         status_->setText("NOT_AUDITED / SI NOT_RUN / Solver BLOCKED");
     }
@@ -970,7 +974,11 @@ class C005ReferenceRiskController final: public QWidget {
             return;
         }
         c005::Receipt receipt;
-        const bool parsed=requestedV9_
+        const bool parsed=requestedV10_
+            ? c014::decode(bytes,requestedSha_,artwork_,requestedIndices_,
+                 split_->value(),stitchVia_->value(),net_->text(),
+                 {refA_->value(),refB_->value()},receipt)
+            : requestedV9_
             ? c013::decode(bytes,requestedSha_,artwork_,requestedIndices_,
                  split_->value(),stitchVia_->value(),net_->text(),
                  {refA_->value(),refB_->value()},receipt)
@@ -1070,6 +1078,9 @@ public:
         cutoutMode_=new QCheckBox("C_013 Signal Via Pad / Reference COPCUT V9 (Source geometry only)",this);
         cutoutMode_->setObjectName("c013CutoutMode");
         layout->addWidget(cutoutMode_);
+        multiCutoutMode_=new QCheckBox("C_014 Multiple Source COPCUTs V10 (Source only)",this);
+        multiCutoutMode_->setObjectName("c014MultiCutoutMode");
+        layout->addWidget(multiCutoutMode_);
 
         run_=new QPushButton("Audit selected source trace(s)",this);
         run_->setObjectName("c005RunAudit");
@@ -1090,6 +1101,7 @@ public:
         connect(padMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(clearanceMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(cutoutMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
+        connect(multiCutoutMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(stitchVia_,QOverload<int>::of(&QSpinBox::valueChanged),
                 this,[this](int){invalidate();});
         connect(&process_,&QProcess::finished,this,
@@ -1133,6 +1145,9 @@ public:
         QStringList args{source_,"--reference-risk-v1",
             QString::number(first_->value()),net_->text(),QString::number(refA_->value())};
         const QString routeText=route_->text().trimmed();
+        if(multiCutoutMode_->isChecked() && !clearanceMode_->isChecked()) {
+            status_->setText("C_014 REQUIRES C_012 V8 / SI NOT_RUN");return;
+        }
         if(cutoutMode_->isChecked() && !clearanceMode_->isChecked()) {
             status_->setText("C_013 REQUIRES C_012 V8 / SI NOT_RUN");return;
         }
@@ -1177,7 +1192,7 @@ public:
                 if(split_->value()>=static_cast<int>(requestedIndices_.size())) {
                     status_->setText("INVALID C_008 VIA SPLIT / SI NOT_RUN");return;
                 }
-                args={source_,cutoutMode_->isChecked()?"--reference-route-v9":clearanceMode_->isChecked()?"--reference-route-v8":padMode_->isChecked()?"--reference-route-v7":corridorMode_->isChecked()?"--reference-route-v6":stitchMode_->isChecked()?"--reference-route-v5":"--reference-route-v4",canonical.join(','),
+                args={source_,multiCutoutMode_->isChecked()?"--reference-route-v10":cutoutMode_->isChecked()?"--reference-route-v9":clearanceMode_->isChecked()?"--reference-route-v8":padMode_->isChecked()?"--reference-route-v7":corridorMode_->isChecked()?"--reference-route-v6":stitchMode_->isChecked()?"--reference-route-v5":"--reference-route-v4",canonical.join(','),
                       QString::number(split_->value()),net_->text(),
                       QString::number(refA_->value()),netB_->text(),
                       QString::number(refB_->value())};
@@ -1203,6 +1218,7 @@ public:
         requestedV7_=padMode_->isChecked();
         requestedV8_=clearanceMode_->isChecked();
         requestedV9_=cutoutMode_->isChecked();
+        requestedV10_=multiCutoutMode_->isChecked();
         requestedSha_=sha;requestedOptions_=options();activeGeneration_=generation_;
         process_.setProgram(importer_);process_.setArguments(args);process_.start();
         deadline_.start();

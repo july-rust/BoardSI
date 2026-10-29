@@ -182,6 +182,10 @@
 
 - [x] **C_013 한정 Source COPCUT 직사각형과 Signal Via 원형 Pad Source Tick 간격 및 Qt CPU/RHI 마커** — **체크일: 2026-10-29 KST** · **근거일: 2026-10-29 KST** [Issue #273](https://github.com/july-rust/BoardSI/issues/273) · [코드 PR #274](https://github.com/july-rust/BoardSI/pull/274) · [검증 원장](validation/c013-signal-via-reference-cutout-clearance.md). 최종 코드 HEAD `d15169e1c5b5367bc96ff9cb1cfbc37144db9d6e`의 **PR CI 27/27 SUCCESS**, 동일 HEAD Codex 완료·Findings 0·미해결 Thread 0(기존 P2 3건 모두 해결), Native Qt Windows x64/ARM64/macOS ARM64/Linux offscreen 및 Rust V9 공개 합성 테스트/기존 회귀. [보호 Squash Verified `main@96f49248`](https://github.com/july-rust/BoardSI/commit/96f49248d0cda95b729734683d9918cd9444a45a) GitHub 서명 `verified=true, reason=valid`, 독립 **post-main 21/21 Check Runs SUCCESS + 9/9 Push Workflows SUCCESS**. Source 원본 정수 Tick Gap/Tangency/Overlap/Missing 분류 및 기존 V8 Byte-exact Receipt 보존이라는 **한정 기능만 PASS**. P009 Return Current/제조 Copper/실제 DRC/실물 PCB SI/Solver/Cache/정식 U/T 및 M1 #12는 **미완료**. 문서 자체의 보호 병합·최종 `main` 검증과 Issue 종료는 [#273](https://github.com/july-rust/BoardSI/issues/273)에서 별도로 증빙.
 
+### C_014 — Multi-COPCUT Signal Via / Reference Source geometry V10 (검증 대기 · 2026-10-30 KST)
+
+- [ ] **C_014 다중 Source COPCUT 0–8개/레이어 및 원형 Signal Via Pad 간격·Qt CPU/RHI 위험 표시** — [Issue #276](https://github.com/july-rust/BoardSI/issues/276) · [검증 원장](validation/c014-multi-cutout-signal-via-clearance.md). **2026-10-30 KST 착수 / 체크일 미부여:** 구현 코드 및 공개 합성 테스트는 검증 전 후보. 필수 CI·Native 3OS/Linux·정확 HEAD 독립 Codex·Verified Squash·병합 후 검사까지 완료된 경우에만 체크하며 최초 체크일/근거일/SHA를 기재한다. P009, 제조 Copper, 물리 Solver·Cache, U09/U10/U39/T02/T04/T24/T52와 상위 M1 #12 계속 미완.
+
 ## 4. 요구사항 U01–U48 체크리스트
 
 원문: [사양서 2장 요구사항 표](specification/BoardSI_Development_Spec_v1.0.md). `[ ]`는 전체 요구의 정식 인수 **미완료**. U16만 실제 제품명 적용 여부를 확인할 수 있어 체크하였으며 상표권·법률 검증은 별개입니다.

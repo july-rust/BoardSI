@@ -199,6 +199,7 @@ pub mod pour_preview;
 pub mod reference_gap_intervals;
 pub mod reference_geometry;
 pub mod reference_risk_wire;
+pub mod reference_route_v10;
 pub mod reference_route_v3;
 pub mod reference_route_v4;
 pub mod reference_route_v5;
