@@ -28,12 +28,10 @@ pub(super) fn classify(p: [i64; 2], d: i64, holes: &[[i64; 4]]) -> (&'static str
         let m = margins(p, hole);
         if m.iter().all(|v| *v >= 0) {
             let twice = 2 * (*m.iter().min().expect("four margins"));
-            let status = if twice > i128::from(d) {
-                "SOURCE_CUTOUT_GAP_OBSERVED"
-            } else if twice == i128::from(d) {
-                "SOURCE_CUTOUT_TANGENCY_RISK"
-            } else {
-                "SOURCE_REFERENCE_COPPER_OVERLAP_RISK"
+            let status = match twice.cmp(&i128::from(d)) {
+                std::cmp::Ordering::Greater => "SOURCE_CUTOUT_GAP_OBSERVED",
+                std::cmp::Ordering::Equal => "SOURCE_CUTOUT_TANGENCY_RISK",
+                std::cmp::Ordering::Less => "SOURCE_REFERENCE_COPPER_OVERLAP_RISK",
             };
             return (status, Some(i));
         }
