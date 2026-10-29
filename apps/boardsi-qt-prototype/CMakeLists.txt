@@ -102,6 +102,11 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --c005-risk-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-c005-reference-risk PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # C_014: Source 0-8 rectangular COPCUT, Qt independent decode, stale state.
+    add_test(NAME qt-preview-c014-multi-cutout
+      COMMAND boardsi-preview-p0 --c014-multi-cutout-selftest "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-c014-multi-cutout PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # C_013: Signal Via Pad versus explicitly source-owned Reference COPCUT.
     add_test(NAME qt-preview-c013-signal-via-cutout
       COMMAND boardsi-preview-p0 --c013-cutout-selftest "${BOARDSI_IMPORTER}")
