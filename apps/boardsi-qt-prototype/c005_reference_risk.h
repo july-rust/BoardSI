@@ -678,11 +678,18 @@ inline bool decode(const QByteArray &wire,const QByteArray &sourceSha,
                      referenceNet,layers,receipt) ||
        h[12]!=receipt.state.toLatin1())return false;
     ImportedVia signal,reference;
-    ImportedTrack first;
-    if(!panel->importedVia(signalIndex,signal) ||
+    ImportedTrack before,after;
+    if(split<=0 || split>=static_cast<int>(selected.size()) ||
+       !panel->importedVia(signalIndex,signal) ||
        !panel->importedVia(referenceViaIndex,reference) ||
-       !panel->importedTrack(selected.front(),first) ||
-       signal.net!=first.net || reference.net!=referenceNet ||
+       !panel->importedTrack(selected[static_cast<size_t>(split-1)],before) ||
+       !panel->importedTrack(selected[static_cast<size_t>(split)],after) ||
+       before.net!=after.net ||
+       signal.x_nm!=before.x1_nm || signal.y_nm!=before.y1_nm ||
+       signal.x_nm!=after.x0_nm || signal.y_nm!=after.y0_nm ||
+       signal.firstLayer>before.layer || signal.lastLayer<before.layer ||
+       signal.firstLayer>after.layer || signal.lastLayer<after.layer ||
+       signal.net!=before.net || reference.net!=referenceNet ||
        signal.net.isEmpty() || reference.net.isEmpty() ||
        signal.net==reference.net || signal.diameter_nm<=signal.drill_nm ||
        reference.diameter_nm<=reference.drill_nm)return false;
