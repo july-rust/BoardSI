@@ -105,7 +105,7 @@ fn exact_source_ring(
                     && exact_ring(hole, &canonical_hole.boundary.segments)
             })
 }
-fn segment_strictly_inside(
+pub(crate) fn segment_strictly_inside(
     area: &boardsi_model::CopperArea,
     a: &boardsi_model::Point,
     b: &boardsi_model::Point,
