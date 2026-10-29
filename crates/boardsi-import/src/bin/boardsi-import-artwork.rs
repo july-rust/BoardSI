@@ -674,11 +674,14 @@ fn main() {
             if raw.len() > 95 || raw.is_empty() {
                 return Err("INVALID_ROUTE_INDICES");
             }
-            let indices: Vec<usize> = raw.split(',')
+            let indices: Vec<usize> = raw
+                .split(',')
                 .map(|part| part.parse::<usize>().map_err(|_| "INVALID_ROUTE_INDEX"))
                 .collect::<Result<_, _>>()?;
             let parse_usize = |index: usize| {
-                args[index].to_str().and_then(|s| s.parse::<usize>().ok())
+                args[index]
+                    .to_str()
+                    .and_then(|s| s.parse::<usize>().ok())
                     .ok_or("INVALID_V5_INTEGER")
             };
             let split = parse_usize(4)?;
@@ -688,13 +691,19 @@ fn main() {
             let candidate = parse_usize(9)?;
             let path = std::path::Path::new(&args[1]);
             let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
-            if !metadata.is_file() ||
-                metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64 {
+            if !metadata.is_file()
+                || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
+            {
                 return Err("FILE_LIMIT");
             }
             let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
             boardsi_import::reference_route_v5::encode(
-                &bytes, &indices, split, [ref_a, ref_b], layers, candidate
+                &bytes,
+                &indices,
+                split,
+                [ref_a, ref_b],
+                layers,
+                candidate,
             )
         })();
         match result {
