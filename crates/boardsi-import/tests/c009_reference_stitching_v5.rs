@@ -86,7 +86,7 @@ fn fail_closed_for_reference_cutout_under_via_centre() {
         .replace("RA COPPER 100 200 1 1 0", "RA COPPER 100 200 2 1 0")
         .replace(
             "RB COPPER",
-            "COPCUT 5 0.01 0 2\n40 40\n60 40\n60 60\n40 60\n40 40\nRB COPPER",
+            "COPCUT 5 0.01 0 2\n70 70\n90 70\n90 90\n70 90\n70 70\nRB COPPER",
         );
     assert!(audit(&source(&cutout, SIGNAL, REFERENCE), 1).is_err());
 }
