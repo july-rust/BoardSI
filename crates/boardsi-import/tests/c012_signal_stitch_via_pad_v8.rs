@@ -50,7 +50,9 @@ fn positive_separation_contains_exact_v7_receipt_and_source_identity() {
 }
 #[test]
 fn tangent_overlap_and_one_source_tick_change_are_distinct() {
-    let tangent = REFERENCE.replace("180 280 3 10 0 SIMPLEVIA", "185 250 3 10 0 SIMPLEVIA");
+    // 21-28-35 Pythagorean separation keeps the Reference round Pad
+    // strictly inside its Source Copper Area on both layers.
+    let tangent = REFERENCE.replace("180 280 3 10 0 SIMPLEVIA", "171 278 3 10 0 SIMPLEVIA");
     let bytes = format!("{HEADER}{VIA}{COPPER}{SIGNAL}{tangent}*END*\n").into_bytes();
     let result = v8(&bytes).unwrap();
     assert!(
@@ -69,7 +71,7 @@ fn tangent_overlap_and_one_source_tick_change_are_distinct() {
         2
     );
 
-    let overlap = tangent.replace("185 250 3 10 0 SIMPLEVIA", "184 250 3 10 0 SIMPLEVIA");
+    let overlap = tangent.replace("171 278 3 10 0 SIMPLEVIA", "171 277 3 10 0 SIMPLEVIA");
     let overlap_bytes = format!("{HEADER}{VIA}{COPPER}{SIGNAL}{overlap}*END*\n").into_bytes();
     let result = v8(&overlap_bytes).unwrap();
     assert!(
@@ -81,7 +83,7 @@ fn tangent_overlap_and_one_source_tick_change_are_distinct() {
         "{result}"
     );
 
-    let separate = tangent.replace("185 250 3 10 0 SIMPLEVIA", "185.01 250 3 10 0 SIMPLEVIA");
+    let separate = tangent.replace("171 278 3 10 0 SIMPLEVIA", "171.01 278 3 10 0 SIMPLEVIA");
     let separate_bytes = format!("{HEADER}{VIA}{COPPER}{SIGNAL}{separate}*END*\n").into_bytes();
     let result = v8(&separate_bytes).unwrap();
     assert!(
