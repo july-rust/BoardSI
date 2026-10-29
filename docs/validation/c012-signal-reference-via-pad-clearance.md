@@ -2,7 +2,9 @@
 
 **Tracker:** [Issue #270](https://github.com/july-rust/BoardSI/issues/270) · **Implementation PR:** [#271](https://github.com/july-rust/BoardSI/pull/271) · **Parent:** [M1 #12](https://github.com/july-rust/BoardSI/issues/12) OPEN · **Predecessor:** [C_011](c011-reference-stitch-pad-footprint.md).
 
-**Baseline:** protected `main@647889d21202c22e0dd9a3853365476375e40433`, C_011 #267 code + documentation closed. **Status:** implementation undergoing review/CI; source-geometry limited only, no physical/electrical acceptance. Final dates, HEAD, checks and reviewer findings must be filled **after successful independent gates**, not asserted now.
+**Baseline:** protected `main@647889d21202c22e0dd9a3853365476375e40433`, C_011 #267 completed. **2026-10-29 KST code acceptance:** Source-geometry V8 implementation only. Code final PR HEAD [`5874567053f2f7320e69fc674f0260808bc1deaa`](https://github.com/july-rust/BoardSI/commit/5874567053f2f7320e69fc674f0260808bc1deaa/checks) passed **27/27 Checks SUCCESS** and **11/11 PR Workflows SUCCESS**, including Rustfmt, Clippy, Debug/Release, previous B/C regressions, Windows x64/ARM64/macOS ARM64 Qt Native and Linux offscreen. [Codex latest exact HEAD review](https://github.com/july-rust/BoardSI/pull/271#issuecomment-6494874536) reports `status=completed, has_any_findings=false, has_unresolved_findings=false`; historical P1/P2 threads **2/2 resolved**. [Protected code Squash PR #271](https://github.com/july-rust/BoardSI/pull/271) merged to [`main@ae187f1f4437181676239106260b64238bc0afd8`](https://github.com/july-rust/BoardSI/commit/ae187f1f4437181676239106260b64238bc0afd8), one parent and GitHub `verification.verified=true, reason=valid`. Active [Ruleset #25046595](https://github.com/july-rust/BoardSI/rules/25046595) is Strict with 17 required checks, Squash-only, signed commits and zero bypass actors.
+
+**Code post-main accepted 2026-10-29 KST:** Independently verified [`main@ae187f1f` **21/21 Checks SUCCESS**](https://github.com/july-rust/BoardSI/commit/ae187f1f4437181676239106260b64238bc0afd8/checks) and **9/9 associated push Workflows SUCCESS** (eight push workflows plus dynamic `Push on main`), including Windows x64/ARM64, macOS ARM64 native Qt, Linux Qt offscreen and Rust regression. **Remaining separate gate:** acceptance documentation PR #272 exact-final-doc-HEAD CI/review, protected signed Verified Squash, and independent post-doc-main checks. Issue #270 and parent M1 #12 remain OPEN until the separate documentation closure gate is evidenced.
 
 ## Contract
 
@@ -19,14 +21,14 @@
 - Qt: `apps/boardsi-qt-prototype/preview_p0.cpp --c012-clearance-selftest` through actual Rust importer to native Qt CPU/RHI; CMake Linux offscreen and workflow Windows x64/ARM64 + macOS ARM64.
 - Previous C_011/V7 and all B/C opt-ins must remain byte compatible.
 
-## Required evidence gate (pending until independently observed)
+## Code evidence / final documentation gates
 
-- [ ] Final *exact* PR HEAD required CI complete SUCCESS, Rustfmt, Clippy, Debug/Release, native Qt and previous regressions
-- [ ] Independent Codex on that same final HEAD `status=completed, findings=0, unresolved=0`
-- [ ] Protected Ruleset #25046595 Strict 17 required, signed Verified Squash-only merge, no bypass
-- [ ] Independent post-code-main all required Checks and Workflows SUCCESS
-- [ ] Dated `docs/development-checklist.md` first-check, evidence date and final PR/commit/test proofs
-- [ ] If documentation has a separate PR, exact-head review/CI, signed Squash and independent post-doc-main verification before Issue #270 closure
+- [x] **Exact final code HEAD 58745670:** 27/27 PR Checks, 11/11 PR Workflows SUCCESS; Rustfmt, Clippy, Debug/Release, Native Qt Windows x64/ARM64, macOS ARM64 and Linux offscreen. **First checked 2026-10-29 KST; evidence date 2026-10-29 KST.**
+- [x] **Independent same-head Codex:** `status=completed, has_any_findings=false, has_unresolved_findings=false`; two historical P1/P2 review threads resolved. **First checked 2026-10-29 KST; evidence date 2026-10-29 KST.**
+- [x] **Protected code merge:** PR #271 Squash to signed Verified `main@ae187f1f4437181676239106260b64238bc0afd8`; exact Ruleset #25046595 remains enforced. **First checked 2026-10-29 KST; evidence date 2026-10-29 KST.**
+- [x] **Independent code post-main Checks and Workflows:** [`main@ae187f1f` 21/21 Checks SUCCESS](https://github.com/july-rust/BoardSI/commit/ae187f1f4437181676239106260b64238bc0afd8/checks), **9/9 associated push Workflows SUCCESS**, including Qt Windows x64/ARM64 and macOS ARM64 Native and Linux offscreen. **First checked 2026-10-29 KST; evidence date 2026-10-29 KST.**
+- [ ] **Separate documentation closeout:** dated checklist, final acceptance document PR, exact-final-doc-HEAD required CI/Codex, protected Verified Squash and post-doc-main independent checks. Issue #270 must remain OPEN until all evidence is final.
+
 
 **Mandatory non-claims:**
 
