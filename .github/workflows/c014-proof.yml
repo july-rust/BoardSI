@@ -1,0 +1,73 @@
+name: C014 temporary signed-main evidence
+on:
+  pull_request:
+    paths:
+      - .github/workflows/c014-proof.yml
+permissions:
+  contents: read
+  checks: read
+  actions: read
+jobs:
+  signed-main:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Independently verify C014 code main signature and completed push CI
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          CODE_SHA: 83623c167c27cdb51c58d9a4feab434068d7ed40
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+          repo = os.environ["REPOSITORY"]
+          sha = os.environ["CODE_SHA"]
+          base = "https://api.github.com/repos/" + repo
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": "Bearer " + os.environ["GITHUB_TOKEN"],
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "BoardSI-C014-Closeout",
+          }
+          def get(endpoint):
+              req = urllib.request.Request(base + endpoint, headers=headers)
+              with urllib.request.urlopen(req, timeout=35) as response:
+                  return json.load(response)
+          commit = get("/commits/" + sha)
+          verification = commit["commit"]["verification"]
+          assert commit["sha"] == sha
+          assert len(commit["parents"]) == 1, "Expected protected Squash one-parent commit"
+          assert verification["verified"] and verification["reason"] == "valid", verification
+          print("C014_CODE_SIGNED_VERIFIED sha=" + sha + " reason=valid parents=1")
+          checks = get("/commits/" + sha + "/check-runs?per_page=100")
+          entries = checks["check_runs"]
+          assert checks["total_count"] == len(entries), "Unexpected pagination"
+          failed = [
+              (x["name"], x["status"], x["conclusion"])
+              for x in entries
+              if x["status"] != "completed" or x["conclusion"] != "success"
+          ]
+          assert len(entries) >= 21 and not failed, (
+              f"Code post-main checks {len(entries)} total; pending/failure: {failed}"
+          )
+          print("C014_CODE_MAIN_CHECKS_SUCCESS", len(entries), "of", len(entries))
+          for item in entries:
+              print("MAIN_CHECK", item["name"], item["conclusion"], item["html_url"])
+          endpoint = "/actions/runs?" + urllib.parse.urlencode(
+              {"head_sha": sha, "event": "push", "per_page": 100}
+          )
+          data = get(endpoint)
+          runs = [x for x in data["workflow_runs"] if x["head_sha"] == sha and x["event"] == "push"]
+          bad = [(x["name"], x["status"], x["conclusion"]) for x in runs
+                 if x["status"] != "completed" or x["conclusion"] != "success"]
+          assert len(runs) >= 9 and not bad, (
+              f"Code post-main workflows {len(runs)} total; pending/failure: {bad}"
+          )
+          print("C014_CODE_MAIN_PUSH_WORKFLOWS_SUCCESS", len(runs), "of", len(runs))
+          for x in runs:
+              print("MAIN_WORKFLOW", x["id"], x["name"], x["conclusion"], x["html_url"])
+          PY
