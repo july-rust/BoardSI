@@ -2,7 +2,7 @@
 
 **Tracker:** [Issue #273](https://github.com/july-rust/BoardSI/issues/273) · **Parent:** [M1 #12](https://github.com/july-rust/BoardSI/issues/12) OPEN · **Predecessor:** [C_012 V8](c012-signal-reference-via-pad-clearance.md).
 
-**Started 2026-10-29 KST. Status: code accepted by protected main; post-main and document acceptance pending.** The original protected baseline is `main@869d8d2deb0edfb1394137336ba3ed953612ad17`, C_012 #270 CLOSED after 21/21 checks and 9/9 workflows on final post-doc-main.
+**Started and code scope accepted: 2026-10-29 KST.** Scope is strictly limited to the source-only V9 geometry and tested Qt markers. Documentation merger verification and the stage issue closure are tracked at [Issue #273](https://github.com/july-rust/BoardSI/issues/273), independently of the code acceptance. The original protected baseline is `main@869d8d2deb0edfb1394137336ba3ed953612ad17`, C_012 #270 CLOSED after 21/21 checks and 9/9 workflows on final post-doc-main.
 
 ## Bounded Source geometry
 
@@ -23,7 +23,8 @@
 - **Code evidence PASS**: [PR #274](https://github.com/july-rust/BoardSI/pull/274) exact reviewed HEAD `d15169e1c5b5367bc96ff9cb1cfbc37144db9d6e`, all **27/27** PR CI checks SUCCESS including native Windows x64/ARM64, macOS ARM64 Qt and Linux offscreen; Rust Debug/Release, fmt, Clippy, and public C_013 tests (4/4 Debug, 4/4 Release). Native F6/F7 and FEM checks also succeeded.
 - **Codex PASS on exact final code HEAD**: `status=completed`, `has_any_findings=false`, `has_unresolved_findings=false`; prior 3 P2 threads resolved, latest [review receipt](https://github.com/july-rust/BoardSI/pull/274#issuecomment-6497326931).
 - **Protected merge PASS**: GitHub Squash-only [main commit `96f49248d0cda95b729734683d9918cd9444a45a`](https://github.com/july-rust/BoardSI/commit/96f49248d0cda95b729734683d9918cd9444a45a), GitHub commit signature `verified=true`, `reason=valid`, parent `869d8d2deb0edfb1394137336ba3ed953612ad17`.
-- **Still pending**: independent complete code-merge post-main 21 required check runs and 9 push workflow results, plus documentation PR/merge and separate final `main` verification. Preserve Issue #273 OPEN until all evidence exists.
+- **Independent code post-main PASS:** exact GitHub Signed Verified Squash `main@96f49248d0cda95b729734683d9918cd9444a45a`, **21/21 Check Runs SUCCESS** and **9/9 Push Workflow Runs SUCCESS** (2026-10-29 KST). Compare [main commit checks](https://github.com/july-rust/BoardSI/commit/96f49248d0cda95b729734683d9918cd9444a45a/checks) and [main code-merge workflow](https://github.com/july-rust/BoardSI/actions?query=branch%3Amain). This confirms code merge evidence, *not* fabricated copper/Solver.
+- **Documentation finalization:** separate documentation PR is subject to its own same-HEAD checks, independent review, GitHub Signed Verified Squash, and final post-main confirmation. Final documentation and Issue closure attestations are recorded on [Issue #273](https://github.com/july-rust/BoardSI/issues/273), not predeclared by this source document.
 
 ## Explicit non-claims
 
@@ -40,6 +41,7 @@ No manufactured Copper fill, antipad, thermals, DRC minimum rule, full-board ele
 
 - [x] V9 Rust and Native Qt implementation tests prove supported source cases and prior V8 byte compatibility (27/27 exact PR HEAD, 2026-10-29 KST).
 - [x] Exact final code HEAD required CI + independent same-HEAD Codex completed with zero findings/unresolved (PR #274, SHA d15169e, 2026-10-29 KST).
-- [x] Protected Squash of code is GitHub Signed Verified (main 96f49248; 2026-10-29 KST).\n- [ ] Code merge independent post-main checks/workflows all successful.
-- [ ] Dated checklist and this record finalized; documentation PR if separate passes required CI/review/verified merge/post-main.
-- [ ] Only then close Issue #273. Parent #12 stays OPEN.
+- [x] Protected Squash of code is GitHub Signed Verified (main 96f49248; 2026-10-29 KST).\n- [x] Code merge independent post-main checks/workflows all successful: 21/21 Check Runs, 9/9 Push Workflows on `main@96f49248` (2026-10-29 KST).
+- [x] Dated code-limited checklist and this validation record authored for documentation PR (2026-10-29 KST). Scope remains Source Geometry only.
+
+**Final stage closure procedure:** the separate documentation PR and final signed `main` CI/workflows must be independently proven and linked in [Issue #273](https://github.com/july-rust/BoardSI/issues/273) before closing it. Parent #12 stays OPEN. The present document does not pre-attest to its own future protected merge.
