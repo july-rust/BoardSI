@@ -7,7 +7,7 @@ const VIA: &str = "*VIA*\nSIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R\n";
 const COPPER: &str =
     "*LINES*\nRA COPPER 100 200 1 1 0 NET_REF\nCOPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\nRB COPPER 100 200 1 1 0 NET_REF\nCOPCLS 5 0.01 0 3\n0 0\n100 0\n100 100\n0 100\n0 0\n";
 const SIGNAL: &str = "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n130 250 1 10 0\n150 250 4 10 0 SIMPLEVIA\n170 250 4 10 0\n";
-const REFERENCE: &str = "*SIGNAL* NET_REF\nR1.1 R2.2\n30 50 2 10 0\n50 50 3 10 0 SIMPLEVIA\n70 50 3 10 0\n";
+const REFERENCE: &str = "*SIGNAL* NET_REF\nR1.1 R2.2\n140 280 2 10 0\n180 280 3 10 0 SIMPLEVIA\n190 280 3 10 0\n";
 fn source(copper: &str, signal: &str, reference: &str) -> Vec<u8> {
     format!("{HEADER}{VIA}{copper}{signal}{reference}*END*\n").into_bytes()
 }
