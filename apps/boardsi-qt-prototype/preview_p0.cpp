@@ -3501,7 +3501,7 @@ static int runC013CutoutClearanceSelftest(const QString &importer) {
     auto *padMode=controller.findChild<QCheckBox *>("c011PadMode");
     if(!padMode)return 2;
     padMode->setChecked(true);
-    auto *clearance=controller.findChild<QCheckBox *>("c013ClearanceMode");
+    auto *clearance=controller.findChild<QCheckBox *>("c012ClearanceMode");
     if(!clearance)return 2;
     clearance->setChecked(true);
     auto *cutout=controller.findChild<QCheckBox *>("c013CutoutMode");
