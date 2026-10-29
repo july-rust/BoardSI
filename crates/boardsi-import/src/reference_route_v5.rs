@@ -58,7 +58,7 @@ pub fn encode(
         via.position.ticks != candidate.point ||
         via.net.is_none() ||
         candidate.net != references[0] ||
-        parsed.segments.get(indices[0]).is_none_or(|s| s.net == candidate.net) {
+        parsed.segments.get(indices[0]).map_or(true, |s| s.net == candidate.net) {
         return Err("REFERENCE_VIA_SOURCE_MISMATCH");
     }
     let reference_net = board.nets.iter()
