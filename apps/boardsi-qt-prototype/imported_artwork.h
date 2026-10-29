@@ -795,6 +795,21 @@ public:
         }
         return false;
     }
+    // C_013: source-bound geometry read-back for independent V9 receipt checking.
+    // Returns an already imported, validated same-owner Area; never infers fill.
+    bool importedCopperGeometry(const QString &sourceId, int layer,
+                                const QString &net, ImportedCopperArea &out) const {
+        bool found=false;
+        for(const auto &entry:copper_) {
+            const auto &area=entry.second;
+            if(area.layer==layer && area.net==net &&
+               QString("source-copper-%1-%2").arg(area.name).arg(area.sourceLine)==sourceId) {
+                if(found)return false;
+                out=area;found=true;
+            }
+        }
+        return found;
+    }
     int importedTraceCount() const { return static_cast<int>(tracks_.size()); }
     int referenceRiskCountForTest() const { return static_cast<int>(risks_.size()); }
     void setReferenceRisks(const std::vector<ImportedReferenceRiskMarker> &markers) {
@@ -810,7 +825,8 @@ public:
                m.state!="STITCH_CANDIDATE_RISK" &&
                m.state!="CORRIDOR_CANDIDATE_RISK" &&
                m.state!="STITCH_PAD_FOOTPRINT_RISK" &&
-                m.state!="VIA_PAD_CLEARANCE_RISK") continue;
+                m.state!="VIA_PAD_CLEARANCE_RISK" &&
+               m.state!="SIGNAL_CUTOUT_CLEARANCE_RISK") continue;
             QGraphicsItem *item=nullptr;
             if(m.exactGap) {
                 QPen gapPen(QColor("#ff9e55"),5);
