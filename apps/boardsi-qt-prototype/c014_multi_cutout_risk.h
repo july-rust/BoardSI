@@ -145,6 +145,11 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
         c013::decode(legacy,sha,panel,selected,split,stitchIndex,referenceNet,layers,receipt):
         c012::decode(legacy,sha,panel,selected,split,stitchIndex,referenceNet,layers,receipt);
     if(!valid)return false;
+    // The independently validated legacy route fixes the unique Signal Via.
+    // Never accept a V10 receipt describing a different, unselected Via.
+    const auto legacyHeader=legacy.split('\n').first().split('|');
+    if(legacyHeader.size()!=(h[12]=="V9"?12:13) ||
+       legacyHeader[10]!=h[10] || legacyHeader[11]!=h[11])return false;
     receipt.markers.insert(receipt.markers.end(),markers.begin(),markers.end());
     receipt.state=overall;
     receipt.reason="C_014 MULTI-COPCUT SOURCE ONLY / P009 UNSUPPORTED / SI NOT_RUN";
