@@ -77,11 +77,6 @@ fn malformed_and_ambiguous_source_rejected() {
     assert!(v10(net.as_bytes()).is_err());
     let too_many = base.replace("RA COPPER 100 200 3 1 0", "RA COPPER 100 200 10 1 0");
     assert!(v10(too_many.as_bytes()).is_err());
-    assert_ne!(v10(base.as_bytes()).unwrap(), v10(base.replace("30 30", "31 30").as_bytes()).unwrap_err_or_default());
-}
-trait ErrorString {
-    fn unwrap_err_or_default(self) -> String;
-}
-impl ErrorString for Result<String, &'static str> {
-    fn unwrap_err_or_default(self) -> String { self.unwrap_or_else(|e| e.to_string()) }
+    let changed = base.replace("NET_SIG", "NET_NEW");
+    assert_ne!(v10(base.as_bytes()).unwrap(), v10(changed.as_bytes()).unwrap());
 }
