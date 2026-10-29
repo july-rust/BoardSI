@@ -3508,7 +3508,7 @@ static int runC011PadFootprintSelftest(const QString &importer) {
     QTimer::singleShot(8000,&audit,&QEventLoop::quit);
     poll.start(20);audit.exec();poll.stop();
     const bool marked=controller.currentStatusForTest().contains("PAD_FOOTPRINT_CONTAINED_CANDIDATE") &&
-        panel.imported()->referenceRiskCountForTest()==4;
+        panel.imported()->referenceRiskCountForTest()==5;
     auto *scene=panel.imported()->findChild<QGraphicsScene *>();
     bool picked=false;
     bool fullRim=false;
