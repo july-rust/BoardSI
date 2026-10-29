@@ -24,7 +24,12 @@ pub fn encode(
     reference_via_index: usize,
 ) -> Result<String, &'static str> {
     let v5 = reference_route_v5::encode(
-        bytes, indices, split, references, reference_layers, reference_via_index,
+        bytes,
+        indices,
+        split,
+        references,
+        reference_layers,
+        reference_via_index,
     )?;
     if indices.len() < 2 || indices.len() > 16 || split == 0 || split >= indices.len() {
         return Err("INVALID_V6_ROUTE");
@@ -39,40 +44,58 @@ pub fn encode(
     if board.validate().has_errors() || source_areas.len() != board.areas.len() {
         return Err("SOURCE_GEOMETRY_UNSUPPORTED");
     }
-    let _ref_net = board.nets.iter().find(|n| n.name == references[0])
+    let _ref_net = board
+        .nets
+        .iter()
+        .find(|n| n.name == references[0])
         .ok_or("REFERENCE_NET_UNKNOWN")?;
     let v5_header = v5.lines().next().ok_or("V5_HEADER_MISSING")?;
     let header: Vec<_> = v5_header.split('|').collect();
-    if header.len() != 14 || header[0] != "BOARDSI_REFERENCE_ROUTE_V5"
-        || header[1].len() != 64 {
+    if header.len() != 14 || header[0] != "BOARDSI_REFERENCE_ROUTE_V5" || header[1].len() != 64 {
         return Err("V5_SOURCE_MISMATCH");
     }
     let mut corridors = Vec::new();
     let mut overall = "SAME_SOURCE_AREA_CORRIDOR_CANDIDATE";
     for leg in 0..2 {
         let layer_number = reference_layers[leg];
-        let layer = board.stackup.layers.get(
-            layer_number.checked_sub(1).ok_or("REFERENCE_LAYER_INVALID")?
-        ).ok_or("REFERENCE_LAYER_INVALID")?;
-        let slice = if leg == 0 { &indices[..split] } else { &indices[split..] };
+        let layer = board
+            .stackup
+            .layers
+            .get(
+                layer_number
+                    .checked_sub(1)
+                    .ok_or("REFERENCE_LAYER_INVALID")?,
+            )
+            .ok_or("REFERENCE_LAYER_INVALID")?;
+        let slice = if leg == 0 {
+            &indices[..split]
+        } else {
+            &indices[split..]
+        };
         let source_contact = v5.lines().nth(1 + leg).ok_or("V5_CONTACT_MISSING")?;
         let fields: Vec<_> = source_contact.split('|').collect();
-        if fields.len() != 3 || fields[0] != "CONTACT"
-            || fields[1] != layer_number.to_string() {
+        if fields.len() != 3 || fields[0] != "CONTACT" || fields[1] != layer_number.to_string() {
             return Err("V5_CONTACT_INVALID");
         }
         let mut selected = Vec::new();
         for &i in slice {
             let raw = parsed.segments.get(i).ok_or("TRACE_INDEX_INVALID")?;
             let trace = board.traces.get(i).ok_or("TRACE_NOT_CANONICAL")?;
-            let signal_layer = board.stackup.layers.get(
-                (raw.layer as usize).checked_sub(1).ok_or("SIGNAL_LAYER_INVALID")?
-            ).ok_or("SIGNAL_LAYER_INVALID")?;
+            let signal_layer = board
+                .stackup
+                .layers
+                .get(
+                    (raw.layer as usize)
+                        .checked_sub(1)
+                        .ok_or("SIGNAL_LAYER_INVALID")?,
+                )
+                .ok_or("SIGNAL_LAYER_INVALID")?;
             if trace.layer != signal_layer.meta.id
                 || trace.centreline.len() != 2
                 || trace.centreline[0].ticks != raw.a
                 || trace.centreline[1].ticks != raw.b
-                || signal_layer.order.abs_diff(layer.order) != 1 {
+                || signal_layer.order.abs_diff(layer.order) != 1
+            {
                 return Err("UNSUPPORTED_CORRIDOR_LAYER_OR_SOURCE");
             }
             selected.push(trace);
@@ -113,8 +136,7 @@ pub fn encode(
         header[1], indices.len()
     );
     for (layer, area, contact, state) in corridors {
-        writeln!(&mut out, "CORRIDOR|{layer}|{area}|{contact}|{state}")
-            .map_err(|_| "V6_FORMAT")?;
+        writeln!(&mut out, "CORRIDOR|{layer}|{area}|{contact}|{state}").map_err(|_| "V6_FORMAT")?;
     }
     writeln!(&mut out, "V5|{}", v5.lines().count()).map_err(|_| "V6_FORMAT")?;
     out.push_str(&v5);
