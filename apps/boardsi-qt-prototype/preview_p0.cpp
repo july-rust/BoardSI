@@ -4135,8 +4135,10 @@ static int runC016MixedCutoutSelftest(const QString &importer) {
             auto *rim=qgraphicsitem_cast<QGraphicsEllipseItem *>(item);
             // Source 35 mil Pad = 0.889 mm; CPU outline must be true size.
             fullRim=rim && std::abs(rim->rect().width()-0.889)<0.000001;
+            break; // keep the selected C_016 property text, not C_011's marker
         }
     }
+    qInfo() << "C016_QT_DETAIL_CHECK" << picked << fullRim << detail;
     const bool detailValid=picked && fullRim &&
         detail.contains("P009 UNSUPPORTED") &&
         detail.contains("STITCH PAD GEOMETRY ONLY") && detail.contains("C_016");
