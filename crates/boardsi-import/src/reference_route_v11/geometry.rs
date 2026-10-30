@@ -43,11 +43,17 @@ fn dist2(a: [i64; 2], b: [i64; 2]) -> i128 {
     sq(i128::from(a[0]) - i128::from(b[0])) + sq(i128::from(a[1]) - i128::from(b[1]))
 }
 
-fn valid_rect(r: [i64; 4]) -> bool {
-    r[0] < r[2] && r[1] < r[3]
+const SOURCE_LIMIT: i64 = 5_600_000;
+fn bounded_ticks(ticks: &[i64]) -> bool {
+    ticks.iter().all(|&v| (-SOURCE_LIMIT..=SOURCE_LIMIT).contains(&v))
 }
-fn valid_circle(radius: i64) -> bool {
-    radius > 0
+fn valid_rect(r: [i64; 4]) -> bool {
+    bounded_ticks(&r) && r[0] < r[2] && r[1] < r[3]
+}
+fn valid_circle(centre: [i64; 2], radius: i64) -> bool {
+    radius > 0 && radius <= SOURCE_LIMIT
+        && bounded_ticks(&centre)
+        && centre.iter().all(|&v| i128::from(v).abs() + i128::from(radius) <= i128::from(SOURCE_LIMIT))
 }
 fn inside_rect(p: [i64; 2], r: [i64; 4]) -> bool {
     p[0] >= r[0] && p[0] <= r[2] && p[1] >= r[1] && p[1] <= r[3]
@@ -76,13 +82,13 @@ pub fn strictly_disjoint(a: SourceHole, b: SourceHole) -> bool {
                 radius: rb,
             },
         ) => {
-            valid_circle(ra)
-                && valid_circle(rb)
+            valid_circle(a, ra)
+                && valid_circle(b, rb)
                 && dist2(a, b) > sq(i128::from(ra) + i128::from(rb))
         }
         (SourceHole::Rectangle(r), SourceHole::Circle { centre, radius })
         | (SourceHole::Circle { centre, radius }, SourceHole::Rectangle(r)) => {
-            valid_rect(r) && valid_circle(radius) && rect_circle_disjoint(r, centre, radius)
+            valid_rect(r) && valid_circle(centre, radius) && rect_circle_disjoint(r, centre, radius)
         }
     }
 }
@@ -103,7 +109,7 @@ pub fn inside_outer(h: SourceHole, outer: [i64; 4]) -> bool {
             centre: [x, y],
             radius,
         } => {
-            valid_circle(radius)
+            valid_circle([x, y], radius)
                 && i128::from(x) - i128::from(radius) > i128::from(outer[0])
                 && i128::from(y) - i128::from(radius) > i128::from(outer[1])
                 && i128::from(x) + i128::from(radius) < i128::from(outer[2])
@@ -146,8 +152,14 @@ pub fn classify(
     diameter: i64,
     holes: &[SourceHole],
 ) -> Result<(PadRisk, Option<usize>), &'static str> {
-    if diameter <= 0 || holes.len() > 8 {
+    if diameter <= 0 || diameter > SOURCE_LIMIT || !bounded_ticks(&p) || holes.len() > 8 {
         return Err("V11_INVALID_PAD_OR_HOLE_COUNT");
+    }
+    if holes.iter().any(|hole| match *hole {
+        SourceHole::Rectangle(r) => !valid_rect(r),
+        SourceHole::Circle { centre, radius } => !valid_circle(centre, radius),
+    }) {
+        return Err("V11_HOLE_COORDINATES_OR_RADIUS");
     }
     if holes.is_empty() {
         return Ok((PadRisk::CutoutMissingRisk, None));
@@ -277,6 +289,17 @@ mod tests {
         ));
         assert!(pad_inside_outer([50, 50], 20, outer));
         assert!(!pad_inside_outer([50, 50], 100, outer));
+    }
+    #[test]
+    fn out_of_bounds_source_grid_refused_without_distance_overflow() {
+        let h = [SourceHole::Circle {
+            centre: [i64::MAX, i64::MIN],
+            radius: i64::MAX,
+        }];
+        assert!(!validate_holes(&h, [0, 0, 100, 100]));
+        assert!(classify([50, 50], 10, &h).is_err());
+        assert!(classify([i64::MAX, 0], 10, &[]).is_err());
+        assert!(!strictly_disjoint(h[0], SourceHole::Rectangle([1, 1, 10, 10])));
     }
     #[test]
     fn bounded_i128_distance_no_float_rounding() {
