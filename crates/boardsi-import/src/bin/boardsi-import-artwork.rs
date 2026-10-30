@@ -670,7 +670,8 @@ fn main() {
     // C_014: bounded multiple Source COPCUT rectangles; preserve V9 or V8.
     if args.len() == 10
         && (args[2] == std::ffi::OsStr::new("--reference-route-v10")
-            || args[2] == std::ffi::OsStr::new("--reference-route-v11"))
+            || args[2] == std::ffi::OsStr::new("--reference-route-v11")
+            || args[2] == std::ffi::OsStr::new("--reference-route-v12"))
     {
         let result = (|| -> Result<String, &'static str> {
             let raw = args[3].to_str().ok_or("INVALID_ROUTE_INDICES")?;
@@ -700,7 +701,16 @@ fn main() {
                 return Err("FILE_LIMIT");
             }
             let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
-            if args[2] == std::ffi::OsStr::new("--reference-route-v11") {
+            if args[2] == std::ffi::OsStr::new("--reference-route-v12") {
+                boardsi_import::reference_route_v12::encode(
+                    &bytes,
+                    &indices,
+                    split,
+                    [ref_a, ref_b],
+                    layers,
+                    candidate,
+                )
+            } else if args[2] == std::ffi::OsStr::new("--reference-route-v11") {
                 boardsi_import::reference_route_v11::encode(
                     &bytes,
                     &indices,
@@ -723,7 +733,7 @@ fn main() {
         match result {
             Ok(wire) => print!("{wire}"),
             Err(reason) => {
-                eprintln!("C014_C015_CUTOUT_ERROR:{reason}");
+                eprintln!("C014_C015_C016_CUTOUT_ERROR:{reason}");
                 std::process::exit(3);
             }
         }
