@@ -47,7 +47,7 @@ fn circle(segs:&[BoundarySegment],p:&Point)->Result<([i64;2],i64),ModelError> {
     let mut centre=None;
     let mut rad=None;
     let mut ends=Vec::with_capacity(4);
-    for (i,s) in segs.iter().enumerate() {
+    for s in segs {
         let BoundarySegment::Arc{centre:c,start,end,clockwise}=s else {
             return Err(ModelError::InvalidConnection);
         };
@@ -56,12 +56,12 @@ fn circle(segs:&[BoundarySegment],p:&Point)->Result<([i64;2],i64),ModelError> {
             .any(|&n|!valid(n)){return Err(ModelError::InvalidConnection);}
         let dx=i128::from(start.ticks[0])-i128::from(c.ticks[0]);
         let dy=i128::from(start.ticks[1])-i128::from(c.ticks[1]);
-        let radius=i128::try_from(dx.abs().max(dy.abs())).map_err(|_|ModelError::InvalidConnection)?;
+        let radius=dx.abs().max(dy.abs());
         if radius<1000||radius>5_600_000 || (dx==0)==(dy==0) ||
            centre.is_some_and(|q|q!=c.ticks)||
            rad.is_some_and(|r|r!=radius){return Err(ModelError::InvalidConnection);}
         centre=Some(c.ticks);rad=Some(radius);
-        ends.push((start.ticks,end.ticks,i));
+        ends.push((start.ticks,end.ticks));
     }
     let c=centre.ok_or(ModelError::InvalidConnection)?;
     let r=i64::try_from(rad.ok_or(ModelError::InvalidConnection)?)
