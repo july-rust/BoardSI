@@ -22,19 +22,30 @@ fn hex(bytes: &[u8]) -> String {
 /// Source geometry only. On a circle, it is intentionally impossible to
 /// claim the historic V8/Stitch-contact receipt until V5-V7 truly support it.
 pub fn encode(
-    bytes: &[u8], indices: &[usize], split: usize, refs: [&str; 2],
-    layers: [usize; 2], stitch_index: usize,
+    bytes: &[u8],
+    indices: &[usize],
+    split: usize,
+    refs: [&str; 2],
+    layers: [usize; 2],
+    stitch_index: usize,
 ) -> Result<String, &'static str> {
-    if indices.len() < 2 || indices.len() > 16 || split == 0 || split >= indices.len()
-        || refs[0].is_empty() || refs[0] != refs[1] || layers[0] == layers[1]
+    if indices.len() < 2
+        || indices.len() > 16
+        || split == 0
+        || split >= indices.len()
+        || refs[0].is_empty()
+        || refs[0] != refs[1]
+        || layers[0] == layers[1]
     {
         return Err("V11_INVALID_SELECTION");
     }
     let v4 = reference_route_v4::encode(bytes, indices, split, refs, layers)?;
     let v4lines: Vec<_> = v4.lines().collect();
     let header: Vec<_> = v4lines.first().ok_or("V11_V4_EMPTY")?.split('|').collect();
-    if header.len() != 9 || header[0] != "BOARDSI_REFERENCE_ROUTE_V4"
-        || header[1].len() != 64 || header[2] != indices.len().to_string()
+    if header.len() != 9
+        || header[0] != "BOARDSI_REFERENCE_ROUTE_V4"
+        || header[1].len() != 64
+        || header[2] != indices.len().to_string()
         || header[3] != split.to_string()
     {
         return Err("V11_V4_MISMATCH");
@@ -53,8 +64,10 @@ pub fn encode(
     }
     let signal = parsed.vias.get(signal_index).ok_or("V11_SIGNAL_MISSING")?;
     let stitch = parsed.vias.get(stitch_index).ok_or("V11_STITCH_MISSING")?;
-    if signal_index == stitch_index || signal.net.is_empty()
-        || signal.net == refs[0] || stitch.net != refs[0]
+    if signal_index == stitch_index
+        || signal.net.is_empty()
+        || signal.net == refs[0]
+        || stitch.net != refs[0]
         || via_fields[4].parse::<i64>().ok() != signal.point[0].checked_mul(254)
         || via_fields[5].parse::<i64>().ok() != signal.point[1].checked_mul(254)
     {
@@ -66,13 +79,22 @@ pub fn encode(
     for &layer in &layers {
         let diameter = reference_route_v8::verify_round_pad(&board, signal, signal_index, layer)?;
         reference_route_v8::verify_round_pad(&board, stitch, stitch_index, layer)?;
-        let layer_id = &board.stackup.layers.get(
-            layer.checked_sub(1).ok_or("V11_LAYER")?
-        ).ok_or("V11_LAYER")?.meta.id;
-        let matches: Vec<_> = areas.iter().enumerate().filter(|(i, area)| {
-            area.layer as usize == layer && area.net_label.as_deref() == Some(refs[0])
-                && board.areas.get(*i).is_some_and(|c| c.layer == *layer_id)
-        }).collect();
+        let layer_id = &board
+            .stackup
+            .layers
+            .get(layer.checked_sub(1).ok_or("V11_LAYER")?)
+            .ok_or("V11_LAYER")?
+            .meta
+            .id;
+        let matches: Vec<_> = areas
+            .iter()
+            .enumerate()
+            .filter(|(i, area)| {
+                area.layer as usize == layer
+                    && area.net_label.as_deref() == Some(refs[0])
+                    && board.areas.get(*i).is_some_and(|c| c.layer == *layer_id)
+            })
+            .collect();
         let [(idx, area)] = matches.as_slice() else {
             return Err("V11_AMBIGUOUS_REFERENCE_AREA");
         };
@@ -86,12 +108,15 @@ pub fn encode(
         let mut holes = Vec::with_capacity(area.cutouts.len());
         for cut in &area.cutouts {
             let shape = match cut {
-                CopperGeometry::Polygon(p) =>
-                    SourceHole::Rectangle(copper_preview::rectangle_bounds(p)
-                        .ok_or("V11_HOLE_NONRECT")?),
+                CopperGeometry::Polygon(p) => SourceHole::Rectangle(
+                    copper_preview::rectangle_bounds(p).ok_or("V11_HOLE_NONRECT")?,
+                ),
                 CopperGeometry::Circle { centre, radius } => {
                     has_circles = true;
-                    SourceHole::Circle { centre: *centre, radius: *radius }
+                    SourceHole::Circle {
+                        centre: *centre,
+                        radius: *radius,
+                    }
                 }
                 CopperGeometry::Curved { .. } => return Err("V11_HOLE_ARC_UNSUPPORTED"),
             };
@@ -104,20 +129,28 @@ pub fn encode(
         if state.severity() > severity.severity() {
             severity = state;
         }
-        writeln!(&mut rows,
+        writeln!(
+            &mut rows,
             "LAYER|{layer}|{signal_index}|{}|{}|{}|{diameter}|{}|{}|{}",
             hex(board.areas[*idx].meta.id.source_object.as_bytes()),
-            signal.point[0], signal.point[1], holes.len(), state.wire(),
+            signal.point[0],
+            signal.point[1],
+            holes.len(),
+            state.wire(),
             selected.map_or_else(|| "-".to_owned(), |n| n.to_string()),
-        ).map_err(|_| "V11_FORMAT")?;
+        )
+        .map_err(|_| "V11_FORMAT")?;
         for (ordinal, hole) in holes.iter().enumerate() {
             match hole {
-                SourceHole::Rectangle([a,b,c,d]) =>
+                SourceHole::Rectangle([a, b, c, d]) => {
                     writeln!(&mut rows, "HOLE|{layer}|{ordinal}|R|{a}|{b}|{c}|{d}")
-                        .map_err(|_| "V11_FORMAT")?,
-                SourceHole::Circle { centre:[x,y], radius } =>
-                    writeln!(&mut rows, "HOLE|{layer}|{ordinal}|C|{x}|{y}|{radius}")
-                        .map_err(|_| "V11_FORMAT")?,
+                        .map_err(|_| "V11_FORMAT")?
+                }
+                SourceHole::Circle {
+                    centre: [x, y],
+                    radius,
+                } => writeln!(&mut rows, "HOLE|{layer}|{ordinal}|C|{x}|{y}|{radius}")
+                    .map_err(|_| "V11_FORMAT")?,
             }
         }
     }
@@ -126,15 +159,43 @@ pub fn encode(
     } else {
         // Only a genuine independently produced V8 is an acceptable V8 legacy.
         let v8 = reference_route_v8::encode(bytes, indices, split, refs, layers, stitch_index)?;
-        return finish(header[1], severity, indices.len(), split, stitch_index,
-            signal_index, &rows, "V8", &v8, "V8_SOURCE_CONTACT_CANDIDATE");
+        return finish(
+            header[1],
+            severity,
+            indices.len(),
+            split,
+            stitch_index,
+            signal_index,
+            &rows,
+            "V8",
+            &v8,
+            "V8_SOURCE_CONTACT_CANDIDATE",
+        );
     };
-    finish(header[1], severity, indices.len(), split, stitch_index,
-        signal_index, &rows, kind, legacy, contact)
+    finish(
+        header[1],
+        severity,
+        indices.len(),
+        split,
+        stitch_index,
+        signal_index,
+        &rows,
+        kind,
+        legacy,
+        contact,
+    )
 }
 fn finish(
-    sha: &str, state: PadRisk, count: usize, split: usize, stitch: usize,
-    signal: usize, rows: &str, kind: &str, legacy: &str, contact: &str
+    sha: &str,
+    state: PadRisk,
+    count: usize,
+    split: usize,
+    stitch: usize,
+    signal: usize,
+    rows: &str,
+    kind: &str,
+    legacy: &str,
+    contact: &str,
 ) -> Result<String, &'static str> {
     let mut wire = format!(
         "BOARDSI_REFERENCE_ROUTE_V11|{sha}|{}|UNSUPPORTED|NOT_RUN|0|REFERENCE_TRANSFER_UNVERIFIED|2|{count}|{split}|{stitch}|{signal}|{kind}|{contact}\n{rows}LEGACY|{kind}|{}\n",
@@ -142,6 +203,8 @@ fn finish(
     );
     wire.push_str(legacy);
     wire.push_str("END|2|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL\n");
-    if wire.len() > MAX_WIRE { return Err("V11_OUTPUT_LIMIT"); }
+    if wire.len() > MAX_WIRE {
+        return Err("V11_OUTPUT_LIMIT");
+    }
     Ok(wire)
 }
