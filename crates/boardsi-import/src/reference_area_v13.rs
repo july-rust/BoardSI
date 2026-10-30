@@ -51,12 +51,7 @@ pub fn rectangle_relation(a: [i64; 4], b: [i64; 4]) -> Result<SourceState, &'sta
 /// A straight *axis-aligned* centreline, strictly covered by the union of the
 /// source rectangles. Positive 2D overlap alone is not enough (an L-shape can
 /// leave a line gap). Both rectangles must contribute a positive line interval.
-pub fn strict_route_union(
-    a: [i64; 4],
-    b: [i64; 4],
-    start: [i64; 2],
-    end: [i64; 2],
-) -> bool {
+pub fn strict_route_union(a: [i64; 4], b: [i64; 4], start: [i64; 2], end: [i64; 2]) -> bool {
     let (horizontal, fixed, lo, hi) = if start[1] == end[1] && start[0] != end[0] {
         (true, start[1], start[0].min(end[0]), start[0].max(end[0]))
     } else if start[0] == end[0] && start[1] != end[1] {
@@ -77,8 +72,7 @@ pub fn strict_route_union(
     if x.0 > y.0 {
         std::mem::swap(&mut x, &mut y);
     }
-    x.0 < lo && y.1.max(x.1) > hi && x.1 > y.0
-        && x.1 > lo && y.1 > lo && x.0 < hi && y.0 < hi
+    x.0 < lo && y.1.max(x.1) > hi && x.1 > y.0 && x.1 > lo && y.1 > lo && x.0 < hi && y.0 < hi
 }
 
 /// Source-bound selection by TWO explicit names; whole-source SHA, Canonical
@@ -110,14 +104,19 @@ pub fn encode(
     if areas.len() != 2 {
         return Err("C021_EXACTLY_TWO_SOURCE_AREAS_REQUIRED");
     }
-    let canonical_layer = &board.stackup.layers
+    let canonical_layer = &board
+        .stackup
+        .layers
         .get(reference_layer - 1)
         .ok_or("C021_REFERENCE_LAYER_INVALID")?
-        .meta.id;
+        .meta
+        .id;
     let mut bounds = [[0i64; 4]; 2];
     let mut ids = [String::new(), String::new()];
     for (slot, name) in area_names.iter().enumerate() {
-        let index = areas.iter().position(|a| &a.name == name)
+        let index = areas
+            .iter()
+            .position(|a| &a.name == name)
             .ok_or("C021_SOURCE_AREA_UNKNOWN")?;
         let source = &areas[index];
         let canonical = &board.areas[index];
@@ -134,17 +133,14 @@ pub fn encode(
         let CopperGeometry::Polygon(vertices) = &source.geometry else {
             return Err("C021_UNSUPPORTED_SOURCE_GEOMETRY");
         };
-        bounds[slot] = copper_preview::rectangle_bounds(vertices)
-            .ok_or("C021_NONRECTANGLE")?;
+        bounds[slot] = copper_preview::rectangle_bounds(vertices).ok_or("C021_NONRECTANGLE")?;
         // Prove the canonical original ring is byte/point identical, not a
         // separate approximate/bounding-box representation of another shape.
         for (segment, points) in canonical.outer.segments.iter().zip(vertices.windows(2)) {
             let boardsi_model::BoundarySegment::Line { start, end } = segment else {
                 return Err("C021_CANONICAL_RING_MISMATCH");
             };
-            if start.ticks != points[0] || end.ticks != points[1]
-                || start.frame != end.frame
-            {
+            if start.ticks != points[0] || end.ticks != points[1] || start.frame != end.frame {
                 return Err("C021_CANONICAL_RING_MISMATCH");
             }
         }
@@ -152,12 +148,24 @@ pub fn encode(
     }
     let relationship = rectangle_relation(bounds[0], bounds[1])?;
     let route = if let Some(index) = signal_trace {
-        let raw = parsed.segments.get(index).ok_or("C021_TRACE_INDEX_INVALID")?;
+        let raw = parsed
+            .segments
+            .get(index)
+            .ok_or("C021_TRACE_INDEX_INVALID")?;
         let canonical = board.traces.get(index).ok_or("C021_TRACE_MISSING")?;
-        let signal_layer = board.stackup.layers
-            .get((raw.layer as usize).checked_sub(1).ok_or("C021_TRACE_LAYER")?)
+        let signal_layer = board
+            .stackup
+            .layers
+            .get(
+                (raw.layer as usize)
+                    .checked_sub(1)
+                    .ok_or("C021_TRACE_LAYER")?,
+            )
             .ok_or("C021_TRACE_LAYER")?;
-        if signal_layer.order.abs_diff(board.stackup.layers[reference_layer - 1].order) != 1
+        if signal_layer
+            .order
+            .abs_diff(board.stackup.layers[reference_layer - 1].order)
+            != 1
             || canonical.layer != signal_layer.meta.id
             || canonical.centreline.len() != 2
             || canonical.centreline[0].ticks != raw.a
@@ -184,10 +192,16 @@ pub fn encode(
         writeln!(
             &mut result,
             "AREA|{slot}|{}|{}|{}|{}|{}|{}|{}|{}",
-            hex(name.as_bytes()), ids[slot], reference_layer,
-            bounds[slot][0], bounds[slot][1], bounds[slot][2], bounds[slot][3],
+            hex(name.as_bytes()),
+            ids[slot],
+            reference_layer,
+            bounds[slot][0],
+            bounds[slot][1],
+            bounds[slot][2],
+            bounds[slot][3],
             hex(reference_net.as_bytes())
-        ).map_err(|_| "C021_OUTPUT_ERROR")?;
+        )
+        .map_err(|_| "C021_OUTPUT_ERROR")?;
     }
     writeln!(&mut result, "END|2|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL")
         .map_err(|_| "C021_OUTPUT_ERROR")?;
