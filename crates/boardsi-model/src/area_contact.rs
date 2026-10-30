@@ -26,6 +26,9 @@ fn touch(a: [i64; 2], b: [i64; 2], c: [i64; 2], d: [i64; 2]) -> bool {
 /// C_001: strict integer containment for up to eight source-owned polygon holes.
 /// Every boundary touch is excluded; malformed topology and unsupported holes fail closed.
 pub fn strict_simple_area_contains(area: &CopperArea, p: &Point) -> Result<bool, ModelError> {
+    if let Some(result) = crate::area_contact_circle::strict_mixed_circle_contains(area, p) {
+        return result;
+    }
     let segs = &area.outer.segments;
     if area.cutouts.len() > 8 || !(3..=64).contains(&segs.len()) {
         return Err(ModelError::InvalidConnection);
