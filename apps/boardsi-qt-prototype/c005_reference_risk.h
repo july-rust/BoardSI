@@ -1089,7 +1089,7 @@ public:
         multiCutoutMode_=new QCheckBox("C_014 Multiple Source COPCUTs V10 (Source only)",this);
         multiCutoutMode_->setObjectName("c014MultiCutoutMode");
         layout->addWidget(multiCutoutMode_);
-        mixedCutoutMode_=new QCheckBox("C_015 Mixed COPCUT/COPCCO V11 (Source only; circular V8 unavailable)",this);
+        mixedCutoutMode_=new QCheckBox("C_015 Mixed COPCUT/COPCCO V11 (Source-only V8 ancestry)",this);
         mixedCutoutMode_->setObjectName("c015MixedCutoutMode");
         layout->addWidget(mixedCutoutMode_);
 
@@ -1158,7 +1158,7 @@ public:
             QString::number(first_->value()),net_->text(),QString::number(refA_->value())};
         const QString routeText=route_->text().trimmed();
         if(mixedCutoutMode_->isChecked() && !clearanceMode_->isChecked()) {
-            status_->setText("C_015 REQUIRES C_012 V8 USER SELECTION / ORIGINAL CIRCLE V8 UNAVAILABLE / SI NOT_RUN");return;
+            status_->setText("C_015 REQUIRES C_012 V8 USER SELECTION / SI NOT_RUN");return;
         }
         if(multiCutoutMode_->isChecked() && !clearanceMode_->isChecked()) {
             status_->setText("C_014 REQUIRES C_012 V8 / SI NOT_RUN");return;
