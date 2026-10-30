@@ -1,5 +1,5 @@
 // C_015: independent Source-geometry-only V11 receipt and imported Qt validation.
-// V4 circle fallback explicitly DOES NOT claim V8 Source contact evidence.
+// V8 source ancestry required for circles too; contact is LOCAL candidate, never P009.
 #pragma once
 namespace c015 {
 struct Hole {
