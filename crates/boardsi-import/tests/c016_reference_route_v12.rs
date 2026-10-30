@@ -40,7 +40,8 @@ fn exact_source_rectangles_preserve_real_v11_and_v8_legacy() {
     assert!(wire.contains("STITCH_PAD_CUTOUT_INTERSECTION_RISK"));
     assert!(wire.contains("|V8|V8_SOURCE_CONTACT_CANDIDATE\n"));
     assert_eq!(wire.lines().filter(|x| x.starts_with("HOLE|")).count(), 4);
-    let legacy = reference_route_v11::encode(&bytes, &[0, 1], 1, ["NET_REF", "NET_REF"], [2, 3], 1).unwrap();
+    let legacy =
+        reference_route_v11::encode(&bytes, &[0, 1], 1, ["NET_REF", "NET_REF"], [2, 3], 1).unwrap();
     assert!(wire.contains(&format!("LEGACY|V11|{}\n{legacy}", legacy.lines().count())));
 }
 #[test]
