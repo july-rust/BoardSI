@@ -4246,9 +4246,84 @@ static int runC021ReferenceAreaSelftest(const QString &importer) {
     return pass?0:1;
 }
 
+static int runC022MultiAreaSelftest(const QString &importer) {
+    QTemporaryFile source;
+    if(!source.open())return 2;
+    const QByteArray bytes(
+        "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n"
+        "*PCB*\nMAXLAYER 4\n"
+        "*LINES*\n"
+        "RA COPPER 0 0 1 1 0 NET_REF\n"
+        "COPCLS 5 0.01 0 2\n100 100\n250 100\n250 200\n100 200\n100 100\n"
+        "RB COPPER 0 0 1 1 0 NET_REF\n"
+        "COPCLS 5 0.01 0 2\n200 100\n350 100\n350 200\n200 200\n"
+        "RC COPPER 0 0 1 1 0 NET_REF\n"
+        "COPCLS 5 0.01 0 2\n500 100\n650 100\n650 200\n500 200\n500 100\n"
+        "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n"
+        "150 150 1 10 0\n350 150 1 10 0\n"
+        "*SIGNAL* NET_REF\nR1.1 R2.2\n"
+        "120 180 2 10 0\n180 180 2 10 0\n"
+        "*END*\n");
+    if(source.write(bytes)!=bytes.size() || !source.flush())return 2;
+    PreviewImportPanel panel(importer);
+    QEventLoop load;
+    panel.setStatusCallback([&load](const QString &s) {
+        if(s.startsWith("PARTIAL") || s.startsWith("FAILED"))load.quit();
+    });
+    if(!panel.openPath(source.fileName()))return 2;
+    QTimer::singleShot(8000,&load,&QEventLoop::quit);
+    load.exec();
+    if(!panel.importStatus().startsWith("PARTIAL") ||
+       panel.imported()->copperCount()!=3)return 1;
+    C005ReferenceRiskController controller(panel.imported(),importer);
+    controller.resetSource(source.fileName(),panel.acceptedSourceSha256());
+    auto *net=controller.findChild<QLineEdit *>("c005ReferenceNet");
+    auto *names=controller.findChild<QLineEdit *>("c022AreaNames");
+    auto *mode=controller.findChild<QCheckBox *>("c022AreaMode");
+    auto *run=controller.findChild<QPushButton *>("c005RunAudit");
+    if(!net || !names || !mode || !run)return 2;
+    QString detail;
+    panel.imported()->setDetailsCallback([&detail](const QString &s){detail=s;});
+    net->setText("NET_REF");
+    names->setText("RA,RB,RC");
+    mode->setChecked(true);
+    run->click();
+    QEventLoop audit;
+    QTimer poll;
+    QObject::connect(&poll,&QTimer::timeout,&audit,[&] {
+        if(!controller.auditRunningForTest())audit.quit();
+    });
+    QTimer::singleShot(8000,&audit,&QEventLoop::quit);
+    poll.start(20);audit.exec();poll.stop();
+    const bool marked=controller.currentStatusForTest().contains("DISCONNECTED_ISLAND_RISK") &&
+                      panel.imported()->referenceRiskCountForTest()==3;
+    auto *scene=panel.imported()->findChild<QGraphicsScene *>();
+    bool picked=false;
+    if(scene)for(auto *item:scene->items()) {
+        if(item->data(3).toString()=="C005ReferenceRisk" &&
+           item->data(2).toString().contains("CORRIDOR_CANDIDATE_RISK")) {
+            item->setSelected(true);picked=true;break;
+        }
+    }
+    const bool details=picked && detail.contains("C_022") &&
+        detail.contains("P009 UNSUPPORTED") && detail.contains("SI NOT_RUN");
+    names->setText("RA,RB,WRONG");
+    const bool stale=panel.imported()->referenceRiskCountForTest()==0;
+    run->click();
+    const bool invalid=controller.currentStatusForTest().contains("UNSUPPORTED") ||
+        controller.currentStatusForTest().contains("SOURCE AREAS");
+    controller.resetSource(QString(),QByteArray());
+    const bool cleared=panel.imported()->referenceRiskCountForTest()==0;
+    const bool pass=marked && details && stale && invalid && cleared;
+    qInfo()<<"C022_NATIVE_QT_MULTI_AREA"<<pass<<marked<<details<<stale<<invalid<<cleared<<"SI_NOT_RUN";
+    return pass?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--c022-area-selftest")
+        return runC022MultiAreaSelftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--c021-area-selftest")
         return runC021ReferenceAreaSelftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--c016-stitch-pad-selftest")
