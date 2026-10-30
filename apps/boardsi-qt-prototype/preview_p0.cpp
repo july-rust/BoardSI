@@ -4130,6 +4130,7 @@ static int runC016MixedCutoutSelftest(const QString &importer) {
         if(item->data(3).toString()=="C005ReferenceRisk" &&
            item->data(2).toString().contains("STITCH_PAD_FOOTPRINT_RISK")) {
             item->setSelected(true);
+            if(!detail.contains("C_016"))continue;
             picked=true;
             auto *rim=qgraphicsitem_cast<QGraphicsEllipseItem *>(item);
             // Source 35 mil Pad = 0.889 mm; CPU outline must be true size.
@@ -4138,7 +4139,7 @@ static int runC016MixedCutoutSelftest(const QString &importer) {
     }
     const bool detailValid=picked && fullRim &&
         detail.contains("P009 UNSUPPORTED") &&
-        detail.contains("SOURCE GEOMETRY ONLY") && detail.contains("C_015");
+        detail.contains("STITCH PAD GEOMETRY ONLY") && detail.contains("C_016");
     route->setText("1,0");
     const bool invalidated=panel.imported()->referenceRiskCountForTest()==0;
     run->click();
