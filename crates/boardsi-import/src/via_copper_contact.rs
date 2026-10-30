@@ -219,10 +219,13 @@ fn augment_impl(
                 != 1)
             || area.cutouts.len() > (if multi { 8 } else { 1 })
             || copper.cutouts.len() != area.cutouts.len()
-            || area
-                .cutouts
-                .iter()
-                .any(|h| !matches!(h, copper_preview::CopperGeometry::Polygon(_) | copper_preview::CopperGeometry::Circle { .. }))
+            || area.cutouts.iter().any(|h| {
+                !matches!(
+                    h,
+                    copper_preview::CopperGeometry::Polygon(_)
+                        | copper_preview::CopperGeometry::Circle { .. }
+                )
+            })
             || !matches!(&area.geometry, copper_preview::CopperGeometry::Polygon(_))
             || copper.net.as_ref().is_some_and(|current| *current != net)
             || copper_source.net.is_some()
