@@ -188,7 +188,7 @@
 
 ### C_015 — Circular COPCCO / rectangular COPCUT mixed source geometry V11 (후보 · 2026-10-30 KST)
 
-- [ ] **C_015 원형·직사각형 혼합 Cutout Source Geometry와 Qt 독립 V11 한정 인수 — 미완료**: [Issue #280](https://github.com/july-rust/BoardSI/issues/280), [검증 원장](validation/c015-circular-mixed-cutout-source-geometry.md). i128 정확한 기하 원시함수 및 공개 합성 단위시험 후보만 작성. 기존 V5/V7의 원형 Cutout 미지원 때문에 V8 원본 Receipt·V11 CLI·Qt 검증은 BLOCKED. 최종 동일 HEAD CI/Codex/Verified Squash/post-main 증거 확보 전에는 완료 체크나 최초 체크일을 기록하지 않는다. 공식 U09/U10/U39/T02/T04/T24/T52와 P009/물리 SI/제품 Solver 미완; M1 #12 OPEN.
+- [ ] **C_015 원형·직사각형 혼합 Cutout Source Geometry와 Qt 독립 V11 한정 인수 — 미완료**: [Issue #280](https://github.com/july-rust/BoardSI/issues/280) · [Draft PR #281](https://github.com/july-rust/BoardSI/pull/281) · [검증 원장](validation/c015-circular-mixed-cutout-source-geometry.md). i128 원본 정수 기하·공개 PADS fixture 시험·V11 Worker opt-in·Qt CPU/RHI Risk 및 Native 자가시험 **구현 후보(최종 인수 전)**. **원형 COPCCO 원본 Source에서는 V5–V8 접속 증거 미지원:** V11은 이를 위장하지 않고 V4 원본 Receipt+SOURCE_CONTACT_UNVERIFIED로만 보고한다. 원래 C_015에서 요구한 원형 V8 증명은 **BLOCKED**, CI/Codex/Verified 보호 병합/post-main 증빙 전에는 완료 체크·최초 체크일 기록 금지. 공식 U09/U10/U39/T02/T04/T24/T52, P009, 물리 SI 및 제품 Solver 미완, M1 #12 OPEN.
 
 ## 4. 요구사항 U01–U48 체크리스트
 
