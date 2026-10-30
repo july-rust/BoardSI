@@ -110,12 +110,10 @@ pub fn encode(
                 CopperGeometry::Polygon(p) => SourceHole::Rectangle(
                     copper_preview::rectangle_bounds(p).ok_or("V11_HOLE_NONRECT")?,
                 ),
-                CopperGeometry::Circle { centre, radius } => {
-                    SourceHole::Circle {
-                        centre: *centre,
-                        radius: *radius,
-                    }
-                }
+                CopperGeometry::Circle { centre, radius } => SourceHole::Circle {
+                    centre: *centre,
+                    radius: *radius,
+                },
                 CopperGeometry::Curved { .. } => return Err("V11_HOLE_ARC_UNSUPPORTED"),
             };
             holes.push(shape);
