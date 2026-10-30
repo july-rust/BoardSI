@@ -1,11 +1,15 @@
 //! C_018 bounded V5–V8 receipt integration on public PADS V9.4 MILS.
 //! Source-geometry risk only, never real electrical return current or SI.
-use boardsi_import::{reference_route_v5 as v5, reference_route_v6 as v6, reference_route_v7 as v7, reference_route_v8 as v8};
+use boardsi_import::{
+    reference_route_v5 as v5, reference_route_v6 as v6, reference_route_v7 as v7,
+    reference_route_v8 as v8,
+};
 
 const HEAD: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R\n";
 const COPPER: &str = "*LINES*\nRA COPPER 100 200 1 1 0 NET_REF\nCOPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\nRB COPPER 100 200 1 1 0 NET_REF\nCOPCLS 5 0.01 0 3\n0 0\n100 0\n100 100\n0 100\n0 0\n";
 const ROUTE: &str = "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n130 250 1 10 0\n150 250 4 10 0 SIMPLEVIA\n170 250 4 10 0\n";
-const REF: &str = "*SIGNAL* NET_REF\nR1.1 R2.2\n140 280 2 10 0\n180 280 3 10 0 SIMPLEVIA\n190 280 3 10 0\n";
+const REF: &str =
+    "*SIGNAL* NET_REF\nR1.1 R2.2\n140 280 2 10 0\n180 280 3 10 0 SIMPLEVIA\n190 280 3 10 0\n";
 
 fn board(copper: &str, route: &str, reference: &str) -> Vec<u8> {
     format!("{HEAD}{copper}{route}{reference}*END*\n").into_bytes()
@@ -66,7 +70,11 @@ fn pad_outer_boundary_and_copper_cutout_remain_risk() {
     assert_eq!(field(&r[3], 2), "V7_REFERENCE_FOOTPRINT_RISK");
     let hole = COPPER
         .replacen("RA COPPER 100 200 1", "RA COPPER 100 200 2", 1)
-        .replacen("RB COPPER", "COPCUT 5 0.01 0 2\n65 65\n75 65\n75 95\n65 95\n65 65\nRB COPPER", 1);
+        .replacen(
+            "RB COPPER",
+            "COPCUT 5 0.01 0 2\n65 65\n75 65\n75 95\n65 95\n65 65\nRB COPPER",
+            1,
+        );
     let r = all(&board(&hole, ROUTE, REF));
     assert_eq!(field(&r[2], 2), "PAD_CUTOUT_RISK");
     assert_eq!(field(&r[3], 2), "V7_REFERENCE_FOOTPRINT_RISK");
@@ -80,7 +88,10 @@ fn tangent_overlap_and_one_tick_separation_remain_distinct() {
         ("171 277", "SOURCE_PAD_OVERLAP_RISK"),
         ("171.01 278", "SOURCE_PAD_SEPARATE_OBSERVED"),
     ] {
-        let reference = REF.replace("180 280 3 10 0 SIMPLEVIA", &format!("{point} 3 10 0 SIMPLEVIA"));
+        let reference = REF.replace(
+            "180 280 3 10 0 SIMPLEVIA",
+            &format!("{point} 3 10 0 SIMPLEVIA"),
+        );
         let r = all(&board(COPPER, ROUTE, &reference));
         assert_eq!(field(&r[2], 2), "PAD_FOOTPRINT_CONTAINED_CANDIDATE");
         assert_eq!(field(&r[3], 2), expected);
