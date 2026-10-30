@@ -4228,8 +4228,16 @@ static int runC021ReferenceAreaSelftest(const QString &importer) {
     areaB->setText("UNKNOWN");
     const bool stale=panel.imported()->referenceRiskCountForTest()==0;
     run->click();
-    const bool invalid=controller.currentStatusForTest().contains("C_021 REQUIRES TWO") ||
-        controller.currentStatusForTest().contains("UNSUPPORTED");
+    QEventLoop rejected;
+    QTimer rejectedPoll;
+    QObject::connect(&rejectedPoll,&QTimer::timeout,&rejected,[&] {
+        if(!controller.auditRunningForTest())rejected.quit();
+    });
+    QTimer::singleShot(8000,&rejected,&QEventLoop::quit);
+    rejectedPoll.start(20);rejected.exec();rejectedPoll.stop();
+    const bool invalid=panel.imported()->referenceRiskCountForTest()==0 &&
+        (controller.currentStatusForTest().contains("C_021 REQUIRES TWO") ||
+         controller.currentStatusForTest().contains("UNSUPPORTED"));
     controller.resetSource(QString(),QByteArray());
     const bool cleared=panel.imported()->referenceRiskCountForTest()==0;
     const bool pass=marked && details && stale && invalid && cleared;
