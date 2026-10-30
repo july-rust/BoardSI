@@ -69,8 +69,8 @@ fn plated_two_layer_v4_embeds_both_source_bound_v2_receipts() {
     let bytes = via_source(170);
     let left = reference_gap_intervals::encode(&bytes, 0, "NET_REFA", 2).unwrap();
     let right = reference_gap_intervals::encode(&bytes, 1, "NET_REFB", 3).unwrap();
-    let v4 = reference_route_v4::encode(&bytes, &[0, 1], 1, ["NET_REFA", "NET_REFB"], [2, 3])
-        .unwrap();
+    let v4 =
+        reference_route_v4::encode(&bytes, &[0, 1], 1, ["NET_REFA", "NET_REFB"], [2, 3]).unwrap();
     assert!(v4.starts_with("BOARDSI_REFERENCE_ROUTE_V4|"));
     assert_eq!(source_sha(&v4), source_sha(&left));
     assert_eq!(source_sha(&v4), source_sha(&right));
@@ -85,16 +85,13 @@ fn plated_two_layer_v4_embeds_both_source_bound_v2_receipts() {
 fn revised_via_source_or_unsupported_reference_never_promotes_to_si_pass() {
     let old = via_source(170);
     let changed = via_source(171);
-    let old_v4 = reference_route_v4::encode(
-        &old, &[0, 1], 1, ["NET_REFA", "NET_REFB"], [2, 3],
-    ).unwrap();
-    let new_v4 = reference_route_v4::encode(
-        &changed, &[0, 1], 1, ["NET_REFA", "NET_REFB"], [2, 3],
-    ).unwrap();
+    let old_v4 =
+        reference_route_v4::encode(&old, &[0, 1], 1, ["NET_REFA", "NET_REFB"], [2, 3]).unwrap();
+    let new_v4 =
+        reference_route_v4::encode(&changed, &[0, 1], 1, ["NET_REFA", "NET_REFB"], [2, 3]).unwrap();
     assert_ne!(source_sha(&old_v4), source_sha(&new_v4));
-    let unsupported = reference_route_v4::encode(
-        &old, &[0, 1], 1, ["MISSING_REF", "NET_REFB"], [2, 3],
-    ).unwrap();
+    let unsupported =
+        reference_route_v4::encode(&old, &[0, 1], 1, ["MISSING_REF", "NET_REFB"], [2, 3]).unwrap();
     assert!(unsupported.contains("|UNSUPPORTED|NOT_RUN|0|"));
     assert!(unsupported.contains("|UNSUPPORTED\n") || unsupported.contains("|UNSUPPORTED|"));
     assert!(!unsupported.contains("PHYSICAL_PASS"));
