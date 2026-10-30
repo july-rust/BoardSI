@@ -1,5 +1,6 @@
 //! Format-neutral, dependency-free M0 data contract. Not an importer or physical validator.
 mod area_contact;
+mod area_contact_circle;
 mod coordinates;
 mod identity;
 mod stackup_configuration;
