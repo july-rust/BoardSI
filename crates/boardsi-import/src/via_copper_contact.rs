@@ -222,7 +222,7 @@ fn augment_impl(
             || area
                 .cutouts
                 .iter()
-                .any(|h| !matches!(h, copper_preview::CopperGeometry::Polygon(_)))
+                .any(|h| !matches!(h, copper_preview::CopperGeometry::Polygon(_) | copper_preview::CopperGeometry::Circle { .. }))
             || !matches!(&area.geometry, copper_preview::CopperGeometry::Polygon(_))
             || copper.net.as_ref().is_some_and(|current| *current != net)
             || copper_source.net.is_some()
