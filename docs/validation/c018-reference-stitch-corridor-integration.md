@@ -27,7 +27,7 @@ Existing C_009–C_012 Qt CPU/RHI display, stale generation/reimport and Windows
 | Independent Codex same exact HEAD | `status=completed, has_any_findings=false, has_unresolved_findings=false`; zero unresolved review threads | [Codex receipt](https://github.com/july-rust/BoardSI/pull/291#issuecomment-6515781997) |
 | Protected Squash merge | `main@f387fbbda933479b765aa685f7cffe66a8bfff69`; **one parent**, REST signature `verification.verified=true, reason=valid` (verified_at 2026-10-30T05:41:41Z) | [merged commit](https://github.com/july-rust/BoardSI/commit/f387fbbda933479b765aa685f7cffe66a8bfff69) |
 
-**Independent post-code-main CI:** PENDING at document-draft creation; do not mark this gate complete until all exact merged SHA Checks/Workflow Runs return SUCCESS. The dated checklist completion entry also remains pending until that verification.
+**Independent post-code-main CI VERIFIED on 2026-10-30 KST:** [exact signed merged `main@f387fbb` check-runs](https://github.com/july-rust/BoardSI/commit/f387fbbda933479b765aa685f7cffe66a8bfff69/checks) **21/21 SUCCESS**; **9/9 associated workflow runs SUCCESS**, including Qt Windows x64/ARM64, macOS ARM64, Linux Qt, Rust Native and dynamic `Push on main`. [Qt post-main workflow](https://github.com/july-rust/BoardSI/actions/runs/41009850278). Source-only C_018 code acceptance first checked **2026-10-30 KST**, evidence date **2026-10-30 KST**. Documentation PR review, merge and independent post-document-main CI remain separate pending gates, not implied by the code verdict.
 
 ## Exclusions and C_019 handoff
 
