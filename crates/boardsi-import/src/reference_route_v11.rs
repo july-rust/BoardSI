@@ -1,6 +1,6 @@
 //! C_015 experimental opt-in mixed COPCUT/COPCCO source-only V11.
 //! V8 legacy is included ONLY when genuinely produced from original bytes.
-//! Circular inputs use a genuine original-source V4 witness, NOT fake V8.
+//! Circular inputs MUST produce a genuine original-source V8 witness or fail closed.
 //! Return current, electrical connectivity, DRC and physics remain UNSUPPORTED.
 pub mod geometry;
 
