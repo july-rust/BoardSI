@@ -1,4 +1,4 @@
-//! C_015 opt-in only; legacy must be true original-source V8/V4.
+//! C_015 opt-in only; V11 requires original-source V8 including circular holes.
 use boardsi_import::{reference_route_v11, reference_route_v8};
 const HEADER: &str =
     "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n";
