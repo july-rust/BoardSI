@@ -1,29 +1,26 @@
-# C_015 — Source-exact mixed rectangular COPCUT / circular COPCCO V11 + Qt risk candidate (NOT ACCEPTED)
+# C_015 — PADS COPCCO + COPCUT source-exact Signal Via clearance V11 / Qt
 
-**Issue:** [#280](https://github.com/july-rust/BoardSI/issues/280) · **PR:** [#281](https://github.com/july-rust/BoardSI/pull/281) (DRAFT; **DO NOT MERGE**) · **Parent M1:** [#12](https://github.com/july-rust/BoardSI/issues/12) **OPEN** · baseline protected `main@8701b8b20548c92e4e429472791f2ce2c3abf57b`.
+**Status (2026-10-30 KST):** implementation and verification candidate, NOT YET ACCEPTED. See [Issue #280](https://github.com/july-rust/BoardSI/issues/280) and [Draft PR #281](https://github.com/july-rust/BoardSI/pull/281). Parent M1 [#12](https://github.com/july-rust/BoardSI/issues/12) remains OPEN.
 
-**Started:** 2026-10-30 KST. **Feature acceptance:** PENDING; no new checklist [x] yet.
+## Scope and original-source ancestry
 
-## Implemented candidate (not an acceptance claim)
+- Rust `reference_route_v11::encode` is opt-in (`--reference-route-v11`), selects 0–8 same-COPPER explicitly owned rectangle COPCUT or circular COPCCO voids per reference layer, requires two selected Source layers, unique Source Area identity and conductive Source Signal/Stitch Via padstacks.
+- Exact bounded `i128` squared circle/rectangle tests classify missing/GAP/tangency/overlap; source tick is 254 nm. Any self-intersection, tangent cutouts, unsupported arc/outer or unowned hole fails closed.
+- Original Source-derived `V8` is **mandatory even for circular COPCCO input**. This required a targeted Canonical `area_contact_circle` oracle for rectangle outer, strictly disjoint mixed holes and analytic four-cardinal-arc circles; the V5 ViaCentre contact graph checks exact validated Source geometry and same-layer candidate net, V6/V7 preserve conservative route corridor/PAD risk where circles remain unsupported. Any inability to prove the actual V8 receipt is an error, not a fake or downgraded V4.
+- V1–V10 outputs on previously accepted rectangle-only sources must stay unchanged; new circle input may now produce an explicitly qualified **source-local geometry** V8 witness where previously unsupported. No full return-current proof.
+- `apps/boardsi-qt-prototype/c015_mixed_cutout_risk.h` independently cross-checks Source SHA, per-layer Area identity, Via identities, Layer/Net, original imported rectangle/circle holes, exact hole bounds, Source Signal Pad gap severity and SOURCE Stitch Via **centre strictly within original copper outside all voids**; it binds V11 to the nested original V8/V5 CONTACT Area IDs. CPU real-size pad rims/RHI risk, source/selection/stale-result invalidation are exercised in native selftest.
 
-- Rust exact source-grid `i128` circle-vs-pad and rectangle-vs-pad topology, strict same-owner disjoint bounded <=8 Cutouts/Reference layer, source declared net/layer/area identity, malformed and overflow rejection.
-- Real PADS V9.4 MILS Source parser fixtures and negative tests; unchanged V1–V10 switching/receipt code.
-- Explicit opt-in `--reference-route-v11` Worker and `BOARDSI_REFERENCE_ROUTE_V11` envelope. For all-rectangle inputs, only a **genuinely regenerated original-source V8** is included; for circular input, independently generated original-source V4 is embedded with literal `SOURCE_CONTACT_UNVERIFIED`. The V4 path does **not** prove V5/V6/V7/V8 ancestry and **does not meet the originally requested circle V8 gate**. No synthetic V8, no silent circle removal.
-- Qt `c015MixedCutoutMode` validates original source SHA, canonical Source Area ID, imported Via/pad dimensions, per-layer circle and rectangle source geometry, hole uniqueness, integer boundary classification, embedded authentic V4/V8 receipt via appropriate independent Qt decoder. Reuses existing CPU original-size Pad rim and RHI risk marker; stale/source/selection/generation invalidation. New `--c015-mixed-cutout-selftest` included in Native Qt matrix.
-- See `crates/boardsi-import/src/reference_route_v11.rs`, `reference_route_v11/geometry.rs`, `tests/c015_reference_route_v11.rs`, `tests/c015_mixed_cutout_source_geometry.rs`, `apps/boardsi-qt-prototype/c015_mixed_cutout_risk.h`, `c005_reference_risk.h`, `preview_p0.cpp` and `.github/workflows/qt-runtime.yml`.
+## Tests and evidence
 
-## Verified prior limited evidence versus current outstanding gates
+- Earlier provisional Source geometry-only candidate passed 11/11 PR Workflows, including Rust and Native Qt on Windows x64/ARM64, macOS ARM64 and Linux Qt offscreen. **This does not qualify the newly expanded circular V8 contract.**
+- Current head requires the final newly added Rust `tests/c015_reference_route_v11.rs`, `tests/c015_mixed_cutout_source_geometry.rs`, Source canonical model, Native Qt `--c015-mixed-cutout-selftest`, and all existing A/B/C regression gates to pass on the same final HEAD.
+- Independent Codex reviewed an earlier HEAD and found a P2 Qt Stitch Via void-centre/CONTACT-binding vulnerability. Source-geometry independent validation and nested V8/CONTACT ID check were added. **Final same-head Codex re-review and closure of the review thread required.**
+- [ ] Final-head fmt, Clippy `-D warnings`, Debug/Release, Native platform matrix and 17 strict required Checks PASS.
+- [ ] Final-head Codex review completed with zero unresolved findings; thread resolved with evidence.
+- [ ] Signed Verified protected Squash and independent post-merge GitHub Checks/Push Workflow success.
+- [ ] Dated `docs/development-checklist.md` limited C_015 acceptance then Issue #280 closure only after evidence.
 
-- Initial pure geometry / source-parser fixture unit tests were independently observed passing in earlier Rust Debug/Release runs (2026-10-30 KST). **These are not a substitute for the current final V11/Qt HEAD.**
-- Several intermediate C_015 candidate runs failed Rustfmt and one Clippy argument-count gate; targeted fixes were made. A cancelled older run is **not** PASS.
-- [ ] Current exact final HEAD: full Rust fmt/Clippy/Debug/Release, added Rust V11 wire tests and all B/C regressions PASS with run IDs.
-- [ ] Native Windows x64/ARM64, macOS ARM64, Linux offscreen Qt importer→V11 CPU/RHI and stale selftest PASS.
-- [ ] Independent same-HEAD Codex review: completed, findings=0, unresolved=0.
-- [ ] Verified Signed protected Squash through Strict Ruleset #25046595, independently checked post-main Checks and Push Workflows.
-- [ ] **Original circle V8 ancestry gate:** V5 local source-contact graph and V6/V7 geometry paths currently do not establish authentic V8 receipt for circular Cutout; fallback V4 is deliberately labeled weaker and does not satisfy requirement. Must either implement genuine source-exact circular V5/V6/V7/V8 evidence and Qt legacy verification or explicitly change and separately approve the acceptance contract. Do not silently waive.
-- [ ] Dated checklist limited-feature acceptance and closure of Issue #280 **only after every required proof**.
-
-## Boundaries and nonclaims
+## Out-of-scope/nonclaims (immutable)
 
 ```text
 return_path_p009     = UNSUPPORTED
@@ -32,4 +29,4 @@ solver_ready         = false
 cache_reuse_eligible = false
 ```
 
-The observed circular pad-to-source void separation is **not manufactured DRC clearance**, actual Copper fill, electrical separation, Antipad/Thermal, Return Current, RLGC, impedance, S-parameter or SI Solver signoff. Whole product M1 and formal U09/U10/U39/T02/T04/T24/T52 stay **unchecked**.
+The result is not manufactured copper, Antipad/Thermal, electrical/physical DRC, RLGC/impedance/S-parameter qualification, Return Current P009 or product Solver readiness. Formal U09/U10/U39/T02/T04/T24/T52 and parent M1 remain **unchecked/open**.
