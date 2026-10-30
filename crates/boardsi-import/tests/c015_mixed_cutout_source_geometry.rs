@@ -17,16 +17,19 @@ fn source() -> String {
     s
 }
 fn holes(area: &copper_preview::CopperArea) -> Vec<SourceHole> {
-    area.cutouts.iter().map(|h| match h {
-        CopperGeometry::Polygon(p) => {
-            SourceHole::Rectangle(copper_preview::rectangle_bounds(p).unwrap())
-        }
-        CopperGeometry::Circle { centre, radius } => SourceHole::Circle {
-            centre: *centre,
-            radius: *radius,
-        },
-        CopperGeometry::Curved { .. } => panic!("unsupported source arc"),
-    }).collect()
+    area.cutouts
+        .iter()
+        .map(|h| match h {
+            CopperGeometry::Polygon(p) => {
+                SourceHole::Rectangle(copper_preview::rectangle_bounds(p).unwrap())
+            }
+            CopperGeometry::Circle { centre, radius } => SourceHole::Circle {
+                centre: *centre,
+                radius: *radius,
+            },
+            CopperGeometry::Curved { .. } => panic!("unsupported source arc"),
+        })
+        .collect()
 }
 #[test]
 fn actual_pads_source_exact_mixed_holes_on_two_layers() {
@@ -42,18 +45,27 @@ fn actual_pads_source_exact_mixed_holes_on_two_layers() {
         let outer = copper_preview::rectangle_bounds(outer_ring).unwrap();
         assert_eq!(outer, [10_000, 20_000, 20_000, 30_000]);
         let h = holes(area);
-        assert_eq!(h[1], SourceHole::Circle {
-            centre: [15_000, 25_000],
-            radius: 2_000,
-        });
+        assert_eq!(
+            h[1],
+            SourceHole::Circle {
+                centre: [15_000, 25_000],
+                radius: 2_000,
+            }
+        );
         assert!(validate_holes(&h, outer));
         assert!(pad_inside_outer([15_000, 25_000], 3_500, outer));
-        assert_eq!(classify([15_000, 25_000], 3_500, &h).unwrap(),
-                   (PadRisk::GapObserved, Some(1)));
-        assert_eq!(classify([15_000, 25_000], 4_000, &h).unwrap(),
-                   (PadRisk::TangencyRisk, Some(1)));
-        assert_eq!(classify([15_000, 25_000], 4_001, &h).unwrap(),
-                   (PadRisk::CopperOverlapRisk, Some(1)));
+        assert_eq!(
+            classify([15_000, 25_000], 3_500, &h).unwrap(),
+            (PadRisk::GapObserved, Some(1))
+        );
+        assert_eq!(
+            classify([15_000, 25_000], 4_000, &h).unwrap(),
+            (PadRisk::TangencyRisk, Some(1))
+        );
+        assert_eq!(
+            classify([15_000, 25_000], 4_001, &h).unwrap(),
+            (PadRisk::CopperOverlapRisk, Some(1))
+        );
     }
 }
 #[test]
