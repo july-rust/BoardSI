@@ -668,7 +668,10 @@ fn main() {
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
     // C_014: bounded multiple Source COPCUT rectangles; preserve V9 or V8.
-    if args.len() == 10 && (args[2] == std::ffi::OsStr::new("--reference-route-v10") || args[2] == std::ffi::OsStr::new("--reference-route-v11")) {
+    if args.len() == 10
+        && (args[2] == std::ffi::OsStr::new("--reference-route-v10")
+            || args[2] == std::ffi::OsStr::new("--reference-route-v11"))
+    {
         let result = (|| -> Result<String, &'static str> {
             let raw = args[3].to_str().ok_or("INVALID_ROUTE_INDICES")?;
             if raw.len() > 95 || raw.is_empty() {
@@ -699,11 +702,21 @@ fn main() {
             let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
             if args[2] == std::ffi::OsStr::new("--reference-route-v11") {
                 boardsi_import::reference_route_v11::encode(
-                    &bytes, &indices, split, [ref_a, ref_b], layers, candidate,
+                    &bytes,
+                    &indices,
+                    split,
+                    [ref_a, ref_b],
+                    layers,
+                    candidate,
                 )
             } else {
                 boardsi_import::reference_route_v10::encode(
-                    &bytes, &indices, split, [ref_a, ref_b], layers, candidate,
+                    &bytes,
+                    &indices,
+                    split,
+                    [ref_a, ref_b],
+                    layers,
+                    candidate,
                 )
             }
         })();
