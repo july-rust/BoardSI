@@ -100,7 +100,7 @@ jobs:
             platform: windows
             python_arch: x64
           - name: macOS ARM64
-            runner: macos-14
+            runner: macos-15
             host: mac
             qt_arch: clang_64
             target: aarch64-apple-darwin
