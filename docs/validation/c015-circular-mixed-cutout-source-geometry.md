@@ -1,26 +1,31 @@
-# C_015 — PADS COPCCO + COPCUT source-exact Signal Via clearance V11 / Qt
+# C_015 — PADS Source-exact COPCCO + COPCUT V11 / Qt risk — LIMITED ACCEPTANCE
 
-**Status (2026-10-30 KST):** implementation and verification candidate, NOT YET ACCEPTED. See [Issue #280](https://github.com/july-rust/BoardSI/issues/280) and [Draft PR #281](https://github.com/july-rust/BoardSI/pull/281). Parent M1 [#12](https://github.com/july-rust/BoardSI/issues/12) remains OPEN.
+**Limited-feature acceptance:** **PASS (2026-10-30 KST)** — original Source geometry and local Via contact **candidate only**, not physical Return Path, electrical SI or Solver signoff. **First accepted/check date:** 2026-10-30 KST; evidence date: 2026-10-30 KST. [Issue #280](https://github.com/july-rust/BoardSI/issues/280) · [code PR #281](https://github.com/july-rust/BoardSI/pull/281) · [signed protected Squash commit `273417a7555a1dddc5724b15b062029ddf3b6e52`](https://github.com/july-rust/BoardSI/commit/273417a7555a1dddc5724b15b062029ddf3b6e52). Parent M1 [#12](https://github.com/july-rust/BoardSI/issues/12) **OPEN**.
 
-## Scope and original-source ancestry
+## Precise accepted scope
 
-- Rust `reference_route_v11::encode` is opt-in (`--reference-route-v11`), selects 0–8 same-COPPER explicitly owned rectangle COPCUT or circular COPCCO voids per reference layer, requires two selected Source layers, unique Source Area identity and conductive Source Signal/Stitch Via padstacks.
-- Exact bounded `i128` squared circle/rectangle tests classify missing/GAP/tangency/overlap; source tick is 254 nm. Any self-intersection, tangent cutouts, unsupported arc/outer or unowned hole fails closed.
-- Original Source-derived `V8` is **mandatory even for circular COPCCO input**. This required a targeted Canonical `area_contact_circle` oracle for rectangle outer, strictly disjoint mixed holes and analytic four-cardinal-arc circles; the V5 ViaCentre contact graph checks exact validated Source geometry and same-layer candidate net, V6/V7 preserve conservative route corridor/PAD risk where circles remain unsupported. Any inability to prove the actual V8 receipt is an error, not a fake or downgraded V4.
-- V1–V10 outputs on previously accepted rectangle-only sources must stay unchanged; new circle input may now produce an explicitly qualified **source-local geometry** V8 witness where previously unsupported. No full return-current proof.
-- `apps/boardsi-qt-prototype/c015_mixed_cutout_risk.h` independently cross-checks Source SHA, per-layer Area identity, Via identities, Layer/Net, original imported rectangle/circle holes, exact hole bounds, Source Signal Pad gap severity and SOURCE Stitch Via **centre strictly within original copper outside all voids**; it binds V11 to the nested original V8/V5 CONTACT Area IDs. CPU real-size pad rims/RHI risk, source/selection/stale-result invalidation are exercised in native selftest.
+- Opt-in Rust `--reference-route-v11` Worker authenticates the same original PADS ASC source SHA, Source Copper Area, Reference Net/Layer, selected Signal Via and Reference Stitch Via, with exact bounded `i128` integer-tick testing (1 tick = 254 nm).
+- One original-source rectangle Copper outer per reference layer, zero to eight disjoint, strictly contained explicitly same-owner Source COPCUT rectangles and COPCCO circles, strict unsupported/outside/tangent/malformed shape rejection; signal Via conductive source Pad observes gap, tangent, overlapping Reference copper or missing void without manufacturing Antipad/Thermal.
+- `crates/boardsi-model/src/area_contact_circle.rs` Canonical Source local point-inside-copper oracle validates four cardinal exact analytic circular arcs plus mixed rectangular holes (no approximate polygon-derived electrical contact). The local ViaCentre contact evidence supports genuine source V5 and the original V6→V7→V8 chain. **Every circular V11 receipt must contain actual original-source V8**; no synthetic/V4 fallback. Conservative V6/V7 risks remain `UNSUPPORTED` where outside their scope.
+- Independent Qt `c015_mixed_cutout_risk.h` checks original imported Copper Area/Net/Layer/Source ID and per-hole circle/rectangle, Signal Via selected pad footprint and risk severity, source Stitch Via centre strictly outside **all** voids and inside the outer copper on both reference layers, nested V8→V7→V6→V5 `CONTACT` Area/source ID bindings and Via indices; original-size CPU/RHI Qt risk marker, stale selection/source invalidation.
+- Existing rectangle-only V1–V10 protocol remains unchanged. Scope is *source-local candidate*; it is **not** fabricated electrical Via attachment or true Return Current path verification.
 
-## Tests and evidence
+## Verified acceptance ledger (2026-10-30 KST)
 
-- Earlier provisional Source geometry-only candidate passed 11/11 PR Workflows, including Rust and Native Qt on Windows x64/ARM64, macOS ARM64 and Linux Qt offscreen. **This does not qualify the newly expanded circular V8 contract.**
-- Current head requires the final newly added Rust `tests/c015_reference_route_v11.rs`, `tests/c015_mixed_cutout_source_geometry.rs`, Source canonical model, Native Qt `--c015-mixed-cutout-selftest`, and all existing A/B/C regression gates to pass on the same final HEAD.
-- Independent Codex reviewed an earlier HEAD and found a P2 Qt Stitch Via void-centre/CONTACT-binding vulnerability. Source-geometry independent validation and nested V8/CONTACT ID check were added. **Final same-head Codex re-review and closure of the review thread required.**
-- [ ] Final-head fmt, Clippy `-D warnings`, Debug/Release, Native platform matrix and 17 strict required Checks PASS.
-- [ ] Final-head Codex review completed with zero unresolved findings; thread resolved with evidence.
-- [ ] Signed Verified protected Squash and independent post-merge GitHub Checks/Push Workflow success.
-- [ ] Dated `docs/development-checklist.md` limited C_015 acceptance then Issue #280 closure only after evidence.
+| Gate | Evidence | Result |
+|---|---|---|
+| Code PR original exact HEAD | `95daabc02339aa37a3c5ddb84af7e4798c54e96b`, [PR #281](https://github.com/july-rust/BoardSI/pull/281) | PASS |
+| Rust original-source V8 positive/negative fixtures | `crates/boardsi-import/tests/c015_reference_route_v11.rs`, `c015_mixed_cutout_source_geometry.rs`; `numerical` [run 40984559607](https://github.com/july-rust/BoardSI/actions/runs/40984559607) (Debug and Release) | PASS |
+| Qt real PADS Importer→V11→independent CPU/RHI stale-risk fixture | `--c015-mixed-cutout-selftest`, `C015_NATIVE_QT_MULTI_CUTOUT=true`; Qt [run 40984559702](https://github.com/july-rust/BoardSI/actions/runs/40984559702), Native Windows x64/ARM64, macOS ARM64, Linux offscreen | PASS |
+| Exact-head PR workflows | GitHub Actions PR head `95daabc...` | **12/12 SUCCESS** |
+| Independent Codex code review | Exact HEAD `95daabc...`: completed, has_any_findings=false, has_unresolved_findings=false, previously raised P2 Stitch Via Source void/CONTACT vulnerability corrected and review thread resolved | **PASS, 0 unresolved** |
+| Protected Squash with signature | [`273417a...`](https://github.com/july-rust/BoardSI/commit/273417a7555a1dddc5724b15b062029ddf3b6e52), GitHub REST `commit.verification.verified=true`, reason=valid, parent `8701b8b...`, active Ruleset `25046595` required signatures/strict status | **PASS / Verified** |
+| Independent main post-merge checks | main SHA `273417a...`, GitHub REST `/commits/{sha}/check-runs`, including 17 required contexts and four Analyze contexts | **21/21 SUCCESS** |
+| Independent main push workflows | same main SHA `273417a...`, GitHub REST `/actions/runs?head_sha={sha}`; Numerical, Qt, FEM, PH-06, PH-07, Docs, synthetic G0 etc. | **8/8 SUCCESS** |
 
-## Out-of-scope/nonclaims (immutable)
+Evidence counts and hashes above refer to the **code** protected Squash commit. Documentation-only follow-up has its own separate protected PR and must not retroactively change those code results. The **first limited check date** is recorded as 2026-10-30 KST; do not backdate other requirements.
+
+## Scope boundaries (remain UNSUPPORTED)
 
 ```text
 return_path_p009     = UNSUPPORTED
@@ -29,4 +34,4 @@ solver_ready         = false
 cache_reuse_eligible = false
 ```
 
-The result is not manufactured copper, Antipad/Thermal, electrical/physical DRC, RLGC/impedance/S-parameter qualification, Return Current P009 or product Solver readiness. Formal U09/U10/U39/T02/T04/T24/T52 and parent M1 remain **unchecked/open**.
+No manufactured copper, Antipad/Thermal, true current return, physical DRC, RLGC/impedance/S-parameter SI qualification or product Solver acceptance. Parent M1 Issue #12 and full formal **U09/U10/U39/T02/T04/T24/T52** remain OPEN/unchecked.
