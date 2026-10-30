@@ -75,7 +75,6 @@ pub fn encode(
     }
     let mut rows = String::new();
     let mut severity = PadRisk::GapObserved;
-    let mut has_circles = false;
     for &layer in &layers {
         let diameter = reference_route_v8::verify_round_pad(&board, signal, signal_index, layer)?;
         reference_route_v8::verify_round_pad(&board, stitch, stitch_index, layer)?;
@@ -112,7 +111,6 @@ pub fn encode(
                     copper_preview::rectangle_bounds(p).ok_or("V11_HOLE_NONRECT")?,
                 ),
                 CopperGeometry::Circle { centre, radius } => {
-                    has_circles = true;
                     SourceHole::Circle {
                         centre: *centre,
                         radius: *radius,
@@ -154,25 +152,17 @@ pub fn encode(
             }
         }
     }
-    let (kind, legacy, contact) = if has_circles {
-        ("V4", v4.as_str(), "SOURCE_CONTACT_UNVERIFIED")
-    } else {
-        // Only a genuine independently produced V8 is an acceptable V8 legacy.
-        let v8 = reference_route_v8::encode(bytes, indices, split, refs, layers, stitch_index)?;
-        return finish(
-            header[1],
-            severity,
-            (indices.len(), split, stitch_index, signal_index),
-            &rows,
-            ("V8", &v8, "V8_SOURCE_CONTACT_CANDIDATE"),
-        );
-    };
+    // Exact original-source V8 is required for circular as well as rectangular
+    // holes. The extended canonical model now validates circular SameLayerContact
+    // without tessellation, while V6/V7 retain conservative risk states.
+    // Fail closed instead of producing a weaker V4 fallback on any failure.
+    let v8 = reference_route_v8::encode(bytes, indices, split, refs, layers, stitch_index)?;
     finish(
         header[1],
         severity,
         (indices.len(), split, stitch_index, signal_index),
         &rows,
-        (kind, legacy, contact),
+        ("V8", &v8, "V8_SOURCE_CONTACT_CANDIDATE"),
     )
 }
 fn finish(
