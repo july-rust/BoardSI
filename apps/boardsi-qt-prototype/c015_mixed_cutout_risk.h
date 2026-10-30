@@ -30,6 +30,20 @@ inline bool disjoint(const Hole &a,const Hole &b) {
     const qint64 y=std::clamp(c.y,p.rect[1],p.rect[3]);
     return d2(x,y,c.x,c.y)>square(c.r);
 }
+inline bool stitchCentreInCopper(qint64 x,qint64 y,
+        const std::array<qint64,4> &outer,const std::vector<Hole> &holes) {
+    if(!coord(x) || !coord(y) ||
+       x<=outer[0] || x>=outer[2] || y<=outer[1] || y>=outer[3])return false;
+    for(const auto &hole:holes) {
+        if(hole.round) {
+            if(d2(x,y,hole.x,hole.y)<=square(hole.r))return false;
+        } else {
+            const auto &r=hole.rect;
+            if(x>=r[0] && x<=r[2] && y>=r[1] && y<=r[3])return false;
+        }
+    }
+    return true;
+}
 inline QString classify(qint64 x,qint64 y,qint64 diameter,
         const std::vector<Hole> &holes,int &selected) {
     selected=-1;
@@ -90,6 +104,10 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
     QString overall="SOURCE_CUTOUT_GAP_OBSERVED";
     bool circles=false;
     std::vector<ImportedReferenceRiskMarker> markers;
+    std::vector<QByteArray> sourceAreaIds;
+    sourceAreaIds.reserve(2);
+    if(stitch.x_nm%254!=0 || stitch.y_nm%254!=0)return false;
+    const qint64 stitchX=stitch.x_nm/254,stitchY=stitch.y_nm/254;
     for(const int layer:layers) {
         if(layer<signal.firstLayer || layer>signal.lastLayer ||
            layer<stitch.firstLayer || layer>stitch.lastLayer ||
@@ -166,6 +184,10 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
         if(std::any_of(usedRect.begin(),usedRect.end(),[](bool v){return !v;}) ||
            std::any_of(usedCircle.begin(),usedCircle.end(),[](bool v){return !v;}))
             return false;
+        // Independent Qt validation of actual Source stitch centre; a source
+        // Area label is NOT enough to prove local same-layer contact.
+        if(!stitchCentreInCopper(stitchX,stitchY,outer,holes))return false;
+        sourceAreaIds.push_back(row[3]);
         int chosen=-1;
         const QString state=classify(x,y,diameter,holes,chosen);
         if(row[8]!=state.toLatin1() ||
@@ -205,6 +227,22 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
        legacyHeader[1]!=sha ||
        legacyHeader[10]!=h[10] || legacyHeader[11]!=h[11])
         return false;
+    const auto originalV8=legacy.split('\n');
+    // V8→V7→V6→V5: check independently decoded source Area identity
+    // against BOTH original V5 CONTACT rows, not just a Source Net label.
+    if(sourceAreaIds.size()!=2 || originalV8.size()<16 ||
+       !originalV8[3].startsWith("V7|") ||
+       !originalV8[7].startsWith("V6|") ||
+       !originalV8[11].startsWith("V5|") ||
+       !originalV8[12].startsWith("BOARDSI_REFERENCE_ROUTE_V5|"))
+        return false;
+    for(int i=0;i<2;++i) {
+        const auto contact=originalV8[13+i].split('|');
+        if(contact.size()!=3 || contact[0]!="CONTACT" ||
+           contact[1]!=QByteArray::number(layers[static_cast<size_t>(i)]) ||
+           contact[2]!=sourceAreaIds[static_cast<size_t>(i)])
+            return false;
+    }
     receipt.markers.insert(receipt.markers.end(),markers.begin(),markers.end());
     receipt.state=overall;
     receipt.reason=circles?
