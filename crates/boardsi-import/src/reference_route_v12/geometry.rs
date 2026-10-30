@@ -158,7 +158,10 @@ mod tests {
             .map(|i| SourceHole::Rectangle([10 + 20 * i, 10, 15 + 20 * i, 15]))
             .collect();
         assert_eq!(holes.len(), 8);
-        assert_eq!(classify([100, 100], 20, outer, &holes).unwrap().0, Risk::Full);
+        assert_eq!(
+            classify([100, 100], 20, outer, &holes).unwrap().0,
+            Risk::Full
+        );
     }
     #[test]
     fn rejects_unsupported_and_out_of_range() {
