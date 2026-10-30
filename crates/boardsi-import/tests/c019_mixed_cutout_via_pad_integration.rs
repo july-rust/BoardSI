@@ -23,9 +23,7 @@ fn copper(holes: Holes, first_rect: &str) -> String {
             "{name} COPPER 100 200 {count} 1 0 NET_REF\nCOPCLS 5 0.01 0 {layer}\n0 0\n100 0\n100 100\n0 100\n0 0\n"
         ));
         match holes {
-            Holes::Mixed => output.push_str(&format!(
-                "COPCCO 2 0.01 0 {layer}\n30 50\n70 50\n"
-            )),
+            Holes::Mixed => output.push_str(&format!("COPCCO 2 0.01 0 {layer}\n30 50\n70 50\n")),
             Holes::Single | Holes::Multi => {
                 output.push_str(&format!("COPCUT 5 0.01 0 {layer}\n{first_rect}\n"));
             }
@@ -73,19 +71,23 @@ fn field(wire: &str, index: usize) -> &str {
 
 fn embedded(wire: &str, marker: &str) -> String {
     let lines: Vec<_> = wire.lines().collect();
-    let position = lines.iter().position(|line| line.starts_with(marker)).unwrap();
-    let count: usize = lines[position]
-        .split('|')
-        .last()
-        .unwrap()
-        .parse()
+    let position = lines
+        .iter()
+        .position(|line| line.starts_with(marker))
         .unwrap();
+    let count: usize = lines[position].split('|').last().unwrap().parse().unwrap();
     format!("{}\n", lines[position + 1..position + 1 + count].join("\n"))
 }
 
 fn source_only(version: u8, wire: &str) {
-    assert_eq!(field(wire, 0), format!("BOARDSI_REFERENCE_ROUTE_V{version}"));
-    assert_eq!(&[field(wire, 3), field(wire, 4), field(wire, 5)], &["UNSUPPORTED", "NOT_RUN", "0"]);
+    assert_eq!(
+        field(wire, 0),
+        format!("BOARDSI_REFERENCE_ROUTE_V{version}")
+    );
+    assert_eq!(
+        &[field(wire, 3), field(wire, 4), field(wire, 5)],
+        &["UNSUPPORTED", "NOT_RUN", "0"]
+    );
     assert!(wire.ends_with("END|2|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL\n"));
     assert!(!wire.contains("PHYSICAL_PASS"));
 }
@@ -118,7 +120,13 @@ fn multi_rectangle_v10_falls_back_to_original_v8_not_unsupported_v9() {
         source_only(v, wire);
         assert_eq!(field(wire, 1), field(&wire10, 1));
     }
-    assert_eq!(wire10.lines().filter(|line| line.starts_with("HOLE|")).count(), 4);
+    assert_eq!(
+        wire10
+            .lines()
+            .filter(|line| line.starts_with("HOLE|"))
+            .count(),
+        4
+    );
     assert_eq!(embedded(&wire10, "LEGACY|V8|"), original_v8);
     assert_eq!(embedded(&wire11, "LEGACY|V8|"), original_v8);
     assert_eq!(embedded(&wire12, "LEGACY|V11|"), wire11);
@@ -137,8 +145,17 @@ fn mixed_circle_requires_genuine_v8_and_v11_v12_preserve_it() {
     assert_eq!(field(&wire11, 1), field(&wire12, 1));
     assert_eq!(embedded(&wire11, "LEGACY|V8|"), original_v8);
     assert_eq!(embedded(&wire12, "LEGACY|V11|"), wire11);
-    assert_eq!(wire11.lines().filter(|line| line.contains("|C|")).count(), 2);
-    assert_eq!(wire12.lines().filter(|line| line.starts_with("STITCH_PAD|")).count(), 2);
+    assert_eq!(
+        wire11.lines().filter(|line| line.contains("|C|")).count(),
+        2
+    );
+    assert_eq!(
+        wire12
+            .lines()
+            .filter(|line| line.starts_with("STITCH_PAD|"))
+            .count(),
+        2
+    );
     assert!(wire11.contains("|V8|V8_SOURCE_CONTACT_CANDIDATE\n"));
 }
 
