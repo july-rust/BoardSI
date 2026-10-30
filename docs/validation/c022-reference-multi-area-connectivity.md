@@ -1,6 +1,6 @@
 # C_022 — Bounded multi-area Source Reference Copper components (V14)
 
-**Status: SOURCE-ONLY CODE ACCEPTED on 2026-10-31 KST; separate documentation closeout PR and Issue #304 final closure pending.** [Issue #304](https://github.com/july-rust/BoardSI/issues/304); formal parent [M1 #12](https://github.com/july-rust/BoardSI/issues/12) remains OPEN.
+**Status: COMPLETE for bounded C_022 Source Geometry risk audit (2026-10-31 KST); final Issue #304 closure is recorded separately after reconciliation.** [Issue #304](https://github.com/july-rust/BoardSI/issues/304); formal parent [M1 #12](https://github.com/july-rust/BoardSI/issues/12) remains OPEN.
 
 ## Scope and source-only contract
 
@@ -18,13 +18,22 @@ Qt independently re-reads exact imported Source Area outer rings and confirms ea
 - [x] Exact FINAL PR HEAD rustfmt, Clippy -D warnings, required CI SUCCESS
 - [x] Independent same-final-HEAD Codex completed, zero findings, zero unresolved threads
 - [x] Protected Signed Verified Squash merge with independent post-main Check Runs and Push CI
-- [ ] Documentation closeout PR exact-final-HEAD CI, independent Codex, protected Signed Verified Squash and independently successful post-document-main CI, followed by Issue #304 closure. **Not claimed in advance.**
+- [x] Independent documentation [PR #307](https://github.com/july-rust/BoardSI/pull/307) exact-final-HEAD CI 22/22 checks SUCCESS and 8/8 workflows SUCCESS; same-final-HEAD independent Codex `completed`, findings=false, unresolved=false, zero review threads; protected GitHub-signed Verified one-parent Squash and independently successful post-document-main CI (details below). **Issue #304 closure remains a separate final action after this reconciliation PR is independently accepted.**
 
-**First accepted source-only checklist check date: 2026-10-31 KST; evidence date: 2026-10-31 KST.** Existing C_021 first-check date is preserved. Do not close #304 or check the documentation closure gate until its own post-main acceptance. All tests are source-only; actual return current/P009, manufactured fill/DRC, electrical AreaContinuity, physical SI/RLGC/S, Solver/Cache, full formal U09/U10/U39/T02/T04/T24/T52 acceptance remain **NOT VERIFIED**.
+**First accepted source-only checklist check date: 2026-10-31 KST; evidence date: 2026-10-31 KST.** Existing C_021 first-check date is preserved. The documentation gate has now been independently observed and checked; close #304 only after this reconciliation PR's own required gates and post-main acceptance. All tests are source-only; actual return current/P009, manufactured fill/DRC, electrical AreaContinuity, physical SI/RLGC/S, Solver/Cache, full formal U09/U10/U39/T02/T04/T24/T52 acceptance remain **NOT VERIFIED**.
 
 `return_path_p009=UNSUPPORTED`, `physical_si=NOT_RUN`, `solver_ready=false`, `cache_reuse_eligible=false`.
 
 Existing C_021 first checked date (2026-10-30 KST) is unchanged.
+
+## Independent documentation-merge acceptance (observed 2026-10-31 KST)
+
+- [x] Documentation [PR #307](https://github.com/july-rust/BoardSI/pull/307) reviewed final HEAD `e264b306d3aa5887f1b21af280993a3dbef6702a`: [22/22 exact-head Checks SUCCESS](https://api.github.com/repos/july-rust/BoardSI/commits/e264b306d3aa5887f1b21af280993a3dbef6702a/check-runs?per_page=100), [8/8 exact-head Pull Request workflows SUCCESS](https://api.github.com/repos/july-rust/BoardSI/actions/runs?event=pull_request&head_sha=e264b306d3aa5887f1b21af280993a3dbef6702a&per_page=100).
+- [x] Same-final-HEAD independent Codex review recorded in [PR #307 review-state summary](https://github.com/july-rust/BoardSI/pull/307): `code_review.status=completed`, `commit_sha=e264b306...`, `has_any_findings=false`, `has_unresolved_findings=false`. Inline review comments: 0.
+- [x] GitHub [protected one-parent Signed Verified Squash `main@c4e083b9f2d4bd056990e036c05fa3e28b818ddc`](https://github.com/july-rust/BoardSI/commit/c4e083b9f2d4bd056990e036c05fa3e28b818ddc): [direct REST](https://api.github.com/repos/july-rust/BoardSI/commits/c4e083b9f2d4bd056990e036c05fa3e28b818ddc) `commit.verification.verified=true`, `reason=valid`, exactly one parent `242293dda118024697b6d1cb3bde5a521e6fa2cf`.
+- [x] Independent documentation [post-main 21/21 Checks SUCCESS](https://api.github.com/repos/july-rust/BoardSI/commits/c4e083b9f2d4bd056990e036c05fa3e28b818ddc/check-runs?per_page=100) and [8/8 `event=push` workflows SUCCESS](https://api.github.com/repos/july-rust/BoardSI/actions/runs?event=push&head_sha=c4e083b9f2d4bd056990e036c05fa3e28b818ddc&per_page=100), all 8 `head_sha` exact match, run_attempt 1.
+
+**Reconciliation changes only documentation; it does not change source code, product claims, or previously recorded first-check date.** The current reconciliation PR also needs its own independent CI/Codex/protected merge/post-main checks; its final evidence can be recorded in Issue #304 after merge, avoiding any unverified forward claims in this document.
 
 ## Evidence links and strict limitations
 
