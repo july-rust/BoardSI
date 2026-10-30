@@ -64,11 +64,11 @@ fn circular_source_has_genuine_v11_v8_ancestry_and_stitch_pad() {
 fn unsupported_source_contact_and_geometry_fail_closed() {
     let bytes = String::from_utf8(fixture(true)).unwrap();
     let wrong_layer = bytes.replacen("COPCCO 2 0.01 0 2", "COPCCO 2 0.01 0 4", 1);
-    assert!(v11(wrong_layer.as_bytes()).is_err());
+    assert!(v12(wrong_layer.as_bytes()).is_err());
     let wrong_net = bytes.replacen("NET_REF", "OTHER", 1);
-    assert!(v11(wrong_net.as_bytes()).is_err());
+    assert!(v12(wrong_net.as_bytes()).is_err());
     let overlapping = bytes.replacen("30 50\n70 50", "5 5\n45 5", 1);
-    assert!(v11(overlapping.as_bytes()).is_err());
+    assert!(v12(overlapping.as_bytes()).is_err());
     let changed = bytes.replacen("NET_SIG", "NET_NEW", 1);
-    assert_ne!(v11(bytes.as_bytes()), v11(changed.as_bytes()));
+    assert_ne!(v12(bytes.as_bytes()), v12(changed.as_bytes()));
 }
