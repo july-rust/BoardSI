@@ -52,7 +52,7 @@ fn circular_source_has_genuine_v11_v8_ancestry_and_stitch_pad() {
     );
     let wire = v12(&bytes).unwrap();
     assert!(wire.contains("LEGACY|V11|"));
-    assert!(wire.contains("|V8|V8_SOURCE_CONTACT_CANDIDATE\\n"));
+    assert!(wire.contains("|V8|V8_SOURCE_CONTACT_CANDIDATE\n"));
     assert_eq!(wire.lines().filter(|x| x.starts_with("HOLE|")).count(), 4);
     assert_eq!(wire.lines().filter(|x| x.contains("|C|")).count(), 2);
     assert!(wire.contains("SOURCE_CUTOUT_GAP_OBSERVED"));
