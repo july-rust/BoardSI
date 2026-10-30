@@ -152,6 +152,15 @@ mod tests {
         );
     }
     #[test]
+    fn exactly_eight_non_touching_source_cutouts_accepted() {
+        let outer = [0, 0, 200, 200];
+        let holes: Vec<_> = (0..8)
+            .map(|i| SourceHole::Rectangle([10 + 20 * i, 10, 15 + 20 * i, 15]))
+            .collect();
+        assert_eq!(holes.len(), 8);
+        assert_eq!(classify([100, 100], 20, outer, &holes).unwrap().0, Risk::Full);
+    }
+    #[test]
     fn rejects_unsupported_and_out_of_range() {
         let o = [0, 0, 100, 100];
         assert!(classify([50, 50], 0, o, &[]).is_err());
