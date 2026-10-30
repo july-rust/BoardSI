@@ -197,6 +197,7 @@ pub mod part_preview;
 pub mod polygon_topology;
 pub mod pour_preview;
 pub mod reference_area_v13;
+pub mod reference_area_v14;
 pub mod reference_gap_intervals;
 pub mod reference_geometry;
 pub mod reference_risk_wire;

@@ -667,6 +667,38 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // C_022: explicit 3..=6 Source areas, no electrical graph promotion.
+    if args.len() == 6 && args[2] == std::ffi::OsStr::new("--reference-area-v14") {
+        let result = (|| -> Result<String, &'static str> {
+            let text = |at: usize| args[at].to_str().ok_or("C022_NON_UTF8_SELECTION");
+            let raw = text(3)?;
+            if raw.is_empty() || raw.len() > 390 {
+                return Err("C022_AREA_SELECTION_LIMIT");
+            }
+            let names: Vec<&str> = raw.split(',').collect();
+            let net = text(4)?;
+            let layer = text(5)?
+                .parse::<usize>()
+                .map_err(|_| "C022_LAYER_INVALID")?;
+            let path = std::path::Path::new(&args[1]);
+            let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
+            if !metadata.is_file()
+                || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
+            {
+                return Err("FILE_LIMIT");
+            }
+            let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
+            boardsi_import::reference_area_v14::encode(&bytes, &names, net, layer)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("C022_REFERENCE_AREA_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // C_021: strictly opt-in, source-only two COPCLS rectangle connection audit.
     // No changes to V1–V12, Canonical connectivity or ordinary PADS stdout.
     if args.len() == 7 && args[2] == std::ffi::OsStr::new("--reference-area-v13") {

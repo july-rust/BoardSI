@@ -102,6 +102,11 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --c005-risk-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-c005-reference-risk PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # C_022: 3..6 Source rectangles, Qt independent component groups and stale.
+    add_test(NAME qt-preview-c022-reference-multi-area
+      COMMAND boardsi-preview-p0 --c022-area-selftest "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-c022-reference-multi-area PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # C_021: exactly two source rectangles, actual Rust->Qt warning/stale.
     add_test(NAME qt-preview-c021-reference-two-area
       COMMAND boardsi-preview-p0 --c021-area-selftest "${BOARDSI_IMPORTER}")

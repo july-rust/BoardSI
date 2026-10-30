@@ -100,7 +100,7 @@ jobs:
             platform: windows
             python_arch: x64
           - name: macOS ARM64
-            runner: macos-14
+            runner: macos-15
             host: mac
             qt_arch: clang_64
             target: aarch64-apple-darwin
@@ -237,6 +237,15 @@ jobs:
           suffix=''
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c009-stitch-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      - name: C_022 Native multi-area component candidate and Qt stale smoke
+        shell: bash
+        env:
+          BOARDSI_ARTWORK_RENDERER: cpu
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --c022-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_021 Native two Reference Copper rectangles and Qt stale smoke
         shell: bash
         env:
