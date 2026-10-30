@@ -74,8 +74,8 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
        h[6]!="REFERENCE_TRANSFER_UNVERIFIED" || h[7]!="2" ||
        h[8]!=QByteArray::number(static_cast<int>(selected.size())) ||
        h[9]!=QByteArray::number(split) || h[10]!=QByteArray::number(stitchIndex) ||
-       (h[12]!="V4" && h[12]!="V8") ||
-       h[13]!=(h[12]=="V4"?"SOURCE_CONTACT_UNVERIFIED":"V8_SOURCE_CONTACT_CANDIDATE"))
+       h[12]!="V8" ||
+       h[13]!="V8_SOURCE_CONTACT_CANDIDATE")
         return false;
     bool ok=false;
     const int signalIndex=h[11].toInt(&ok);
@@ -178,13 +178,13 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
                           "Source state %4 / Original V8 contact %5 / "
                           "SOURCE GEOMETRY ONLY / P009 UNSUPPORTED / SI NOT_RUN")
             .arg(layer).arg(QString::fromUtf8(sourceId)).arg(count)
-            .arg(state).arg(h[12]=="V8"?"candidate":"UNVERIFIED");
+            .arg(state).arg("source-local candidate / P009 UNSUPPORTED");
         m.net=signal.net;m.viaObject=signal.name;m.sourceObject=QString::fromUtf8(sourceId);
         m.layer=layer;m.x_nm=signal.x_nm;m.y_nm=signal.y_nm;
         m.diameter_nm=signal.diameter_nm;
         markers.push_back(std::move(m));
     }
-    if(h[2]!=overall.toLatin1() || circles!=(h[12]=="V4") ||
+    if(h[2]!=overall.toLatin1() ||
        pos>=lines.size()-2)return false;
     const auto row=lines[pos++].split('|');
     if(row.size()!=3 || row[0]!="LEGACY" || row[1]!=h[12])return false;
@@ -195,15 +195,13 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
     QByteArray legacy;
     for(int j=0;j<n;++j) {legacy+=lines[pos+j];legacy+='\n';}
     c005::Receipt receipt;
-    const bool valid=h[12]=="V8"?
-        c012::decode(legacy,sha,panel,selected,split,stitchIndex,referenceNet,layers,receipt):
-        c008::decode(legacy,sha,panel,selected,split,receipt);
+    const bool valid=c012::decode(legacy,sha,panel,selected,split,stitchIndex,referenceNet,layers,receipt);
     if(!valid)return false;
     receipt.markers.insert(receipt.markers.end(),markers.begin(),markers.end());
     receipt.state=overall;
-    receipt.reason=h[12]=="V8"?
-        "C_015 RECT SOURCE ONLY / V8 ORIGINAL / P009 UNSUPPORTED / SI NOT_RUN":
-        "C_015 COPCCO SOURCE ONLY / V8 UNAVAILABLE / CONTACT UNVERIFIED / P009 UNSUPPORTED / SI NOT_RUN";
+    receipt.reason=circles?
+        "C_015 COPCCO SOURCE ONLY / ORIGINAL V8 SOURCE LOCAL CONTACT CANDIDATE / P009 UNSUPPORTED / SI NOT_RUN":
+        "C_015 RECT SOURCE ONLY / ORIGINAL V8 SOURCE LOCAL CONTACT CANDIDATE / P009 UNSUPPORTED / SI NOT_RUN";
     out=std::move(receipt);
     return true;
 }
