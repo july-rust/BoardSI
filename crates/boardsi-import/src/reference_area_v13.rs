@@ -125,7 +125,7 @@ pub fn encode(
             || source.net_label.as_deref() != Some(reference_net)
             || canonical.net.is_some()
             || !source.cutouts.is_empty()
-            || canonical.cutouts.len() != 0
+            || !canonical.cutouts.is_empty()
             || canonical.outer.segments.len() != 4
         {
             return Err("C021_UNSUPPORTED_SOURCE_GEOMETRY");
