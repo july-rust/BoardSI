@@ -1,5 +1,5 @@
 //! C_015 opt-in only; legacy must be true original-source V8/V4.
-use boardsi_import::{reference_route_v11, reference_route_v4, reference_route_v8};
+use boardsi_import::{reference_route_v11, reference_route_v8};
 const HEADER: &str =
     "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n";
 const VIA: &str = "*VIA*\nSIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R\n";
