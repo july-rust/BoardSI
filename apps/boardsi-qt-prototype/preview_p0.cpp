@@ -4028,9 +4028,146 @@ static int runC011PadFootprintSelftest(const QString &importer) {
     return pass?0:1;
 }
 
+static int runC016MixedCutoutSelftest(const QString &importer) {
+    QTemporaryFile source;
+    if(!source.open())return 2;
+    const QByteArray bytes(
+        "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n"
+        "*PCB*\nMAXLAYER 4\n"
+        "*VIA*\nSIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R\n"
+        "*LINES*\n"
+        "RA COPPER 100 200 3 1 0 NET_REFA\n"
+        "COPCLS 5 0.01 0 2\n0 0\n100 0\n100 100\n0 100\n0 0\n"
+        "COPCCO 2 0.01 0 2\n30 50\n70 50\n"
+        "COPCUT 5 0.01 0 2\n5 5\n12 5\n12 12\n5 12\n5 5\n"
+        "RB COPPER 100 200 4 1 0 NET_REFA\n"
+        "COPCLS 5 0.01 0 3\n0 0\n100 0\n100 100\n0 100\n0 0\n"
+        "COPCCO 2 0.01 0 3\n30 50\n70 50\n"
+        "COPCUT 5 0.01 0 3\n5 5\n12 5\n12 12\n5 12\n5 5\n"
+        "COPCUT 5 0.01 0 3\n80 5\n90 5\n90 12\n80 12\n80 5\n"
+        "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n"
+        "130 250 1 10 0\n150 250 4 10 0 SIMPLEVIA\n170 250 4 10 0\n"
+        "*SIGNAL* NET_REFA\nR1.1 R2.2\n300 400 2 10 0\n350 400 2 10 0\n"
+        "*SIGNAL* NET_REFA\nR3.1 R4.2\n300 400 3 10 0\n350 400 3 10 0\n"
+        "*SIGNAL* NET_REFA\nS1.1 S2.2\n"
+        "140 280 2 10 0\n180 280 3 10 0 SIMPLEVIA\n190 280 3 10 0\n"
+        "*END*\n");
+    if(source.write(bytes)!=bytes.size() || !source.flush())return 2;
+    PreviewImportPanel panel(importer);
+    QEventLoop load;
+    panel.setStatusCallback([&load](const QString &s) {
+        if(s.startsWith("PARTIAL") || s.startsWith("FAILED"))load.quit();
+    });
+    if(!panel.openPath(source.fileName()))return 2;
+    QTimer::singleShot(8000,&load,&QEventLoop::quit);
+    load.exec();
+    if(!panel.importStatus().startsWith("PARTIAL") ||
+       panel.imported()->viaCount()!=2)return 1;
+    C005ReferenceRiskController controller(panel.imported(),importer);
+    controller.resetSource(source.fileName(),panel.acceptedSourceSha256());
+    auto *net=controller.findChild<QLineEdit *>("c005ReferenceNet");
+    auto *netB=controller.findChild<QLineEdit *>("c008ReferenceNetB");
+    auto *route=controller.findChild<QLineEdit *>("c007RouteIndices");
+    auto *mode=controller.findChild<QCheckBox *>("c008ViaMode");
+    auto *stitch=controller.findChild<QCheckBox *>("c009StitchMode");
+    auto *stitchVia=controller.findChild<QSpinBox *>("c009StitchViaIndex");
+    auto *refB=controller.findChild<QSpinBox *>("c005RefLayer");
+    auto *run=controller.findChild<QPushButton *>("c005RunAudit");
+    if(!net || !netB || !route || !mode || !stitch || !stitchVia || !refB || !run)return 2;
+    // Ref layer B has a separate spinbox; don't accidentally re-use A.
+    const auto spinBoxes=controller.findChildren<QSpinBox *>();
+    QSpinBox *referenceB=nullptr;
+    for(auto *box:spinBoxes)if(box!=refB && box->value()==2 &&
+        box->objectName().isEmpty())referenceB=box;
+    if(!referenceB)return 2;
+    QString detail;
+    panel.imported()->setDetailsCallback([&detail](const QString &d){detail=d;});
+    net->setText("NET_REFA");
+    netB->setText("NET_REFA");
+    referenceB->setValue(3);
+    route->setText("0,1");
+    mode->setChecked(true);
+    stitchVia->setValue(1);
+    stitch->setChecked(true);
+    auto *corridor=controller.findChild<QCheckBox *>("c010CorridorMode");
+    if(!corridor)return 2;
+    corridor->setChecked(true);
+    auto *padMode=controller.findChild<QCheckBox *>("c011PadMode");
+    if(!padMode)return 2;
+    padMode->setChecked(true);
+    auto *clearance=controller.findChild<QCheckBox *>("c012ClearanceMode");
+    if(!clearance)return 2;
+    clearance->setChecked(true);
+    auto *cutout=controller.findChild<QCheckBox *>("c015MixedCutoutMode");
+    if(!cutout)return 2;
+    cutout->setChecked(true);
+    auto *padVoid=controller.findChild<QCheckBox *>("c016StitchPadCutoutMode");
+    if(!padVoid)return 2;
+    padVoid->setChecked(true);
+    QProcess wireProbe;
+    wireProbe.start(importer,QStringList{source.fileName(),"--reference-route-v12",
+                    "0,1","1","NET_REFA","2","NET_REFA","3","1"});
+    if(!wireProbe.waitForFinished(5000))return 2;
+    qInfo() << "C016_SOURCE_DIAGNOSTIC" << wireProbe.exitCode()
+            << wireProbe.readAllStandardError()
+            << wireProbe.readAllStandardOutput().left(160);
+    run->click();
+    QEventLoop audit;
+    QTimer poll;
+    QObject::connect(&poll,&QTimer::timeout,&audit,[&] {
+        if(!controller.auditRunningForTest())audit.quit();
+    });
+    QTimer::singleShot(8000,&audit,&QEventLoop::quit);
+    poll.start(20);audit.exec();poll.stop();
+    qInfo() << "C016_QT_DIAGNOSTIC" << controller.currentStatusForTest()
+            << panel.imported()->referenceRiskCountForTest();
+    const bool marked=controller.currentStatusForTest().contains("STITCH_PAD_FULL_COPPER_FOOTPRINT_CANDIDATE") &&
+        panel.imported()->referenceRiskCountForTest()>=3;
+    auto *scene=panel.imported()->findChild<QGraphicsScene *>();
+    bool picked=false;
+    bool fullRim=false;
+    if(scene)for(auto *item:scene->items()) {
+        if(item->data(3).toString()=="C005ReferenceRisk" &&
+           item->data(2).toString().contains("STITCH_PAD_FOOTPRINT_RISK") &&
+           item->data(2).toString().contains("C_016")) {
+            scene->clearSelection();
+            item->setSelected(true);
+            picked=true;
+            auto *rim=qgraphicsitem_cast<QGraphicsEllipseItem *>(item);
+            // Source 35 mil Pad = 0.889 mm; CPU outline must be true size.
+            fullRim=rim && std::abs(rim->rect().width()-0.889)<0.000001;
+            break; // keep the selected C_016 property text, not C_011's marker
+        }
+    }
+    qInfo() << "C016_QT_DETAIL_CHECK" << picked << fullRim << detail;
+    const bool detailValid=picked && fullRim &&
+        detail.contains("P009 UNSUPPORTED") &&
+        detail.contains("STITCH PAD GEOMETRY ONLY") && detail.contains("C_016");
+    route->setText("1,0");
+    const bool invalidated=panel.imported()->referenceRiskCountForTest()==0;
+    run->click();
+    QEventLoop bad;
+    QTimer badPoll;
+    QObject::connect(&badPoll,&QTimer::timeout,&bad,[&] {
+        if(!controller.auditRunningForTest())bad.quit();
+    });
+    QTimer::singleShot(8000,&bad,&QEventLoop::quit);
+    badPoll.start(20);bad.exec();badPoll.stop();
+    const bool refused=panel.imported()->referenceRiskCountForTest()==0 &&
+        controller.currentStatusForTest().contains("UNSUPPORTED");
+    controller.resetSource(QString(),QByteArray());
+    const bool cleared=panel.imported()->referenceRiskCountForTest()==0;
+    const bool pass=marked && detailValid && invalidated && refused && cleared;
+    qInfo() << "C016_NATIVE_QT_MULTI_CUTOUT" << pass << marked << detailValid
+            << invalidated << refused << cleared << "SI_NOT_RUN";
+    return pass?0:1;
+}
+// C_012: two Source Via Pads -> Rust V8 -> Qt CPU/RHI original-size rims and stale.
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--c016-stitch-pad-selftest")
+        return runC016MixedCutoutSelftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--c015-mixed-cutout-selftest")
         return runC015MixedCutoutSelftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--c014-multi-cutout-selftest")

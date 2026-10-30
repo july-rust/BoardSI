@@ -906,13 +906,14 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
 } // namespace c013
 #include "c014_multi_cutout_risk.h"
 #include "c015_mixed_cutout_risk.h"
+#include "c016_stitch_pad_risk.h"
 
 class C005ReferenceRiskController final: public QWidget {
     ImportedArtworkPanel *artwork_ = nullptr;
     QString importer_,source_;
     QSpinBox *first_=nullptr,*second_=nullptr,*refA_=nullptr,*refB_=nullptr;
     QLineEdit *net_=nullptr,*route_=nullptr,*netB_=nullptr;
-    QCheckBox *viaMode_=nullptr,*stitchMode_=nullptr,*corridorMode_=nullptr,*padMode_=nullptr,*clearanceMode_=nullptr,*cutoutMode_=nullptr,*multiCutoutMode_=nullptr,*mixedCutoutMode_=nullptr;
+    QCheckBox *viaMode_=nullptr,*stitchMode_=nullptr,*corridorMode_=nullptr,*padMode_=nullptr,*clearanceMode_=nullptr,*cutoutMode_=nullptr,*multiCutoutMode_=nullptr,*mixedCutoutMode_=nullptr,*stitchPadCutoutMode_=nullptr;
     QSpinBox *stitchVia_=nullptr;
     QSpinBox *split_=nullptr;
     bool requestedV4_=false;
@@ -923,6 +924,7 @@ class C005ReferenceRiskController final: public QWidget {
     bool requestedV9_=false;
     bool requestedV10_=false;
     bool requestedV11_=false;
+    bool requestedV12_=false;
     QLabel *status_=nullptr;
     QPushButton *run_=nullptr;
     QProcess process_;
@@ -947,7 +949,8 @@ class C005ReferenceRiskController final: public QWidget {
              QString::number(clearanceMode_->isChecked()),
              QString::number(cutoutMode_->isChecked()),
              QString::number(multiCutoutMode_->isChecked()),
-              QString::number(mixedCutoutMode_->isChecked())
+              QString::number(mixedCutoutMode_->isChecked()),
+              QString::number(stitchPadCutoutMode_->isChecked())
         }.join('\n');
     }
     void invalidate() {
@@ -965,6 +968,7 @@ class C005ReferenceRiskController final: public QWidget {
         requestedV9_=false;
         requestedV10_=false;
         requestedV11_=false;
+        requestedV12_=false;
         artwork_->setReferenceRisks({});
         status_->setText("NOT_AUDITED / SI NOT_RUN / Solver BLOCKED");
     }
@@ -978,7 +982,11 @@ class C005ReferenceRiskController final: public QWidget {
             return;
         }
         c005::Receipt receipt;
-        const bool parsed=requestedV11_
+        const bool parsed=requestedV12_
+            ? c016::decode(bytes,requestedSha_,artwork_,requestedIndices_,
+                 split_->value(),stitchVia_->value(),net_->text(),
+                 {refA_->value(),refB_->value()},receipt)
+            : requestedV11_
             ? c015::decode(bytes,requestedSha_,artwork_,requestedIndices_,
                  split_->value(),stitchVia_->value(),net_->text(),
                  {refA_->value(),refB_->value()},receipt)
@@ -1092,6 +1100,9 @@ public:
         mixedCutoutMode_=new QCheckBox("C_015 Mixed COPCUT/COPCCO V11 (Source-only V8 ancestry)",this);
         mixedCutoutMode_->setObjectName("c015MixedCutoutMode");
         layout->addWidget(mixedCutoutMode_);
+        stitchPadCutoutMode_=new QCheckBox("C_016 Reference Stitch Via full Pad Source clearance V12",this);
+        stitchPadCutoutMode_->setObjectName("c016StitchPadCutoutMode");
+        layout->addWidget(stitchPadCutoutMode_);
 
         run_=new QPushButton("Audit selected source trace(s)",this);
         run_->setObjectName("c005RunAudit");
@@ -1114,6 +1125,7 @@ public:
         connect(cutoutMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(multiCutoutMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(mixedCutoutMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
+        connect(stitchPadCutoutMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(stitchVia_,QOverload<int>::of(&QSpinBox::valueChanged),
                 this,[this](int){invalidate();});
         connect(&process_,&QProcess::finished,this,
@@ -1157,6 +1169,9 @@ public:
         QStringList args{source_,"--reference-risk-v1",
             QString::number(first_->value()),net_->text(),QString::number(refA_->value())};
         const QString routeText=route_->text().trimmed();
+        if(stitchPadCutoutMode_->isChecked() && !mixedCutoutMode_->isChecked()) {
+            status_->setText("C_016 REQUIRES ORIGINAL C_015 V11 SELECTION / SI NOT_RUN");return;
+        }
         if(mixedCutoutMode_->isChecked() && !clearanceMode_->isChecked()) {
             status_->setText("C_015 REQUIRES C_012 V8 USER SELECTION / SI NOT_RUN");return;
         }
@@ -1207,7 +1222,7 @@ public:
                 if(split_->value()>=static_cast<int>(requestedIndices_.size())) {
                     status_->setText("INVALID C_008 VIA SPLIT / SI NOT_RUN");return;
                 }
-                args={source_,mixedCutoutMode_->isChecked()?"--reference-route-v11":multiCutoutMode_->isChecked()?"--reference-route-v10":cutoutMode_->isChecked()?"--reference-route-v9":clearanceMode_->isChecked()?"--reference-route-v8":padMode_->isChecked()?"--reference-route-v7":corridorMode_->isChecked()?"--reference-route-v6":stitchMode_->isChecked()?"--reference-route-v5":"--reference-route-v4",canonical.join(','),
+                args={source_,stitchPadCutoutMode_->isChecked()?"--reference-route-v12":mixedCutoutMode_->isChecked()?"--reference-route-v11":multiCutoutMode_->isChecked()?"--reference-route-v10":cutoutMode_->isChecked()?"--reference-route-v9":clearanceMode_->isChecked()?"--reference-route-v8":padMode_->isChecked()?"--reference-route-v7":corridorMode_->isChecked()?"--reference-route-v6":stitchMode_->isChecked()?"--reference-route-v5":"--reference-route-v4",canonical.join(','),
                       QString::number(split_->value()),net_->text(),
                       QString::number(refA_->value()),netB_->text(),
                       QString::number(refB_->value())};
@@ -1235,6 +1250,7 @@ public:
         requestedV9_=cutoutMode_->isChecked();
         requestedV10_=multiCutoutMode_->isChecked();
         requestedV11_=mixedCutoutMode_->isChecked();
+        requestedV12_=stitchPadCutoutMode_->isChecked();
         requestedSha_=sha;requestedOptions_=options();activeGeneration_=generation_;
         process_.setProgram(importer_);process_.setArguments(args);process_.start();
         deadline_.start();
