@@ -188,7 +188,7 @@
 
 ### C_015 — Circular COPCCO / rectangular COPCUT mixed source geometry V11 (후보 · 2026-10-30 KST)
 
-- [ ] **C_015 원형·직사각형 혼합 Cutout Source Geometry와 Qt 독립 V11 한정 인수 — 미완료**: [Issue #280](https://github.com/july-rust/BoardSI/issues/280) · [Draft PR #281](https://github.com/july-rust/BoardSI/pull/281) · [검증 원장](validation/c015-circular-mixed-cutout-source-geometry.md). i128 원본 정수 기하·공개 PADS fixture 시험·V11 Worker opt-in·Qt CPU/RHI Risk 및 Native 자가시험 **구현 후보(최종 인수 전)**. **원형 COPCCO 원본 Source에서는 V5–V8 접속 증거 미지원:** V11은 이를 위장하지 않고 V4 원본 Receipt+SOURCE_CONTACT_UNVERIFIED로만 보고한다. 원래 C_015에서 요구한 원형 V8 증명은 **BLOCKED**, CI/Codex/Verified 보호 병합/post-main 증빙 전에는 완료 체크·최초 체크일 기록 금지. 공식 U09/U10/U39/T02/T04/T24/T52, P009, 물리 SI 및 제품 Solver 미완, M1 #12 OPEN.
+- [ ] **C_015 원형·직사각형 혼합 Cutout Source Geometry와 Qt 독립 V11 한정 인수 — 최종 CI·Codex·보호 병합 증거 대기**: [Issue #280](https://github.com/july-rust/BoardSI/issues/280) · [PR #281](https://github.com/july-rust/BoardSI/pull/281) · [검증 원장](validation/c015-circular-mixed-cutout-source-geometry.md). 새 C_015 Source COPCCO/COPCUT 정수 기하와 Canonical 카드널 Arc Cutout·ViaCentre 접촉, 원본 V8 필수 재생성, Qt Signal/Stitch Via/CONTACT·Source Area 독립 검증, Native CPU/RHI 자가시험 **구현 후보**. 이전 HEAD의 Qt 11/11 Workflow 성공은 확장된 V8 인수 증거 아님. 최종 HEAD Rust/Native CI + Codex P2 재리뷰/해결 + Strict Ruleset 서명·Squash+사후 main Checks가 검증되기 전에는 완료 체크·최초 체크일을 기록하지 않는다. Source-local geometric candidate only: P009=UNSUPPORTED, physical SI=NOT_RUN, solver_ready=false, cache_reuse_eligible=false; 공식 U09/U10/U39/T02/T04/T24/T52 및 M1 #12는 미완료/OPEN.
 
 ## 4. 요구사항 U01–U48 체크리스트
 
