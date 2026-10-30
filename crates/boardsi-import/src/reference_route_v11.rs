@@ -160,43 +160,24 @@ pub fn encode(
         // Only a genuine independently produced V8 is an acceptable V8 legacy.
         let v8 = reference_route_v8::encode(bytes, indices, split, refs, layers, stitch_index)?;
         return finish(
-            header[1],
-            severity,
-            indices.len(),
-            split,
-            stitch_index,
-            signal_index,
-            &rows,
-            "V8",
-            &v8,
-            "V8_SOURCE_CONTACT_CANDIDATE",
+            header[1], severity, (indices.len(), split, stitch_index, signal_index),
+            &rows, ("V8", &v8, "V8_SOURCE_CONTACT_CANDIDATE"),
         );
     };
     finish(
-        header[1],
-        severity,
-        indices.len(),
-        split,
-        stitch_index,
-        signal_index,
-        &rows,
-        kind,
-        legacy,
-        contact,
+        header[1], severity, (indices.len(), split, stitch_index, signal_index),
+        &rows, (kind, legacy, contact),
     )
 }
 fn finish(
     sha: &str,
     state: PadRisk,
-    count: usize,
-    split: usize,
-    stitch: usize,
-    signal: usize,
+    identity: (usize, usize, usize, usize),
     rows: &str,
-    kind: &str,
-    legacy: &str,
-    contact: &str,
+    provenance: (&str, &str, &str),
 ) -> Result<String, &'static str> {
+    let (count, split, stitch, signal) = identity;
+    let (kind, legacy, contact) = provenance;
     let mut wire = format!(
         "BOARDSI_REFERENCE_ROUTE_V11|{sha}|{}|UNSUPPORTED|NOT_RUN|0|REFERENCE_TRANSFER_UNVERIFIED|2|{count}|{split}|{stitch}|{signal}|{kind}|{contact}\n{rows}LEGACY|{kind}|{}\n",
         state.wire(), legacy.lines().count()
