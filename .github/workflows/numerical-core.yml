@@ -55,7 +55,7 @@ jobs:
             executable_arch: aarch64
             executable_os: windows
           - name: macOS ARM64
-            runner: macos-14
+            runner: macos-15
             target: aarch64-apple-darwin
             runner_arch: ARM64
             executable_arch: aarch64
