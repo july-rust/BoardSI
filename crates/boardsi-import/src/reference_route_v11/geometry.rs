@@ -45,15 +45,20 @@ fn dist2(a: [i64; 2], b: [i64; 2]) -> i128 {
 
 const SOURCE_LIMIT: i64 = 5_600_000;
 fn bounded_ticks(ticks: &[i64]) -> bool {
-    ticks.iter().all(|&v| (-SOURCE_LIMIT..=SOURCE_LIMIT).contains(&v))
+    ticks
+        .iter()
+        .all(|&v| (-SOURCE_LIMIT..=SOURCE_LIMIT).contains(&v))
 }
 fn valid_rect(r: [i64; 4]) -> bool {
     bounded_ticks(&r) && r[0] < r[2] && r[1] < r[3]
 }
 fn valid_circle(centre: [i64; 2], radius: i64) -> bool {
-    radius > 0 && radius <= SOURCE_LIMIT
+    radius > 0
+        && radius <= SOURCE_LIMIT
         && bounded_ticks(&centre)
-        && centre.iter().all(|&v| i128::from(v).abs() + i128::from(radius) <= i128::from(SOURCE_LIMIT))
+        && centre
+            .iter()
+            .all(|&v| i128::from(v).abs() + i128::from(radius) <= i128::from(SOURCE_LIMIT))
 }
 fn inside_rect(p: [i64; 2], r: [i64; 4]) -> bool {
     p[0] >= r[0] && p[0] <= r[2] && p[1] >= r[1] && p[1] <= r[3]
@@ -189,7 +194,7 @@ pub fn classify(
                 }
             }
             SourceHole::Circle { centre, radius } => {
-                if !valid_circle(radius) {
+                if !valid_circle(centre, radius) {
                     return Err("V11_CIRCLE_INVALID");
                 }
                 let d2 = dist2(p, centre);
@@ -299,7 +304,10 @@ mod tests {
         assert!(!validate_holes(&h, [0, 0, 100, 100]));
         assert!(classify([50, 50], 10, &h).is_err());
         assert!(classify([i64::MAX, 0], 10, &[]).is_err());
-        assert!(!strictly_disjoint(h[0], SourceHole::Rectangle([1, 1, 10, 10])));
+        assert!(!strictly_disjoint(
+            h[0],
+            SourceHole::Rectangle([1, 1, 10, 10])
+        ));
     }
     #[test]
     fn bounded_i128_distance_no_float_rounding() {
