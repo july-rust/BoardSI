@@ -54,7 +54,9 @@ pub fn encode(
     if !(3..=6).contains(&area_names.len())
         || reference_net.is_empty()
         || reference_layer == 0
-        || area_names.iter().any(|name| name.is_empty() || name.len() > 64)
+        || area_names
+            .iter()
+            .any(|name| name.is_empty() || name.len() > 64)
     {
         return Err("C022_INVALID_SELECTION");
     }
@@ -115,7 +117,11 @@ pub fn encode(
         ids.push(hex(canonical.meta.id.source_object.as_bytes()));
     }
     let (groups, boundary_pairs) = components(&bounds)?;
-    let number_of_groups = groups.iter().copied().collect::<std::collections::BTreeSet<_>>().len();
+    let number_of_groups = groups
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
     let source_sha = hex(&digest::sha256(bytes));
     let mut wire = format!(
         "BOARDSI_REFERENCE_AREA_V14|{source_sha}|{}|{number_of_groups}|{}|{boundary_pairs}|UNSUPPORTED|NOT_RUN|0|0\n",
@@ -129,13 +135,23 @@ pub fn encode(
         writeln!(
             &mut wire,
             "AREA|{i}|{}|{}|{reference_layer}|{}|{}|{}|{}|{}|{}",
-            hex(name.as_bytes()), ids[i], rect[0], rect[1], rect[2], rect[3],
-            hex(reference_net.as_bytes()), groups[i]
+            hex(name.as_bytes()),
+            ids[i],
+            rect[0],
+            rect[1],
+            rect[2],
+            rect[3],
+            hex(reference_net.as_bytes()),
+            groups[i]
         )
         .map_err(|_| "C022_OUTPUT_ERROR")?;
     }
-    writeln!(&mut wire, "END|{}|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL", area_names.len())
-        .map_err(|_| "C022_OUTPUT_ERROR")?;
+    writeln!(
+        &mut wire,
+        "END|{}|SOURCE_GEOMETRY_ONLY_NOT_PHYSICAL",
+        area_names.len()
+    )
+    .map_err(|_| "C022_OUTPUT_ERROR")?;
     if wire.len() > MAX_WIRE_BYTES {
         return Err("C022_OUTPUT_LIMIT");
     }
