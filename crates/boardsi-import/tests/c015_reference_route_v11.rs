@@ -49,13 +49,13 @@ fn circular_source_has_genuine_legacy_v8_contact_witness() {
         reference_route_v8::encode(&bytes, &[0, 1], 1, ["NET_REF", "NET_REF"], [2, 3], 1).is_ok()
     );
     let wire = v11(&bytes).unwrap();
-    assert!(wire.contains("|V4|SOURCE_CONTACT_UNVERIFIED\n"));
+    assert!(wire.contains("|V8|V8_SOURCE_CONTACT_CANDIDATE\n"));
     assert_eq!(wire.lines().filter(|x| x.starts_with("HOLE|")).count(), 4);
     assert_eq!(wire.lines().filter(|x| x.contains("|C|")).count(), 2);
     assert!(wire.contains("SOURCE_CUTOUT_GAP_OBSERVED"));
-    let v4 =
-        reference_route_v4::encode(&bytes, &[0, 1], 1, ["NET_REF", "NET_REF"], [2, 3]).unwrap();
-    assert!(wire.contains(&format!("LEGACY|V4|{}\n{v4}", v4.lines().count())));
+    let v8 =
+        reference_route_v8::encode(&bytes, &[0, 1], 1, ["NET_REF", "NET_REF"], [2, 3], 1).unwrap();
+    assert!(wire.contains(&format!("LEGACY|V8|{}\n{v8}", v8.lines().count())));
 }
 #[test]
 fn unsupported_circle_contact_and_geometry_fail_closed() {
