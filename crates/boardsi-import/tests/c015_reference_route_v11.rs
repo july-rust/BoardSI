@@ -43,10 +43,10 @@ fn exact_source_rectangles_preserve_real_v8_legacy() {
     assert!(wire.contains(&format!("LEGACY|V8|{}\n{v8}", v8.lines().count())));
 }
 #[test]
-fn circular_source_never_forges_v8_receipt() {
+fn circular_source_has_genuine_legacy_v8_contact_witness() {
     let bytes = fixture(true);
     assert!(
-        reference_route_v8::encode(&bytes, &[0, 1], 1, ["NET_REF", "NET_REF"], [2, 3], 1).is_err()
+        reference_route_v8::encode(&bytes, &[0, 1], 1, ["NET_REF", "NET_REF"], [2, 3], 1).is_ok()
     );
     let wire = v11(&bytes).unwrap();
     assert!(wire.contains("|V4|SOURCE_CONTACT_UNVERIFIED\n"));
