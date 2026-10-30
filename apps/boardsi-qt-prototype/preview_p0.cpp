@@ -4310,8 +4310,16 @@ static int runC022MultiAreaSelftest(const QString &importer) {
     names->setText("RA,RB,WRONG");
     const bool stale=panel.imported()->referenceRiskCountForTest()==0;
     run->click();
-    const bool invalid=controller.currentStatusForTest().contains("UNSUPPORTED") ||
-        controller.currentStatusForTest().contains("SOURCE AREAS");
+    QEventLoop rejected;
+    QTimer rejectedPoll;
+    QObject::connect(&rejectedPoll,&QTimer::timeout,&rejected,[&] {
+        if(!controller.auditRunningForTest())rejected.quit();
+    });
+    QTimer::singleShot(8000,&rejected,&QEventLoop::quit);
+    rejectedPoll.start(20);rejected.exec();rejectedPoll.stop();
+    const bool invalid=panel.imported()->referenceRiskCountForTest()==0 &&
+        (controller.currentStatusForTest().contains("UNSUPPORTED") ||
+         controller.currentStatusForTest().contains("SOURCE AREAS"));
     controller.resetSource(QString(),QByteArray());
     const bool cleared=panel.imported()->referenceRiskCountForTest()==0;
     const bool pass=marked && details && stale && invalid && cleared;
