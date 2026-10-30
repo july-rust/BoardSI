@@ -675,7 +675,9 @@ fn main() {
             let a = text(3)?;
             let b = text(4)?;
             let net = text(5)?;
-            let layer = text(6)?.parse::<usize>().map_err(|_| "C021_LAYER_INVALID")?;
+            let layer = text(6)?
+                .parse::<usize>()
+                .map_err(|_| "C021_LAYER_INVALID")?;
             let path = std::path::Path::new(&args[1]);
             let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
             if !metadata.is_file()
