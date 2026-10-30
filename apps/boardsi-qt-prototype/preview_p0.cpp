@@ -4128,9 +4128,10 @@ static int runC016MixedCutoutSelftest(const QString &importer) {
     bool fullRim=false;
     if(scene)for(auto *item:scene->items()) {
         if(item->data(3).toString()=="C005ReferenceRisk" &&
-           item->data(2).toString().contains("STITCH_PAD_FOOTPRINT_RISK")) {
+           item->data(2).toString().contains("STITCH_PAD_FOOTPRINT_RISK") &&
+           item->data(2).toString().contains("C_016")) {
+            scene->clearSelection();
             item->setSelected(true);
-            if(!detail.contains("C_016"))continue;
             picked=true;
             auto *rim=qgraphicsitem_cast<QGraphicsEllipseItem *>(item);
             // Source 35 mil Pad = 0.889 mm; CPU outline must be true size.
