@@ -1,6 +1,6 @@
 # C_015 — PADS COPCCO + COPCUT source-exact Signal Via clearance V11 / Qt
 
-**Status (2026-10-30 KST):** implementation and verification candidate, NOT YET ACCEPTED. See [Issue #280](https://github.com/july-rust/BoardSI/issues/280) and [Draft PR #281](https://github.com/july-rust/BoardSI/pull/281). Parent M1 [#12](https://github.com/july-rust/BoardSI/issues/12) remains OPEN.
+**Status (2026-10-30 KST):** LIMITED SOURCE-GEOMETRY ACCEPTED at protected Signed Verified squash `main@273417a7555a1dddc5724b15b062029ddf3b6e52` ([PR #281](https://github.com/july-rust/BoardSI/pull/281), [Issue #280](https://github.com/july-rust/BoardSI/issues/280)). This is **not** a physical SI/return-path qualification. Parent M1 [#12](https://github.com/july-rust/BoardSI/issues/12) remains OPEN.
 
 ## Scope and original-source ancestry
 
@@ -12,13 +12,13 @@
 
 ## Tests and evidence
 
-- Earlier provisional Source geometry-only candidate passed 11/11 PR Workflows, including Rust and Native Qt on Windows x64/ARM64, macOS ARM64 and Linux Qt offscreen. **This does not qualify the newly expanded circular V8 contract.**
+- Earlier provisional Source geometry-only candidate passed 11/11 PR Workflows, including Rust and Native Qt on Windows x64/ARM64, macOS ARM64 and Linux Qt offscreen. **Earlier evidence alone did not qualify the newly expanded circular V8 contract; final-head evidence below now does.**
 - Current head requires the final newly added Rust `tests/c015_reference_route_v11.rs`, `tests/c015_mixed_cutout_source_geometry.rs`, Source canonical model, Native Qt `--c015-mixed-cutout-selftest`, and all existing A/B/C regression gates to pass on the same final HEAD.
-- Independent Codex reviewed an earlier HEAD and found a P2 Qt Stitch Via void-centre/CONTACT-binding vulnerability. Source-geometry independent validation and nested V8/CONTACT ID check were added. **Final same-head Codex re-review and closure of the review thread required.**
-- [ ] Final-head fmt, Clippy `-D warnings`, Debug/Release, Native platform matrix and 17 strict required Checks PASS.
-- [ ] Final-head Codex review completed with zero unresolved findings; thread resolved with evidence.
-- [ ] Signed Verified protected Squash and independent post-merge GitHub Checks/Push Workflow success.
-- [ ] Dated `docs/development-checklist.md` limited C_015 acceptance then Issue #280 closure only after evidence.
+- Independent Codex reviewed an earlier HEAD and found a P2 Qt Stitch Via void-centre/CONTACT-binding vulnerability. Source-geometry independent validation and nested V8/CONTACT ID check were added. **Final exact-head Codex review completed at `95daabc02339aa37a3c5ddb84af7e4798c54e96b` with no findings and 0 unresolved review threads; previous P2 corrected and thread resolved.**
+- [x] Final code HEAD [`95daabc02339aa37a3c5ddb84af7e4798c54e96b`](https://github.com/july-rust/BoardSI/commit/95daabc02339aa37a3c5ddb84af7e4798c54e96b/checks) **28/28 PR Check Runs SUCCESS**, including all 17 Strict Ruleset #25046595 required checks; Rust fmt/Clippy/Debug/Release and Native Qt Windows x64/ARM64, macOS ARM64, Linux offscreen (2026-10-30 KST).
+- [x] [Codex exact HEAD summary](https://github.com/july-rust/BoardSI/pull/281#issuecomment-6512392807) completed, `has_any_findings=false`, `has_unresolved_findings=false`; original P2 review thread resolved (2026-10-30 KST).
+- [x] Protected Squash [`273417a7555a1dddc5724b15b062029ddf3b6e52`](https://github.com/july-rust/BoardSI/commit/273417a7555a1dddc5724b15b062029ddf3b6e52) has one parent and `verified=true, reason=valid`. Independent [post-main 21/21 Check Runs SUCCESS](https://github.com/july-rust/BoardSI/commit/273417a7555a1dddc5724b15b062029ddf3b6e52/checks), [Push on main #40987447378](https://github.com/july-rust/BoardSI/actions/runs/40987447378) SUCCESS, and 8/8 push-triggered workflows SUCCESS (2026-10-30 KST).
+- [x] `docs/development-checklist.md` C_015 narrow `[x]` added with first-check date 2026-10-30 KST, evidence date 2026-10-30 KST and exact PR/commit/check links; documentation PR must itself pass protected CI, Signed Verified merge and independent post-main checks before Issue #280 closure.
 
 ## Out-of-scope/nonclaims (immutable)
 
