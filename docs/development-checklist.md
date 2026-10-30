@@ -196,7 +196,7 @@
 
 ### C_017 — Reference Gap/Layer Transition V1–V4 한정 통합 안정화 (검증 진행 중 · 2026-10-30 KST)
 
-- [ ] **C_017 V1–V4 Source SHA·Gap·Plated Via Risk 교차 회귀 및 Qt Native 보존** — [Issue #287](https://github.com/july-rust/BoardSI/issues/287), [검증 원장](validation/c017-reference-gap-layer-transition-integration.md), 새 Rust 한정 통합시험 `c017_reference_gap_transition_integration.rs`. 정확한 최종 Source HEAD CI/독립 Codex 리뷰/Verified Squash/post-main 검증 전에는 체크하지 않는다. 실 P009/제품 SI/Solver/Cache 및 정식 U/T 인수 대상 아님.
+- [x] **C_017 V1–V4 Source SHA·Gap·Plated Via Risk 한정 통합 회귀 및 기존 Qt Native 증거 정합성 인수** — **체크일: 2026-10-30 KST** · **근거일: 2026-10-30 KST**. [Issue #287](https://github.com/july-rust/BoardSI/issues/287), [코드 PR #288](https://github.com/july-rust/BoardSI/pull/288), [검증 원장](validation/c017-reference-gap-layer-transition-integration.md). 최종 Source HEAD [`d85846799fa81bf236ad0e72deb9fbb8452b7e19`](https://github.com/july-rust/BoardSI/commit/d85846799fa81bf236ad0e72deb9fbb8452b7e19/checks) **22/22 Checks SUCCESS**, Rust 신규 **Debug/Release 4/4 각각 PASS**, 기존 Qt Windows x64/ARM64·macOS ARM64 및 Linux Qt 검증 SUCCESS. 동일 HEAD Codex `completed`, findings=0, unresolved=0. 보호된 Signed Verified Squash [`main@046ba46ba93fc6ced803519bba96982f3b7311d7`](https://github.com/july-rust/BoardSI/commit/046ba46ba93fc6ced803519bba96982f3b7311d7) 검증, **독립 post-code-main 21/21 Checks·8/8 Push Workflows SUCCESS**. **Source-only 한정 코드 인수 [x]**이며 이 문서 PR의 병합/CI는 별도 Gate. 전체 실제 P009·전기적 Return Path·Solver/Cache·정식 U/T는 미완료로 유지.
 
 ## 4. 요구사항 U01–U48 체크리스트
 
