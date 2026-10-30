@@ -4163,9 +4163,94 @@ static int runC016MixedCutoutSelftest(const QString &importer) {
     return pass?0:1;
 }
 // C_012: two Source Via Pads -> Rust V8 -> Qt CPU/RHI original-size rims and stale.
+// C_021: independent real Rust importer -> Qt two source-COPCLS area audit.
+static int runC021ReferenceAreaSelftest(const QString &importer) {
+    QTemporaryFile source;
+    if(!source.open())return 2;
+    const QByteArray bytes(
+        "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n"
+        "*PCB*\nMAXLAYER 4\n"
+        "*LINES*\n"
+        "RA COPPER 0 0 1 1 0 NET_REF\n"
+        "COPCLS 5 0.01 0 2\n100 100\n250 100\n250 200\n100 200\n100 100\n"
+        "RB COPPER 0 0 1 1 0 NET_REF\n"
+        "COPCLS 5 0.01 0 2\n200 100\n400 100\n400 200\n200 200\n200 100\n"
+        "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n"
+        "150 150 1 10 0\n350 150 1 10 0\n"
+        "*SIGNAL* NET_REF\nR1.1 R2.2\n"
+        "120 180 2 10 0\n180 180 2 10 0\n"
+        "*END*\n");
+    if(source.write(bytes)!=bytes.size() || !source.flush())return 2;
+    PreviewImportPanel panel(importer);
+    QEventLoop load;
+    panel.setStatusCallback([&load](const QString &s) {
+        if(s.startsWith("PARTIAL") || s.startsWith("FAILED"))load.quit();
+    });
+    if(!panel.openPath(source.fileName()))return 2;
+    QTimer::singleShot(8000,&load,&QEventLoop::quit);
+    load.exec();
+    if(!panel.importStatus().startsWith("PARTIAL") ||
+       panel.imported()->copperCount()!=2)return 1;
+    C005ReferenceRiskController controller(panel.imported(),importer);
+    controller.resetSource(source.fileName(),panel.acceptedSourceSha256());
+    auto *net=controller.findChild<QLineEdit *>("c005ReferenceNet");
+    auto *areaA=controller.findChild<QLineEdit *>("c021AreaNameA");
+    auto *areaB=controller.findChild<QLineEdit *>("c021AreaNameB");
+    auto *mode=controller.findChild<QCheckBox *>("c021AreaMode");
+    auto *run=controller.findChild<QPushButton *>("c005RunAudit");
+    if(!net || !areaA || !areaB || !mode || !run)return 2;
+    QString detail;
+    panel.imported()->setDetailsCallback([&detail](const QString &s){detail=s;});
+    net->setText("NET_REF");
+    areaA->setText("RA");
+    areaB->setText("RB");
+    mode->setChecked(true);
+    run->click();
+    QEventLoop audit;
+    QTimer poll;
+    QObject::connect(&poll,&QTimer::timeout,&audit,[&] {
+        if(!controller.auditRunningForTest())audit.quit();
+    });
+    QTimer::singleShot(8000,&audit,&QEventLoop::quit);
+    poll.start(20);audit.exec();poll.stop();
+    const bool marked=controller.currentStatusForTest().contains("POSITIVE_AREA_OVERLAP_CANDIDATE")
+        && panel.imported()->referenceRiskCountForTest()==1;
+    auto *scene=panel.imported()->findChild<QGraphicsScene *>();
+    bool picked=false;
+    if(scene)for(auto *item:scene->items()) {
+        if(item->data(3).toString()=="C005ReferenceRisk" &&
+           item->data(2).toString().contains("CORRIDOR_CANDIDATE_RISK")) {
+            item->setSelected(true);picked=true;
+        }
+    }
+    const bool details=picked && detail.contains("C_021") &&
+        detail.contains("P009 UNSUPPORTED") && detail.contains("SI NOT_RUN");
+    areaB->setText("UNKNOWN");
+    const bool stale=panel.imported()->referenceRiskCountForTest()==0;
+    run->click();
+    QEventLoop rejected;
+    QTimer rejectedPoll;
+    QObject::connect(&rejectedPoll,&QTimer::timeout,&rejected,[&] {
+        if(!controller.auditRunningForTest())rejected.quit();
+    });
+    QTimer::singleShot(8000,&rejected,&QEventLoop::quit);
+    rejectedPoll.start(20);rejected.exec();rejectedPoll.stop();
+    const bool invalid=panel.imported()->referenceRiskCountForTest()==0 &&
+        (controller.currentStatusForTest().contains("C_021 REQUIRES TWO") ||
+         controller.currentStatusForTest().contains("UNSUPPORTED"));
+    controller.resetSource(QString(),QByteArray());
+    const bool cleared=panel.imported()->referenceRiskCountForTest()==0;
+    const bool pass=marked && details && stale && invalid && cleared;
+    qInfo() << "C021_NATIVE_QT_SOURCE_RECTANGLE" << pass << marked << details
+            << stale << invalid << cleared << "SI_NOT_RUN";
+    return pass?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--c021-area-selftest")
+        return runC021ReferenceAreaSelftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--c016-stitch-pad-selftest")
         return runC016MixedCutoutSelftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--c015-mixed-cutout-selftest")

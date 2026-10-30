@@ -102,6 +102,11 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --c005-risk-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-c005-reference-risk PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # C_021: exactly two source rectangles, actual Rust->Qt warning/stale.
+    add_test(NAME qt-preview-c021-reference-two-area
+      COMMAND boardsi-preview-p0 --c021-area-selftest "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-c021-reference-two-area PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # C_014: Source 0-8 rectangular COPCUT, Qt independent decode, stale state.
     add_test(NAME qt-preview-c014-multi-cutout
       COMMAND boardsi-preview-p0 --c014-multi-cutout-selftest "${BOARDSI_IMPORTER}")
