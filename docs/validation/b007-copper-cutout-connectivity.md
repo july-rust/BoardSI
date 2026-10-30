@@ -27,3 +27,10 @@ Tracking: [M1 Issue #12](https://github.com/july-rust/BoardSI/issues/12); prior 
 ## Safety boundary
 
 `return_path_p009=UNSUPPORTED`, `solver_ready=false`, `physical_si=NOT_RUN`, `cache_reuse_eligible=false` are unchanged. No claim of actual manufactured copper fill, full-board Open/Short, continuous high-frequency current return, RLGC/S-parameters, loss/roughness physics, scenario/cache acceptance or formal U09/U10/U39/T02/T04/T24/T52 acceptance. **M1 B_001 parent Issue #12 stays OPEN.**
+
+
+## C_020 retrospective evidence clarification — 2026-10-30 KST
+
+[C_020 audit](c020-legacy-connectivity-review-audit.md) independently checked GitHub PR metadata and existing review artifacts. The historical unchecked line above referring to *this documentation PR* is preserved as an **at-the-time pending gate**; it does not describe current PR #232 state: [documentation PR #232](https://github.com/july-rust/BoardSI/pull/232) is now **CLOSED/MERGED** (`695e43f62fa911af4f6b278481bbb7fdcc043690` → [`main@43c5d54d5af58d110e98a3260f0e93221c2e4896`](https://github.com/july-rust/BoardSI/commit/43c5d54d5af58d110e98a3260f0e93221c2e4896)). Historical workflow/check figures remain credited to their recorded evidence; no new post-merge check-run enumeration is claimed here.
+
+**Unchanged separate gap:** original code PR #231's *exact final* source HEAD `6a75eb5c5616d86407a04a946bc994958fb55ea6` latest Codex receipt still states `status=running`, findings=null; the submitted Codex review body names older `40faa94332`, although three review threads are resolved. **Original exact-HEAD Codex completed/zero-finding receipt = NOT_VERIFIED, not PASS.** C_020's new review cannot retroactively certify #231. Physical Return Path/P009, Solver/Cache, RLGC/S and formal U09/U10/U39/T02/T04/T24/T52 remain unaccepted; Issue #12 remains OPEN.
