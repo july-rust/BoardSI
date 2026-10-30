@@ -65,3 +65,41 @@ pub fn classify(p:[i64;2],diameter:i64,outer:[i64;4],holes:&[SourceHole])
     }
     Ok((risk,chosen))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn outer_edge_exact_gap_tangent_cross() {
+        let o=[0,0,100,100];
+        assert_eq!(classify([50,50],20,o,&[]).unwrap().0,Risk::Full);
+        assert_eq!(classify([10,50],20,o,&[]).unwrap().0,Risk::OuterTangent);
+        assert_eq!(classify([9,50],20,o,&[]).unwrap().0,Risk::OuterCross);
+    }
+    #[test]
+    fn rectangle_edge_exact_and_centre_rejected() {
+        let o=[0,0,100,100];
+        let h=[SourceHole::Rectangle([40,40,60,60])];
+        assert_eq!(classify([20,50],20,o,&h).unwrap().0,Risk::Full);
+        assert_eq!(classify([30,50],20,o,&h).unwrap().0,Risk::CutoutTangent);
+        assert_eq!(classify([31,50],20,o,&h).unwrap().0,Risk::CutoutIntersect);
+        assert!(classify([50,50],20,o,&h).is_err());
+    }
+    #[test]
+    fn mixed_circle_and_rectangle_are_analytic() {
+        let o=[0,0,200,200];
+        let h=[SourceHole::Circle{centre:[100,100],radius:20},
+            SourceHole::Rectangle([140,80,160,120])];
+        assert_eq!(classify([64,100],30,o,&h).unwrap().0,Risk::Full);
+        assert_eq!(classify([65,100],30,o,&h).unwrap().0,Risk::CutoutTangent);
+        assert_eq!(classify([66,100],30,o,&h).unwrap().0,Risk::CutoutIntersect);
+        assert_eq!(classify([130,100],20,o,&h).unwrap().0,Risk::CutoutTangent);
+    }
+    #[test]
+    fn rejects_unsupported_and_out_of_range() {
+        let o=[0,0,100,100];
+        assert!(classify([50,50],0,o,&[]).is_err());
+        assert!(classify([i64::MAX,50],20,o,&[]).is_err());
+        assert!(classify([50,50],20,o,&[SourceHole::Rectangle([40,40,60,60]);9]).is_err());
+    }
+}
