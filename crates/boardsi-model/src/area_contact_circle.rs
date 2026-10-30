@@ -103,8 +103,7 @@ fn circle(segs: &[BoundarySegment], p: &Point) -> Result<([i64; 2], i64), ModelE
         let dx = i128::from(start.ticks[0]) - i128::from(c.ticks[0]);
         let dy = i128::from(start.ticks[1]) - i128::from(c.ticks[1]);
         let radius = dx.abs().max(dy.abs());
-        if radius < 1000
-            || radius > 5_600_000
+        if !(1000..=5_600_000).contains(&radius)
             || (dx == 0) == (dy == 0)
             || centre.is_some_and(|q| q != c.ticks)
             || rad.is_some_and(|r| r != radius)
