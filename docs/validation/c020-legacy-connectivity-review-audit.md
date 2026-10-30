@@ -52,3 +52,18 @@ Formal U09/U10/U39, T02/T04/T24/T52 remain **unchecked**. Parent [M1 Issue #12](
 - [ ] Final completion evidence entered into the [living checklist](../development-checklist.md); first checked date not rewritten.
 
 If final PR acceptance needs a separate documentation closeout PR, keep these gates unchecked until objectively evidenced. Never claim that this audit creates the missing historic Codex receipt.
+
+
+## 5. C_020 verified PR and protected integration (2026-10-30 KST)
+
+- [x] [Audit PR #297](https://github.com/july-rust/BoardSI/pull/297) exact final HEAD [`8c777a3ffc24c63a78ba83fae813feafa20bd76f`](https://github.com/july-rust/BoardSI/commit/8c777a3ffc24c63a78ba83fae813feafa20bd76f/checks): **22/22 GitHub Check Runs SUCCESS**, **8/8 PR-associated Workflows SUCCESS**, including Rustfmt/Clippy/Numerical and actual Qt Windows x64/ARM64, macOS ARM64, Linux offscreen Native CI. C_020 itself changed **only 3 Markdown documents**; inherited Rust/Qt tests passed in CI, not locally run new C_020 code.
+- [x] Independent same-final-HEAD PR #297 Codex `status=completed`, `has_any_findings=false`, `has_unresolved_findings=false`, zero unresolved Review Threads. This review covers **C_020 HEAD**, never retroactively B_007 PR #231 original final HEAD.
+- [x] GitHub protected Squash Merge [`main@fee8ae63e912ced0f8fb823374246949bc0f7edc`](https://github.com/july-rust/BoardSI/commit/fee8ae63e912ced0f8fb823374246949bc0f7edc), direct GitHub REST `verified=true`, `reason=valid`, one parent `6728577345280950b9e6aff08047d86d6a2295a2`; no branch protection bypass.
+- [ ] **Independent post-C_020-code-main checks and Push workflows**: pending until direct reads of exact `fee8ae63` show all expected Checks and workflow runs completed successfully. PR-head green is not post-main green.
+- [ ] **This final-acceptance documentation PR**: separate exact HEAD required CI, independent Codex review, protected Signed Verified Squash and post-document-main checks must each be independently recorded before Issue #296 is closed.
+
+### Additional direct historical verification
+
+In this C_020 session GitHub REST was later used to enumerate the **original** B_007 exact source HEAD `6a75eb5c5616d86407a04a946bc994958fb55ea6` **28/28 Check Runs SUCCESS**, `main@8aae7504417f6aa8d212a0906de658ed173c4ef9` **21/21 post-main Check Runs SUCCESS**, `verified=true/reason=valid` with one parent, and subsequent documentation `main@43c5d54d5af58d110e98a3260f0e93221c2e4896` also Verified/one parent. These later direct checks supersede section 1's narrower *initial inspection* qualification about counts; they **still do not supply the missing original exact-final-HEAD B_007 completed Codex review receipt**.
+
+All physical SI and full M1 acceptance exclusions from section 3 remain unchanged.
