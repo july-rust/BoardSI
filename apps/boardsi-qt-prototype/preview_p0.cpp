@@ -4256,7 +4256,7 @@ static int runC022MultiAreaSelftest(const QString &importer) {
         "RA COPPER 0 0 1 1 0 NET_REF\n"
         "COPCLS 5 0.01 0 2\n100 100\n250 100\n250 200\n100 200\n100 100\n"
         "RB COPPER 0 0 1 1 0 NET_REF\n"
-        "COPCLS 5 0.01 0 2\n200 100\n350 100\n350 200\n200 200\n"
+        "COPCLS 5 0.01 0 2\n200 100\n350 100\n350 200\n200 200\n200 100\n"
         "RC COPPER 0 0 1 1 0 NET_REF\n"
         "COPCLS 5 0.01 0 2\n500 100\n650 100\n650 200\n500 200\n500 100\n"
         "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n"
