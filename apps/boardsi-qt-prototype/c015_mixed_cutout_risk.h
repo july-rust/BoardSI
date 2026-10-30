@@ -197,6 +197,14 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
     c005::Receipt receipt;
     const bool valid=c012::decode(legacy,sha,panel,selected,split,stitchIndex,referenceNet,layers,receipt);
     if(!valid)return false;
+    // Never allow a geometrically valid unselected Via to be substituted for
+    // the source-authenticated V8 route transition (C_014 legacy binding rule).
+    const auto legacyHeader=legacy.split('\n').first().split('|');
+    if(legacyHeader.size()!=13 ||
+       legacyHeader[0]!="BOARDSI_REFERENCE_ROUTE_V8" ||
+       legacyHeader[1]!=sha ||
+       legacyHeader[10]!=h[10] || legacyHeader[11]!=h[11])
+        return false;
     receipt.markers.insert(receipt.markers.end(),markers.begin(),markers.end());
     receipt.state=overall;
     receipt.reason=circles?
