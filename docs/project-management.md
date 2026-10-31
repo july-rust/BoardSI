@@ -22,6 +22,10 @@ The connected GitHub service does not offer a direct Projects creation action. U
 - No real company PCB/stackup/netlist/Touchstone data in repository, PRs, Issues, CI or artifacts.
 - Native compilation and actual runtime acceptance are distinct; the docs-only CI intentionally checks neither.
 
+## 2026-10-31 owner-priority reconciliation (C_025_04)
+
+The original runnable-Preview-first policy was preserved from [legacy PR #153](https://github.com/july-rust/BoardSI/pull/153) as the dated [delivery-first playbook](preview-delivery-playbook.md), reconciled against current implementation status. Historical P0 [Issue #152](https://github.com/july-rust/BoardSI/issues/152) is Closed/Completed; A/B/C bounded work is separately recorded in the [development checklist](development-checklist.md). The former P0-specific deferral of GPU and other features is **not** a blanket restriction on current planned development. Formal M0 F1/F6/F7, PH-08 Gate Q, M1 #12 and M2 #16 remain independently gated; developer Preview is not release authorization. [C_025_04 audit](validation/c02504-legacy-open-pr-reconciliation.md) tracks superseded PRs. This paragraph changes development scheduling documentation only, not code or specification U/T acceptance.
+
 ## M2 G0 / G1 change history — 2026-10-15 KST
 
 - [#33](https://github.com/july-rust/BoardSI/pull/33) G0 independent synthetic PEC-grounded-box FVM oracle and frozen mathematical/numerical gates were squash merged at `main@ec5fa4b048c0c00d8588dfd90f2c35e1107e220b`.
