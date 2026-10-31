@@ -225,7 +225,7 @@
 
 ### C_023 — Multi-Area Reference Corridor V15 (개발 진행 중 · 2026-10-31 KST)
 
-- [ ] **C_023 V15 Source-Exact Signal Corridor Coverage / Gap 및 Qt 위험 표시** — [Issue #309](https://github.com/july-rust/BoardSI/issues/309), [개발 PR #310](https://github.com/july-rust/BoardSI/pull/310), [검증 원장](validation/c023-reference-corridor-coverage.md). **현재 상태: 구현 후보, CI/독립 Codex/보호 병합/post-main 미검증. 완료 체크 금지.** C_022 V14 전체 Source Area/Canonical 신원 검사 위에 단일 직선 Signal Trace의 Reference Area 구간 합집합, 양의 길이 Gap 및 경계·분리 Component 위험만 감사. 실제 Copper 접촉/P009/물리 Return/Solver/Cache/정식 U09/U10/U39/T02/T04/T24/T52 미인수; 상위 M1 #12 OPEN.
+- [ ] **C_023 V15 Source-Exact Signal Corridor Coverage / Gap 및 Qt 위험 표시** — [Issue #309](https://github.com/july-rust/BoardSI/issues/309), [개발 PR #310](https://github.com/july-rust/BoardSI/pull/310), [검증 원장](validation/c023-reference-corridor-coverage.md). **현재 상태: 코드 PR #310 최종 HEAD 27/27 Checks·11/11 Workflows 성공, Codex 동일 HEAD zero findings, 보호된 Signed Verified Squash `main@69c37dc4`까지 독립 확인. 병합 후 Push CI 및 최종 문서 검증 전이므로 C_023 전체 완료 체크 보류.** C_022 V14 전체 Source Area/Canonical 신원 검사 위에 단일 직선 Signal Trace의 Reference Area 구간 합집합, 양의 길이 Gap 및 경계·분리 Component 위험만 감사. 실제 Copper 접촉/P009/물리 Return/Solver/Cache/정식 U09/U10/U39/T02/T04/T24/T52 미인수; 상위 M1 #12 OPEN.
 
 ## 4. 요구사항 U01–U48 체크리스트
 
