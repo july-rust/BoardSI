@@ -99,11 +99,11 @@ jobs:
               with open(summary, "a", encoding="utf-8") as out:
                   out.write("## SEC_001 Code Scanning read-only observation\n\n")
                   out.write(f"- Result: **{result}**\n")
-                  out.write(f"- Alert #1 state: \`{state}\`\n")
-                  out.write(f"- Fixed at: \`{alert.get('fixed_at') or 'none'}\`\n")
-                  out.write(f"- Rule: \`{rule_id}\`\n")
-                  out.write(f"- Equivalent open alert IDs: \`{equivalents}\`\n")
-                  out.write(f"- Default branch SHA: \`{main_sha}\`\n")
-                  out.write(f"- Observed at (UTC): \`{now}\`\n")
+                  out.write(f"- Alert #1 state: `{state}`\n")
+                  out.write(f"- Fixed at: `{alert.get('fixed_at') or 'none'}`\n")
+                  out.write(f"- Rule: `{rule_id}`\n")
+                  out.write(f"- Equivalent open alert IDs: `{equivalents}`\n")
+                  out.write(f"- Default branch SHA: `{main_sha}`\n")
+                  out.write(f"- Observed at (UTC): `{now}`\n")
                   out.write("\nNo alert state was modified. 'NOT_FIXED' is a factual observation, not permission to dismiss an alert.\n")
           PY
