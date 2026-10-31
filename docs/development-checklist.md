@@ -21,7 +21,7 @@
 | M2 연구·제품 Solver | PEC/lossless FEM 합성 쿠폰 수학 검증만 존재 ([M2 검증 원장](validation/README.md)) | **제품 Solver 미완**; PH-08 원본 Gate Q **FAIL 유지** |
 | M2a/M2b/M2c, M3–M5 | 단계별 요구 명세 있음; 일부 기술 시연만 존재 | **미완 / 후속** |
 | GPU 렌더 | 제한 RHI Native Frame/Picking 회귀 | 고객 GPU 드라이버·VRAM·Reset·1M@60FPS **미검증** |
-| Security / 출시 | SEC_001 코드 변경 및 CodeQL CI 이력 ([SEC_001 코드 검사](validation/sec001-codeql-markdown-comment-scan.md)) | 실제 Alert #1 상태 NOT_VERIFIED; 라이선스·배포 미완 |
+| Security / 출시 | SEC_001 코드 수정 [PR #206](https://github.com/july-rust/BoardSI/pull/206), [CodeQL Alert #1 실제 Fixed 읽기 감사](https://github.com/july-rust/BoardSI/actions/runs/41183754657), [SEC_001 기록](validation/sec001-codeql-markdown-comment-scan.md) | **SEC_001 경고 #1 Fixed 직접 확인** (2026-10-26 08:25:02 UTC 수정, 2026-10-31 08:14:14 UTC 재확인), 동일 규칙 미해결 Open 경고 0; **전체 보안/라이선스·배포 미완** |
 
 **날짜 기준:** 모든 `[x]`는 `체크일`(처음 체크리스트에 기록된 날짜, KST)과 `근거일`(참조 PR의 병합일 또는 사양서 개정일, KST)을 별도로 표시합니다. 최초 체크 13개는 2026-10-26에 등록했습니다. 선행 근거일이 전체 제품 인수 완료를 의미하지는 않습니다.
 
@@ -43,6 +43,10 @@
 - [x] 연속 다른 PADS 합성 보드 재Import의 stale 객체·필터 상태 제거 — [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #202](https://github.com/july-rust/BoardSI/pull/202))
 - [x] 10K·100K·1M **합성** 객체의 렌더/상호작용 회귀 시험(성능 보증 아님) — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-24 KST** ([PR #173](https://github.com/july-rust/BoardSI/pull/173))
 - [x] Windows x64·Windows ARM64·macOS ARM64 **Native CI 시험 환경** 범위 PASS — [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · **체크일: 2026-10-26 KST** · **근거일: 2026-10-26 KST** ([PR #208](https://github.com/july-rust/BoardSI/pull/208))
+
+### SEC_001 실제 Code Scanning 상태 인수 — 전체 제품 보안 인수와 별개
+
+- [x] **SEC_001 CodeQL `py/bad-tag-filter` Alert #1 실제 `Fixed` 검증** — 기존 [수정 PR #206](https://github.com/july-rust/BoardSI/pull/206) 보호 병합 `main@6208db7083f4c56f91810e79d74ae22074221ecd`, [최신 기준 main@477428da의 21/21 CI](https://github.com/july-rust/BoardSI/commit/477428da3895ee4a2ff19dda5d53932754e3a6ba/checks), [독립 GitHub Actions 읽기 전용 API 감사](https://github.com/july-rust/BoardSI/actions/runs/41183754657): `state=fixed`, `fixed_at=2026-10-26T08:25:02Z`, 동일 `py/bad-tag-filter` 규칙으로 현재 열려 있는 Alert 0건. **체크일: 2026-10-31 KST** · **근거일: 2026-10-31 KST**. Code Scanning Alert #1 한정 인수이며 전체 보안 규칙/새 취약점 무결성 또는 릴리즈 인증을 의미하지 않습니다. [Issue #205](https://github.com/july-rust/BoardSI/issues/205).
 
 ### A_036 이후에도 반드시 남겨 두는 미완 항목
 
@@ -369,12 +373,14 @@
 1. **문서 관리 담당은 챙(ChatGPT)**입니다. 사용자는 일상적으로 문서를 열람만 하고, 체크/날짜/근거 갱신은 챙이 GitHub PR로 수행합니다. `B_001`을 포함한 모든 후속 기능·수정 PR에서 이 문서를 함께 검토하며, 해당 Uxx·Txx·단계·검증 한계·Issue/PR 링크를 **동일 PR**에서 최신화합니다. 변경이 없다면 PR 본문에 `체크리스트 변경 없음`과 범위·이유를 적습니다.
 2. 체크 전 **사양서 요구와 검증 범위가 일치**하는지 확인합니다. 증거: 원본/공개 Fixture·PR·최종 Commit SHA·CI/실행 로그·OS·독립 검토 결과. Green CI/PR Merge만으로 실 PCB Solver/제품을 PASS로 승격하지 않습니다.
 3. 판정: `완료`=해당 문장 전체 수용, `부분 증빙`=일부 구현/시험, `정식 인수 미검증`=제품 게이트 부족, `BLOCKED`=실패 또는 명시적 외부 조건 미해결. 제한 완료와 제품 전체 완료를 섞지 않습니다.
-4. 물리 Gate Q **historical FAIL**, M0 **BLOCKED**, CodeQL Alert #1의 **실제 Open/Fixed 상태 NOT_VERIFIED**, GPU 측정/라이선스·배포 미완 상태는 별도 근거가 확인되기 전 변경하지 않습니다.
+4. 물리 Gate Q **historical FAIL**, M0 **BLOCKED**, GPU 측정/라이선스·배포 미완 상태는 별도 근거가 확인되기 전 변경하지 않습니다. CodeQL Alert #1은 **2026-10-31 KST에 GitHub Actions의 `security-events: read`로 실제 `fixed` 상태 확인** ([감사 실행](https://github.com/july-rust/BoardSI/actions/runs/41183754657)); 이후 재발 여부는 새 분석 시 별도 검증하며 전체 보안 인수로 일반화하지 않습니다.
 5. 체크를 새로 표시할 때는 반드시 실제 KST 날짜의 `**체크일: YYYY-MM-DD KST**`와 근거 링크·근거일을 기록합니다. 이미 체크된 항목을 재검증하더라도 최초 체크일은 유지하며, 정정은 변경 이력에 남깁니다. GitHub 문서 CI가 체크일 누락 및 날짜 형식 오류를 검사합니다.
 6. 위 운영 방식은 GitHub 계정의 기술적 접근권한 변경이 아닙니다. 저장소 소유자 권한은 그대로 유지되며, 현재 동일 계정 인증으로 챙의 수정과 소유자의 직접 수정을 GitHub가 기술적으로 구별하지는 못합니다.
 7. 각 단계 종료 후 아래 이력에 작업 번호, 변경된 U/T, 최종 `main` SHA, Native 테스트·Codex 리뷰 증빙 및 아직 미검증인 항목을 기록합니다.
 
 ### 변경 이력
+
+| 2026-10-31 | C_025_02 SEC_001 실제 Code Scanning Fixed 검증 | [기존 수정 PR #206](https://github.com/july-rust/BoardSI/pull/206), [실제 GitHub API 감사 #41183754657](https://github.com/july-rust/BoardSI/actions/runs/41183754657), [Issue #205](https://github.com/july-rust/BoardSI/issues/205), [main@477428da 21/21 Checks](https://github.com/july-rust/BoardSI/commit/477428da3895ee4a2ff19dda5d53932754e3a6ba/checks) | **최초 체크일: 2026-10-31 KST · 근거일: 2026-10-31 KST.** Alert #1 실제 `fixed` (2026-10-26T08:25:02Z), 동일 규칙 Open 0. 라이선스·배포, M0, PH-08 및 전체 U/T 등 범위 변경 없음. |
 
 | 2026-10-31 | C_022 V14 3~6 Source Rectangle Copper Component/Island 위험 한정 인수 | [Issue #304](https://github.com/july-rust/BoardSI/issues/304), [Code PR #305](https://github.com/july-rust/BoardSI/pull/305), [Verified `main@242293dd`](https://github.com/july-rust/BoardSI/commit/242293dda118024697b6d1cb3bde5a521e6fa2cf), [27/27 exact PR HEAD](https://github.com/july-rust/BoardSI/commit/e077eeaa8f31766ae94757bb90a90dcdd129cb34/checks), [21/21 post-main](https://api.github.com/repos/july-rust/BoardSI/commits/242293dda118024697b6d1cb3bde5a521e6fa2cf/check-runs?per_page=100), [원장](validation/c022-reference-multi-area-connectivity.md) | **최초 체크일: 2026-10-31 KST · 근거일: 2026-10-31 KST.** 11/11 PR workflows, independent exact HEAD Codex findings=0/unresolved=0, protected Verified Squash 1 parent, 8/8 push workflows; 제한 Source Geometry 후보 그룹/Island 위험 [x]. 문서 PR 자체는 별도 CI·리뷰·병합·post-main 검증 필요. Parent M1 #12 OPEN, P009/전기적 접촉/실물 Fill/DRC/RLGC/S Solver/Cache, U/T 인수 미완. |
 

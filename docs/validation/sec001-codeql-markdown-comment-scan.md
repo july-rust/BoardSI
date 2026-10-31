@@ -21,17 +21,22 @@ The existing M0 traceability script's mutation tests still cover hidden required
 - actual newline-spanning comments, including a raw `<style>` string that must remain inert;
 - a required crosswalk header hidden inside a physical multi-line comment, which must still fail closed.
 
-## Exact-head acceptance
+## Verified code remediation and direct alert observation
 
-**Pending CI/evidence gates:**
-
-1. Native M0 validator mutation run and mandatory protected GitHub CI (17 required contexts);
-2. CodeQL `Analyze (python)` at the exact PR HEAD;
-3. independent Codex exact-HEAD review with no unresolved security/correctness issues;
-4. protected signed squash merge and post-merge main CI including CodeQL Python analysis;
-5. actual Alert #1 state observed via the GitHub Security UI or a suitably authorized Code Scanning API.
-
-The current GitHub connector can read repository source/checks but **does not expose the Code Scanning alert details/status endpoint**. Accordingly no claim that Alert #1 is closed will be made solely on the basis of a green CodeQL job. A green job confirms scanner execution, not by itself the count of open alerts. If visibility remains restricted after main analysis, the precise user-facing follow-up will be to check the original alert URL for `Fixed` and whether an equivalent alert remains open.
+- [SEC_001 source remediation PR #206](https://github.com/july-rust/BoardSI/pull/206) was merged on 2026-10-26 into **signed protected** `main@6208db7083f4c56f91810e79d74ae22074221ecd`.
+- [Exact merged SHA CI](https://github.com/july-rust/BoardSI/commit/6208db7083f4c56f91810e79d74ae22074221ecd/checks) completed **21/21 SUCCESS**, including `docs` (M0 traceability mutation tests) and `Analyze (python)` CodeQL.
+- On 2026-10-31, the then-current [main@477428da](https://github.com/july-rust/BoardSI/commit/477428da3895ee4a2ff19dda5d53932754e3a6ba/checks) also completed **21/21 SUCCESS**, with an independent new CodeQL Python analysis.
+- The connected GitHub app's generic Fetch API rejects the Code Scanning family at its URL allowlist; this does **not** mean the user's account lacks repository admin rights.
+- To obtain actual evidence, [C_025_02 GitHub Actions run #41183754657](https://github.com/july-rust/BoardSI/actions/runs/41183754657), using the repository's short-lived `GITHUB_TOKEN` with only `security-events: read` and `contents: read`, queried GitHub REST directly. The job **completed SUCCESS** and returned:
+  - `SEC_001_RESULT=FIXED_VERIFIED`
+  - `SEC_001_STATE=fixed`
+  - `SEC_001_FIXED_AT=2026-10-26T08:25:02Z`
+  - `SEC_001_RULE=py/bad-tag-filter`
+  - `SEC_001_EQUIVALENT_OPEN_ALERT_NUMBERS=[]`
+  - `SEC_001_DEFAULT_BRANCH_SHA=477428da3895ee4a2ff19dda5d53932754e3a6ba`
+  - `SEC_001_OBSERVED_AT_UTC=2026-10-31T08:14:14+00:00`
+- This is direct **Fixed** confirmation for Alert #1 and absence of simultaneously open alerts with the *same rule ID*, not a claim that all code scanning alerts or the entire software security surface are clear. No alert dismissal or state-update API was used.
+- [C_025_02 read-only audit workflow PR #316](https://github.com/july-rust/BoardSI/pull/316) provides a repeatable manual audit after its independent protected CI/review/merge; the observed Fixed result above comes from its actual owned-branch Actions execution, not from an untested proposal.
 
 ## Scope limits
 
