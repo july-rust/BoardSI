@@ -1,6 +1,6 @@
 # C_023 — Source-exact V15 multi-area Reference corridor coverage and gaps
 
-**Status: bounded C_023 Source Geometry code ACCEPTED on 2026-10-31 KST; documentation final acceptance PR and issue closure pending** — 2026-10-31 KST. [Issue #309](https://github.com/july-rust/BoardSI/issues/309) and [PR #310](https://github.com/july-rust/BoardSI/pull/310). Parent [M1 #12](https://github.com/july-rust/BoardSI/issues/12) stays OPEN.
+**Status: C_023 bounded Source Geometry V15 ACCEPTED, final documentation MERGED, Issue #309 CLOSED — 2026-10-31 KST** — 2026-10-31 KST. [Issue #309](https://github.com/july-rust/BoardSI/issues/309) and [PR #310](https://github.com/july-rust/BoardSI/pull/310). Parent [M1 #12](https://github.com/july-rust/BoardSI/issues/12) stays OPEN.
 
 ## Bounded function
 
@@ -16,7 +16,7 @@ Qt independently verifies the V14 area receipt against imported artwork, the V15
 - [GitHub protected one-parent Signed Verified Squash `main@69c37dc4bb0815e13baae59f3b416c95546a38b9`](https://github.com/july-rust/BoardSI/commit/69c37dc4bb0815e13baae59f3b416c95546a38b9) validated by independent GitHub REST `commit.verification.verified=true`, `reason=valid`, single parent `2e9da132f9a77891b70169684ae520d4b7d6e48a`.
 - **Independently verified post-code-main gate on 2026-10-31 KST:** [exact `main@69c37dc4bb0815e13baae59f3b416c95546a38b9` Check Runs](https://api.github.com/repos/july-rust/BoardSI/commits/69c37dc4bb0815e13baae59f3b416c95546a38b9/check-runs?per_page=100) **21/21 SUCCESS**, [exact `event=push` workflow runs](https://api.github.com/repos/july-rust/BoardSI/actions/runs?event=push&head_sha=69c37dc4bb0815e13baae59f3b416c95546a38b9&per_page=100) **8/8 completed SUCCESS**, each matching the complete merge SHA. Source-only checklist first accepted/check date **2026-10-31 KST**, evidence date **2026-10-31 KST**. This independent post-main gate qualifies only the bounded V15 geometry risk feature, not the physical return path.
 
-Final documentation [PR #311](https://github.com/july-rust/BoardSI/pull/311) and Issue #309 closure remain separate pending acceptance gates; do not pre-certify its exact final-HEAD checks/Codex/protected merge/post-main outcomes in this ledger.
+Final documentation [PR #311](https://github.com/july-rust/BoardSI/pull/311) final HEAD `95e2b791c070070c4db339cbe164a1554d170538` passed **22/22 Checks and 8/8 PR workflows**; same-final-HEAD Codex review `completed` with zero findings and unresolved threads. Protected Signed Verified one-parent Squash merged to [`main@8f56099d7791c669355825aef4e767489e2e6a25`](https://github.com/july-rust/BoardSI/commit/8f56099d7791c669355825aef4e767489e2e6a25), parent `69c37dc4bb0815e13baae59f3b416c95546a38b9`, `verification.verified=true`, `reason=valid`. Independently verified [21/21 post-document-main Check Runs SUCCESS](https://api.github.com/repos/july-rust/BoardSI/commits/8f56099d7791c669355825aef4e767489e2e6a25/check-runs?per_page=100) and [8/8 same-SHA Push workflows SUCCESS](https://api.github.com/repos/july-rust/BoardSI/actions/runs?event=push&head_sha=8f56099d7791c669355825aef4e767489e2e6a25&per_page=100). [Issue #309](https://github.com/july-rust/BoardSI/issues/309) `closed/completed` (2026-10-31T00:58:48Z); final verification posted as issue comment. **This is a retrospective evidence record; only the bounded V15 source-geometry function is accepted, not physical SI.**
 
 ## Acceptance gate (record evidence, not projections)
 
@@ -27,7 +27,7 @@ Final documentation [PR #311](https://github.com/july-rust/BoardSI/pull/311) and
 - [x] Independent same-final-HEAD Codex completed, zero findings and unresolved threads
 - [x] Protected Signed Verified one-parent Squash merge
 - [x] Independently successful exact-merge-SHA post-main Push checks/workflows — **21/21 exact-merge-SHA Check Runs SUCCESS** and **8/8 same-SHA `event=push` workflows SUCCESS**
-- [ ] Final evidence on issue and documentation PR #311 protected acceptance/issue closure — **PENDING**; checklist first check 2026-10-31 KST already recorded only for source-only code scope
+- [x] Final evidence on [Issue #309](https://github.com/july-rust/BoardSI/issues/309), documentation [PR #311](https://github.com/july-rust/BoardSI/pull/311) protected Signed Verified merge `8f56099d7791c669355825aef4e767489e2e6a25`, post-main **21/21 Checks and 8/8 Push workflows SUCCESS**, issue CLOSED/completed. First checklist check/evidence date 2026-10-31 KST; limited to source geometry.
 
 No check above is to be marked done before independently observed proof.
 
