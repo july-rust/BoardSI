@@ -395,6 +395,8 @@
 
 ### 변경 이력
 
+| 2026-10-31 | C_025_06 pre-PH08 Issue #78 감사·현행 이슈 상태 정합성 보강 | [감사](validation/c02506-pre-ph08-audit-issue78-closeout.md), [기존 보호 병합 #81](https://github.com/july-rust/BoardSI/pull/81), [U/T #93](https://github.com/july-rust/BoardSI/pull/93), [Issue #78](https://github.com/july-rust/BoardSI/issues/78), [Issue #51](https://github.com/july-rust/BoardSI/issues/51) | **최초 체크일: 2026-10-31 KST · 근거일: 2026-10-31 KST.** 과거 감사 문서·승인 SVG·정합성 CI 근거를 대조하고, #51 행정 CLOSED와 PH-08 원본 Gate Q FAIL을 구별. **제품 U/T·물리 Solver·ICO/ICNS·배포 자격 검증은 체크하지 않음.** 본 C_025_06 PR 정확 HEAD CI/독립 리뷰/보호된 병합/post-main 및 #78 종료는 별도 결과 확인 후에만 인정. |
+
 | 2026-10-31 | C_025_05 M0 F1 사양서/요구사항 추적성 및 Issue #2 감사 착수·제한 검증 | [감사](validation/c02505-m0-f1-traceability-reconciliation.md), [사양서 v1.0](specification/BoardSI_Development_Spec_v1.0.md), [기존 M0 10-case](validation/m0-case-evidence.json), [Issue #2](https://github.com/july-rust/BoardSI/issues/2) | **최초 체크일: 2026-10-31 KST · 근거일: 2026-10-31 KST.** ID 정의/매핑 확인만 [x]. 정식 M0 F1 및 Issue #2 OPEN/NOT_RUN 유지. 현행 PR 리뷰·CI·main 병합 후 검증은 별도. |
 
 
