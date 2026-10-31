@@ -32,3 +32,14 @@ Pre-task `docs/development-checklist.md` was read on 2026-10-31 KST at main `d42
 4. Independently read both PR states and #35 Draft status, inspect checklist before/after, and record protected main / CI and review evidence separately. Until observed, closure and CI **are pending**, not PASS.
 
 **Current acceptance:** READ-ONLY RECONCILIATION COMPLETE; GitHub PR closure and protected merge remain PENDING until independently confirmed. Product scope and U/T acceptance unchanged.
+
+## 2026-10-31 closure verification (after the signed protected policy merge)
+
+- [Merged documentation PR #319](https://github.com/july-rust/BoardSI/pull/319): reviewed exact HEAD `3d74d2c49a42477725d21a647f96e5f89a6195a1`, 8/8 pull-request workflows and 17/17 returned workflow jobs `SUCCESS`; Codex current HEAD completed with zero findings and zero unresolved findings; GitHub review threads zero. Protected Squash [main@e098405d14bcb88588f4601f726c3d7186604c9e](https://github.com/july-rust/BoardSI/commit/e098405d14bcb88588f4601f726c3d7186604c9e) was independently confirmed from GitHub REST as `verification.verified=true`, `reason=valid`, and one parent `d428ceef076c484a61aad0b72c49bb574faedbb4`. No test/build code changed in this PR.
+- [Legacy PR #153](https://github.com/july-rust/BoardSI/pull/153): `state=closed`, `merged=false`, closure comment 6542380199 explains policy preservation. Reconciled policy and management link exist on protected main.
+- [Legacy Draft PR #223](https://github.com/july-rust/BoardSI/pull/223): `state=closed`, `draft=true`, `merged=false`, closure comment 6542380536 explains #224 limited replacement and its non-identical CLI test coverage. Dedicated test delta is in [Issue #12 comment 6542281072](https://github.com/july-rust/BoardSI/issues/12#issuecomment-6542281072); Issue #12 remains OPEN.
+- [Protected design Draft PR #35](https://github.com/july-rust/BoardSI/pull/35): re-read `state=open`, `draft=true`, `merged=false`; unchanged.
+- **Checklist:** re-read after first protected merge on 2026-10-31 KST. Two **administrative-scoped** checks added in a separate follow-up docs PR; all older first-check dates retained. Formal M0, PH-08, M1 U09/U10/U39/T02/T04/T24/T52, P009 and physical SI/Scenario/Cache are unchanged.
+- **Post-main integration CI** for `e098405d...` was in progress at first read (21 GitHub check runs / 8 push workflows). It must be independently re-read and recorded as PASS only if all finish SUCCESS; the current appendix does **not** certify those pending runs.
+
+**Scoped PR reconciliation and state closure: COMPLETE.** Product functionality acceptance unchanged; separate post-main CI result remains subject to direct verification. The second follow-up documentation PR's own review, signature and post-main checks are also separate evidence gates.
