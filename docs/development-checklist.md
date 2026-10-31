@@ -237,6 +237,11 @@
 - [x] **C_024 C_001–C_023 Source Geometry/Qt 통합 회귀 증거 감사 및 D단계 인계 — 한정 감사 인수만 완료** — **체크일: 2026-10-31 KST** · **근거일: 2026-10-31 KST** (최초 체크일). [Issue #313](https://github.com/july-rust/BoardSI/issues/313), [C_024 검증/인계 원장](validation/c024-c-series-final-acceptance.md), [감사 PR #314](https://github.com/july-rust/BoardSI/pull/314)의 최종 HEAD f523e89d345ff84922b3a0a082baf5d1e0afc274 **22/22 PR Checks SUCCESS·8/8 PR Workflows SUCCESS**, 동일 HEAD 독립 Codex completed·findings 0·unresolved 0·리뷰 스레드 0. 보호된 단일 부모 [Signed Verified Squash main@d985c94ae6b04f0be11b1db0da6871359dd5c199](https://github.com/july-rust/BoardSI/commit/d985c94ae6b04f0be11b1db0da6871359dd5c199) (verification.verified=true, reason=valid, parent 4b4de41a920e23014deacefc0e7c0785dd68f34b), 독립 post-main [**21/21 Check Runs SUCCESS**](https://api.github.com/repos/july-rust/BoardSI/commits/d985c94ae6b04f0be11b1db0da6871359dd5c199/check-runs?per_page=100) 및 [**8/8 Push Workflows SUCCESS**](https://api.github.com/repos/july-rust/BoardSI/actions/runs?event=push&head_sha=d985c94ae6b04f0be11b1db0da6871359dd5c199&per_page=100). C_001–C_023 최초 체크일 보존; C_017–C_019의 새 전용 Qt 시험은 없음(기존 Qt Native 회귀 재사용), B_007 원본 최종 HEAD Codex 완료 NOT_VERIFIED 유지. **이 [x]는 기존 한정 기능의 문서/증거 감사 인수이지 신규 Rust/Qt 물리 기능·실제 Return Path/P009·Solver/Cache 인수가 아니다.** 본 정합화 문서 PR 자체의 최종 CI·동일 HEAD Codex·보호 Squash·post-main 검증 결과는 [Issue #313](https://github.com/july-rust/BoardSI/issues/313)에 별도로 기록하고 검증 전 Issue 종료 금지. 상위 [M1 #12](https://github.com/july-rust/BoardSI/issues/12) OPEN, 정식 U09/U10/U39 및 T02/T04/T24/T52 [ ] 유지. return_path_p009=UNSUPPORTED, physical_si=NOT_RUN, solver_ready=false, cache_reuse_eligible=false.
 
 
+### C_025_03 — 구형 PADS Signature/Qt Import PR 정합화 및 안전 종료 (기능 인수와 별개)
+
+- [x] **C_025_03 구형 PR #115·#117·#118의 근거 기반 분류 및 미병합 종료** — 기존 Signature Probe 핵심 코드 원본 184줄·CLI Blob과 공개 fixture 원본 Blob을 현재 `main`에 대조하여 #115/#117을 SUPERSEDED로 종료하고, 구형 Qt 독립 Signature Shell #118은 현재 비동기 Preview로 아키텍처가 바뀐 **비동등 구형 기능**임을 밝히고 미병합 종료. 각 PR `state=closed, merged=false`를 GitHub 응답에서 확인. **체크일: 2026-10-31 KST** · **근거일: 2026-10-31 KST**. [PR #115](https://github.com/july-rust/BoardSI/pull/115), [PR #117](https://github.com/july-rust/BoardSI/pull/117), [PR #118](https://github.com/july-rust/BoardSI/pull/118), [감사 원장](validation/c025-03-legacy-pads-pr-reconciliation.md), 기준 [main@d17b562a](https://github.com/july-rust/BoardSI/commit/d17b562a6932355438fa9bd80ca740d88eabe20f). **이 [x]는 구형 PR 상태 정리만 뜻하며 네이티브 재실행, Signature-only GUI 동등성, U/T 공식 인수, SI/Return Path 또는 배포 인수가 아님.** [M1 #8](https://github.com/july-rust/BoardSI/issues/8), [#9](https://github.com/july-rust/BoardSI/issues/9) OPEN 유지.
+- [ ] **C_025_03 감사 문서 PR 보호 병합·Post-main 검증** — 감사 문서/체크리스트 PR의 exact HEAD 필수 CI, 독립 Codex 리뷰, Verified Squash Merge, 병합 후 main CI는 **별도 확인 전까지 NOT_VERIFIED**. 이 구별은 상기 구형 PR 종료 결과를 무효화하지 않으며 [감사 원장](validation/c025-03-legacy-pads-pr-reconciliation.md)을 근거로 후속 검증한다.
+
 ## 4. 요구사항 U01–U48 체크리스트
 
 원문: [사양서 2장 요구사항 표](specification/BoardSI_Development_Spec_v1.0.md). `[ ]`는 전체 요구의 정식 인수 **미완료**. U16만 실제 제품명 적용 여부를 확인할 수 있어 체크하였으며 상표권·법률 검증은 별개입니다.
@@ -379,6 +384,9 @@
 7. 각 단계 종료 후 아래 이력에 작업 번호, 변경된 U/T, 최종 `main` SHA, Native 테스트·Codex 리뷰 증빙 및 아직 미검증인 항목을 기록합니다.
 
 ### 변경 이력
+
+| 2026-10-31 | C_025_03 구형 PADS Import PR 3건 안전 정리 | [PR #115](https://github.com/july-rust/BoardSI/pull/115), [#117](https://github.com/july-rust/BoardSI/pull/117), [#118](https://github.com/july-rust/BoardSI/pull/118), [원장](validation/c025-03-legacy-pads-pr-reconciliation.md), [Issue #8](https://github.com/july-rust/BoardSI/issues/8) | **최초 체크일: 2026-10-31 KST · 근거일: 2026-10-31 KST.** PR 3건 모두 `closed/unmerged` 확인 및 기각 이유 기록. 과거 Signal Probe 핵심은 main에 보존, #118 단독 shell은 동등성 미인수. 감사 문서 PR 자체 CI/보호 병합 별도 검증 전 NOT_VERIFIED. U/T·물리 Solver·P009 승격 없음. |
+
 
 | 2026-10-31 | C_025_02 SEC_001 실제 Code Scanning Fixed 검증 | [기존 수정 PR #206](https://github.com/july-rust/BoardSI/pull/206), [실제 GitHub API 감사 #41183754657](https://github.com/july-rust/BoardSI/actions/runs/41183754657), [Issue #205](https://github.com/july-rust/BoardSI/issues/205), [main@477428da 21/21 Checks](https://github.com/july-rust/BoardSI/commit/477428da3895ee4a2ff19dda5d53932754e3a6ba/checks) | **최초 체크일: 2026-10-31 KST · 근거일: 2026-10-31 KST.** Alert #1 실제 `fixed` (2026-10-26T08:25:02Z), 동일 규칙 Open 0. 라이선스·배포, M0, PH-08 및 전체 U/T 등 범위 변경 없음. |
 
