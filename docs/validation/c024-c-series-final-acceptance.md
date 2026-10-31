@@ -1,6 +1,6 @@
 # C_024 — C-series bounded integration evidence audit and D-stage handoff
 
-**Work started:** 2026-10-31 KST. **Tracker:** [Issue #313](https://github.com/july-rust/BoardSI/issues/313). **Immutable starting baseline:** protected `main@4b4de41a920e23014deacefc0e7c0785dd68f34b`. **Status of THIS C_024 acceptance: PENDING** until final exact PR-HEAD checks, independent same-HEAD Codex, protected Verified Squash, and independent post-main checks complete.
+**Work started:** 2026-10-31 KST. **Tracker:** [Issue #313](https://github.com/july-rust/BoardSI/issues/313). **Immutable starting baseline:** protected `main@4b4de41a920e23014deacefc0e7c0785dd68f34b`. **C_024 limited C-series evidence-audit source/PR gate ACCEPTED on 2026-10-31 KST**, independently verified for [PR #314](https://github.com/july-rust/BoardSI/pull/314) and protected `main@d985c94ae6b04f0be11b1db0da6871359dd5c199`; **evidence-only reconciliation PR has its own separate protected checks tracked on [Issue #313](https://github.com/july-rust/BoardSI/issues/313)**. Not a physical SI/M1 acceptance.
 
 ## 1. Scope and evidence classification
 
@@ -84,16 +84,26 @@ The full **U09/U10/U39 and T02/T04/T24/T52** requirements are **unchecked**, and
 
 These are *handoff recommendations*, not approved acceptance criteria or completed code.
 
-## 5. C_024 final PR and merge gate — not pre-certified
+## 5. Independently verified C_024 audit PR #314 acceptance — 2026-10-31 KST
 
-- [x] Baseline source/checklist and existence of all 23 C-series validation ledgers inspected 2026-10-31 KST, links above.
-- [x] Existing Qt CMake and Native workflow selftest registration audited at source level; distinguish actual executable coverage from missing new dedicated tests.
-- [x] Historical original B_007 Codex review completion exception retained as NOT_VERIFIED.
-- [ ] **New C_024 PR final exact HEAD** required Check Runs and PR workflows independently inspected and SUCCESS; actual Rust Debug/Release and Win x64/ARM64, macOS ARM64, Linux Offscreen results recorded.
-- [ ] Independent Codex review on **same final HEAD**, status `completed`, findings=0, unresolved=0; review threads 0.
-- [ ] Protected, Signed Verified, one-parent Squash merge, no bypass; exact merged SHA recorded.
-- [ ] Independently verified post-main Check Runs and `event=push` workflow runs all completed SUCCESS for exact merged SHA.
-- [ ] Final retrospective checklist line checked **only after** all above, with FIRST checked date (KST), evidence date, final PR/commit/test links.
-- [ ] Issue #313 CLOSED only after final evidence / no remaining audit-specific gate.
+The following applies **only** to the evidence-bounded C-series source/Qt audit in [PR #314](https://github.com/july-rust/BoardSI/pull/314). It is NOT retrospective physical qualification of any C_001–C_023 original code, B_007 original last-head Codex, or formal M1 U/T.
 
-**No new C_024 Rust/Qt tests have been executed in the preparation of this report.** Any subsequent CI results require a separately dated, SHA-bound evidence update. Failure, pending, skipped and inaccessible are not PASS.
+- [x] Checklist and all 23 C-series historical validation ledgers inspected at baseline protected `main@4b4de41a920e23014deacefc0e7c0785dd68f34b` (2026-10-31 KST).
+- [x] Existing Qt CMake and Native workflow source registration audited; C_017–C_019 inherited Qt testing and C_020 evidence-only nature recorded (not newly executed tests).
+- [x] Historical original B_007 final-HEAD Codex `NOT_VERIFIED` preserved, not upgraded by later review.
+- [x] **Exact final PR HEAD `f523e89d345ff84922b3a0a082baf5d1e0afc274`**: independently observed **22/22 PR Check Runs SUCCESS** and **8/8 matching `event=pull_request` workflow runs SUCCESS**. Existing Rust Debug/Release, Native Windows x64/ARM64 and macOS ARM64 Qt, Linux Qt Offscreen and other configured regression jobs completed SUCCESS. [Exact PR SHA Check Runs](https://api.github.com/repos/july-rust/BoardSI/commits/f523e89d345ff84922b3a0a082baf5d1e0afc274/check-runs?per_page=100), [exact PR SHA workflows](https://api.github.com/repos/july-rust/BoardSI/actions/runs?event=pull_request&head_sha=f523e89d345ff84922b3a0a082baf5d1e0afc274&per_page=100).
+- [x] Independent Codex latest **same exact final HEAD** review `status=completed`, `has_any_findings=false`, `has_unresolved_findings=false`; zero unresolved review threads, [PR #314](https://github.com/july-rust/BoardSI/pull/314).
+- [x] Protected **Signed Verified, one-parent Squash Merge**: [`main@d985c94ae6b04f0be11b1db0da6871359dd5c199`](https://github.com/july-rust/BoardSI/commit/d985c94ae6b04f0be11b1db0da6871359dd5c199). Independent GitHub commit REST `verification.verified=true`, `reason=valid`, sole parent `4b4de41a920e23014deacefc0e7c0785dd68f34b`. No protection bypass.
+- [x] **Independent exact-merge-SHA post-main CI:** [21/21 Check Runs SUCCESS](https://api.github.com/repos/july-rust/BoardSI/commits/d985c94ae6b04f0be11b1db0da6871359dd5c199/check-runs?per_page=100) and [8/8 `event=push` Workflow Runs SUCCESS](https://api.github.com/repos/july-rust/BoardSI/actions/runs?event=push&head_sha=d985c94ae6b04f0be11b1db0da6871359dd5c199&per_page=100), all bound to the exact complete merge SHA.
+- [x] C_024 **bounded audit** first checklist accepted date **2026-10-31 KST**; evidence date **2026-10-31 KST**. This fact is updated in the evidence-reconciliation PR and must not be confused with this PR's later independent merge gate.
+
+**Evidence-only follow-up rule:** the PR that edits this paragraph and the checklist must itself pass final-HEAD CI, independent exact-HEAD Codex, protected Signed Verified Squash and post-main CI before Issue #313 may close. Record that later PR's SHA-bound gate in [Issue #313](https://github.com/july-rust/BoardSI/issues/313); no recursive self-certification by this document. Do not silently upgrade unsupported scope.
+
+```text
+return_path_p009     = UNSUPPORTED
+physical_si          = NOT_RUN
+solver_ready         = false
+cache_reuse_eligible = false
+```
+
+**No new C_024 Rust/Qt source tests were implemented.** PR CI provides a fresh actual existing-code regression only. Native results are checked for the PR and post-main exact SHAs, not fabricated for a dedicated C_024 scenario.
