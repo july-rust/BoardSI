@@ -454,6 +454,16 @@
 - [ ] **Issue #46 코드 원인 및 근본 해결 입증** — macOS 실기기/부하 대표 조건의 재현성 있는 수정 전후 회귀 결과 미확보. 단발 CI PASS/1500 ms M0 예외/디스패처 계측을 원인 해결로 과대 해석하지 않음; Issue #46 OPEN.
 - [ ] **Issue #41 종료** — #46 및 자체 감사 완료 조건 독립 재평가 전 OPEN; Issue #43 Ruleset 적용은 이미 확인됨. Uxx/Txx, PH-08 물리 승인, #35 Draft, M0 F1/F6/F7 변경 금지.
 
+### C_025_10 — M0 F6 공개 Fixture 증거 및 Issue #7 안전 판정 (2026-10-31 KST)
+
+- [x] **두 공개 KiCad 후보의 원본 바이트/SHA-256 및 Git Blob SHA-1 검증 근거 재조정 (기존 실행만)** — [Issue #7의 2026-10-21 실행 기록](https://github.com/july-rust/BoardSI/issues/7), [원본 해시 CI job](https://github.com/july-rust/BoardSI/actions/runs/39501592390/job/118900157258), [현재 고정 검사 코드](../.github/scripts/m0_f6_board_integrity.py), [C_025_10 원장](validation/c02510-m0-f6-public-fixture-reconciliation.md). **최초 체크일: 2026-10-31 KST · 근거일: 2026-10-21 KST**. 정확한 크기/파일 SHA-256/Git Blob SHA-1을 서로 구별; 이번 C_025_10에서 과거 원본 job 로그 직접 재열람은 API 404이므로 **새 Native 실행 PASS를 주장하지 않음**.
+- [x] **두 후보의 제한적 공식 KiCad 외곽/객체 수 Native 증거 재조정 (기존 실행만)** — [KiCad 9.0.9 job](https://github.com/july-rust/BoardSI/actions/runs/39501592463/job/118900157449), [Native 검사 코드](../.github/scripts/m0_f6_native_kicad_outline.py), [원장](validation/c02510-m0-f6-public-fixture-reconciliation.md). **최초 체크일: 2026-10-31 KST · 근거일: 2026-10-21 KST**. 닫힌 외곽/크기/객체 수의 기존 제한 기술 증거만 [x]; 소형·중형의 정식 수락 클래스, BoardSI CAD Import, Reference 전기 접속, 물리 SI는 PASS 아님.
+- [x] **공개 소스 라이선스 계열 제목 검사 계약 존재 확인** — [해시/라이선스 스크립트](../.github/scripts/m0_f6_board_integrity.py), [C_025_10 원장](validation/c02510-m0-f6-public-fixture-reconciliation.md). **최초 체크일: 2026-10-31 KST · 근거일: 2026-10-21 KST**. 출처에 표시된 CERN-OHL-2-P / Apache-2.0 계열 제목 검사만 의미; **해당 보드의 전체 저작권/제3자 고지 및 재배포 적법성 승인은 아님**.
+- [ ] **Issue #7 F6 공개 Fixture 배포 법적 승인** — 저작권자별 3rd-party asset·NOTICE·라이선스 의무, 실제 Bundle 배포 방식의 별도 승인이 없으므로 **LEGAL_REVIEW_REQUIRED**. 원본 보드는 BoardSI 저장소에 동봉하지 않음.
+- [ ] **Issue #7 F6 실제 약 8 GiB 기준 PC 인수** — 기존 Linux 8 GiB/2 CPU 제한 합성 컨테이너와 별도로 실제 기준 환경의 OS/CPU/실가용 RAM/SSD 및 UI·디스크 시험 누락. 유료 클라우드/하드웨어는 승인 없이 사용하지 않음.
+- [ ] **Issue #7 전체 DoD 및 정식 T14/T15/T49** — 외부 승인/실기기 측정 미완: **Issue #7 OPEN / M0 F6 BLOCKED**. Issue #6 F7 라이선스·배포와 Issue #46/#41은 각각 별개로 OPEN.
+- [ ] **C_025_10 보호 브랜치 최종 인수** — [추적 Issue #330](https://github.com/july-rust/BoardSI/issues/330): 최종 exact-HEAD 17 필수 CI, 독립 최신 Codex 리뷰, 미해결 스레드 0, Verified Squash Merge, 독립 main push CI 확인 전에는 통합 [x] 금지. 확인 후 좁은 문서 감사만 완료로 처리하고 Issue #7은 계속 OPEN.
+
 ### 필수 참고 근거
 
 - [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md) · [A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md) · [A_032 국소 접점](validation/a032-p2w-local-connectivity.md)
