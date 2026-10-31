@@ -121,11 +121,17 @@
 | T53 | M2~M2a; M2a | U12,U17,U18,U19,U20,U21,U25,U41,U46,U43 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T54 | M0~M2b; M2b | U04,U13,U22,U23,U24,U45 | NOT_RUN | No complete case-specific T acceptance claimed |
 
+## 2026-10-31 C_025_05 review of F1 evidence (no acceptance promotion)
+
+[Current reconciliation](../validation/c02505-m0-f1-traceability-reconciliation.md) independently checked specification definition IDs **U01–U48 (48/48)**, **T01–T54 (54/54)**, unique §18.2 U group membership **48/48**, and all per-ID ledger rows. No ID gaps, duplicates or conflicting membership detected in these controlled tables. The earlier source-identity validator and T44→U01 crosswalk guard remain authoritative CI; this manual inspection is not the final PR HEAD CI.
+
+The already pinned [ten-case M0 synthetic evidence](../validation/m0-case-evidence.json) records **8 PARTIAL + 2 NOT_RUN** prototype cases, **0 complete T acceptance** and **0 case-specific sign-offs**. T14/T15/T21/T49 require separate M0 applicability/evidence reconciliation; existing synthetic T21 structural tests do not fulfill complete T21. Thus **F1 remains PARTIAL / Issue #2 OPEN**, pending individual M0-applicable expected results, fixtures, native jobs, source SHAs and review. No new physical PCB, 30 GHz Solver, installer, PH-08 or other formal U/T claim is made.
+
 ## Scope and blocking actions
 
 1. **M0 F1 is not PASS** merely because all U/T identifiers appear here. Reconcile each case-specific expected result, fixture, executed job, immutable SHA and reviewer before progressing from PARTIAL/NOT_RUN.
 2. Link per-case implementation evidence for M0 #2–#7, preserving incomplete acceptance; keep M1–M5 unrun until their own milestone.
 3. Resolve M0 baseline decisions (Qt/IPC release architecture, toolchain, low-RAM PC, fixtures/licenses), and test model→snapshot→Worker→Qt minimal integration. Qt #46 root cause remains OPEN.
-4. Resolve audit PR #81 and protect Ruleset 25046595 without changing PH-03/05/06/07 frozen contracts or original PH-08 Gate Q FAIL.
+4. Historical audit [PR #81](https://github.com/july-rust/BoardSI/pull/81) is already merged; do not list its merge as an open prerequisite. Preserve strict Ruleset 25046595, frozen PH-03/05/06/07 contracts and original PH-08 Gate Q FAIL.
 
 **Sources:** [specification](../specification/BoardSI_Development_Spec_v1.0.md), [M0 architecture](../architecture/README.md), [model tests](../validation/m0-canonical-board-model.md), [native Qt tests](../validation/m0-qt-native-runtime.md), [M0 issues](https://github.com/july-rust/BoardSI/issues/2), [audit #78](https://github.com/july-rust/BoardSI/issues/78).
