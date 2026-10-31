@@ -1,6 +1,7 @@
 #define BOARDSI_RUNTIME_TEST
 #include "../main.cpp"
 #include <QEventLoop>
+#include <QAbstractEventDispatcher>
 #include <QFile>
 #include <QSysInfo>
 #include <QThread>
@@ -354,6 +355,13 @@ public:
         QJsonObject phaseMaxGaps, phaseDurations;
         QJsonArray longGaps;
         // A global timer measures callback-delivery gaps, not their cause.
+        // These dispatcher signals measure time between entering the Qt event
+        // dispatcher wait and its wake-up. They include OS scheduling delay,
+        // and cannot by themselves identify GUI-thread work or a root cause.
+        // They are diagnostics only; never bypass the global timing gate.
+        qint64 dispatcherWaitStartMs=-1, dispatcherMaxWaitMs=0;
+        qint64 dispatcherWakePairs=0;
+        QString dispatcherWorstWaitPhase="NOT_OBSERVED";
         // Capture the previous and current harness phase to make rare CI
         // outliers diagnosable under the recorded M0 1500 ms provisional gate.
         auto observeGap = [&](qint64 now) {
@@ -382,6 +390,21 @@ public:
             if (lastTick==0) dispatchMark("first_global_timer_callback");
             observeGap(entireClock.elapsed());
         });
+        if (auto *dispatcher=QAbstractEventDispatcher::instance(QThread::currentThread())) {
+            QObject::connect(dispatcher,&QAbstractEventDispatcher::aboutToBlock,&entireTick,[&] {
+                dispatcherWaitStartMs=entireClock.elapsed();
+            });
+            QObject::connect(dispatcher,&QAbstractEventDispatcher::awake,&entireTick,[&] {
+                if (dispatcherWaitStartMs<0) return;
+                const qint64 waitMs=entireClock.elapsed()-dispatcherWaitStartMs;
+                ++dispatcherWakePairs;
+                if (waitMs>dispatcherMaxWaitMs) {
+                    dispatcherMaxWaitMs=waitMs;
+                    dispatcherWorstWaitPhase=phase;
+                }
+                dispatcherWaitStartMs=-1;
+            });
+        }
         entireTick.start();
         startupMark("global_timer_armed");
         auto inPhase = [&](const QString &name, const std::function<void()> &operation) {
@@ -447,6 +470,16 @@ public:
         metrics["phase_timer_max_gap_ms"]=phaseMaxGaps;
         metrics["phase_elapsed_ms"]=phaseDurations;
         metrics["long_timer_gaps_over_250_ms"]=longGaps;
+        metrics["dispatcher_awaited_wake_pairs"]=dispatcherWakePairs;
+        metrics["dispatcher_about_to_block_to_awake_max_ms"]=dispatcherMaxWaitMs;
+        metrics["dispatcher_worst_wait_phase"]=dispatcherWorstWaitPhase;
+        // A positive value proves a queued zero-delay Qt callback ran before
+        // the first precise timer callback. It does NOT prove scheduler cause.
+        const qint64 firstZero=startupMilestones.value("first_nested_zero_timer_callback").toInteger(-1);
+        const qint64 firstPrecise=startupMilestones.value("first_global_timer_callback").toInteger(-1);
+        metrics["first_zero_before_precise_delta_ms"]=
+            (firstZero>=0 && firstPrecise>=0 && firstZero<=firstPrecise)
+                ? QJsonValue(firstPrecise-firstZero) : QJsonValue("NOT_OBSERVED");
         report["pass"]=code==0; report["assertions"]=assertions; report["cases"]=cases; report["metrics"]=metrics;
         const auto bytes=QJsonDocument(report).toJson(QJsonDocument::Indented);
         QFile out("qt-runtime-results.json");

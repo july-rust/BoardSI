@@ -447,6 +447,13 @@
 
 | 2026-10-29 | C_008 두 Signal Layer 단일 도금 Via Source Reference 기하·Qt Risk 제한 인수 | [Issue #258](https://github.com/july-rust/BoardSI/issues/258), [PR #259](https://github.com/july-rust/BoardSI/pull/259), [정확한 코드 HEAD `ee765510` 27/27 CI SUCCESS](https://github.com/july-rust/BoardSI/commit/ee765510b1b6f761c31adea8990eb5ef42405f18/checks), [Signed Verified `main@5db1840a` post-main 21/21](https://github.com/july-rust/BoardSI/commit/5db1840aa267624d20693aef4e48186383e04a57/checks), [Qt Native](https://github.com/july-rust/BoardSI/actions/runs/40791493610), [FEM Native](https://github.com/july-rust/BoardSI/actions/runs/40791493531), [원장](validation/c008-multilayer-reference-via-transition.md) | **최초 체크일: 2026-10-29 KST · 근거일: 2026-10-29 KST**. Codex 동일 HEAD 지적/미해결 0, post-main 9/9 Workflow SUCCESS. **PADS 합성 Source Geometry 및 Qt 표시만 [x]**; 실제 Return Current/P009·물리 SI·Solver/Cache 및 정식 U/T 미승인. 상위 M1 #12 OPEN. |
 
+### C_025_09 — macOS Qt 글로벌 타이머 지연 분리 진단 및 #46/#41 종료 안전성 (2026-10-31 KST)
+
+- [x] **C_025_09 기존 Native 실패/성공 근거 확인 및 진단 방향 확정 (현행 로그 읽기 한정)** — [Issue #327](https://github.com/july-rust/BoardSI/issues/327), [Issue #46](https://github.com/july-rust/BoardSI/issues/46), [Qt native PR #326 실행 41204123648](https://github.com/july-rust/BoardSI/actions/runs/41204123648), [계측 원장](validation/c02509-qt-global-timer-stabilization.md). **체크일: 2026-10-31 KST** · **근거일: 2026-10-31 KST**. macOS ARM64 최초 zero timer 205 ms, 최초 precise timer 554 ms, 전체 최대 554 ms/PASS(현행 M0 1500 ms), normal UI p95 0.161375 ms; 과거 1134/1331 ms는 당시 1000 ms 기준 실제 FAIL. 이 [x]는 **기존 증빙 조회만** 의미하며 새 진단 실행/원인 수정/정식 M0·제품 인수 아님.
+- [ ] **C_025_09 Qt dispatcher 계측 코드 최종 인수 및 보호된 main 병합** — [진단 원장](validation/c02509-qt-global-timer-stabilization.md): 현재 PR 소스 제안 중, 최종 HEAD 17 strict checks, 독립 exact-HEAD Codex 리뷰, review threads, Verified signed Squash, post-main CI 확인 전에는 [x] 금지. `aboutToBlock` → `awake` 관측은 OS scheduler vs GUI 원인 확정용 판정이 아님. **최초 검증 체크일 아직 없음**.
+- [ ] **Issue #46 코드 원인 및 근본 해결 입증** — macOS 실기기/부하 대표 조건의 재현성 있는 수정 전후 회귀 결과 미확보. 단발 CI PASS/1500 ms M0 예외/디스패처 계측을 원인 해결로 과대 해석하지 않음; Issue #46 OPEN.
+- [ ] **Issue #41 종료** — #46 및 자체 감사 완료 조건 독립 재평가 전 OPEN; Issue #43 Ruleset 적용은 이미 확인됨. Uxx/Txx, PH-08 물리 승인, #35 Draft, M0 F1/F6/F7 변경 금지.
+
 ### 필수 참고 근거
 
 - [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md) · [A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md) · [A_032 국소 접점](validation/a032-p2w-local-connectivity.md)
