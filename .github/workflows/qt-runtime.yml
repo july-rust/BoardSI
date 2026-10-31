@@ -237,6 +237,16 @@ jobs:
           suffix=''
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c009-stitch-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      # C_023: actual Rust V15 importer -> independent Qt geometry decoder and gap marker.
+      - name: C_023 Native multi-area Reference corridor coverage and stale smoke
+        shell: bash
+        env:
+          BOARDSI_ARTWORK_RENDERER: cpu
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --c023-corridor-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_022 Native multi-area component candidate and Qt stale smoke
         shell: bash
         env:

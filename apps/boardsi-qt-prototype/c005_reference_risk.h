@@ -909,17 +909,19 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
 #include "c016_stitch_pad_risk.h"
 #include "c021_reference_area_risk.h"
 #include "c022_reference_area_risk.h"
+#include "c023_reference_corridor_risk.h"
 
 class C005ReferenceRiskController final: public QWidget {
     ImportedArtworkPanel *artwork_ = nullptr;
     QString importer_,source_;
     QSpinBox *first_=nullptr,*second_=nullptr,*refA_=nullptr,*refB_=nullptr;
     QLineEdit *net_=nullptr,*route_=nullptr,*netB_=nullptr,*areaNameA_=nullptr,*areaNameB_=nullptr,*areaNamesV14_=nullptr;
-    QCheckBox *viaMode_=nullptr,*stitchMode_=nullptr,*corridorMode_=nullptr,*padMode_=nullptr,*clearanceMode_=nullptr,*cutoutMode_=nullptr,*multiCutoutMode_=nullptr,*mixedCutoutMode_=nullptr,*stitchPadCutoutMode_=nullptr,*areaMode_=nullptr,*areaModeV14_=nullptr;
+    QCheckBox *viaMode_=nullptr,*stitchMode_=nullptr,*corridorMode_=nullptr,*padMode_=nullptr,*clearanceMode_=nullptr,*cutoutMode_=nullptr,*multiCutoutMode_=nullptr,*mixedCutoutMode_=nullptr,*stitchPadCutoutMode_=nullptr,*areaMode_=nullptr,*areaModeV14_=nullptr,*areaModeV15_=nullptr;
     QSpinBox *stitchVia_=nullptr;
     QSpinBox *split_=nullptr;
     bool requestedArea_=false;
     bool requestedAreaV14_=false;
+    bool requestedAreaV15_=false;
     bool requestedV4_=false;
     bool requestedV5_=false;
     bool requestedV6_=false;
@@ -956,7 +958,8 @@ class C005ReferenceRiskController final: public QWidget {
               QString::number(mixedCutoutMode_->isChecked()),
               QString::number(stitchPadCutoutMode_->isChecked()),
               QString::number(areaMode_->isChecked()),areaNameA_->text(),areaNameB_->text(),
-             QString::number(areaModeV14_->isChecked()),areaNamesV14_->text()
+             QString::number(areaModeV14_->isChecked()),areaNamesV14_->text(),
+             QString::number(areaModeV15_->isChecked())
         }.join('\n');
     }
     void invalidate() {
@@ -968,6 +971,7 @@ class C005ReferenceRiskController final: public QWidget {
         requestedSha_.clear();requestedOptions_.clear();requestedIndices_.clear();
         requestedArea_=false;
         requestedAreaV14_=false;
+        requestedAreaV15_=false;
         requestedV4_=false;
         requestedV5_=false;
         requestedV6_=false;
@@ -990,7 +994,11 @@ class C005ReferenceRiskController final: public QWidget {
             return;
         }
         c005::Receipt receipt;
-        const bool parsed=requestedAreaV14_
+        const bool parsed=requestedAreaV15_
+            ? c023::decode(bytes,requestedSha_,artwork_,
+                areaNamesV14_->text().split(',',Qt::KeepEmptyParts),
+                net_->text(),refA_->value(),first_->value(),receipt)
+            : requestedAreaV14_
             ? c022::decode(bytes,requestedSha_,artwork_,
                 areaNamesV14_->text().split(',',Qt::KeepEmptyParts),
                 net_->text(),refA_->value(),receipt)
@@ -1139,6 +1147,9 @@ public:
         areaNamesV14_->setObjectName("c022AreaNames");
         areaNamesV14_->setPlaceholderText("3-6 exact Source Area names, comma separated: RA,RB,RC");
         layout->addWidget(areaNamesV14_);
+        areaModeV15_=new QCheckBox("C_023 multi-area corridor coverage V15 (source gap RISK only)",this);
+        areaModeV15_->setObjectName("c023CorridorMode");
+        layout->addWidget(areaModeV15_);
 
         run_=new QPushButton("Audit selected source trace(s)",this);
         run_->setObjectName("c005RunAudit");
@@ -1164,6 +1175,7 @@ public:
         connect(stitchPadCutoutMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(areaMode_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(areaModeV14_,&QCheckBox::toggled,this,[this](bool){invalidate();});
+        connect(areaModeV15_,&QCheckBox::toggled,this,[this](bool){invalidate();});
         connect(areaNamesV14_,&QLineEdit::textChanged,this,[this](const QString &){invalidate();});
         connect(areaNameA_,&QLineEdit::textChanged,this,[this](const QString &){invalidate();});
         connect(areaNameB_,&QLineEdit::textChanged,this,[this](const QString &){invalidate();});
@@ -1205,6 +1217,38 @@ public:
         const QByteArray sha=c005::hashSource(source_);
         if(sha.size()!=64 || acceptedSha_.size()!=64 || sha!=acceptedSha_) {
             status_->setText("SOURCE CHANGED / REIMPORT REQUIRED / SI NOT_RUN");return;
+        }
+        if(areaModeV15_->isChecked()) {
+            const QStringList selected=areaNamesV14_->text().split(',',Qt::KeepEmptyParts);
+            bool valid=selected.size()>=3 && selected.size()<=6 &&
+                areaNamesV14_->text().size()<=390 && !areaMode_->isChecked() &&
+                !areaModeV14_->isChecked() && route_->text().trimmed().isEmpty() &&
+                !viaMode_->isChecked() && !stitchMode_->isChecked() &&
+                !corridorMode_->isChecked() && !padMode_->isChecked() &&
+                !clearanceMode_->isChecked() && !cutoutMode_->isChecked() &&
+                !multiCutoutMode_->isChecked() && !mixedCutoutMode_->isChecked() &&
+                !stitchPadCutoutMode_->isChecked() &&
+                artwork_->importedReferenceAreaCount(refA_->value(),net_->text())==selected.size();
+            for(int i=0;i<selected.size();++i)
+                if(selected[i].isEmpty() || selected[i].size()>64 ||
+                   selected.indexOf(selected[i])!=i)valid=false;
+            ImportedTrack trace;
+            if(!artwork_->importedTrack(first_->value(),trace) ||
+               trace.net==net_->text() || trace.layer==refA_->value() ||
+               !((trace.x0_nm==trace.x1_nm) != (trace.y0_nm==trace.y1_nm)))
+               valid=false;
+            if(!valid) {
+                status_->setText("C_023 REQUIRES DISTINCT SOURCE SIGNAL TRACE AND 3-6 REFERENCE AREAS / SI NOT_RUN");
+                return;
+            }
+            requestedAreaV15_=true;
+            requestedSha_=sha;requestedOptions_=options();activeGeneration_=generation_;
+            process_.setProgram(importer_);
+            process_.setArguments({source_,"--reference-corridor-v15",areaNamesV14_->text(),
+                net_->text(),QString::number(refA_->value()),QString::number(first_->value())});
+            process_.start();deadline_.start();
+            status_->setText("C_023 SOURCE CORRIDOR AUDIT RUNNING / Solver BLOCKED");
+            return;
         }
         if(areaModeV14_->isChecked()) {
             const QStringList selected=areaNamesV14_->text().split(',',Qt::KeepEmptyParts);
