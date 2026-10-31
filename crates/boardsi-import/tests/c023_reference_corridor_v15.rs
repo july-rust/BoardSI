@@ -42,7 +42,7 @@ fn positive_gap_has_exact_source_tick_endpoints() {
     let w=wire(&[[100,100,260,200],[240,100,310,200],[350,100,600,200]]);
     assert_eq!(first(&w)[6],"REFERENCE_GAP_RISK");
     assert_eq!(first(&w)[7],"1");
-    assert!(w.contains("\nGAP|310|350\n"));
+    assert!(w.contains("\nGAP|31000|35000\n"));
 }
 #[test]
 fn exact_touch_is_not_strictly_connected() {
