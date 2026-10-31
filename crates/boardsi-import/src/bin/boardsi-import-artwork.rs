@@ -667,6 +667,33 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // C_023: strictly opt-in source geometry corridor across V14-qualified areas.
+    if args.len() == 7 && args[2] == std::ffi::OsStr::new("--reference-corridor-v15") {
+        let result = (|| -> Result<String, &'static str> {
+            let text = |at: usize| args[at].to_str().ok_or("C023_NON_UTF8_SELECTION");
+            let raw = text(3)?;
+            if raw.is_empty() || raw.len() > 390 {return Err("C023_AREA_SELECTION_LIMIT");}
+            let names: Vec<&str> = raw.split(',').collect();
+            let net = text(4)?;
+            let layer = text(5)?.parse::<usize>().map_err(|_| "C023_LAYER")?;
+            let trace = text(6)?.parse::<usize>().map_err(|_| "C023_TRACE")?;
+            let path = std::path::Path::new(&args[1]);
+            let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
+            if !metadata.is_file() || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64 {
+                return Err("FILE_LIMIT");
+            }
+            let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
+            boardsi_import::reference_corridor_v15::encode(&bytes,&names,net,layer,trace)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("C023_REFERENCE_CORRIDOR_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // C_022: explicit 3..=6 Source areas, no electrical graph promotion.
     if args.len() == 6 && args[2] == std::ffi::OsStr::new("--reference-area-v14") {
         let result = (|| -> Result<String, &'static str> {
