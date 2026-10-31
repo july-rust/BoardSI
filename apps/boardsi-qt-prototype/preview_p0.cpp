@@ -4341,7 +4341,7 @@ static int runC023CorridorSelftest(const QString &importer) {
         "RC COPPER 0 0 1 1 0 NET_REF\n"
         "COPCLS 5 0.01 0 2\n500 100\n650 100\n650 200\n500 200\n500 100\n"
         "*ROUTE*\n*SIGNAL* NET_SIG\nU1.1 U2.2\n"
-        "150 150 1 10 0\n350 150 1 10 0\n"
+        "150 150 1 10 0\n550 150 1 10 0\n"
         "*SIGNAL* NET_REF\nR1.1 R2.2\n"
         "120 180 2 10 0\n180 180 2 10 0\n"
         "*END*\n");
@@ -4382,7 +4382,7 @@ static int runC023CorridorSelftest(const QString &importer) {
     bool picked=false;
     if(scene)for(auto *item:scene->items()) {
         if(item->data(3).toString()=="C005ReferenceRisk" &&
-           item->data(2).toString().contains("CORRIDOR_CANDIDATE_RISK")) {
+           item->data(2).toString().contains("C_023")) {
             item->setSelected(true);picked=true;break;
         }
     }
@@ -4400,7 +4400,7 @@ static int runC023CorridorSelftest(const QString &importer) {
     rejectedPoll.start(20);rejected.exec();rejectedPoll.stop();
     const bool invalid=panel.imported()->referenceRiskCountForTest()==0 &&
         (controller.currentStatusForTest().contains("UNSUPPORTED") ||
-         controller.currentStatusForTest().contains("SOURCE AREAS"));
+         controller.currentStatusForTest().contains("C_023 REQUIRES"));
     controller.resetSource(QString(),QByteArray());
     const bool cleared=panel.imported()->referenceRiskCountForTest()==0;
     const bool pass=marked && details && stale && invalid && cleared;
