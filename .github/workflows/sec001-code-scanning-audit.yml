@@ -1,0 +1,109 @@
+name: SEC_001 Code Scanning alert read-only audit
+
+# Audit a specific security alert without using any PAT, secrets, or write API.
+# Branch trigger is restricted to the one-time owned audit branch; after merging
+# it can be run manually via the Actions tab.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - audit/c02502-sec001-code-scanning-read
+    paths:
+      - .github/workflows/sec001-code-scanning-audit.yml
+
+permissions:
+  contents: read
+  security-events: read
+
+jobs:
+  alert-audit:
+    name: SEC_001 Alert #1 actual state
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read real Code Scanning state and equivalent open alerts
+        shell: bash
+        env:
+          AUDIT_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import datetime
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          repo = os.environ["REPOSITORY"]
+          token = os.environ["AUDIT_TOKEN"]
+          if repo != "july-rust/BoardSI":
+              raise SystemExit("Audit repository mismatch; fail closed.")
+          api = f"https://api.github.com/repos/{repo}"
+
+          def fetch_json(url):
+              req = urllib.request.Request(url, headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "boardsi-c02502-readonly-alert-audit",
+              })
+              try:
+                  with urllib.request.urlopen(req, timeout=25) as resp:
+                      return json.load(resp)
+              except urllib.error.HTTPError as err:
+                  print(f"SEC_001_ACCESS_ERROR: HTTP {err.code} at approved GitHub API; cannot verify alert state.", flush=True)
+                  raise SystemExit(2)
+              except Exception as err:
+                  print(f"SEC_001_ACCESS_ERROR: {type(err).__name__}; cannot verify alert state.", flush=True)
+                  raise SystemExit(2)
+
+          main_sha = fetch_json(f"{api}/branches/main")["commit"]["sha"]
+          alert = fetch_json(f"{api}/code-scanning/alerts/1")
+          if alert.get("number") != 1:
+              raise SystemExit("SEC_001_NOT_VERIFIED: unexpected alert identity")
+          state = alert.get("state")
+          rule_id = (alert.get("rule") or {}).get("id")
+          if not state or not rule_id:
+              raise SystemExit("SEC_001_NOT_VERIFIED: required API fields missing")
+
+          equivalents = []
+          page = 1
+          while page <= 20:
+              params = urllib.parse.urlencode({"state": "open", "per_page": 100, "page": page})
+              batch = fetch_json(f"{api}/code-scanning/alerts?{params}")
+              if not isinstance(batch, list):
+                  raise SystemExit("SEC_001_NOT_VERIFIED: malformed alert list")
+              equivalents += [x.get("number") for x in batch if (x.get("rule") or {}).get("id") == rule_id]
+              if len(batch) < 100:
+                  break
+              page += 1
+          else:
+              raise SystemExit("SEC_001_NOT_VERIFIED: unbounded open alert list; cannot prove absence")
+
+          verified = (state == "fixed" and not equivalents)
+          result = "FIXED_VERIFIED" if verified else "NOT_FIXED"
+          now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+          print(f"SEC_001_RESULT={result}")
+          print(f"SEC_001_ALERT=1")
+          print(f"SEC_001_STATE={state}")
+          print(f"SEC_001_FIXED_AT={alert.get('fixed_at') or 'none'}")
+          print(f"SEC_001_RULE={rule_id}")
+          print(f"SEC_001_EQUIVALENT_OPEN_ALERT_NUMBERS={equivalents}")
+          print(f"SEC_001_DEFAULT_BRANCH_SHA={main_sha}")
+          print(f"SEC_001_OBSERVED_AT_UTC={now}")
+
+          summary = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary:
+              with open(summary, "a", encoding="utf-8") as out:
+                  out.write("## SEC_001 Code Scanning read-only observation\n\n")
+                  out.write(f"- Result: **{result}**\n")
+                  out.write(f"- Alert #1 state: \`{state}\`\n")
+                  out.write(f"- Fixed at: \`{alert.get('fixed_at') or 'none'}\`\n")
+                  out.write(f"- Rule: \`{rule_id}\`\n")
+                  out.write(f"- Equivalent open alert IDs: \`{equivalents}\`\n")
+                  out.write(f"- Default branch SHA: \`{main_sha}\`\n")
+                  out.write(f"- Observed at (UTC): \`{now}\`\n")
+                  out.write("\nNo alert state was modified. 'NOT_FIXED' is a factual observation, not permission to dismiss an alert.\n")
+          PY
