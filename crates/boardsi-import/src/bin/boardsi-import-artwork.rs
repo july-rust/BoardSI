@@ -667,6 +667,29 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // D_005: source-only Pad -> one straight Trace -> bounded COPCLS component.
+    // Not a physical or electrical connectivity, return-path, or solver gate.
+    if args.len() == 9 && args[2] == std::ffi::OsStr::new("--d005-pad-trace-area-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let txt = |i: usize| args[i].to_str().ok_or("D005_NON_UTF8_SELECTION");
+            let names = [txt(3)?, txt(4)?, txt(5)?];
+            let net = txt(6)?;
+            let layer = txt(7)?.parse::<usize>().map_err(|_| "D005_LAYER_INVALID")?;
+            let index = txt(8)?.parse::<usize>().map_err(|_| "D005_TRACE_INVALID")?;
+            let path = std::path::Path::new(&args[1]);
+            let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
+            if !metadata.is_file()
+                || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
+            { return Err("D005_FILE_LIMIT"); }
+            let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
+            boardsi_import::d005_pad_trace_area::encode(&bytes, names, net, layer, index)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => { eprintln!("D005_SOURCE_ERROR:{reason}"); std::process::exit(3); }
+        }
+        return;
+    }
     // D_004: one straight Trace source endpoint to a D_003 geometry component.
     // No electrical/manufactured continuity or solver promotion.
     if args.len() == 9 && args[2] == std::ffi::OsStr::new("--d004-endpoint-attachment-v1") {
