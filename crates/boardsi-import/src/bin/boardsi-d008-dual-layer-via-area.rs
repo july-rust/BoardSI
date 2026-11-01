@@ -97,7 +97,7 @@ pub fn encode(bytes:&[u8],names:[&str;2],net:&str,layers:[usize;2],index:usize)-
         } else {None};
         let state=classify(src.point,src.diameter_ticks,rect,hole);
         success &= state=="SOURCE_VIA_PAD_AREA_CANDIDATE";
-        writeln!(&mut out,"AREA|{slot}|{}|{}|{layer}|{}|{}|{}|{}|{}",
+        writeln!(&mut out,"AREA|{slot}|{}|{}|{layer}|{}|{}|{}|{}",
             hex(name.as_bytes()),hex(canonical.meta.id.source_object.as_bytes()),
             rect[0],rect[1],rect[2],rect[3]).map_err(|_|"D008_WIRE")?;
         if let Some(h)=hole {
@@ -132,9 +132,9 @@ mod tests{
     use super::*;
     #[test] fn pad_inside_cutout_boundary_and_separation(){
         let r=[100,200,200,300];let p=[150,250];
-        assert_eq!(classify(p,3500,r,None),"SOURCE_SEPARATION_RISK");
-        assert_eq!(classify(p,3500,[0,0,5000,5000],Some([150,250,200,300])),"SOURCE_COPCUT_RISK");
-        assert_eq!(classify(p,3500,[0,0,5000,5000],None),"SOURCE_VIA_PAD_AREA_CANDIDATE");
-        assert_eq!(classify(p,3500,[150,250,5000,5000],None),"SOURCE_PAD_BOUNDARY_RISK");
+        assert_eq!(classify([5000,5000],20,r,None),"SOURCE_SEPARATION_RISK");
+        assert_eq!(classify(p,20,[0,0,5000,5000],Some([160,240,200,300])),"SOURCE_COPCUT_RISK");
+        assert_eq!(classify(p,20,[0,0,5000,5000],None),"SOURCE_VIA_PAD_AREA_CANDIDATE");
+        assert_eq!(classify(p,20,[150,250,5000,5000],None),"SOURCE_PAD_BOUNDARY_RISK");
     }
 }
