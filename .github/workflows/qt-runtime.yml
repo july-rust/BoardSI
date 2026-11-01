@@ -251,6 +251,18 @@ jobs:
           suffix=''
           if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --d001-pad-endpoint-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      # D_008: independent two-layer Source Via Pad/COPCLS and stale evidence.
+      - name: D_008 Native Qt dual-layer via pad area and stale smoke
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+          QSG_RHI_BACKEND: software
+        working-directory: build-qt
+        run: |
+          suffix=''
+          if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --d008-dual-layer-via-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_007: verify native Qt source contact chain.
       # D_007: independent Qt Source Via Pad/Trace/COPCLS chain and stale witness.
       - name: D_007 Native Qt via trace to distinct area source and stale smoke
