@@ -667,6 +667,34 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // D_004: one straight Trace source endpoint to a D_003 geometry component.
+    // No electrical/manufactured continuity or solver promotion.
+    if args.len() == 9 && args[2] == std::ffi::OsStr::new("--d004-endpoint-attachment-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let txt = |i: usize| args[i].to_str().ok_or("D004_NON_UTF8_SELECTION");
+            let names = [txt(3)?, txt(4)?, txt(5)?];
+            let net = txt(6)?;
+            let layer = txt(7)?.parse::<usize>().map_err(|_| "D004_LAYER_INVALID")?;
+            let index = txt(8)?.parse::<usize>().map_err(|_| "D004_TRACE_INVALID")?;
+            let path = std::path::Path::new(&args[1]);
+            let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
+            if !metadata.is_file()
+                || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
+            {
+                return Err("D004_FILE_LIMIT");
+            }
+            let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
+            boardsi_import::d004_endpoint_attachment::encode(&bytes, names, net, layer, index)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D004_ENDPOINT_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_003: exactly three source-owned rectangles with at most one COPCUT.
     // WARNING: source geometry candidate only, no electrical / solver promotion.
     if args.len() == 8 && args[2] == std::ffi::OsStr::new("--d003-three-area-copcut-v1") {
