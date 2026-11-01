@@ -178,7 +178,7 @@ inline int selftest(const QString &importer) {
     const bool noForgery=!decode(forged,digest,source,panel.imported(),
         {"RA","RB","RC"},"NET_A",1,ignored);
     auto changed=source;
-    changed.replace("250 250 1 10 0","160 250 1 10 0");
+    changed.replace("250 250 1 10 0","130 250 1 10 0");
     if(!save(changed) || !load())return 2;
     const auto newSha=QCryptographicHash::hash(changed,QCryptographicHash::Sha256).toHex();
     c005::Receipt newResult;
