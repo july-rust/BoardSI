@@ -464,6 +464,11 @@
 - [ ] **Issue #7 전체 DoD 및 정식 T14/T15/T49** — 외부 승인/실기기 측정 미완: **Issue #7 OPEN / M0 F6 BLOCKED**. Issue #6 F7 라이선스·배포와 Issue #46/#41은 각각 별개로 OPEN.
 - [ ] **C_025_10 보호 브랜치 최종 인수** — [추적 Issue #330](https://github.com/july-rust/BoardSI/issues/330): 최종 exact-HEAD 17 필수 CI, 독립 최신 Codex 리뷰, 미해결 스레드 0, Verified Squash Merge, 독립 main push CI 확인 전에는 통합 [x] 금지. 확인 후 좁은 문서 감사만 완료로 처리하고 Issue #7은 계속 OPEN.
 
+### D_001 — Trace endpoint / conductive SMD Pad footprint Source witness (2026-11-01 KST)
+
+- [ ] **D_001 opt-in strict Source-owned SMD Pad-contact candidate** — [Issue #332](https://github.com/july-rust/BoardSI/issues/332), [D_001 검증 원장](validation/d001-source-pad-endpoint.md). 신규 Rust R/S/RF Pad strict footprint와 Trace 끝점 매칭 후보, 정확 Source Net·Layer·정수 좌표, 독립 Qt 읽기/소스 변경 무효화 시험을 작업 브랜치에서 구현 중. **체크일: 미확정** · **근거일: 2026-11-01 KST (코드 작성일, 시험 인수 근거 아님)**. 정확 HEAD 필수 CI 17개, 독립 Codex, Verified Squash, 병합 후 CI 이전에는 [x] 전환 금지.
+- [ ] **M1 전체 및 물리 전기 접속, P009 인수** — D_001은 제조 Copper/Fill/Thermal/COPCUT/Return Path를 보증하지 않는 Source 기하 후보. U09/U10/U39 및 T02/T04/T24/T52는 미완, [Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN. Solver/cache 미승인 유지.
+
 ### 필수 참고 근거
 
 - [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md) · [A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md) · [A_032 국소 접점](validation/a032-p2w-local-connectivity.md)
