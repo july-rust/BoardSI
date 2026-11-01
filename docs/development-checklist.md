@@ -479,3 +479,7 @@
 - [A_035 감사](validation/a035-p2z-final-preview-acceptance.md) · [A_034 Native 통합](validation/a034-p2y-integration-stabilization.md) · [A_033 원본 정합성](validation/a033-p2x-source-artwork-parity.md) · [A_032 국소 접점](validation/a032-p2w-local-connectivity.md)
 - [M0 종료 게이트](validation/m0-completion-gate.md) · [M0 추적 원장](audits/m0-requirements-traceability-ledger.md) · [M2 검증 원장](validation/README.md)
 - [원본 PH-08 FAIL](validation/m2-g2-ph08-stage5b-original-replay-evidence.md) · [SEC_001 코드 검사](validation/sec001-codeql-markdown-comment-scan.md) · [Code scanning alert #1](https://github.com/july-rust/BoardSI/security/code-scanning/1)
+
+### D_003 — Three-Area COPCUT Source Geometry Candidate (verification pending, 2026-11-01 KST)
+
+- [ ] **D_003 정확히 세 개 Source COPCLS 및 최대 한 개 소유 COPCUT의 기하 접촉 후보 그래프 검증** — [Issue #339](https://github.com/july-rust/BoardSI/issues/339), [검증 원장](validation/d003-three-area-copcut-connectivity.md). Rust/Qt 후보 코드와 Native CI·독립 Codex·보호 Signed Verified Squash·Post-main까지 **실제 검증 후** 한정 항목만 [x]로 전환한다. 최초 완료 체크일은 아직 없음. **P009 UNSUPPORTED, 물리 SI NOT_RUN, Solver/Cache 미자격, 정식 U/T 미체크, 상위 #12 OPEN.**
