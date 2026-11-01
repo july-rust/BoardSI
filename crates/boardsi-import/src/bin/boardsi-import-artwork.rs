@@ -9,6 +9,9 @@ use std::{
 };
 // 0.01 mil canonical tick = 254 nm. All Qt wire coordinates remain nm.
 const NM: i64 = 254;
+#[path = "boardsi-d007-via-trace-three-area.rs"]
+#[allow(dead_code)]
+mod d007;
 fn run() -> Result<(usize, usize), &'static str> {
     let args: Vec<_> = env::args_os().collect();
     // The suffix protocol is opt-in. Existing one-path invocations keep
@@ -667,6 +670,33 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // D_007: strict opt-in plated Via Pad -> one Trace -> different COPCLS area.
+    if args.len() == 9 && args[2] == std::ffi::OsStr::new("--d007-via-trace-three-area-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let txt = |i: usize| args[i].to_str().ok_or("D007_NON_UTF8_SELECTION");
+            let names = [txt(3)?, txt(4)?, txt(5)?];
+            let net = txt(6)?;
+            let layer = txt(7)?.parse::<usize>().map_err(|_| "D007_LAYER_INVALID")?;
+            let index = txt(8)?.parse::<usize>().map_err(|_| "D007_VIA_INVALID")?;
+            let path = std::path::Path::new(&args[1]);
+            let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
+            if !metadata.is_file()
+                || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
+            {
+                return Err("D007_FILE_LIMIT");
+            }
+            let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
+            d007::encode(&bytes, names, net, layer, index)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D007_SOURCE_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_005: source-only Pad -> one straight Trace -> bounded COPCLS component.
     // Not a physical or electrical connectivity, return-path, or solver gate.
     if args.len() == 9 && args[2] == std::ffi::OsStr::new("--d005-pad-trace-area-v1") {
