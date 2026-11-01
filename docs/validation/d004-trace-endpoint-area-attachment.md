@@ -6,13 +6,19 @@ This opt-in D_004 path reuses the strict D_003 three-area full-source SHA, sourc
 
 Rust `boardsi-import-artwork <file.asc> --d004-endpoint-attachment-v1 RA RB RC NET_REF 2 0` is a separate opt-in wire; ordinary import/Copper electrical edges unchanged. Qt's `--d004-endpoint-attachment-selftest` independently checks D_003's complete Source geometry and selected imported Trace as integer 254 nm ticks, recomputes endpoint owners/groups, rejects forged endpoint states, shows warning-only markers and clears them on changed Source.
 
+## Independently verified code PR evidence — 2026-11-01 KST
+
+Code [PR #343](https://github.com/july-rust/BoardSI/pull/343), exact final HEAD `749bd4cb5db935961a115a3d56282b453707096f`: **27/27 Check Runs SUCCESS**, **11/11 same-head pull_request workflows SUCCESS**, all 17 protected required contexts independently compared to Ruleset 25046595. Numerical Rustfmt/strict Clippy, Debug/Release, and Windows x64/ARM64 macOS ARM64 Native Rust succeeded. Dedicated D_004 Native Qt step SUCCESS on Windows x64, Windows ARM64, macOS ARM64; Linux Qt 6.8.3 offscreen CTest `qt-preview-d004-endpoint-attachment` PASS, with actual Rust importer and `D004_NATIVE_QT_ENDPOINT_ATTACHMENT true true true true true true true` log. The test verifies forged same-SHA receipt with skipped PADS route geometry is rejected, plus stale ReImport risk clearing.
+
+Latest-final-HEAD independent Codex summary `status=completed`, findings=false, unresolved=false. Historical P2 missing Qt imported-skipped gate fixed by exposing `importedSkippedCount()`, negative forged-receipt regression, documented review reply and resolved thread. Protected [one-parent GitHub Signed Verified Squash](https://github.com/july-rust/BoardSI/commit/3bde575048d9abb4c6a8cd9a5ccc8df50f857e46): REST `commit.verification.verified=true`, `reason=valid`, sole parent `4e2e3ec03e20190ba4a3622e42c809357d676dec`. **Independent post-code-main Push CI is PENDING**; no post-main PASS claim until same SHA Check Runs and Push workflows independently verify.
+
 ## Acceptance (no preclaims)
-- [ ] Rust Debug/Release synthetic positive, COPCUT, tangent, disjoint, owner ambiguity, wrong source/net/layer/selection and SHA cases PASS.
-- [ ] Native Qt Windows x64/ARM64 and macOS ARM64 actual Rust importer smoke PASS.
-- [ ] Linux Qt offscreen CTest actual Rust importer PASS.
-- [ ] Exact final PR HEAD all 17 required contexts and actual checks/workflows SUCCESS.
-- [ ] Independent same-final-head Codex code review completed zero findings/unresolved threads.
-- [ ] Protected GitHub Verified single-parent Squash and independently confirmed exact-merge-SHA post-main checks/push workflows PASS.
+- [x] Rust Debug/Release synthetic positive, COPCUT, tangent, disjoint, owner ambiguity, wrong source/net/layer/selection and SHA cases PASS — exact code HEAD CI #343.
+- [x] Native Qt Windows x64/ARM64 and macOS ARM64 actual Rust importer smoke PASS — exact code HEAD #343.
+- [x] Linux Qt offscreen CTest actual Rust importer PASS — exact code HEAD #343.
+- [x] Exact final PR HEAD 17/17 required contexts, 27/27 checks and 11/11 workflows SUCCESS.
+- [x] Independent same-final-head Codex code review completed zero findings/unresolved threads.
+- [ ] Protected GitHub Verified one-parent Squash complete; **independent exact-merge-SHA post-main checks/push workflows PENDING**, do not promote until completed.
 - [ ] Separate documentation acceptance and Issue #342 safe closure.
 
 ## Nonclaims
