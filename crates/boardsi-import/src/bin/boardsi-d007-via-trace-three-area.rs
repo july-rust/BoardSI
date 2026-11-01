@@ -99,7 +99,11 @@ pub fn encode(
         return Err("D007_UNSUPPORTED_SELECTION");
     }
     let parsed = route_preview::parse(bytes)?;
-    if parsed.skipped != 0 || parsed.vias.len() != 1 || parsed.segments.len() != 1 || !parsed.arcs.is_empty() {
+    if parsed.skipped != 0
+        || parsed.vias.len() != 1
+        || parsed.segments.len() != 1
+        || !parsed.arcs.is_empty()
+    {
         return Err("D007_INCOMPLETE_SOURCE_INVENTORY");
     }
     let src = &parsed.vias[0];
@@ -196,43 +200,61 @@ pub fn encode(
     // D_004's independent wire rejects Vias by design: use its local endpoint
     // attach geometry directly without weakening any existing acceptance gate.
     let seg = &parsed.segments[0];
-    if seg.net != net || seg.layer as usize != layer
-        || seg.width_ticks <= 0 || seg.a == seg.b {
+    if seg.net != net || seg.layer as usize != layer || seg.width_ticks <= 0 || seg.a == seg.b {
         return Err("D007_TRACE_NET_LAYER_OR_GEOMETRY");
     }
     let contains = |p: [i64; 2]| {
         let dx = i128::from(p[0]) - i128::from(src.point[0]);
         let dy = i128::from(p[1]) - i128::from(src.point[1]);
-        4 * (dx * dx + dy * dy)
-            < i128::from(src.diameter_ticks) * i128::from(src.diameter_ticks)
+        4 * (dx * dx + dy * dy) < i128::from(src.diameter_ticks) * i128::from(src.diameter_ticks)
     };
     let a = contains(seg.a);
     let b = contains(seg.b);
-    let (link_state, via_ep, area_ep, area_owner, area_group) =
-        if state != "SOURCE_VIA_PAD_AREA_CANDIDATE" {
-            ("SOURCE_VIA_PAD_AREA_NOT_VERIFIED", None, None, None, None)
-        } else if a == b {
-            (if a { "SOURCE_AMBIGUOUS_OWNER" } else {
-                 "SOURCE_VIA_TRACE_DISCONNECTED" }, None, None, None, None)
-        } else {
-            let endpoint = if a { 0usize } else { 1usize };
-            let opposite = 1 - endpoint;
-            let other = if a { seg.b } else { seg.a };
-            let attachment = d004_endpoint_attachment::attach(other, rects, holes, groups);
-            if attachment.state == "SOURCE_ENDPOINT_ATTACHMENT_CANDIDATE"
-                && attachment.owner != owner {
-                ("SOURCE_VIA_TRACE_AREA_CANDIDATE", Some(endpoint), Some(opposite),
-                 attachment.owner, attachment.component)
+    let (link_state, via_ep, area_ep, area_owner, area_group) = if state
+        != "SOURCE_VIA_PAD_AREA_CANDIDATE"
+    {
+        ("SOURCE_VIA_PAD_AREA_NOT_VERIFIED", None, None, None, None)
+    } else if a == b {
+        (
+            if a {
+                "SOURCE_AMBIGUOUS_OWNER"
             } else {
-                (match attachment.state {
+                "SOURCE_VIA_TRACE_DISCONNECTED"
+            },
+            None,
+            None,
+            None,
+            None,
+        )
+    } else {
+        let endpoint = if a { 0usize } else { 1usize };
+        let opposite = 1 - endpoint;
+        let other = if a { seg.b } else { seg.a };
+        let attachment = d004_endpoint_attachment::attach(other, rects, holes, groups);
+        if attachment.state == "SOURCE_ENDPOINT_ATTACHMENT_CANDIDATE" && attachment.owner != owner {
+            (
+                "SOURCE_VIA_TRACE_AREA_CANDIDATE",
+                Some(endpoint),
+                Some(opposite),
+                attachment.owner,
+                attachment.component,
+            )
+        } else {
+            (
+                match attachment.state {
                     "SOURCE_COPCUT_BLOCKED" => "SOURCE_COPCUT_RISK",
                     "SOURCE_BOUNDARY_RISK" => "SOURCE_PAD_BOUNDARY_RISK",
                     "SOURCE_AMBIGUOUS_OWNER" => "SOURCE_AMBIGUOUS_OWNER",
                     "SOURCE_ENDPOINT_ATTACHMENT_CANDIDATE" => "SOURCE_SAME_AREA_NOT_CHAIN",
                     _ => "SOURCE_TRACE_AREA_DISCONNECTED",
-                }, None, None, None, None)
-            }
-        };
+                },
+                None,
+                None,
+                None,
+                None,
+            )
+        }
+    };
     let mut sha = String::new();
     let mut hex_net = String::new();
     for b in digest::sha256(bytes) {
@@ -268,16 +290,32 @@ pub fn encode(
     let mut out = format!(
         "BOARDSI_D007_VIA_TRACE_THREE_AREA_V1|{sha}|SOURCE_GEOMETRY_ONLY|PHYSICAL_NOT_VERIFIED|P009_UNSUPPORTED|SI_NOT_RUN|0|0\n{wire}"
     );
-    writeln!(out,"TRACE|0|{layer}|{hex_net}|{}|{}|{}|{}|{}",
-        seg.a[0],seg.a[1],seg.b[0],seg.b[1],seg.width_ticks)
-        .map_err(|_| "D007_WIRE")?;
+    writeln!(
+        out,
+        "TRACE|0|{layer}|{hex_net}|{}|{}|{}|{}|{}",
+        seg.a[0], seg.a[1], seg.b[0], seg.b[1], seg.width_ticks
+    )
+    .map_err(|_| "D007_WIRE")?;
     let field = |v: Option<usize>| v.map_or_else(|| "-".to_owned(), |x| x.to_string());
-    writeln!(out,"LINK|{link_state}|{}|{}|{}|{}|{}|{}",
-        field(via_ep),field(area_ep),field(owner),field(area_owner),field(area_group),
-        if link_state=="SOURCE_VIA_TRACE_AREA_CANDIDATE" { "1" } else { "0" })
-        .map_err(|_| "D007_WIRE")?;
+    writeln!(
+        out,
+        "LINK|{link_state}|{}|{}|{}|{}|{}|{}",
+        field(via_ep),
+        field(area_ep),
+        field(owner),
+        field(area_owner),
+        field(area_group),
+        if link_state == "SOURCE_VIA_TRACE_AREA_CANDIDATE" {
+            "1"
+        } else {
+            "0"
+        }
+    )
+    .map_err(|_| "D007_WIRE")?;
     out.push_str("END|SOURCE_ONLY_NOT_ELECTRICAL\n");
-    if out.len() > 32768 { return Err("D007_WIRE_LIMIT"); }
+    if out.len() > 32768 {
+        return Err("D007_WIRE_LIMIT");
+    }
     Ok(out)
 }
 fn main() {
