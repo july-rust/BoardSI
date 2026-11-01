@@ -102,6 +102,11 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --c005-risk-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-c005-reference-risk PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_006: independent Source plated Via pad / three COPCLS-COPCUT validation.
+    add_test(NAME qt-preview-d006-via-three-area
+      COMMAND boardsi-preview-p0 --d006-via-three-area-selftest "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-d006-via-three-area PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_005: source Pad -> Trace -> Area independent imported-Qt readback.
     add_test(NAME qt-preview-d005-pad-trace-area
       COMMAND boardsi-preview-p0 --d005-pad-trace-area-selftest "${BOARDSI_IMPORTER}")

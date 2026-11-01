@@ -34,6 +34,7 @@ jobs:
           rustup toolchain install 1.75.0 --profile minimal
           cargo +1.75.0 build --locked -p boardsi-worker
           cargo +1.75.0 build --locked -p boardsi-import --bin boardsi-import-artwork
+          cargo +1.75.0 build --locked -p boardsi-import --bin boardsi-d006-via-three-area
           cargo +1.75.0 build --locked -p boardsi-worker --bin boardsi-stackup-config
           mkdir -p build-qt
           cargo +1.75.0 run --locked -p boardsi-worker --example m0_model_snapshot_fixture -- build-qt/qt-model-a.frame build-qt/qt-model-b.frame
@@ -140,6 +141,7 @@ jobs:
           rustc -vV
           cargo build --locked -p boardsi-worker
           cargo build --locked -p boardsi-import --bin boardsi-import-artwork
+          cargo build --locked -p boardsi-import --bin boardsi-d006-via-three-area
           cargo build --locked -p boardsi-worker --bin boardsi-stackup-config
           mkdir -p build-qt
           cargo run --locked -p boardsi-worker --example m0_model_snapshot_fixture -- build-qt/qt-model-a.frame build-qt/qt-model-b.frame
@@ -249,6 +251,18 @@ jobs:
           suffix=''
           if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --d001-pad-endpoint-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      # D_006: actual Rust CLI + independently imported Qt Via Pad / COPCLS.
+      - name: D_006 Native Qt via pad to three-area source readback and stale smoke
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+          QSG_RHI_BACKEND: software
+        working-directory: build-qt
+        run: |
+          suffix=''
+          if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --d006-via-three-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_005: Source-owned Pad -> Trace -> three-area COPCUT candidate.
       - name: D_005 Native Qt pad-trace-area and stale/forged-pin smoke
         shell: bash
