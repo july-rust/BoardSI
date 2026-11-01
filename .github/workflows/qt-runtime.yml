@@ -249,6 +249,18 @@ jobs:
           suffix=''
           if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --d001-pad-endpoint-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      # D_003: three-COPCLS with one owned-COPCUT source-only graph and stale readback.
+      - name: D_003 Native Qt three-area COPCUT source graph and stale smoke
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+          QSG_RHI_BACKEND: software
+        working-directory: build-qt
+        run: |
+          suffix=''
+          if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --d003-three-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_002: complete two-COPCLS/one-owned-COPCUT Source-only hypothesis.
       - name: D_002 Native Qt COPCUT source contact and stale smoke
         shell: bash
