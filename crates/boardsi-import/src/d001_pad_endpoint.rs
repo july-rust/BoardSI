@@ -242,6 +242,63 @@ mod tests {
         ));
     }
     #[test]
+    fn square_smd_off_centre_positive_and_tangent_fail_closed() {
+        // The 90-degree component rotation maps the second Source square Pad
+        // to (200, 400) mil, and its Source Pin U1.2 owns NET_A.
+        let positive = specimen("U1.2 U9.2\n204 400 1 10 0\n300 400 1 10 0");
+        let result = audit(positive.as_bytes()).unwrap();
+        assert_eq!(result.witnesses.len(), 1);
+        assert_eq!(result.witnesses[0].pad_index, 1);
+        assert_eq!(result.witnesses[0].point, [20_400, 40_000]);
+        assert!(encode(positive.as_bytes())
+            .unwrap()
+            .contains("W|0|0|1|1|20400|40000|3000|3000|S|U1|2\n"));
+        let tangent = specimen("U1.2 U9.2\n215 400 1 10 0\n300 400 1 10 0");
+        assert!(audit(tangent.as_bytes()).unwrap().witnesses.is_empty());
+    }
+
+    #[test]
+    fn rectangular_rf_rotation_uses_actual_world_axes_and_rejects_x_tangent() {
+        // PADS RF: width 30 mil, finger length 60 mil, zero offset/corner.
+        // Source PART 90-degree rotation swaps the resulting world axes:
+        // width 30 mil (X) by height 60 mil (Y) at pad centre (200,400).
+        let base = SAMPLE
+            .replace("\r\n", "\n")
+            .replace("-2 30 S 0", "-2 30 RF 0 60 0 0");
+        assert!(base.contains("-2 30 RF 0 60 0 0"));
+        let fixture = |x: i64| {
+            base.replace(
+                "U9.1 U9.2\n100 200 1 10 0\n300 200 1 10 0",
+                &format!("U1.2 U9.2\n{x} 425 1 10 0\n300 425 1 10 0"),
+            )
+        };
+        let positive = fixture(204);
+        let result = audit(positive.as_bytes()).unwrap();
+        assert_eq!(result.witnesses.len(), 1);
+        assert_eq!(result.witnesses[0].pad_index, 1);
+        assert!(encode(positive.as_bytes())
+            .unwrap()
+            .contains("W|0|0|1|1|20400|42500|3000|6000|RF|U1|2\n"));
+        assert!(audit(fixture(215).as_bytes()).unwrap().witnesses.is_empty());
+    }
+
+    #[test]
+    fn overlapping_source_pad_owners_even_with_unproven_net_are_ambiguous() {
+        let original = SAMPLE.replace("\r\n", "\n");
+        let duplicate = original.replace(
+            "*PART*\nU1 TYPEA 200 300 90 U N 0 -1 0 -1 0\n",
+            "*PART*\nU1 TYPEA 200 300 90 U N 0 -1 0 -1 0\nU2 TYPEA 200 300 90 U N 0 -1 0 -1 0\n",
+        );
+        let src = duplicate.replace(
+            "U9.1 U9.2\n100 200 1 10 0\n300 200 1 10 0",
+            "U1.1 U9.2\n204 300 1 10 0\n300 300 1 10 0",
+        );
+        let result = audit(src.as_bytes()).unwrap();
+        assert_eq!(result.witnesses.len(), 0);
+        assert_eq!(result.ambiguous_owners, 1);
+    }
+
+    #[test]
     fn deterministic_wire_and_source_digest_change() {
         let a = specimen("U1.1 U9.2\n204 300 1 10 0\n300 300 1 10 0");
         let b = specimen("U1.1 U9.2\n205 300 1 10 0\n300 300 1 10 0");
