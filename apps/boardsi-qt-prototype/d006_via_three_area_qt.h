@@ -29,7 +29,7 @@ inline bool declaredConductivePad(const QByteArray &source, const ImportedVia &v
     if(source.isEmpty() || source.size()>8*1024*1024 ||
        via.name.isEmpty() || layer<via.firstLayer || layer>via.lastLayer)return false;
     auto decimal=[](const QString &s,qint64 &ticks) {
-        static const QRegularExpression pattern("^[0-9]{1,7}(\\\\.[0-9]{1,2})?$");
+        static const QRegularExpression pattern("^[0-9]{1,7}(\\.[0-9]{1,2})?$");
         if(!pattern.match(s).hasMatch())return false;
         const auto parts=s.split('.');
         bool ok=false;const qint64 whole=parts[0].toLongLong(&ok);
@@ -46,7 +46,7 @@ inline bool declaredConductivePad(const QByteArray &source, const ImportedVia &v
     QString normalized=QString::fromUtf8(source);
     normalized.replace("\r\n","\n");
     const QStringList lines=normalized.split('\n');
-    const QRegularExpression whitespace("\\\\s+");
+    const QRegularExpression whitespace("\\s+");
     bool inVia=false,found=false,selected=false;
     for(int i=0;i<lines.size();++i) {
         const auto fields=lines[i].trimmed().split(whitespace,Qt::SkipEmptyParts);
