@@ -69,7 +69,7 @@ fn cutout_removes_pair_contact_and_keeps_independent_component() {
     assert_eq!(edges, [false, true, false]);
     let wire = run(boxes, Some(hole));
     assert!(wire.contains("|SOURCE_SEPARATION_RISK|2|PHYSICAL_NOT_VERIFIED|"));
-    assert!(wire.contains("HOLE|0|150|150|350|350\n"));
+    assert!(wire.contains("HOLE|0|15000|15000|35000|35000\n"));
     assert!(wire.contains("EDGE|0|1|SOURCE_SEPARATION_RISK\n"));
 }
 #[test]
