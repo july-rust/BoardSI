@@ -102,6 +102,11 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --c005-risk-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-c005-reference-risk PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_004: source Trace endpoint attachment / independent native Qt readback.
+    add_test(NAME qt-preview-d004-endpoint-attachment
+      COMMAND boardsi-preview-p0 --d004-endpoint-attachment-selftest "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-d004-endpoint-attachment PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_003: independent Rust 3-area COPCUT graph with stale-source guards.
     add_test(NAME qt-preview-d003-three-area
       COMMAND boardsi-preview-p0 --d003-three-area-selftest "${BOARDSI_IMPORTER}")
