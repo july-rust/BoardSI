@@ -9,6 +9,7 @@
 #include "preview_import.h"
 #include "b001_stackup_editor.h"
 #include "c005_reference_risk.h"
+#include "d001_pad_endpoint_qt.h"
 #include "a019_gpu_benchmark.h"
 #include "a019_interaction_validation.h"
 #include "a020_explorer_validation.h"
@@ -4412,6 +4413,8 @@ static int runC023CorridorSelftest(const QString &importer) {
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--d001-pad-endpoint-selftest")
+        return d001::selftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--c023-corridor-selftest")
         return runC023CorridorSelftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--c022-area-selftest")
