@@ -102,6 +102,11 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --c005-risk-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-c005-reference-risk PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_002: independent Rust source COPCUT readback and source-change rejection.
+    add_test(NAME qt-preview-d002-copcut-contact
+      COMMAND boardsi-preview-p0 --d002-copcut-selftest "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-d002-copcut-contact PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_001: actual Rust Source Pad witness -> Qt independent source geometry/stale.
     add_test(NAME qt-preview-d001-pad-endpoint
       COMMAND boardsi-preview-p0 --d001-pad-endpoint-selftest "${BOARDSI_IMPORTER}")

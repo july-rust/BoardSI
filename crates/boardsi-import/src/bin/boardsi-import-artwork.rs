@@ -667,6 +667,36 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // D_002: two source COPCLS rectangles with at most one same-owner COPCUT.
+    // This opt-in diagnostic never modifies ordinary artwork stdout or graph.
+    if args.len() == 7 && args[2] == std::ffi::OsStr::new("--d002-copcut-contact-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let text = |at: usize| args[at].to_str().ok_or("D002_NON_UTF8_SELECTION");
+            let a = text(3)?;
+            let b = text(4)?;
+            let net = text(5)?;
+            let layer = text(6)?
+                .parse::<usize>()
+                .map_err(|_| "D002_LAYER_INVALID")?;
+            let path = std::path::Path::new(&args[1]);
+            let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
+            if !metadata.is_file()
+                || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
+            {
+                return Err("D002_FILE_LIMIT");
+            }
+            let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
+            boardsi_import::d002_copcut_contact::encode(&bytes, [a, b], net, layer)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D002_COPCUT_CONTACT_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_001: separate bounded pad-endpoint witness; no changes to default artwork wire.
     if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d001-pad-endpoint-v1") {
         let result = (|| -> Result<String, &'static str> {
