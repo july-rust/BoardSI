@@ -57,7 +57,7 @@ fn pad_pin_declaration_order_does_not_fix_trace_coordinate_order() {
     let reversed = source([260, 310], [204, 300], None);
     let wire = run(&reversed);
     assert!(
-        wire.contains("LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|1|0|0|0|0\\n"),
+        wire.contains("LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|1|0|0|0|0\n"),
         "{wire}"
     );
 }
