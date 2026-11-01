@@ -251,6 +251,7 @@ jobs:
           suffix=''
           if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --d001-pad-endpoint-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      # D_007: verify native Qt source contact chain.
       # D_006: actual Rust CLI + independently imported Qt Via Pad / COPCLS.
       - name: D_006 Native Qt via pad to three-area source readback and stale smoke
         shell: bash
