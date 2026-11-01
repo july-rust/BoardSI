@@ -7,8 +7,37 @@
 #include <QCryptographicHash>
 #include <QEventLoop>
 #include <QTimer>
+#include <QRegularExpression>
 #include <array>
 namespace d005 {
+// Independently inspect the exact source bytes for the one supported
+// PADS ROUTE SIGNAL pin-pair declaration; Pad geometry alone is insufficient.
+inline bool declaredPins(const QByteArray &source,const QByteArray &sha,const QString &net,
+    std::array<QString,2> &pins) {
+    if(source.isEmpty() || source.size()>16*1024*1024 ||
+       QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex()!=sha)return false;
+    QString normalized=QString::fromUtf8(source);
+    normalized.replace("\r\n","\n");
+    const QStringList lines=normalized.split('\n');
+    bool route=false;
+    int signal=-1;
+    for(int i=0;i<lines.size();++i) {
+        const QString trimmed=lines[i].trimmed();
+        if(trimmed=="*ROUTE*") {route=true;continue;}
+        if(route && trimmed.startsWith("*SIGNAL*")) {
+            if(signal>=0 || trimmed.mid(8).trimmed()!=net)return false;
+            signal=i;
+        }
+    }
+    if(signal<0 || signal+1>=lines.size())return false;
+    const auto pair=lines[signal+1].trimmed().split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
+    if(pair.size()!=2)return false;
+    for(int e=0;e<2;++e) {
+        if(pair[e].count('.')!=1 || pair[e].startsWith('.') || pair[e].endsWith('.'))return false;
+        pins[static_cast<size_t>(e)]=pair[e];
+    }
+    return true;
+}
 inline bool padContains(const std::array<qint64,2> &p,const ImportedPad &pad) {
     if(pad.width_nm<=0 || pad.height_nm<=0 ||
        pad.x_nm%254 || pad.y_nm%254 || pad.width_nm%254 || pad.height_nm%254) return false;
@@ -22,12 +51,14 @@ inline bool padContains(const std::array<qint64,2> &p,const ImportedPad &pad) {
     if(pad.shape=="R" && w==h)return 4*(dx*dx+dy*dy)<w*w;
     return false;
 }
-inline bool decode(const QByteArray &wire,const QByteArray &sha,
+inline bool decode(const QByteArray &wire,const QByteArray &sha,const QByteArray &source,
     const ImportedArtworkPanel *artwork,const QStringList &names,
     const QString &net,int layer,c005::Receipt &out) {
     if(!artwork || sha.size()!=64 || wire.size()>16384 || !wire.endsWith('\n') ||
        artwork->importedSkippedCount()!=0 || artwork->importedTraceCount()!=1 ||
        artwork->arcCount()!=0 || artwork->viaCount()!=0 || artwork->padCount()>5000)return false;
+    std::array<QString,2> declared{};
+    if(!declaredPins(source,sha,net,declared))return false;
     const auto lines=wire.split('\n');
     if(lines.size()!=18 || !lines.last().isEmpty() ||
        lines[16]!="END|SOURCE_ONLY_NOT_PHYSICAL")return false;
@@ -54,8 +85,10 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,
             ImportedPad pad;
             if(!artwork->importedPad(p,pad))return false;
             if(pad.layer==layer && padContains(points[static_cast<size_t>(e)],pad)) {
-                if(++count>1)return false; // ambiguous owner: fail closed
-                owners[static_cast<size_t>(e)]=p;
+                if(++count>1)return false; // ambiguous geometric owner: fail closed
+                const QString sourcePin=pad.reference+"."+pad.pin;
+                if(sourcePin==declared[static_cast<size_t>(e)])
+                    owners[static_cast<size_t>(e)]=p;
             }
         }
     }
@@ -158,14 +191,14 @@ inline int selftest(const QString &importer) {
     const QByteArray wire=query();
     c005::Receipt first;
     const bool verified=panel.acceptedSourceSha256()==digest &&
-        decode(wire,digest,panel.imported(),{"RA","RB","RC"},"NET_A",1,first) &&
+        decode(wire,digest,original,panel.imported(),{"RA","RB","RC"},"NET_A",1,first) &&
         first.markers.size()==1;
     if(!verified)return 1;
     QByteArray forged=wire;
     forged.replace("LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|0|0|1|0|0",
                    "LINK|SOURCE_CONTACT_NOT_VERIFIED|-|-|-|-|-");
     c005::Receipt rejected;
-    const bool cannotSpoof=!decode(forged,digest,panel.imported(),
+    const bool cannotSpoof=!decode(forged,digest,original,panel.imported(),
                                     {"RA","RB","RC"},"NET_A",1,rejected);
     panel.imported()->setReferenceRisks(first.markers);
     const bool displayed=panel.imported()->referenceRiskCountForTest()==1;
@@ -176,12 +209,29 @@ inline int selftest(const QString &importer) {
     c005::Receipt second;
     const bool stale=fresh!=digest && panel.acceptedSourceSha256()==fresh &&
         panel.imported()->referenceRiskCountForTest()==0 &&
-        !decode(wire,fresh,panel.imported(),{"RA","RB","RC"},"NET_A",1,rejected);
-    const bool negative=decode(query(),fresh,panel.imported(),{"RA","RB","RC"},"NET_A",1,second) &&
+        !decode(wire,fresh,changed,panel.imported(),{"RA","RB","RC"},"NET_A",1,rejected);
+    const bool negative=decode(query(),fresh,changed,panel.imported(),{"RA","RB","RC"},"NET_A",1,second) &&
         second.markers.empty();
-    const bool ok=verified && cannotSpoof && displayed && stale && negative;
+    // Same geometry with a non-owning Source Pin must stay a negative witness.
+    // A forged positive LINK against the same source SHA is rejected.
+    QByteArray wrongPin=original;
+    wrongPin.replace("U1.1 U9.2","U1.2 U9.2");
+    if(!save(wrongPin) || !load())return 2;
+    const auto wrongSha=QCryptographicHash::hash(wrongPin,QCryptographicHash::Sha256).toHex();
+    const QByteArray negativeWire=query();
+    c005::Receipt wrongReceipt;
+    const bool wrongPinNegative=decode(negativeWire,wrongSha,wrongPin,panel.imported(),
+         {"RA","RB","RC"},"NET_A",1,wrongReceipt) && wrongReceipt.markers.empty();
+    QByteArray forgedPositive=negativeWire;
+    forgedPositive.replace("LINK|SOURCE_CONTACT_NOT_VERIFIED|-|-|-|-|-",
+                           "LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|0|0|1|0|0");
+    const bool wrongPinCannotSpoof=!decode(forgedPositive,wrongSha,wrongPin,panel.imported(),
+         {"RA","RB","RC"},"NET_A",1,rejected);
+    const bool ok=verified && cannotSpoof && displayed && stale && negative &&
+                  wrongPinNegative && wrongPinCannotSpoof;
     qInfo()<<"D005_NATIVE_QT_PAD_TRACE_AREA"<<ok<<verified<<cannotSpoof
-           <<displayed<<stale<<negative<<"SOURCE_ONLY_PHYSICAL_NOT_VERIFIED";
+           <<displayed<<stale<<negative<<wrongPinNegative<<wrongPinCannotSpoof
+           <<"SOURCE_ONLY_PHYSICAL_NOT_VERIFIED";
     return ok?0:1;
 }
 } // namespace d005
