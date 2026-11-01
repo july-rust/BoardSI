@@ -251,6 +251,19 @@ jobs:
           suffix=''
           if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --d001-pad-endpoint-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      # D_007: verify native Qt source contact chain.
+      # D_007: independent Qt Source Via Pad/Trace/COPCLS chain and stale witness.
+      - name: D_007 Native Qt via trace to distinct area source and stale smoke
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+          QSG_RHI_BACKEND: software
+        working-directory: build-qt
+        run: |
+          suffix=''
+          if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --d007-via-trace-three-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_006: actual Rust CLI + independently imported Qt Via Pad / COPCLS.
       - name: D_006 Native Qt via pad to three-area source readback and stale smoke
         shell: bash
