@@ -50,7 +50,8 @@ inline bool decode(const QByteArray &wire,const QByteArray &sourceSha,
     const ImportedArtworkPanel *artwork,const QStringList &names,
     const QString &net,int layer,c005::Receipt &out) {
     if(!artwork || sourceSha.size()!=64 || wire.size()>12288 ||
-       !wire.endsWith('\n') || artwork->importedTraceCount()!=1 ||
+       !wire.endsWith('\n') || artwork->importedSkippedCount()!=0 ||
+       artwork->importedTraceCount()!=1 ||
        artwork->arcCount()!=0 || artwork->viaCount()!=0)return false;
     const auto lines=wire.split('\n');
     if(lines.size()!=15 || !lines.last().isEmpty() ||
@@ -178,6 +179,22 @@ inline int selftest(const QString &importer) {
                                   {"RA","RB","RC"},"NET_REF",2,rejected);
     panel.imported()->setReferenceRisks(first.markers);
     const bool displayed=panel.imported()->referenceRiskCountForTest()==2;
+    // Codex P2: prove that an independently imported, partially skipped
+    // Source can never accept a forged D_004 receipt with its current SHA.
+    QByteArray omitted=original;
+    omitted.replace("150 150 2 10 0\\n*END*",
+                    "150 150 2 10 0\\n160 160 2 10 24576\\n*END*");
+    if(!source.resize(0) || !source.seek(0) ||
+       source.write(omitted)!=omitted.size() || !source.flush())return 2;
+    if(!load())return 2;
+    const QByteArray omittedSha=QCryptographicHash::hash(
+        omitted,QCryptographicHash::Sha256).toHex();
+    QByteArray forged=firstWire;
+    forged.replace(originalSha,omittedSha);
+    const bool rejectedOmitted=panel.imported()->importedSkippedCount()>0 &&
+        panel.imported()->importedTraceCount()==1 &&
+        !decode(forged,omittedSha,panel.imported(),
+                {"RA","RB","RC"},"NET_REF",2,rejected);
     QByteArray modified=original;
     modified.replace("150 150 2 10 0","350 350 2 10 0");
     if(!source.resize(0) || !source.seek(0) ||
@@ -192,9 +209,9 @@ inline int selftest(const QString &importer) {
                               {"RA","RB","RC"},"NET_REF",2,second) &&
         second.markers.size()==2 &&
         second.markers[1].reason.contains("SOURCE_ENDPOINT_ATTACHMENT_CANDIDATE");
-    const bool ok=verified && cannotSpoof && displayed && stale && reloaded;
+    const bool ok=verified && cannotSpoof && displayed && rejectedOmitted && stale && reloaded;
     qInfo()<<"D004_NATIVE_QT_ENDPOINT_ATTACHMENT"<<ok<<verified<<cannotSpoof<<displayed
-           <<stale<<reloaded<<"PHYSICAL_NOT_VERIFIED_P009_UNSUPPORTED";
+           <<rejectedOmitted<<stale<<reloaded<<"PHYSICAL_NOT_VERIFIED_P009_UNSUPPORTED";
     return ok?0:1;
 }
 } // namespace d004
