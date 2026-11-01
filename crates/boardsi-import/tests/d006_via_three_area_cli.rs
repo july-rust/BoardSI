@@ -73,7 +73,7 @@ fn pad_perimeter_boundary_and_multiple_area_owner_are_not_accepted() {
 fn copper_cutout_blocks_candidate() {
     // Windows checkout may use CRLF: normalize before matching a multiline span.
     let cutout = SOURCE
-        .replace("\\r\\n", "\\n")
+        .replace("\r\n", "\n")
         .replace("RA COPPER 0 0 1 1 0 NET_A", "RA COPPER 0 0 2 1 0 NET_A")
         .replace(
             "100 300\n100 200\n",
