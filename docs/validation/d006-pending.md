@@ -1,0 +1,1 @@
+D_006 pending: no tests verified. See issue 348.
