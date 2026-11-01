@@ -71,20 +71,20 @@ fn pad_perimeter_boundary_and_multiple_area_owner_are_not_accepted() {
 
 #[test]
 fn copper_cutout_blocks_candidate() {
+    // Windows checkout may use CRLF: normalize before matching a multiline span.
     let cutout = SOURCE
+        .replace("\\r\\n", "\\n")
         .replace("RA COPPER 0 0 1 1 0 NET_A", "RA COPPER 0 0 2 1 0 NET_A")
         .replace(
             "100 300\n100 200\n",
             "100 300\n100 200\nCOPCUT 5 0.01 0 1\n140 240\n160 240\n160 260\n140 260\n140 240\n",
         );
     let (passed, output) = run(&cutout, "1");
-    // Source parser may reject unsupported void-piece syntax outright. Both
-    // outcomes must stay negative; the direct Rust classifier covers overlap.
-    if passed {
-        assert!(output.contains("CONTACT|SOURCE_COPCUT_RISK|-|-"), "{output}");
-    } else {
-        assert!(output.contains("UNSUPPORTED_COPPER_PIECE"), "{output}");
-    }
+    assert!(passed, "{output}");
+    assert!(
+        output.contains("CONTACT|SOURCE_COPCUT_RISK|-|-"),
+        "{output}"
+    );
 }
 
 #[test]
