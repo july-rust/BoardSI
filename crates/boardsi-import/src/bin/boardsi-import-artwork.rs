@@ -9,12 +9,12 @@ use std::{
 };
 // 0.01 mil canonical tick = 254 nm. All Qt wire coordinates remain nm.
 const NM: i64 = 254;
-#[path = "boardsi-d008-dual-layer-via-area.rs"]
-#[allow(dead_code)]
-mod d008;
 #[path = "boardsi-d007-via-trace-three-area.rs"]
 #[allow(dead_code)]
 mod d007;
+#[path = "boardsi-d008-dual-layer-via-area.rs"]
+#[allow(dead_code)]
+mod d008;
 fn run() -> Result<(usize, usize), &'static str> {
     let args: Vec<_> = env::args_os().collect();
     // The suffix protocol is opt-in. Existing one-path invocations keep
