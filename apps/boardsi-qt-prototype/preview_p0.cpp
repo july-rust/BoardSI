@@ -14,6 +14,7 @@
 #include "d003_three_area_qt.h"
 #include "d004_endpoint_attachment_qt.h"
 #include "d005_pad_trace_area_qt.h"
+#include "d006_via_three_area_qt.h"
 #include "a019_gpu_benchmark.h"
 #include "a019_interaction_validation.h"
 #include "a020_explorer_validation.h"
@@ -4417,6 +4418,8 @@ static int runC023CorridorSelftest(const QString &importer) {
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--d006-via-three-area-selftest")
+        return d006::selftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--d005-pad-trace-area-selftest")
         return d005::selftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--d004-endpoint-attachment-selftest")
