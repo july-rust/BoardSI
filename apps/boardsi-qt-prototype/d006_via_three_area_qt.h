@@ -97,7 +97,8 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,const QByteArray
        || source.size()>8*1024*1024 || wire.size()>16384 || !wire.endsWith('\n')
        || QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex()!=sha
        || panel->importedSkippedCount()!=0 || panel->viaCount()!=1
-       || panel->arcCount()!=0 || panel->importedReferenceAreaCount(layer,net)!=3)return false;
+       || panel->arcCount()!=0 || panel->copperCount()!=3 || panel->pourEdgeCount()!=0
+       || panel->importedReferenceAreaCount(layer,net)!=3)return false;
     const auto lines=wire.split('\n');
     if(lines.size()!=14 || !lines.last().isEmpty()
        || lines[12]!="END|SOURCE_ONLY_NOT_ELECTRICAL")return false;
