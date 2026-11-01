@@ -87,7 +87,9 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,const QByteArray
             if(pad.layer==layer && padContains(points[static_cast<size_t>(e)],pad)) {
                 if(++count>1)return false; // ambiguous geometric owner: fail closed
                 const QString sourcePin=pad.reference+"."+pad.pin;
-                if(sourcePin==declared[static_cast<size_t>(e)])
+                // PADS SIGNAL declared pins express net membership, not an
+                // ordered association with the source Trace coordinate endpoints.
+                if(sourcePin==declared[0] || sourcePin==declared[1])
                     owners[static_cast<size_t>(e)]=p;
             }
         }
@@ -227,11 +229,30 @@ inline int selftest(const QString &importer) {
                            "LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|0|0|1|0|0");
     const bool wrongPinCannotSpoof=!decode(forgedPositive,wrongSha,wrongPin,panel.imported(),
          {"RA","RB","RC"},"NET_A",1,rejected);
+    // PADS pin declarations denote Net membership, not geometric endpoint order.
+    QByteArray reversed=original;
+    reversed.replace("204 300 1 10 0\n260 310 1 10 0",
+                     "260 310 1 10 0\n204 300 1 10 0");
+    if(!save(reversed) || !load())return 2;
+    const auto reverseSha=QCryptographicHash::hash(reversed,QCryptographicHash::Sha256).toHex();
+    const QByteArray reverseWire=query();
+    c005::Receipt reverseReceipt;
+    const bool reversedPositive=reverseWire.contains(
+           "LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|1|0|0|0|0") &&
+        decode(reverseWire,reverseSha,reversed,panel.imported(),
+               {"RA","RB","RC"},"NET_A",1,reverseReceipt) &&
+        reverseReceipt.markers.size()==1;
+    QByteArray reverseForged=reverseWire;
+    reverseForged.replace("LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|1|0|0|0|0",
+                          "LINK|SOURCE_CONTACT_NOT_VERIFIED|-|-|-|-|-");
+    const bool reverseForgeryRejected=!decode(reverseForged,reverseSha,reversed,panel.imported(),
+           {"RA","RB","RC"},"NET_A",1,rejected);
     const bool ok=verified && cannotSpoof && displayed && stale && negative &&
-                  wrongPinNegative && wrongPinCannotSpoof;
+                  wrongPinNegative && wrongPinCannotSpoof &&
+                  reversedPositive && reverseForgeryRejected;
     qInfo()<<"D005_NATIVE_QT_PAD_TRACE_AREA"<<ok<<verified<<cannotSpoof
            <<displayed<<stale<<negative<<wrongPinNegative<<wrongPinCannotSpoof
-           <<"SOURCE_ONLY_PHYSICAL_NOT_VERIFIED";
+           <<reversedPositive<<reverseForgeryRejected<<"SOURCE_ONLY_PHYSICAL_NOT_VERIFIED";
     return ok?0:1;
 }
 } // namespace d005
