@@ -824,6 +824,8 @@ public:
         return found;
     }
     int importedTraceCount() const { return static_cast<int>(tracks_.size()); }
+    // D_004: reject partially imported Source route, not just retained Tracks.
+    int importedSkippedCount() const { return skipped_; }
     int referenceRiskCountForTest() const { return static_cast<int>(risks_.size()); }
     void setReferenceRisks(const std::vector<ImportedReferenceRiskMarker> &markers) {
         const QSignalBlocker muteSelection(scene_);
