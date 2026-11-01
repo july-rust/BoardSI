@@ -667,6 +667,28 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // D_001: separate bounded pad-endpoint witness; no changes to default artwork wire.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d001-pad-endpoint-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
+            if !metadata.is_file()
+                || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
+            {
+                return Err("D001_FILE_LIMIT");
+            }
+            let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
+            boardsi_import::d001_pad_endpoint::encode(&bytes)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D001_PAD_ENDPOINT_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // C_023: strictly opt-in source geometry corridor across V14-qualified areas.
     if args.len() == 7 && args[2] == std::ffi::OsStr::new("--reference-corridor-v15") {
         let result = (|| -> Result<String, &'static str> {

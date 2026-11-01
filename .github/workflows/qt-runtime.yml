@@ -237,6 +237,18 @@ jobs:
           suffix=''
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c009-stitch-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      # D_001: separate source-bound SMD pad/trace endpoint candidate, native Qt.
+      - name: D_001 Native Qt source-pad endpoint and stale smoke
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+          QSG_RHI_BACKEND: software
+        working-directory: build-qt
+        run: |
+          suffix=''
+          if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --d001-pad-endpoint-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # C_023: actual Rust V15 importer -> independent Qt geometry decoder and gap marker.
       - name: C_023 Native multi-area Reference corridor coverage and stale smoke
         shell: bash

@@ -462,7 +462,12 @@
 - [ ] **Issue #7 F6 공개 Fixture 배포 법적 승인** — 저작권자별 3rd-party asset·NOTICE·라이선스 의무, 실제 Bundle 배포 방식의 별도 승인이 없으므로 **LEGAL_REVIEW_REQUIRED**. 원본 보드는 BoardSI 저장소에 동봉하지 않음.
 - [ ] **Issue #7 F6 실제 약 8 GiB 기준 PC 인수** — 기존 Linux 8 GiB/2 CPU 제한 합성 컨테이너와 별도로 실제 기준 환경의 OS/CPU/실가용 RAM/SSD 및 UI·디스크 시험 누락. 유료 클라우드/하드웨어는 승인 없이 사용하지 않음.
 - [ ] **Issue #7 전체 DoD 및 정식 T14/T15/T49** — 외부 승인/실기기 측정 미완: **Issue #7 OPEN / M0 F6 BLOCKED**. Issue #6 F7 라이선스·배포와 Issue #46/#41은 각각 별개로 OPEN.
-- [ ] **C_025_10 보호 브랜치 최종 인수** — [추적 Issue #330](https://github.com/july-rust/BoardSI/issues/330): 최종 exact-HEAD 17 필수 CI, 독립 최신 Codex 리뷰, 미해결 스레드 0, Verified Squash Merge, 독립 main push CI 확인 전에는 통합 [x] 금지. 확인 후 좁은 문서 감사만 완료로 처리하고 Issue #7은 계속 OPEN.
+- [x] **C_025_10 보호 브랜치 문서 감사 최종 제한 인수** — [PR #331](https://github.com/july-rust/BoardSI/pull/331) 최종 HEAD `6037287621d1712010ce1b44a7b1a4911d4e3c07` 22/22 Checks SUCCESS 및 8/8 PR Workflows SUCCESS; 같은 HEAD Codex `completed/findings=false/unresolved=false`, 리뷰 Thread 0. [Verified 1-parent Squash main@95e6af7](https://github.com/july-rust/BoardSI/commit/95e6af79144e3c1da95d870c609daa7be4049110) (GitHub `verified=true/reason=valid`), 병합 후 21/21 Checks SUCCESS 및 8/8 Push Workflows SUCCESS 독립 확인. [추적 Issue #330](https://github.com/july-rust/BoardSI/issues/330) CLOSED/completed (2026-11-01 KST). **체크일: 2026-11-01 KST** · **근거일: 2026-11-01 KST** (PR·병합·CI는 2026-10-31 KST, 독립 재검증·추적 Issue 종료는 2026-11-01 KST). 기존 기술 Fixture/License 헤더 재조정 문서만 인수; 외부 재배포 법적 승인, 실기기 기준 PC, M0 F6 정식 T14/T15/T49 미확인 및 Issue #7 OPEN/BLOCKED 유지.
+
+### D_001 — Trace endpoint / conductive SMD Pad footprint Source witness (2026-11-01 KST)
+
+- [ ] **D_001 opt-in strict Source-owned SMD Pad-contact candidate** — [Issue #332](https://github.com/july-rust/BoardSI/issues/332), [D_001 검증 원장](validation/d001-source-pad-endpoint.md). 신규 Rust R/S/RF Pad strict footprint와 Trace 끝점 매칭 후보, 정확 Source Net·Layer·정수 좌표, 독립 Qt 읽기/소스 변경 무효화 시험을 작업 브랜치에서 구현 중. **체크일: 미확정** · **근거일: 2026-11-01 KST (코드 작성일, 시험 인수 근거 아님)**. 정확 HEAD 필수 CI 17개, 독립 Codex, Verified Squash, 병합 후 CI 이전에는 [x] 전환 금지.
+- [ ] **M1 전체 및 물리 전기 접속, P009 인수** — D_001은 제조 Copper/Fill/Thermal/COPCUT/Return Path를 보증하지 않는 Source 기하 후보. U09/U10/U39 및 T02/T04/T24/T52는 미완, [Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN. Solver/cache 미승인 유지.
 
 ### 필수 참고 근거
 

@@ -780,6 +780,11 @@ public:
         if(index<0 || index>=static_cast<int>(tracks_.size())) return false;
         out=tracks_[static_cast<size_t>(index)].second; return true;
     }
+    // D_001: read back exact supported Source Pad artwork for an opt-in audit.
+    bool importedPad(int index, ImportedPad &out) const {
+        if(index<0 || index>=static_cast<int>(pads_.size()))return false;
+        out=pads_[static_cast<size_t>(index)].second;return true;
+    }
     bool importedVia(int index, ImportedVia &out) const {
         if(index<0 || index>=static_cast<int>(vias_.size()))return false;
         out=vias_[static_cast<size_t>(index)].second; return true;
@@ -835,7 +840,8 @@ public:
                m.state!="STITCH_PAD_FOOTPRINT_RISK" &&
                 m.state!="VIA_PAD_CLEARANCE_RISK" &&
                m.state!="SIGNAL_CUTOUT_CLEARANCE_RISK" &&
-               m.state!="SIGNAL_MULTI_CUTOUT_CLEARANCE_RISK") continue;
+               m.state!="SIGNAL_MULTI_CUTOUT_CLEARANCE_RISK" &&
+               m.state!="D001_PAD_ENDPOINT_CANDIDATE") continue;
             QGraphicsItem *item=nullptr;
             if(m.exactGap) {
                 QPen gapPen(QColor("#ff9e55"),5);
