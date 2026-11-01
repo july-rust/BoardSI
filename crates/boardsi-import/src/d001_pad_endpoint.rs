@@ -119,7 +119,10 @@ pub fn encode(source_bytes: &[u8]) -> Result<String, &'static str> {
         .files
         .first()
         .ok_or("D001_MISSING_SOURCE_FILE")?;
-    let sha: String = file.sha256.iter().map(|b| format!("{b:02x}")).collect();
+    let mut sha = String::with_capacity(64);
+    for b in &file.sha256 {
+        write!(&mut sha, "{b:02x}").map_err(|_| "D001_WIRE_FORMAT")?;
+    }
     let mut out = format!(
         "BOARDSI_D001_PAD_ENDPOINT_V1|{sha}|{}|SOURCE_GEOMETRY_ONLY|P009_UNSUPPORTED|SI_NOT_RUN\n",
         result.witnesses.len()
