@@ -53,6 +53,16 @@ fn area_cutout_or_boundary_refuses_link() {
     assert!(tangent.contains("LINK|SOURCE_CONTACT_NOT_VERIFIED"));
 }
 #[test]
+fn pad_pin_declaration_order_does_not_fix_trace_coordinate_order() {
+    let reversed = source([260, 310], [204, 300], None);
+    let wire = run(&reversed);
+    assert!(
+        wire.contains("LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|1|0|0|0|0\\n"),
+        "{wire}"
+    );
+}
+
+#[test]
 fn wrong_pin_and_pad_boundary_do_not_promote() {
     let near = source([220, 300], [260, 310], None);
     assert!(run(&near).contains("LINK|SOURCE_CONTACT_NOT_VERIFIED"));
