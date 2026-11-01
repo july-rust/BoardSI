@@ -4415,6 +4415,8 @@ static int runC023CorridorSelftest(const QString &importer) {
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--d003-three-area-selftest")
+        return d003::selftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--d002-copcut-selftest")
         return d002::selftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--d001-pad-endpoint-selftest")
