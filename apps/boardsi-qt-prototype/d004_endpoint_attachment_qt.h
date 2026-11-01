@@ -182,8 +182,8 @@ inline int selftest(const QString &importer) {
     // Codex P2: prove that an independently imported, partially skipped
     // Source can never accept a forged D_004 receipt with its current SHA.
     QByteArray omitted=original;
-    omitted.replace("150 150 2 10 0\\n*END*",
-                    "150 150 2 10 0\\n160 160 2 10 24576\\n*END*");
+    omitted.replace("150 150 2 10 0\n*END*",
+                    "150 150 2 10 0\n160 160 2 10 24576\n*END*");
     if(!source.resize(0) || !source.seek(0) ||
        source.write(omitted)!=omitted.size() || !source.flush())return 2;
     if(!load())return 2;
