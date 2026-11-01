@@ -192,6 +192,7 @@ pub mod d001_pad_endpoint;
 pub mod d002_copcut_contact;
 pub mod d003_three_area_copcut;
 pub mod d004_endpoint_attachment;
+pub mod d005_pad_trace_area;
 pub mod digest;
 pub mod material_contract;
 pub mod outline_arc;
