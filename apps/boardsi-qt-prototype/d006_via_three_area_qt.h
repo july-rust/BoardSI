@@ -245,6 +245,10 @@ inline int selftest(const QString &importer) {
         decode(wire,digest,source,panel.imported(),{"RA","RB","RC"},"NET_A",1,first) &&
         first.markers.size()==1;
     if(!accepted)return 1;
+    ImportedVia observed;
+    const bool padLayerGuard=panel.imported()->importedVia(0,observed) &&
+        declaredConductivePad(source,observed,1) &&
+        !declaredConductivePad(source,observed,2);
     panel.imported()->setReferenceRisks(first.markers);
     const bool displayed=panel.imported()->referenceRiskCountForTest()==1;
     auto forged=wire;
@@ -264,9 +268,9 @@ inline int selftest(const QString &importer) {
     const bool boundary=decode(query(),nextSha,changed,panel.imported(),
                           {"RA","RB","RC"},"NET_A",1,next) && next.markers.empty()
                           && next.state=="SOURCE_PAD_BOUNDARY_RISK";
-    const bool ok=accepted && displayed && noForgery && stale && boundary;
+    const bool ok=accepted && padLayerGuard && displayed && noForgery && stale && boundary;
     qInfo()<<"D006_NATIVE_QT_VIA_THREE_AREA"<<ok<<accepted<<displayed
-           <<noForgery<<stale<<boundary<<"PHYSICAL_NOT_VERIFIED_P009_UNSUPPORTED";
+           <<noForgery<<stale<<boundary<<padLayerGuard<<"PHYSICAL_NOT_VERIFIED_P009_UNSUPPORTED";
     return ok?0:1;
 }
 } // namespace d006
