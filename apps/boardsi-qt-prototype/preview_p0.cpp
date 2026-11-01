@@ -11,6 +11,7 @@
 #include "c005_reference_risk.h"
 #include "d001_pad_endpoint_qt.h"
 #include "d002_copcut_qt.h"
+#include "d003_three_area_qt.h"
 #include "a019_gpu_benchmark.h"
 #include "a019_interaction_validation.h"
 #include "a020_explorer_validation.h"
