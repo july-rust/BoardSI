@@ -22,6 +22,74 @@ inline bool inside(const std::array<qint64, 2> &p, qint64 d, const Rect &r) {
     return d>0 && 2*p[0]>2*r[0]+d && 2*p[0]<2*r[2]-d
                && 2*p[1]>2*r[1]+d && 2*p[1]<2*r[3]-d;
 }
+// Independently audit PADS *VIA* padstack source. A Via span alone never
+// proves a conductive Pad on an interior layer. These are the explicit
+// round two/three-row PADS V9.4 definitions admitted by the Rust importer.
+inline bool declaredConductivePad(const QByteArray &source, const ImportedVia &via, int layer) {
+    if(source.isEmpty() || source.size()>8*1024*1024 ||
+       via.name.isEmpty() || layer<via.firstLayer || layer>via.lastLayer)return false;
+    auto decimal=[](const QString &s,qint64 &ticks) {
+        static const QRegularExpression pattern("^[0-9]{1,7}(\\\\.[0-9]{1,2})?$");
+        if(!pattern.match(s).hasMatch())return false;
+        const auto parts=s.split('.');
+        bool ok=false;const qint64 whole=parts[0].toLongLong(&ok);
+        if(!ok)return false;
+        qint64 fraction=0;
+        if(parts.size()==2) {
+            const QString part=parts[1].leftJustified(2,'0');
+            fraction=part.toLongLong(&ok);
+            if(!ok)return false;
+        }
+        ticks=whole*100+fraction;
+        return ticks>0 && ticks<=5600000;
+    };
+    QString normalized=QString::fromUtf8(source);
+    normalized.replace("\r\n","\n");
+    const QStringList lines=normalized.split('\n');
+    const QRegularExpression whitespace("\\\\s+");
+    bool inVia=false,found=false,selected=false;
+    for(int i=0;i<lines.size();++i) {
+        const auto fields=lines[i].trimmed().split(whitespace,Qt::SkipEmptyParts);
+        if(fields.isEmpty() || fields[0]=="*REMARK*" || fields[0]=="REMARK")continue;
+        if(fields[0]=="*END*")break;
+        if(fields[0].startsWith('*')) {
+            inVia=fields[0]=="*VIA*";
+            continue;
+        }
+        if(!inVia || fields[0]!=via.name)continue;
+        if(found || fields.size()!=3)return false;
+        found=true;
+        bool valid=false;
+        const int count=fields[2].toInt(&valid);
+        if(!valid || count<2 || count>3 || i+count>=lines.size())return false;
+        qint64 drill=0;
+        if(!decimal(fields[1],drill) || drill*254!=via.drill_nm)return false;
+        bool top=false,bottom=false,inner=false;
+        qint64 common=0;
+        for(int n=1;n<=count;++n) {
+            const auto row=lines[i+n].trimmed().split(whitespace,Qt::SkipEmptyParts);
+            if(row.size()!=3 || row[2]!="R")return false;
+            qint64 width=0;
+            if(!decimal(row[1],width) || width<=drill || width*254!=via.diameter_nm)
+                return false;
+            if(common!=0 && common!=width)return false;
+            common=width;
+            if(row[0]=="-2" && !top) {
+                top=true;
+                if(layer==via.firstLayer)selected=true;
+            } else if(row[0]=="0" && !bottom) {
+                bottom=true;
+                if(layer==via.lastLayer)selected=true;
+            } else if(row[0]=="-1" && !inner) {
+                inner=true;
+                if(layer>via.firstLayer && layer<via.lastLayer)selected=true;
+            } else return false;
+        }
+        if(!top || !bottom || (count==3 && !inner))return false;
+        i+=count;
+    }
+    return found && selected;
+}
 inline bool decode(const QByteArray &wire,const QByteArray &sha,const QByteArray &source,
                    const ImportedArtworkPanel *panel,const QStringList &names,
                    const QString &net,int layer,c005::Receipt &out) {
@@ -56,7 +124,7 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,const QByteArray
     const std::array<qint64,2> point={values[0],values[1]};
     const qint64 diameter=values[2];
     ImportedVia imported;
-    if(!panel->importedVia(0,imported) || imported.net!=net
+    if(!panel->importedVia(0,imported) || !declaredConductivePad(source,imported,layer) || imported.net!=net
        || imported.x_nm!=point[0]*254 || imported.y_nm!=point[1]*254
        || imported.diameter_nm!=diameter*254 || imported.drill_nm!=values[3]*254
        || imported.firstLayer!=values[4] || imported.lastLayer!=values[5]
