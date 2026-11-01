@@ -11,12 +11,13 @@
 - Rust envelope includes a complete embedded D_006 receipt, trace endpoint coordinates, area-owner and component identity, and SHA-256. Qt independently checks the original actual Import, conductive Via padstack, object identities, Source area/cutout geometries, endpoint ownership, forged result and stale re-import.
 - Native selftest and Linux offscreen CTest use the existing built artwork importer opt-in; default artwork/canonical connectivity/Solver and previous D_001–D_006 wire contracts are unchanged.
 
-## Acceptance gate (PENDING)
+## Verified bounded code and native matrix evidence — 2026-11-02 KST
 
-- Exact final PR HEAD numerical / Rust fmt / Clippy / Debug / Release; Windows x64/ARM64, macOS ARM64 Native Qt build and independent D_007 smoke; Linux Qt offscreen CTest.
-- Every Ruleset #25046595 required status context; independent Codex review on final exact HEAD with all P1/P2 resolved.
-- Protected GitHub-verified, one-parent Squash merge followed by exact merged main SHA checks and push workflows.
-- No completion box, evidence count, merge status or Issue closure is to be asserted before these are independently observed.
+- [x] [Code PR #353](https://github.com/july-rust/BoardSI/pull/353), exact final HEAD [`d0992ba6ea204d16c6e915fef32108856ed49087`](https://github.com/july-rust/BoardSI/commit/d0992ba6ea204d16c6e915fef32108856ed49087/checks): **27/27 Check Runs SUCCESS, 11/11 pull_request Workflows SUCCESS**, required #25046595 **17/17 PASS**. Independent same-head Codex state `completed/has_any_findings=false/has_unresolved_findings=false` and zero unresolved threads. Rust source and Qt independent decoder, Source SHA and stale/forged receipts, 30/30 Linux Qt CTest (including `qt-preview-d007-via-trace-area` true). These are source-limited test observations.
+- [x] Protected one-parent [GitHub Verified squash `main@4b790edb0bcfdbded1c89b519e2e4b6b1ee35422`](https://github.com/july-rust/BoardSI/commit/4b790edb0bcfdbded1c89b519e2e4b6b1ee35422); Git commit verification `verified=true/reason=valid`, exactly one parent `28c7a914f25740723edb048979fed8d8c94cb492`. Independent exact-sha **21/21 Check Runs, 8/8 push Workflows SUCCESS**.
+- [x] [Native-coverage PR #354](https://github.com/july-rust/BoardSI/pull/354), exact final HEAD [`fd6c422727df45f813a701bd563d80bc1231511f`](https://github.com/july-rust/BoardSI/commit/fd6c422727df45f813a701bd563d80bc1231511f/checks): **25/25 Check Runs SUCCESS, 9/9 pull_request Workflows SUCCESS** and required #25046595 **17/17 PASS**. The actual D_007 native Qt step **SUCCESS** independently on Windows x64, Windows ARM64 and macOS ARM64. Same-head Codex `completed/findings=false/unresolved=false`; zero review threads. The existing Linux Qt D_007 30/30 CTest remains passed.
+- [x] Protected [one-parent GitHub Verified squash `main@aa6ddf744622e213c50e9e877019a02560ef8755`](https://github.com/july-rust/BoardSI/commit/aa6ddf744622e213c50e9e877019a02560ef8755), `verified=true/reason=valid`, parent `4b790edb0bcfdbded1c89b519e2e4b6b1ee35422`.
+- [ ] **Pending:** independently establish exact `main@aa6ddf744622` post-merge push CI check/workflow final success, docs/checklist PR protected merge and final post-main CI before closing [Issue #352](https://github.com/july-rust/BoardSI/issues/352).
 
 ## Excluded and expressly **NOT VERIFIED**
 
