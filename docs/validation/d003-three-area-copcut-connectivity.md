@@ -28,12 +28,24 @@ cache_reuse_eligible = false
 
 Full U09/U10/U39 and T02/T04/T24/T52 remain unchecked, parent #12 OPEN; Draft #35 unmerged. **No performance/30 GHz or physical correctness qualification.**
 
-## Evidence gate (all pending as of creation)
-- [ ] Exact latest code PR HEAD SHA and 17 strict required statuses, full Check Runs and Workflow Runs SUCCESS.
-- [ ] Native Qt Win x64, Win ARM64, macOS ARM64 dedicated D_003 steps and Linux offscreen, Rust Debug/Release actual SUCCESS, not skipped.
-- [ ] Independent Codex review **on exact latest HEAD** completed, 0 substantive unresolved, review threads 0.
-- [ ] Protected signed GitHub Verified one-parent Squash, verified without bypass.
-- [ ] Independent exact merged SHA main Push Checks/Workflow SUCCESS.
-- [ ] Dated checklist (first checked/evidence dates KST, source links) and Issue #339 safe closure only after above gates.
+## Code PR acceptance — verified 2026-11-01 KST
 
-Historic D_002 acceptance is documented in [D_002 ledger](d002-copper-split-contact-qualification.md) and does not automatically prove new 3-area cases.
+Code [PR #340](https://github.com/july-rust/BoardSI/pull/340), exact latest HEAD `3e608c495b9685fedbef25d607a2839372759d69`: independently observed **27/27 Check Runs SUCCESS**, **11/11 `event=pull_request` Workflow Runs SUCCESS**. Rust 1.75 fmt/strict Clippy and Debug/Release, Native Rust Windows x64/ARM64 and macOS ARM64, Qt native Windows x64/ARM64 and macOS ARM64, and Linux Qt 6.8.3 offscreen D_003 selftest actually executed successfully. Earlier negative Source-tick expectation and formatting were repaired before this final HEAD; original P1 Codex thread resolved.
+
+Independent Codex **exact latest HEAD** code review receipt `status=completed`, `has_any_findings=false`, `has_unresolved_findings=false`, 0 unresolved review threads.
+
+Protected [signed, GitHub Verified one-parent Squash main@7f43985124f4b422fc002dba8633aab06e8f7402](https://github.com/july-rust/BoardSI/commit/7f43985124f4b422fc002dba8633aab06e8f7402): GitHub REST `commit.verification.verified=true`, `reason=valid`, sole parent `cb9c6e213130cee807edbd3817be691ada7e06e7`. No bypass claimed. **Independent post-code-main exact-SHA verification PASSED 2026-11-01 KST**: [21/21 Check Runs SUCCESS](https://github.com/july-rust/BoardSI/commit/7f43985124f4b422fc002dba8633aab06e8f7402/checks) and **8/8 `event=push` Workflow Runs SUCCESS**, each explicitly bound to `7f43985124f4b422fc002dba8633aab06e8f7402`. This qualifies only code/source geometry D_003; separate docs-only reconciliation PR must pass its own final-head CI/Codex/protected Verified Squash/post-main before #339 closes.
+
+Evidence: [PR HEAD Checks](https://github.com/july-rust/BoardSI/commit/3e608c495b9685fedbef25d607a2839372759d69/checks), [PR #340](https://github.com/july-rust/BoardSI/pull/340), [signed merge](https://github.com/july-rust/BoardSI/commit/7f43985124f4b422fc002dba8633aab06e8f7402).
+
+## Pending final acceptance
+
+- [x] Exact latest code PR HEAD and all actual checks/workflows SUCCESS.
+- [x] Native Qt Windows x64/ARM64, macOS ARM64, Linux offscreen and Rust Debug/Release regression SUCCESS.
+- [x] Independent exact HEAD Codex completed, 0 findings, 0 unresolved threads.
+- [x] Protected one-parent GitHub Verified Squash.
+- [x] Independent exact merged SHA post-main 21/21 Checks and 8/8 Push Workflows SUCCESS on 2026-11-01 KST.
+- [x] **D_003 code-only** first checked/evidence date **2026-11-01 KST**, supported synthetic Source-geometry scope only.
+- [ ] Issue #339 closeout awaits independent docs-only PR exact-HEAD CI/Codex, protected Verified Squash and post-main acceptance.
+
+Original M1 #12 remains OPEN; no formal U/T, physical contact, P009, solver/cache or PH-08 qualification.
