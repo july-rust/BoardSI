@@ -23,14 +23,14 @@ static int selftest(const QString &importer) {
         "204 300 1 10 0\n300 300 1 10 0\n*END*\n");
     if(source.write(original)!=original.size() || !source.flush())return 2;
     PreviewImportPanel panel(importer);
+    QEventLoop loadLoop;
     auto load=[&]() {
-        QEventLoop e;
-        panel.setStatusCallback([&e](const QString &s) {
-            if(s.startsWith("PARTIAL") || s.startsWith("FAILED"))e.quit();
+        panel.setStatusCallback([&loadLoop](const QString &s) {
+            if(s.startsWith("PARTIAL") || s.startsWith("FAILED"))loadLoop.quit();
         });
         if(!panel.openPath(source.fileName()))return false;
-        QTimer::singleShot(8000,&e,&QEventLoop::quit);
-        e.exec();
+        QTimer::singleShot(8000,&loadLoop,&QEventLoop::quit);
+        loadLoop.exec();
         return panel.importStatus().startsWith("PARTIAL");
     };
     if(!load())return 2;
