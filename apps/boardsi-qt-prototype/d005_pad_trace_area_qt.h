@@ -8,6 +8,7 @@
 #include <QEventLoop>
 #include <QTimer>
 #include <QRegularExpression>
+#include <QHash>
 #include <array>
 namespace d005 {
 // Independently inspect the exact source bytes for the one supported
@@ -18,35 +19,44 @@ inline bool declaredPins(const QByteArray &source,const QByteArray &sha,const QS
        QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex()!=sha)return false;
     QString normalized=QString::fromUtf8(source);
     normalized.replace("\r\n","\n");
-    const QStringList lines=normalized.split('\n');
-    bool route=false;
-    int signal=-1;
-    for(int i=0;i<lines.size();++i) {
-        const QString trimmed=lines[i].trimmed();
-        if(trimmed=="*ROUTE*") {route=true;continue;}
-        if(route && trimmed.startsWith("*SIGNAL*")) {
-            if(signal>=0 || trimmed.mid(8).trimmed()!=net)return false;
-            signal=i;
+    const auto lines=normalized.split('\n');
+    const QRegularExpression whitespace("\\s+");
+    bool inRoute=false;
+    QString currentNet;
+    QHash<QString,QString> memberships;
+    // Parity with Rust part_preview::declared_route_pin_nets:
+    // *REMARK*/REMARK never end a signal; *SIGNAL* Net is the second field;
+    // multiple pairs and multiple SIGNAL blocks can declare Pin membership.
+    for(const auto &raw:lines) {
+        const QString line=raw.trimmed();
+        const QStringList fields=line.split(whitespace,Qt::SkipEmptyParts);
+        if(fields.isEmpty() || fields[0]=="*REMARK*" || fields[0]=="REMARK")continue;
+        const QString first=fields[0];
+        if(first=="*END*")break;
+        if(first.startsWith('*')) {
+            if(first=="*ROUTE*") {
+                inRoute=true;
+                currentNet.clear();
+            } else if(first=="*SIGNAL*" && inRoute) {
+                currentNet=fields.value(1);
+            } else {
+                inRoute=false;
+                currentNet.clear();
+            }
+            continue;
+        }
+        if(!inRoute || currentNet.isEmpty() || fields.size()!=2)continue;
+        const int a=fields[0].lastIndexOf('.'),b=fields[1].lastIndexOf('.');
+        if(a<=0 || a==fields[0].size()-1 || b<=0 || b==fields[1].size()-1)continue;
+        for(const auto &token:fields) {
+            auto existing=memberships.constFind(token);
+            if(existing!=memberships.cend() && existing.value()!=currentNet)return false;
+            memberships.insert(token,currentNet);
         }
     }
-    if(signal<0 || signal+1>=lines.size())return false;
-    // PADS may declare multiple source pin pairs for one SIGNAL. All belong
-    // to the selected Net; the declaration order is unrelated to Trace ends.
-    for(int i=signal+1;i<lines.size();++i) {
-        const QString line=lines[i].trimmed();
-        if(line.startsWith('*'))break;
-        const auto pair=line.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
-        if(pair.size()!=2)continue; // Source Trace coordinate rows are not pin pairs.
-        bool valid=true;
-        for(const auto &token:pair) {
-            if(token.count('.')!=1 || token.startsWith('.') || token.endsWith('.'))
-                valid=false;
-        }
-        if(!valid)continue;
-        for(const auto &token:pair) {
-            if(!pins.contains(token))pins.push_back(token);
-            if(pins.size()>128)return false; // Explicit bounded source contract
-        }
+    for(auto it=memberships.cbegin();it!=memberships.cend();++it) {
+        if(it.value()==net)pins.push_back(it.key());
+        if(pins.size()>128)return false; // D_005 bounded diagnostic
     }
     return !pins.isEmpty();
 }
@@ -278,14 +288,37 @@ inline int selftest(const QString &importer) {
                         "LINK|SOURCE_CONTACT_NOT_VERIFIED|-|-|-|-|-");
     const bool extraForgedRejected=!decode(extraForged,extraSha,extraPair,panel.imported(),
            {"RA","RB","RC"},"NET_A",1,rejected);
+    QByteArray remarked=extraPair;
+    remarked.replace("U1.1 U8.2\n","*REMARK* late owning pin\nU1.1 U8.2\n");
+    if(!save(remarked) || !load())return 2;
+    const auto remarkSha=QCryptographicHash::hash(remarked,QCryptographicHash::Sha256).toHex();
+    const QByteArray remarkWire=query();
+    c005::Receipt remarkReceipt;
+    const bool remarkPositive=remarkWire.contains(
+           "LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|0|0|1|0|0") &&
+        decode(remarkWire,remarkSha,remarked,panel.imported(),
+               {"RA","RB","RC"},"NET_A",1,remarkReceipt) &&
+        remarkReceipt.markers.size()==1;
+    QByteArray annotated=original;
+    annotated.replace("*SIGNAL* NET_A\n","*SIGNAL* NET_A 1024 0\n");
+    if(!save(annotated) || !load())return 2;
+    const auto metaSha=QCryptographicHash::hash(annotated,QCryptographicHash::Sha256).toHex();
+    const QByteArray metaWire=query();
+    c005::Receipt metaReceipt;
+    const bool metadataPositive=metaWire.contains(
+           "LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|0|0|1|0|0") &&
+        decode(metaWire,metaSha,annotated,panel.imported(),
+               {"RA","RB","RC"},"NET_A",1,metaReceipt) &&
+        metaReceipt.markers.size()==1;
     const bool ok=verified && cannotSpoof && displayed && stale && negative &&
                   wrongPinNegative && wrongPinCannotSpoof &&
                   reversedPositive && reverseForgeryRejected &&
-                  extraPairPositive && extraForgedRejected;
+                  extraPairPositive && extraForgedRejected &&
+                  remarkPositive && metadataPositive;
     qInfo()<<"D005_NATIVE_QT_PAD_TRACE_AREA"<<ok<<verified<<cannotSpoof
            <<displayed<<stale<<negative<<wrongPinNegative<<wrongPinCannotSpoof
            <<reversedPositive<<reverseForgeryRejected<<extraPairPositive<<extraForgedRejected
-           <<"SOURCE_ONLY_PHYSICAL_NOT_VERIFIED";
+           <<remarkPositive<<metadataPositive<<"SOURCE_ONLY_PHYSICAL_NOT_VERIFIED";
     return ok?0:1;
 }
 } // namespace d005
