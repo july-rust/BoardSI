@@ -9,10 +9,8 @@ fn run(source: &str, layer: &str) -> (bool, String) {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let path = std::env::temp_dir().join(format!(
-        "boardsi-d006-{}-{unique}.asc",
-        std::process::id()
-    ));
+    let path =
+        std::env::temp_dir().join(format!("boardsi-d006-{}-{unique}.asc", std::process::id()));
     std::fs::write(&path, source).unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_boardsi-d006-via-three-area"))
         .args([
@@ -54,18 +52,15 @@ fn positive_source_candidate_never_means_electrical() {
 
 #[test]
 fn pad_perimeter_boundary_and_multiple_area_owner_are_not_accepted() {
-    let edge = SOURCE.replace(
-        "150 250 1 10 0 SIMPLEVIA",
-        "110 250 1 10 0 SIMPLEVIA",
-    );
+    let edge = SOURCE.replace("150 250 1 10 0 SIMPLEVIA", "110 250 1 10 0 SIMPLEVIA");
     let (passed, output) = run(&edge, "1");
     assert!(passed, "{output}");
-    assert!(output.contains("CONTACT|SOURCE_PAD_BOUNDARY_RISK|-|-"), "{output}");
-
-    let ambiguous = SOURCE.replace(
-        "150 250 1 10 0 SIMPLEVIA",
-        "190 250 1 10 0 SIMPLEVIA",
+    assert!(
+        output.contains("CONTACT|SOURCE_PAD_BOUNDARY_RISK|-|-"),
+        "{output}"
     );
+
+    let ambiguous = SOURCE.replace("150 250 1 10 0 SIMPLEVIA", "190 250 1 10 0 SIMPLEVIA");
     let (passed, output) = run(&ambiguous, "1");
     assert!(passed, "{output}");
     assert!(
@@ -77,43 +72,34 @@ fn pad_perimeter_boundary_and_multiple_area_owner_are_not_accepted() {
 #[test]
 fn copper_cutout_blocks_candidate() {
     let cutout = SOURCE
-        .replace(
-            "RA COPPER 0 0 1 1 0 NET_A",
-            "RA COPPER 0 0 2 1 0 NET_A",
-        )
+        .replace("RA COPPER 0 0 1 1 0 NET_A", "RA COPPER 0 0 2 1 0 NET_A")
         .replace(
             "100 300\n100 200\n",
             "100 300\n100 200\nCOPCUT 5 0.01 0 1\n140 240\n160 240\n160 260\n140 260\n140 240\n",
         );
     let (passed, output) = run(&cutout, "1");
     assert!(passed, "{output}");
-    assert!(output.contains("CONTACT|SOURCE_COPCUT_RISK|-|-"), "{output}");
+    assert!(
+        output.contains("CONTACT|SOURCE_COPCUT_RISK|-|-"),
+        "{output}"
+    );
 }
 
 #[test]
 fn layer_net_and_incomplete_source_are_rejected() {
     assert!(!run(SOURCE, "2").0);
-    let wrong_net = SOURCE.replace(
-        "RB COPPER 0 0 1 1 0 NET_A",
-        "RB COPPER 0 0 1 1 0 NET_B",
-    );
+    let wrong_net = SOURCE.replace("RB COPPER 0 0 1 1 0 NET_A", "RB COPPER 0 0 1 1 0 NET_B");
     assert!(!run(&wrong_net, "1").0);
     let no_via = SOURCE.replace(" SIMPLEVIA", "");
     assert!(!run(&no_via, "1").0);
-    let unsupported = SOURCE.replace(
-        "SIMPLEVIA 15 2",
-        "SIMPLEVIA 15 3",
-    );
+    let unsupported = SOURCE.replace("SIMPLEVIA 15 2", "SIMPLEVIA 15 3");
     assert!(!run(&unsupported, "1").0);
 }
 
 #[test]
 fn different_source_bytes_cannot_reuse_sha() {
     let (ok_a, a) = run(SOURCE, "1");
-    let changed = SOURCE.replace(
-        "150 250 1 10 0 SIMPLEVIA",
-        "151 250 1 10 0 SIMPLEVIA",
-    );
+    let changed = SOURCE.replace("150 250 1 10 0 SIMPLEVIA", "151 250 1 10 0 SIMPLEVIA");
     let (ok_b, b) = run(&changed, "1");
     assert!(ok_a && ok_b, "{a}\n{b}");
     assert_ne!(a.lines().next(), b.lines().next());
