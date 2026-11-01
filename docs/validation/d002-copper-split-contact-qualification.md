@@ -33,15 +33,38 @@ cache_reuse_eligible = false
 
 Original M1 #12 and full U09/U10/U39/T02/T04/T24/T52 remain OPEN/unchecked; PH-08 Gate Q historical FAIL, M0 F1/F6/F7, Draft PR #35 remain unchanged.
 
-## Acceptance gate — pending observed evidence
+## Independently observed bounded code acceptance — 2026-11-01 KST
 
-- [ ] Rust Debug/Release synthetic positive/negative Source-contact and cutout removal tests
-- [ ] Native Qt Linux offscreen and Windows x64/ARM64, macOS ARM64 actual Rust importer/readback and stale tests
-- [ ] Rust formatting, strict Clippy and all mandatory **17** context checks on exact final code PR HEAD
-- [ ] All actual final-head checks and workflows successful, including required native targets
-- [ ] Independent latest exact-HEAD Codex review complete with zero unresolved material findings and review threads
-- [ ] Protected GitHub-signed Verified one-parent Squash to main, no bypass
-- [ ] Independently successful post-main exact merge SHA push checks/workflows
-- [ ] Update dated checklist only after verified outcomes; close bounded Issue #336 only when actual gates qualify
+The **code** PR [#337](https://github.com/july-rust/BoardSI/pull/337) final source HEAD `2ee4735bd7323e5971a542dd198e34c06f20b924` completed **27/27 Check Runs SUCCESS** and **11/11 pull_request workflow runs SUCCESS**. Verified Rust 1.75 formatting, strict Clippy, Debug/Release synthetic regressions, native Qt source COPCUT readback/stale tests on Windows x64, Windows ARM64 and macOS ARM64, Linux Qt 6.8.3 offscreen, plus existing native/FEM and related checks. All three dedicated `D_002 Native Qt COPCUT source contact and stale smoke` native steps were independently observed SUCCESS, including Windows ARM64.
 
-The 2026-11-01 date above records work initiation, **not PASS evidence**. No merge, review or CI is preclaimed. Any blocker remains BLOCKED with its exact cause, not retrospectively marked successful.
+The latest-exact-HEAD automated independent Codex review recorded `status=completed`, `has_any_findings=false`, `has_unresolved_findings=false`, **0 unresolved review threads** on commit `2ee4735bd7323e5971a542dd198e34c06f20b924`.
+
+The protected [one-parent Signed Verified Squash main@c70d2309cb4aee1168762b51d7c76eb9d7ca42e4](https://github.com/july-rust/BoardSI/commit/c70d2309cb4aee1168762b51d7c76eb9d7ca42e4) has GitHub REST `commit.verification.verified=true`, `reason=valid`, single parent `2c107dd0f2179295c525654e9255040c93a4ecdd`. The **separate exact merged SHA** [21/21 main Check Runs SUCCESS](https://github.com/july-rust/BoardSI/commit/c70d2309cb4aee1168762b51d7c76eb9d7ca42e4/checks) and [8/8 event=push workflows SUCCESS](https://github.com/july-rust/BoardSI/actions?query=event%3Apush) were independently read back with exact head SHA, 2026-11-01 KST.
+
+| Bounded code acceptance criterion | Observed result |
+| --- | --- |
+| Synthetic Rust Source contact/cutout positive and negative tests | **PASS** in PR final-HEAD Numerical Core Debug/Release |
+| Original source SHA / Canonical outer+owned void consistency | **PASS**, Rust & native Qt regression |
+| Qt Native Windows x64/ARM64, macOS ARM64 D_002 dedicated smoke | **3/3 SUCCESS** |
+| Linux Offscreen Qt D_002 CTest and existing Qt runtime suite | **SUCCESS** |
+| Final exact PR HEAD checks | **27/27 SUCCESS** |
+| All actual PR workflows | **11/11 SUCCESS** |
+| Independent same-head Codex and review threads | **completed, findings 0, unresolved 0, threads 0** |
+| Protected one-parent Verified Squash | **PASS**, `main@c70d2309...` |
+| Independent post-code-main exact SHA Checks | **21/21 SUCCESS** |
+| Independent post-code-main exact SHA Push workflows | **8/8 SUCCESS** |
+
+**First bounded code acceptance check date: 2026-11-01 KST. Evidence date: 2026-11-01 KST.** This narrowly closes the Rust/Qt code-test acceptance, not fabricated electrical continuity. The subsequent **docs-only checklist reconciliation PR** is a separate gate; do not mark that docs PR merged, its own exact-HEAD CI/Codex completed or tracker #336 closed until independently verified and posted to Issue #336.
+
+## Physical and product scope remains not accepted
+
+No independent manufactured-fill/thermal/via-padstack/DRC or electrical-physical Oracle was available. `SOURCE_CONTACT_CANDIDATE` is a source geometry condition only. A Source Net label is not an electrical connectivity PASS. The product-wide M1 #12, U09/U10/U39/T02/T04/T24/T52, P009, physical SI, Solver/cache, PH-08 original Gate Q and Draft PR #35 remain unchanged.
+
+```text
+return_path_p009     = UNSUPPORTED
+physical_si          = NOT_RUN
+solver_ready         = false
+cache_reuse_eligible = false
+```
+
+No claims about the future documentation PR are recorded here. Its verification and Issue #336 safe closure must be independently documented after the fact.
