@@ -119,9 +119,7 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,const QByteArray
     return true;
 }
 inline int selftest(const QString &importer) {
-    const QFileInfo binary(importer);
-    const QString cli=binary.absolutePath()+"/boardsi-d007-via-trace-three-area"
-        +(binary.suffix()=="exe"?".exe":"");
+    const QString cli=importer;
     if(!QFileInfo(cli).isExecutable())return 2;
     QTemporaryFile file;
     if(!file.open())return 2;
@@ -156,7 +154,7 @@ inline int selftest(const QString &importer) {
     };
     const auto query=[&]() {
         QProcess p;
-        p.start(cli,{file.fileName(),"RA","RB","RC","NET_A","1","0"});
+        p.start(cli,{file.fileName(),"--d007-via-trace-three-area-v1","RA","RB","RC","NET_A","1","0"});
         if(!p.waitForFinished(10000) || p.exitStatus()!=QProcess::NormalExit
             || p.exitCode()!=0)return QByteArray();
         return p.readAllStandardOutput();
