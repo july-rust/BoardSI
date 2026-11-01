@@ -669,24 +669,25 @@ fn main() {
     let args: Vec<_> = std::env::args_os().collect();
     // D_003: exactly three source-owned rectangles with at most one COPCUT.
     // WARNING: source geometry candidate only, no electrical / solver promotion.
-    if args.len()==8 && args[2]==std::ffi::OsStr::new("--d003-three-area-copcut-v1") {
-        let result=(|| -> Result<String,&'static str> {
-            let txt=|i:usize|args[i].to_str().ok_or("D003_NON_UTF8_SELECTION");
-            let names=[txt(3)?,txt(4)?,txt(5)?];
-            let net=txt(6)?;
-            let layer=txt(7)?.parse::<usize>().map_err(|_|"D003_LAYER_INVALID")?;
-            let path=std::path::Path::new(&args[1]);
-            let metadata=std::fs::metadata(path).map_err(|_|"FILE_UNAVAILABLE")?;
-            if !metadata.is_file() ||
-                metadata.len()>boardsi_import::route_preview::MAX_FILE_BYTES as u64 {
+    if args.len() == 8 && args[2] == std::ffi::OsStr::new("--d003-three-area-copcut-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let txt = |i: usize| args[i].to_str().ok_or("D003_NON_UTF8_SELECTION");
+            let names = [txt(3)?, txt(4)?, txt(5)?];
+            let net = txt(6)?;
+            let layer = txt(7)?.parse::<usize>().map_err(|_| "D003_LAYER_INVALID")?;
+            let path = std::path::Path::new(&args[1]);
+            let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
+            if !metadata.is_file()
+                || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
+            {
                 return Err("D003_FILE_LIMIT");
             }
-            let bytes=std::fs::read(path).map_err(|_|"FILE_READ_FAILED")?;
-            boardsi_import::d003_three_area_copcut::encode(&bytes,names,net,layer)
+            let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
+            boardsi_import::d003_three_area_copcut::encode(&bytes, names, net, layer)
         })();
         match result {
-            Ok(wire)=>print!("{wire}"),
-            Err(reason)=> {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
                 eprintln!("D003_THREE_AREA_ERROR:{reason}");
                 std::process::exit(3);
             }
