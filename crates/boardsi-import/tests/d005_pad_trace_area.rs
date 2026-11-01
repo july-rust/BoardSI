@@ -75,6 +75,17 @@ fn additional_pin_pair_on_same_signal_is_not_lost() {
 }
 
 #[test]
+fn remarks_and_signal_metadata_preserve_source_pin_net() {
+    let original = source([204, 300], [260, 310], None);
+    let remarked = original
+        .replace("U1.1 U9.2\n", "U1.2 U9.2\n")
+        .replace("*END*\n", "*REMARK* later pair\nU1.1 U8.2\n*END*\n");
+    assert!(run(&remarked).contains("LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|0|0|1|0|0\n"));
+    let annotated = original.replace("*SIGNAL* NET_A\n", "*SIGNAL* NET_A 1024 0\n");
+    assert!(run(&annotated).contains("LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|0|0|1|0|0\n"));
+}
+
+#[test]
 fn wrong_pin_and_pad_boundary_do_not_promote() {
     let near = source([220, 300], [260, 310], None);
     assert!(run(&near).contains("LINK|SOURCE_CONTACT_NOT_VERIFIED"));
