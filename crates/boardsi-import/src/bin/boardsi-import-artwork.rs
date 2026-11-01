@@ -680,13 +680,18 @@ fn main() {
             let metadata = std::fs::metadata(path).map_err(|_| "FILE_UNAVAILABLE")?;
             if !metadata.is_file()
                 || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
-            { return Err("D005_FILE_LIMIT"); }
+            {
+                return Err("D005_FILE_LIMIT");
+            }
             let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
             boardsi_import::d005_pad_trace_area::encode(&bytes, names, net, layer, index)
         })();
         match result {
             Ok(wire) => print!("{wire}"),
-            Err(reason) => { eprintln!("D005_SOURCE_ERROR:{reason}"); std::process::exit(3); }
+            Err(reason) => {
+                eprintln!("D005_SOURCE_ERROR:{reason}");
+                std::process::exit(3);
+            }
         }
         return;
     }
