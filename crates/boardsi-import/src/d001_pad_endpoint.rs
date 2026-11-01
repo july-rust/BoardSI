@@ -48,6 +48,11 @@ pub fn audit(source_bytes: &[u8]) -> Result<PadEndpointAudit, &'static str> {
     }
     let source_route = route_preview::parse(source_bytes)?;
     let pads = part_preview::parse(source_bytes, source_route.max_layer);
+    // A truncated/unsupported PART inventory could hide a second overlapping
+    // Pad and falsely turn an ambiguous endpoint into a unique owner.
+    if pads.skipped != 0 {
+        return Err("D001_PAD_INVENTORY_INCOMPLETE");
+    }
     let mut board: BoardModel = route_preview::into_canonical(source_bytes, &source_route)?;
     part_preview::augment_source_bound(&mut board, &pads, source_bytes)?;
     if board.sources.len() != 1
@@ -170,7 +175,9 @@ mod tests {
     use super::*;
     const SAMPLE: &str = include_str!("../tests/fixtures/pads_component_simple_v94.asc");
     fn specimen(replacement: &str) -> String {
-        SAMPLE.replace("U9.1 U9.2\n100 200 1 10 0\n300 200 1 10 0", replacement)
+        let normalized = SAMPLE.replace("\r\n", "\n");
+        assert!(normalized.contains("U9.1 U9.2\n100 200 1 10 0\n300 200 1 10 0"));
+        normalized.replace("U9.1 U9.2\n100 200 1 10 0\n300 200 1 10 0", replacement)
     }
     #[test]
     fn round_smd_off_centre_is_new_strict_witness() {
@@ -210,6 +217,29 @@ mod tests {
             .is_empty());
         let far = specimen("U1.1 U9.2\n250 300 1 10 0\n300 300 1 10 0");
         assert!(audit(far.as_bytes()).unwrap().witnesses.is_empty());
+    }
+    #[test]
+    fn incomplete_source_pad_inventory_never_proves_unique_owner() {
+        // 2,501 syntactically valid two-pad instances exceed MAX_PADS (5000).
+        // The final overlapping owner must not be silently ignored.
+        let normalized = SAMPLE.replace("\r\n", "\n");
+        let prefix = "*PART*\nU1 TYPEA 200 300 90 U N 0 -1 0 -1 0\n";
+        assert!(normalized.contains(prefix));
+        let mut parts = String::from("*PART*\n");
+        for id in 1..=2501 {
+            parts.push_str(&format!("U{id} TYPEA 200 300 90 U N 0 -1 0 -1 0\n"));
+        }
+        let original = normalized.replace(prefix, &parts);
+        let raw = original.replace(
+            "U9.1 U9.2\n100 200 1 10 0\n300 200 1 10 0",
+            "U1.1 U9.2\n204 300 1 10 0\n300 300 1 10 0",
+        );
+        let route = route_preview::parse(raw.as_bytes()).unwrap();
+        assert!(part_preview::parse(raw.as_bytes(), route.max_layer).skipped > 0);
+        assert!(matches!(
+            audit(raw.as_bytes()),
+            Err("D001_PAD_INVENTORY_INCOMPLETE")
+        ));
     }
     #[test]
     fn deterministic_wire_and_source_digest_change() {
