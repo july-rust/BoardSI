@@ -279,10 +279,7 @@ mod tests {
         assert!(encode(positive.as_bytes())
             .unwrap()
             .contains("W|0|0|1|1|20400|42500|3000|6000|RF|U1|2\n"));
-        assert!(audit(fixture(215).as_bytes())
-            .unwrap()
-            .witnesses
-            .is_empty());
+        assert!(audit(fixture(215).as_bytes()).unwrap().witnesses.is_empty());
     }
 
     #[test]
