@@ -13,7 +13,7 @@ namespace d005 {
 // Independently inspect the exact source bytes for the one supported
 // PADS ROUTE SIGNAL pin-pair declaration; Pad geometry alone is insufficient.
 inline bool declaredPins(const QByteArray &source,const QByteArray &sha,const QString &net,
-    std::array<QString,2> &pins) {
+    QStringList &pins) {
     if(source.isEmpty() || source.size()>16*1024*1024 ||
        QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex()!=sha)return false;
     QString normalized=QString::fromUtf8(source);
@@ -30,13 +30,25 @@ inline bool declaredPins(const QByteArray &source,const QByteArray &sha,const QS
         }
     }
     if(signal<0 || signal+1>=lines.size())return false;
-    const auto pair=lines[signal+1].trimmed().split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
-    if(pair.size()!=2)return false;
-    for(int e=0;e<2;++e) {
-        if(pair[e].count('.')!=1 || pair[e].startsWith('.') || pair[e].endsWith('.'))return false;
-        pins[static_cast<size_t>(e)]=pair[e];
+    // PADS may declare multiple source pin pairs for one SIGNAL. All belong
+    // to the selected Net; the declaration order is unrelated to Trace ends.
+    for(int i=signal+1;i<lines.size();++i) {
+        const QString line=lines[i].trimmed();
+        if(line.startsWith('*'))break;
+        const auto pair=line.split(QRegularExpression("\\s+"),Qt::SkipEmptyParts);
+        if(pair.size()!=2)continue; // Source Trace coordinate rows are not pin pairs.
+        bool valid=true;
+        for(const auto &token:pair) {
+            if(token.count('.')!=1 || token.startsWith('.') || token.endsWith('.'))
+                valid=false;
+        }
+        if(!valid)continue;
+        for(const auto &token:pair) {
+            if(!pins.contains(token))pins.push_back(token);
+            if(pins.size()>128)return false; // Explicit bounded source contract
+        }
     }
-    return true;
+    return !pins.isEmpty();
 }
 inline bool padContains(const std::array<qint64,2> &p,const ImportedPad &pad) {
     if(pad.width_nm<=0 || pad.height_nm<=0 ||
@@ -57,7 +69,7 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,const QByteArray
     if(!artwork || sha.size()!=64 || wire.size()>16384 || !wire.endsWith('\n') ||
        artwork->importedSkippedCount()!=0 || artwork->importedTraceCount()!=1 ||
        artwork->arcCount()!=0 || artwork->viaCount()!=0 || artwork->padCount()>5000)return false;
-    std::array<QString,2> declared{};
+    QStringList declared;
     if(!declaredPins(source,sha,net,declared))return false;
     const auto lines=wire.split('\n');
     if(lines.size()!=18 || !lines.last().isEmpty() ||
@@ -89,7 +101,7 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,const QByteArray
                 const QString sourcePin=pad.reference+"."+pad.pin;
                 // PADS SIGNAL declared pins express net membership, not an
                 // ordered association with the source Trace coordinate endpoints.
-                if(sourcePin==declared[0] || sourcePin==declared[1])
+                if(declared.contains(sourcePin))
                     owners[static_cast<size_t>(e)]=p;
             }
         }
@@ -247,12 +259,33 @@ inline int selftest(const QString &importer) {
                           "LINK|SOURCE_CONTACT_NOT_VERIFIED|-|-|-|-|-");
     const bool reverseForgeryRejected=!decode(reverseForged,reverseSha,reversed,panel.imported(),
            {"RA","RB","RC"},"NET_A",1,rejected);
+    // A single SIGNAL can contain more than one source pin-pair record;
+    // the later owning Pin still qualifies when D_001 and D_004 agree.
+    QByteArray extraPair=original;
+    extraPair.replace("U1.1 U9.2\n", "U1.2 U9.2\n");
+    extraPair.replace("*END*\n","U1.1 U8.2\n*END*\n");
+    if(!save(extraPair) || !load())return 2;
+    const auto extraSha=QCryptographicHash::hash(extraPair,QCryptographicHash::Sha256).toHex();
+    const QByteArray extraWire=query();
+    c005::Receipt extraReceipt;
+    const bool extraPairPositive=extraWire.contains(
+           "LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|0|0|1|0|0") &&
+        decode(extraWire,extraSha,extraPair,panel.imported(),
+               {"RA","RB","RC"},"NET_A",1,extraReceipt) &&
+        extraReceipt.markers.size()==1;
+    QByteArray extraForged=extraWire;
+    extraForged.replace("LINK|SOURCE_PAD_TRACE_AREA_CANDIDATE|0|0|1|0|0",
+                        "LINK|SOURCE_CONTACT_NOT_VERIFIED|-|-|-|-|-");
+    const bool extraForgedRejected=!decode(extraForged,extraSha,extraPair,panel.imported(),
+           {"RA","RB","RC"},"NET_A",1,rejected);
     const bool ok=verified && cannotSpoof && displayed && stale && negative &&
                   wrongPinNegative && wrongPinCannotSpoof &&
-                  reversedPositive && reverseForgeryRejected;
+                  reversedPositive && reverseForgeryRejected &&
+                  extraPairPositive && extraForgedRejected;
     qInfo()<<"D005_NATIVE_QT_PAD_TRACE_AREA"<<ok<<verified<<cannotSpoof
            <<displayed<<stale<<negative<<wrongPinNegative<<wrongPinCannotSpoof
-           <<reversedPositive<<reverseForgeryRejected<<"SOURCE_ONLY_PHYSICAL_NOT_VERIFIED";
+           <<reversedPositive<<reverseForgeryRejected<<extraPairPositive<<extraForgedRejected
+           <<"SOURCE_ONLY_PHYSICAL_NOT_VERIFIED";
     return ok?0:1;
 }
 } // namespace d005
