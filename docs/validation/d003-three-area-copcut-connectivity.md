@@ -34,7 +34,7 @@ Code [PR #340](https://github.com/july-rust/BoardSI/pull/340), exact latest HEAD
 
 Independent Codex **exact latest HEAD** code review receipt `status=completed`, `has_any_findings=false`, `has_unresolved_findings=false`, 0 unresolved review threads.
 
-Protected [signed, GitHub Verified one-parent Squash main@7f43985124f4b422fc002dba8633aab06e8f7402](https://github.com/july-rust/BoardSI/commit/7f43985124f4b422fc002dba8633aab06e8f7402): GitHub REST `commit.verification.verified=true`, `reason=valid`, sole parent `cb9c6e213130cee807edbd3817be691ada7e06e7`. No bypass claimed. **Exact merged-SHA post-main Push CI remains pending at this writing; do not close #339 or mark bounded checklist [x] until independently checked.**
+Protected [signed, GitHub Verified one-parent Squash main@7f43985124f4b422fc002dba8633aab06e8f7402](https://github.com/july-rust/BoardSI/commit/7f43985124f4b422fc002dba8633aab06e8f7402): GitHub REST `commit.verification.verified=true`, `reason=valid`, sole parent `cb9c6e213130cee807edbd3817be691ada7e06e7`. No bypass claimed. **Independent post-code-main exact-SHA verification PASSED 2026-11-01 KST**: [21/21 Check Runs SUCCESS](https://github.com/july-rust/BoardSI/commit/7f43985124f4b422fc002dba8633aab06e8f7402/checks) and **8/8 `event=push` Workflow Runs SUCCESS**, each explicitly bound to `7f43985124f4b422fc002dba8633aab06e8f7402`. This qualifies only code/source geometry D_003; separate docs-only reconciliation PR must pass its own final-head CI/Codex/protected Verified Squash/post-main before #339 closes.
 
 Evidence: [PR HEAD Checks](https://github.com/july-rust/BoardSI/commit/3e608c495b9685fedbef25d607a2839372759d69/checks), [PR #340](https://github.com/july-rust/BoardSI/pull/340), [signed merge](https://github.com/july-rust/BoardSI/commit/7f43985124f4b422fc002dba8633aab06e8f7402).
 
@@ -44,7 +44,8 @@ Evidence: [PR HEAD Checks](https://github.com/july-rust/BoardSI/commit/3e608c495
 - [x] Native Qt Windows x64/ARM64, macOS ARM64, Linux offscreen and Rust Debug/Release regression SUCCESS.
 - [x] Independent exact HEAD Codex completed, 0 findings, 0 unresolved threads.
 - [x] Protected one-parent GitHub Verified Squash.
-- [ ] Independent exact merged SHA post-main Checks and Push Workflows SUCCESS — pending.
-- [ ] Dated checklist limited acceptance and scoped Issue #339 closeout after docs PR's own gates.
+- [x] Independent exact merged SHA post-main 21/21 Checks and 8/8 Push Workflows SUCCESS on 2026-11-01 KST.
+- [x] **D_003 code-only** first checked/evidence date **2026-11-01 KST**, supported synthetic Source-geometry scope only.
+- [ ] Issue #339 closeout awaits independent docs-only PR exact-HEAD CI/Codex, protected Verified Squash and post-main acceptance.
 
 Original M1 #12 remains OPEN; no formal U/T, physical contact, P009, solver/cache or PH-08 qualification.
