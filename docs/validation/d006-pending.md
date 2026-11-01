@@ -1,1 +1,0 @@
-D_006 pending: issue #348; draft PR #349; Rust numerical CI failed.
