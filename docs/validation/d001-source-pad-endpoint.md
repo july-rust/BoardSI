@@ -32,13 +32,32 @@ The source-only **D_001 code PR** [#333](https://github.com/july-rust/BoardSI/pu
 
 The original code PR specifically contains synthetic round-Pad positive and boundary tests. It implements square and rotated RF rectangle support through the same exact integer-grid predicate, but **the supplemental explicit positive/boundary test cases** are added only in the subsequent acceptance reconciliation PR. Never retroactively claim they were executed in PR #333.
 
-## 4. Supplemental qualification and closeout gate
+## 4. Independently qualified S/RF supplement — 2026-11-01 KST
 
-A separate protected follow-up PR adds **independent square SMD, rotated rectangular RF, boundary and simultaneous overlapping-owner synthetic cases** alongside the dated checklist update. Treat its new cases as **PENDING / NOT_RUN until its own exact-HEAD native Rust/Qt CI executes**.
+Follow-up [PR #334](https://github.com/july-rust/BoardSI/pull/334) specifically adds independent synthetic **square SMD Pad, 90-degree rotated RF rectangle, strict off-centre inclusion versus boundary/tangency exclusion, and simultaneous overlapping Pad ownership** cases. They **were not executed in the earlier PR #333**; they were qualified independently in this PR.
 
-- [ ] Verify supplemental exact final HEAD CI and all mandatory contexts.
-- [ ] Independent latest-exact-HEAD Codex review with zero unresolved findings/threads.
-- [ ] GitHub Verified one-parent Squash and independent post-main checks/push workflows.
-- [ ] Close only D_001 tracker [#332](https://github.com/july-rust/BoardSI/issues/332) when the supplemental PR and its dated evidence ledger/checklist are accepted; **do not close M1 parent #12**.
+| Gate | Observed final result |
+| --- | --- |
+| Supplemental final HEAD | `45564c928ab27711541f96803bc3ad96856c931b` — [exact HEAD Checks](https://github.com/july-rust/BoardSI/commit/45564c928ab27711541f96803bc3ad96856c931b/checks) |
+| Latest exact-HEAD Checks | **23/23 SUCCESS** including Rust numerical core and native Qt checks, no failure/pending |
+| Exact HEAD Workflows | **9/9 pull_request workflows SUCCESS** |
+| Native Qt source read-back | Native Windows x64, Windows ARM64, macOS ARM64 Qt D_001 pad endpoint/stale smoke each **SUCCESS** inside Qt runtime workflow; Linux offscreen provisional job **SUCCESS** |
+| Latest independent Codex review | `code_review.commit_sha=45564c928ab27711541f96803bc3ad96856c931b`, `status=completed`, `has_any_findings=false`, `has_unresolved_findings=false`, review threads **0 unresolved** |
+| Protected Squash | [Verified one-parent main@75a4a62bec4ab7dc6db1993edb0cca91b66732d2](https://github.com/july-rust/BoardSI/commit/75a4a62bec4ab7dc6db1993edb0cca91b66732d2): `commit.verification.verified=true`, `reason=valid`, sole parent `8314e52cabc76b070e6b793ac962120cca2cd093` |
+| Independently observed post-main checks | Exact merge SHA **21/21 Check Runs SUCCESS** and **8/8 event=push Workflows SUCCESS**, [post-main Checks](https://github.com/july-rust/BoardSI/commit/75a4a62bec4ab7dc6db1993edb0cca91b66732d2/checks) |
+| Limited acceptance first check and evidence | **2026-11-01 KST** / **2026-11-01 KST** |
 
-D_001 remains a restricted **geometry candidate**; `return_path_p009=UNSUPPORTED`, `physical_si=NOT_RUN`, `solver_ready=false`, `cache_reuse_eligible=false`. Other M0/M1/M2 scope is not promoted by current CI.
+## 5. Document-only closure and deliberate nonclaims
+
+This evidence/checklist closeout is submitted as **a separate protected docs-only PR** to avoid falsely claiming post-main results before they exist. The docs-only PR itself must achieve independent exact final-HEAD required CI and same-HEAD Codex review with zero unresolved findings, Signed Verified Squash to main, and independent post-main Checks plus Push Workflows. Only **after** these are verified may tracker [Issue #332](https://github.com/july-rust/BoardSI/issues/332) be closed. Its final closure SHA is recorded in the issue, not presumed here.
+
+This is strictly source-geometry / candidate verification. **Issue #12 remains OPEN**; whole-board electrical connection, COPCLS/COPCUT manufactured Copper, actual physical Return Current, P009, complete U09/U10/U39/T02/T04/T24/T52, PH-08 formal Gate, RLGC/S physics, Solver/cache product readiness and arbitrary commercial PADS are NOT accepted.
+
+```text
+return_path_p009     = UNSUPPORTED
+physical_si          = NOT_RUN
+solver_ready         = false
+cache_reuse_eligible = false
+```
+
+No modifications are made to Draft #35 or parent Issue #7.
