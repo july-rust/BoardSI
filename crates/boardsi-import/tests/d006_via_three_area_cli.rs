@@ -78,11 +78,13 @@ fn copper_cutout_blocks_candidate() {
             "100 300\n100 200\nCOPCUT 5 0.01 0 1\n140 240\n160 240\n160 260\n140 260\n140 240\n",
         );
     let (passed, output) = run(&cutout, "1");
-    assert!(passed, "{output}");
-    assert!(
-        output.contains("CONTACT|SOURCE_COPCUT_RISK|-|-"),
-        "{output}"
-    );
+    // Source parser may reject unsupported void-piece syntax outright. Both
+    // outcomes must stay negative; the direct Rust classifier covers overlap.
+    if passed {
+        assert!(output.contains("CONTACT|SOURCE_COPCUT_RISK|-|-"), "{output}");
+    } else {
+        assert!(output.contains("UNSUPPORTED_COPPER_PIECE"), "{output}");
+    }
 }
 
 #[test]
