@@ -29,8 +29,12 @@ static int selftest(const QString &importer) {
             if(s.startsWith("PARTIAL") || s.startsWith("FAILED"))loadLoop.quit();
         });
         if(!panel.openPath(source.fileName()))return false;
-        QTimer::singleShot(8000,&loadLoop,&QEventLoop::quit);
+        QTimer deadline;
+        deadline.setSingleShot(true);
+        QObject::connect(&deadline,&QTimer::timeout,&loadLoop,&QEventLoop::quit);
+        deadline.start(8000);
         loadLoop.exec();
+        deadline.stop();
         return panel.importStatus().startsWith("PARTIAL");
     };
     if(!load())return 2;
@@ -78,11 +82,11 @@ static int selftest(const QString &importer) {
     tampered.replace("204 300 1 10 0","220 300 1 10 0");
     if(!source.resize(0) || !source.seek(0) ||
        source.write(tampered)!=tampered.size() || !source.flush())return 2;
-    // Switching source invalidates the previously displayed candidate immediately.
-    panel.imported()->setReferenceRisks({});
-    const bool stale=panel.imported()->referenceRiskCountForTest()==0 &&
-        QCryptographicHash::hash(tampered,QCryptographicHash::Sha256).toHex()!=digest;
+    // Re-import must itself remove the old risk marker; no manual clear.
     if(!load())return 2;
+    const bool stale=panel.imported()->referenceRiskCountForTest()==0 &&
+        QCryptographicHash::hash(tampered,QCryptographicHash::Sha256).toHex()!=digest &&
+        panel.acceptedSourceSha256()!=digest;
     QProcess miss;
     miss.start(importer,QStringList{source.fileName(),"--d001-pad-endpoint-v1"});
     if(!miss.waitForFinished(10000) || miss.exitCode()!=0)return 2;
