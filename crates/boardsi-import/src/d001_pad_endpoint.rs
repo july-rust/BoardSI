@@ -59,14 +59,15 @@ pub fn audit(source_bytes: &[u8]) -> Result<PadEndpointAudit, &'static str> {
         return Err("D001_SOURCE_CANONICAL_MISMATCH");
     }
     let mut report = PadEndpointAudit::default();
-    for (trace_index, (seg, trace)) in source_route
-        .segments.iter().zip(&board.traces).enumerate()
-    {
+    for (trace_index, (seg, trace)) in source_route.segments.iter().zip(&board.traces).enumerate() {
         if seg.width_ticks <= 0 || trace.centreline.len() != 2 {
             continue;
         }
         for (endpoint, point) in [seg.a, seg.b].iter().enumerate() {
-            let overlapping: Vec<usize> = pads.pads.iter().enumerate()
+            let overlapping: Vec<usize> = pads
+                .pads
+                .iter()
+                .enumerate()
                 .filter(|(_, pad)| pad.layer == seg.layer && strictly_inside(*point, pad))
                 .map(|(index, _)| index)
                 .collect();
@@ -110,8 +111,14 @@ pub fn encode(source_bytes: &[u8]) -> Result<String, &'static str> {
     let route = route_preview::parse(source_bytes)?;
     let pads = part_preview::parse(source_bytes, route.max_layer);
     let source = route_preview::into_canonical(source_bytes, &route)?;
-    let file = source.sources.first().ok_or("D001_MISSING_SOURCE")?
-        .id.files.first().ok_or("D001_MISSING_SOURCE_FILE")?;
+    let file = source
+        .sources
+        .first()
+        .ok_or("D001_MISSING_SOURCE")?
+        .id
+        .files
+        .first()
+        .ok_or("D001_MISSING_SOURCE_FILE")?;
     let sha: String = file.sha256.iter().map(|b| format!("{b:02x}")).collect();
     let mut out = format!(
         "BOARDSI_D001_PAD_ENDPOINT_V1|{sha}|{}|SOURCE_GEOMETRY_ONLY|P009_UNSUPPORTED|SI_NOT_RUN\n",
@@ -119,16 +126,36 @@ pub fn encode(source_bytes: &[u8]) -> Result<String, &'static str> {
     );
     for w in &result.witnesses {
         let p = &pads.pads[w.pad_index];
-        let shape = if p.rectangular { "RF" } else if p.square { "S" } else { "R" };
+        let shape = if p.rectangular {
+            "RF"
+        } else if p.square {
+            "S"
+        } else {
+            "R"
+        };
         writeln!(
-            out, "W|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
-            w.trace_index, w.endpoint, w.pad_index, w.layer,
-            w.point[0], w.point[1], p.width_ticks, p.height_ticks,
-            shape, p.reference, p.pin
-        ).map_err(|_| "D001_WIRE_FORMAT")?;
-    }
-    writeln!(out, "END|{}|SOURCE_CONTACT_CANDIDATE_ONLY", result.witnesses.len())
+            out,
+            "W|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+            w.trace_index,
+            w.endpoint,
+            w.pad_index,
+            w.layer,
+            w.point[0],
+            w.point[1],
+            p.width_ticks,
+            p.height_ticks,
+            shape,
+            p.reference,
+            p.pin
+        )
         .map_err(|_| "D001_WIRE_FORMAT")?;
+    }
+    writeln!(
+        out,
+        "END|{}|SOURCE_CONTACT_CANDIDATE_ONLY",
+        result.witnesses.len()
+    )
+    .map_err(|_| "D001_WIRE_FORMAT")?;
     if out.len() > 1024 * 1024 {
         return Err("D001_WIRE_LIMIT");
     }
@@ -140,10 +167,7 @@ mod tests {
     use super::*;
     const SAMPLE: &str = include_str!("../tests/fixtures/pads_component_simple_v94.asc");
     fn specimen(replacement: &str) -> String {
-        SAMPLE.replace(
-            "U9.1 U9.2\n100 200 1 10 0\n300 200 1 10 0",
-            replacement,
-        )
+        SAMPLE.replace("U9.1 U9.2\n100 200 1 10 0\n300 200 1 10 0", replacement)
     }
     #[test]
     fn round_smd_off_centre_is_new_strict_witness() {
@@ -169,12 +193,18 @@ mod tests {
         assert!(a.witnesses.is_empty());
         assert!(a.unproven_net > 0);
         let different_net = specimen("U1.2 U9.2\n204 300 1 10 0\n300 300 1 10 0");
-        assert!(audit(different_net.as_bytes()).unwrap().witnesses.is_empty());
+        assert!(audit(different_net.as_bytes())
+            .unwrap()
+            .witnesses
+            .is_empty());
     }
     #[test]
     fn other_layer_and_nonoverlap_rejected() {
         let different_layer = specimen("U1.1 U9.2\n204 300 2 10 0\n300 300 2 10 0");
-        assert!(audit(different_layer.as_bytes()).unwrap().witnesses.is_empty());
+        assert!(audit(different_layer.as_bytes())
+            .unwrap()
+            .witnesses
+            .is_empty());
         let far = specimen("U1.1 U9.2\n250 300 1 10 0\n300 300 1 10 0");
         assert!(audit(far.as_bytes()).unwrap().witnesses.is_empty());
     }
