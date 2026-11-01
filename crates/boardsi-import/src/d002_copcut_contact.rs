@@ -142,7 +142,7 @@ pub fn encode(
             };
             let cut = copper_preview::rectangle_bounds(vertices)
                 .ok_or("D002_VOID_NOT_RECTANGLE")?;
-            if !matching_ring(&canonical.cutouts[0].segments, vertices) {
+            if !matching_ring(&canonical.cutouts[0].boundary.segments, vertices) {
                 return Err("D002_VOID_CANONICAL_MISMATCH");
             }
             holes[slot] = Some(cut);
