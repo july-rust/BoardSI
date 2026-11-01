@@ -1,6 +1,11 @@
 // D_001 independently checks the opt-in Rust wire against imported Qt artwork.
 // Test-only opt-in audit; not a production electrical connectivity claim.
 #pragma once
+#include <QTemporaryFile>
+#include <QCryptographicHash>
+#include <QProcess>
+#include <QEventLoop>
+#include <QTimer>
 namespace d001 {
 static int selftest(const QString &importer) {
     QTemporaryFile source;
