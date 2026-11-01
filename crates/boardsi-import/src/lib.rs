@@ -189,6 +189,7 @@ pub mod copper_contact;
 pub mod copper_preview;
 pub mod curved_cutout_topology;
 pub mod digest;
+pub mod d001_pad_endpoint;
 pub mod material_contract;
 pub mod outline_arc;
 pub mod outline_preview;
