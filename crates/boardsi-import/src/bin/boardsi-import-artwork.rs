@@ -15,12 +15,12 @@ mod d007;
 #[path = "boardsi-d008-dual-layer-via-area.rs"]
 #[allow(dead_code)]
 mod d008;
-#[path = "boardsi-d010-two-trace-four-area.rs"]
-#[allow(dead_code)]
-mod d010;
 #[path = "boardsi-d009-dual-layer-via-trace.rs"]
 #[allow(dead_code)]
 mod d009;
+#[path = "boardsi-d010-two-trace-four-area.rs"]
+#[allow(dead_code)]
+mod d010;
 fn run() -> Result<(usize, usize), &'static str> {
     let args: Vec<_> = env::args_os().collect();
     // The suffix protocol is opt-in. Existing one-path invocations keep
