@@ -56,13 +56,37 @@ inline int selftest(const QString &importer){
     const bool stale=panel.acceptedSourceSha256()!=QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex()
         && !decode(wire,source,&panel,"NET_A",ignored)
         && decode(query(),updated,&panel,"NET_A",ignored);
+    // Forge a SHA-consistent witness for a three-row interior padstack:
+    // Rust excludes inner pads, and Qt independently enforces that exclusion.
+    auto inner=source;
+    inner.replace("SIMPLEVIA 15 2\n-2 35 R\n0 35 R\n",
+                  "SIMPLEVIA 15 3\n-2 35 R\n0 35 R\n-1 35 R\n");
+    if(!save(inner)||!load())return 2;
+    const auto origSha=QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex();
+    const auto innerSha=QCryptographicHash::hash(inner,QCryptographicHash::Sha256).toHex();
+    auto forgedPad=wire;
+    forgedPad.replace(origSha,innerSha);
+    const bool rejectsInnerPad=!decode(forgedPad,inner,&panel,"NET_A",ignored)
+        && query().isEmpty();
+    // Codex regression: a free arm endpoint at the opposite Via introduces
+    // an unrepresented contact and must be rejected, not counted as 3 islands.
+    auto extra=source;
+    extra.replace("80 250 1 10 0","350 250 1 10 0");
+    if(!save(extra)||!load())return 2;
+    auto forgedExtra=wire;
+    forgedExtra.replace(origSha,QCryptographicHash::hash(extra,QCryptographicHash::Sha256).toHex());
+    forgedExtra.replace("TRACE|0|1|8000|25000","TRACE|0|1|35000|25000");
+    const bool rejectsExtra=!decode(forgedExtra,extra,&panel,"NET_A",ignored)
+        && query().isEmpty();
     QByteArray invalid=source;
     invalid.replace("350 250 1 10 0 SIMPLEVIA","350 250 2 10 0 SIMPLEVIA");
     if(!save(invalid)||!load())return 2;
     const bool rejectLayer=query().isEmpty() && panel.imported()->referenceRiskCountForTest()==0;
-    const bool ok=accepted&&twoVias&&rejectsForgery&&rejectsPromotion&&stale&&rejectLayer;
+    const bool ok=accepted&&twoVias&&rejectsForgery&&rejectsPromotion&&stale
+        &&rejectsInnerPad&&rejectsExtra&&rejectLayer;
     qInfo()<<"D014_NATIVE_QT_TWO_VIA"<<ok<<twoVias<<rejectsForgery
-        <<rejectsPromotion<<stale<<rejectLayer<<"SOURCE_ONLY_NO_ELECTRICAL_BARREL";
+        <<rejectsPromotion<<stale<<rejectsInnerPad<<rejectsExtra<<rejectLayer
+        <<"SOURCE_ONLY_NO_ELECTRICAL_BARREL";
     return ok?0:1;
 }
 } // namespace d014
