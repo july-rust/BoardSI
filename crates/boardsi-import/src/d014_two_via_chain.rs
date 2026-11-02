@@ -2,6 +2,36 @@
 use boardsi_import::{digest, route_preview};
 use std::fmt::Write;
 
+// Exact integer-grid intersection gate: the fixed three-component graph
+// excludes any unmodeled contact between the two layer-1 arms.
+fn orient(a: [i64; 2], b: [i64; 2], c: [i64; 2]) -> i128 {
+    let dx = i128::from(b[0]) - i128::from(a[0]);
+    let dy = i128::from(b[1]) - i128::from(a[1]);
+    dx * (i128::from(c[1]) - i128::from(a[1]))
+        - dy * (i128::from(c[0]) - i128::from(a[0]))
+}
+fn on_segment(p: [i64; 2], a: [i64; 2], b: [i64; 2]) -> bool {
+    orient(a, b, p) == 0
+        && p[0] >= a[0].min(b[0])
+        && p[0] <= a[0].max(b[0])
+        && p[1] >= a[1].min(b[1])
+        && p[1] <= a[1].max(b[1])
+}
+fn opposite(a: i128, b: i128) -> bool {
+    (a < 0 && b > 0) || (a > 0 && b < 0)
+}
+fn segments_touch(a: [i64; 2], b: [i64; 2], c: [i64; 2], d: [i64; 2]) -> bool {
+    let x = orient(a, b, c);
+    let y = orient(a, b, d);
+    let z = orient(c, d, a);
+    let w = orient(c, d, b);
+    (x == 0 && on_segment(c, a, b))
+        || (y == 0 && on_segment(d, a, b))
+        || (z == 0 && on_segment(a, c, d))
+        || (w == 0 && on_segment(b, c, d))
+        || (opposite(x, y) && opposite(z, w))
+}
+
 pub fn encode(
     bytes: &[u8],
     net: &str,
@@ -57,6 +87,12 @@ pub fn encode(
         || s[0].a == s[2].b
     {
         return Err("D014_CONTACT_PATH");
+    }
+    if on_segment(b.point, s[0].a, s[0].b)
+        || on_segment(a.point, s[2].a, s[2].b)
+        || segments_touch(s[0].a, s[0].b, s[2].a, s[2].b)
+    {
+        return Err("D014_UNMODELED_LAYER1_CONTACT");
     }
     let m = route_preview::into_canonical(bytes, &p)?;
     if m.validate().has_errors()

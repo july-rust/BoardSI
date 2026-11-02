@@ -86,6 +86,16 @@ inline int selftest(const QString &importer){
         && query().isEmpty();
     // A separate Layer-1 analytic arc is not part of the qualified
     // three-straight-trace Source fixture. It must fail even with a forged SHA.
+    // A straight Layer-1 arm crossing Via B internally is an unmodeled
+    // ViaCentre/TraceInterior contact even when its free endpoint is distinct.
+    auto interior=source;
+    interior.replace("80 250 1 10 0","500 250 1 10 0");
+    if(!save(interior)||!load())return 2;
+    auto forgedInterior=wire;
+    forgedInterior.replace(origSha,QCryptographicHash::hash(interior,QCryptographicHash::Sha256).toHex());
+    forgedInterior.replace("TRACE|0|1|8000|25000","TRACE|0|1|50000|25000");
+    const bool rejectsInterior=!decode(forgedInterior,interior,&panel,"NET_A",ignored)
+        && query().isEmpty();
     auto withArc=source;
     withArc.replace("*END*\n",
         "*SIGNAL* NET_A\nU3.3 U4.4\n"
@@ -102,9 +112,9 @@ inline int selftest(const QString &importer){
     if(!save(invalid)||!load())return 2;
     const bool rejectLayer=query().isEmpty() && panel.imported()->referenceRiskCountForTest()==0;
     const bool ok=accepted&&twoVias&&rejectsForgery&&rejectsPromotion&&stale
-        &&acceptsRemark&&rejectsInnerPad&&rejectsExtra&&rejectsArc&&rejectLayer;
+        &&acceptsRemark&&rejectsInnerPad&&rejectsExtra&&rejectsInterior&&rejectsArc&&rejectLayer;
     qInfo()<<"D014_NATIVE_QT_TWO_VIA"<<ok<<twoVias<<rejectsForgery
-        <<rejectsPromotion<<stale<<acceptsRemark<<rejectsInnerPad<<rejectsExtra<<rejectsArc<<rejectLayer
+        <<rejectsPromotion<<stale<<acceptsRemark<<rejectsInnerPad<<rejectsExtra<<rejectsInterior<<rejectsArc<<rejectLayer
         <<"SOURCE_ONLY_NO_ELECTRICAL_BARREL";
     return ok?0:1;
 }

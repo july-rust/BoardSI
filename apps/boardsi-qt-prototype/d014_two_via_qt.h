@@ -2,6 +2,24 @@
 #pragma once
 #include "d013_legacy_barrel_qt.h"
 namespace d014 {
+struct GridPoint { qint64 x=0,y=0; };
+inline qint64 orient(GridPoint a,GridPoint b,GridPoint c){
+    return (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+}
+inline bool onSegment(GridPoint p,GridPoint a,GridPoint b){
+    return orient(a,b,p)==0 && p.x>=qMin(a.x,b.x) && p.x<=qMax(a.x,b.x)
+        && p.y>=qMin(a.y,b.y) && p.y<=qMax(a.y,b.y);
+}
+inline bool opposite(qint64 a,qint64 b){
+    return (a<0 && b>0)||(a>0 && b<0);
+}
+inline bool segmentsTouch(GridPoint a,GridPoint b,GridPoint c,GridPoint d){
+    const auto x=orient(a,b,c),y=orient(a,b,d);
+    const auto z=orient(c,d,a),w=orient(c,d,b);
+    return (x==0 && onSegment(c,a,b)) || (y==0 && onSegment(d,a,b))
+        || (z==0 && onSegment(a,c,d)) || (w==0 && onSegment(b,c,d))
+        || (opposite(x,y) && opposite(z,w));
+}
 // Restrict the named PADS padstack to exactly two exterior conductive rows;
 // D_006 checks their pad diameter/drill and Source geometry independently.
 inline bool twoRowViaDefinition(const QByteArray &source,const QString &name){
@@ -44,7 +62,8 @@ inline bool decode(const QByteArray &wire,const QByteArray &source,
        || !d006::declaredConductivePad(source,a,4)
        || !d006::declaredConductivePad(source,b,1)
        || !d006::declaredConductivePad(source,b,4))return false;
-    const auto exact=[](qint64 value){return value%254==0;};
+    const auto exact=[](qint64 value){return value%254==0
+        && value>=-1422400000LL && value<=1422400000LL;};
     for(const auto v:{a.x_nm,a.y_nm,b.x_nm,b.y_nm,a.diameter_nm,a.drill_nm})
         if(!exact(v))return false;
     ImportedTrack t[3];
@@ -61,6 +80,12 @@ inline bool decode(const QByteArray &wire,const QByteArray &source,
        || (t[0].x0_nm==b.x_nm && t[0].y0_nm==b.y_nm)
        || (t[2].x1_nm==a.x_nm && t[2].y1_nm==a.y_nm)
        || (t[0].x0_nm==t[2].x1_nm && t[0].y0_nm==t[2].y1_nm))return false;
+    const auto point=[](qint64 x,qint64 y){return GridPoint{x/254,y/254};};
+    const auto pa=point(a.x_nm,a.y_nm),pb=point(b.x_nm,b.y_nm);
+    const auto armA0=point(t[0].x0_nm,t[0].y0_nm),armA1=point(t[0].x1_nm,t[0].y1_nm);
+    const auto armB0=point(t[2].x0_nm,t[2].y0_nm),armB1=point(t[2].x1_nm,t[2].y1_nm);
+    if(onSegment(pb,armA0,armA1) || onSegment(pa,armB0,armB1)
+       || segmentsTouch(armA0,armA1,armB0,armB1))return false;
     QByteArray expected="BOARDSI_D014_TWO_VIA_CHAIN_V1|"+sha+
       "|SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED"
       "|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE\n";

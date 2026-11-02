@@ -63,6 +63,17 @@ fn missing_extra_and_mismatched_contacts_fail_closed() {
     assert!(witness(
         source.replace("420 250 1 10 0", "80 250 1 10 0").as_bytes()
     ).is_err());
+    // Unmodeled ViaCentre/TraceInterior and arm-to-arm crossing contacts.
+    assert!(witness(
+        source.replace("80 250 1 10 0", "500 250 1 10 0").as_bytes()
+    ).is_err());
+    assert!(witness(
+        source.replace("420 250 1 10 0", "50 250 1 10 0").as_bytes()
+    ).is_err());
+    assert!(witness(
+        source.replace("80 250 1 10 0", "400 350 1 10 0")
+              .replace("420 250 1 10 0", "100 350 1 10 0").as_bytes()
+    ).is_err());
     assert!(witness(source.replace("0 35 R", "0 10 R").as_bytes()).is_err());
     assert!(witness(
         source
