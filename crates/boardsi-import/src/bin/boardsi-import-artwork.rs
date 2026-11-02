@@ -18,7 +18,10 @@ mod d008;
 #[path = "boardsi-d009-dual-layer-via-trace.rs"]
 #[allow(dead_code)]
 mod d009;
-#[path = "boardsi-d012-via-span-provenance.rs"]\n#[allow(dead_code)]\nmod d012;\n#[path = "boardsi-d011-source-contact-graph.rs"]
+#[path = "boardsi-d012-via-span-provenance.rs"]
+#[allow(dead_code)]
+mod d012;
+#[path = "boardsi-d011-source-contact-graph.rs"]
 #[allow(dead_code)]
 mod d011;
 fn run() -> Result<(usize, usize), &'static str> {

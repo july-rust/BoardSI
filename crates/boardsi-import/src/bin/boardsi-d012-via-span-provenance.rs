@@ -29,7 +29,11 @@ pub fn encode(
     }
     let parsed = route_preview::parse(bytes)?;
     let source = parsed.vias.first().ok_or("D012_SOURCE_VIA_MISSING")?;
-    let net_hex = net.as_bytes().iter().map(|b| format!("{b:02x}")).collect::<String>();
+    let net_hex = net
+        .as_bytes()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>();
     if parsed.vias.len() != 1
         || via[2] != net_hex
         || via[3] != source.point[0].to_string()
@@ -67,7 +71,9 @@ pub fn encode(
 fn main() {
     let args: Vec<_> = std::env::args_os().collect();
     if args.len() != 10 {
-        eprintln!("D012_USAGE: board.asc AREA_A AREA_B AREA_C AREA_D NET LAYER_A LAYER_B VIA_INDEX");
+        eprintln!(
+            "D012_USAGE: board.asc AREA_A AREA_B AREA_C AREA_D NET LAYER_A LAYER_B VIA_INDEX"
+        );
         std::process::exit(2);
     }
     let txt = |i: usize| args[i].to_str().ok_or("D012_UTF8");

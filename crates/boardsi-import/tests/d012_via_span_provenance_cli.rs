@@ -9,7 +9,9 @@ fn witness(input: &[u8]) -> Result<String, &'static str> {
 fn source_span_is_not_plating_or_electrical_proof() {
     let w = witness(SOURCE).unwrap();
     assert!(w.starts_with("BOARDSI_D012_VIA_SPAN_PROVENANCE_V1|"));
-    assert!(w.contains("PLATING_IMPORTER_ASSUMED|BARREL_NOT_VERIFIED|NO_CROSS_LAYER_ELECTRICAL_EDGE"));
+    assert!(
+        w.contains("PLATING_IMPORTER_ASSUMED|BARREL_NOT_VERIFIED|NO_CROSS_LAYER_ELECTRICAL_EDGE")
+    );
     assert!(w.contains("SPAN|0|4e45545f41|15000|25000|3500|200|1|4|1|4|PLATING_IMPORTER_ASSUMED\n"));
     assert_eq!(w.lines().filter(|s| s.starts_with("NODE|")).count(), 8);
     assert_eq!(w.lines().filter(|s| s.starts_with("EDGE|")).count(), 6);
@@ -25,8 +27,14 @@ fn changed_source_changes_sha_but_preserves_source_graph() {
     let updated = witness(edited.as_bytes()).unwrap();
     assert_ne!(updated, original);
     assert_eq!(
-        updated.lines().filter(|s| s.starts_with("EDGE|")).collect::<Vec<_>>(),
-        original.lines().filter(|s| s.starts_with("EDGE|")).collect::<Vec<_>>()
+        updated
+            .lines()
+            .filter(|s| s.starts_with("EDGE|"))
+            .collect::<Vec<_>>(),
+        original
+            .lines()
+            .filter(|s| s.starts_with("EDGE|"))
+            .collect::<Vec<_>>()
     );
 }
 #[test]
