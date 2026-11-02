@@ -44,3 +44,40 @@ inline int selftest(const QString &importer) {
             || p.exitCode()!=0)return QByteArray();
         return p.readAllStandardOutput();
     };
+    if(!load())return 2;
+    const auto sha=QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex();
+    c005::Receipt first,ignored;
+    const auto wire=query();
+    const bool accepted=!wire.isEmpty()&&decode(wire,sha,source,&panel,
+        {"RA","RB","RC","RD"},"NET_A",{1,4},first)&&first.markers.size()==4;
+    if(!accepted)return 1;
+    panel.imported()->setReferenceRisks(first.markers);
+    const bool displayed=panel.imported()->referenceRiskCountForTest()==4;
+    auto forgery=wire;
+    forgery.replace("EDGE|0|0|1|SOURCE_CONTACT_CANDIDATE|1",
+                    "EDGE|0|0|4|SOURCE_CONTACT_CANDIDATE|1");
+    const bool noForgery=!decode(forgery,sha,source,&panel,
+        {"RA","RB","RC","RD"},"NET_A",{1,4},ignored);
+    auto nodeForgery=wire;
+    nodeForgery.replace("NODE|1|AREA|1|","NODE|1|AREA|4|");
+    const bool noNodeForgery=!decode(nodeForgery,sha,source,&panel,
+        {"RA","RB","RC","RD"},"NET_A",{1,4},ignored);
+    auto newBytes=source;
+    newBytes.replace("U1.1 U2.2","U1.1  U2.2");
+    if(!save(newBytes)||!load())return 2;
+    const auto newSha=QCryptographicHash::hash(newBytes,QCryptographicHash::Sha256).toHex();
+    c005::Receipt fresh;
+    const bool stale=newSha!=sha&&panel.acceptedSourceSha256()==newSha
+        &&panel.imported()->referenceRiskCountForTest()==0
+        &&!decode(wire,sha,source,&panel,{"RA","RB","RC","RD"},"NET_A",{1,4},ignored)
+        &&decode(query(),newSha,newBytes,&panel,{"RA","RB","RC","RD"},"NET_A",{1,4},fresh);
+    auto invalid=source;
+    invalid.replace("330 280 4 10 0","280 280 4 10 0");
+    if(!save(invalid)||!load())return 2;
+    const bool boundary=panel.imported()->referenceRiskCountForTest()==0&&query().isEmpty();
+    const bool ok=accepted&&displayed&&noForgery&&noNodeForgery&&stale&&boundary;
+    qInfo()<<"D011_NATIVE_QT_SOURCE_GRAPH"<<ok<<accepted<<displayed
+        <<noForgery<<noNodeForgery<<stale<<boundary<<"NO_ELECTRICAL_BARREL_EDGE";
+    return ok?0:1;
+}
+} // namespace d011
