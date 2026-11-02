@@ -50,7 +50,7 @@ pub fn encode_from_qualified_graph(
         "BOARDSI_D012_VIA_SPAN_PROVENANCE_V1|{}|SOURCE_SPAN_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_NOT_VERIFIED|NO_CROSS_LAYER_ELECTRICAL_EDGE\nD011_BEGIN\n",
         header[1]
     );
-    wire.push_str(&graph);
+    wire.push_str(graph);
     wire.push_str("D011_END\n");
     wire.push_str(&format!(
         "SPAN|0|{}|{}|{}|{}|{}|{}|{}|{}|{}|PLATING_IMPORTER_ASSUMED\n",
