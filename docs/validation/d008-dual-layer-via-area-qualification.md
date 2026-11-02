@@ -50,9 +50,11 @@ Draft PR #35 remains untouched.
 - [x] Protected **GitHub Verified**, one-parent **Squash** code merge
   [`main@f088c5f2e7ef03fd8d5accd5d46b5db1bbf813de`](https://github.com/july-rust/BoardSI/commit/f088c5f2e7ef03fd8d5accd5d46b5db1bbf813de):
   `verification.verified=true`, `reason=valid`, exactly one parent.
-- [ ] Post-code-main push checks and workflow runs must be independently evaluated
-  on exact `main@f088c5f2e7ef03fd8d5accd5d46b5db1bbf813de`
-  before final D_008 Issue closure. Do not substitute PR CI for this gate.
+- [x] Post-code-main independent Push CI verified on exact
+  [`main@f088c5f2e7ef03fd8d5accd5d46b5db1bbf813de`](https://github.com/july-rust/BoardSI/commit/f088c5f2e7ef03fd8d5accd5d46b5db1bbf813de/checks):
+  **21/21 Check Runs SUCCESS** and **8/8 event=push Workflow Runs SUCCESS**
+  (plus the successful GitHub `Push on main` dynamic event). The post-merge run
+  is independent from code PR #357 CI. Verified 2026-11-02 KST.
 - [ ] This *documentation PR* also requires its own exact HEAD required CI,
   independent Codex review, GitHub Verified protected Squash, and independent
   post-document-main push CI before closing Issue #356.
