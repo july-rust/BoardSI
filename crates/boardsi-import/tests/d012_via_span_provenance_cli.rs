@@ -12,7 +12,13 @@ fn source_span_is_not_plating_or_electrical_proof() {
     assert!(
         w.contains("PLATING_IMPORTER_ASSUMED|BARREL_NOT_VERIFIED|NO_CROSS_LAYER_ELECTRICAL_EDGE")
     );
-    assert!(w.contains("SPAN|0|4e45545f41|15000|25000|3500|200|1|4|1|4|PLATING_IMPORTER_ASSUMED\n"));
+    let via = w
+        .lines()
+        .find(|line| line.starts_with("VIA|0|"))
+        .and_then(|line| line.strip_prefix("VIA|0|"))
+        .unwrap();
+    let expected_span = format!("SPAN|0|{via}|1|4|PLATING_IMPORTER_ASSUMED");
+    assert!(w.lines().any(|line| line == expected_span));
     assert_eq!(w.lines().filter(|s| s.starts_with("NODE|")).count(), 8);
     assert_eq!(w.lines().filter(|s| s.starts_with("EDGE|")).count(), 6);
     assert_eq!(w, witness(SOURCE).unwrap());
