@@ -21,9 +21,9 @@ mod d009;
 #[path = "boardsi-d011-source-contact-graph.rs"]
 #[allow(dead_code)]
 mod d011;
-#[path = "boardsi-d012-via-span-provenance.rs"]
+#[path = "boardsi-d012-witness-core.rs"]
 #[allow(dead_code)]
-mod d012;
+mod d012_core;
 fn run() -> Result<(usize, usize), &'static str> {
     let args: Vec<_> = env::args_os().collect();
     // The suffix protocol is opt-in. Existing one-path invocations keep
@@ -701,7 +701,8 @@ fn main() {
                 return Err("D012_FILE_LIMIT");
             }
             let bytes = std::fs::read(path).map_err(|_| "D012_READ")?;
-            d012::encode(&bytes, names, net, layers, via)
+            let graph = d011::encode(&bytes, names, net, layers, via)?;
+            d012_core::encode_from_qualified_graph(&bytes, &graph, net, layers)
         })();
         match result {
             Ok(wire) => print!("{wire}"),
