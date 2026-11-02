@@ -263,6 +263,18 @@ jobs:
           suffix=''
           if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --d008-dual-layer-via-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+            # D_011: independent Native Qt source graph and forged/stale evidence.
+      - name: D_011 Native Qt Source Candidate Graph smoke
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+          QSG_RHI_BACKEND: software
+        working-directory: build-qt
+        run: |
+          suffix=''
+          if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --d011-source-contact-graph-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_010: actual imported dual-layer two-trace/four-area source-only witness.
       - name: D_010 Native Qt dual-layer two Trace four Area source smoke
         shell: bash
