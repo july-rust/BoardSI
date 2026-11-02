@@ -48,13 +48,8 @@ fn pad_containment_without_exact_via_centre_rejects_legacy_projection() {
         "330 280 1 10 0\n151 250 1 10 0\n*SIGNAL* NET_A\nU1.1 U2.2\n330 280 4 10 0\n150 250 4 10 0 SIMPLEVIA",
     );
     assert_ne!(source, off_centre);
-    assert!(d013::d012::encode(
-        off_centre.as_bytes(),
-        ["RA", "RB", "RC", "RD"],
-        "NET_A",
-        [1, 4],
-        0
-    )
-    .is_ok());
+    let names = ["RA", "RB", "RC", "RD"];
+    let d012_span = d013::d012::encode(off_centre.as_bytes(), names, "NET_A", [1, 4], 0);
+    assert!(d012_span.is_ok());
     assert!(witness(off_centre.as_bytes()).is_err());
 }
