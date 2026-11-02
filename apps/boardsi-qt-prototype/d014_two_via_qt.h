@@ -32,7 +32,7 @@ inline bool decode(const QByteArray &wire,const QByteArray &source,
     const auto *art=panel->imported();
     ImportedVia a,b,extra;
     if(!art->importedVia(0,a) || !art->importedVia(1,b) || art->importedVia(2,extra)
-       || art->importedTraceCount()!=3 || a.net!=net || b.net!=net
+       || art->importedTraceCount()!=3 || art->arcCount()!=0 || a.net!=net || b.net!=net
        || a.name.isEmpty() || a.name!=b.name || (a.x_nm==b.x_nm && a.y_nm==b.y_nm)
        || a.firstLayer!=1 || a.lastLayer!=4 || b.firstLayer!=1 || b.lastLayer!=4
        || a.drill_nm<=0 || a.diameter_nm<=a.drill_nm
