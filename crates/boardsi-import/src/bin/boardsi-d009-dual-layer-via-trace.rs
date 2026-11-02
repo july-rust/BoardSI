@@ -77,7 +77,11 @@ pub fn encode(
         return Err("D009_UNSUPPORTED_SELECTION");
     }
     let parsed = route_preview::parse(bytes)?;
-    if parsed.skipped != 0 || parsed.vias.len() != 1 || parsed.segments.len() != 1 || !parsed.arcs.is_empty() {
+    if parsed.skipped != 0
+        || parsed.vias.len() != 1
+        || parsed.segments.len() != 1
+        || !parsed.arcs.is_empty()
+    {
         return Err("D009_INCOMPLETE_ROUTE");
     }
     if !pour_preview::parse(bytes, parsed.max_layer)?.is_empty() {
@@ -203,7 +207,9 @@ pub fn encode(
         } else {
             None
         };
-        if slot == 1 { second_rect = Some(rect); }
+        if slot == 1 {
+            second_rect = Some(rect);
+        }
         let state = classify(src.point, src.diameter_ticks, rect, hole);
         success &= state == "SOURCE_VIA_PAD_AREA_CANDIDATE";
         writeln!(
@@ -226,87 +232,143 @@ pub fn encode(
         writeln!(&mut out, "CONTACT|{slot}|{state}").map_err(|_| "D009_WIRE")?;
     }
     // The third area belongs only to Layer B. It is independently source-owned.
-    let third_idx = areas.iter().position(|a| a.name == names[2])
+    let third_idx = areas
+        .iter()
+        .position(|a| a.name == names[2])
         .ok_or("D009_THIRD_AREA_UNKNOWN")?;
     let third = &areas[third_idx];
     let third_canonical = &board.areas[third_idx];
-    let selected = &board.stackup.layers[layers[1]-1].meta.id;
-    if third.layer as usize != layers[1] || third.net_label.as_deref() != Some(net)
-        || third_canonical.layer != *selected || third_canonical.net.is_some()
-        || third.cutouts.len() > 1 || third_canonical.cutouts.len() != third.cutouts.len()
-    { return Err("D009_THIRD_AREA_OWNERSHIP"); }
+    let selected = &board.stackup.layers[layers[1] - 1].meta.id;
+    if third.layer as usize != layers[1]
+        || third.net_label.as_deref() != Some(net)
+        || third_canonical.layer != *selected
+        || third_canonical.net.is_some()
+        || third.cutouts.len() > 1
+        || third_canonical.cutouts.len() != third.cutouts.len()
+    {
+        return Err("D009_THIRD_AREA_OWNERSHIP");
+    }
     let CopperGeometry::Polygon(v) = &third.geometry else {
         return Err("D009_UNSUPPORTED_THIRD");
     };
-    if !exact_ring(&third_canonical.outer.segments,v) {
+    if !exact_ring(&third_canonical.outer.segments, v) {
         return Err("D009_THIRD_RING");
     }
     let rect_c = copper_preview::rectangle_bounds(v).ok_or("D009_NONRECT_THIRD")?;
     let hole_c = if let Some(cut) = third.cutouts.first() {
-        let CopperGeometry::Polygon(vertices) = cut else { return Err("D009_THIRD_HOLE"); };
-        if !exact_ring(&third_canonical.cutouts[0].boundary.segments,vertices) {
+        let CopperGeometry::Polygon(vertices) = cut else {
+            return Err("D009_THIRD_HOLE");
+        };
+        if !exact_ring(&third_canonical.cutouts[0].boundary.segments, vertices) {
             return Err("D009_THIRD_HOLE_RING");
         }
         Some(copper_preview::rectangle_bounds(vertices).ok_or("D009_NONRECT_THIRD_HOLE")?)
-    } else { None };
-    writeln!(&mut out, "AREA|2|{}|{}|{}|{}|{}|{}|{}",
-        hex(names[2].as_bytes()),hex(third_canonical.meta.id.source_object.as_bytes()),
-        layers[1],rect_c[0],rect_c[1],rect_c[2],rect_c[3])
-        .map_err(|_| "D009_WIRE")?;
-    if let Some(h)=hole_c {
-        writeln!(&mut out,"HOLE|2|{}|{}|{}|{}",h[0],h[1],h[2],h[3])
+    } else {
+        None
+    };
+    writeln!(
+        &mut out,
+        "AREA|2|{}|{}|{}|{}|{}|{}|{}",
+        hex(names[2].as_bytes()),
+        hex(third_canonical.meta.id.source_object.as_bytes()),
+        layers[1],
+        rect_c[0],
+        rect_c[1],
+        rect_c[2],
+        rect_c[3]
+    )
+    .map_err(|_| "D009_WIRE")?;
+    if let Some(h) = hole_c {
+        writeln!(&mut out, "HOLE|2|{}|{}|{}|{}", h[0], h[1], h[2], h[3])
             .map_err(|_| "D009_WIRE")?;
-    } else { out.push_str("HOLE|2|NONE\n"); }
+    } else {
+        out.push_str("HOLE|2|NONE\n");
+    }
     let seg = &parsed.segments[0];
-    if seg.net != net || seg.layer as usize != layers[1] || seg.width_ticks <= 0
-        || seg.a == seg.b { return Err("D009_TRACE_NET_LAYER"); }
+    if seg.net != net || seg.layer as usize != layers[1] || seg.width_ticks <= 0 || seg.a == seg.b {
+        return Err("D009_TRACE_NET_LAYER");
+    }
     // Enforce the same bounded source tick domain before any squared distance.
-    let in_bounds = |v:i64| (-5_600_000..=5_600_000).contains(&v);
+    let in_bounds = |v: i64| (-5_600_000..=5_600_000).contains(&v);
     if !src.point.iter().copied().all(in_bounds)
         || !seg.a.iter().copied().all(in_bounds)
         || !seg.b.iter().copied().all(in_bounds)
-        || src.diameter_ticks <= 0 || src.diameter_ticks > 5_600_000
-        || seg.width_ticks > 5_600_000 { return Err("D009_SOURCE_DOMAIN"); }
-    let in_pad=|p:[i64;2]| {
-        let dx=i128::from(p[0])-i128::from(src.point[0]);
-        let dy=i128::from(p[1])-i128::from(src.point[1]);
-        4*(dx*dx+dy*dy)<i128::from(src.diameter_ticks)*i128::from(src.diameter_ticks)
+        || src.diameter_ticks <= 0
+        || src.diameter_ticks > 5_600_000
+        || seg.width_ticks > 5_600_000
+    {
+        return Err("D009_SOURCE_DOMAIN");
+    }
+    let in_pad = |p: [i64; 2]| {
+        let dx = i128::from(p[0]) - i128::from(src.point[0]);
+        let dy = i128::from(p[1]) - i128::from(src.point[1]);
+        4 * (dx * dx + dy * dy) < i128::from(src.diameter_ticks) * i128::from(src.diameter_ticks)
     };
-    let a=in_pad(seg.a); let b=in_pad(seg.b);
-    let rect_b=second_rect.ok_or("D009_SECOND_AREA")?;
-    let strict = |p:[i64;2],r:Rect| p[0]>r[0] && p[0]<r[2]
-        && p[1]>r[1] && p[1]<r[3];
-    let touched = |p:[i64;2],r:Rect| p[0]>=r[0] && p[0]<=r[2]
-        && p[1]>=r[1] && p[1]<=r[3];
+    let a = in_pad(seg.a);
+    let b = in_pad(seg.b);
+    let rect_b = second_rect.ok_or("D009_SECOND_AREA")?;
+    let strict = |p: [i64; 2], r: Rect| p[0] > r[0] && p[0] < r[2] && p[1] > r[1] && p[1] < r[3];
+    let touched =
+        |p: [i64; 2], r: Rect| p[0] >= r[0] && p[0] <= r[2] && p[1] >= r[1] && p[1] <= r[3];
     let mut via_end = "-".to_string();
     let mut area_end = "-".to_string();
     let mut link = "SOURCE_TRACE_AREA_NOT_VERIFIED";
     if success && a != b {
-        let endpoint=if a {0usize} else {1usize};
-        let other=if a {seg.b} else {seg.a};
-        if strict(other,rect_c) && !hole_c.is_some_and(|h|touched(other,h))
-            && !touched(other,rect_b) && !intersects(src.point,src.diameter_ticks,rect_c) {
-            link="SOURCE_DUAL_LAYER_VIA_TRACE_THIRD_AREA_CANDIDATE";
-            via_end=endpoint.to_string(); area_end=(1-endpoint).to_string();
-        } else if hole_c.is_some_and(|h|touched(other,h)) {
-            link="SOURCE_COPCUT_RISK";
-        } else if touched(other,rect_b) {
-            link="SOURCE_AMBIGUOUS_AREA_OWNER";
-        } else if touched(other,rect_c) {
-            link="SOURCE_BOUNDARY_RISK";
+        let endpoint = if a { 0usize } else { 1usize };
+        let other = if a { seg.b } else { seg.a };
+        if strict(other, rect_c)
+            && !hole_c.is_some_and(|h| touched(other, h))
+            && !touched(other, rect_b)
+            && !intersects(src.point, src.diameter_ticks, rect_c)
+        {
+            link = "SOURCE_DUAL_LAYER_VIA_TRACE_THIRD_AREA_CANDIDATE";
+            via_end = endpoint.to_string();
+            area_end = (1 - endpoint).to_string();
+        } else if hole_c.is_some_and(|h| touched(other, h)) {
+            link = "SOURCE_COPCUT_RISK";
+        } else if touched(other, rect_b) {
+            link = "SOURCE_AMBIGUOUS_AREA_OWNER";
+        } else if touched(other, rect_c) {
+            link = "SOURCE_BOUNDARY_RISK";
         }
-    } else if a && b { link="SOURCE_AMBIGUOUS_ENDPOINT"; }
-    else if !a && !b { link="SOURCE_VIA_TRACE_DISCONNECTED"; }
-    writeln!(&mut out,"CONTACT|2|{}",if link=="SOURCE_DUAL_LAYER_VIA_TRACE_THIRD_AREA_CANDIDATE" {
-        "SOURCE_TRACE_AREA_ENDPOINT_CANDIDATE"
-    } else { "SOURCE_TRACE_AREA_NOT_VERIFIED" }).map_err(|_|"D009_WIRE")?;
-    writeln!(&mut out,"TRACE|0|{}|{}|{}|{}|{}|{}|{}",
-        layers[1],hex(net.as_bytes()),seg.a[0],seg.a[1],seg.b[0],seg.b[1],
-        seg.width_ticks).map_err(|_|"D009_WIRE")?;
-    writeln!(&mut out,"LINK|{link}|{via_end}|{area_end}|1|2|{}",
-        if link=="SOURCE_DUAL_LAYER_VIA_TRACE_THIRD_AREA_CANDIDATE" {"1"} else {"0"})
-        .map_err(|_|"D009_WIRE")?;
-    success &= link=="SOURCE_DUAL_LAYER_VIA_TRACE_THIRD_AREA_CANDIDATE";
+    } else if a && b {
+        link = "SOURCE_AMBIGUOUS_ENDPOINT";
+    } else if !a && !b {
+        link = "SOURCE_VIA_TRACE_DISCONNECTED";
+    }
+    writeln!(
+        &mut out,
+        "CONTACT|2|{}",
+        if link == "SOURCE_DUAL_LAYER_VIA_TRACE_THIRD_AREA_CANDIDATE" {
+            "SOURCE_TRACE_AREA_ENDPOINT_CANDIDATE"
+        } else {
+            "SOURCE_TRACE_AREA_NOT_VERIFIED"
+        }
+    )
+    .map_err(|_| "D009_WIRE")?;
+    writeln!(
+        &mut out,
+        "TRACE|0|{}|{}|{}|{}|{}|{}|{}",
+        layers[1],
+        hex(net.as_bytes()),
+        seg.a[0],
+        seg.a[1],
+        seg.b[0],
+        seg.b[1],
+        seg.width_ticks
+    )
+    .map_err(|_| "D009_WIRE")?;
+    writeln!(
+        &mut out,
+        "LINK|{link}|{via_end}|{area_end}|1|2|{}",
+        if link == "SOURCE_DUAL_LAYER_VIA_TRACE_THIRD_AREA_CANDIDATE" {
+            "1"
+        } else {
+            "0"
+        }
+    )
+    .map_err(|_| "D009_WIRE")?;
+    success &= link == "SOURCE_DUAL_LAYER_VIA_TRACE_THIRD_AREA_CANDIDATE";
     writeln!(
         &mut out,
         "OVERALL|{}",
