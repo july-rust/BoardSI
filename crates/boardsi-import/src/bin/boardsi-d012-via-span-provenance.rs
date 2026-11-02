@@ -2,7 +2,7 @@
 #[path = "boardsi-d011-source-contact-graph.rs"]
 #[allow(dead_code)]
 pub mod d011;
-#[path = "boardsi-d012-witness-core.rs"]
+#[path = "../d012_span_witness.rs"]
 #[allow(dead_code)]
 pub mod d012_core;
 use boardsi_import::route_preview;

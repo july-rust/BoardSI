@@ -21,7 +21,7 @@ mod d009;
 #[path = "boardsi-d011-source-contact-graph.rs"]
 #[allow(dead_code)]
 mod d011;
-#[path = "boardsi-d012-witness-core.rs"]
+#[path = "../d012_span_witness.rs"]
 #[allow(dead_code)]
 mod d012_core;
 fn run() -> Result<(usize, usize), &'static str> {
