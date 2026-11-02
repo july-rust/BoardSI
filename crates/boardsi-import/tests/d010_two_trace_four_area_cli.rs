@@ -41,8 +41,8 @@ fn wrong_net_layers_pad_and_route_fail_closed() {
     assert!(classify(&swap("0 35 R", "-1 35 R")).is_err());
     assert!(classify(&swap("330 280 4 10 0", "330 280 1 10 0")).is_err());
     assert!(classify(&swap(
-        "150 250 1 10 0 SIMPLEVIA\n330 280 4 10 0",
-        "150 250 1 10 0 SIMPLEVIA"
+        "150 250 4 10 0 SIMPLEVIA\n330 280 4 10 0",
+        "150 250 4 10 0 SIMPLEVIA"
     ))
     .is_err());
 }
