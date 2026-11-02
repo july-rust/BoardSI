@@ -1,6 +1,7 @@
 // D_013 native Qt: real PADS reimport and legacy projection provenance checks.
 #pragma once
 #include "d013_legacy_barrel_qt.h"
+#include "d014_two_via_smoke.h"
 namespace d013 {
 inline int selftest(const QString &importer) {
     if(!QFileInfo(importer).isExecutable())return 2;
@@ -95,6 +96,7 @@ inline int selftest(const QString &importer) {
     const bool ok=accepted&&displayed&&noForgery&&noNodeForgery&&noPlatingPromotion&&noSpanForgery&&noBarrelPromotion&&noCountForgery&&stale&&boundary;
     qInfo()<<"D013_NATIVE_QT_LEGACY_BARREL"<<ok<<accepted<<displayed
         <<noForgery<<noNodeForgery<<noPlatingPromotion<<noSpanForgery<<noBarrelPromotion<<noCountForgery<<stale<<boundary<<"IMPORTER_ASSUMED_LEGACY_BARREL_NOT_ELECTRICAL";
-    return ok?0:1;
+    // Preserve existing native D_012 -> D_013 chain; add independent D_014.
+    return ok?d014::selftest(importer):1;
 }
 } // namespace d012
