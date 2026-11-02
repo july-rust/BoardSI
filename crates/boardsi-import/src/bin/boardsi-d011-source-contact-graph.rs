@@ -2,7 +2,7 @@
 //! Requalify source geometry through D_010 before materializing any graph edge.
 #[path = "boardsi-d010-two-trace-four-area.rs"]
 #[allow(dead_code)]
-mod d010;
+pub mod d010;
 use std::fmt::Write;
 
 pub fn encode(
@@ -136,8 +136,7 @@ fn graph_from_qualified_receipt(receipt: &str, layers: [usize; 2]) -> Result<Str
         )
         .map_err(|_| "D011_FORMAT")?;
     }
-    for slot in 0..2 {
-        let layer = layers[slot];
+    for (slot, &layer) in layers.iter().enumerate() {
         let o = slot * 4;
         for (edge, a, b) in [(0, o, o + 1), (1, o, o + 2), (2, o + 2, o + 3)] {
             writeln!(

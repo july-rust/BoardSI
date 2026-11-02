@@ -18,9 +18,6 @@ mod d008;
 #[path = "boardsi-d009-dual-layer-via-trace.rs"]
 #[allow(dead_code)]
 mod d009;
-#[path = "boardsi-d010-two-trace-four-area.rs"]
-#[allow(dead_code)]
-mod d010;
 #[path = "boardsi-d011-source-contact-graph.rs"]
 #[allow(dead_code)]
 mod d011;
@@ -731,7 +728,7 @@ fn main() {
                 return Err("D010_FILE_LIMIT");
             }
             let bytes = std::fs::read(path).map_err(|_| "D010_READ")?;
-            d010::encode(&bytes, names, net, layers, index)
+            d011::d010::encode(&bytes, names, net, layers, index)
         })();
         match result {
             Ok(wire) => print!("{wire}"),
