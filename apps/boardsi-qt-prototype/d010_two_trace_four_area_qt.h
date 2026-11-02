@@ -169,7 +169,7 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,const QByteArray
     for(int i=0;i<4;++i) {
         const auto contact=rows[4+i*3].split('|');
         const QByteArray state=i<2?padStates[static_cast<size_t>(i)]:
-            (ve[static_cast<size_t>(i-2)]>=0?"SOURCE_TRACE_AREA_ENDPOINT_CANDIDATE":
+            QByteArray(ve[static_cast<size_t>(i-2)]>=0?"SOURCE_TRACE_AREA_ENDPOINT_CANDIDATE":
              "SOURCE_TRACE_AREA_NOT_VERIFIED");
         if(contact.size()!=3 || contact[0]!="CONTACT"
             || contact[1]!=QByteArray::number(i) || contact[2]!=state)return false;
