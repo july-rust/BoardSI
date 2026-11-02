@@ -691,13 +691,18 @@ fn main() {
             let metadata = std::fs::metadata(path).map_err(|_| "D009_FILE")?;
             if !metadata.is_file()
                 || metadata.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64
-            { return Err("D009_FILE_LIMIT"); }
+            {
+                return Err("D009_FILE_LIMIT");
+            }
             let bytes = std::fs::read(path).map_err(|_| "FILE_READ_FAILED")?;
             d009::encode(&bytes, names, net, layers, index)
         })();
         match result {
             Ok(wire) => print!("{wire}"),
-            Err(reason) => { eprintln!("D009_SOURCE_ERROR:{reason}"); std::process::exit(3); }
+            Err(reason) => {
+                eprintln!("D009_SOURCE_ERROR:{reason}");
+                std::process::exit(3);
+            }
         }
         return;
     }
