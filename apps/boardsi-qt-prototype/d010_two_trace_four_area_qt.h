@@ -236,7 +236,7 @@ inline int selftest(const QString &importer) {
         "RD COPPER 0 0 1 1 0 NET_A\nCOPCLS 5 0.01 0 4\n"
         "280 240\n380 240\n380 340\n280 340\n280 240\n"
         "*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n"
-        "330 280 1 10 0\n150 250 1 10 0 SIMPLEVIA\n330 280 4 10 0\n*END*\n");
+        "330 280 1 10 0\n150 250 4 10 0 SIMPLEVIA\n330 280 4 10 0\n*END*\n");
     const auto save=[&](const QByteArray &bytes) {
         return file.resize(0) && file.seek(0)
             && file.write(bytes)==bytes.size() && file.flush();
