@@ -47,9 +47,7 @@ pub fn encode_from_qualified_span(
         return Err("D013_UNSUPPORTED_LEGACY_SOURCE");
     }
     let source_via = &parsed.vias[0];
-    if source_via.first_layer as usize > layers[0]
-        || (source_via.last_layer as usize) < layers[1]
-    {
+    if source_via.first_layer as usize > layers[0] || (source_via.last_layer as usize) < layers[1] {
         return Err("D013_SOURCE_SPAN_MISMATCH");
     }
     let (local_contacts, legacy_barrels) = contact_wire::legacy_v1_counts(&board);
