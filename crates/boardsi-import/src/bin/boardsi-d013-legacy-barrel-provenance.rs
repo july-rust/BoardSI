@@ -21,7 +21,9 @@ pub fn encode(
 fn main() {
     let args: Vec<_> = std::env::args_os().collect();
     if args.len() != 10 {
-        eprintln!("D013_USAGE: board.asc AREA_A AREA_B AREA_C AREA_D NET LAYER_A LAYER_B VIA_INDEX");
+        eprintln!(
+            "D013_USAGE: board.asc AREA_A AREA_B AREA_C AREA_D NET LAYER_A LAYER_B VIA_INDEX"
+        );
         std::process::exit(2);
     }
     let text = |i: usize| args[i].to_str().ok_or("D013_UTF8");
