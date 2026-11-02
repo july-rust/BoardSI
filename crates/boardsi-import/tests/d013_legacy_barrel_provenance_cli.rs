@@ -42,7 +42,10 @@ fn fail_closed_wrong_net_layer_via_and_contact_geometry() {
 
 #[test]
 fn pad_containment_without_exact_via_centre_rejects_legacy_projection() {
-    let source = String::from_utf8(SOURCE.to_vec()).unwrap();
+    // Windows checkout may store fixture lines as CRLF; normalize test input only.
+    let source = String::from_utf8(SOURCE.to_vec())
+        .unwrap()
+        .replace("\r\n", "\n");
     let off_centre = source.replace(
         "330 280 1 10 0\n150 250 4 10 0 SIMPLEVIA\n330 280 4 10 0",
         "330 280 1 10 0\n151 250 1 10 0\n*SIGNAL* NET_A\nU1.1 U2.2\n330 280 4 10 0\n150 250 4 10 0 SIMPLEVIA",
