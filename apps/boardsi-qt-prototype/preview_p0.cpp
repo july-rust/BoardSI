@@ -18,6 +18,7 @@
 #include "d007_via_trace_three_area_qt.h"
 #include "d008_dual_layer_via_area_qt.h"
 #include "d009_dual_layer_via_trace_qt.h"
+#include "d010_two_trace_four_area_qt.h"
 #include "a019_gpu_benchmark.h"
 #include "a019_interaction_validation.h"
 #include "a020_explorer_validation.h"
@@ -4421,6 +4422,8 @@ static int runC023CorridorSelftest(const QString &importer) {
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--d010-dual-layer-two-trace-selftest")
+        return d010::selftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--d009-dual-layer-via-trace-selftest")
         return d009::selftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--d008-dual-layer-via-area-selftest")
