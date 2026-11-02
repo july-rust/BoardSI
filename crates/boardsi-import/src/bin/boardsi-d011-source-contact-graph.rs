@@ -157,3 +157,38 @@ fn graph_from_qualified_receipt(receipt: &str, layers: [usize; 2]) -> Result<Str
     }
     Ok(result)
 }
+
+// Standalone opt-in test binary, preserving the existing importer default contract.
+fn main() {
+    let args: Vec<_> = std::env::args_os().collect();
+    if args.len() != 10 {
+        eprintln!("D011_USAGE: board.asc AREA_A AREA_B AREA_C AREA_D NET LAYER_A LAYER_B VIA_INDEX");
+        std::process::exit(2);
+    }
+    let txt = |i: usize| args[i].to_str().ok_or("D011_UTF8");
+    let result = (|| -> Result<String, &'static str> {
+        let path = std::path::Path::new(&args[1]);
+        let meta = std::fs::metadata(path).map_err(|_| "D011_FILE")?;
+        if !meta.is_file() || meta.len() > boardsi_import::route_preview::MAX_FILE_BYTES as u64 {
+            return Err("D011_FILE_LIMIT");
+        }
+        let bytes = std::fs::read(path).map_err(|_| "D011_READ")?;
+        encode(
+            &bytes,
+            [txt(2)?, txt(3)?, txt(4)?, txt(5)?],
+            txt(6)?,
+            [
+                txt(7)?.parse().map_err(|_| "D011_LAYER")?,
+                txt(8)?.parse().map_err(|_| "D011_LAYER")?,
+            ],
+            txt(9)?.parse().map_err(|_| "D011_INDEX")?,
+        )
+    })();
+    match result {
+        Ok(wire) => print!("{wire}"),
+        Err(reason) => {
+            eprintln!("{reason}");
+            std::process::exit(3);
+        }
+    }
+}
