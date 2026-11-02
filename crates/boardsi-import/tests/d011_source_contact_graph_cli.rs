@@ -18,19 +18,28 @@ fn eight_nodes_six_edges_two_components_no_barrel() {
 }
 #[test]
 fn source_sha_changes_without_changing_topology() {
-    let data=String::from_utf8(SOURCE.to_vec()).unwrap()
+    let data = String::from_utf8(SOURCE.to_vec())
+        .unwrap()
         .replace("U1.1 U2.2", "U1.1  U2.2");
-    let fresh=graph(data.as_bytes()).unwrap();
-    let original=graph(SOURCE).unwrap();
+    let fresh = graph(data.as_bytes()).unwrap();
+    let original = graph(SOURCE).unwrap();
     assert_ne!(fresh, original);
-    assert_eq!(fresh.lines().filter(|s|s.starts_with("EDGE|")).collect::<Vec<_>>(),
-               original.lines().filter(|s|s.starts_with("EDGE|")).collect::<Vec<_>>());
+    assert_eq!(
+        fresh
+            .lines()
+            .filter(|s| s.starts_with("EDGE|"))
+            .collect::<Vec<_>>(),
+        original
+            .lines()
+            .filter(|s| s.starts_with("EDGE|"))
+            .collect::<Vec<_>>()
+    );
 }
 #[test]
 fn reject_boundary_wrong_layer_and_net() {
-    let text=String::from_utf8(SOURCE.to_vec()).unwrap();
-    let boundary=text.replacen("330 280 4 10 0","280 280 4 10 0",1);
+    let text = String::from_utf8(SOURCE.to_vec()).unwrap();
+    let boundary = text.replacen("330 280 4 10 0", "280 280 4 10 0", 1);
     assert!(graph(boundary.as_bytes()).is_err());
-    assert!(d011::encode(SOURCE,["RA","RB","RC","RD"],"OTHER",[1,4],0).is_err());
-    assert!(d011::encode(SOURCE,["RA","RB","RC","RD"],"NET_A",[1,2],0).is_err());
+    assert!(d011::encode(SOURCE, ["RA", "RB", "RC", "RD"], "OTHER", [1, 4], 0).is_err());
+    assert!(d011::encode(SOURCE, ["RA", "RB", "RC", "RD"], "NET_A", [1, 2], 0).is_err());
 }
