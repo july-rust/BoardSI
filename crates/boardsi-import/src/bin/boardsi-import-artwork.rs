@@ -18,6 +18,9 @@ mod d008;
 #[path = "boardsi-d009-dual-layer-via-trace.rs"]
 #[allow(dead_code)]
 mod d009;
+#[path = "boardsi-d011-source-contact-graph.rs"]
+#[allow(dead_code)]
+mod d011;
 #[path = "boardsi-d010-two-trace-four-area.rs"]
 #[allow(dead_code)]
 mod d010;
@@ -679,6 +682,32 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // D_011: source-only dual-layer graph, 8 nodes / 6 local candidate edges.
+    if args.len()==11 && args[2]==std::ffi::OsStr::new("--d011-source-contact-graph-v1") {
+        let result=(|| -> Result<String,&'static str> {
+            let txt=|i:usize|args[i].to_str().ok_or("D011_NON_UTF8_SELECTION");
+            let names=[txt(3)?,txt(4)?,txt(5)?,txt(6)?];
+            let net=txt(7)?;
+            let layers=[txt(8)?.parse::<usize>().map_err(|_|"D011_LAYER")?,
+                        txt(9)?.parse::<usize>().map_err(|_|"D011_LAYER")?];
+            let via=txt(10)?.parse::<usize>().map_err(|_|"D011_VIA")?;
+            let path=std::path::Path::new(&args[1]);
+            let metadata=std::fs::metadata(path).map_err(|_|"D011_FILE")?;
+            if !metadata.is_file() || metadata.len()>boardsi_import::route_preview::MAX_FILE_BYTES as u64 {
+                return Err("D011_FILE_LIMIT");
+            }
+            let bytes=std::fs::read(path).map_err(|_|"D011_READ")?;
+            d011::encode(&bytes,names,net,layers,via)
+        })();
+        match result {
+            Ok(wire)=>print!("{wire}"),
+            Err(reason)=>{
+                eprintln!("D011_SOURCE_GRAPH_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_010: source-only two-layer, two-trace, four-source-area Via candidate.
     if args.len() == 11 && args[2] == std::ffi::OsStr::new("--d010-dual-layer-two-trace-v1") {
         let result = (|| -> Result<String, &'static str> {
