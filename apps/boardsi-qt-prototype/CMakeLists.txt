@@ -102,6 +102,11 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --c005-risk-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-c005-reference-risk PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_009: independently imported dual-layer source candidate.
+    add_test(NAME qt-preview-d009-dual-layer-via-trace
+      COMMAND boardsi-preview-p0 --d009-dual-layer-via-trace-selftest "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-d009-dual-layer-via-trace PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_008: actual source-imported two-layer Via pad/COPCLS proof (geometry only).
     add_test(NAME qt-preview-d008-dual-layer-via-area
       COMMAND boardsi-preview-p0 --d008-dual-layer-via-area-selftest "${BOARDSI_IMPORTER}")
