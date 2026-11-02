@@ -58,6 +58,12 @@ inline int selftest(const QString &importer){
         && decode(query(),updated,&panel,"NET_A",ignored);
     // Forge a SHA-consistent witness for a three-row interior padstack:
     // Rust excludes inner pads, and Qt independently enforces that exclusion.
+    auto remark=source;
+    remark.replace("*VIA*\nSIMPLEVIA","*VIA*\n*REMARK* keep section\nSIMPLEVIA");
+    if(!save(remark)||!load())return 2;
+    const auto remarkWire=query();
+    const bool acceptsRemark=!remarkWire.isEmpty()
+        && decode(remarkWire,remark,&panel,"NET_A",ignored);
     auto inner=source;
     inner.replace("SIMPLEVIA 15 2\n-2 35 R\n0 35 R\n",
                   "SIMPLEVIA 15 3\n-2 35 R\n0 35 R\n-1 35 R\n");
@@ -96,9 +102,9 @@ inline int selftest(const QString &importer){
     if(!save(invalid)||!load())return 2;
     const bool rejectLayer=query().isEmpty() && panel.imported()->referenceRiskCountForTest()==0;
     const bool ok=accepted&&twoVias&&rejectsForgery&&rejectsPromotion&&stale
-        &&rejectsInnerPad&&rejectsExtra&&rejectsArc&&rejectLayer;
+        &&acceptsRemark&&rejectsInnerPad&&rejectsExtra&&rejectsArc&&rejectLayer;
     qInfo()<<"D014_NATIVE_QT_TWO_VIA"<<ok<<twoVias<<rejectsForgery
-        <<rejectsPromotion<<stale<<rejectsInnerPad<<rejectsExtra<<rejectsArc<<rejectLayer
+        <<rejectsPromotion<<stale<<acceptsRemark<<rejectsInnerPad<<rejectsExtra<<rejectsArc<<rejectLayer
         <<"SOURCE_ONLY_NO_ELECTRICAL_BARREL";
     return ok?0:1;
 }
