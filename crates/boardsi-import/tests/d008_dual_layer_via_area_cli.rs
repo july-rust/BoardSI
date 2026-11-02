@@ -35,5 +35,5 @@ fn boundary_is_not_candidate() {
         "135 200\n235 200\n235 300\n135 300\n135 200",
     );
     let wire = d008::encode(&boundary, ["RA", "RB"], "NET_A", [1, 4], 0).unwrap();
-    assert!(wire.contains("OVERALL|SOURCE_DUAL_LAYER_NOT_VERIFIED"));
+    assert!(wire.contains("OVERALL|SOURCE_DUAL_LAYER_NOT_VERIFIED"), "boundary witness: {wire}");
 }
