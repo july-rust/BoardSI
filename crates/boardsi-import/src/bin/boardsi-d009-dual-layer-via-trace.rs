@@ -342,8 +342,8 @@ fn main() {
             [txt(2)?, txt(3)?, txt(4)?],
             txt(5)?,
             [
-                txt(7)?.parse().map_err(|_| "D009_LAYER")?,
                 txt(6)?.parse().map_err(|_| "D009_LAYER")?,
+                txt(7)?.parse().map_err(|_| "D009_LAYER")?,
             ],
             txt(8)?.parse().map_err(|_| "D009_INDEX")?,
         )
