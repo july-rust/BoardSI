@@ -39,3 +39,22 @@ fn fail_closed_wrong_net_layer_via_and_contact_geometry() {
     let boundary = text.replacen("330 280 4 10 0", "280 280 4 10 0", 1);
     assert!(witness(boundary.as_bytes()).is_err());
 }
+
+#[test]
+fn pad_containment_without_exact_via_centre_rejects_legacy_projection() {
+    let source = String::from_utf8(SOURCE.to_vec()).unwrap();
+    let off_centre = source.replace(
+        "330 280 1 10 0\n150 250 4 10 0 SIMPLEVIA\n330 280 4 10 0",
+        "330 280 1 10 0\n151 250 1 10 0\n*SIGNAL* NET_A\nU1.1 U2.2\n330 280 4 10 0\n150 250 4 10 0 SIMPLEVIA",
+    );
+    assert_ne!(source, off_centre);
+    assert!(d013::d012::encode(
+        off_centre.as_bytes(),
+        ["RA", "RB", "RC", "RD"],
+        "NET_A",
+        [1, 4],
+        0
+    )
+    .is_ok());
+    assert!(witness(off_centre.as_bytes()).is_err());
+}
