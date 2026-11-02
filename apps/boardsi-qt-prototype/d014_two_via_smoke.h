@@ -78,14 +78,27 @@ inline int selftest(const QString &importer){
     forgedExtra.replace("TRACE|0|1|8000|25000","TRACE|0|1|35000|25000");
     const bool rejectsExtra=!decode(forgedExtra,extra,&panel,"NET_A",ignored)
         && query().isEmpty();
+    // A separate Layer-1 analytic arc is not part of the qualified
+    // three-straight-trace Source fixture. It must fail even with a forged SHA.
+    auto withArc=source;
+    withArc.replace("*END*\n",
+        "*SIGNAL* NET_A\nU3.3 U4.4\n"
+        "150 250 1 10 0\n250 250 1 10 4096 CCW\n"
+        "350 250 1 10 0\n*END*\n");
+    if(!save(withArc)||!load())return 2;
+    auto forgedArc=wire;
+    forgedArc.replace(origSha,QCryptographicHash::hash(withArc,QCryptographicHash::Sha256).toHex());
+    const bool rejectsArc=panel.imported()->arcCount()==1
+        && !decode(forgedArc,withArc,&panel,"NET_A",ignored)
+        && query().isEmpty();
     QByteArray invalid=source;
     invalid.replace("350 250 1 10 0 SIMPLEVIA","350 250 2 10 0 SIMPLEVIA");
     if(!save(invalid)||!load())return 2;
     const bool rejectLayer=query().isEmpty() && panel.imported()->referenceRiskCountForTest()==0;
     const bool ok=accepted&&twoVias&&rejectsForgery&&rejectsPromotion&&stale
-        &&rejectsInnerPad&&rejectsExtra&&rejectLayer;
+        &&rejectsInnerPad&&rejectsExtra&&rejectsArc&&rejectLayer;
     qInfo()<<"D014_NATIVE_QT_TWO_VIA"<<ok<<twoVias<<rejectsForgery
-        <<rejectsPromotion<<stale<<rejectsInnerPad<<rejectsExtra<<rejectLayer
+        <<rejectsPromotion<<stale<<rejectsInnerPad<<rejectsExtra<<rejectsArc<<rejectLayer
         <<"SOURCE_ONLY_NO_ELECTRICAL_BARREL";
     return ok?0:1;
 }
