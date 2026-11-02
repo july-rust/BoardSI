@@ -162,7 +162,9 @@ fn graph_from_qualified_receipt(receipt: &str, layers: [usize; 2]) -> Result<Str
 fn main() {
     let args: Vec<_> = std::env::args_os().collect();
     if args.len() != 10 {
-        eprintln!("D011_USAGE: board.asc AREA_A AREA_B AREA_C AREA_D NET LAYER_A LAYER_B VIA_INDEX");
+        eprintln!(
+            "D011_USAGE: board.asc AREA_A AREA_B AREA_C AREA_D NET LAYER_A LAYER_B VIA_INDEX"
+        );
         std::process::exit(2);
     }
     let txt = |i: usize| args[i].to_str().ok_or("D011_UTF8");
