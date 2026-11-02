@@ -107,6 +107,21 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --d011-source-contact-graph-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-d011-source-contact-graph PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_014 independently compiled Qt Source importer proof. No new Actions workflow.
+    add_executable(boardsi-d014-native-qt d014_qt_runner.cpp)
+    target_link_libraries(boardsi-d014-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+    if(WIN32)
+      target_link_libraries(boardsi-d014-native-qt PRIVATE psapi)
+    endif()
+    if(MSVC)
+      target_compile_options(boardsi-d014-native-qt PRIVATE /W4 /WX)
+    else()
+      target_compile_options(boardsi-d014-native-qt PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME qt-preview-d014-two-via-source-chain
+      COMMAND boardsi-d014-native-qt "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-d014-two-via-source-chain PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_013: compatibility barrel projection must not be accepted as electrical.
     add_test(NAME qt-preview-d013-legacy-barrel-provenance
       COMMAND boardsi-preview-p0 --d013-legacy-barrel-provenance-selftest "${BOARDSI_IMPORTER}")
