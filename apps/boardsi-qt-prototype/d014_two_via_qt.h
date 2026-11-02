@@ -12,7 +12,7 @@ inline bool decode(const QByteArray &wire,const QByteArray &source,
     ImportedVia a,b,extra;
     if(!art->importedVia(0,a) || !art->importedVia(1,b) || art->importedVia(2,extra)
        || art->importedTraceCount()!=3 || a.net!=net || b.net!=net
-       || a.name.isEmpty() || a.name!=b.name || a.x_nm==b.x_nm && a.y_nm==b.y_nm
+       || a.name.isEmpty() || a.name!=b.name || (a.x_nm==b.x_nm && a.y_nm==b.y_nm)
        || a.firstLayer!=1 || a.lastLayer!=4 || b.firstLayer!=1 || b.lastLayer!=4
        || a.drill_nm<=0 || a.diameter_nm<=a.drill_nm
        || a.diameter_nm!=b.diameter_nm || a.drill_nm!=b.drill_nm
