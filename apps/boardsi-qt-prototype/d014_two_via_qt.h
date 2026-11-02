@@ -11,6 +11,8 @@ inline bool twoRowViaDefinition(const QByteArray &source,const QString &name){
     for(const auto &line:text.split('\n')){
         const auto fields=line.simplified().split(' ',Qt::SkipEmptyParts);
         if(fields.isEmpty())continue;
+        // PADS remarks are non-semantic and cannot change the active section.
+        if(fields[0]=="*REMARK*" || fields[0]=="REMARK")continue;
         if(fields[0]=="*END*")break;
         if(fields[0].startsWith('*')){
             inVia=fields[0]=="*VIA*";
