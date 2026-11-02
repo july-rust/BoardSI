@@ -2,6 +2,27 @@
 #pragma once
 #include "d013_legacy_barrel_qt.h"
 namespace d014 {
+// Restrict the named PADS padstack to exactly two exterior conductive rows;
+// D_006 checks their pad diameter/drill and Source geometry independently.
+inline bool twoRowViaDefinition(const QByteArray &source,const QString &name){
+    bool inVia=false,found=false;
+    QString text=QString::fromUtf8(source);
+    text.replace("\r\n","\n");
+    for(const auto &line:text.split('\n')){
+        const auto fields=line.simplified().split(' ',Qt::SkipEmptyParts);
+        if(fields.isEmpty())continue;
+        if(fields[0]=="*END*")break;
+        if(fields[0].startsWith('*')){
+            inVia=fields[0]=="*VIA*";
+            continue;
+        }
+        if(inVia && fields[0]==name){
+            if(found || fields.size()!=3 || fields[2]!="2")return false;
+            found=true;
+        }
+    }
+    return found;
+}
 inline bool decode(const QByteArray &wire,const QByteArray &source,
                    const PreviewImportPanel *panel,const QString &net,c005::Receipt &out){
     if(!panel || !panel->imported() || wire.isEmpty() || wire.size()>16384
@@ -16,6 +37,7 @@ inline bool decode(const QByteArray &wire,const QByteArray &source,
        || a.firstLayer!=1 || a.lastLayer!=4 || b.firstLayer!=1 || b.lastLayer!=4
        || a.drill_nm<=0 || a.diameter_nm<=a.drill_nm
        || a.diameter_nm!=b.diameter_nm || a.drill_nm!=b.drill_nm
+       || !twoRowViaDefinition(source,a.name)
        || !d006::declaredConductivePad(source,a,1)
        || !d006::declaredConductivePad(source,a,4)
        || !d006::declaredConductivePad(source,b,1)
@@ -32,7 +54,11 @@ inline bool decode(const QByteArray &wire,const QByteArray &source,
        || t[0].x1_nm!=a.x_nm || t[0].y1_nm!=a.y_nm
        || t[1].x0_nm!=a.x_nm || t[1].y0_nm!=a.y_nm
        || t[1].x1_nm!=b.x_nm || t[1].y1_nm!=b.y_nm
-       || t[2].x0_nm!=b.x_nm || t[2].y0_nm!=b.y_nm)return false;
+       || t[2].x0_nm!=b.x_nm || t[2].y0_nm!=b.y_nm
+       // Refuse additional layer-1 contacts not represented by fixed edges.
+       || (t[0].x0_nm==b.x_nm && t[0].y0_nm==b.y_nm)
+       || (t[2].x1_nm==a.x_nm && t[2].y1_nm==a.y_nm)
+       || (t[0].x0_nm==t[2].x1_nm && t[0].y0_nm==t[2].y1_nm))return false;
     QByteArray expected="BOARDSI_D014_TWO_VIA_CHAIN_V1|"+sha+
       "|SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED"
       "|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE\n";
