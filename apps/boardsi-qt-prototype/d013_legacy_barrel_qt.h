@@ -41,6 +41,24 @@ inline bool decode(const QByteArray &wire,const QByteArray &sha,const QByteArray
     if(!d012::decode(span,sha,source,panel,names,net,layers,verified)
         || verified.state!="SOURCE_SPAN_PROVENANCE_IMPORTER_ASSUMED"
         || expectedWitness(span,layers)!=wire)return false;
+    // Legacy V1 requires an exact ViaCentre/TraceVertex contact on BOTH
+    // selected layers. D_012 only qualifies pad containment, which is weaker.
+    const auto *art=panel?panel->imported():nullptr;
+    ImportedVia via;
+    if(!art || !art->importedVia(0,via) || via.net!=net
+        || via.firstLayer>layers[0] || via.lastLayer<layers[1]
+        || art->importedTraceCount()!=2)return false;
+    bool endpoint[2]={false,false};
+    for(int index=0;index<2;++index) {
+        ImportedTrack t;
+        if(!art->importedTrack(index,t) || t.net!=net)return false;
+        const int slot=t.layer==layers[0]?0:t.layer==layers[1]?1:-1;
+        if(slot<0 || endpoint[slot])return false;
+        endpoint[slot]=(t.x0_nm==via.x_nm && t.y0_nm==via.y_nm)
+            || (t.x1_nm==via.x_nm && t.y1_nm==via.y_nm);
+        if(!endpoint[slot])return false;
+    }
+    if(!endpoint[0] || !endpoint[1])return false;
     verified.state="LEGACY_BARREL_COMPATIBILITY_NOT_ELECTRICAL";
     verified.reason="D_013 LEGACY V1 BARREL COMPATIBILITY ONLY; IMPORTER-ASSUMED PLATING; ELECTRICAL BARREL NOT VERIFIED";
     out=std::move(verified);
