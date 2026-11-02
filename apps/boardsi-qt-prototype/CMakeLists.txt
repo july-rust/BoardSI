@@ -107,6 +107,11 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --d011-source-contact-graph-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-d011-source-contact-graph PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_012: Source Via span evidence is not physical plated-barrel continuity.
+    add_test(NAME qt-preview-d012-via-span-provenance
+      COMMAND boardsi-preview-p0 --d012-via-span-provenance-selftest "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-d012-via-span-provenance PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_010: independently imported two-trace/four-area candidate, source geometry only.
     add_test(NAME qt-preview-d010-two-trace-four-area
       COMMAND boardsi-preview-p0 --d010-dual-layer-two-trace-selftest "${BOARDSI_IMPORTER}")
