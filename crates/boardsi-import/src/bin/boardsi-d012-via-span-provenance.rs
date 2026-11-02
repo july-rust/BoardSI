@@ -3,6 +3,7 @@
 #[allow(dead_code)]
 pub mod d011;
 use boardsi_import::route_preview;
+use std::fmt::Write;
 
 pub fn encode(
     bytes: &[u8],
@@ -29,11 +30,10 @@ pub fn encode(
     }
     let parsed = route_preview::parse(bytes)?;
     let source = parsed.vias.first().ok_or("D012_SOURCE_VIA_MISSING")?;
-    let net_hex = net
-        .as_bytes()
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect::<String>();
+    let mut net_hex = String::with_capacity(net.len() * 2);
+    for b in net.bytes() {
+        write!(&mut net_hex, "{b:02x}").map_err(|_| "D012_NET_HEX")?;
+    }
     if parsed.vias.len() != 1
         || via[2] != net_hex
         || via[3] != source.point[0].to_string()
