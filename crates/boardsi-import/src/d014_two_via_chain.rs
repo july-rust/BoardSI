@@ -7,8 +7,7 @@ use std::fmt::Write;
 fn orient(a: [i64; 2], b: [i64; 2], c: [i64; 2]) -> i128 {
     let dx = i128::from(b[0]) - i128::from(a[0]);
     let dy = i128::from(b[1]) - i128::from(a[1]);
-    dx * (i128::from(c[1]) - i128::from(a[1]))
-        - dy * (i128::from(c[0]) - i128::from(a[0]))
+    dx * (i128::from(c[1]) - i128::from(a[1])) - dy * (i128::from(c[0]) - i128::from(a[0]))
 }
 fn on_segment(p: [i64; 2], a: [i64; 2], b: [i64; 2]) -> bool {
     orient(a, b, p) == 0
