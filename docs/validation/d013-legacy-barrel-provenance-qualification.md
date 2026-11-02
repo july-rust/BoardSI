@@ -24,7 +24,7 @@
 - [x] [PR #372](https://github.com/july-rust/BoardSI/pull/372) final exact code HEAD `3fefba3be82282ef9253c713607d6a4fd72b0c60`: **27/27 Check Runs SUCCESS, 11/11 pull-request Workflows SUCCESS**, active repository Ruleset requirements enforced.
 - [x] Exact final-HEAD independent Codex `status=completed, has_any_findings=false, has_unresolved_findings=false`; all inline review threads resolved. An original P2 finding on Qt pad-containment vs exact ViaCentre endpoint was corrected and re-reviewed.
 - [x] Protected **GitHub Verified single-parent Squash** `main@b657403c4e0f30f844001c65c5d5d9adc1571f4e`, `verification.verified=true, reason=valid`, sole parent `b18a46e0879b67ed8b2788a1a0c20eb3286b9443`.
-- [ ] Independent exact post-code-main **event=push** Workflow Runs and Check Runs: **not yet accepted at the time of initial document drafting**. Check separately on the immutable code-merge SHA, not a PR result.
+- [x] Independent exact post-code-main **event=push** results on immutable merge SHA `b657403c4e0f30f844001c65c5d5d9adc1571f4e`: **21/21 Check Runs SUCCESS** and **8/8 independently enumerated event=push Workflows SUCCESS**, each `head_sha` matching the same GitHub Verified one-parent Squash commit, as independently verified on 2026-11-02 KST. [Exact SHA checks](https://github.com/july-rust/BoardSI/commit/b657403c4e0f30f844001c65c5d5d9adc1571f4e/checks). This is the limited Source-only code acceptance; not manufactured Via barrel electrical proof.
 
 ## Explicit exclusions, fail-closed state
 
