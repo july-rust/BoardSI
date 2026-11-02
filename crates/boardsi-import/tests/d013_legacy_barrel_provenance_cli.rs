@@ -11,7 +11,9 @@ fn one_legacy_compatibility_link_is_not_electrical_proof() {
     assert!(wire.starts_with("BOARDSI_D013_LEGACY_BARREL_PROVENANCE_V1|"));
     assert!(wire.contains("|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE"));
     assert!(wire.contains("LEGACY|0|VIA:0:L1|VIA:0:L4|V1_COMPATIBILITY_PROJECTION|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED\n"));
-    assert!(wire.contains("COUNT|LEGACY_COMPAT_BARRELS|1|SOURCE_QUALIFIED_LOCAL_CONTACTS_NOT_ELECTRICAL\n"));
+    assert!(wire.contains(
+        "COUNT|LEGACY_COMPAT_BARRELS|1|SOURCE_QUALIFIED_LOCAL_CONTACTS_NOT_ELECTRICAL\n"
+    ));
     assert_eq!(wire.lines().filter(|s| s.starts_with("NODE|")).count(), 8);
     assert_eq!(wire.lines().filter(|s| s.starts_with("EDGE|")).count(), 6);
     assert!(wire.ends_with("END|FAIL_CLOSED_NO_BARREL_PROOF\n"));
