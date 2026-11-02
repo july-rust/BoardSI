@@ -52,6 +52,9 @@ pub fn encode(
         || s[1].a != a.point
         || s[1].b != b.point
         || s[2].a != b.point
+        || s[0].a == b.point
+        || s[2].b == a.point
+        || s[0].a == s[2].b
     {
         return Err("D014_CONTACT_PATH");
     }
