@@ -263,6 +263,18 @@ jobs:
           suffix=''
           if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --d008-dual-layer-via-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      # D_009: actual imported dual-layer via/trace/third-area source-only witness.
+      - name: D_009 Native Qt dual-layer Via Pad Trace third Area source smoke
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+          QSG_RHI_BACKEND: software
+        working-directory: build-qt
+        run: |
+          suffix=''
+          if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --d009-dual-layer-via-trace-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_007: verify native Qt source contact chain.
       # D_007: independent Qt Source Via Pad/Trace/COPCLS chain and stale witness.
       - name: D_007 Native Qt via trace to distinct area source and stale smoke
