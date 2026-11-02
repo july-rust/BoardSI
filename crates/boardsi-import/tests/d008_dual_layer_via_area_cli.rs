@@ -48,11 +48,7 @@ fn owned_bottom_copcut_blocks_pad_contact() {
     let source = String::from_utf8(SOURCE.to_vec())
         .unwrap()
         .replace("\r\n", "\n");
-    let source = source.replacen(
-        "RB COPPER 0 0 1 1 0 NET_A",
-        "RB COPPER 0 0 2 1 0 NET_A",
-        1,
-    );
+    let source = source.replacen("RB COPPER 0 0 1 1 0 NET_A", "RB COPPER 0 0 2 1 0 NET_A", 1);
     let source = source.replacen(
         "*ROUTE*\n",
         "COPCUT 5 0.01 0 4\n140 240\n160 240\n160 260\n140 260\n140 240\n*ROUTE*\n",
