@@ -29,7 +29,7 @@ inline int selftest(const QString &importer) {
         deadline.start(8000);loop.exec();deadline.stop();
         return panel.importStatus().startsWith("PARTIAL");
     };
-    const auto query=[&](const QString &mode=QStringLiteral("--d023-collinear-endpoint-contact-v1")) {
+    const auto query=[&](const QString &mode=QStringLiteral("--d023-collinear-opposite-endpoint-contact-v1")) {
         QProcess proc;
         proc.start(importer,{file.fileName(),mode,"NET_A","1","4","0","1"});
         if (!proc.waitForFinished(10000) || proc.exitStatus()!=QProcess::NormalExit
