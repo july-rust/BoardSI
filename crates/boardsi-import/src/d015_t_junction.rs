@@ -237,7 +237,12 @@ pub fn encode_endpoint_contact(
 
 /// D_023 opposite Via-A Source endpoint mode; NEVER electrical barrel proof.
 #[allow(dead_code)]
-pub fn encode_opposite_endpoint_contact(bytes: &[u8], net: &str, layers: [usize; 2], vias: [usize; 2]) -> Result<String, &'static str> {
+pub fn encode_opposite_endpoint_contact(
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
+) -> Result<String, &'static str> {
     encode_with_mode(bytes, net, layers, vias, ContactMode::OppositeEndpoint)
 }
 
@@ -310,7 +315,11 @@ fn encode_with_mode(
         })
     {
         return Err(if endpoint_contact {
-            if opposite_endpoint { "D023_COORDINATE_BOUNDS" } else { "D022_COORDINATE_BOUNDS" }
+            if opposite_endpoint {
+                "D023_COORDINATE_BOUNDS"
+            } else {
+                "D022_COORDINATE_BOUNDS"
+            }
         } else if partial_overlap {
             "D021_COORDINATE_BOUNDS"
         } else if contained_overlap {
@@ -398,7 +407,11 @@ fn encode_with_mode(
     };
     if !valid_contact {
         return Err(if endpoint_contact {
-            if opposite_endpoint { "D023_COLLINEAR_OPPOSITE_ENDPOINT_CONTACT" } else { "D022_COLLINEAR_ENDPOINT_CONTACT" }
+            if opposite_endpoint {
+                "D023_COLLINEAR_OPPOSITE_ENDPOINT_CONTACT"
+            } else {
+                "D022_COLLINEAR_ENDPOINT_CONTACT"
+            }
         } else if partial_overlap {
             "D021_PARTIAL_COLLINEAR_OVERLAP"
         } else if contained_overlap {
@@ -514,7 +527,13 @@ fn encode_with_mode(
             "CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|3|X|{}|Y|{}",
             shared[0], shared[1]
         )
-        .map_err(|_| if opposite_endpoint { "D023_FMT" } else { "D022_FMT" })?;
+        .map_err(|_| {
+            if opposite_endpoint {
+                "D023_FMT"
+            } else {
+                "D022_FMT"
+            }
+        })?;
     }
     let nodes = [
         ("VIA_PAD", 1, 0),
@@ -548,7 +567,12 @@ fn encode_with_mode(
     if endpoint_contact {
         // At Via-A (D023) use Node 1; at Via-B (D022) use Node 2.
         // This remains layer-local Source geometry, not electrical barrel proof.
-        edges.push((if opposite_endpoint { 1 } else { 2 }, 7, "SOURCE_ENDPOINT_CONTACT_CANDIDATE", 4));
+        edges.push((
+            if opposite_endpoint { 1 } else { 2 },
+            7,
+            "SOURCE_ENDPOINT_CONTACT_CANDIDATE",
+            4,
+        ));
     }
     let mut parent: Vec<usize> = (0..nodes.len()).collect();
     for &(a, b, _, _) in &edges {
