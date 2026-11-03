@@ -80,11 +80,34 @@ inline int selftest(const QString &importer) {
     extra.replace("250 250 4 10 0","250 250 4 10 0\n270 270 4 10 0");
     if (!save(extra) || !load()) return 2;
     const bool rejectsExtra=query().isEmpty();
+    // Independent Source section inventory must reject imported COPCLS even
+    // when the original route-only D_014 objects are unchanged.
+    auto copper=source;
+    copper.replace("*END*\n",
+        "*LINES*\nRA COPPER 0 0 1 1 0 OTHER\nCOPCLS 5 0.01 0 4\n"
+        "240 240\n350 240\n350 360\n240 360\n240 240\n*END*\n");
+    if (!save(copper)) return 2;
+    const bool copperLoaded=load();
+    auto forgedCopper=wire;
+    forgedCopper.replace(originalSha,QCryptographicHash::hash(copper,QCryptographicHash::Sha256).toHex());
+    const bool rejectsCopper=query().isEmpty()
+        && (!copperLoaded || !decode(forgedCopper,copper,&panel,"NET_A",ignored));
+    auto duplicate=source;
+    duplicate.replace("*ROUTE*\n",
+        "SIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*\n");
+    if (!save(duplicate)) return 2;
+    const bool duplicateLoaded=load();
+    auto forgedDuplicate=wire;
+    forgedDuplicate.replace(originalSha,QCryptographicHash::hash(duplicate,QCryptographicHash::Sha256).toHex());
+    const bool rejectsDuplicate=query().isEmpty()
+        && (!duplicateLoaded || !decode(forgedDuplicate,duplicate,&panel,"NET_A",ignored));
     const bool ok=accepted && rejectsForgery && rejectsPromotion && stale
-        && rejectsMiss && rejectsOverrun && rejectsLayer && rejectsExtra;
+        && rejectsMiss && rejectsOverrun && rejectsLayer && rejectsExtra
+        && rejectsCopper && rejectsDuplicate;
     qInfo()<<"D015_NATIVE_QT_T_JUNCTION"<<ok<<accepted<<rejectsForgery
         <<rejectsPromotion<<stale<<rejectsMiss<<rejectsOverrun
-        <<rejectsLayer<<rejectsExtra<<"NO_ELECTRICAL_BARREL_PROOF";
+        <<rejectsLayer<<rejectsExtra<<rejectsCopper<<rejectsDuplicate
+        <<"NO_ELECTRICAL_BARREL_PROOF";
     return ok?0:1;
 }
 } // namespace d015
