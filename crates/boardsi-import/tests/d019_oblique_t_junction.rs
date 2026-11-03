@@ -17,7 +17,9 @@ fn strict_oblique_source_t_has_candidates_but_no_electrical_promotion() {
     assert!(w.starts_with("BOARDSI_D019_OBLIQUE_T_JUNCTION_V1|"));
     assert!(w.contains("SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE"));
     assert!(w.contains("EDGE|4|5|7|SOURCE_INTERIOR_OBLIQUE_T_CONTACT_CANDIDATE|4"));
-    assert!(w.contains("COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0"));
+    assert!(w.contains(
+        "COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0"
+    ));
     assert!(w.contains("OVERALL|OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_ONLY"));
     assert_eq!(w.lines().filter(|x| x.starts_with("NODE|")).count(), 8);
     assert_eq!(w.lines().filter(|x| x.starts_with("EDGE|")).count(), 5);
@@ -48,7 +50,10 @@ fn gap_overrun_endpoint_collinear_perpendicular_wrong_layer_and_net_fail() {
         s.replace("250 250 4 10 0", "250 250 4 10 0\n300 200 4 10 0"),
     ];
     for sample in hostile {
-        assert!(witness(sample.as_bytes()).is_err(), "accepted hostile {sample}");
+        assert!(
+            witness(sample.as_bytes()).is_err(),
+            "accepted hostile {sample}"
+        );
     }
 }
 #[test]
@@ -64,7 +69,10 @@ fn ambiguous_inventory_and_invalid_source_lexemes_fail() {
         s.replace("250 250 4 10 0", "250 250 4 10 0 SIMPLEVIA"),
     ];
     for sample in hostile {
-        assert!(witness(sample.as_bytes()).is_err(), "accepted source {sample}");
+        assert!(
+            witness(sample.as_bytes()).is_err(),
+            "accepted source {sample}"
+        );
     }
 }
 #[test]
