@@ -49,7 +49,11 @@ fn bounded_source_inventory(bytes: &[u8], via_name: &str) -> Result<(), &'static
     let mut max_layer=0;
     let mut via_defs=0;
     let mut pad_rows=0;
+    let mut bottom_pad=false;
+    let mut top_pad=false;
     let mut signals=0;
+    let mut route_pairs=0;
+    let mut route_points=0;
     let mut ended=false;
     for raw in source.lines() {
         let line=raw.trim();
@@ -88,18 +92,32 @@ fn bounded_source_inventory(bytes: &[u8], via_name: &str) -> Result<(), &'static
                 if via_defs!=1 {return Err("D015_DUPLICATE_VIA_DEF");}
             }
             "via" if words.len()==3 && (first=="-2" || first=="0") => {
+                if first=="-2" {
+                    if bottom_pad {return Err("D015_DUPLICATE_PAD_ROW");}
+                    bottom_pad=true;
+                } else {
+                    if top_pad {return Err("D015_DUPLICATE_PAD_ROW");}
+                    top_pad=true;
+                }
                 pad_rows+=1;
-                if pad_rows>2 {return Err("D015_EXTRA_VIA_PAD");}
             }
-            "route" if signals>0 => {
-                // Route syntax and complete 4-segment inventory are checked by
-                // route_preview::parse and the Canonical geometry comparison.
+            "route" if signals>0 && words.len()==2
+                && words.iter().all(|w|w.contains('.')) => {
+                route_pairs+=1;
+            }
+            "route" if signals>0 && (words.len()==5 || words.len()==6)
+                && words[..5].iter().all(|w|w.parse::<i64>().is_ok()) => {
+                if words.len()==6 && words[5]!=via_name {
+                    return Err("D015_EXTRA_ROUTE_VIA");
+                }
+                route_points+=1;
             }
             _ => return Err("D015_UNMODELED_SOURCE"),
         }
     }
     if !header || !ended || max_layer!=1 || via_defs!=1
-        || pad_rows!=2 || signals!=2 {
+        || pad_rows!=2 || !bottom_pad || !top_pad || signals!=2
+        || route_pairs!=2 || route_points!=6 {
         return Err("D015_SOURCE_STRUCTURE");
     }
     Ok(())
