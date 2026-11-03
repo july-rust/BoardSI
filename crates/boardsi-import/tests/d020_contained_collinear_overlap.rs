@@ -18,7 +18,9 @@ fn strict_containment_yields_source_candidate_only() {
     let wire = witness(SRC).unwrap();
     assert!(wire.starts_with("BOARDSI_D020_CONTAINED_COLLINEAR_OVERLAP_V1|"));
     assert!(wire.contains("SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE"));
-    assert!(wire.contains("OVERLAP|MAIN_TRACE|1|CONTAINED_TRACE|3|START|20000|25000|END|25000|25000"));
+    assert!(
+        wire.contains("OVERLAP|MAIN_TRACE|1|CONTAINED_TRACE|3|START|20000|25000|END|25000|25000")
+    );
     assert!(wire.contains("EDGE|4|5|7|SOURCE_COLLINEAR_CONTAINED_OVERLAP_CANDIDATE|4"));
     assert!(wire.contains(
         "COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0"
