@@ -188,7 +188,7 @@ pub fn encode(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, false, false)
+    encode_with_mode(bytes, net, layers, vias, false, false, false)
 }
 
 #[allow(dead_code)]
@@ -198,7 +198,7 @@ pub fn encode_oblique(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, true, false)
+    encode_with_mode(bytes, net, layers, vias, true, false, false)
 }
 
 /// D_020 strict source-owned positive-length contained collinear overlap.
@@ -210,7 +210,18 @@ pub fn encode_contained_overlap(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, false, true)
+    encode_with_mode(bytes, net, layers, vias, false, true, false)
+}
+
+/// D_021 proper partial same-layer collinear Trace overlap: geometry candidate only.
+#[allow(dead_code)]
+pub fn encode_partial_overlap(
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
+) -> Result<String, &'static str> {
+    encode_with_mode(bytes, net, layers, vias, false, false, true)
 }
 
 fn encode_with_mode(
@@ -220,6 +231,7 @@ fn encode_with_mode(
     vias: [usize; 2],
     oblique: bool,
     contained_overlap: bool,
+    partial_overlap: bool,
 ) -> Result<String, &'static str> {
     if bytes.is_empty()
         || bytes.len() > route_preview::MAX_FILE_BYTES
@@ -260,14 +272,16 @@ fn encode_with_mode(
         return Err("D015_VIA_SOURCE");
     }
     let s = &p.segments;
-    if (oblique || contained_overlap)
+    if (oblique || contained_overlap || partial_overlap)
         && s.iter().any(|t| {
             [t.a[0], t.a[1], t.b[0], t.b[1]]
                 .iter()
                 .any(|&v| !(-5_600_000..=5_600_000).contains(&v))
         })
     {
-        return Err(if contained_overlap {
+        return Err(if partial_overlap {
+            "D021_COORDINATE_BOUNDS"
+        } else if contained_overlap {
             "D020_COORDINATE_BOUNDS"
         } else {
             "D019_COORDINATE_BOUNDS"
@@ -300,7 +314,20 @@ fn encode_with_mode(
     let by = i128::from(branch.b[1]) - i128::from(branch.a[1]);
     let dot = mx * bx + my * by;
     let cross = mx * by - my * bx;
-    let valid_contact = if contained_overlap {
+    let partial_inside_a = strict_interior(branch.a, s[1].a, s[1].b);
+    let partial_inside_b = strict_interior(branch.b, s[1].a, s[1].b);
+    let partial_external = if partial_inside_a { branch.b } else { branch.a };
+    let external_projection = (i128::from(partial_external[0]) - i128::from(s[1].a[0])) * mx
+        + (i128::from(partial_external[1]) - i128::from(s[1].a[1])) * my;
+    let main_length_squared = mx * mx + my * my;
+    let valid_contact = if partial_overlap {
+        // Exactly one branch endpoint strictly inside main, the other strictly
+        // beyond either main endpoint; exclude endpoint-only and containment.
+        partial_inside_a != partial_inside_b
+            && cross == 0
+            && dot != 0
+            && (external_projection < 0 || external_projection > main_length_squared)
+    } else if contained_overlap {
         // Both endpoints must be *strictly* inside the original main Trace.
         // Exact source-tick orientation and nonzero dot prove collinearity.
         strict_interior(branch.a, s[1].a, s[1].b)
@@ -321,7 +348,9 @@ fn encode_with_mode(
             })
     };
     if !valid_contact {
-        return Err(if contained_overlap {
+        return Err(if partial_overlap {
+            "D021_PARTIAL_COLLINEAR_OVERLAP"
+        } else if contained_overlap {
             "D020_COLLINEAR_CONTAINED_OVERLAP"
         } else if oblique {
             "D019_OBLIQUE_T_JUNCTION"
@@ -363,7 +392,9 @@ fn encode_with_mode(
     for byte in digest::sha256(bytes) {
         write!(&mut sha, "{byte:02x}").map_err(|_| "D015_FMT")?;
     }
-    let mode = if contained_overlap {
+    let mode = if partial_overlap {
+        "D021_PARTIAL_COLLINEAR_OVERLAP_V1"
+    } else if contained_overlap {
         "D020_CONTAINED_COLLINEAR_OVERLAP_V1"
     } else if oblique {
         "D019_OBLIQUE_T_JUNCTION_V1"
@@ -407,6 +438,21 @@ fn encode_with_mode(
         )
         .map_err(|_| "D020_FMT")?;
     }
+    if partial_overlap {
+        // Always serialize in the main Trace's direction, regardless of branch direction.
+        let interior = if partial_inside_a { branch.a } else { branch.b };
+        let (start, end) = if external_projection < 0 {
+            (s[1].a, interior)
+        } else {
+            (interior, s[1].b)
+        };
+        writeln!(
+            &mut out,
+            "OVERLAP|MAIN_TRACE|1|PARTIAL_TRACE|3|START|{}|{}|END|{}|{}",
+            start[0], start[1], end[0], end[1]
+        )
+        .map_err(|_| "D021_FMT")?;
+    }
     let nodes = [
         ("VIA_PAD", 1, 0),
         ("VIA_PAD", 4, 0),
@@ -418,7 +464,9 @@ fn encode_with_mode(
         ("TRACE", 4, 3),
     ];
     // All edges are same-layer candidate contacts. NEVER a Via barrel edge.
-    let t_kind = if contained_overlap {
+    let t_kind = if partial_overlap {
+        "SOURCE_COLLINEAR_PARTIAL_OVERLAP_CANDIDATE"
+    } else if contained_overlap {
         "SOURCE_COLLINEAR_CONTAINED_OVERLAP_CANDIDATE"
     } else if oblique {
         "SOURCE_INTERIOR_OBLIQUE_T_CONTACT_CANDIDATE"
@@ -456,7 +504,9 @@ fn encode_with_mode(
         components
     )
     .map_err(|_| "D015_FMT")?;
-    if contained_overlap {
+    if partial_overlap {
+        out.push_str("OVERALL|COLLINEAR_PARTIAL_OVERLAP_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+    } else if contained_overlap {
         out.push_str("OVERALL|COLLINEAR_CONTAINED_OVERLAP_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
     } else if oblique {
         out.push_str(
