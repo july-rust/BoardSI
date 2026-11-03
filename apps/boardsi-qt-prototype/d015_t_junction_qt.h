@@ -9,7 +9,7 @@ namespace d015 {
 inline bool boundedSourceInventory(const QByteArray &source,const QString &viaName) {
     QByteArray section;
     bool header=false,ended=false,bottom=false,top=false;
-    int maxLayer=0,viaDefs=0,signals=0,pairs=0,points=0;
+    int maxLayer=0,viaDefs=0,signalCount=0,pairs=0,points=0;
     for (const auto &raw:source.split('\n')) {
         const auto line=raw.trimmed();
         if (line.isEmpty()) continue;
@@ -34,7 +34,7 @@ inline bool boundedSourceInventory(const QByteArray &source,const QString &viaNa
             ended=true;continue;
         }
         if (first=="*SIGNAL*" && section=="route" && words.size()==2) {
-            ++signals;continue;
+            ++signalCount;continue;
         }
         if (first.startsWith('*')) return false; // includes unmodeled COPCLS
         if (section=="pcb" && words.size()==2 && first=="MAXLAYER" && words[1]=="4") {
@@ -44,10 +44,10 @@ inline bool boundedSourceInventory(const QByteArray &source,const QString &viaNa
         } else if (section=="via" && words.size()==3 && (first=="-2" || first=="0")) {
             if (first=="-2") {if (bottom) return false;bottom=true;}
             else {if (top) return false;top=true;}
-        } else if (section=="route" && signals>0 && words.size()==2
+        } else if (section=="route" && signalCount>0 && words.size()==2
                    && words[0].contains('.') && words[1].contains('.')) {
             ++pairs;
-        } else if (section=="route" && signals>0
+        } else if (section=="route" && signalCount>0
                    && (words.size()==5 || words.size()==6)) {
             for (int i=0;i<5;++i) {
                 bool ok=false; words[i].toLongLong(&ok);if (!ok) return false;
@@ -59,7 +59,7 @@ inline bool boundedSourceInventory(const QByteArray &source,const QString &viaNa
         }
     }
     return header && ended && maxLayer==1 && viaDefs==1 && bottom && top
-        && signals==2 && pairs==2 && points==6;
+        && signalCount==2 && pairs==2 && points==6;
 }
 inline bool decode(const QByteArray &wire, const QByteArray &source,
                    const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
