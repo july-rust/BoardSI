@@ -188,7 +188,7 @@ pub fn encode(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, false, false, false, false)
+    encode_with_mode(bytes, net, layers, vias, ContactMode::Perpendicular)
 }
 
 #[allow(dead_code)]
@@ -198,7 +198,7 @@ pub fn encode_oblique(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, true, false, false, false)
+    encode_with_mode(bytes, net, layers, vias, ContactMode::Oblique)
 }
 
 /// D_020 strict source-owned positive-length contained collinear overlap.
@@ -210,7 +210,7 @@ pub fn encode_contained_overlap(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, false, true, false, false)
+    encode_with_mode(bytes, net, layers, vias, ContactMode::Contained)
 }
 
 /// D_021 proper partial same-layer collinear Trace overlap: geometry candidate only.
@@ -221,7 +221,7 @@ pub fn encode_partial_overlap(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, false, false, true, false)
+    encode_with_mode(bytes, net, layers, vias, ContactMode::Partial)
 }
 
 /// D_022 exact collinear endpoint contact; Source geometry candidate only.
@@ -232,7 +232,16 @@ pub fn encode_endpoint_contact(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, false, false, false, true)
+    encode_with_mode(bytes, net, layers, vias, ContactMode::Endpoint)
+}
+
+#[derive(Clone, Copy)]
+enum ContactMode {
+    Perpendicular,
+    Oblique,
+    Contained,
+    Partial,
+    Endpoint,
 }
 
 fn encode_with_mode(
@@ -240,11 +249,12 @@ fn encode_with_mode(
     net: &str,
     layers: [usize; 2],
     vias: [usize; 2],
-    oblique: bool,
-    contained_overlap: bool,
-    partial_overlap: bool,
-    endpoint_contact: bool,
+    mode: ContactMode,
 ) -> Result<String, &'static str> {
+    let oblique = matches!(mode, ContactMode::Oblique);
+    let contained_overlap = matches!(mode, ContactMode::Contained);
+    let partial_overlap = matches!(mode, ContactMode::Partial);
+    let endpoint_contact = matches!(mode, ContactMode::Endpoint);
     if bytes.is_empty()
         || bytes.len() > route_preview::MAX_FILE_BYTES
         || net.is_empty()
