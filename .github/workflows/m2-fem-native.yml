@@ -7,7 +7,21 @@ on:
 permissions:
   contents: read
 jobs:
+  classify:
+    name: Classify documentation-only changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    outputs:
+      docs_only: ${{ steps.docs_only.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/classify-docs-only
+        id: docs_only
   fem-native:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: FEM Native ${{ matrix.name }}
     strategy:
       fail-fast: false
@@ -27,13 +41,9 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v5
-      - uses: ./.github/actions/classify-docs-only
-        id: docs_only
       - name: Install native toolchain
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component rustfmt --component clippy
       - name: Check native runner, compiler and executing FEM binary
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           test "$RUNNER_ARCH" = "${{ matrix.arch }}"
@@ -42,7 +52,6 @@ jobs:
           cargo --version | tee -a native-toolchain.txt
           cargo run --manifest-path prototypes/m2-lossless-fem/Cargo.toml --example verify_fem_native --release --locked -- "${{ matrix.executable_arch }}" "${{ matrix.os }}" | tee native-fem.txt
       - name: Format, strict warnings and actual debug/release tests
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           cargo fmt --manifest-path prototypes/m2-lossless-fem/Cargo.toml --all -- --check
@@ -50,7 +59,6 @@ jobs:
           cargo test --manifest-path prototypes/m2-lossless-fem/Cargo.toml --locked -- --nocapture
           cargo test --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release --locked -- --nocapture
       - name: Execute native CLI coupons and independent analytic gate
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           cargo build --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release --locked
@@ -66,7 +74,7 @@ jobs:
           python tools/validation/m2_ph03_plate_check.py native-ph03-n8.json native-ph03-n16.json native-ph03-n32.json
           python tools/validation/m2_native_result_check.py --root .
       - uses: actions/upload-artifact@v4
-        if: ${{ (always()) && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ always() }}
         with:
           name: fem-native-${{ matrix.target }}
           path: |
