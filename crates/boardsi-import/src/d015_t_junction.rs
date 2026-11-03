@@ -442,7 +442,7 @@ fn encode_with_mode(
     )
     .map_err(|_| "D015_FMT")?;
     if contained_overlap {
-        out.push_str("OVERALL|COLLINEAR_CONTAINED_OVERLAP_SOURCE_CANDIDATE_ONLY\\nEND|FAIL_CLOSED_NO_BARREL_PROOF\\n");
+        out.push_str("OVERALL|COLLINEAR_CONTAINED_OVERLAP_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
     } else if oblique {
         out.push_str(
             "OVERALL|OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n",
