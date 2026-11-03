@@ -191,7 +191,10 @@ pub fn encode(
 // complementary non-perpendicular intersection rule and distinct receipt.
 #[allow(dead_code)]
 pub fn encode_oblique(
-    bytes: &[u8], net: &str, layers: [usize; 2], vias: [usize; 2],
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
 ) -> Result<String, &'static str> {
     encode_with_mode(bytes, net, layers, vias, true)
 }
