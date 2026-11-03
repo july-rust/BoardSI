@@ -34,7 +34,9 @@ fn stale_source_identity_and_wrong_selection_fail_closed() {
 }
 #[test]
 fn same_layer_perpendicular_interior_only() {
-    let text = String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n");
+    let text = String::from_utf8(SRC.to_vec())
+        .unwrap()
+        .replace("\r\n", "\n");
     // A one-source-tick miss, an overrun crossing, a main endpoint,
     // a parallel contact and an off-layer branch cannot qualify.
     for invalid in [
@@ -53,7 +55,9 @@ fn same_layer_perpendicular_interior_only() {
 }
 #[test]
 fn extra_ambiguous_and_unmodeled_source_fail_closed() {
-    let text = String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n");
+    let text = String::from_utf8(SRC.to_vec())
+        .unwrap()
+        .replace("\r\n", "\n");
     for invalid in [
         text.replace("SIMPLEVIA 15 2", "SIMPLEVIA 15 3"),
         text.replace("0 35 R", "0 10 R"),
@@ -69,25 +73,28 @@ fn extra_ambiguous_and_unmodeled_source_fail_closed() {
         );
     }
 }
- 
+
 #[test]
 fn independent_source_sections_and_duplicate_via_definition_fail_closed() {
-    let source = String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n");
+    let source = String::from_utf8(SRC.to_vec())
+        .unwrap()
+        .replace("\r\n", "\n");
     let copper = source.replace("*END*",
         "*LINES*\nRA COPPER 0 0 1 1 0 OTHER\nCOPCLS 5 0.01 0 4\n240 240\n350 240\n350 360\n240 360\n240 240\n*END*");
     assert!(witness(copper.as_bytes()).is_err());
-    let duplicate = source.replace("*ROUTE*",
-        "SIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*");
+    let duplicate = source.replace("*ROUTE*", "SIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*");
     assert!(witness(duplicate.as_bytes()).is_err());
     let unknown = source.replace("*END*", "*TEXT*\n*END*");
     assert!(witness(unknown.as_bytes()).is_err());
     let duplicate_pad = source.replace("-2 35 R\n0 35 R", "-2 35 R\n-2 35 R");
     assert!(witness(duplicate_pad.as_bytes()).is_err());
 }
- 
+
 #[test]
 fn decimal_mils_source_is_equivalent_geometry_but_distinct_sha() {
-    let source = String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n");
+    let source = String::from_utf8(SRC.to_vec())
+        .unwrap()
+        .replace("\r\n", "\n");
     let decimal = source.replace("80 250 1 10 0", "80.00 250 1 10 0");
     let receipt = witness(decimal.as_bytes()).unwrap();
     assert!(receipt.contains("COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3"));
