@@ -8,9 +8,9 @@
 
 ## Geometry contract
 
-Layer-4 main Trace runs from (150,250) to (350,250) Source Ticks. Its second Layer-4 Trace runs (200,250) to (250,250); both endpoints must be strictly interior to the original main Trace, with nonzero segment length and exact integer zero cross product. Reversed contained Trace direction is supported. Single endpoint touch, equal segments, boundary-touch, only partial (noncontained) overlap, one-tick skew and incompatible Net/Layer are intentionally not promoted.
+Layer-4 main Trace runs from (150,250) to (350,250) **MILS** (internally 15000..35000 centimil Source Ticks). Its second Layer-4 Trace runs (200,250) to (250,250) MILS; both endpoints must be strictly interior to the original main Trace, with nonzero segment length and exact integer zero cross product. Reversed contained Trace direction is supported. Single endpoint touch, equal segments, boundary-touch, only partial (noncontained) overlap, one-tick skew and incompatible Net/Layer are intentionally not promoted.
 
-The exact overlap is serialized as `OVERLAP|MAIN_TRACE|1|CONTAINED_TRACE|3|START|200|250|END|250|250` in the main Trace's direction. Qt reconstructs this independently from current Source and imported geometry, comparing the complete byte-for-byte receipt. The positive case retains **8 Source Nodes, 5 same-layer candidate edges, 3 local components, 0 proven cross-layer electrical edges** as a *test expectation until CI verifies it*, with an independent overlap edge kind `SOURCE_COLLINEAR_CONTAINED_OVERLAP_CANDIDATE`.
+The exact overlap is serialized as `OVERLAP|MAIN_TRACE|1|CONTAINED_TRACE|3|START|20000|25000|END|25000|25000` in the main Trace's direction. Qt reconstructs this independently from current Source and imported geometry, comparing the complete byte-for-byte receipt. The positive case retains **8 Source Nodes, 5 same-layer candidate edges, 3 local components, 0 proven cross-layer electrical edges** as a *test expectation until CI verifies it*, with an independent overlap edge kind `SOURCE_COLLINEAR_CONTAINED_OVERLAP_CANDIDATE`.
 
 ## Fail-closed acceptance
 
