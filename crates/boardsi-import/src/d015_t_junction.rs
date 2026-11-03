@@ -39,6 +39,72 @@ fn root(parent: &[usize], mut i: usize) -> usize {
     i
 }
 
+// Deliberately limited *complete* public Source vocabulary. Route-only parsing
+// must not silently ignore COPCLS, *LINES*, PARTS, other conductive artwork
+// or a second (possibly conflicting) VIA definition.
+fn bounded_source_inventory(bytes: &[u8], via_name: &str) -> Result<(), &'static str> {
+    let source=std::str::from_utf8(bytes).map_err(|_| "D015_SOURCE_TEXT")?;
+    let mut section="";
+    let mut header=false;
+    let mut max_layer=0;
+    let mut via_defs=0;
+    let mut pad_rows=0;
+    let mut signals=0;
+    let mut ended=false;
+    for raw in source.lines() {
+        let line=raw.trim();
+        if line.is_empty() { continue; }
+        if ended { return Err("D015_TRAILING_SOURCE"); }
+        if !header {
+            if !line.starts_with("!PADS-POWERPCB-V9.4-MILS!") {
+                return Err("D015_HEADER");
+            }
+            header=true;
+            continue;
+        }
+        let words: Vec<_>=line.split_ascii_whitespace().collect();
+        let first=words[0];
+        if first=="*REMARK*" || first=="REMARK" { continue; }
+        match first {
+            "*PCB*" if section.is_empty() => { section="pcb"; continue; }
+            "*VIA*" if section=="pcb" && max_layer==1 => {section="via"; continue;}
+            "*ROUTE*" if section=="via" && via_defs==1 && pad_rows==2 => {
+                section="route"; continue;
+            }
+            "*END*" if section=="route" && words.len()==1 => {ended=true;continue;}
+            "*SIGNAL*" if section=="route" && words.len()==2 => {
+                signals+=1;continue;
+            }
+            _ => {}
+        }
+        if first.starts_with('*') { return Err("D015_UNMODELED_SECTION"); }
+        match section {
+            "pcb" if words.len()==2 && words[0]=="MAXLAYER" && words[1]=="4" => {
+                max_layer+=1;
+                if max_layer!=1 {return Err("D015_DUPLICATE_LAYER");}
+            }
+            "via" if first==via_name && words.len()==3 && words[2]=="2" => {
+                via_defs+=1;
+                if via_defs!=1 {return Err("D015_DUPLICATE_VIA_DEF");}
+            }
+            "via" if words.len()==3 && (first=="-2" || first=="0") => {
+                pad_rows+=1;
+                if pad_rows>2 {return Err("D015_EXTRA_VIA_PAD");}
+            }
+            "route" if signals>0 => {
+                // Route syntax and complete 4-segment inventory are checked by
+                // route_preview::parse and the Canonical geometry comparison.
+            }
+            _ => return Err("D015_UNMODELED_SOURCE"),
+        }
+    }
+    if !header || !ended || max_layer!=1 || via_defs!=1
+        || pad_rows!=2 || signals!=2 {
+        return Err("D015_SOURCE_STRUCTURE");
+    }
+    Ok(())
+}
+
 pub fn encode(
     bytes: &[u8],
     net: &str,
@@ -64,6 +130,7 @@ pub fn encode(
         return Err("D015_SOURCE_INCOMPLETE");
     }
     let (a, b) = (&p.vias[0], &p.vias[1]);
+    bounded_source_inventory(bytes, &a.name)?;
     if a.net != net
         || b.net != net
         || a.name != b.name
