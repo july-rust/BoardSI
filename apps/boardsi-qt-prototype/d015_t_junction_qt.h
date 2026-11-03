@@ -4,6 +4,63 @@
 #include "d014_two_via_qt.h"
 
 namespace d015 {
+// Independent strict source-section inventory: an unseen *LINES*/COPCLS
+// or duplicate VIA must never slip through a route-only Source witness.
+inline bool boundedSourceInventory(const QByteArray &source,const QString &viaName) {
+    QByteArray section;
+    bool header=false,ended=false,bottom=false,top=false;
+    int maxLayer=0,viaDefs=0,signals=0,pairs=0,points=0;
+    for (const auto &raw:source.split('\n')) {
+        const auto line=raw.trimmed();
+        if (line.isEmpty()) continue;
+        if (ended) return false;
+        if (!header) {
+            if (!line.startsWith("!PADS-POWERPCB-V9.4-MILS!")) return false;
+            header=true;
+            continue;
+        }
+        const auto words=line.simplified().split(' ');
+        if (words.isEmpty()) continue;
+        const auto &first=words[0];
+        if (first=="*REMARK*" || first=="REMARK") continue;
+        if (first=="*PCB*" && section.isEmpty()) {section="pcb";continue;}
+        if (first=="*VIA*" && section=="pcb" && maxLayer==1) {
+            section="via";continue;
+        }
+        if (first=="*ROUTE*" && section=="via" && viaDefs==1 && bottom && top) {
+            section="route";continue;
+        }
+        if (first=="*END*" && section=="route" && words.size()==1) {
+            ended=true;continue;
+        }
+        if (first=="*SIGNAL*" && section=="route" && words.size()==2) {
+            ++signals;continue;
+        }
+        if (first.startsWith('*')) return false; // includes unmodeled COPCLS
+        if (section=="pcb" && words.size()==2 && first=="MAXLAYER" && words[1]=="4") {
+            if (++maxLayer!=1) return false;
+        } else if (section=="via" && first==viaName.toUtf8() && words.size()==3 && words[2]=="2") {
+            if (++viaDefs!=1) return false;
+        } else if (section=="via" && words.size()==3 && (first=="-2" || first=="0")) {
+            if (first=="-2") {if (bottom) return false;bottom=true;}
+            else {if (top) return false;top=true;}
+        } else if (section=="route" && signals>0 && words.size()==2
+                   && words[0].contains('.') && words[1].contains('.')) {
+            ++pairs;
+        } else if (section=="route" && signals>0
+                   && (words.size()==5 || words.size()==6)) {
+            for (int i=0;i<5;++i) {
+                bool ok=false; words[i].toLongLong(&ok);if (!ok) return false;
+            }
+            if (words.size()==6 && words[5]!=viaName.toUtf8()) return false;
+            ++points;
+        } else {
+            return false;
+        }
+    }
+    return header && ended && maxLayer==1 && viaDefs==1 && bottom && top
+        && signals==2 && pairs==2 && points==6;
+}
 inline bool decode(const QByteArray &wire, const QByteArray &source,
                    const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
     if (!panel || !panel->imported() || wire.isEmpty() || wire.size() > 16384
@@ -22,6 +79,7 @@ inline bool decode(const QByteArray &wire, const QByteArray &source,
         || a.firstLayer!=1 || a.lastLayer!=4 || b.firstLayer!=1 || b.lastLayer!=4
         || a.drill_nm<=0 || a.diameter_nm<=a.drill_nm
         || a.diameter_nm!=b.diameter_nm || a.drill_nm!=b.drill_nm
+        || !boundedSourceInventory(source,a.name)
         || !d014::twoRowViaDefinition(source,a.name)
         || !d006::declaredConductivePad(source,a,1)
         || !d006::declaredConductivePad(source,a,4)
