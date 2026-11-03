@@ -7,25 +7,33 @@ on:
 permissions:
   contents: read
 jobs:
-  ph07-independent-field:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
+  classify:
+    name: Classify documentation-only changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    outputs:
+      docs_only: ${{ steps.docs_only.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/classify-docs-only
         id: docs_only
+  ph07-independent-field:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
       - name: Install pinned Rust and Python
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: rustup toolchain install 1.75.0 --profile minimal --component clippy
       - uses: actions/setup-python@v6
-        if: steps.docs_only.outputs.docs_only != 'true'
         with:
           python-version: '3.13'
       - name: Install independent FVM dependencies
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: python -m pip install numpy==2.3.5 scipy==1.17.0
       - name: Rust FEM unit tests, strict Clippy, release build and M0 workspace
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           cargo +1.75.0 test --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release
@@ -48,7 +56,6 @@ jobs:
           PY
           python tools/validation/m2_ph07_multilayer_microstrip_reference.py --self-test
       - name: Generate independent numerical evidence, boundary and parameter sweeps
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           bin="prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem"
@@ -90,7 +97,6 @@ jobs:
           echo "PH07 sample resource measurements:"
           grep -E 'User time|System time|Elapsed|Maximum resident set size' ph07-A-n128.resources.txt
       - name: PH-07 negative CLI rejection must be nonzero without panic
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           bin="prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem"
@@ -125,7 +131,7 @@ jobs:
           done
           echo "PH07 negative cases PASS: $count"
       - name: Upload PH-07 numerical evidence and resource data even on failed gate
-        if: ${{ (always()) && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: ph07-numerical-evidence
