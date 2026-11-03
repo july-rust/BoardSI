@@ -180,12 +180,16 @@ fn bounded_source_inventory(bytes: &[u8], via_name: &str) -> Result<(), &'static
 }
 
 pub fn encode(
-    bytes: &[u8], net: &str, layers: [usize; 2], vias: [usize; 2],
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
 ) -> Result<String, &'static str> {
     encode_with_mode(bytes, net, layers, vias, false)
 }
 // D_017 reuses D_016's strict inventory/canonical/contact graph with the
 // complementary non-perpendicular intersection rule and distinct receipt.
+#[allow(dead_code)]
 pub fn encode_oblique(
     bytes: &[u8], net: &str, layers: [usize; 2], vias: [usize; 2],
 ) -> Result<String, &'static str> {
@@ -258,10 +262,13 @@ fn encode_with_mode(
     }
     // D_017 arithmetic remains bounded before i128 orientation/dot products.
     // The existing D_016 path and its acceptance rules are unchanged.
-    if oblique && s.iter().any(|t| {
-        [t.a[0], t.a[1], t.b[0], t.b[1]]
-            .iter().any(|&v| !(-5_600_000..=5_600_000).contains(&v))
-    }) {
+    if oblique
+        && s.iter().any(|t| {
+            [t.a[0], t.a[1], t.b[0], t.b[1]]
+                .iter()
+                .any(|&v| !(-5_600_000..=5_600_000).contains(&v))
+        })
+    {
         return Err("D017_COORDINATE_BOUNDS");
     }
     // D_016 perpendicular or D_017 strictly oblique interior–interior.
@@ -280,11 +287,19 @@ fn encode_with_mode(
     let by = i128::from(branch.b[1]) - i128::from(branch.a[1]);
     if !opposite(main_a, main_b)
         || !opposite(branch_a, branch_b)
-        || (if oblique { mx * bx + my * by == 0 } else { mx * bx + my * by != 0 })
+        || (if oblique {
+            mx * bx + my * by == 0
+        } else {
+            mx * bx + my * by != 0
+        })
         || on_segment(branch.a, s[1].a, s[1].b)
         || on_segment(branch.b, s[1].a, s[1].b)
     {
-        return Err(if oblique { "D017_OBLIQUE_X_JUNCTION" } else { "D016_X_JUNCTION" });
+        return Err(if oblique {
+            "D017_OBLIQUE_X_JUNCTION"
+        } else {
+            "D016_X_JUNCTION"
+        });
     }
 
     let m = route_preview::into_canonical(bytes, &p)?;
@@ -320,7 +335,11 @@ fn encode_with_mode(
     for byte in digest::sha256(bytes) {
         write!(&mut sha, "{byte:02x}").map_err(|_| "D016_FMT")?;
     }
-    let mode = if oblique { "D017_OBLIQUE_X_JUNCTION_V1" } else { "D016_X_JUNCTION_V1" };
+    let mode = if oblique {
+        "D017_OBLIQUE_X_JUNCTION_V1"
+    } else {
+        "D016_X_JUNCTION_V1"
+    };
     let mut out = format!("BOARDSI_{mode}|{sha}|SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE\n");
     for (i, v) in p.vias.iter().enumerate() {
         writeln!(
@@ -355,7 +374,11 @@ fn encode_with_mode(
         ("TRACE", 4, 3),
     ];
     // All edges are same-layer candidate contacts. NEVER a Via barrel edge.
-    let x_kind = if oblique { "SOURCE_INTERIOR_OBLIQUE_X_CONTACT_CANDIDATE" } else { "SOURCE_INTERIOR_X_CONTACT_CANDIDATE" };
+    let x_kind = if oblique {
+        "SOURCE_INTERIOR_OBLIQUE_X_CONTACT_CANDIDATE"
+    } else {
+        "SOURCE_INTERIOR_X_CONTACT_CANDIDATE"
+    };
     let edges = [
         (0, 4, "SOURCE_ENDPOINX_CONTACT_CANDIDATE", 1),
         (1, 5, "SOURCE_ENDPOINX_CONTACT_CANDIDATE", 4),
@@ -388,7 +411,9 @@ fn encode_with_mode(
     )
     .map_err(|_| "D016_FMT")?;
     if oblique {
-        out.push_str("OVERALL|OBLIQUE_X_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+        out.push_str(
+            "OVERALL|OBLIQUE_X_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n",
+        );
     } else {
         out.push_str("OVERALL|X_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
     }
