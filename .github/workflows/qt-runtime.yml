@@ -92,29 +92,25 @@ jobs:
     # For a verified docs-only PR, skip the entire job before runner allocation.
     if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Qt native Windows x64
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Windows x64
-            runner: windows-2022
-            host: windows
-            qt_arch: win64_msvc2022_64
-            target: x86_64-pc-windows-msvc
-            qt_cpu: x86_64
-            rust_cpu: x86_64
-            runner_arch: X64
-            vc_arch: x64
-            platform: windows
-            python_arch: x64
-    runs-on: ${{ matrix.runner }}
+    runs-on: windows-2022
     timeout-minutes: 20
     env:
-      BOARDSI_EXPECTED_QT_ARCH: ${{ matrix.qt_cpu }}
-      BOARDSI_EXPECTED_WORKER_ARCH: ${{ matrix.rust_cpu }}
-      BOARDSI_EXPECTED_QT_PLATFORM: ${{ matrix.platform }}
-      QT_QPA_PLATFORM: ${{ matrix.platform }}
-      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+      BOARDSI_CI_NAME: Windows x64
+      BOARDSI_CI_RUNNER: windows-2022
+      BOARDSI_CI_HOST: windows
+      BOARDSI_CI_QT_ARCH: win64_msvc2022_64
+      BOARDSI_CI_TARGET: x86_64-pc-windows-msvc
+      BOARDSI_CI_QT_CPU: x86_64
+      BOARDSI_CI_RUST_CPU: x86_64
+      BOARDSI_CI_RUNNER_ARCH: X64
+      BOARDSI_CI_VC_ARCH: x64
+      BOARDSI_CI_PLATFORM: windows
+      BOARDSI_CI_PYTHON_ARCH: x64
+      BOARDSI_EXPECTED_QT_ARCH: x86_64
+      BOARDSI_EXPECTED_WORKER_ARCH: x86_64
+      BOARDSI_EXPECTED_QT_PLATFORM: windows
+      QT_QPA_PLATFORM: windows
+      RUSTUP_TOOLCHAIN: 1.75.0-x86_64-pc-windows-msvc
     steps: &shared_native_steps
       - uses: actions/checkout@v5
         with:
@@ -124,13 +120,13 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-          architecture: ${{ matrix.python_arch }}
+          architecture: ${{ env.BOARDSI_CI_PYTHON_ARCH }}
       - name: Install fixed Qt SDK
         shell: bash
         run: |
-          test "$RUNNER_ARCH" = '${{ matrix.runner_arch }}'
+          test "$RUNNER_ARCH" = '${{ env.BOARDSI_CI_RUNNER_arch }}'
           python -m pip install aqtinstall==3.3.0
-          python .github/scripts/install_qt_runtime.py '${{ matrix.host }}' '${{ matrix.qt_arch }}'
+          python .github/scripts/install_qt_runtime.py '${{ env.BOARDSI_CI_HOST }}' '${{ env.BOARDSI_CI_QT_ARCH }}'
       - name: Build matching Rust executable
         shell: bash
         run: |
@@ -153,7 +149,7 @@ jobs:
           $hostArg = ''
           if ($env:QT_HOST_PREFIX) { $hostArg = "-DQT_HOST_PATH=`"$env:QT_HOST_PREFIX`"" }
           @(
-            "@call `"$vsInstall\Common7\Tools\VsDevCmd.bat`" -arch=${{ matrix.vc_arch }} -host_arch=${{ matrix.vc_arch }}",
+            "@call `"$vsInstall\Common7\Tools\VsDevCmd.bat`" -arch=${{ env.BOARDSI_CI_VC_ARCH }} -host_arch=${{ env.BOARDSI_CI_VC_ARCH }}",
             'if errorlevel 1 exit /b 1',
             'where cl',
             'cmake --version',
@@ -504,7 +500,7 @@ jobs:
           cat qt-preview-p2b-via-results.json
           cat qt-preview-p0-results.json
       - name: Exercise Windows x64 developer desktop launcher
-        if: ${{ matrix.name == 'Windows x64' }}
+        if: ${{ env.BOARDSI_CI_NAME == 'Windows x64' }}
         shell: pwsh
         env:
           BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -528,12 +524,12 @@ jobs:
             throw 'Developer launcher receipt does not prove current-HEAD P2-A source-isolation smoke'
           }
       - name: Stage Windows x64 Qt-bundled release test and license sources
-        if: ${{ matrix.name == 'Windows x64' }}
+        if: ${{ env.BOARDSI_CI_NAME == 'Windows x64' }}
         shell: pwsh
         run: |
           ./scripts/stage-boardsi-preview-windows-x64-qt.ps1 -StagePath 'build-qt/boardsi-preview-windows-x64-qt-bundled'
       - name: Verify Qt-bundled artifact without separately installed Qt SDK
-        if: ${{ matrix.name == 'Windows x64' }}
+        if: ${{ env.BOARDSI_CI_NAME == 'Windows x64' }}
         shell: pwsh
         env:
           BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -607,7 +603,7 @@ jobs:
             if ($actual -ne $pair[0]) {throw ('Bundled checksum mismatch: '+$pair[1])}
           }
       - name: Upload Windows x64 Qt-bundled test archive
-        if: ${{ matrix.name == 'Windows x64' }}
+        if: ${{ env.BOARDSI_CI_NAME == 'Windows x64' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: boardsi-preview-p2a-windows-x64-qt-bundled-test
@@ -619,7 +615,7 @@ jobs:
       - name: Install additional Qt Quick modules for source-only RHI validation
         shell: bash
         run: |
-          python -m aqt install-qt '${{ matrix.host }}' desktop 6.8.3 '${{ matrix.qt_arch }}' --archives qtdeclarative qtshadertools -O "$RUNNER_TEMP/qt-native"
+          python -m aqt install-qt '${{ env.BOARDSI_CI_HOST }}' desktop 6.8.3 '${{ env.BOARDSI_CI_QT_ARCH }}' --archives qtdeclarative qtshadertools -O "$RUNNER_TEMP/qt-native"
           if test -n "$QT_HOST_PREFIX"; then
             python -m aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 --archives qtdeclarative qtshadertools -O "$RUNNER_TEMP/qt-native"
           fi
@@ -842,7 +838,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: boardsi-preview-p0-native-${{ matrix.name }}
+          name: boardsi-preview-p0-native-${{ env.BOARDSI_CI_NAME }}
           path: |
             build-qt/qt-preview-b001-stackup-results.json
             build-qt/qt-preview-b001-bundled-direct.json
@@ -896,13 +892,13 @@ jobs:
           python .github/scripts/m0_f1_native_subcases.py \
             build-qt/qt-runtime-results.json \
             "$RUNNER_TEMP/m0-f1-native-subcases.json" \
-            '${{ matrix.platform }}' \
-            '${{ matrix.qt_cpu }}'
+            '${{ env.BOARDSI_CI_PLATFORM }}' \
+            '${{ env.BOARDSI_CI_QT_CPU }}'
       - name: Preserve bounded per-case native proof (including failed checks)
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: m0-f1-native-subcases-${{ matrix.name }}
+          name: m0-f1-native-subcases-${{ env.BOARDSI_CI_NAME }}
           path: ${{ runner.temp }}/m0-f1-native-subcases.json
           if-no-files-found: warn
       - name: Print native measurement evidence
@@ -916,29 +912,25 @@ jobs:
     # For a verified docs-only PR, skip the entire job before runner allocation.
     if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Qt native Windows ARM64
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Windows ARM64
-            runner: windows-11-arm
-            host: windows
-            qt_arch: win64_msvc2022_arm64_cross_compiled
-            target: aarch64-pc-windows-msvc
-            qt_cpu: arm64
-            rust_cpu: aarch64
-            runner_arch: ARM64
-            vc_arch: arm64
-            platform: windows
-            python_arch: x64
-    runs-on: ${{ matrix.runner }}
+    runs-on: windows-11-arm
     timeout-minutes: 20
     env:
-      BOARDSI_EXPECTED_QT_ARCH: ${{ matrix.qt_cpu }}
-      BOARDSI_EXPECTED_WORKER_ARCH: ${{ matrix.rust_cpu }}
-      BOARDSI_EXPECTED_QT_PLATFORM: ${{ matrix.platform }}
-      QT_QPA_PLATFORM: ${{ matrix.platform }}
-      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+      BOARDSI_CI_NAME: Windows ARM64
+      BOARDSI_CI_RUNNER: windows-11-arm
+      BOARDSI_CI_HOST: windows
+      BOARDSI_CI_QT_ARCH: win64_msvc2022_arm64_cross_compiled
+      BOARDSI_CI_TARGET: aarch64-pc-windows-msvc
+      BOARDSI_CI_QT_CPU: arm64
+      BOARDSI_CI_RUST_CPU: aarch64
+      BOARDSI_CI_RUNNER_ARCH: ARM64
+      BOARDSI_CI_VC_ARCH: arm64
+      BOARDSI_CI_PLATFORM: windows
+      BOARDSI_CI_PYTHON_ARCH: x64
+      BOARDSI_EXPECTED_QT_ARCH: arm64
+      BOARDSI_EXPECTED_WORKER_ARCH: aarch64
+      BOARDSI_EXPECTED_QT_PLATFORM: windows
+      QT_QPA_PLATFORM: windows
+      RUSTUP_TOOLCHAIN: 1.75.0-aarch64-pc-windows-msvc
     steps: *shared_native_steps
   native-qt_macos_arm64:
     needs: classify
@@ -946,26 +938,22 @@ jobs:
     # For a verified docs-only PR, skip the entire job before runner allocation.
     if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Qt native macOS ARM64
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: macOS ARM64
-            runner: macos-15
-            host: mac
-            qt_arch: clang_64
-            target: aarch64-apple-darwin
-            qt_cpu: arm64
-            rust_cpu: aarch64
-            runner_arch: ARM64
-            platform: cocoa
-            python_arch: arm64
-    runs-on: ${{ matrix.runner }}
+    runs-on: macos-15
     timeout-minutes: 20
     env:
-      BOARDSI_EXPECTED_QT_ARCH: ${{ matrix.qt_cpu }}
-      BOARDSI_EXPECTED_WORKER_ARCH: ${{ matrix.rust_cpu }}
-      BOARDSI_EXPECTED_QT_PLATFORM: ${{ matrix.platform }}
-      QT_QPA_PLATFORM: ${{ matrix.platform }}
-      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+      BOARDSI_CI_NAME: macOS ARM64
+      BOARDSI_CI_RUNNER: macos-15
+      BOARDSI_CI_HOST: mac
+      BOARDSI_CI_QT_ARCH: clang_64
+      BOARDSI_CI_TARGET: aarch64-apple-darwin
+      BOARDSI_CI_QT_CPU: arm64
+      BOARDSI_CI_RUST_CPU: aarch64
+      BOARDSI_CI_RUNNER_ARCH: ARM64
+      BOARDSI_CI_PLATFORM: cocoa
+      BOARDSI_CI_PYTHON_ARCH: arm64
+      BOARDSI_EXPECTED_QT_ARCH: arm64
+      BOARDSI_EXPECTED_WORKER_ARCH: aarch64
+      BOARDSI_EXPECTED_QT_PLATFORM: cocoa
+      QT_QPA_PLATFORM: cocoa
+      RUSTUP_TOOLCHAIN: 1.75.0-aarch64-apple-darwin
     steps: *shared_native_steps
