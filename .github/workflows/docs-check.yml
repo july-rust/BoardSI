@@ -1,4 +1,5 @@
 name: Validate planning documents
+# Required 'docs' check: intentionally runs only on ubuntu and is never path-filtered.
 on:
   pull_request:
   push:
@@ -15,6 +16,29 @@ jobs:
         run: |
           python3 tools/validation/ph08_private_archive_guard.py
           python3 -m unittest discover -s tools/validation -p 'test_ph08_private_archive_guard.py' -v
+      - name: Enforce one authoritative development checklist and honest overview counts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          canonical = Path('docs/development-checklist.md')
+          assert canonical.is_file(), 'Missing canonical development checklist'
+          assert not Path('docs/development-checklist-stage-view.md').exists(), (
+              'Duplicate independent stage checklist is forbidden'
+          )
+          source = canonical.read_text(encoding='utf-8')
+          summary = re.search(
+              r'\*\*전체 체크 상태: (\d+)건 확인 · (\d+)건 미확인\.\*\*', source
+          )
+          assert summary, 'Missing integrated stage summary counters'
+          checked = len(re.findall(r'^- \[x\] ', source, re.MULTILINE | re.IGNORECASE))
+          unchecked = len(re.findall(r'^- \[ \] ', source, re.MULTILINE))
+          assert (checked, unchecked) == tuple(map(int, summary.groups())), (
+              'Update the front dashboard whenever checklist status changes'
+          )
+          print(f'Single checklist and integrated summary confirmed: {checked} checked / {unchecked} open')
+          PY
       - name: Check specification IDs and roadmap schema
         run: |
           python3 - <<'PY'
