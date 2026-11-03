@@ -17,20 +17,17 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/classify-docs-only
         id: docs_only
-  fem-native:
+  fem-native_linux_x64:
     needs: classify
     # The classifier failing must NEVER suppress a required platform build.
     # For a verified docs-only PR, skip the entire job before runner allocation.
     if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
-    name: FEM Native ${{ matrix.name }}
+    name: FEM Native Linux x64
     strategy:
       fail-fast: false
       matrix:
         include:
           - {name: Linux x64, runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu, arch: X64, executable_arch: x86_64, os: linux}
-          - {name: Windows x64, runner: windows-2022, target: x86_64-pc-windows-msvc, arch: X64, executable_arch: x86_64, os: windows}
-          - {name: Windows ARM64, runner: windows-11-arm, target: aarch64-pc-windows-msvc, arch: ARM64, executable_arch: aarch64, os: windows}
-          - {name: macOS ARM64, runner: macos-15, target: aarch64-apple-darwin, arch: ARM64, executable_arch: aarch64, os: macos}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     defaults:
@@ -39,7 +36,7 @@ jobs:
     env:
       RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
       RUSTFLAGS: -D warnings
-    steps:
+    steps: &shared_native_steps
       - uses: actions/checkout@v5
       - name: Install native toolchain
         run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component rustfmt --component clippy
@@ -82,3 +79,63 @@ jobs:
             native-*.json
           if-no-files-found: error
           retention-days: 14
+  fem-native_windows_x64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: FEM Native Windows x64
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: Windows x64, runner: windows-2022, target: x86_64-pc-windows-msvc, arch: X64, executable_arch: x86_64, os: windows}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+      RUSTFLAGS: -D warnings
+    steps: *shared_native_steps
+  fem-native_windows_arm64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: FEM Native Windows ARM64
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: Windows ARM64, runner: windows-11-arm, target: aarch64-pc-windows-msvc, arch: ARM64, executable_arch: aarch64, os: windows}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+      RUSTFLAGS: -D warnings
+    steps: *shared_native_steps
+  fem-native_macos_arm64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: FEM Native macOS ARM64
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: macOS ARM64, runner: macos-15, target: aarch64-apple-darwin, arch: ARM64, executable_arch: aarch64, os: macos}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+      RUSTFLAGS: -D warnings
+    steps: *shared_native_steps
