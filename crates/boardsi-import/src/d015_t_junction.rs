@@ -205,7 +205,10 @@ pub fn encode_oblique(
 /// Never a manufactured copper or electrical continuity guarantee.
 #[allow(dead_code)]
 pub fn encode_contained_overlap(
-    bytes: &[u8], net: &str, layers: [usize; 2], vias: [usize; 2],
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
 ) -> Result<String, &'static str> {
     encode_with_mode(bytes, net, layers, vias, false, true)
 }
@@ -264,7 +267,11 @@ fn encode_with_mode(
                 .any(|&v| !(-5_600_000..=5_600_000).contains(&v))
         })
     {
-        return Err(if contained_overlap { "D020_COORDINATE_BOUNDS" } else { "D019_COORDINATE_BOUNDS" });
+        return Err(if contained_overlap {
+            "D020_COORDINATE_BOUNDS"
+        } else {
+            "D019_COORDINATE_BOUNDS"
+        });
     }
     if s.iter()
         .any(|t| t.net != net || t.width_ticks <= 0 || t.a == t.b)
@@ -307,7 +314,11 @@ fn encode_with_mode(
             && branch.a != b.point
             && branch.b != a.point
             && branch.b != b.point
-            && (if oblique { dot != 0 && cross != 0 } else { dot == 0 })
+            && (if oblique {
+                dot != 0 && cross != 0
+            } else {
+                dot == 0
+            })
     };
     if !valid_contact {
         return Err(if contained_overlap {
@@ -389,8 +400,12 @@ fn encode_with_mode(
         } else {
             (branch.b, branch.a)
         };
-        writeln!(&mut out, "OVERLAP|MAIN_TRACE|1|CONTAINED_TRACE|3|START|{}|{}|END|{}|{}",
-            start[0], start[1], end[0], end[1]).map_err(|_| "D020_FMT")?;
+        writeln!(
+            &mut out,
+            "OVERLAP|MAIN_TRACE|1|CONTAINED_TRACE|3|START|{}|{}|END|{}|{}",
+            start[0], start[1], end[0], end[1]
+        )
+        .map_err(|_| "D020_FMT")?;
     }
     let nodes = [
         ("VIA_PAD", 1, 0),
