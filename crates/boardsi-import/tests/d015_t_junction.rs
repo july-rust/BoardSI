@@ -84,3 +84,14 @@ fn independent_source_sections_and_duplicate_via_definition_fail_closed() {
     let duplicate_pad = source.replace("-2 35 R\n0 35 R", "-2 35 R\n-2 35 R");
     assert!(witness(duplicate_pad.as_bytes()).is_err());
 }
+ 
+#[test]
+fn decimal_mils_source_is_equivalent_geometry_but_distinct_sha() {
+    let source = String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n");
+    let decimal = source.replace("80 250 1 10 0", "80.00 250 1 10 0");
+    let receipt = witness(decimal.as_bytes()).unwrap();
+    assert!(receipt.contains("COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3"));
+    assert_ne!(receipt, witness(source.as_bytes()).unwrap());
+    let unsupported = source.replace("80 250 1 10 0", "80.001 250 1 10 0");
+    assert!(witness(unsupported.as_bytes()).is_err());
+}
