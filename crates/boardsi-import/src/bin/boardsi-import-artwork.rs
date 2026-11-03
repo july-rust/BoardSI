@@ -702,7 +702,8 @@ fn main() {
             }
             let bytes = fs::read(path).map_err(|_| "D015_READ")?;
             d015_core::encode(
-                &bytes, txt(3)?,
+                &bytes,
+                txt(3)?,
                 [
                     txt(4)?.parse::<usize>().map_err(|_| "D015_LAYER")?,
                     txt(5)?.parse::<usize>().map_err(|_| "D015_LAYER")?,
