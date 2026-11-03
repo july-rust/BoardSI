@@ -69,3 +69,18 @@ fn extra_ambiguous_and_unmodeled_source_fail_closed() {
         );
     }
 }
+ 
+#[test]
+fn independent_source_sections_and_duplicate_via_definition_fail_closed() {
+    let source = String::from_utf8(SRC.to_vec()).unwrap();
+    let copper = source.replace("*END*",
+        "*LINES*\nRA COPPER 0 0 1 1 0 OTHER\nCOPCLS 5 0.01 0 4\n240 240\n350 240\n350 360\n240 360\n240 240\n*END*");
+    assert!(witness(copper.as_bytes()).is_err());
+    let duplicate = source.replace("*ROUTE*",
+        "SIMPLEVIA 15 2\n-2 35 R\n0 35 R\n*ROUTE*");
+    assert!(witness(duplicate.as_bytes()).is_err());
+    let unknown = source.replace("*END*", "*TEXT*\n*END*");
+    assert!(witness(unknown.as_bytes()).is_err());
+    let duplicate_pad = source.replace("-2 35 R\n0 35 R", "-2 35 R\n-2 35 R");
+    assert!(witness(duplicate_pad.as_bytes()).is_err());
+}
