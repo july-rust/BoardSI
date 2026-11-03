@@ -288,7 +288,11 @@ fn encode_with_mode(
         || branch.a == b.point
         || branch.b == a.point
         || branch.b == b.point
-        || (if oblique { dot == 0 || cross == 0 } else { dot != 0 })
+        || (if oblique {
+            dot == 0 || cross == 0
+        } else {
+            dot != 0
+        })
     {
         return Err(if oblique {
             "D019_OBLIQUE_T_JUNCTION"
