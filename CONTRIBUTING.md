@@ -4,3 +4,11 @@ BoardSI is pre-release with M0 tested prototypes and restricted M2 FEM research 
 
 
 Before further original PH-08 physical validation, consult the [2026-10-18 project audit](docs/audits/2026-10-18-pre-ph08-project-audit.md). Historical HMM Gate Q FAIL remains FAIL regardless of synthetic CI success; maintain protected GitHub Verified Squash-only with 17 Strict required checks. The existing option B SVG is **DESIGN_APPROVED** by the owner (2026-10-18), although its historical reconstruction origin remains disclosed; original earlier PNG byte identity and platform release packaging are NOT VERIFIED.
+
+## Documentation-only pull requests
+
+Keep all A/B/C/D progress, first-check dates, dated evidence, and U/T acceptance status in the single canonical [development checklist](docs/development-checklist.md). Do not maintain a second independently edited checklist.
+
+The protected `docs` check validates planning and traceability documents on **one Linux runner**. For pull requests changing only `docs/**/*.md`, `docs/**/*.mdx`, `docs/**/*.rst`, `README.md`, `CONTRIBUTING.md`, or `SECURITY.md`, required Rust/Qt/FEM status-check **jobs remain present**, but costly toolchain installation, compilation, runtime tests, and artifact uploads are skipped. This is not a product release or an OS-specific documentation build. Every other change, including code, workflow files, test fixtures, and JSON metadata, keeps full required validation; comparison or fetch errors fail closed to full validation.
+
+Do not add workflow-level `paths-ignore` to a required check: GitHub may leave it pending and block a protected merge. The [shared documentation-only classifier](.github/actions/classify-docs-only/action.yml) instead short-circuits only steps inside required jobs. A genuine platform binary release still requires native runtime, packaging, licensing, and acceptance evidence on its target platforms.
