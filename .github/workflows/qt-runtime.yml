@@ -86,12 +86,12 @@ jobs:
           if grep -q 'not found' build-qt/xcb-dependencies.txt; then exit 1; fi
           cd build-qt
           xvfb-run -a env QT_QPA_PLATFORM=xcb ./boardsi-qt-runtime-validation "$GITHUB_WORKSPACE/target/debug/boardsi-worker" "$(command -v python3)" "$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests/fault_worker.py"
-  native-qt:
+  native-qt_windows_x64:
     needs: classify
     # The classifier failing must NEVER suppress a required platform build.
     # For a verified docs-only PR, skip the entire job before runner allocation.
     if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
-    name: Qt native ${{ matrix.name }}
+    name: Qt native Windows x64
     strategy:
       fail-fast: false
       matrix:
@@ -107,27 +107,6 @@ jobs:
             vc_arch: x64
             platform: windows
             python_arch: x64
-          - name: Windows ARM64
-            runner: windows-11-arm
-            host: windows
-            qt_arch: win64_msvc2022_arm64_cross_compiled
-            target: aarch64-pc-windows-msvc
-            qt_cpu: arm64
-            rust_cpu: aarch64
-            runner_arch: ARM64
-            vc_arch: arm64
-            platform: windows
-            python_arch: x64
-          - name: macOS ARM64
-            runner: macos-15
-            host: mac
-            qt_arch: clang_64
-            target: aarch64-apple-darwin
-            qt_cpu: arm64
-            rust_cpu: aarch64
-            runner_arch: ARM64
-            platform: cocoa
-            python_arch: arm64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     env:
@@ -136,7 +115,7 @@ jobs:
       BOARDSI_EXPECTED_QT_PLATFORM: ${{ matrix.platform }}
       QT_QPA_PLATFORM: ${{ matrix.platform }}
       RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
-    steps:
+    steps: &shared_native_steps
       - uses: actions/checkout@v5
         with:
           # Test the exact PR source commit; otherwise the F1 SHA/CI proof
@@ -931,3 +910,62 @@ jobs:
         shell: bash
         run: |
           if test -f build-qt/qt-runtime-results.json; then cat build-qt/qt-runtime-results.json; fi
+  native-qt_windows_arm64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: Qt native Windows ARM64
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows ARM64
+            runner: windows-11-arm
+            host: windows
+            qt_arch: win64_msvc2022_arm64_cross_compiled
+            target: aarch64-pc-windows-msvc
+            qt_cpu: arm64
+            rust_cpu: aarch64
+            runner_arch: ARM64
+            vc_arch: arm64
+            platform: windows
+            python_arch: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      BOARDSI_EXPECTED_QT_ARCH: ${{ matrix.qt_cpu }}
+      BOARDSI_EXPECTED_WORKER_ARCH: ${{ matrix.rust_cpu }}
+      BOARDSI_EXPECTED_QT_PLATFORM: ${{ matrix.platform }}
+      QT_QPA_PLATFORM: ${{ matrix.platform }}
+      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+    steps: *shared_native_steps
+  native-qt_macos_arm64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: Qt native macOS ARM64
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS ARM64
+            runner: macos-15
+            host: mac
+            qt_arch: clang_64
+            target: aarch64-apple-darwin
+            qt_cpu: arm64
+            rust_cpu: aarch64
+            runner_arch: ARM64
+            platform: cocoa
+            python_arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      BOARDSI_EXPECTED_QT_ARCH: ${{ matrix.qt_cpu }}
+      BOARDSI_EXPECTED_WORKER_ARCH: ${{ matrix.rust_cpu }}
+      BOARDSI_EXPECTED_QT_PLATFORM: ${{ matrix.platform }}
+      QT_QPA_PLATFORM: ${{ matrix.platform }}
+      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+    steps: *shared_native_steps
