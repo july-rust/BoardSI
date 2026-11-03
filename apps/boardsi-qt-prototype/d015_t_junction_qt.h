@@ -75,7 +75,7 @@ inline bool boundedSourceInventory(const QByteArray &source,const QString &viaNa
 }
 inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                    const PreviewImportPanel *panel, const QString &net,
-                   c005::Receipt &out, bool oblique) {
+                   c005::Receipt &out, bool oblique, bool containedOverlap) {
     if (!panel || !panel->imported() || wire.isEmpty() || wire.size() > 16384
         || source.isEmpty() || source.size() > 8*1024*1024) return false;
     const auto sha=QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex();
@@ -133,12 +133,18 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
     const auto mx=main1.x-main0.x, my=main1.y-main0.y;
     const auto bx=join.x-free.x, by=join.y-free.y;
     const auto dot=mx*bx+my*by, cross=mx*by-my*bx;
-    if ((join.x==main0.x && join.y==main0.y)
-        || (join.x==main1.x && join.y==main1.y)
-        || (free.x==join.x && free.y==join.y)
-        || !d014::onSegment(join,main0,main1)
-        || d014::onSegment(free,main0,main1)
-        || (oblique ? (dot==0 || cross==0) : dot!=0)) return false;
+    const auto strictInside=[&](const d014::GridPoint &p) {
+        return !(p.x==main0.x && p.y==main0.y)
+            && !(p.x==main1.x && p.y==main1.y)
+            && d014::onSegment(p,main0,main1);
+    };
+    const bool validContact = containedOverlap
+        ? (strictInside(free) && strictInside(join) && cross==0 && dot!=0)
+        : (strictInside(join)
+           && (free.x!=join.x || free.y!=join.y)
+           && !d014::onSegment(free,main0,main1)
+           && (oblique ? (dot!=0 && cross!=0) : dot==0));
+    if (!validContact) return false;
     QByteArray expected="BOARDSI_D015_T_JUNCTION_V1|"+sha+
         "|SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED"
         "|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE\n";
@@ -156,6 +162,13 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
             +"|"+QByteArray::number(v.x1_nm/254)+"|"+QByteArray::number(v.y1_nm/254)
             +"|"+QByteArray::number(v.width_nm/254)+"\n";
     }
+    if (containedOverlap) {
+        const auto begin=dot>0?free:join,finish=dot>0?join:free;
+        expected+="OVERLAP|MAIN_TRACE|1|CONTAINED_TRACE|3|START|"
+            +QByteArray::number(begin.x)+"|"+QByteArray::number(begin.y)
+            +"|END|"+QByteArray::number(finish.x)+"|"
+            +QByteArray::number(finish.y)+"\n";
+    }
     expected+="NODE|0|VIA_PAD|1|0\nNODE|1|VIA_PAD|4|0\nNODE|2|VIA_PAD|4|1\n"
         "NODE|3|VIA_PAD|1|1\nNODE|4|TRACE|1|0\nNODE|5|TRACE|4|1\n"
         "NODE|6|TRACE|1|2\nNODE|7|TRACE|4|3\n"
@@ -166,7 +179,14 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
         "EDGE|4|5|7|SOURCE_INTERIOR_T_CONTACT_CANDIDATE|4\n"
         "COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0\n"
         "OVERALL|T_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n";
-    if (oblique) {
+    if (containedOverlap) {
+        expected.replace("BOARDSI_D015_T_JUNCTION_V1|",
+                         "BOARDSI_D020_CONTAINED_COLLINEAR_OVERLAP_V1|");
+        expected.replace("SOURCE_INTERIOR_T_CONTACT_CANDIDATE|4",
+                         "SOURCE_COLLINEAR_CONTAINED_OVERLAP_CANDIDATE|4");
+        expected.replace("OVERALL|T_JUNCTION_SOURCE_CANDIDATE_ONLY",
+                         "OVERALL|COLLINEAR_CONTAINED_OVERLAP_SOURCE_CANDIDATE_ONLY");
+    } else if (oblique) {
         expected.replace("BOARDSI_D015_T_JUNCTION_V1|",
                          "BOARDSI_D019_OBLIQUE_T_JUNCTION_V1|");
         expected.replace("SOURCE_INTERIOR_T_CONTACT_CANDIDATE|4",
@@ -175,18 +195,24 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                          "OVERALL|OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_ONLY");
     }
     if (expected!=wire) return false;
-    out.state=oblique?"OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL"
-                     :"T_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL";
-    out.reason=oblique?"D_019 SOURCE CONTACT ONLY; BARREL NOT VERIFIED"
-                      :"D_015 SOURCE CONTACT ONLY; BARREL NOT VERIFIED";
+    out.state=containedOverlap?"COLLINEAR_CONTAINED_OVERLAP_SOURCE_CANDIDATE_NOT_ELECTRICAL"
+        :(oblique?"OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL"
+                 :"T_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL");
+    out.reason=containedOverlap?"D_020 SOURCE OVERLAP ONLY; BARREL NOT VERIFIED"
+        :(oblique?"D_019 SOURCE CONTACT ONLY; BARREL NOT VERIFIED"
+                 :"D_015 SOURCE CONTACT ONLY; BARREL NOT VERIFIED");
     return true;
 }
 inline bool decode(const QByteArray &wire, const QByteArray &source,
                    const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
-    return decode_mode(wire,source,panel,net,out,false);
+    return decode_mode(wire,source,panel,net,out,false,false);
 }
 inline bool decode_oblique(const QByteArray &wire, const QByteArray &source,
                    const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
-    return decode_mode(wire,source,panel,net,out,true);
+    return decode_mode(wire,source,panel,net,out,true,false);
+}
+inline bool decode_contained_overlap(const QByteArray &wire, const QByteArray &source,
+                   const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
+    return decode_mode(wire,source,panel,net,out,false,true);
 }
 } // namespace d015

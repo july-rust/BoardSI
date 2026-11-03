@@ -188,7 +188,7 @@ pub fn encode(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, false)
+    encode_with_mode(bytes, net, layers, vias, false, false)
 }
 
 #[allow(dead_code)]
@@ -198,7 +198,19 @@ pub fn encode_oblique(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, true)
+    encode_with_mode(bytes, net, layers, vias, true, false)
+}
+
+/// D_020 strict source-owned positive-length contained collinear overlap.
+/// Never a manufactured copper or electrical continuity guarantee.
+#[allow(dead_code)]
+pub fn encode_contained_overlap(
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
+) -> Result<String, &'static str> {
+    encode_with_mode(bytes, net, layers, vias, false, true)
 }
 
 fn encode_with_mode(
@@ -207,6 +219,7 @@ fn encode_with_mode(
     layers: [usize; 2],
     vias: [usize; 2],
     oblique: bool,
+    contained_overlap: bool,
 ) -> Result<String, &'static str> {
     if bytes.is_empty()
         || bytes.len() > route_preview::MAX_FILE_BYTES
@@ -247,14 +260,18 @@ fn encode_with_mode(
         return Err("D015_VIA_SOURCE");
     }
     let s = &p.segments;
-    if oblique
+    if (oblique || contained_overlap)
         && s.iter().any(|t| {
             [t.a[0], t.a[1], t.b[0], t.b[1]]
                 .iter()
                 .any(|&v| !(-5_600_000..=5_600_000).contains(&v))
         })
     {
-        return Err("D019_COORDINATE_BOUNDS");
+        return Err(if contained_overlap {
+            "D020_COORDINATE_BOUNDS"
+        } else {
+            "D019_COORDINATE_BOUNDS"
+        });
     }
     if s.iter()
         .any(|t| t.net != net || t.width_ticks <= 0 || t.a == t.b)
@@ -283,19 +300,30 @@ fn encode_with_mode(
     let by = i128::from(branch.b[1]) - i128::from(branch.a[1]);
     let dot = mx * bx + my * by;
     let cross = mx * by - my * bx;
-    if !strict_interior(branch.b, s[1].a, s[1].b)
-        || on_segment(branch.a, s[1].a, s[1].b)
-        || branch.a == a.point
-        || branch.a == b.point
-        || branch.b == a.point
-        || branch.b == b.point
-        || (if oblique {
-            dot == 0 || cross == 0
-        } else {
-            dot != 0
-        })
-    {
-        return Err(if oblique {
+    let valid_contact = if contained_overlap {
+        // Both endpoints must be *strictly* inside the original main Trace.
+        // Exact source-tick orientation and nonzero dot prove collinearity.
+        strict_interior(branch.a, s[1].a, s[1].b)
+            && strict_interior(branch.b, s[1].a, s[1].b)
+            && cross == 0
+            && dot != 0
+    } else {
+        strict_interior(branch.b, s[1].a, s[1].b)
+            && !on_segment(branch.a, s[1].a, s[1].b)
+            && branch.a != a.point
+            && branch.a != b.point
+            && branch.b != a.point
+            && branch.b != b.point
+            && (if oblique {
+                dot != 0 && cross != 0
+            } else {
+                dot == 0
+            })
+    };
+    if !valid_contact {
+        return Err(if contained_overlap {
+            "D020_COLLINEAR_CONTAINED_OVERLAP"
+        } else if oblique {
             "D019_OBLIQUE_T_JUNCTION"
         } else {
             "D015_T_JUNCTION"
@@ -335,7 +363,9 @@ fn encode_with_mode(
     for byte in digest::sha256(bytes) {
         write!(&mut sha, "{byte:02x}").map_err(|_| "D015_FMT")?;
     }
-    let mode = if oblique {
+    let mode = if contained_overlap {
+        "D020_CONTAINED_COLLINEAR_OVERLAP_V1"
+    } else if oblique {
         "D019_OBLIQUE_T_JUNCTION_V1"
     } else {
         "D015_T_JUNCTION_V1"
@@ -363,6 +393,20 @@ fn encode_with_mode(
         )
         .map_err(|_| "D015_FMT")?;
     }
+    if contained_overlap {
+        // Report interval endpoints in main Trace direction, never fabricated length.
+        let (start, end) = if dot > 0 {
+            (branch.a, branch.b)
+        } else {
+            (branch.b, branch.a)
+        };
+        writeln!(
+            &mut out,
+            "OVERLAP|MAIN_TRACE|1|CONTAINED_TRACE|3|START|{}|{}|END|{}|{}",
+            start[0], start[1], end[0], end[1]
+        )
+        .map_err(|_| "D020_FMT")?;
+    }
     let nodes = [
         ("VIA_PAD", 1, 0),
         ("VIA_PAD", 4, 0),
@@ -374,7 +418,9 @@ fn encode_with_mode(
         ("TRACE", 4, 3),
     ];
     // All edges are same-layer candidate contacts. NEVER a Via barrel edge.
-    let t_kind = if oblique {
+    let t_kind = if contained_overlap {
+        "SOURCE_COLLINEAR_CONTAINED_OVERLAP_CANDIDATE"
+    } else if oblique {
         "SOURCE_INTERIOR_OBLIQUE_T_CONTACT_CANDIDATE"
     } else {
         "SOURCE_INTERIOR_T_CONTACT_CANDIDATE"
@@ -410,7 +456,9 @@ fn encode_with_mode(
         components
     )
     .map_err(|_| "D015_FMT")?;
-    if oblique {
+    if contained_overlap {
+        out.push_str("OVERALL|COLLINEAR_CONTAINED_OVERLAP_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+    } else if oblique {
         out.push_str(
             "OVERALL|OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n",
         );
