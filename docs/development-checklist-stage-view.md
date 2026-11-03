@@ -8,7 +8,7 @@
 
 ## 빠른 이동
 
-[Stage A](#stage-a) · [Stage B](#stage-b) · [Stage C](#stage-c) · [Stage D](#stage-d) · [제품 마일스톤](#milestones) · [U/T 정식 인수](#formal-acceptance) · [아직 남은 핵심 작업](#remaining)
+[Stage A](#stage-a) · [Stage B](#stage-b) · [Stage C](#stage-c) · [Stage D](#stage-d) · [별도 보안](#security) · [제품 마일스톤](#milestones) · [U/T 정식 인수](#formal-acceptance) · [아직 남은 핵심 작업](#remaining)
 
 ## 1. 단계별 상태 요약
 
@@ -18,10 +18,11 @@
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
 | [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 39 | 2 |
+| [**SEC_001**](#security) | CodeQL Alert #1 한정 Fixed 상태 확인 | 1 | 0 |
 | [**U**](#formal-acceptance) | U01–U48 제품 요구사항 | 1 | 47 |
 | [**T**](#formal-acceptance) | T01–T54 정식 인수시험 | 0 | 54 |
 
-> **계산 기준:** 기존 파일의 정확한 `- [x]` / `- [ ]` 기록 개수. 퍼센트로 단계 완료율을 산출하지 않습니다. D_017 한정 Source 기하 검증 완료가 M1 전체 완료를 의미하지 않습니다.
+> **계산 기준:** 기존 파일의 정확한 `- [x]` / `- [ ]` 기록 개수. A/B/C/D/U/T 외 SEC_001 별도 확인 1건을 포함한 전체는 **110건 확인·122건 미확인**입니다. 퍼센트로 단계 완료율을 산출하지 않습니다. D_017 한정 Source 기하 검증 완료가 M1 전체 완료를 의미하지 않습니다.
 
 ---
 
@@ -70,7 +71,8 @@ Stage A는 공개 합성 PADS 데이터에 대한 Preview, 변환, Qt 표시 및
 
 | 작업 | 제한 검증 범위 | 확인 | 미확인 |
 | :--- | :--- | ---: | ---: |
-| [**B_001**](https://github.com/july-rust/BoardSI/blob/4ddacf2bb1bc8210fba90a60e6d798a169b7d27a/docs/development-checklist.md#L59) | 추가 검증 — 제품 물리 자격과 구별 | 5 | 1 |
+| [**B_001**](https://github.com/july-rust/BoardSI/blob/4ddacf2bb1bc8210fba90a60e6d798a169b7d27a/docs/development-checklist.md#L59) | Stackup·Reference 제한 검증 (B_002 별도) | 3 | 1 |
+| [**B_002**](https://github.com/july-rust/BoardSI/blob/4ddacf2bb1bc8210fba90a60e6d798a169b7d27a/docs/development-checklist.md#L66) | Qt 감사 최신성·Rust Scenario Revision 제한 검증 | 2 | 0 |
 | [**B_003**](https://github.com/july-rust/BoardSI/blob/4ddacf2bb1bc8210fba90a60e6d798a169b7d27a/docs/development-checklist.md#L70) | 제한 완료 — Trace/Pad/Via 원본 접촉 근거 (Issue #12 연속 작업) | 1 | 1 |
 | [**B_004**](https://github.com/july-rust/BoardSI/blob/4ddacf2bb1bc8210fba90a60e6d798a169b7d27a/docs/development-checklist.md#L76) | 제한 완료 — 단일 단순 Copper Area 국소 접촉 검증 | 1 | 0 |
 | [**B_005**](https://github.com/july-rust/BoardSI/blob/4ddacf2bb1bc8210fba90a60e6d798a169b7d27a/docs/development-checklist.md#L80) | 제한 완료 — Source-bound Reference 기하 커버리지 | 2 | 0 |
@@ -180,6 +182,15 @@ Stage A는 공개 합성 PADS 데이터에 대한 Preview, 변환, Qt 표시 및
 - [**D_005 별도 문서 PR #347 보호 병합 및 Issue #345 종료**](https://github.com/july-rust/BoardSI/blob/4ddacf2bb1bc8210fba90a60e6d798a169b7d27a/docs/development-checklist.md#L496) · D_005
 
 </details>
+
+---
+
+<a id="security"></a>
+## SEC_001 — 별도 보안 감사
+
+**기록:** 해당 CodeQL Alert #1 한정 확인 1건 · 미확인 0건. 이는 전체 제품 보안 인수 또는 앞으로 발견될 보안 취약점의 부재를 의미하지 않습니다.
+
+- [SEC_001 CodeQL Alert #1 실제 Fixed 확인 원문·근거](https://github.com/july-rust/BoardSI/blob/4ddacf2bb1bc8210fba90a60e6d798a169b7d27a/docs/development-checklist.md#L47-L50)
 
 ---
 
