@@ -1,6 +1,7 @@
 // D_014: independently reimport real public synthetic PADS Source on Qt.
 #pragma once
 #include "d014_two_via_qt.h"
+#include "d015_t_junction_smoke.h"
 namespace d014 {
 inline int selftest(const QString &importer){
     if(!QFileInfo(importer).isExecutable())return 2;
@@ -116,6 +117,6 @@ inline int selftest(const QString &importer){
     qInfo()<<"D014_NATIVE_QT_TWO_VIA"<<ok<<twoVias<<rejectsForgery
         <<rejectsPromotion<<stale<<acceptsRemark<<rejectsInnerPad<<rejectsExtra<<rejectsInterior<<rejectsArc<<rejectLayer
         <<"SOURCE_ONLY_NO_ELECTRICAL_BARREL";
-    return ok?0:1;
+    return ok?d015::selftest(importer):1;
 }
 } // namespace d014
