@@ -11,7 +11,9 @@ fn witness(bytes: &[u8]) -> Result<String, &'static str> {
 }
 
 fn source() -> String {
-    String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n")
+    String::from_utf8(SRC.to_vec())
+        .unwrap()
+        .replace("\r\n", "\n")
 }
 
 #[test]
@@ -21,10 +23,22 @@ fn exact_positive_length_partial_source_candidate_only() {
     assert!(wire.contains("SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE"));
     assert!(wire.contains("OVERLAP|MAIN_TRACE|1|PARTIAL_TRACE|3|START|30000|25000|END|35000|25000"));
     assert!(wire.contains("EDGE|4|5|7|SOURCE_COLLINEAR_PARTIAL_OVERLAP_CANDIDATE|4"));
-    assert!(wire.contains("COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0"));
+    assert!(wire.contains(
+        "COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0"
+    ));
     assert!(wire.contains("OVERALL|COLLINEAR_PARTIAL_OVERLAP_SOURCE_CANDIDATE_ONLY"));
-    assert_eq!(wire.lines().filter(|line| line.starts_with("NODE|")).count(), 8);
-    assert_eq!(wire.lines().filter(|line| line.starts_with("EDGE|")).count(), 5);
+    assert_eq!(
+        wire.lines()
+            .filter(|line| line.starts_with("NODE|"))
+            .count(),
+        8
+    );
+    assert_eq!(
+        wire.lines()
+            .filter(|line| line.starts_with("EDGE|"))
+            .count(),
+        5
+    );
     assert_eq!(wire, witness(SRC).unwrap());
 }
 
@@ -35,14 +49,15 @@ fn reverse_and_partial_on_opposite_end_are_direction_invariant() {
         "300 250 4 10 0\n400 250 4 10 0",
         "400 250 4 10 0\n300 250 4 10 0",
     );
-    assert!(witness(reversed.as_bytes()).unwrap().contains(
-        "START|30000|25000|END|35000|25000"
-    ));
-    let opposite = s.replace("300 250 4 10 0", "100 250 4 10 0")
+    assert!(witness(reversed.as_bytes())
+        .unwrap()
+        .contains("START|30000|25000|END|35000|25000"));
+    let opposite = s
+        .replace("300 250 4 10 0", "100 250 4 10 0")
         .replace("400 250 4 10 0", "200 250 4 10 0");
-    assert!(witness(opposite.as_bytes()).unwrap().contains(
-        "START|15000|25000|END|20000|25000"
-    ));
+    assert!(witness(opposite.as_bytes())
+        .unwrap()
+        .contains("START|15000|25000|END|20000|25000"));
     let decimal = s.replace("80 250 1 10 0", "80.00 250 1 10 0");
     assert_ne!(witness(SRC).unwrap(), witness(decimal.as_bytes()).unwrap());
 }
