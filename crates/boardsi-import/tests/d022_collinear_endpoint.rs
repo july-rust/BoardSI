@@ -10,7 +10,7 @@ fn witness(b: &[u8]) -> Result<String, &'static str> {
     shared::encode_endpoint_contact(b, "NET_A", [1, 4], [0, 1])
 }
 fn source() -> String {
-    String::from_utf8(SRC.to_vec()).unwrap()
+    String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n")
 }
 
 #[test]
