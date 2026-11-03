@@ -191,6 +191,7 @@ pub fn encode(
     encode_with_mode(bytes, net, layers, vias, false)
 }
 
+#[allow(dead_code)]
 pub fn encode_oblique(
     bytes: &[u8],
     net: &str,
