@@ -18,12 +18,12 @@
 | [**A**](#stage-a) | Preview · Import · Artwork | 12 | 5 |
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
-| [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 39 | 2 |
+| [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 39 | 3 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
-**전체 체크 상태: 110건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
+**전체 체크 상태: 110건 확인 · 123건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
 
 <a id="stage-a"></a>
 ### Stage A — 제한 Preview / Import / Artwork
@@ -94,7 +94,7 @@
 <a id="stage-d"></a>
 ### Stage D — PADS Source Contact / Junction
 
-**39건 확인 · 2건 미확인.** 지원된 PADS Source 기하의 부분 접점 후보 증거이며, 제조 물리 접속과 전기적 연속성을 인증하지 않습니다.
+**39건 확인 · 3건 미확인.** 지원된 PADS Source 기하의 부분 접점 후보 증거이며, 제조 물리 접속과 전기적 연속성을 인증하지 않습니다.
 
 | 작업 | 제한 검증 범위 | 확인 | 미확인 |
 | :--- | :--- | ---: | ---: |
@@ -115,6 +115,8 @@
 | [**D_015**](#d_015) | PADS Same-Layer Trace T-Junction Source Contact & Fail-Closed Qualification | 3 | 0 |
 | [**D_016**](#d_016) | PADS Same-Layer Trace X-Junction SOURCE Qualification | 3 | 0 |
 | [**D_017**](#d_017) | PADS Same-Layer Oblique Trace X-Junction SOURCE Qualification | 3 | 0 |
+| [**D_018**](https://github.com/july-rust/BoardSI/pull/396) | 문서·Docs-only Native CI 최적화 (별도 체크 항목 미집계) | — | — |
+| [**D_019**](#d_019) | Same-Layer Oblique T-Junction Source 접촉 후보 (검증 대기) | 0 | 1 |
 
 <a id="stage-security"></a>
 ### 보안 — SEC_001
@@ -767,3 +769,8 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 - [x] **D_017 제한 Source-only 비직각 X-Junction 코드/Qt 검증·보호 병합** — **최초 체크일: 2026-11-03 KST** · **체크일: 2026-11-03 KST** · **근거일: 2026-11-03 KST**. [Issue #386](https://github.com/july-rust/BoardSI/issues/386), [코드 PR #387](https://github.com/july-rust/BoardSI/pull/387), [검증 원장](validation/d017-oblique-x-junction-qualification.md). 정확한 최종 코드 HEAD `e963d070619f0f137528b50eae927856f4cef2fd`: **27/27 PR Check Runs·11/11 event=pull_request Workflows SUCCESS**. 독립 Codex 동일 HEAD `completed/has_any_findings=false/has_unresolved_findings=false`, 미해결 리뷰 스레드 0. D_016 strict Source/Canonical inventory를 보존하며 비직각 엄격 interior/interior 중심선 교차를 별도 opt-in으로 검증; 기존 D_015 T/D_016 90° X 거부·동작 유지. 공개 합성 PADS V9.4 MILS, Rust hostile 검사, Linux Qt CTest, Windows x64/ARM64 및 macOS ARM64 실제 Native Qt 검증 성공. **8 Source Nodes/5 Same-Layer Candidate Edges/3 Local Components/0 proven electrical cross-layer edges**. [GitHub Verified 단일 부모 Squash `main@236617055cc1bd7c4eb961f0853bac0caa9d0ce7`](https://github.com/july-rust/BoardSI/commit/236617055cc1bd7c4eb961f0853bac0caa9d0ce7), parent `ce2f63d41a4ff43b115e73bba25f78e8543757f8`; verified=true/reason=valid.
 - [x] **D_017 코드 main 독립 Push CI 최종 검증** — **체크일: 2026-11-03 KST** · **근거일: 2026-11-03 KST**. 실제 보호 병합 SHA [`236617055cc1bd7c4eb961f0853bac0caa9d0ce7`](https://github.com/july-rust/BoardSI/commit/236617055cc1bd7c4eb961f0853bac0caa9d0ce7/checks) 기준 별도 **21/21 GitHub Check Runs·8/8 event=push Workflows SUCCESS**, 모든 HEAD SHA 정확 일치, FAILED/PENDING/CANCELLED 없음. 중간 실패는 최초 Rustfmt·테스트 모듈 unused·Windows CRLF fixture 테스트 문제를 각각 수정했고 최종 코드 HEAD CI에서 재검증; F6 Qt/Worker 독립 Workflow의 toolchain Clippy 설치 충돌은 실패 Job만 재실행해 동일 코드 SHA에서 성공. 이는 SOURCE 기하 증거만 해당; 제조 도금/Barrel 전기 연속성, 물리 Copper, Global Open/Short, P009, PH-08, 3D EM, SI Solver, Scenario/Cache, 정식 M1 U09/U10/U39/T02/T04/T24/T52 인수가 아님.
 - [x] **D_017 별도 문서 PR/문서 main Push CI/Issue #386 종료 — 최종 확인** — **체크일: 2026-11-03 KST** · **근거일: 2026-11-03 KST**. [문서 PR #388](https://github.com/july-rust/BoardSI/pull/388) 정확한 HEAD `bc8a696d790b4bc1329104e6ff1946994a0ba9a9`: **22/22 Check Runs, 8/8 event=pull_request Workflows SUCCESS**, 독립 동일 HEAD Codex `completed/findings=false/unresolved=false`, 미해결 리뷰 스레드 0. 보호 Squash [문서 main `6fce15ffe5cf7967c143bb988dfef19c1c4b8063`](https://github.com/july-rust/BoardSI/commit/6fce15ffe5cf7967c143bb988dfef19c1c4b8063) GitHub `verified=true/reason=valid`, 단일 부모 `236617055cc1bd7c4eb961f0853bac0caa9d0ce7`. 별도 **문서-main 정확 SHA 21/21 Check Runs 및 8/8 event=push Workflows SUCCESS**, 모든 SHA 일치, 실패·대기·취소 없음. [Issue #386](https://github.com/july-rust/BoardSI/issues/386) 실제 `CLOSED/completed`, `closed_at=2026-11-03T05:56:08Z` (KST 14:56:08). 이 종료는 문서-main Push CI가 완료된 뒤 실행·확인되었다. 이번 증거 전용 후속 PR 자체의 CI나 미래 병합은 완료로 선기록하지 않는다. Source-only의 8/5/3/0 후보 그래프만 인정하고 제조 Copper/Via Barrel 전기적 증명, 전역 Open/Short, P009, PH-08, Solver/Cache, M1 U/T 인수 아님. Parent #12 OPEN, Draft PR #35 OPEN·미병합 유지.
+
+<a id="d_019"></a>
+### D_019 — PADS Same-Layer Oblique Trace T-Junction SOURCE Qualification (검증 대기 · 2026-11-03 KST)
+
+- [ ] **D_019 비직교 T-Junction Source-only Rust/Qt 구현·보호 병합 인수** — [Issue #397](https://github.com/july-rust/BoardSI/issues/397), [검증 원장](validation/d019-oblique-t-junction-qualification.md). 2-Via/4-Trace 공개 합성 PADS V9.4 MILS에서 Branch Endpoint → L4 Trace strict interior 비직교·비평행 Source Tick 후보를 검증한다. **최종 PR HEAD CI·동일 HEAD 독립 Codex·보호 Signed Verified Squash·post-main Check는 현재 NOT_VERIFIED**. 근거 확인 전 [x] 처리 금지. 8 nodes/5 same-layer candidate edges/3 local components/0 proven electrical cross-layer edges는 예상값이며, 제조 Copper/Barrel 전기·P009·PH-08·Solver/Cache·정식 U/T는 미완, Issue #12 OPEN.

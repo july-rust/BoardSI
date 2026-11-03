@@ -188,6 +188,26 @@ pub fn encode(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
+    encode_with_mode(bytes, net, layers, vias, false)
+}
+
+#[allow(dead_code)]
+pub fn encode_oblique(
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
+) -> Result<String, &'static str> {
+    encode_with_mode(bytes, net, layers, vias, true)
+}
+
+fn encode_with_mode(
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
+    oblique: bool,
+) -> Result<String, &'static str> {
     if bytes.is_empty()
         || bytes.len() > route_preview::MAX_FILE_BYTES
         || net.is_empty()
@@ -227,6 +247,15 @@ pub fn encode(
         return Err("D015_VIA_SOURCE");
     }
     let s = &p.segments;
+    if oblique
+        && s.iter().any(|t| {
+            [t.a[0], t.a[1], t.b[0], t.b[1]]
+                .iter()
+                .any(|&v| !(-5_600_000..=5_600_000).contains(&v))
+        })
+    {
+        return Err("D019_COORDINATE_BOUNDS");
+    }
     if s.iter()
         .any(|t| t.net != net || t.width_ticks <= 0 || t.a == t.b)
         || [s[0].layer, s[1].layer, s[2].layer, s[3].layer] != [1, 4, 1, 4]
@@ -246,20 +275,31 @@ pub fn encode(
     {
         return Err("D015_UNMODELED_LAYER1_CONTACT");
     }
-    // The new branch must terminate strictly INSIDE the L4 main trace,
-    // with a perpendicular centreline and no other main-trace intersection.
+    // Exact source-tick geometry: strict endpoint-to-interior T contact only.
     let branch = &s[3];
+    let mx = i128::from(s[1].b[0]) - i128::from(s[1].a[0]);
+    let my = i128::from(s[1].b[1]) - i128::from(s[1].a[1]);
+    let bx = i128::from(branch.b[0]) - i128::from(branch.a[0]);
+    let by = i128::from(branch.b[1]) - i128::from(branch.a[1]);
+    let dot = mx * bx + my * by;
+    let cross = mx * by - my * bx;
     if !strict_interior(branch.b, s[1].a, s[1].b)
         || on_segment(branch.a, s[1].a, s[1].b)
         || branch.a == a.point
         || branch.a == b.point
         || branch.b == a.point
         || branch.b == b.point
-        || (i128::from(s[1].b[0] - s[1].a[0]) * i128::from(branch.b[0] - branch.a[0])
-            + i128::from(s[1].b[1] - s[1].a[1]) * i128::from(branch.b[1] - branch.a[1]))
-            != 0
+        || (if oblique {
+            dot == 0 || cross == 0
+        } else {
+            dot != 0
+        })
     {
-        return Err("D015_T_JUNCTION");
+        return Err(if oblique {
+            "D019_OBLIQUE_T_JUNCTION"
+        } else {
+            "D015_T_JUNCTION"
+        });
     }
 
     let m = route_preview::into_canonical(bytes, &p)?;
@@ -295,7 +335,12 @@ pub fn encode(
     for byte in digest::sha256(bytes) {
         write!(&mut sha, "{byte:02x}").map_err(|_| "D015_FMT")?;
     }
-    let mut out = format!("BOARDSI_D015_T_JUNCTION_V1|{sha}|SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE\n");
+    let mode = if oblique {
+        "D019_OBLIQUE_T_JUNCTION_V1"
+    } else {
+        "D015_T_JUNCTION_V1"
+    };
+    let mut out = format!("BOARDSI_{mode}|{sha}|SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE\n");
     for (i, v) in p.vias.iter().enumerate() {
         writeln!(
             &mut out,
@@ -329,12 +374,17 @@ pub fn encode(
         ("TRACE", 4, 3),
     ];
     // All edges are same-layer candidate contacts. NEVER a Via barrel edge.
+    let t_kind = if oblique {
+        "SOURCE_INTERIOR_OBLIQUE_T_CONTACT_CANDIDATE"
+    } else {
+        "SOURCE_INTERIOR_T_CONTACT_CANDIDATE"
+    };
     let edges = [
         (0, 4, "SOURCE_ENDPOINT_CONTACT_CANDIDATE", 1),
         (1, 5, "SOURCE_ENDPOINT_CONTACT_CANDIDATE", 4),
         (2, 5, "SOURCE_ENDPOINT_CONTACT_CANDIDATE", 4),
         (3, 6, "SOURCE_ENDPOINT_CONTACT_CANDIDATE", 1),
-        (5, 7, "SOURCE_INTERIOR_T_CONTACT_CANDIDATE", 4),
+        (5, 7, t_kind, 4),
     ];
     let mut parent: Vec<usize> = (0..nodes.len()).collect();
     for (a, b, _, _) in edges {
@@ -360,7 +410,13 @@ pub fn encode(
         components
     )
     .map_err(|_| "D015_FMT")?;
-    out.push_str("OVERALL|T_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+    if oblique {
+        out.push_str(
+            "OVERALL|OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n",
+        );
+    } else {
+        out.push_str("OVERALL|T_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+    }
     if out.len() > 16384 {
         return Err("D015_LIMIT");
     }
