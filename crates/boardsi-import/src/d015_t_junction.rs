@@ -188,7 +188,7 @@ pub fn encode(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, false, false, false)
+    encode_with_mode(bytes, net, layers, vias, false, false, false, false)
 }
 
 #[allow(dead_code)]
@@ -198,7 +198,7 @@ pub fn encode_oblique(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, true, false, false)
+    encode_with_mode(bytes, net, layers, vias, true, false, false, false)
 }
 
 /// D_020 strict source-owned positive-length contained collinear overlap.
@@ -210,7 +210,7 @@ pub fn encode_contained_overlap(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, false, true, false)
+    encode_with_mode(bytes, net, layers, vias, false, true, false, false)
 }
 
 /// D_021 proper partial same-layer collinear Trace overlap: geometry candidate only.
@@ -221,7 +221,15 @@ pub fn encode_partial_overlap(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, false, false, true)
+    encode_with_mode(bytes, net, layers, vias, false, false, true, false)
+}
+
+/// D_022 exact collinear endpoint contact; Source geometry candidate only.
+#[allow(dead_code)]
+pub fn encode_endpoint_contact(
+    bytes: &[u8], net: &str, layers: [usize; 2], vias: [usize; 2],
+) -> Result<String, &'static str> {
+    encode_with_mode(bytes, net, layers, vias, false, false, false, true)
 }
 
 fn encode_with_mode(
@@ -232,6 +240,7 @@ fn encode_with_mode(
     oblique: bool,
     contained_overlap: bool,
     partial_overlap: bool,
+    endpoint_contact: bool,
 ) -> Result<String, &'static str> {
     if bytes.is_empty()
         || bytes.len() > route_preview::MAX_FILE_BYTES
@@ -272,14 +281,16 @@ fn encode_with_mode(
         return Err("D015_VIA_SOURCE");
     }
     let s = &p.segments;
-    if (oblique || contained_overlap || partial_overlap)
+    if (oblique || contained_overlap || partial_overlap || endpoint_contact)
         && s.iter().any(|t| {
             [t.a[0], t.a[1], t.b[0], t.b[1]]
                 .iter()
                 .any(|&v| !(-5_600_000..=5_600_000).contains(&v))
         })
     {
-        return Err(if partial_overlap {
+        return Err(if endpoint_contact {
+            "D022_COORDINATE_BOUNDS"
+        } else if partial_overlap {
             "D021_COORDINATE_BOUNDS"
         } else if contained_overlap {
             "D020_COORDINATE_BOUNDS"
@@ -320,7 +331,21 @@ fn encode_with_mode(
     let external_projection = (i128::from(partial_external[0]) - i128::from(s[1].a[0])) * mx
         + (i128::from(partial_external[1]) - i128::from(s[1].a[1])) * my;
     let main_length_squared = mx * mx + my * my;
-    let valid_contact = if partial_overlap {
+    // The reused main Trace ends at Via Pad B. Endpoint contact therefore
+    // has three Source-owned primitives at one coordinate; model all three.
+    let shared_a = branch.a == s[1].a || branch.a == s[1].b;
+    let shared_b = branch.b == s[1].a || branch.b == s[1].b;
+    let shared = if shared_a { branch.a } else { branch.b };
+    let exterior = if shared_a { branch.b } else { branch.a };
+    let exterior_projection = (i128::from(exterior[0]) - i128::from(s[1].a[0])) * mx
+        + (i128::from(exterior[1]) - i128::from(s[1].a[1])) * my;
+    let valid_contact = if endpoint_contact {
+        shared_a != shared_b
+            && cross == 0
+            && dot != 0
+            && shared == s[1].b
+            && exterior_projection > main_length_squared
+    } else if partial_overlap {
         // Exactly one branch endpoint strictly inside main, the other strictly
         // beyond either main endpoint; exclude endpoint-only and containment.
         partial_inside_a != partial_inside_b
@@ -348,7 +373,9 @@ fn encode_with_mode(
             })
     };
     if !valid_contact {
-        return Err(if partial_overlap {
+        return Err(if endpoint_contact {
+            "D022_COLLINEAR_ENDPOINT_CONTACT"
+        } else if partial_overlap {
             "D021_PARTIAL_COLLINEAR_OVERLAP"
         } else if contained_overlap {
             "D020_COLLINEAR_CONTAINED_OVERLAP"
@@ -392,7 +419,9 @@ fn encode_with_mode(
     for byte in digest::sha256(bytes) {
         write!(&mut sha, "{byte:02x}").map_err(|_| "D015_FMT")?;
     }
-    let mode = if partial_overlap {
+    let mode = if endpoint_contact {
+        "D022_COLLINEAR_ENDPOINT_CONTACT_V1"
+    } else if partial_overlap {
         "D021_PARTIAL_COLLINEAR_OVERLAP_V1"
     } else if contained_overlap {
         "D020_CONTAINED_COLLINEAR_OVERLAP_V1"
@@ -453,6 +482,11 @@ fn encode_with_mode(
         )
         .map_err(|_| "D021_FMT")?;
     }
+    if endpoint_contact {
+        writeln!(&mut out,
+            "CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|3|X|{}|Y|{}",
+            shared[0], shared[1]).map_err(|_| "D022_FMT")?;
+    }
     let nodes = [
         ("VIA_PAD", 1, 0),
         ("VIA_PAD", 4, 0),
@@ -464,7 +498,9 @@ fn encode_with_mode(
         ("TRACE", 4, 3),
     ];
     // All edges are same-layer candidate contacts. NEVER a Via barrel edge.
-    let t_kind = if partial_overlap {
+    let t_kind = if endpoint_contact {
+        "SOURCE_COLLINEAR_ENDPOINT_CONTACT_CANDIDATE"
+    } else if partial_overlap {
         "SOURCE_COLLINEAR_PARTIAL_OVERLAP_CANDIDATE"
     } else if contained_overlap {
         "SOURCE_COLLINEAR_CONTAINED_OVERLAP_CANDIDATE"
@@ -473,21 +509,27 @@ fn encode_with_mode(
     } else {
         "SOURCE_INTERIOR_T_CONTACT_CANDIDATE"
     };
-    let edges = [
+    let mut edges = vec![
         (0, 4, "SOURCE_ENDPOINT_CONTACT_CANDIDATE", 1),
         (1, 5, "SOURCE_ENDPOINT_CONTACT_CANDIDATE", 4),
         (2, 5, "SOURCE_ENDPOINT_CONTACT_CANDIDATE", 4),
         (3, 6, "SOURCE_ENDPOINT_CONTACT_CANDIDATE", 1),
         (5, 7, t_kind, 4),
     ];
+    if endpoint_contact {
+        // Via Pad B is also at the common endpoint. A contact triangle is
+        // legitimate local Source geometry, not a fabricated barrel edge.
+        edges.push((2, 7, "SOURCE_ENDPOINT_CONTACT_CANDIDATE", 4));
+    }
     let mut parent: Vec<usize> = (0..nodes.len()).collect();
-    for (a, b, _, _) in edges {
+    for &(a, b, _, _) in &edges {
         let ra = root(&parent, a);
         let rb = root(&parent, b);
-        if ra == rb {
+        if ra != rb {
+            parent[rb] = ra;
+        } else if !endpoint_contact {
             return Err("D015_GRAPH_CYCLE");
         }
-        parent[rb] = ra;
     }
     let components = (0..nodes.len()).filter(|&i| root(&parent, i) == i).count();
     for (id, (kind, layer, index)) in nodes.iter().enumerate() {
@@ -504,7 +546,9 @@ fn encode_with_mode(
         components
     )
     .map_err(|_| "D015_FMT")?;
-    if partial_overlap {
+    if endpoint_contact {
+        out.push_str("OVERALL|COLLINEAR_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+    } else if partial_overlap {
         out.push_str("OVERALL|COLLINEAR_PARTIAL_OVERLAP_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
     } else if contained_overlap {
         out.push_str("OVERALL|COLLINEAR_CONTAINED_OVERLAP_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");

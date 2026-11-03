@@ -107,6 +107,21 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --d011-source-contact-graph-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-d011-source-contact-graph PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_022 real Source-only proper endpoint collinear Trace contact; no new workflow.
+    add_executable(boardsi-d022-native-qt d022_qt_runner.cpp)
+    target_link_libraries(boardsi-d022-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+    if(WIN32)
+      target_link_libraries(boardsi-d022-native-qt PRIVATE psapi)
+    endif()
+    if(MSVC)
+      target_compile_options(boardsi-d022-native-qt PRIVATE /W4 /WX)
+    else()
+      target_compile_options(boardsi-d022-native-qt PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME qt-preview-d022-endpoint-contact-source
+      COMMAND boardsi-d022-native-qt "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-d022-endpoint-contact-source PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_021 real Source-only proper partial collinear overlap; no new workflow.
     add_executable(boardsi-d021-native-qt d021_qt_runner.cpp)
     target_link_libraries(boardsi-d021-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)

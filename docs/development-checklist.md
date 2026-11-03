@@ -18,12 +18,12 @@
 | [**A**](#stage-a) | Preview · Import · Artwork | 12 | 5 |
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
-| [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 42 | 2 |
+| [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 42 | 3 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
-**전체 체크 상태: 113건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
+**전체 체크 상태: 113건 확인 · 123건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
 
 <a id="stage-a"></a>
 ### Stage A — 제한 Preview / Import / Artwork
@@ -94,7 +94,7 @@
 <a id="stage-d"></a>
 ### Stage D — PADS Source Contact / Junction
 
-**42건 확인 · 2건 미확인.** 지원된 PADS Source 기하의 부분 접점 후보 증거이며, 제조 물리 접속과 전기적 연속성을 인증하지 않습니다.
+**42건 확인 · 3건 미확인.** 지원된 PADS Source 기하의 부분 접점 후보 증거이며, 제조 물리 접속과 전기적 연속성을 인증하지 않습니다.
 
 | 작업 | 제한 검증 범위 | 확인 | 미확인 |
 | :--- | :--- | ---: | ---: |
@@ -119,6 +119,7 @@
 | [**D_019**](#d_019) | Same-Layer Oblique T-Junction Source 접촉 후보 (한정 검증 완료) | 1 | 0 |
 | [**D_020**](#d_020) | Same-Layer Strictly Contained Collinear Overlap Source 후보 (한정 검증 완료) | 1 | 0 |
 | [**D_021**](#d_021) | Same-Layer Partial Collinear Overlap Source 후보 (한정 검증 완료) | 1 | 0 |
+| [**D_022**](#d_022) | Same-Layer Collinear Endpoint-to-Endpoint Source 후보 (검증 대기) | 0 | 1 |
 
 <a id="stage-security"></a>
 ### 보안 — SEC_001
@@ -787,3 +788,9 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 ### D_021 — PADS Same-Layer Proper Partial Collinear Trace Overlap SOURCE Qualification (한정 검증 완료 · 2026-11-03 KST)
 
 - [x] **D_021 Source-only 부분 공선 Trace 중첩 Rust·Qt 검증 및 보호 병합 — 한정 완료** — **최초 체크일: 2026-11-03 KST** · **체크일: 2026-11-03 KST** · **근거일: 2026-11-03 KST**. [Issue #403](https://github.com/july-rust/BoardSI/issues/403) CLOSED/completed (2026-11-03T12:59:13Z), [코드 PR #404](https://github.com/july-rust/BoardSI/pull/404), [검증 원장](validation/d021-partial-collinear-overlap-qualification.md). 최종 코드 HEAD [`60ba127d9435e82b1a27a7d7cc714be336888750`](https://github.com/july-rust/BoardSI/commit/60ba127d9435e82b1a27a7d7cc714be336888750/checks) **34/34 PR Check Runs·11/11 PR Workflows SUCCESS**. 동일 HEAD 독립 Codex `completed/findings=false/unresolved=false`, 리뷰 스레드 0. PADS V9.4 MILS 정수 Source Tick에서 D_020 완전 포함형과 분리된 Layer-4 공선 양의 부분 중첩 및 역방향 정규화, 1 Source Tick offset/gap·엔드포인트·Net/Layer·Source inventory Fail-Closed, Rust hostile 회귀와 Linux Qt Offscreen·Windows x64/ARM64·macOS ARM64 Native Qt Import/SHA-bound Receipt PASS. **8 Source Nodes / 5 same-layer Candidate Edges / 3 local Components / 0 proven electrical cross-layer edges**. 보호 Verified 단일 부모 Squash [`main@516c5de1480b77ae726971f83c138932ba535fff`](https://github.com/july-rust/BoardSI/commit/516c5de1480b77ae726971f83c138932ba535fff), parent `4fd71b4a63aab1ab2e73ccc08025c55bb1f6af03`, `verified=true/reason=valid`. 정확한 병합 SHA에서 **post-main 28/28 Check Runs·8/8 Push Workflows SUCCESS** ([Qt Runtime](https://github.com/july-rust/BoardSI/actions/runs/41638787878), [Numerical Core](https://github.com/july-rust/BoardSI/actions/runs/41638787928): 동일 SHA의 Windows ARM64 실패 Job 재실행 후 성공). **초기 Windows ARM64 Numerical CI에서 기존 D_006 테스트 2개 실패 이력 유지:** 임시 파일 충돌 가설은 미확정, 재실행 성공이 원인 해결은 아님. **Source Geometry 후보만 완료:** 실제 제조 Copper/Barrel의 전기 연속성·전역 Open/Short·P009·PH-08·RLGC/S Solver·물리 Scenario/Cache·정식 U/T는 미완; 부모 Issue #12 OPEN, Draft #35 미병합.
+
+
+<a id="d_022"></a>
+### D_022 — PADS Same-Layer Collinear Endpoint-to-Endpoint Source Candidate (검증 대기 · 2026-11-03 KST)
+
+- [ ] **D_022 정확한 동일 층 공선 끝점 접촉 및 Via Pad Source 후보** — **최초 기록일: 2026-11-03 KST**, 완료 체크일/근거일: **PENDING**. [Issue #406](https://github.com/july-rust/BoardSI/issues/406), [검증 원장](validation/d022-collinear-endpoint-contact-qualification.md). Layer-4 main Trace → branch Trace 접점 (35000,25000), 기존 Via Pad B를 포함한 6개 Source-only candidate edges / 8 nodes / 3 components 및 0 proven electrical cross-layer edges 목표. Rust/Qt/Native CI, same-HEAD Codex, Signed Verified Squash, exact post-main Push checks 확인 전까지 한정 인수 미완. P009/PH-08/RLGC/Scenario/Cache/U/T 또는 전기적 연속성은 인정하지 않음. 부모 [Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN, Draft #35 미병합.
