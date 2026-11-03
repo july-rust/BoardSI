@@ -124,7 +124,7 @@ jobs:
       - name: Install fixed Qt SDK
         shell: bash
         run: |
-          test "$RUNNER_ARCH" = '${{ env.BOARDSI_CI_RUNNER_arch }}'
+          test "$RUNNER_ARCH" = '${{ env.BOARDSI_CI_RUNNER_ARCH }}'
           python -m pip install aqtinstall==3.3.0
           python .github/scripts/install_qt_runtime.py '${{ env.BOARDSI_CI_HOST }}' '${{ env.BOARDSI_CI_QT_ARCH }}'
       - name: Build matching Rust executable
