@@ -176,6 +176,13 @@ jobs:
           suffix=''
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-d019-native-qt$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      - name: D_020 native Qt source-bound contained collinear overlap qualification
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-d020-native-qt$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: B_001 stackup native editor regression (source safety)
         shell: bash
         run: |
