@@ -235,6 +235,12 @@ pub fn encode_endpoint_contact(
     encode_with_mode(bytes, net, layers, vias, ContactMode::Endpoint)
 }
 
+/// D_023 opposite Via-A Source endpoint mode; NEVER electrical barrel proof.
+#[allow(dead_code)]
+pub fn encode_opposite_endpoint_contact(bytes: &[u8], net: &str, layers: [usize; 2], vias: [usize; 2]) -> Result<String, &'static str> {
+    encode_with_mode(bytes, net, layers, vias, ContactMode::OppositeEndpoint)
+}
+
 #[derive(Clone, Copy)]
 enum ContactMode {
     Perpendicular,
@@ -242,6 +248,7 @@ enum ContactMode {
     Contained,
     Partial,
     Endpoint,
+    OppositeEndpoint,
 }
 
 fn encode_with_mode(
@@ -254,7 +261,8 @@ fn encode_with_mode(
     let oblique = matches!(mode, ContactMode::Oblique);
     let contained_overlap = matches!(mode, ContactMode::Contained);
     let partial_overlap = matches!(mode, ContactMode::Partial);
-    let endpoint_contact = matches!(mode, ContactMode::Endpoint);
+    let opposite_endpoint = matches!(mode, ContactMode::OppositeEndpoint);
+    let endpoint_contact = matches!(mode, ContactMode::Endpoint | ContactMode::OppositeEndpoint);
     if bytes.is_empty()
         || bytes.len() > route_preview::MAX_FILE_BYTES
         || net.is_empty()
@@ -302,7 +310,7 @@ fn encode_with_mode(
         })
     {
         return Err(if endpoint_contact {
-            "D022_COORDINATE_BOUNDS"
+            if opposite_endpoint { "D023_COORDINATE_BOUNDS" } else { "D022_COORDINATE_BOUNDS" }
         } else if partial_overlap {
             "D021_COORDINATE_BOUNDS"
         } else if contained_overlap {
@@ -356,8 +364,11 @@ fn encode_with_mode(
         shared_a != shared_b
             && cross == 0
             && dot != 0
-            && shared == s[1].b
-            && exterior_projection > main_length_squared
+            && (if opposite_endpoint {
+                shared == s[1].a && exterior_projection < 0
+            } else {
+                shared == s[1].b && exterior_projection > main_length_squared
+            })
     } else if partial_overlap {
         // Exactly one branch endpoint strictly inside main, the other strictly
         // beyond either main endpoint; exclude endpoint-only and containment.
@@ -387,7 +398,7 @@ fn encode_with_mode(
     };
     if !valid_contact {
         return Err(if endpoint_contact {
-            "D022_COLLINEAR_ENDPOINT_CONTACT"
+            if opposite_endpoint { "D023_COLLINEAR_OPPOSITE_ENDPOINT_CONTACT" } else { "D022_COLLINEAR_ENDPOINT_CONTACT" }
         } else if partial_overlap {
             "D021_PARTIAL_COLLINEAR_OVERLAP"
         } else if contained_overlap {
@@ -432,7 +443,9 @@ fn encode_with_mode(
     for byte in digest::sha256(bytes) {
         write!(&mut sha, "{byte:02x}").map_err(|_| "D015_FMT")?;
     }
-    let mode = if endpoint_contact {
+    let mode = if opposite_endpoint {
+        "D023_COLLINEAR_OPPOSITE_ENDPOINT_CONTACT_V1"
+    } else if endpoint_contact {
         "D022_COLLINEAR_ENDPOINT_CONTACT_V1"
     } else if partial_overlap {
         "D021_PARTIAL_COLLINEAR_OVERLAP_V1"
@@ -501,7 +514,7 @@ fn encode_with_mode(
             "CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|3|X|{}|Y|{}",
             shared[0], shared[1]
         )
-        .map_err(|_| "D022_FMT")?;
+        .map_err(|_| if opposite_endpoint { "D023_FMT" } else { "D022_FMT" })?;
     }
     let nodes = [
         ("VIA_PAD", 1, 0),
@@ -533,9 +546,9 @@ fn encode_with_mode(
         (5, 7, t_kind, 4),
     ];
     if endpoint_contact {
-        // Via Pad B is also at the common endpoint. A contact triangle is
-        // legitimate local Source geometry, not a fabricated barrel edge.
-        edges.push((2, 7, "SOURCE_ENDPOINT_CONTACT_CANDIDATE", 4));
+        // At Via-A (D023) use Node 1; at Via-B (D022) use Node 2.
+        // This remains layer-local Source geometry, not electrical barrel proof.
+        edges.push((if opposite_endpoint { 1 } else { 2 }, 7, "SOURCE_ENDPOINT_CONTACT_CANDIDATE", 4));
     }
     let mut parent: Vec<usize> = (0..nodes.len()).collect();
     for &(a, b, _, _) in &edges {
@@ -562,7 +575,9 @@ fn encode_with_mode(
         components
     )
     .map_err(|_| "D015_FMT")?;
-    if endpoint_contact {
+    if opposite_endpoint {
+        out.push_str("OVERALL|COLLINEAR_OPPOSITE_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+    } else if endpoint_contact {
         out.push_str("OVERALL|COLLINEAR_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
     } else if partial_overlap {
         out.push_str("OVERALL|COLLINEAR_PARTIAL_OVERLAP_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");

@@ -183,6 +183,13 @@ jobs:
           suffix=''
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-d020-native-qt$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      - name: D_023 native Qt opposite Via-A endpoint Source contact qualification
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-d023-native-qt$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: D_022 native Qt source-bound endpoint collinear Trace contact qualification
         shell: bash
         run: |
