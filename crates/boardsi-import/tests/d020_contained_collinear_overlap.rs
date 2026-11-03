@@ -8,7 +8,9 @@ fn witness(bytes: &[u8]) -> Result<String, &'static str> {
     shared::encode_contained_overlap(bytes, "NET_A", [1, 4], [0, 1])
 }
 fn source() -> String {
-    String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n")
+    String::from_utf8(SRC.to_vec())
+        .unwrap()
+        .replace("\r\n", "\n")
 }
 
 #[test]
@@ -18,17 +20,31 @@ fn strict_containment_yields_source_candidate_only() {
     assert!(wire.contains("SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE"));
     assert!(wire.contains("OVERLAP|MAIN_TRACE|1|CONTAINED_TRACE|3|START|200|250|END|250|250"));
     assert!(wire.contains("EDGE|4|5|7|SOURCE_COLLINEAR_CONTAINED_OVERLAP_CANDIDATE|4"));
-    assert!(wire.contains("COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0"));
+    assert!(wire.contains(
+        "COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0"
+    ));
     assert!(wire.contains("OVERALL|COLLINEAR_CONTAINED_OVERLAP_SOURCE_CANDIDATE_ONLY"));
-    assert_eq!(wire.lines().filter(|line| line.starts_with("NODE|")).count(), 8);
-    assert_eq!(wire.lines().filter(|line| line.starts_with("EDGE|")).count(), 5);
+    assert_eq!(
+        wire.lines()
+            .filter(|line| line.starts_with("NODE|"))
+            .count(),
+        8
+    );
+    assert_eq!(
+        wire.lines()
+            .filter(|line| line.starts_with("EDGE|"))
+            .count(),
+        5
+    );
     assert_eq!(wire, witness(SRC).unwrap());
 }
 #[test]
 fn reversed_containment_and_source_lexical_sha() {
     let s = source();
-    let reverse = s.replace("200 250 4 10 0\n250 250 4 10 0",
-                            "250 250 4 10 0\n200 250 4 10 0");
+    let reverse = s.replace(
+        "200 250 4 10 0\n250 250 4 10 0",
+        "250 250 4 10 0\n200 250 4 10 0",
+    );
     let wire = witness(reverse.as_bytes()).unwrap();
     assert!(wire.contains("START|200|250|END|250|250"));
     let decimal = s.replace("80 250 1 10 0", "80.00 250 1 10 0");
