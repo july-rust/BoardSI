@@ -67,7 +67,7 @@ inline int selftest(const QString &importer) {
     const bool stale=!d015::decode_partial_overlap(wire,source,&panel,"NET_A",ignored)
         && d015::decode_partial_overlap(query(),changed,&panel,"NET_A",ignored);
     auto miss=source;
-    miss.replace("400 250 4 10 0","400 251 4 10 0");
+    miss.replace("400 250 4 10 0","400 250.01 4 10 0");
     if (!save(miss) || !load()) return 2;
     auto forgedSha=wire;
     forgedSha.replace(QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex(),
@@ -78,6 +78,10 @@ inline int selftest(const QString &importer) {
     endpoint.replace("300 250 4 10 0","350 250 4 10 0");
     if (!save(endpoint)) return 2;
     const bool rejectsEndpoint=query().isEmpty();
+    auto oneTickGap=source;
+    oneTickGap.replace("300 250 4 10 0","350.01 250 4 10 0");
+    if (!save(oneTickGap)) return 2;
+    const bool rejectsOneTickGap=query().isEmpty();
     auto contained=source;
     contained.replace("400 250 4 10 0","250 250 4 10 0");
     if (!save(contained)) return 2;
@@ -112,12 +116,12 @@ inline int selftest(const QString &importer) {
     if (!save(decimal) || !load()) return 2;
     const bool acceptsDecimal=d015::decode_partial_overlap(query(),decimal,&panel,"NET_A",ignored);
     const bool ok=accepted && rejectsOld && rejectsForgery && rejectsInterval
-        && rejectsPromotion && stale && rejectsMiss && rejectsEndpoint
+        && rejectsPromotion && stale && rejectsMiss && rejectsEndpoint && rejectsOneTickGap
         && rejectsContained && rejectsIdentical && rejectsLayer && rejectsNet
         && rejectsCopper && acceptsReverse && acceptsDecimal;
     qInfo()<<"D021_NATIVE_QT_PARTIAL_OVERLAP"<<ok<<accepted<<rejectsOld
         <<rejectsForgery<<rejectsInterval<<rejectsPromotion<<stale
-        <<rejectsMiss<<rejectsEndpoint<<rejectsContained<<rejectsIdentical
+        <<rejectsMiss<<rejectsEndpoint<<rejectsOneTickGap<<rejectsContained<<rejectsIdentical
         <<rejectsLayer<<rejectsNet<<rejectsCopper<<acceptsReverse
         <<acceptsDecimal<<"NO_ELECTRICAL_PROOF";
     return ok?0:1;

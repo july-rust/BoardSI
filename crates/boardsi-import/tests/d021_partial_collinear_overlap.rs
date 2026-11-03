@@ -79,10 +79,10 @@ fn existing_modes_are_disjoint() {
 fn hostile_source_inventory_and_geometry_fail_closed() {
     let s = source();
     for hostile in [
-        s.replace("300 250 4 10 0", "300 251 4 10 0"),
-        s.replace("400 250 4 10 0", "400 251 4 10 0"),
+        s.replace("300 250 4 10 0", "300 250.01 4 10 0"),
+        s.replace("400 250 4 10 0", "400 250.01 4 10 0"),
         s.replace("300 250 4 10 0", "350 250 4 10 0"),
-        s.replace("300 250 4 10 0", "351 250 4 10 0"),
+        s.replace("300 250 4 10 0", "350.01 250 4 10 0"),
         s.replace("300 250 4 10 0", "400 250 4 10 0"),
         s.replace("400 250 4 10 0", "350 250 4 10 0"),
         s.replace("400 250 4 10 0", "250 250 4 10 0"),
