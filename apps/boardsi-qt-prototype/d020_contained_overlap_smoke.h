@@ -44,7 +44,7 @@ inline int selftest(const QString &importer) {
         && d015::decode_contained_overlap(wire,source,&panel,"NET_A",receipt)
         && receipt.state=="COLLINEAR_CONTAINED_OVERLAP_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         && wire.count("NODE|")==8 && wire.count("EDGE|")==5
-        && wire.contains("OVERLAP|MAIN_TRACE|1|CONTAINED_TRACE|3|START|200|250|END|250|250")
+        && wire.contains("OVERLAP|MAIN_TRACE|1|CONTAINED_TRACE|3|START|20000|25000|END|25000|25000")
         && wire.contains("LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0");
     if (!accepted) return 1;
     const bool rejectsD015=query("--d015-t-junction-v1").isEmpty()
@@ -54,7 +54,7 @@ inline int selftest(const QString &importer) {
                    "SOURCE_COLLINEAR_CONTAINED_OVERLAP_CANDIDATE|1");
     const bool rejectsForgery=!d015::decode_contained_overlap(forged,source,&panel,"NET_A",ignored);
     auto forgedInterval=wire;
-    forgedInterval.replace("START|200|250|END|250|250","START|200|250|END|251|250");
+    forgedInterval.replace("START|20000|25000|END|25000|25000","START|20000|25000|END|25100|25000");
     const bool rejectsInterval=!d015::decode_contained_overlap(forgedInterval,source,&panel,"NET_A",ignored);
     auto promoted=wire;
     promoted.replace("BARREL_ELECTRICAL_NOT_VERIFIED","BARREL_ELECTRICAL_VERIFIED");
@@ -104,7 +104,7 @@ inline int selftest(const QString &importer) {
     if (!save(reverse) || !load()) return 2;
     const auto reversedWire=query();
     const bool acceptsReverse=d015::decode_contained_overlap(reversedWire,reverse,&panel,"NET_A",ignored)
-        && reversedWire.contains("START|200|250|END|250|250");
+        && reversedWire.contains("START|20000|25000|END|25000|25000");
     auto decimal=source;
     decimal.replace("80 250 1 10 0","80.00 250 1 10 0");
     if (!save(decimal) || !load()) return 2;
