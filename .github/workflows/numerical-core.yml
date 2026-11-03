@@ -50,12 +50,12 @@ jobs:
           name: worker-stress-linux
           path: worker-stress*.json
           if-no-files-found: error
-  native:
+  native_windows_x64:
     needs: classify
     # The classifier failing must NEVER suppress a required platform build.
     # For a verified docs-only PR, skip the entire job before runner allocation.
     if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
-    name: Native ${{ matrix.name }}
+    name: Native Windows x64
     strategy:
       fail-fast: false
       matrix:
@@ -66,18 +66,6 @@ jobs:
             runner_arch: X64
             executable_arch: x86_64
             executable_os: windows
-          - name: Windows ARM64
-            runner: windows-11-arm
-            target: aarch64-pc-windows-msvc
-            runner_arch: ARM64
-            executable_arch: aarch64
-            executable_os: windows
-          - name: macOS ARM64
-            runner: macos-15
-            target: aarch64-apple-darwin
-            runner_arch: ARM64
-            executable_arch: aarch64
-            executable_os: macos
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
     defaults:
@@ -90,7 +78,7 @@ jobs:
       BOARDSI_EXPECTED_RUNNER_ARCH: ${{ matrix.runner_arch }}
       BOARDSI_EXPECTED_EXECUTABLE_ARCH: ${{ matrix.executable_arch }}
       BOARDSI_EXPECTED_EXECUTABLE_OS: ${{ matrix.executable_os }}
-    steps:
+    steps: &shared_native_steps
       - uses: actions/checkout@v5
       - name: Install the matching native Rust host
         run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
@@ -118,3 +106,61 @@ jobs:
             worker-stress*.json
             worker-stress-failure-*.log
           if-no-files-found: error
+  native_windows_arm64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: Native Windows ARM64
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows ARM64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            runner_arch: ARM64
+            executable_arch: aarch64
+            executable_os: windows
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+      RUSTFLAGS: -D warnings
+      BOARDSI_EXPECTED_HOST: ${{ matrix.target }}
+      BOARDSI_EXPECTED_RUNNER_ARCH: ${{ matrix.runner_arch }}
+      BOARDSI_EXPECTED_EXECUTABLE_ARCH: ${{ matrix.executable_arch }}
+      BOARDSI_EXPECTED_EXECUTABLE_OS: ${{ matrix.executable_os }}
+    steps: *shared_native_steps
+  native_macos_arm64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: Native macOS ARM64
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS ARM64
+            runner: macos-15
+            target: aarch64-apple-darwin
+            runner_arch: ARM64
+            executable_arch: aarch64
+            executable_os: macos
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+      RUSTFLAGS: -D warnings
+      BOARDSI_EXPECTED_HOST: ${{ matrix.target }}
+      BOARDSI_EXPECTED_RUNNER_ARCH: ${{ matrix.runner_arch }}
+      BOARDSI_EXPECTED_EXECUTABLE_ARCH: ${{ matrix.executable_arch }}
+      BOARDSI_EXPECTED_EXECUTABLE_OS: ${{ matrix.executable_os }}
+    steps: *shared_native_steps
