@@ -180,10 +180,23 @@ fn bounded_source_inventory(bytes: &[u8], via_name: &str) -> Result<(), &'static
 }
 
 pub fn encode(
+    bytes: &[u8], net: &str, layers: [usize; 2], vias: [usize; 2],
+) -> Result<String, &'static str> {
+    encode_with_mode(bytes, net, layers, vias, false)
+}
+// D_017 reuses D_016's strict inventory/canonical/contact graph with the
+// complementary non-perpendicular intersection rule and distinct receipt.
+pub fn encode_oblique(
+    bytes: &[u8], net: &str, layers: [usize; 2], vias: [usize; 2],
+) -> Result<String, &'static str> {
+    encode_with_mode(bytes, net, layers, vias, true)
+}
+fn encode_with_mode(
     bytes: &[u8],
     net: &str,
     layers: [usize; 2],
     vias: [usize; 2],
+    oblique: bool,
 ) -> Result<String, &'static str> {
     if bytes.is_empty()
         || bytes.len() > route_preview::MAX_FILE_BYTES
@@ -243,7 +256,16 @@ pub fn encode(
     {
         return Err("D016_UNMODELED_LAYER1_CONTACT");
     }
-    // D_016 bounded perpendicular interior–interior crossing. Strict orientation
+    // D_017 arithmetic remains bounded before i128 orientation/dot products.
+    // The existing D_016 path and its acceptance rules are unchanged.
+    if oblique && s.iter().any(|t| {
+        [t.a[0], t.a[1], t.b[0], t.b[1]]
+            .iter().any(|&v| !(-5_600_000..=5_600_000).contains(&v))
+    }) {
+        return Err("D017_COORDINATE_BOUNDS");
+    }
+    // D_016 perpendicular or D_017 strictly oblique interior–interior.
+    // Strict orientation
     // rejects T-junction endpoints, tangency, collinearity, and near-misses.
     // This is a SOURCE GEOMETRY candidate, NEVER an electrical connection.
     let branch = &s[3];
@@ -258,11 +280,11 @@ pub fn encode(
     let by = i128::from(branch.b[1]) - i128::from(branch.a[1]);
     if !opposite(main_a, main_b)
         || !opposite(branch_a, branch_b)
-        || mx * bx + my * by != 0
+        || (if oblique { mx * bx + my * by == 0 } else { mx * bx + my * by != 0 })
         || on_segment(branch.a, s[1].a, s[1].b)
         || on_segment(branch.b, s[1].a, s[1].b)
     {
-        return Err("D016_X_JUNCTION");
+        return Err(if oblique { "D017_OBLIQUE_X_JUNCTION" } else { "D016_X_JUNCTION" });
     }
 
     let m = route_preview::into_canonical(bytes, &p)?;
@@ -298,7 +320,8 @@ pub fn encode(
     for byte in digest::sha256(bytes) {
         write!(&mut sha, "{byte:02x}").map_err(|_| "D016_FMT")?;
     }
-    let mut out = format!("BOARDSI_D016_X_JUNCTION_V1|{sha}|SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE\n");
+    let mode = if oblique { "D017_OBLIQUE_X_JUNCTION_V1" } else { "D016_X_JUNCTION_V1" };
+    let mut out = format!("BOARDSI_{mode}|{sha}|SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE\n");
     for (i, v) in p.vias.iter().enumerate() {
         writeln!(
             &mut out,
@@ -332,12 +355,13 @@ pub fn encode(
         ("TRACE", 4, 3),
     ];
     // All edges are same-layer candidate contacts. NEVER a Via barrel edge.
+    let x_kind = if oblique { "SOURCE_INTERIOR_OBLIQUE_X_CONTACT_CANDIDATE" } else { "SOURCE_INTERIOR_X_CONTACT_CANDIDATE" };
     let edges = [
         (0, 4, "SOURCE_ENDPOINX_CONTACT_CANDIDATE", 1),
         (1, 5, "SOURCE_ENDPOINX_CONTACT_CANDIDATE", 4),
         (2, 5, "SOURCE_ENDPOINX_CONTACT_CANDIDATE", 4),
         (3, 6, "SOURCE_ENDPOINX_CONTACT_CANDIDATE", 1),
-        (5, 7, "SOURCE_INTERIOR_X_CONTACT_CANDIDATE", 4),
+        (5, 7, x_kind, 4),
     ];
     let mut parent: Vec<usize> = (0..nodes.len()).collect();
     for (a, b, _, _) in edges {
@@ -363,7 +387,11 @@ pub fn encode(
         components
     )
     .map_err(|_| "D016_FMT")?;
-    out.push_str("OVERALL|X_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+    if oblique {
+        out.push_str("OVERALL|OBLIQUE_X_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+    } else {
+        out.push_str("OVERALL|X_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+    }
     if out.len() > 16384 {
         return Err("D016_LIMIT");
     }
