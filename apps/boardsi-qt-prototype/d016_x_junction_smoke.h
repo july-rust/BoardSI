@@ -1,6 +1,7 @@
 // D_016 real PADS Source X-intersection independent native Qt adversarial suite.
 #pragma once
 #include "d016_x_junction_qt.h"
+#include "d017_oblique_x_junction_smoke.h"
 namespace d016 {
 inline int selftest(const QString &importer) {
     if (!QFileInfo(importer).isExecutable()) return 2;
@@ -93,6 +94,6 @@ inline int selftest(const QString &importer) {
     qInfo()<<"D016_NATIVE_QT_X_JUNCTION"<<ok<<accepted<<rejectsForgery
         <<rejectsPromotion<<stale<<rejectsMiss<<rejectsT<<rejectsLayer
         <<rejectsCopper<<decimalAccepted<<"NO_ELECTRICAL_BARREL_PROOF";
-    return ok?0:1;
+    return ok?d017::selftest(importer):1;
 }
 } // namespace d016

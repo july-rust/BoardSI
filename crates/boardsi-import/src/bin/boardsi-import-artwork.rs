@@ -694,6 +694,38 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // D_017 opt-in Source geometry ONLY, not physical electrical continuity.
+    if args.len() == 8 && args[2] == std::ffi::OsStr::new("--d017-oblique-x-junction-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let txt = |i: usize| args[i].to_str().ok_or("D017_UTF8");
+            let path = std::path::Path::new(&args[1]);
+            let meta = fs::metadata(path).map_err(|_| "D017_FILE")?;
+            if !meta.is_file() || meta.len() > MAX_FILE_BYTES as u64 {
+                return Err("D017_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D017_READ")?;
+            d016_core::encode_oblique(
+                &bytes,
+                txt(3)?,
+                [
+                    txt(4)?.parse::<usize>().map_err(|_| "D017_LAYER")?,
+                    txt(5)?.parse::<usize>().map_err(|_| "D017_LAYER")?,
+                ],
+                [
+                    txt(6)?.parse::<usize>().map_err(|_| "D017_VIA")?,
+                    txt(7)?.parse::<usize>().map_err(|_| "D017_VIA")?,
+                ],
+            )
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D017_OBLIQUE_X_JUNCTION_SOURCE_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_016 opt-in Source geometry ONLY, not physical electrical continuity.
     if args.len() == 8 && args[2] == std::ffi::OsStr::new("--d016-x-junction-v1") {
         let result = (|| -> Result<String, &'static str> {
