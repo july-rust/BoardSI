@@ -12,19 +12,26 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+      - uses: ./.github/actions/classify-docs-only
+        id: docs_only
       - name: Install Rust stable pinned version
+        if: steps.docs_only.outputs.docs_only != 'true'
         run: rustup toolchain install 1.75.0 --profile minimal --component clippy
       - uses: actions/setup-python@v6
+        if: steps.docs_only.outputs.docs_only != 'true'
         with:
           python-version: '3.13'
       - name: Install independent FVM dependencies
+        if: steps.docs_only.outputs.docs_only != 'true'
         run: python -m pip install numpy==2.3.5 scipy==1.17.0
       - name: PH-06 Rust tests and strict Clippy (including existing PH-03/PH-05 tests)
+        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           cargo +1.75.0 test --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release
           cargo +1.75.0 clippy --manifest-path prototypes/m2-lossless-fem/Cargo.toml --all-targets -- -D warnings
           cargo +1.75.0 build --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release
       - name: PH-06 independent two-material FVM validation and CPU/RSS measurements
+        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           bin="prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem"
@@ -77,6 +84,7 @@ jobs:
           fi
           test ! -s ph06-invalid-out.txt
       - name: PH-06 geometry/dielectric sweeps and reflected PH-05 recovery
+        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           bin="prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem"
@@ -104,7 +112,7 @@ jobs:
             --case vacuum=ph06-vacuum.json \
             --output ph06-invariant-sweep-evidence.json
       - name: Upload PH-06 independently generated numerical evidence
-        if: always()
+        if: ${{ (always()) && steps.docs_only.outputs.docs_only != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: ph06-numerical-evidence
