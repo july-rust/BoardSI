@@ -18,12 +18,12 @@
 | [**A**](#stage-a) | Preview · Import · Artwork | 12 | 5 |
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
-| [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 41 | 2 |
+| [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 41 | 3 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
-**전체 체크 상태: 112건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
+**전체 체크 상태: 112건 확인 · 123건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
 
 <a id="stage-a"></a>
 ### Stage A — 제한 Preview / Import / Artwork
@@ -94,7 +94,7 @@
 <a id="stage-d"></a>
 ### Stage D — PADS Source Contact / Junction
 
-**41건 확인 · 2건 미확인.** 지원된 PADS Source 기하의 부분 접점 후보 증거이며, 제조 물리 접속과 전기적 연속성을 인증하지 않습니다.
+**41건 확인 · 3건 미확인.** 지원된 PADS Source 기하의 부분 접점 후보 증거이며, 제조 물리 접속과 전기적 연속성을 인증하지 않습니다.
 
 | 작업 | 제한 검증 범위 | 확인 | 미확인 |
 | :--- | :--- | ---: | ---: |
@@ -118,6 +118,7 @@
 | [**D_018**](https://github.com/july-rust/BoardSI/pull/396) | 문서·Docs-only Native CI 최적화 (별도 체크 항목 미집계) | — | — |
 | [**D_019**](#d_019) | Same-Layer Oblique T-Junction Source 접촉 후보 (한정 검증 완료) | 1 | 0 |
 | [**D_020**](#d_020) | Same-Layer Strictly Contained Collinear Overlap Source 후보 (한정 검증 완료) | 1 | 0 |
+| [**D_021**](#d_021) | Same-Layer Partial Collinear Overlap Source 후보 (검증 대기) | 0 | 1 |
 
 <a id="stage-security"></a>
 ### 보안 — SEC_001
@@ -780,3 +781,9 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 ### D_020 — PADS Same-Layer Strictly Contained Collinear Trace Overlap SOURCE Qualification (한정 검증 완료 · 2026-11-03 KST)
 
 - [x] **D_020 Source-only 엄격 포함형 공선 Trace 중첩 Rust/Qt 구현·보호 병합 한정 인수** — **최초 체크일: 2026-11-03 KST** · **체크일: 2026-11-03 KST** · **근거일: 2026-11-03 KST**. [Issue #400](https://github.com/july-rust/BoardSI/issues/400), [코드 PR #401](https://github.com/july-rust/BoardSI/pull/401), [검증 원장](validation/d020-contained-collinear-overlap-qualification.md). 최종 코드 HEAD `2a5825ff83de399865bb4e2644c0079e00fd50de`의 **34/34 Check Runs·11/11 PR Workflows SUCCESS**, 동일 HEAD 독립 Codex `completed/findings=false/unresolved=false`, 미해결 Review Thread 0. 기존 D_015/D_019 Source-owned 4-layer·2 Through-Via·4 Trace Inventory를 재사용해 Layer-4 공선 양 끝점의 **strict interior·positive-length·Source Tick** 중첩만 opt-in 허용. 1 tick gap, 단일 종점, duplicate/경계/비포함 중첩, 다른 Net/Layer, 추가 Artwork 등 Fail-Closed; Rust hostile 테스트·실제 Qt Import/SHA-bound 완전 Receipt 재구성 검증. Linux Qt CTest **42/42 PASS**, Windows x64·ARM64/macOS ARM64 D_020 Native Qt 테스트 각각 SUCCESS. **Source-only 8 Nodes / 5 same-layer candidate Edges / 3 Local Components / 0 proven electrical cross-layer edges.** GitHub 보호 Verified 단일 부모 Squash [`main@8f29cd1a6fca6b2aef51934fd97a25afdce6a1e7`](https://github.com/july-rust/BoardSI/commit/8f29cd1a6fca6b2aef51934fd97a25afdce6a1e7) (`verified=true/reason=valid`, parent `63be4c7158000fa906e573962fe35bf71efedfae`). 별도 정확한 **Post-main 28/28 Check Runs·8/8 event=push Workflows SUCCESS** ([Qt Runtime](https://github.com/july-rust/BoardSI/actions/runs/41629270403), [Numerical](https://github.com/july-rust/BoardSI/actions/runs/41629270374)). **제조 Copper/Plated Barrel 실제 전기적 접속, Whole-board Open/Short, P009 Return Path, PH-08, RLGC/S Solver/Cache 및 정식 U/T 인수는 여전히 NOT_VERIFIED**; 부모 Issue #12 OPEN 유지. 이 체크는 코드·Source 후보 범위만 인정하며, 후속 문서 증거 정리 PR의 병합·Issue 종료를 선기록하지 않는다.
+
+
+<a id="d_021"></a>
+### D_021 — PADS Same-Layer Proper Partial Collinear Trace Overlap SOURCE Qualification (진행 중 · 2026-11-03 KST)
+
+- [ ] **D_021 Source-only 부분 공선 Trace 중첩 Rust·Qt 검증 및 보호 병합** — 최초 작성: 2026-11-03 KST. [Issue #403](https://github.com/july-rust/BoardSI/issues/403), [검증 원장](validation/d021-partial-collinear-overlap-qualification.md). D_020 완전 포함형과 구분된 positive-length partial overlap과 정수 Source Tick, SHA-bound Receipt, 실제 Linux·Windows x64/ARM64·macOS ARM64 Qt 검증 및 D_014~D_020 회귀를 요구한다. **완료/PR HEAD CI/독립 Codex/Verified Squash/post-main Push CI는 미검증이므로 [ ] 유지.** Only Source Contact candidate, not electrical Copper/Barrel, global Open/Short, P009, PH-08, RLGC/S Solver, physical cache, formal U/T. Parent #12 OPEN, Draft #35 untouched.
