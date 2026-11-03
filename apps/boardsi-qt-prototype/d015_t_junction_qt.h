@@ -75,7 +75,7 @@ inline bool boundedSourceInventory(const QByteArray &source,const QString &viaNa
 }
 inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                    const PreviewImportPanel *panel, const QString &net,
-                   c005::Receipt &out, bool oblique, bool containedOverlap, bool partialOverlap) {
+                   c005::Receipt &out, bool oblique, bool containedOverlap, bool partialOverlap, bool endpointContact) {
     if (!panel || !panel->imported() || wire.isEmpty() || wire.size() > 16384
         || source.isEmpty() || source.size() > 8*1024*1024) return false;
     const auto sha=QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex();
@@ -144,7 +144,16 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
     const qint64 lenSquared=mx*mx+my*my;
     const bool partialContact=(freeInside != joinInside) && cross==0 && dot!=0
         && (farProjection<0 || farProjection>lenSquared);
-    const bool validContact = partialOverlap ? partialContact : containedOverlap
+    const bool freeShared=(free.x==main0.x && free.y==main0.y)
+        || (free.x==main1.x && free.y==main1.y);
+    const bool joinShared=(join.x==main0.x && join.y==main0.y)
+        || (join.x==main1.x && join.y==main1.y);
+    const auto shared=freeShared?free:join;
+    const auto exterior=freeShared?join:free;
+    const qint64 exteriorProjection=(exterior.x-main0.x)*mx+(exterior.y-main0.y)*my;
+    const bool strictEndpoint=(freeShared != joinShared) && cross==0 && dot!=0
+        && (shared.x==main1.x && shared.y==main1.y) && exteriorProjection>lenSquared;
+    const bool validContact = endpointContact ? strictEndpoint : partialOverlap ? partialContact : containedOverlap
         ? (strictInside(free) && strictInside(join) && cross==0 && dot!=0)
         : (strictInside(join)
            && (free.x!=join.x || free.y!=join.y)
@@ -184,6 +193,10 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
             +"|END|"+QByteArray::number(finish.x)+"|"
             +QByteArray::number(finish.y)+"\n";
     }
+    if (endpointContact) {
+        expected+="CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|3|X|"
+            +QByteArray::number(shared.x)+"|Y|"+QByteArray::number(shared.y)+"\n";
+    }
     expected+="NODE|0|VIA_PAD|1|0\nNODE|1|VIA_PAD|4|0\nNODE|2|VIA_PAD|4|1\n"
         "NODE|3|VIA_PAD|1|1\nNODE|4|TRACE|1|0\nNODE|5|TRACE|4|1\n"
         "NODE|6|TRACE|1|2\nNODE|7|TRACE|4|3\n"
@@ -194,7 +207,16 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
         "EDGE|4|5|7|SOURCE_INTERIOR_T_CONTACT_CANDIDATE|4\n"
         "COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0\n"
         "OVERALL|T_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n";
-    if (partialOverlap) {
+    if (endpointContact) {
+        expected.replace("BOARDSI_D015_T_JUNCTION_V1|",
+                         "BOARDSI_D022_COLLINEAR_ENDPOINT_CONTACT_V1|");
+        expected.replace("SOURCE_INTERIOR_T_CONTACT_CANDIDATE|4",
+                         "SOURCE_COLLINEAR_ENDPOINT_CONTACT_CANDIDATE|4");
+        expected.replace("COUNT|NODES|8|LAYER_LOCAL_EDGES|5",
+                         "EDGE|5|2|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4\nCOUNT|NODES|8|LAYER_LOCAL_EDGES|6");
+        expected.replace("OVERALL|T_JUNCTION_SOURCE_CANDIDATE_ONLY",
+                         "OVERALL|COLLINEAR_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY");
+    } else if (partialOverlap) {
         expected.replace("BOARDSI_D015_T_JUNCTION_V1|",
                          "BOARDSI_D021_PARTIAL_COLLINEAR_OVERLAP_V1|");
         expected.replace("SOURCE_INTERIOR_T_CONTACT_CANDIDATE|4",
@@ -217,11 +239,13 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                          "OVERALL|OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_ONLY");
     }
     if (expected!=wire) return false;
-    out.state=partialOverlap?"COLLINEAR_PARTIAL_OVERLAP_SOURCE_CANDIDATE_NOT_ELECTRICAL"
+    out.state=endpointContact?"COLLINEAR_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
+        :partialOverlap?"COLLINEAR_PARTIAL_OVERLAP_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :containedOverlap?"COLLINEAR_CONTAINED_OVERLAP_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :(oblique?"OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL"
                  :"T_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL");
-    out.reason=partialOverlap?"D_021 SOURCE OVERLAP ONLY; BARREL NOT VERIFIED"
+    out.reason=endpointContact?"D_022 SOURCE ENDPOINT ONLY; BARREL NOT VERIFIED"
+        :partialOverlap?"D_021 SOURCE OVERLAP ONLY; BARREL NOT VERIFIED"
         :containedOverlap?"D_020 SOURCE OVERLAP ONLY; BARREL NOT VERIFIED"
         :(oblique?"D_019 SOURCE CONTACT ONLY; BARREL NOT VERIFIED"
                  :"D_015 SOURCE CONTACT ONLY; BARREL NOT VERIFIED");
@@ -229,18 +253,22 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
 }
 inline bool decode(const QByteArray &wire, const QByteArray &source,
                    const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
-    return decode_mode(wire,source,panel,net,out,false,false,false);
+    return decode_mode(wire,source,panel,net,out,false,false,false,false);
 }
 inline bool decode_oblique(const QByteArray &wire, const QByteArray &source,
                    const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
-    return decode_mode(wire,source,panel,net,out,true,false,false);
+    return decode_mode(wire,source,panel,net,out,true,false,false,false);
 }
 inline bool decode_contained_overlap(const QByteArray &wire, const QByteArray &source,
                    const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
-    return decode_mode(wire,source,panel,net,out,false,true,false);
+    return decode_mode(wire,source,panel,net,out,false,true,false,false);
 }
 inline bool decode_partial_overlap(const QByteArray &wire, const QByteArray &source,
                     const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
-    return decode_mode(wire,source,panel,net,out,false,false,true);
+    return decode_mode(wire,source,panel,net,out,false,false,true,false);
+}
+inline bool decode_endpoint_contact(const QByteArray &wire, const QByteArray &source,
+                    const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
+    return decode_mode(wire,source,panel,net,out,false,false,false,true);
 }
 } // namespace d015
