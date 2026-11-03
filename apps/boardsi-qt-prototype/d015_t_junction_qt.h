@@ -73,8 +73,9 @@ inline bool boundedSourceInventory(const QByteArray &source,const QString &viaNa
     return header && ended && maxLayer==1 && viaDefs==1 && bottom && top
         && signalCount==2 && pairs==2 && points==6;
 }
-inline bool decode(const QByteArray &wire, const QByteArray &source,
-                   const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
+inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
+                   const PreviewImportPanel *panel, const QString &net,
+                   c005::Receipt &out, bool oblique) {
     if (!panel || !panel->imported() || wire.isEmpty() || wire.size() > 16384
         || source.isEmpty() || source.size() > 8*1024*1024) return false;
     const auto sha=QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex();
@@ -129,13 +130,15 @@ inline bool decode(const QByteArray &wire, const QByteArray &source,
     const auto main1=grid(t[1].x1_nm,t[1].y1_nm);
     const auto free=grid(t[3].x0_nm,t[3].y0_nm);
     const auto join=grid(t[3].x1_nm,t[3].y1_nm);
+    const auto mx=main1.x-main0.x, my=main1.y-main0.y;
+    const auto bx=join.x-free.x, by=join.y-free.y;
+    const auto dot=mx*bx+my*by, cross=mx*by-my*bx;
     if ((join.x==main0.x && join.y==main0.y)
         || (join.x==main1.x && join.y==main1.y)
         || (free.x==join.x && free.y==join.y)
         || !d014::onSegment(join,main0,main1)
         || d014::onSegment(free,main0,main1)
-        || (main1.x-main0.x)*(join.x-free.x)
-            +(main1.y-main0.y)*(join.y-free.y)!=0) return false;
+        || (oblique ? (dot==0 || cross==0) : dot!=0)) return false;
     QByteArray expected="BOARDSI_D015_T_JUNCTION_V1|"+sha+
         "|SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED"
         "|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE\n";
@@ -163,9 +166,27 @@ inline bool decode(const QByteArray &wire, const QByteArray &source,
         "EDGE|4|5|7|SOURCE_INTERIOR_T_CONTACT_CANDIDATE|4\n"
         "COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0\n"
         "OVERALL|T_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n";
+    if (oblique) {
+        expected.replace("BOARDSI_D015_T_JUNCTION_V1|",
+                         "BOARDSI_D019_OBLIQUE_T_JUNCTION_V1|");
+        expected.replace("SOURCE_INTERIOR_T_CONTACT_CANDIDATE|4",
+                         "SOURCE_INTERIOR_OBLIQUE_T_CONTACT_CANDIDATE|4");
+        expected.replace("OVERALL|T_JUNCTION_SOURCE_CANDIDATE_ONLY",
+                         "OVERALL|OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_ONLY");
+    }
     if (expected!=wire) return false;
-    out.state="T_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL";
-    out.reason="D_015 SOURCE CONTACT ONLY; BARREL NOT VERIFIED";
+    out.state=oblique?"OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL"
+                     :"T_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL";
+    out.reason=oblique?"D_019 SOURCE CONTACT ONLY; BARREL NOT VERIFIED"
+                      :"D_015 SOURCE CONTACT ONLY; BARREL NOT VERIFIED";
     return true;
+}
+inline bool decode(const QByteArray &wire, const QByteArray &source,
+                   const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
+    return decode_mode(wire,source,panel,net,out,false);
+}
+inline bool decode_oblique(const QByteArray &wire, const QByteArray &source,
+                   const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
+    return decode_mode(wire,source,panel,net,out,true);
 }
 } // namespace d015
