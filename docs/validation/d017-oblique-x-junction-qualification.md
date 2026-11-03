@@ -17,11 +17,13 @@ The restricted deterministic Source graph reports **8 nodes / 5 SAME-LAYER candi
 - GitHub protected Verified, valid, one-parent code squash: [`main@236617055cc1bd7c4eb961f0853bac0caa9d0ce7`](https://github.com/july-rust/BoardSI/commit/236617055cc1bd7c4eb961f0853bac0caa9d0ce7), sole parent `ce2f63d41a4ff43b115e73bba25f78e8543757f8`.
 - Independent **exact code-main SHA** post-squash: **21/21 GitHub Check Runs SUCCESS and 8/8 event=push Workflows SUCCESS**, every head SHA matching `236617055cc1bd7c4eb961f0853bac0caa9d0ce7`. This is independent of the PR checks.
 
-## Documentation acceptance gate — pending
+## Documentation acceptance gate — verified 2026-11-03 KST
 
-- [ ] This documentation PR's exact final HEAD: all required checks/Workflows SUCCESS, independent same-head Codex no findings, zero unresolved threads.
-- [ ] Protected one-parent GitHub Verified Squash for this document PR.
-- [ ] Independent exact documentation-main SHA event=push Checks/Workflows SUCCESS.
-- [ ] Only after all the above, independently close Issue #386 and reconcile its actual status in a later evidence-only checklist change. Do not preclaim doc-main results or closure.
+- [x] [Documentation PR #388](https://github.com/july-rust/BoardSI/pull/388), final HEAD `bc8a696d790b4bc1329104e6ff1946994a0ba9a9`: 22/22 exact-SHA GitHub Check Runs and 8/8 event=pull_request Workflows SUCCESS; independent same-HEAD Codex `completed/has_any_findings=false/has_unresolved_findings=false`, zero unresolved review threads.
+- [x] Protected GitHub Verified one-parent Squash `main@6fce15ffe5cf7967c143bb988dfef19c1c4b8063`, sole parent `236617055cc1bd7c4eb961f0853bac0caa9d0ce7`, `verification.verified=true/reason=valid`.
+- [x] Independent documentation-main exact SHA `6fce15ffe5cf7967c143bb988dfef19c1c4b8063` Push CI: 21/21 Check Runs and 8/8 event=push Workflows SUCCESS, all HEADs identical, none failed, pending or cancelled.
+- [x] [Issue #386](https://github.com/july-rust/BoardSI/issues/386) independently observed `CLOSED/completed`, `closed_at=2026-11-03T05:56:08Z` (KST 14:56:08), after docs-main Push CI completed. Parent #12 remains OPEN and Draft PR #35 remains OPEN/unmerged.
+
+This evidence-only follow-up edit does **not** preclaim its own PR checks, merge or post-push CI.
 
 **Explicit non-acceptance:** manufactured plated Via barrel electrical continuity, copper fill/manufactured pad physical continuity, whole-board Open/Short, P009/PH-08, 2D/3D physical SI, SI Solver, Scenario/Cache or formal M1 U/T. Parent Issue #12 remains OPEN. Draft PR #35 remains OPEN and unmerged.
