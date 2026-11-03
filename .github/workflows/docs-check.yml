@@ -29,11 +29,11 @@ jobs:
           )
           source = canonical.read_text(encoding='utf-8')
           summary = re.search(
-              r'\\*\\*전체 체크 상태: (\\d+)건 확인 · (\\d+)건 미확인\\.\\*\\*', source
+              r'\*\*전체 체크 상태: (\d+)건 확인 · (\d+)건 미확인\.\*\*', source
           )
           assert summary, 'Missing integrated stage summary counters'
-          checked = len(re.findall(r'^- \\[x\\] ', source, re.MULTILINE | re.IGNORECASE))
-          unchecked = len(re.findall(r'^- \\[ \\] ', source, re.MULTILINE))
+          checked = len(re.findall(r'^- \[x\] ', source, re.MULTILINE | re.IGNORECASE))
+          unchecked = len(re.findall(r'^- \[ \] ', source, re.MULTILINE))
           assert (checked, unchecked) == tuple(map(int, summary.groups())), (
               'Update the front dashboard whenever checklist status changes'
           )
