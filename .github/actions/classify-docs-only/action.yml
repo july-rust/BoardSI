@@ -1,0 +1,45 @@
+name: Classify documentation-only changes
+description: Fail-closed classifier for Markdown-only PRs and pushes; never skips a required check job.
+outputs:
+  docs_only:
+    description: True only when every changed path is an allowed documentation text file.
+    value: ${{ steps.classify.outputs.docs_only }}
+runs:
+  using: composite
+  steps:
+    - name: Detect docs-only change without suppressing required check contexts
+      id: classify
+      shell: bash
+      env:
+        BOARDSI_CI_EVENT: ${{ github.event_name }}
+        BOARDSI_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        BOARDSI_CI_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: |
+        set -euo pipefail
+        full_check() {
+          echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          echo "Full platform verification retained (non-doc or unverified change set)."
+          exit 0
+        }
+        [[ "$BOARDSI_CI_EVENT" == pull_request || "$BOARDSI_CI_EVENT" == push ]] || full_check
+        [[ "$BOARDSI_CI_BASE" =~ ^[0-9a-f]{40}$ ]] || full_check
+        [[ "$BOARDSI_CI_HEAD" =~ ^[0-9a-f]{40}$ ]] || full_check
+        [[ ! "$BOARDSI_CI_BASE" =~ ^0+$ ]] || full_check
+        # Comparing both trees and disabling rename detection ensures that a
+        # source-file deletion/rename cannot masquerade as a docs-only change.
+        if ! git fetch --no-tags --depth=1 origin "$BOARDSI_CI_BASE" "$BOARDSI_CI_HEAD"; then
+          full_check
+        fi
+        if ! changed="$(git diff --no-renames --name-only "$BOARDSI_CI_BASE" "$BOARDSI_CI_HEAD")"; then
+          full_check
+        fi
+        [[ -n "$changed" ]] || full_check
+        while IFS= read -r file; do
+          case "$file" in
+            README.md|CONTRIBUTING.md|SECURITY.md) ;;
+            docs/*.md|docs/*.mdx|docs/*.rst) ;;
+            *) echo "Full check required for: $file"; full_check ;;
+          esac
+        done <<< "$changed"
+        echo "docs_only=true" >> "$GITHUB_OUTPUT"
+        echo "Documentation text only: leave required job checks successful without heavy Rust/Qt/FEM builds."
