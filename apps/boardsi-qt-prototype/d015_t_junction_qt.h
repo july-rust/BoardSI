@@ -6,6 +6,16 @@
 namespace d015 {
 // Independent strict source-section inventory: an unseen *LINES*/COPCLS
 // or duplicate VIA must never slip through a route-only Source witness.
+inline bool milsLexeme(QByteArray number) {
+    if (number.startsWith('+') || number.startsWith('-')) number.remove(0,1);
+    const auto parts=number.split('.');
+    if (parts.isEmpty() || parts.size()>2 || parts[0].isEmpty()) return false;
+    for (const auto &p:parts) {
+        if (p.isEmpty()) return false;
+        for (const char digit:p) if (digit<'0' || digit>'9') return false;
+    }
+    return parts.size()==1 || parts[1].size()<=2;
+}
 inline bool boundedSourceInventory(const QByteArray &source,const QString &viaName) {
     QByteArray section;
     bool header=false,ended=false,bottom=false,top=false;
@@ -49,8 +59,10 @@ inline bool boundedSourceInventory(const QByteArray &source,const QString &viaNa
             ++pairs;
         } else if (section=="route" && signalCount>0
                    && (words.size()==5 || words.size()==6)) {
-            for (int i=0;i<5;++i) {
-                bool ok=false; words[i].toLongLong(&ok);if (!ok) return false;
+            if (!milsLexeme(words[0]) || !milsLexeme(words[1])
+                || !milsLexeme(words[3])) return false;
+            for (const int index:{2,4}) {
+                bool ok=false;words[index].toLongLong(&ok);if (!ok) return false;
             }
             if (words.size()==6 && words[5]!=viaName.toUtf8()) return false;
             ++points;
