@@ -153,7 +153,7 @@ jobs:
             'if errorlevel 1 exit /b 1',
             'where cl',
             'cmake --version',
-            "cmake -S apps/boardsi-qt-prototype -B build-qt -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=`"$env:QT_PREFIX`" $hostArg -DBOARDSI_WORKER=`"$env:GITHUB_WORKSPACE/target/debug/boardsi-worker.exe`"",
+            "cmake -S apps/boardsi-qt-prototype -B build-qt -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=`"$env:QT_PREFIX`" $hostArg -DBOARDSI_WORKER=`"$env:GITHUB_WORKSPACE/target/debug/boardsi-worker.exe`" -DBOARDSI_IMPORTER=`"$env:GITHUB_WORKSPACE/target/debug/boardsi-import-artwork.exe`"",
             'if errorlevel 1 exit /b 1',
             'cmake --build build-qt --parallel 2',
             'if errorlevel 1 exit /b 1'
@@ -166,9 +166,16 @@ jobs:
         run: |
           cmake --version
           clang++ --version
-          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker"
+          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DBOARDSI_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork"
           cmake --build build-qt --parallel 2
           file build-qt/boardsi-qt-runtime-validation target/debug/boardsi-worker
+      - name: D_019 native Qt source-bound oblique T qualification
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-d019-native-qt$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: B_001 stackup native editor regression (source safety)
         shell: bash
         run: |
