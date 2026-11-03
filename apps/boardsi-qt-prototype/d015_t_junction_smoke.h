@@ -101,12 +101,19 @@ inline int selftest(const QString &importer) {
     forgedDuplicate.replace(originalSha,QCryptographicHash::hash(duplicate,QCryptographicHash::Sha256).toHex());
     const bool rejectsDuplicate=query().isEmpty()
         && (!duplicateLoaded || !decode(forgedDuplicate,duplicate,&panel,"NET_A",ignored));
+    auto decimal=source;
+    decimal.replace("80 250 1 10 0","80.00 250 1 10 0");
+    if (!save(decimal) || !load()) return 2;
+    const auto decimalWire=query();
+    const bool acceptsDecimal=!decimalWire.isEmpty()
+        && decode(decimalWire,decimal,&panel,"NET_A",ignored)
+        && decimalWire.contains("COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3");
     const bool ok=accepted && rejectsForgery && rejectsPromotion && stale
         && rejectsMiss && rejectsOverrun && rejectsLayer && rejectsExtra
-        && rejectsCopper && rejectsDuplicate;
+        && rejectsCopper && rejectsDuplicate && acceptsDecimal;
     qInfo()<<"D015_NATIVE_QT_T_JUNCTION"<<ok<<accepted<<rejectsForgery
         <<rejectsPromotion<<stale<<rejectsMiss<<rejectsOverrun
-        <<rejectsLayer<<rejectsExtra<<rejectsCopper<<rejectsDuplicate
+        <<rejectsLayer<<rejectsExtra<<rejectsCopper<<rejectsDuplicate<<acceptsDecimal
         <<"NO_ELECTRICAL_BARREL_PROOF";
     return ok?0:1;
 }
