@@ -42,6 +42,21 @@ fn root(parent: &[usize], mut i: usize) -> usize {
 // Deliberately limited *complete* public Source vocabulary. Route-only parsing
 // must not silently ignore COPCLS, *LINES*, PARTS, other conductive artwork
 // or a second (possibly conflicting) VIA definition.
+// PADS V9.4 MILS lexical fixed-point subset: no floating-point rounding,
+// no exponent/NaN, at most 2 fractional digits (one source tick = .01 mil).
+fn mils_lexeme(text: &str) -> bool {
+    let digits=text.strip_prefix('-').or_else(||text.strip_prefix('+')).unwrap_or(text);
+    let mut parts=digits.split('.');
+    let whole=parts.next().unwrap_or("");
+    let fraction=parts.next();
+    !whole.is_empty() && whole.as_bytes().iter().all(u8::is_ascii_digit)
+        && match fraction {
+            None => true,
+            Some(f) => !f.is_empty() && f.len()<=2
+                && f.as_bytes().iter().all(u8::is_ascii_digit),
+        }
+        && parts.next().is_none()
+}
 fn bounded_source_inventory(bytes: &[u8], via_name: &str) -> Result<(), &'static str> {
     let source=std::str::from_utf8(bytes).map_err(|_| "D015_SOURCE_TEXT")?;
     let mut section="";
@@ -106,7 +121,9 @@ fn bounded_source_inventory(bytes: &[u8], via_name: &str) -> Result<(), &'static
                 route_pairs+=1;
             }
             "route" if signals>0 && (words.len()==5 || words.len()==6)
-                && words[..5].iter().all(|w|w.parse::<i64>().is_ok()) => {
+                && mils_lexeme(words[0]) && mils_lexeme(words[1])
+                && words[2].parse::<u32>().is_ok() && mils_lexeme(words[3])
+                && words[4].parse::<i64>().is_ok() => {
                 if words.len()==6 && words[5]!=via_name {
                     return Err("D015_EXTRA_ROUTE_VIA");
                 }
