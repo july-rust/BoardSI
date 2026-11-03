@@ -15,9 +15,6 @@ fn on_segment(p: [i64; 2], a: [i64; 2], b: [i64; 2]) -> bool {
         && p[1] >= a[1].min(b[1])
         && p[1] <= a[1].max(b[1])
 }
-fn strict_interior(p: [i64; 2], a: [i64; 2], b: [i64; 2]) -> bool {
-    p != a && p != b && on_segment(p, a, b)
-}
 fn segments_touch(a: [i64; 2], b: [i64; 2], c: [i64; 2], d: [i64; 2]) -> bool {
     let (x, y, z, w) = (
         orient(a, b, c),
