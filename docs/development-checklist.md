@@ -18,12 +18,12 @@
 | [**A**](#stage-a) | Preview · Import · Artwork | 12 | 5 |
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
-| [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 42 | 3 |
+| [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 43 | 2 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
-**전체 체크 상태: 113건 확인 · 123건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
+**전체 체크 상태: 114건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
 
 <a id="stage-a"></a>
 ### Stage A — 제한 Preview / Import / Artwork
@@ -94,7 +94,7 @@
 <a id="stage-d"></a>
 ### Stage D — PADS Source Contact / Junction
 
-**42건 확인 · 3건 미확인.** 지원된 PADS Source 기하의 부분 접점 후보 증거이며, 제조 물리 접속과 전기적 연속성을 인증하지 않습니다.
+**43건 확인 · 2건 미확인.** 지원된 PADS Source 기하의 부분 접점 후보 증거이며, 제조 물리 접속과 전기적 연속성을 인증하지 않습니다.
 
 | 작업 | 제한 검증 범위 | 확인 | 미확인 |
 | :--- | :--- | ---: | ---: |
@@ -119,7 +119,7 @@
 | [**D_019**](#d_019) | Same-Layer Oblique T-Junction Source 접촉 후보 (한정 검증 완료) | 1 | 0 |
 | [**D_020**](#d_020) | Same-Layer Strictly Contained Collinear Overlap Source 후보 (한정 검증 완료) | 1 | 0 |
 | [**D_021**](#d_021) | Same-Layer Partial Collinear Overlap Source 후보 (한정 검증 완료) | 1 | 0 |
-| [**D_022**](#d_022) | Same-Layer Collinear Endpoint-to-Endpoint Source 후보 (검증 대기) | 0 | 1 |
+| [**D_022**](#d_022) | Same-Layer Collinear Endpoint-to-Endpoint Source 후보 (한정 검증 완료) | 1 | 0 |
 
 <a id="stage-security"></a>
 ### 보안 — SEC_001
@@ -791,6 +791,6 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 
 
 <a id="d_022"></a>
-### D_022 — PADS Same-Layer Collinear Endpoint-to-Endpoint Source Candidate (검증 대기 · 2026-11-03 KST)
+### D_022 — PADS Same-Layer Collinear Endpoint-to-Endpoint Source Candidate (한정 검증 완료 · 2026-11-03 KST)
 
-- [ ] **D_022 정확한 동일 층 공선 끝점 접촉 및 Via Pad Source 후보** — **최초 기록일: 2026-11-03 KST**, 완료 체크일/근거일: **PENDING**. [Issue #406](https://github.com/july-rust/BoardSI/issues/406), [검증 원장](validation/d022-collinear-endpoint-contact-qualification.md). Layer-4 main Trace → branch Trace 접점 (35000,25000), 기존 Via Pad B를 포함한 6개 Source-only candidate edges / 8 nodes / 3 components 및 0 proven electrical cross-layer edges 목표. Rust/Qt/Native CI, same-HEAD Codex, Signed Verified Squash, exact post-main Push checks 확인 전까지 한정 인수 미완. P009/PH-08/RLGC/Scenario/Cache/U/T 또는 전기적 연속성은 인정하지 않음. 부모 [Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN, Draft #35 미병합.
+- [x] **D_022 동일 층 공선 Trace 끝점과 Via Pad Source 접촉 후보 — 한정 완료** — **최초 기록일: 2026-11-03 KST** · **체크일: 2026-11-03 KST** · **근거일: 2026-11-03 KST**. [Issue #406](https://github.com/july-rust/BoardSI/issues/406) CLOSED/completed (코드 병합 시 자동 종료, post-main 증거는 이후 독립 확인), [코드 PR #407](https://github.com/july-rust/BoardSI/pull/407), [검증 원장](validation/d022-collinear-endpoint-contact-qualification.md). 최종 코드 HEAD [`7b7c1828af94e1692d5404dc00bf7e41b546bed6`](https://github.com/july-rust/BoardSI/commit/7b7c1828af94e1692d5404dc00bf7e41b546bed6/checks)에서 **34/34 PR Check Runs · 11/11 PR Workflows SUCCESS**, 독립 동일 HEAD Codex `completed/findings=false/unresolved=false`, 미해결 Review Thread **0**. Linux Qt Offscreen CTest **44/44 PASS** 및 Windows x64/ARM64·macOS ARM64 전용 Native Qt D_022 테스트 **SUCCESS**. PADS V9.4 MILS Source Tick (254 nm) 기반 Layer-4 Via-B 끝점 (35000,25000), 두 공선 Trace와 Via Pad의 **8 Source Nodes / 6 Layer-local Candidate Edges / 3 Components / 0 Proven Electrical Cross-layer Edges**를 Source-SHA-bound Receipt로 재구성. 역방향 Branch 통과, 1-Tick Gap/Offset·Net/Layer·적대적 Source·Stale/Forged Receipt·기존 D_015–D_021 모드 혼동은 Fail-Closed. 보호 Verified 단일 부모 Squash [`main@f7c1d183a91bfac536f07038d89ae8909247b4f9`](https://github.com/july-rust/BoardSI/commit/f7c1d183a91bfac536f07038d89ae8909247b4f9) (`verified=true/reason=valid`, parent `c0a41cfbd968ac16bbdef95878b5501be2cf61ed`), 정확한 병합 SHA의 **post-main 28/28 Check Runs · 8/8 Push Workflows SUCCESS** ([Qt Runtime](https://github.com/july-rust/BoardSI/actions/runs/41648213420), [Numerical Core](https://github.com/july-rust/BoardSI/actions/runs/41648213657)). **초기 실패 이력 별도 보존:** Rustfmt/Clippy, Windows CRLF 회귀, Qt Receipt 줄바꿈은 최종 코드에서 수정; 임시 파일 문제 등을 추가 원인으로 확정하지 않음. **Source 기하 후보에만 한정:** 실제 Copper 제조·Via Barrel 도통·전역 Open/Short·P009·PH-08·RLGC/S Solver·물리 Scenario/Cache·정식 U/T 불인수. [부모 Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN 및 Draft PR #35 미병합.
