@@ -195,7 +195,7 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
     }
     if (endpointContact) {
         expected+="CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|3|X|"
-            +QByteArray::number(shared.x)+"|Y|"+QByteArray::number(shared.y)+"\\n";
+            +QByteArray::number(shared.x)+"|Y|"+QByteArray::number(shared.y)+"\n";
     }
     expected+="NODE|0|VIA_PAD|1|0\nNODE|1|VIA_PAD|4|0\nNODE|2|VIA_PAD|4|1\n"
         "NODE|3|VIA_PAD|1|1\nNODE|4|TRACE|1|0\nNODE|5|TRACE|4|1\n"
@@ -213,7 +213,7 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
         expected.replace("SOURCE_INTERIOR_T_CONTACT_CANDIDATE|4",
                          "SOURCE_COLLINEAR_ENDPOINT_CONTACT_CANDIDATE|4");
         expected.replace("COUNT|NODES|8|LAYER_LOCAL_EDGES|5",
-                         "EDGE|5|2|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4\\nCOUNT|NODES|8|LAYER_LOCAL_EDGES|6");
+                         "EDGE|5|2|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4\nCOUNT|NODES|8|LAYER_LOCAL_EDGES|6");
         expected.replace("OVERALL|T_JUNCTION_SOURCE_CANDIDATE_ONLY",
                          "OVERALL|COLLINEAR_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY");
     } else if (partialOverlap) {

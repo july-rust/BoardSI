@@ -227,7 +227,10 @@ pub fn encode_partial_overlap(
 /// D_022 exact collinear endpoint contact; Source geometry candidate only.
 #[allow(dead_code)]
 pub fn encode_endpoint_contact(
-    bytes: &[u8], net: &str, layers: [usize; 2], vias: [usize; 2],
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
 ) -> Result<String, &'static str> {
     encode_with_mode(bytes, net, layers, vias, false, false, false, true)
 }
@@ -483,9 +486,12 @@ fn encode_with_mode(
         .map_err(|_| "D021_FMT")?;
     }
     if endpoint_contact {
-        writeln!(&mut out,
+        writeln!(
+            &mut out,
             "CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|3|X|{}|Y|{}",
-            shared[0], shared[1]).map_err(|_| "D022_FMT")?;
+            shared[0], shared[1]
+        )
+        .map_err(|_| "D022_FMT")?;
     }
     let nodes = [
         ("VIA_PAD", 1, 0),
