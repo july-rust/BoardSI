@@ -34,7 +34,7 @@ fn stale_source_identity_and_wrong_selection_fail_closed() {
 }
 #[test]
 fn same_layer_perpendicular_interior_only() {
-    let text = String::from_utf8(SRC.to_vec()).unwrap();
+    let text = String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n");
     // A one-source-tick miss, an overrun crossing, a main endpoint,
     // a parallel contact and an off-layer branch cannot qualify.
     for invalid in [
@@ -53,7 +53,7 @@ fn same_layer_perpendicular_interior_only() {
 }
 #[test]
 fn extra_ambiguous_and_unmodeled_source_fail_closed() {
-    let text = String::from_utf8(SRC.to_vec()).unwrap();
+    let text = String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n");
     for invalid in [
         text.replace("SIMPLEVIA 15 2", "SIMPLEVIA 15 3"),
         text.replace("0 35 R", "0 10 R"),
@@ -72,7 +72,7 @@ fn extra_ambiguous_and_unmodeled_source_fail_closed() {
  
 #[test]
 fn independent_source_sections_and_duplicate_via_definition_fail_closed() {
-    let source = String::from_utf8(SRC.to_vec()).unwrap();
+    let source = String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n");
     let copper = source.replace("*END*",
         "*LINES*\nRA COPPER 0 0 1 1 0 OTHER\nCOPCLS 5 0.01 0 4\n240 240\n350 240\n350 360\n240 360\n240 240\n*END*");
     assert!(witness(copper.as_bytes()).is_err());
