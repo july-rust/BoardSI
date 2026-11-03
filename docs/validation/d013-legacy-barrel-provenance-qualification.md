@@ -46,6 +46,8 @@ formal_m1_u09_u10_u39_t02_t04_t24_t52 = NOT_ACCEPTED
 
 A missing candidate does **not** establish a manufactured open; a legacy barrel count does **not** establish a physical short, return path or continuity. Parent [Issue #12](https://github.com/july-rust/BoardSI/issues/12) remains OPEN and Draft [PR #35](https://github.com/july-rust/BoardSI/pull/35) remains unmerged.
 
-## Document PR and Issue #371 closeout gate
+## Document PR and Issue #371 verified closeout — 2026-11-02 KST
 
-This document and `docs/development-checklist.md` require their own final-HEAD CI, exact-HEAD independent Codex review with zero unresolved findings, protected GitHub Verified one-parent Squash and **independent post-document-main push CI**. Close Issue #371 only **after** both code-main and document-main push CI are green; never backdate or infer this from PR checks.
+- [x] Separate [documentation PR #373](https://github.com/july-rust/BoardSI/pull/373) **merged**. Exact final docs HEAD `0d7d6835dae3a76c7da335df28f5504263eeefe1` passed **22/22 PR Check Runs**, **8/8 PR Workflows**, and independent same-HEAD Codex `completed/findings=false/unresolved=false`.
+- [x] The protected document Squash [main@35cf89a0616edab57c9db3b65c55af6669bf04c4](https://github.com/july-rust/BoardSI/commit/35cf89a0616edab57c9db3b65c55af6669bf04c4) is **GitHub Verified**, one parent `b657403c4e0f30f844001c65c5d5d9adc1571f4e`. Its **independent exact-main `event=push`** CI completed **21/21 Check Runs SUCCESS and 8/8 push Workflows SUCCESS**.
+- [x] [Issue #371](https://github.com/july-rust/BoardSI/issues/371) is **CLOSED/completed** (recorded by GitHub 2026-11-02T13:05:52Z), after PR #373 merged. The prior checklist pending box was stale and is reconciled in D_014's documentation PR. No manufactured Via barrel electrical proof was added.
