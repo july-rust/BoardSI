@@ -10,19 +10,29 @@ concurrency:
   group: qt-runtime-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  classify:
+    name: Classify documentation-only changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    outputs:
+      docs_only: ${{ steps.docs_only.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/classify-docs-only
+        id: docs_only
   linux-qt:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Linux x86_64 Qt 6.8.3 offscreen (provisional)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-      - uses: ./.github/actions/classify-docs-only
-        id: docs_only
       - name: Install Qt build prerequisites
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: sudo apt-get update && sudo apt-get install -y libgl-dev libopengl-dev libegl1 libxkbcommon-dev libvulkan-dev xvfb libxcb-cursor0 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-icccm4 libxkbcommon-x11-0 libx11-xcb1 libxcb-randr0 libxcb-shape0 libxcb-sync1 libxcb-xfixes0 libxcb-xkb1 libxcb-shm0
       - name: Install fixed Qt SDK and CMake
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           python3 -m venv "$RUNNER_TEMP/qt-tools"
           "$RUNNER_TEMP/qt-tools/bin/pip" install aqtinstall==3.3.0 cmake==3.31.6
@@ -30,7 +40,6 @@ jobs:
           echo "$RUNNER_TEMP/qt-tools/bin" >> "$GITHUB_PATH"
           echo "QT_PREFIX=$RUNNER_TEMP/qt/6.8.3/gcc_64" >> "$GITHUB_ENV"
       - name: Build unchanged Rust Worker
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           # GitHub-hosted runner can expose a partially installed 1.75.0
           # rustup inventory, causing a cargo-clippy component file conflict.
@@ -44,7 +53,6 @@ jobs:
           mkdir -p build-qt
           cargo +1.75.0 run --locked -p boardsi-worker --example m0_model_snapshot_fixture -- build-qt/qt-model-a.frame build-qt/qt-model-b.frame
       - name: Build actual Widgets GUI and runtime harness
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           test "$RUNNER_ARCH" = X64
           "$QT_PREFIX/bin/qmake" -query QT_VERSION
@@ -53,7 +61,6 @@ jobs:
           cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DCMAKE_BUILD_TYPE=Release -DBOARDSI_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork"
           cmake --build build-qt --parallel 2
       - name: Run real QApplication and independent Worker
-        if: steps.docs_only.outputs.docs_only != 'true'
         env:
           QT_QPA_PLATFORM: offscreen
           BOARDSI_STACKUP_VALIDATOR: ${{ github.workspace }}/target/debug/boardsi-stackup-config
@@ -62,12 +69,11 @@ jobs:
           export LD_LIBRARY_PATH="$QT_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           ctest --test-dir build-qt --output-on-failure
       - name: Print measurement evidence
-        if: ${{ (always()) && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ always() }}
         run: |
           if test -f build-qt/qt-runtime-results.json; then cat build-qt/qt-runtime-results.json; fi
           if test -f build-qt/Testing/Temporary/LastTest.log; then cat build-qt/Testing/Temporary/LastTest.log; fi
       - name: Execute xcb desktop backend with software display
-        if: steps.docs_only.outputs.docs_only != 'true'
         env:
           BOARDSI_EXPECTED_QT_ARCH: x86_64
           BOARDSI_EXPECTED_WORKER_ARCH: x86_64
@@ -81,6 +87,10 @@ jobs:
           cd build-qt
           xvfb-run -a env QT_QPA_PLATFORM=xcb ./boardsi-qt-runtime-validation "$GITHUB_WORKSPACE/target/debug/boardsi-worker" "$(command -v python3)" "$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests/fault_worker.py"
   native-qt:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Qt native ${{ matrix.name }}
     strategy:
       fail-fast: false
@@ -132,22 +142,17 @@ jobs:
           # Test the exact PR source commit; otherwise the F1 SHA/CI proof
           # would describe a synthetic merge-ref instead of its claimed HEAD.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: ./.github/actions/classify-docs-only
-        id: docs_only
       - uses: actions/setup-python@v7
-        if: steps.docs_only.outputs.docs_only != 'true'
         with:
           python-version: '3.12'
           architecture: ${{ matrix.python_arch }}
       - name: Install fixed Qt SDK
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           test "$RUNNER_ARCH" = '${{ matrix.runner_arch }}'
           python -m pip install aqtinstall==3.3.0
           python .github/scripts/install_qt_runtime.py '${{ matrix.host }}' '${{ matrix.qt_arch }}'
       - name: Build matching Rust executable
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
@@ -159,7 +164,7 @@ jobs:
           mkdir -p build-qt
           cargo run --locked -p boardsi-worker --example m0_model_snapshot_fixture -- build-qt/qt-model-a.frame build-qt/qt-model-b.frame
       - name: Build Windows target with installed MSVC toolset
-        if: ${{ (runner.os == 'Windows') && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ runner.os == 'Windows' }}
         shell: pwsh
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -181,7 +186,7 @@ jobs:
           & cmd /c $nativeBuildScript
           if ($LASTEXITCODE -ne 0) { throw "Native Qt build failed: $LASTEXITCODE" }
       - name: Build macOS arm64 target
-        if: ${{ (runner.os == 'macOS') && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ runner.os == 'macOS' }}
         shell: bash
         run: |
           cmake --version
@@ -190,7 +195,6 @@ jobs:
           cmake --build build-qt --parallel 2
           file build-qt/boardsi-qt-runtime-validation target/debug/boardsi-worker
       - name: B_001 stackup native editor regression (source safety)
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -209,7 +213,6 @@ jobs:
       # source-risk acceptance smoke on the three Native desktop matrices.
       # Keep source-only geometry claims: this is not a physical SI solver.
       - name: C_005 Native Qt/Rust reference risk and stale source smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -219,7 +222,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c005-risk-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_006 Native source-rational Reference gap and stale source smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -229,7 +231,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c006-gap-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_007 Native multi-route source Reference and Qt stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -239,7 +240,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c007-route-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_008 Native two-layer via Reference and Qt stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -249,7 +249,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c008-via-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_009 Native source Reference stitching via and Qt stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -260,7 +259,6 @@ jobs:
           ./boardsi-preview-p0$suffix --c009-stitch-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_001: separate source-bound SMD pad/trace endpoint candidate, native Qt.
       - name: D_001 Native Qt source-pad endpoint and stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
@@ -273,7 +271,6 @@ jobs:
           ./boardsi-preview-p0$suffix --d001-pad-endpoint-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_008: independent two-layer Source Via Pad/COPCLS and stale evidence.
       - name: D_008 Native Qt dual-layer via pad area and stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
@@ -286,7 +283,6 @@ jobs:
           ./boardsi-preview-p0$suffix --d008-dual-layer-via-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
             # D_011: independent Native Qt source graph and forged/stale evidence.
       - name: D_011 Native Qt Source Candidate Graph smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
@@ -299,7 +295,6 @@ jobs:
           ./boardsi-preview-p0$suffix --d011-source-contact-graph-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_012: strict source span witness, explicitly importer-assumed plating.
       - name: D_012 Native Qt Via Span plating provenance smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
@@ -312,7 +307,6 @@ jobs:
           ./boardsi-preview-p0$suffix --d012-via-span-provenance-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_010: actual imported dual-layer two-trace/four-area source-only witness.
       - name: D_010 Native Qt dual-layer two Trace four Area source smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
@@ -325,7 +319,6 @@ jobs:
           ./boardsi-preview-p0$suffix --d010-dual-layer-two-trace-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_009: actual imported dual-layer via/trace/third-area source-only witness.
       - name: D_009 Native Qt dual-layer Via Pad Trace third Area source smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
@@ -339,7 +332,6 @@ jobs:
       # D_007: verify native Qt source contact chain.
       # D_007: independent Qt Source Via Pad/Trace/COPCLS chain and stale witness.
       - name: D_007 Native Qt via trace to distinct area source and stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
@@ -352,7 +344,6 @@ jobs:
           ./boardsi-preview-p0$suffix --d007-via-trace-three-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_006: actual Rust CLI + independently imported Qt Via Pad / COPCLS.
       - name: D_006 Native Qt via pad to three-area source readback and stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
@@ -365,7 +356,6 @@ jobs:
           ./boardsi-preview-p0$suffix --d006-via-three-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_005: Source-owned Pad -> Trace -> three-area COPCUT candidate.
       - name: D_005 Native Qt pad-trace-area and stale/forged-pin smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
@@ -378,7 +368,6 @@ jobs:
           ./boardsi-preview-p0$suffix --d005-pad-trace-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_004: verify actual importer Trace endpoint attachments on all native targets.
       - name: D_004 Native Qt endpoint attachment and stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
@@ -391,7 +380,6 @@ jobs:
           ./boardsi-preview-p0$suffix --d004-endpoint-attachment-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_003: three-COPCLS with one owned-COPCUT source-only graph and stale readback.
       - name: D_003 Native Qt three-area COPCUT source graph and stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
@@ -404,7 +392,6 @@ jobs:
           ./boardsi-preview-p0$suffix --d003-three-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # D_002: complete two-COPCLS/one-owned-COPCUT Source-only hypothesis.
       - name: D_002 Native Qt COPCUT source contact and stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
@@ -417,7 +404,6 @@ jobs:
           ./boardsi-preview-p0$suffix --d002-copcut-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       # C_023: actual Rust V15 importer -> independent Qt geometry decoder and gap marker.
       - name: C_023 Native multi-area Reference corridor coverage and stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -427,7 +413,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c023-corridor-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_022 Native multi-area component candidate and Qt stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -437,7 +422,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c022-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_021 Native two Reference Copper rectangles and Qt stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -447,7 +431,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c021-area-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_016 Native Source Stitch Pad V12 and Qt CPU stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -457,7 +440,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c016-stitch-pad-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_015 Native mixed circular COPCCO plus COPCUT Source and Qt stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -467,7 +449,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c015-mixed-cutout-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_014 Native multiple Source COPCUT and Qt stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -477,7 +458,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c014-multi-cutout-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_013 Native source Signal Via COPCUT and Qt stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -487,7 +467,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c013-cutout-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_012 Native source Signal/Stitch Via Pad separation and Qt stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -497,7 +476,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c012-clearance-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_011 Native Source circular Stitch Pad footprint and Qt stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -507,7 +485,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c011-pad-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: C_010 Native Source Copper corridor to Stitch and Qt stale smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         env:
           BOARDSI_ARTWORK_RENDERER: cpu
@@ -517,7 +494,6 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --c010-corridor-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
       - name: Execute actual native Qt backend
-        if: steps.docs_only.outputs.docs_only != 'true'
         id: native_qt_execution
         shell: bash
         run: |
@@ -549,7 +525,7 @@ jobs:
           cat qt-preview-p2b-via-results.json
           cat qt-preview-p0-results.json
       - name: Exercise Windows x64 developer desktop launcher
-        if: ${{ (matrix.name == 'Windows x64') && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ matrix.name == 'Windows x64' }}
         shell: pwsh
         env:
           BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -573,12 +549,12 @@ jobs:
             throw 'Developer launcher receipt does not prove current-HEAD P2-A source-isolation smoke'
           }
       - name: Stage Windows x64 Qt-bundled release test and license sources
-        if: ${{ (matrix.name == 'Windows x64') && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ matrix.name == 'Windows x64' }}
         shell: pwsh
         run: |
           ./scripts/stage-boardsi-preview-windows-x64-qt.ps1 -StagePath 'build-qt/boardsi-preview-windows-x64-qt-bundled'
       - name: Verify Qt-bundled artifact without separately installed Qt SDK
-        if: ${{ (matrix.name == 'Windows x64') && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ matrix.name == 'Windows x64' }}
         shell: pwsh
         env:
           BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -652,7 +628,7 @@ jobs:
             if ($actual -ne $pair[0]) {throw ('Bundled checksum mismatch: '+$pair[1])}
           }
       - name: Upload Windows x64 Qt-bundled test archive
-        if: ${{ (matrix.name == 'Windows x64') && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ matrix.name == 'Windows x64' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: boardsi-preview-p2a-windows-x64-qt-bundled-test
@@ -662,7 +638,6 @@ jobs:
       # A_014 builds the Qt Quick variant only AFTER the six-Qt-DLL legacy
       # package gate. This keeps existing M0/F7 packaging compliance intact.
       - name: Install additional Qt Quick modules for source-only RHI validation
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           python -m aqt install-qt '${{ matrix.host }}' desktop 6.8.3 '${{ matrix.qt_arch }}' --archives qtdeclarative qtshadertools -O "$RUNNER_TEMP/qt-native"
@@ -670,7 +645,7 @@ jobs:
             python -m aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 --archives qtdeclarative qtshadertools -O "$RUNNER_TEMP/qt-native"
           fi
       - name: Rebuild source-only Qt Quick variant on Windows
-        if: ${{ (runner.os == 'Windows') && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ runner.os == 'Windows' }}
         shell: pwsh
         run: |
           & cmd /c (Join-Path $env:RUNNER_TEMP 'boardsi-build-qt.cmd')
@@ -679,14 +654,13 @@ jobs:
             throw 'Qt Quick was not found by the native source build'
           }
       - name: Rebuild source-only Qt Quick variant on macOS
-        if: ${{ (runner.os == 'macOS') && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ runner.os == 'macOS' }}
         shell: bash
         run: |
           cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker"
           cmake --build build-qt --parallel 2
           grep -q '^Qt6Quick_DIR:' build-qt/CMakeCache.txt
       - name: Validate A_014 Qt Quick in real P2-E imported Artwork Viewer
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -696,7 +670,6 @@ jobs:
           cat qt-preview-p2e-bottom-results.json
           python -c 'import json,platform; r=json.load(open("qt-preview-p2e-bottom-results.json")); assert r["pass"] and ((r["rhi_view_checked"] and r["rhi_first_frame_confirmed"]) or (platform.system()=="Windows" and r["rhi_cpu_fallback"])), r'
       - name: Validate A_015 native P2-F Arc import and RHI artwork path
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -706,7 +679,6 @@ jobs:
           cat qt-preview-p2f-arc-results.json
           python -c 'import json; r=json.load(open("qt-preview-p2f-arc-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-p2f-arc-smoke-v1", r'
       - name: Validate A_017 native P2-H circular board/cutout RHI artwork
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -717,7 +689,6 @@ jobs:
           cat qt-preview-p2h-circle-results.json
           python -c 'import json; r=json.load(open("qt-preview-p2h-circle-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-p2h-circle-smoke-v1", r'
       - name: Test Qt software RHI adapter request uses CPU artwork
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -727,7 +698,6 @@ jobs:
           python -c 'import json; r=json.load(open("qt-preview-p2e-bottom-results.json")); assert r["pass"] and r["software_rhi_cpu_fallback"] and not r["rhi_first_frame_confirmed"], r'
           cp qt-preview-p2e-bottom-results.json qt-preview-a014-software-fallback-results.json
       - name: A_019 bounded RHI synthetic model scale and subpixel mesh gate
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -737,7 +707,6 @@ jobs:
           cat qt-preview-a019-rhi-scale-results.json
           python -c 'import json; r=json.load(open("qt-preview-a019-rhi-scale-results.json")); assert r["pass"] and [s["objects"] for s in r["samples"]] == [10000,100000,1000000] and r["rendered_frames"]=="NOT_RUN" and r["gpu_fps"]=="NOT_MEASURED" and all(s["pass"] for s in r["samples"]), r'
       - name: A_019 native Metal and Direct3D 10k-1M RHI frame benchmark
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -747,7 +716,6 @@ jobs:
           cat qt-preview-a019-native-benchmark.json
           python -c 'import json; r=json.load(open("qt-preview-a019-native-benchmark.json")); assert r["pass"] and [s["objects"] for s in r["cases"]]==[10000,100000,1000000] and all(s["pass"] and s["hardware_adapter_confirmed"] and s["presented_frame_samples"]>=4 for s in r["cases"]), r'
       - name: A_019 native 10k-1M spatial picking, interaction and failover
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -757,7 +725,6 @@ jobs:
           cat qt-preview-a019-interaction-results.json
           python -c 'import json; r=json.load(open("qt-preview-a019-interaction-results.json")); assert r["pass"] and [s["objects"] for s in r["cases"]]==[10000,100000,1000000] and all(s["pass"] and s["picking_exact"] and s["layer_filter_restored"] and s["repeated_tab_survived"] and s["injected_error_cpu_fallback"] for s in r["cases"]) and r["gpu_vram"]=="NOT_MEASURED", r'
       - name: A_020 native imported explorer and source-properties regression
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -771,7 +738,6 @@ jobs:
       # It verifies actual source-backed contact mouse picking and filter reset,
       # not a synthetic test-only RHI model or physically qualified SI.
       - name: A_034 native Qt Quick source contact filter and mouse picking
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -781,7 +747,6 @@ jobs:
           cp qt-preview-p0-results.json qt-preview-a034-contact-results.json
           python -c 'import json; r=json.load(open("qt-preview-a034-contact-results.json")); assert r["pass"] and r["a034_local_contact_cpu_rhi_filter_verified"] and r["a034_local_contact_rhi_pick_scope"]=="PASS" and r["a034_local_contact_rhi_frame_scope"]=="PASS" and r["a034_cross_file_reimport_scope"]=="PASS" and r["a034_cross_file_reimport_verified"] and r["source_sha"], r'
       - name: A_021 native PADS POUROUT V9 IPC and GPU/CPU source parity regression
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -791,7 +756,6 @@ jobs:
           cat qt-preview-a021-pour-results.json
           python -c 'import json; r=json.load(open("qt-preview-a021-pour-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a021-pour-v1" and r["fixture_import"] and r["source_properties"] and r["layer_net_filter_restore"] and r["malformed_v9_rejected"] and r["clear_resets_pour"] and r["rhi_source_geometry_count"] and r["actual_flood"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
       - name: A_022 native PADS COPCLS/COPCIR V10 filled-source copper regression
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -801,7 +765,6 @@ jobs:
           cat qt-preview-a022-copper-results.json
           python -c 'import json; r=json.load(open("qt-preview-a022-copper-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a022-copper-v1" and r["fixture_import"] and r["source_properties"] and r["filter_parity"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_source_checked"] and r["fabricated_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
       - name: A_023 native combined COPPER/COPCUT V11 hollow artwork regression
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -812,7 +775,6 @@ jobs:
           python -c 'import json; r=json.load(open("qt-preview-a023-cutout-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a023-cutout-v1" and r["fixture_import"] and r["cpu_hollow_fill"] and r["source_properties"] and r["layer_filter"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_hole_pick"] and r["rhi_imported_frame_confirmed"] and r["physical_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
 
       - name: A_024 native nonconvex orthogonal COPCLS/COPCUT CPU/RHI parity
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -822,7 +784,6 @@ jobs:
           cat qt-preview-a024-orthogonal-results.json
           python -c 'import json; r=json.load(open("qt-preview-a024-orthogonal-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a024-orthogonal-v1" and r["orthogonal_source"] and r["fixture_import"] and r["cpu_hollow_fill"] and r["source_properties"] and r["layer_filter"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_hole_pick"] and r["rhi_imported_frame_confirmed"] and r["physical_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
       - name: A_025 native diagonal COPCLS/COPCUT V11 exact CPU/RHI mesh and picking
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -836,7 +797,6 @@ jobs:
           if test "$rc" -ne 0; then exit "$rc"; fi
           python -c 'import json; r=json.load(open("qt-preview-a025-diagonal-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a025-diagonal-v1" and r["diagonal_source"] and r["shared_bridge_sector"] and r["fixture_import"] and r["cpu_hollow_fill"] and r["source_properties"] and r["layer_filter"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_hole_pick"] and r["rhi_imported_frame_confirmed"] and r["physical_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
       - name: A_026 native COPCCO V12 circle-void mesh and CPU/RHI picking
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -850,7 +810,6 @@ jobs:
           if test "$rc" -ne 0; then exit "$rc"; fi
           python -c 'import json; r=json.load(open("qt-preview-a026-circle-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a026-circle-v1" and r["circular_source"] and r["fixture_import"] and r["cpu_hollow_fill"] and r["source_properties"] and r["layer_filter"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_hole_pick"] and r["rhi_circle_hole_pick"] and r["rhi_imported_frame_confirmed"] and r["physical_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
       - name: A_027 native COPCIR outer COPCCO holes V12 CPU/RHI parity
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -860,7 +819,6 @@ jobs:
           cat qt-preview-a027-circle-ring-results.json
           python -c 'import json; r=json.load(open("qt-preview-a027-circle-ring-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a027-circle-ring-v1" and r["hollow_circle_outer"] and r["fixture_import"] and r["cpu_hollow_fill"] and r["source_properties"] and r["layer_filter"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_hole_pick"] and r["rhi_circle_hole_pick"] and r["rhi_imported_frame_confirmed"] and r["physical_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
       - name: A_028 native circle polygon and mixed source cutout CPU/RHI parity
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -873,7 +831,6 @@ jobs:
           cat qt-preview-a028-circle-mixed-results.json
           python -c 'import json; r=json.load(open("qt-preview-a028-circle-mixed-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a028-circle-mixed-v1" and r["circular_polygon_source"] and r["mixed_cutout_source"] and r["fixture_import"] and r["cpu_hollow_fill"] and r["source_properties"] and r["layer_filter"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_hole_pick"] and r["rhi_circle_hole_pick"] and r["rhi_imported_frame_confirmed"] and r["physical_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN", r'
       - name: A_029 native source-owned 90-degree curved COPCLS V13 CPU/RHI parity
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -886,7 +843,6 @@ jobs:
           cat qt-preview-a029-curved-collinear-results.json
           python -c 'import json; r=json.load(open("qt-preview-a029-curved-collinear-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a029-curved-collinear-v1" and r["fixture_import"] and r["source_properties"] and r["cpu_conservative_fill"] and r["layer_filter"] and r["malformed_rejected"] and r["clear_resets"] and r["rhi_imported_frame_confirmed"] and r["rhi_source_pick"] and r["physical_copper"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN" and r["gpu_hardware_benchmark"]=="NOT_RUN", r'
       - name: A_030 native source-owned curved COPCLS and convex COPCUT V14 CPU/RHI parity
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -896,7 +852,6 @@ jobs:
           cat qt-preview-a030-curved-hole-results.json
           python -c 'import json; r=json.load(open("qt-preview-a030-curved-hole-results.json")); assert r["pass"] and r["schema"]=="boardsi-preview-a030-curved-hole-v1" and r["fixture_import"] and r["source_properties"] and r["cpu_hole_unfilled"] and r["layer_filter"] and r["malformed_v14_rejected"] and r["clear_resets"] and r["rhi_imported_frame_confirmed"] and r["rhi_hole_pick"] and r["electrical_connectivity"]=="NOT_VERIFIED" and r["physical_si"]=="NOT_RUN" and r["vendor_export"]=="NOT_VERIFIED" and r["gpu_hardware_benchmark"]=="NOT_RUN", r'
       - name: Run A_014 native Qt Quick / RHI geometry and first-frame smoke
-        if: steps.docs_only.outputs.docs_only != 'true'
         shell: bash
         run: |
           cd build-qt
@@ -905,7 +860,7 @@ jobs:
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --rhi-geometry-selftest
           cat qt-preview-a014-rhi-results.json
       - name: Preserve developer Preview P0 native execution evidence (not a distributable binary)
-        if: ${{ (always()) && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: boardsi-preview-p0-native-${{ matrix.name }}
@@ -945,13 +900,13 @@ jobs:
           if-no-files-found: warn
       - name: Exercise adversarial F1 verifier tests
         id: f1_adversarial_tests
-        if: ${{ (!cancelled()) && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ !cancelled() }}
         shell: bash
         run: python -m unittest discover -s .github/scripts -p 'test_m0_f1_native_subcases.py' -v
       - name: Validate M0-only F1 native case-specific technology evidence
         # Always preserve an explicit failing proof if native Qt execution
         # OR verifier-adversarial tests failed (unless job was cancelled).
-        if: ${{ (!cancelled()) && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ !cancelled() }}
         shell: bash
         env:
           BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -965,14 +920,14 @@ jobs:
             '${{ matrix.platform }}' \
             '${{ matrix.qt_cpu }}'
       - name: Preserve bounded per-case native proof (including failed checks)
-        if: ${{ (always()) && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: m0-f1-native-subcases-${{ matrix.name }}
           path: ${{ runner.temp }}/m0-f1-native-subcases.json
           if-no-files-found: warn
       - name: Print native measurement evidence
-        if: ${{ (always()) && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ always() }}
         shell: bash
         run: |
           if test -f build-qt/qt-runtime-results.json; then cat build-qt/qt-runtime-results.json; fi
