@@ -73,8 +73,9 @@ inline bool boundedSourceInventory(const QByteArray &source,const QString &viaNa
     return header && ended && maxLayer==1 && viaDefs==1 && bottom && top
         && signalCount==2 && pairs==2 && points==6;
 }
-inline bool decode(const QByteArray &wire, const QByteArray &source,
-                   const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
+inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
+                   const PreviewImportPanel *panel, const QString &net,
+                   c005::Receipt &out, bool oblique) {
     if (!panel || !panel->imported() || wire.isEmpty() || wire.size() > 16384
         || source.isEmpty() || source.size() > 8*1024*1024) return false;
     const auto sha=QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex();
@@ -140,7 +141,8 @@ inline bool decode(const QByteArray &wire, const QByteArray &source,
     const auto above=d014::orient(free,join,main1);
     const auto dot=(main1.x-main0.x)*(join.x-free.x)
         +(main1.y-main0.y)*(join.y-free.y);
-    if (!opposite(left,right) || !opposite(below,above) || dot!=0
+    if (!opposite(left,right) || !opposite(below,above)
+        || (oblique ? dot==0 : dot!=0)
         || d014::onSegment(free,main0,main1)
         || d014::onSegment(join,main0,main1)) return false;
     QByteArray expected="BOARDSI_D016_X_JUNCTION_V1|"+sha+
@@ -170,9 +172,26 @@ inline bool decode(const QByteArray &wire, const QByteArray &source,
         "EDGE|4|5|7|SOURCE_INTERIOR_X_CONTACT_CANDIDATE|4\n"
         "COUNT|NODES|8|LAYER_LOCAL_EDGES|5|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0\n"
         "OVERALL|X_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n";
+    if (oblique) {
+        expected.replace("BOARDSI_D016_X_JUNCTION_V1|","BOARDSI_D017_OBLIQUE_X_JUNCTION_V1|");
+        expected.replace("SOURCE_INTERIOR_X_CONTACT_CANDIDATE|4",
+                         "SOURCE_INTERIOR_OBLIQUE_X_CONTACT_CANDIDATE|4");
+        expected.replace("OVERALL|X_JUNCTION_SOURCE_CANDIDATE_ONLY",
+                         "OVERALL|OBLIQUE_X_JUNCTION_SOURCE_CANDIDATE_ONLY");
+    }
     if (expected!=wire) return false;
-    out.state="X_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL";
-    out.reason="D_016 SOURCE CONTACT ONLY; BARREL NOT VERIFIED";
+    out.state=oblique?"OBLIQUE_X_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL"
+                     :"X_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL";
+    out.reason=oblique?"D_017 SOURCE CONTACT ONLY; BARREL NOT VERIFIED"
+                      :"D_016 SOURCE CONTACT ONLY; BARREL NOT VERIFIED";
     return true;
+}
+inline bool decode(const QByteArray &wire, const QByteArray &source,
+                   const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
+    return decode_mode(wire,source,panel,net,out,false);
+}
+inline bool decode_oblique(const QByteArray &wire, const QByteArray &source,
+                   const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
+    return decode_mode(wire,source,panel,net,out,true);
 }
 } // namespace d016
