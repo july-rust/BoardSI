@@ -167,7 +167,7 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
         expected+="OVERLAP|MAIN_TRACE|1|CONTAINED_TRACE|3|START|"
             +QByteArray::number(begin.x)+"|"+QByteArray::number(begin.y)
             +"|END|"+QByteArray::number(finish.x)+"|"
-            +QByteArray::number(finish.y)+"\\n";
+            +QByteArray::number(finish.y)+"\n";
     }
     expected+="NODE|0|VIA_PAD|1|0\nNODE|1|VIA_PAD|4|0\nNODE|2|VIA_PAD|4|1\n"
         "NODE|3|VIA_PAD|1|1\nNODE|4|TRACE|1|0\nNODE|5|TRACE|4|1\n"
