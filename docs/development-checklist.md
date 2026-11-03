@@ -78,11 +78,18 @@
 | [**C_022**](#c_022) | PADS Multi-Area Source Copper Component Candidates V14 | 2 | 0 |
 | [**C_023**](#c_023) | Multi-Area Reference Corridor V15 | 1 | 0 |
 | [**C_024**](#c_024) | C단계 통합 증거 감사 및 D단계 인계 | 1 | 0 |
+| [**C_025_01**](validation/c02507-open-issue-d-stage-handoff.md) | A_023 Copper/COPCUT Issue #177 한정 감사·종료 | — | — |
+| [**C_025_02**](validation/sec001-codeql-markdown-comment-scan.md) | SEC_001 CodeQL Alert #1 Fixed 검증·Issue #205 종료 (보안에 별도 집계) | — | — |
 | [**C_025_03**](#c_025_03) | 구형 PADS Signature/Qt Import PR 정합화 및 안전 종료 (기능 인수와 별개) | 2 | 0 |
 | [**C_025_04**](#c_025_04) | 구형 정책·B_003 Draft PR 정합화 및 안전 종료 (문서·PR 관리 한정) | 2 | 0 |
 | [**C_025_05**](#c_025_05) | M0 F1 사양서/U-T 추적성 및 Issue #2 완료 조건 감사 | 1 | 1 |
+| [**C_025_06**](validation/c02506-pre-ph08-audit-issue78-closeout.md) | 전체 프로젝트/PH-08 이전 감사·Issue #78 한정 종료 | — | — |
+| [**C_025_07**](validation/c02507-open-issue-d-stage-handoff.md) | 27개 Open Issue/PR 감사·D 단계 인계·Issue #323 종료 | — | — |
+| [**C_025_08**](validation/c02508-m0-architecture-issue3-acceptance.md) | M0 Rust/Qt/IPC 결정·감사 Issue #325 종료, 원래 Issue #3 OPEN | — | — |
 | [**C_025_09**](#c_025_09) | macOS Qt 글로벌 타이머 지연 분리 진단 및 #46/#41 종료 안전성 | 2 | 2 |
 | [**C_025_10**](#c_025_10) | M0 F6 공개 Fixture 증거 및 Issue #7 안전 판정 | 4 | 3 |
+
+> **C_025 누락 행 복원 (2026-11-03 KST):** _01/_02/_06/_07/_08 작업은 누락된 개발 단계가 아니라 기존 검증 원장·Issue/PR·변경 이력에 존재했던 제한 감사 및 행정 정리입니다. 과거 통합 현황판에서 별도의 체크리스트 체크 항목이 없다는 이유로 이 다섯 줄이 빠졌습니다. 표의 `—`는 **독립 체크 항목을 다시 만들거나 완료 건수를 중복 계산하지 않음**을 뜻합니다. 특히 C_025_02의 `[x]` 근거는 기존 SEC_001 집계(1건)에 포함됐고, C_025_08 감사 종료에도 원래 M0 [Issue #3](https://github.com/july-rust/BoardSI/issues/3)은 OPEN입니다. 각 행 링크와 기존 변경 이력이 정확한 근거입니다.
 
 <a id="stage-d"></a>
 ### Stage D — PADS Source Contact / Junction
@@ -560,6 +567,10 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 5. 체크를 새로 표시할 때는 반드시 실제 KST 날짜의 `**체크일: YYYY-MM-DD KST**`와 근거 링크·근거일을 기록합니다. 이미 체크된 항목을 재검증하더라도 최초 체크일은 유지하며, 정정은 변경 이력에 남깁니다. GitHub 문서 CI가 체크일 누락 및 날짜 형식 오류를 검사합니다.
 6. 위 운영 방식은 GitHub 계정의 기술적 접근권한 변경이 아닙니다. 저장소 소유자 권한은 그대로 유지되며, 현재 동일 계정 인증으로 챙의 수정과 소유자의 직접 수정을 GitHub가 기술적으로 구별하지는 못합니다.
 7. 각 단계 종료 후 아래 이력에 작업 번호, 변경된 U/T, 최종 `main` SHA, Native 테스트·Codex 리뷰 증빙 및 아직 미검증인 항목을 기록합니다.
+
+8. **문서 CI 최소 실행 정책 (2026-11-03 KST):** 구현과 동시에 변경되는 체크 상태·근거·범위는 **해당 코드 PR에서 함께** 갱신합니다. 코드 PR 뒤에 동일한 사실을 다시 쓰기 위한 별도 문서 PR을 자동 생성하지 않습니다. 과거 누락·표시 오류·새 독립 근거를 고칠 때만 별도의 Markdown-only PR로 묶어 한 번 처리합니다.
+9. **문서 전용 검증:** 지원 Markdown/RST/MDX 변경만 있는 경우, Ubuntu의 `docs` 문서 검사로 체크일·집계·요구사항 추적성과 보안 문서 무결성을 검증합니다. GitHub 필수 검사 이름은 보존하되 플랫폼별 Rust/Qt/FEM Job은 **러너 할당 이전에 Skip**합니다. 코드·설정·워크플로·JSON·테스트 Fixture 변경 또는 분류 불확실 시 전체 필수 시험을 실행합니다.
+10. **중복 시험·문서 리뷰 회피:** 단순 체크리스트 표기·날짜·근거 링크 수정으로 Native 빌드, 물리 Solver 시험 또는 릴리스를 재요구하지 않습니다. 코드 변경 시 확보한 플랫폼 결과는 정확한 SHA와 범위를 기록하여 재사용합니다. 별도 경미 문서 PR마다 새로운 독립 코드 리뷰를 자동 생성하지 않되, 보호 Ruleset의 Verified 서명·Squash·필수 상태 검사·미해결 리뷰 스레드 해결은 유지합니다. 새로운 제품 인수 주장이나 보안 정책 변경은 별도 근거 검토가 필요합니다.
 
 ### 변경 이력
 
