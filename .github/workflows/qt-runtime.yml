@@ -24,7 +24,7 @@ jobs:
     needs: classify
     # The classifier failing must NEVER suppress a required platform build.
     # For a verified docs-only PR, skip the entire job before runner allocation.
-    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Linux x86_64 Qt 6.8.3 offscreen (provisional)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -90,7 +90,7 @@ jobs:
     needs: classify
     # The classifier failing must NEVER suppress a required platform build.
     # For a verified docs-only PR, skip the entire job before runner allocation.
-    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Qt native Windows x64
     runs-on: windows-2022
     timeout-minutes: 20
@@ -910,7 +910,7 @@ jobs:
     needs: classify
     # The classifier failing must NEVER suppress a required platform build.
     # For a verified docs-only PR, skip the entire job before runner allocation.
-    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Qt native Windows ARM64
     runs-on: windows-11-arm
     timeout-minutes: 20
@@ -936,7 +936,7 @@ jobs:
     needs: classify
     # The classifier failing must NEVER suppress a required platform build.
     # For a verified docs-only PR, skip the entire job before runner allocation.
-    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Qt native macOS ARM64
     runs-on: macos-15
     timeout-minutes: 20

@@ -24,7 +24,7 @@ jobs:
     needs: classify
     # The classifier failing must NEVER suppress a required platform build.
     # For a verified docs-only PR, skip the entire job before runner allocation.
-    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -54,7 +54,7 @@ jobs:
     needs: classify
     # The classifier failing must NEVER suppress a required platform build.
     # For a verified docs-only PR, skip the entire job before runner allocation.
-    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Native Windows x64
     runs-on: windows-2022
     timeout-minutes: 10
@@ -106,7 +106,7 @@ jobs:
     needs: classify
     # The classifier failing must NEVER suppress a required platform build.
     # For a verified docs-only PR, skip the entire job before runner allocation.
-    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Native Windows ARM64
     runs-on: windows-11-arm
     timeout-minutes: 10
@@ -131,7 +131,7 @@ jobs:
     needs: classify
     # The classifier failing must NEVER suppress a required platform build.
     # For a verified docs-only PR, skip the entire job before runner allocation.
-    if: ${{ always() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Native macOS ARM64
     runs-on: macos-15
     timeout-minutes: 10
