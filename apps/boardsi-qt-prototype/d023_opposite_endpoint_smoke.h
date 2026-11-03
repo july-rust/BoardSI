@@ -69,13 +69,13 @@ inline int selftest(const QString &importer) {
         && d015::decode_opposite_endpoint_contact(query(),changed,&panel,"NET_A",ignored);
     bool rejectsHostiles=true;
     for (auto bad : {
-        QByteArray(source).replace("150 250 4 10 0","150.01 250 4 10 0"),
-        QByteArray(source).replace("150 250 4 10 0","150 250.01 4 10 0"),
+        QByteArray(source).replace("150 250 4 10 0\n50 250 4 10 0","150.01 250 4 10 0\n50 250 4 10 0"),
+        QByteArray(source).replace("150 250 4 10 0\n50 250 4 10 0","150 250.01 4 10 0\n50 250 4 10 0"),
         QByteArray(source).replace("50 250 4 10 0","50 250.01 4 10 0"),
-        QByteArray(source).replace("150 250 4 10 0","100 250 4 10 0"),
+        QByteArray(source).replace("150 250 4 10 0\n50 250 4 10 0","100 250 4 10 0\n50 250 4 10 0"),
         QByteArray(source).replace("50 250 4 10 0","150 250 4 10 0"),
-        QByteArray(source).replace("150 250 4 10 0","350 250 4 10 0"),
-        QByteArray(source).replace("150 250 4 10 0","150 250 1 10 0"),
+        QByteArray(source).replace("150 250 4 10 0\n50 250 4 10 0","350 250 4 10 0\n50 250 4 10 0"),
+        QByteArray(source).replace("150 250 4 10 0\n50 250 4 10 0","150 250 1 10 0\n50 250 4 10 0"),
         QByteArray(source).replace("*SIGNAL* NET_A\nU3.3","*SIGNAL* OTHER\nU3.3"),
         QByteArray(source).replace("*END*","*LINES*\nCOPCLS 5 0.01 0 4\n*END*"),
     }) {
