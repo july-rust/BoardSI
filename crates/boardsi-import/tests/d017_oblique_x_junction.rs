@@ -6,7 +6,9 @@ fn witness(bytes: &[u8]) -> Result<String, &'static str> {
     shared::encode_oblique(bytes, "NET_A", [1, 4], [0, 1])
 }
 fn source() -> String {
-    String::from_utf8(SRC.to_vec()).unwrap()
+    String::from_utf8(SRC.to_vec())
+        .unwrap()
+        .replace("\r\n", "\n")
 }
 #[test]
 fn strict_oblique_interior_x_is_only_same_layer_source_candidate() {
