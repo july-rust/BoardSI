@@ -10,30 +10,37 @@ concurrency:
   group: m2-fem-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  rust-fem:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
+  classify:
+    name: Classify documentation-only changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    outputs:
+      docs_only: ${{ steps.docs_only.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/classify-docs-only
         id: docs_only
+  rust-fem:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
       - name: Install matching isolated Rust test toolchain
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: rustup toolchain install 1.75.0 --profile minimal --component clippy
       - uses: actions/setup-python@v6
-        if: steps.docs_only.outputs.docs_only != 'true'
         with:
           python-version: '3.13'
       - name: Install fixed independent reference dependencies
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: python -m pip install numpy==2.3.5 scipy==1.17.0
       - name: Compile and execute isolated physical prototype tests
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           cargo +1.75.0 test --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release -- --nocapture
           cargo +1.75.0 clippy --manifest-path prototypes/m2-lossless-fem/Cargo.toml --all-targets -- -D warnings
       - name: Measure independent PEC coupon FEM executable
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           cargo +1.75.0 build --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release
           set -o pipefail
@@ -55,7 +62,6 @@ jobs:
           test ! -s m2-invalid-stdout.txt
           python tools/validation/m2_g1_field_check.py m2-fem-n32.json
       - name: Execute exact PH-03 insulated-sidewall FEM and frozen independent math gate
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           python -m py_compile tools/validation/m2_ph03_plate_check.py
@@ -79,7 +85,6 @@ jobs:
           fi
           test ! -s ph03-invalid-out.txt
       - name: PH-05 independent symmetric stripline FEM and FVM acceptance gate
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           bin="prototypes/m2-lossless-fem/target/release/boardsi-m2-lossless-fem"
@@ -119,7 +124,7 @@ jobs:
           fi
           test ! -s ph05-invalid-out.txt
       - name: Upload PH-05 numerical evidence and resource metrics
-        if: ${{ (always()) && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: ph05-numerical-evidence
@@ -130,7 +135,6 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: Recheck existing M0 Rust workspace without Qt GUI rebuild
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           cargo +1.75.0 fetch --locked
           cargo +1.75.0 test --workspace --locked --offline

@@ -7,42 +7,49 @@ on:
 permissions:
   contents: read
 jobs:
-  fem-native:
-    name: FEM Native ${{ matrix.name }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {name: Linux x64, runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu, arch: X64, executable_arch: x86_64, os: linux}
-          - {name: Windows x64, runner: windows-2022, target: x86_64-pc-windows-msvc, arch: X64, executable_arch: x86_64, os: windows}
-          - {name: Windows ARM64, runner: windows-11-arm, target: aarch64-pc-windows-msvc, arch: ARM64, executable_arch: aarch64, os: windows}
-          - {name: macOS ARM64, runner: macos-15, target: aarch64-apple-darwin, arch: ARM64, executable_arch: aarch64, os: macos}
-    runs-on: ${{ matrix.runner }}
+  classify:
+    name: Classify documentation-only changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    outputs:
+      docs_only: ${{ steps.docs_only.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/classify-docs-only
+        id: docs_only
+  fem-native_linux_x64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: FEM Native Linux x64
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
         shell: bash
     env:
-      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+      BOARDSI_CI_NAME: Linux x64
+      BOARDSI_CI_RUNNER: ubuntu-24.04
+      BOARDSI_CI_TARGET: x86_64-unknown-linux-gnu
+      BOARDSI_CI_ARCH: X64
+      BOARDSI_CI_EXECUTABLE_ARCH: x86_64
+      BOARDSI_CI_OS: linux
+      RUSTUP_TOOLCHAIN: 1.75.0-x86_64-unknown-linux-gnu
       RUSTFLAGS: -D warnings
-    steps:
+    steps: &shared_native_steps
       - uses: actions/checkout@v5
-      - uses: ./.github/actions/classify-docs-only
-        id: docs_only
       - name: Install native toolchain
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component rustfmt --component clippy
       - name: Check native runner, compiler and executing FEM binary
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
-          test "$RUNNER_ARCH" = "${{ matrix.arch }}"
-          test "$(rustc -vV | sed -n 's/^host: //p' | tr -d '\r')" = "${{ matrix.target }}"
+          test "$RUNNER_ARCH" = "${{ env.BOARDSI_CI_ARCH }}"
+          test "$(rustc -vV | sed -n 's/^host: //p' | tr -d '\r')" = "${{ env.BOARDSI_CI_TARGET }}"
           rustc -vV | tee native-toolchain.txt
           cargo --version | tee -a native-toolchain.txt
-          cargo run --manifest-path prototypes/m2-lossless-fem/Cargo.toml --example verify_fem_native --release --locked -- "${{ matrix.executable_arch }}" "${{ matrix.os }}" | tee native-fem.txt
+          cargo run --manifest-path prototypes/m2-lossless-fem/Cargo.toml --example verify_fem_native --release --locked -- "${{ env.BOARDSI_CI_EXECUTABLE_ARCH }}" "${{ env.BOARDSI_CI_OS }}" | tee native-fem.txt
       - name: Format, strict warnings and actual debug/release tests
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           cargo fmt --manifest-path prototypes/m2-lossless-fem/Cargo.toml --all -- --check
@@ -50,7 +57,6 @@ jobs:
           cargo test --manifest-path prototypes/m2-lossless-fem/Cargo.toml --locked -- --nocapture
           cargo test --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release --locked -- --nocapture
       - name: Execute native CLI coupons and independent analytic gate
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           cargo build --manifest-path prototypes/m2-lossless-fem/Cargo.toml --release --locked
@@ -66,11 +72,74 @@ jobs:
           python tools/validation/m2_ph03_plate_check.py native-ph03-n8.json native-ph03-n16.json native-ph03-n32.json
           python tools/validation/m2_native_result_check.py --root .
       - uses: actions/upload-artifact@v4
-        if: ${{ (always()) && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ always() }}
         with:
-          name: fem-native-${{ matrix.target }}
+          name: fem-native-${{ env.BOARDSI_CI_TARGET }}
           path: |
             native-*.txt
             native-*.json
           if-no-files-found: error
           retention-days: 14
+  fem-native_windows_x64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: FEM Native Windows x64
+    runs-on: windows-2022
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      BOARDSI_CI_NAME: Windows x64
+      BOARDSI_CI_RUNNER: windows-2022
+      BOARDSI_CI_TARGET: x86_64-pc-windows-msvc
+      BOARDSI_CI_ARCH: X64
+      BOARDSI_CI_EXECUTABLE_ARCH: x86_64
+      BOARDSI_CI_OS: windows
+      RUSTUP_TOOLCHAIN: 1.75.0-x86_64-pc-windows-msvc
+      RUSTFLAGS: -D warnings
+    steps: *shared_native_steps
+  fem-native_windows_arm64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: FEM Native Windows ARM64
+    runs-on: windows-11-arm
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      BOARDSI_CI_NAME: Windows ARM64
+      BOARDSI_CI_RUNNER: windows-11-arm
+      BOARDSI_CI_TARGET: aarch64-pc-windows-msvc
+      BOARDSI_CI_ARCH: ARM64
+      BOARDSI_CI_EXECUTABLE_ARCH: aarch64
+      BOARDSI_CI_OS: windows
+      RUSTUP_TOOLCHAIN: 1.75.0-aarch64-pc-windows-msvc
+      RUSTFLAGS: -D warnings
+    steps: *shared_native_steps
+  fem-native_macos_arm64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: FEM Native macOS ARM64
+    runs-on: macos-15
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      BOARDSI_CI_NAME: macOS ARM64
+      BOARDSI_CI_RUNNER: macos-15
+      BOARDSI_CI_TARGET: aarch64-apple-darwin
+      BOARDSI_CI_ARCH: ARM64
+      BOARDSI_CI_EXECUTABLE_ARCH: aarch64
+      BOARDSI_CI_OS: macos
+      RUSTUP_TOOLCHAIN: 1.75.0-aarch64-apple-darwin
+      RUSTFLAGS: -D warnings
+    steps: *shared_native_steps

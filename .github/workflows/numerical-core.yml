@@ -10,86 +10,77 @@ concurrency:
   group: numerical-core-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  numerical:
+  classify:
+    name: Classify documentation-only changes
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 4
+    outputs:
+      docs_only: ${{ steps.docs_only.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/classify-docs-only
         id: docs_only
+  numerical:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
       - name: Install provisional M0 numerical toolchain
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           rustup toolchain install 1.75.0 --profile minimal --component rustfmt --component clippy
           rustup override set 1.75.0
       - name: Fetch locked IPC dependencies
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: cargo fetch --locked
       - name: Format and warnings
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           cargo fmt --all -- --check
           cargo clippy --workspace --all-targets --locked --offline -- -D warnings
       - name: Reproduce numerical and model integrity tests
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           cargo test --workspace --locked --offline -- --nocapture
           cargo test --workspace --release --locked --offline -- --nocapture
           python tools/validation/m0_worker_stress.py --output worker-stress.json
       - uses: actions/upload-artifact@v4
-        if: ${{ (always()) && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ always() }}
         with:
           name: worker-stress-linux
           path: worker-stress*.json
           if-no-files-found: error
-  native:
-    name: Native ${{ matrix.name }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Windows x64
-            runner: windows-2022
-            target: x86_64-pc-windows-msvc
-            runner_arch: X64
-            executable_arch: x86_64
-            executable_os: windows
-          - name: Windows ARM64
-            runner: windows-11-arm
-            target: aarch64-pc-windows-msvc
-            runner_arch: ARM64
-            executable_arch: aarch64
-            executable_os: windows
-          - name: macOS ARM64
-            runner: macos-15
-            target: aarch64-apple-darwin
-            runner_arch: ARM64
-            executable_arch: aarch64
-            executable_os: macos
-    runs-on: ${{ matrix.runner }}
+  native_windows_x64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: Native Windows x64
+    runs-on: windows-2022
     timeout-minutes: 10
     defaults:
       run:
         shell: bash
     env:
-      RUSTUP_TOOLCHAIN: 1.75.0-${{ matrix.target }}
+      BOARDSI_CI_NAME: Windows x64
+      BOARDSI_CI_RUNNER: windows-2022
+      BOARDSI_CI_TARGET: x86_64-pc-windows-msvc
+      BOARDSI_CI_RUNNER_ARCH: X64
+      BOARDSI_CI_EXECUTABLE_ARCH: x86_64
+      BOARDSI_CI_EXECUTABLE_OS: windows
+      RUSTUP_TOOLCHAIN: 1.75.0-x86_64-pc-windows-msvc
       RUSTFLAGS: -D warnings
-      BOARDSI_EXPECTED_HOST: ${{ matrix.target }}
-      BOARDSI_EXPECTED_RUNNER_ARCH: ${{ matrix.runner_arch }}
-      BOARDSI_EXPECTED_EXECUTABLE_ARCH: ${{ matrix.executable_arch }}
-      BOARDSI_EXPECTED_EXECUTABLE_OS: ${{ matrix.executable_os }}
-    steps:
+      BOARDSI_EXPECTED_HOST: x86_64-pc-windows-msvc
+      BOARDSI_EXPECTED_RUNNER_ARCH: X64
+      BOARDSI_EXPECTED_EXECUTABLE_ARCH: x86_64
+      BOARDSI_EXPECTED_EXECUTABLE_OS: windows
+    steps: &shared_native_steps
       - uses: actions/checkout@v5
-      - uses: ./.github/actions/classify-docs-only
-        id: docs_only
       - name: Install the matching native Rust host
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
       - name: Fetch locked IPC dependencies
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: cargo fetch --locked
       - name: Verify runner, compiler and actual executable identity
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           test "$RUNNER_ARCH" = "$BOARDSI_EXPECTED_RUNNER_ARCH"
           compiler_host=$(rustc -vV | sed -n 's/^host: //p' | tr -d '\r')
@@ -99,16 +90,65 @@ jobs:
           cargo run --locked --offline -p boardsi-numerics --example verify_native_host -- "$BOARDSI_EXPECTED_EXECUTABLE_ARCH" "$BOARDSI_EXPECTED_EXECUTABLE_OS"
           cargo run --locked --offline -p boardsi-model --example verify_model_native_host -- "$BOARDSI_EXPECTED_EXECUTABLE_ARCH" "$BOARDSI_EXPECTED_EXECUTABLE_OS"
       - name: Run native debug and release accuracy and model tests
-        if: steps.docs_only.outputs.docs_only != 'true'
         run: |
           cargo test --workspace --locked --offline -- --nocapture
           cargo test --workspace --release --locked --offline -- --nocapture
           python tools/validation/m0_worker_stress.py --output worker-stress.json
       - uses: actions/upload-artifact@v4
-        if: ${{ (always()) && steps.docs_only.outputs.docs_only != 'true' }}
+        if: ${{ always() }}
         with:
-          name: worker-stress-${{ matrix.target }}
+          name: worker-stress-${{ env.BOARDSI_CI_TARGET }}
           path: |
             worker-stress*.json
             worker-stress-failure-*.log
           if-no-files-found: error
+  native_windows_arm64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: Native Windows ARM64
+    runs-on: windows-11-arm
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      BOARDSI_CI_NAME: Windows ARM64
+      BOARDSI_CI_RUNNER: windows-11-arm
+      BOARDSI_CI_TARGET: aarch64-pc-windows-msvc
+      BOARDSI_CI_RUNNER_ARCH: ARM64
+      BOARDSI_CI_EXECUTABLE_ARCH: aarch64
+      BOARDSI_CI_EXECUTABLE_OS: windows
+      RUSTUP_TOOLCHAIN: 1.75.0-aarch64-pc-windows-msvc
+      RUSTFLAGS: -D warnings
+      BOARDSI_EXPECTED_HOST: aarch64-pc-windows-msvc
+      BOARDSI_EXPECTED_RUNNER_ARCH: ARM64
+      BOARDSI_EXPECTED_EXECUTABLE_ARCH: aarch64
+      BOARDSI_EXPECTED_EXECUTABLE_OS: windows
+    steps: *shared_native_steps
+  native_macos_arm64:
+    needs: classify
+    # The classifier failing must NEVER suppress a required platform build.
+    # For a verified docs-only PR, skip the entire job before runner allocation.
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
+    name: Native macOS ARM64
+    runs-on: macos-15
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      BOARDSI_CI_NAME: macOS ARM64
+      BOARDSI_CI_RUNNER: macos-15
+      BOARDSI_CI_TARGET: aarch64-apple-darwin
+      BOARDSI_CI_RUNNER_ARCH: ARM64
+      BOARDSI_CI_EXECUTABLE_ARCH: aarch64
+      BOARDSI_CI_EXECUTABLE_OS: macos
+      RUSTUP_TOOLCHAIN: 1.75.0-aarch64-apple-darwin
+      RUSTFLAGS: -D warnings
+      BOARDSI_EXPECTED_HOST: aarch64-apple-darwin
+      BOARDSI_EXPECTED_RUNNER_ARCH: ARM64
+      BOARDSI_EXPECTED_EXECUTABLE_ARCH: aarch64
+      BOARDSI_EXPECTED_EXECUTABLE_OS: macos
+    steps: *shared_native_steps
