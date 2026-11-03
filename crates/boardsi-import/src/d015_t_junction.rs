@@ -45,96 +45,138 @@ fn root(parent: &[usize], mut i: usize) -> usize {
 // PADS V9.4 MILS lexical fixed-point subset: no floating-point rounding,
 // no exponent/NaN, at most 2 fractional digits (one source tick = .01 mil).
 fn mils_lexeme(text: &str) -> bool {
-    let digits=text.strip_prefix('-').or_else(||text.strip_prefix('+')).unwrap_or(text);
-    let mut parts=digits.split('.');
-    let whole=parts.next().unwrap_or("");
-    let fraction=parts.next();
-    !whole.is_empty() && whole.as_bytes().iter().all(u8::is_ascii_digit)
+    let digits = text
+        .strip_prefix('-')
+        .or_else(|| text.strip_prefix('+'))
+        .unwrap_or(text);
+    let mut parts = digits.split('.');
+    let whole = parts.next().unwrap_or("");
+    let fraction = parts.next();
+    !whole.is_empty()
+        && whole.as_bytes().iter().all(u8::is_ascii_digit)
         && match fraction {
             None => true,
-            Some(f) => !f.is_empty() && f.len()<=2
-                && f.as_bytes().iter().all(u8::is_ascii_digit),
+            Some(f) => !f.is_empty() && f.len() <= 2 && f.as_bytes().iter().all(u8::is_ascii_digit),
         }
         && parts.next().is_none()
 }
 fn bounded_source_inventory(bytes: &[u8], via_name: &str) -> Result<(), &'static str> {
-    let source=std::str::from_utf8(bytes).map_err(|_| "D015_SOURCE_TEXT")?;
-    let mut section="";
-    let mut header=false;
-    let mut max_layer=0;
-    let mut via_defs=0;
-    let mut pad_rows=0;
-    let mut bottom_pad=false;
-    let mut top_pad=false;
-    let mut signals=0;
-    let mut route_pairs=0;
-    let mut route_points=0;
-    let mut ended=false;
+    let source = std::str::from_utf8(bytes).map_err(|_| "D015_SOURCE_TEXT")?;
+    let mut section = "";
+    let mut header = false;
+    let mut max_layer = 0;
+    let mut via_defs = 0;
+    let mut pad_rows = 0;
+    let mut bottom_pad = false;
+    let mut top_pad = false;
+    let mut signals = 0;
+    let mut route_pairs = 0;
+    let mut route_points = 0;
+    let mut ended = false;
     for raw in source.lines() {
-        let line=raw.trim();
-        if line.is_empty() { continue; }
-        if ended { return Err("D015_TRAILING_SOURCE"); }
+        let line = raw.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if ended {
+            return Err("D015_TRAILING_SOURCE");
+        }
         if !header {
             if !line.starts_with("!PADS-POWERPCB-V9.4-MILS!") {
                 return Err("D015_HEADER");
             }
-            header=true;
+            header = true;
             continue;
         }
-        let words: Vec<_>=line.split_ascii_whitespace().collect();
-        let first=words[0];
-        if first=="*REMARK*" || first=="REMARK" { continue; }
+        let words: Vec<_> = line.split_ascii_whitespace().collect();
+        let first = words[0];
+        if first == "*REMARK*" || first == "REMARK" {
+            continue;
+        }
         match first {
-            "*PCB*" if section.is_empty() => { section="pcb"; continue; }
-            "*VIA*" if section=="pcb" && max_layer==1 => {section="via"; continue;}
-            "*ROUTE*" if section=="via" && via_defs==1 && pad_rows==2 => {
-                section="route"; continue;
+            "*PCB*" if section.is_empty() => {
+                section = "pcb";
+                continue;
             }
-            "*END*" if section=="route" && words.len()==1 => {ended=true;continue;}
-            "*SIGNAL*" if section=="route" && words.len()==2 => {
-                signals+=1;continue;
+            "*VIA*" if section == "pcb" && max_layer == 1 => {
+                section = "via";
+                continue;
+            }
+            "*ROUTE*" if section == "via" && via_defs == 1 && pad_rows == 2 => {
+                section = "route";
+                continue;
+            }
+            "*END*" if section == "route" && words.len() == 1 => {
+                ended = true;
+                continue;
+            }
+            "*SIGNAL*" if section == "route" && words.len() == 2 => {
+                signals += 1;
+                continue;
             }
             _ => {}
         }
-        if first.starts_with('*') { return Err("D015_UNMODELED_SECTION"); }
+        if first.starts_with('*') {
+            return Err("D015_UNMODELED_SECTION");
+        }
         match section {
-            "pcb" if words.len()==2 && words[0]=="MAXLAYER" && words[1]=="4" => {
-                max_layer+=1;
-                if max_layer!=1 {return Err("D015_DUPLICATE_LAYER");}
-            }
-            "via" if first==via_name && words.len()==3 && words[2]=="2" => {
-                via_defs+=1;
-                if via_defs!=1 {return Err("D015_DUPLICATE_VIA_DEF");}
-            }
-            "via" if words.len()==3 && (first=="-2" || first=="0") => {
-                if first=="-2" {
-                    if bottom_pad {return Err("D015_DUPLICATE_PAD_ROW");}
-                    bottom_pad=true;
-                } else {
-                    if top_pad {return Err("D015_DUPLICATE_PAD_ROW");}
-                    top_pad=true;
+            "pcb" if words.len() == 2 && words[0] == "MAXLAYER" && words[1] == "4" => {
+                max_layer += 1;
+                if max_layer != 1 {
+                    return Err("D015_DUPLICATE_LAYER");
                 }
-                pad_rows+=1;
             }
-            "route" if signals>0 && words.len()==2
-                && words.iter().all(|w|w.contains('.')) => {
-                route_pairs+=1;
+            "via" if first == via_name && words.len() == 3 && words[2] == "2" => {
+                via_defs += 1;
+                if via_defs != 1 {
+                    return Err("D015_DUPLICATE_VIA_DEF");
+                }
             }
-            "route" if signals>0 && (words.len()==5 || words.len()==6)
-                && mils_lexeme(words[0]) && mils_lexeme(words[1])
-                && words[2].parse::<u32>().is_ok() && mils_lexeme(words[3])
-                && words[4].parse::<i64>().is_ok() => {
-                if words.len()==6 && words[5]!=via_name {
+            "via" if words.len() == 3 && (first == "-2" || first == "0") => {
+                if first == "-2" {
+                    if bottom_pad {
+                        return Err("D015_DUPLICATE_PAD_ROW");
+                    }
+                    bottom_pad = true;
+                } else {
+                    if top_pad {
+                        return Err("D015_DUPLICATE_PAD_ROW");
+                    }
+                    top_pad = true;
+                }
+                pad_rows += 1;
+            }
+            "route" if signals > 0 && words.len() == 2 && words.iter().all(|w| w.contains('.')) => {
+                route_pairs += 1;
+            }
+            "route"
+                if signals > 0
+                    && (words.len() == 5 || words.len() == 6)
+                    && mils_lexeme(words[0])
+                    && mils_lexeme(words[1])
+                    && words[2].parse::<u32>().is_ok()
+                    && mils_lexeme(words[3])
+                    && words[4].parse::<i64>().is_ok() =>
+            {
+                if words.len() == 6 && words[5] != via_name {
                     return Err("D015_EXTRA_ROUTE_VIA");
                 }
-                route_points+=1;
+                route_points += 1;
             }
             _ => return Err("D015_UNMODELED_SOURCE"),
         }
     }
-    if !header || !ended || max_layer!=1 || via_defs!=1
-        || pad_rows!=2 || !bottom_pad || !top_pad || signals!=2
-        || route_pairs!=2 || route_points!=6 {
+    if !header
+        || !ended
+        || max_layer != 1
+        || via_defs != 1
+        || pad_rows != 2
+        || !bottom_pad
+        || !top_pad
+        || signals != 2
+        || route_pairs != 2
+        || route_points != 6
+    {
         return Err("D015_SOURCE_STRUCTURE");
     }
     Ok(())
