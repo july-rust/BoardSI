@@ -37,6 +37,11 @@ formal_m1_u_t_acceptance = NOT_ACCEPTED
 
 D_013 `legacy_v1_barrels` remains a **compatibility projection**, never a verified barrel electrical edge. Parent [Issue #12](https://github.com/july-rust/BoardSI/issues/12) stays OPEN and Draft [PR #35](https://github.com/july-rust/BoardSI/pull/35) stays unchanged.
 
-## Separate documentation acceptance gate
+## Separate documentation acceptance — verified 2026-11-03 KST
 
-The documentation PR and `docs/development-checklist.md` require their **own** exact-HEAD CI, independent Codex review with zero unresolved findings, protected Verified single-parent Squash, and **separate post-document-main push CI** before Issue #374 may be closed as completed. This text records verified code evidence and is not a claim that the document PR has been accepted in advance.
+- [x] Separate [documentation PR #376](https://github.com/july-rust/BoardSI/pull/376) final exact HEAD `52d4f5cccf5dbcbc054bb20da5b9c3af37de186d`: **22/22 PR Check Runs SUCCESS**, **8/8 PR Workflows SUCCESS**, independent Codex `completed/has_any_findings=false/has_unresolved_findings=false` and **0 unresolved review threads**.
+- [x] GitHub-protected **Verified one-parent Squash** at [`main@741da21d46811bd09f7e4211005006a5d7059249`](https://github.com/july-rust/BoardSI/commit/741da21d46811bd09f7e4211005006a5d7059249), `verification.verified=true`, `reason=valid`; sole parent `03203494cb99b83291e3c80cfb22bd5c98b1c4f4`.
+- [x] **Independent post-document-main** exact SHA `741da21d46811bd09f7e4211005006a5d7059249` **21/21 Check Runs SUCCESS** and **8/8 `event=push` Workflows SUCCESS**; [commit checks](https://github.com/july-rust/BoardSI/commit/741da21d46811bd09f7e4211005006a5d7059249/checks).
+- [x] [Issue #374](https://github.com/july-rust/BoardSI/issues/374) actually **CLOSED/completed** at GitHub `closed_at=2026-11-03T00:31:09Z` **after** independent documentation-main push CI acceptance. This ledger and the D_014 checklist's final `[x]` are a *subsequent separate protected documentation follow-up*, not evidence that was presumed before validation.
+
+These gates accept only the **bounded SOURCE-local candidate** model; manufacturing plating, cross-layer electrical barrel connectivity, whole-board open/short, return-path P009, PH-08 and SI solver/M1 U/T qualifications remain unproven.
