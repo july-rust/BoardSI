@@ -141,7 +141,7 @@ pub fn encode(
         if t.centreline.len() != 2
             || t.centreline[0].ticks != s[i].a
             || t.centreline[1].ticks != s[i].b
-            || t.layer != m.stackup.layers[s[i].layer - 1].meta.id
+            || t.layer != m.stackup.layers[(s[i].layer - 1) as usize].meta.id
             || t.net != m.vias[0].net
         {
             return Err("D015_CANONICAL_TRACE");
