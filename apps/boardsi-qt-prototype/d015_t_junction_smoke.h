@@ -1,6 +1,7 @@
 // D_015 real imported-source Qt adversarial test (no fabricated electrical proof).
 #pragma once
 #include "d015_t_junction_qt.h"
+#include "d016_x_junction_smoke.h"
 namespace d015 {
 inline int selftest(const QString &importer) {
     if (!QFileInfo(importer).isExecutable()) return 2;
@@ -115,6 +116,6 @@ inline int selftest(const QString &importer) {
         <<rejectsPromotion<<stale<<rejectsMiss<<rejectsOverrun
         <<rejectsLayer<<rejectsExtra<<rejectsCopper<<rejectsDuplicate<<acceptsDecimal
         <<"NO_ELECTRICAL_BARREL_PROOF";
-    return ok?0:1;
+    return ok?d016::selftest(importer):1;
 }
 } // namespace d015

@@ -33,6 +33,9 @@ mod d014_core;
 #[path = "../d015_t_junction.rs"]
 #[allow(dead_code)]
 mod d015_core;
+#[path = "../d016_x_junction.rs"]
+#[allow(dead_code)]
+mod d016_core;
 fn run() -> Result<(usize, usize), &'static str> {
     let args: Vec<_> = env::args_os().collect();
     // The suffix protocol is opt-in. Existing one-path invocations keep
@@ -691,6 +694,38 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // D_016 opt-in Source geometry ONLY, not physical electrical continuity.
+    if args.len() == 8 && args[2] == std::ffi::OsStr::new("--d016-x-junction-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let txt = |i: usize| args[i].to_str().ok_or("D016_UTF8");
+            let path = std::path::Path::new(&args[1]);
+            let meta = fs::metadata(path).map_err(|_| "D016_FILE")?;
+            if !meta.is_file() || meta.len() > MAX_FILE_BYTES as u64 {
+                return Err("D016_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D016_READ")?;
+            d016_core::encode(
+                &bytes,
+                txt(3)?,
+                [
+                    txt(4)?.parse::<usize>().map_err(|_| "D016_LAYER")?,
+                    txt(5)?.parse::<usize>().map_err(|_| "D016_LAYER")?,
+                ],
+                [
+                    txt(6)?.parse::<usize>().map_err(|_| "D016_VIA")?,
+                    txt(7)?.parse::<usize>().map_err(|_| "D016_VIA")?,
+                ],
+            )
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D016_X_JUNCTION_SOURCE_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_015 opt-in Source geometry ONLY, not physical electrical continuity.
     if args.len() == 8 && args[2] == std::ffi::OsStr::new("--d015-t-junction-v1") {
         let result = (|| -> Result<String, &'static str> {
