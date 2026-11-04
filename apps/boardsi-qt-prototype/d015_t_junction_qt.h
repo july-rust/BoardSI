@@ -391,6 +391,6 @@ inline bool decode_non45_steep_via_a_endpoint_contact(const QByteArray &wire, co
 }
 inline bool decode_non45_steep_mirrored_via_b_endpoint_contact(const QByteArray &wire, const QByteArray &source,
                      const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
-    return decode_mode(wire,source,panel,net,false,false,false,true,false,false,false,false,false,false,false,false,false,true);
+    return decode_mode(wire,source,panel,net,out,false,false,false,true,false,false,false,false,false,false,false,false,false,true);
 }
 } // namespace d015
