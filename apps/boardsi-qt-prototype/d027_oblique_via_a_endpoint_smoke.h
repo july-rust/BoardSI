@@ -63,7 +63,7 @@ inline int selftest(const QString &importer) {
         && query("--d021-partial-collinear-overlap-v1").isEmpty();
     auto forged=wire;
     forged.replace("EDGE|5|1|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4",
-                   "EDGE|5|1|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4");
+                   "EDGE|5|2|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4");
     const bool rejectsForgery=!d015::decode_oblique_via_a_endpoint_contact(forged,source,&panel,"NET_A",ignored);
     auto wrongCoordinate=wire;
     wrongCoordinate.replace("X|15000|Y|25000","X|35001|Y|25000");
