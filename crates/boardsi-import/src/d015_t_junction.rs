@@ -279,6 +279,17 @@ pub fn encode_oblique_via_b_endpoint_contact(
     encode_with_mode(bytes, net, layers, vias, ContactMode::ObliqueViaB)
 }
 
+/// D_027 Via-A 45-degree oblique exterior endpoint Source contact; never electrical proof.
+#[allow(dead_code)]
+pub fn encode_oblique_via_a_endpoint_contact(
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
+) -> Result<String, &'static str> {
+    encode_with_mode(bytes, net, layers, vias, ContactMode::ObliqueViaA)
+}
+
 #[derive(Clone, Copy)]
 enum ContactMode {
     Perpendicular,
@@ -290,6 +301,7 @@ enum ContactMode {
     OrthogonalEndpoint,
     OrthogonalViaA,
     ObliqueViaB,
+    ObliqueViaA,
 }
 
 fn encode_with_mode(
@@ -305,6 +317,7 @@ fn encode_with_mode(
     let opposite_endpoint = matches!(mode, ContactMode::OppositeEndpoint);
     let orthogonal_via_a = matches!(mode, ContactMode::OrthogonalViaA);
     let oblique_via_b = matches!(mode, ContactMode::ObliqueViaB);
+    let oblique_via_a = matches!(mode, ContactMode::ObliqueViaA);
     let orthogonal_endpoint = matches!(
         mode,
         ContactMode::OrthogonalEndpoint | ContactMode::OrthogonalViaA
@@ -316,6 +329,7 @@ fn encode_with_mode(
             | ContactMode::OrthogonalEndpoint
             | ContactMode::OrthogonalViaA
             | ContactMode::ObliqueViaB
+            | ContactMode::ObliqueViaA
     );
     if bytes.is_empty()
         || bytes.len() > route_preview::MAX_FILE_BYTES
@@ -364,7 +378,9 @@ fn encode_with_mode(
         })
     {
         return Err(if endpoint_contact {
-            if oblique_via_b {
+            if oblique_via_a {
+                "D027_COORDINATE_BOUNDS"
+            } else if oblique_via_b {
                 "D026_COORDINATE_BOUNDS"
             } else if orthogonal_via_a {
                 "D025_COORDINATE_BOUNDS"
@@ -426,7 +442,15 @@ fn encode_with_mode(
         + (i128::from(exterior[1]) - i128::from(s[1].a[1])) * my;
     let valid_contact = if endpoint_contact {
         shared_a != shared_b
-            && (if oblique_via_b {
+            && (if oblique_via_a {
+                // Exact 45-degree exterior projection beyond Via-A; reversal-safe.
+                // SOURCE geometry only; refuse even one tick of angle drift.
+                shared == s[1].a
+                    && dot != 0
+                    && cross != 0
+                    && dot.abs() == cross.abs()
+                    && exterior_projection < 0
+            } else if oblique_via_b {
                 // Exact 45-degree source-tick oblique endpoint at Via-B.
                 // Reversed branch is admitted; 1-tick angle drift fails closed.
                 shared == s[1].b
@@ -476,7 +500,9 @@ fn encode_with_mode(
     };
     if !valid_contact {
         return Err(if endpoint_contact {
-            if oblique_via_b {
+            if oblique_via_a {
+                "D027_OBLIQUE_VIA_A_ENDPOINT_CONTACT"
+            } else if oblique_via_b {
                 "D026_OBLIQUE_VIA_B_ENDPOINT_CONTACT"
             } else if orthogonal_via_a {
                 "D025_ORTHOGONAL_VIA_A_ENDPOINT_CONTACT"
@@ -531,7 +557,9 @@ fn encode_with_mode(
     for byte in digest::sha256(bytes) {
         write!(&mut sha, "{byte:02x}").map_err(|_| "D015_FMT")?;
     }
-    let mode = if oblique_via_b {
+    let mode = if oblique_via_a {
+        "D027_OBLIQUE_VIA_A_ENDPOINT_CONTACT_V1"
+    } else if oblique_via_b {
         "D026_OBLIQUE_VIA_B_ENDPOINT_CONTACT_V1"
     } else if orthogonal_via_a {
         "D025_ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_V1"
@@ -609,7 +637,9 @@ fn encode_with_mode(
             shared[0], shared[1]
         )
         .map_err(|_| {
-            if oblique_via_b {
+            if oblique_via_a {
+                "D027_FMT"
+            } else if oblique_via_b {
                 "D026_FMT"
             } else if orthogonal_via_a {
                 "D025_FMT"
@@ -633,7 +663,9 @@ fn encode_with_mode(
         ("TRACE", 4, 3),
     ];
     // All edges are same-layer candidate contacts. NEVER a Via barrel edge.
-    let t_kind = if oblique_via_b {
+    let t_kind = if oblique_via_a {
+        "SOURCE_OBLIQUE_VIA_A_ENDPOINT_CONTACT_CANDIDATE"
+    } else if oblique_via_b {
         "SOURCE_OBLIQUE_VIA_B_ENDPOINT_CONTACT_CANDIDATE"
     } else if orthogonal_via_a {
         "SOURCE_ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_CANDIDATE"
@@ -661,7 +693,7 @@ fn encode_with_mode(
         // Via-A Source Pad node 1 (D023/D025); Via-B pad node 2 (D022/D024).
         // This remains layer-local Source geometry, not electrical barrel proof.
         edges.push((
-            if opposite_endpoint || orthogonal_via_a {
+            if opposite_endpoint || orthogonal_via_a || oblique_via_a {
                 1
             } else {
                 2
@@ -696,7 +728,9 @@ fn encode_with_mode(
         components
     )
     .map_err(|_| "D015_FMT")?;
-    if oblique_via_b {
+    if oblique_via_a {
+        out.push_str("OVERALL|OBLIQUE_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+    } else if oblique_via_b {
         out.push_str("OVERALL|OBLIQUE_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
     } else if orthogonal_via_a {
         out.push_str("OVERALL|ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
