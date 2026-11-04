@@ -695,7 +695,9 @@ fn main() {
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
     // D_025 orthogonal Via-A Source endpoint contact; never fabricated electrical proof.
-    if args.len() == 8 && args[2] == std::ffi::OsStr::new("--d025-orthogonal-via-a-endpoint-contact-v1") {
+    if args.len() == 8
+        && args[2] == std::ffi::OsStr::new("--d025-orthogonal-via-a-endpoint-contact-v1")
+    {
         let result = (|| -> Result<String, &'static str> {
             let txt = |i: usize| args[i].to_str().ok_or("D025_UTF8");
             let path = std::path::Path::new(&args[1]);
