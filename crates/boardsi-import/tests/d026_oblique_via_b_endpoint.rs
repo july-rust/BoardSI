@@ -11,7 +11,9 @@ fn witness(src: &[u8]) -> Result<String, &'static str> {
     shared::encode_oblique_via_b_endpoint_contact(src, "NET_A", [1, 4], [0, 1])
 }
 fn source() -> String {
-    String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n")
+    String::from_utf8(SRC.to_vec())
+        .unwrap()
+        .replace("\r\n", "\n")
 }
 
 #[test]
@@ -27,7 +29,10 @@ fn exact_oblique_45_degree_via_b_source_only() {
     assert!(w.contains("SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE"));
     assert!(w.contains("OVERALL|OBLIQUE_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"));
     assert!(w.ends_with("END|FAIL_CLOSED_NO_BARREL_PROOF\n"));
-    assert_eq!(w.lines().filter(|line| line.starts_with("EDGE|")).count(), 6);
+    assert_eq!(
+        w.lines().filter(|line| line.starts_with("EDGE|")).count(),
+        6
+    );
     assert_eq!(w, witness(SRC).unwrap());
 }
 
@@ -51,20 +56,28 @@ fn reverse_branch_and_source_lexical_sha_bound() {
 fn reject_1tick_angle_gap_wrong_mode_and_source_forgery() {
     let s = source();
     for bad in [
-        s.replace("350 250 4 10 0\n450 350 4 10 0",
-                  "350.01 250 4 10 0\n450 350 4 10 0"),
-        s.replace("350 250 4 10 0\n450 350 4 10 0",
-                  "350 250.01 4 10 0\n450 350 4 10 0"),
+        s.replace(
+            "350 250 4 10 0\n450 350 4 10 0",
+            "350.01 250 4 10 0\n450 350 4 10 0",
+        ),
+        s.replace(
+            "350 250 4 10 0\n450 350 4 10 0",
+            "350 250.01 4 10 0\n450 350 4 10 0",
+        ),
         s.replace("450 350 4 10 0", "450.01 350 4 10 0"),
         s.replace("450 350 4 10 0", "450 350.01 4 10 0"),
         s.replace("450 350 4 10 0", "450 250 4 10 0"),
         s.replace("450 350 4 10 0", "350 350 4 10 0"),
         s.replace("450 350 4 10 0", "350 250 4 10 0"),
         s.replace("450 350 4 10 0", "250 350 4 10 0"),
-        s.replace("350 250 4 10 0\n450 350 4 10 0",
-                  "350 300 4 10 0\n450 350 4 10 0"),
-        s.replace("350 250 4 10 0\n450 350 4 10 0",
-                  "350 250 1 10 0\n450 350 1 10 0"),
+        s.replace(
+            "350 250 4 10 0\n450 350 4 10 0",
+            "350 300 4 10 0\n450 350 4 10 0",
+        ),
+        s.replace(
+            "350 250 4 10 0\n450 350 4 10 0",
+            "350 250 1 10 0\n450 350 1 10 0",
+        ),
         s.replace("*SIGNAL* NET_A\nU3.3", "*SIGNAL* OTHER\nU3.3"),
         s.replace("450 350 4 10 0", "6000000 350 4 10 0"),
         s.replace("450 350 4 10 0", "450 350 4 0 0"),
@@ -78,7 +91,9 @@ fn reject_1tick_angle_gap_wrong_mode_and_source_forgery() {
         assert!(witness(incompatible).is_err());
     }
     assert!(shared::encode_orthogonal_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
-    assert!(shared::encode_orthogonal_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
+    assert!(
+        shared::encode_orthogonal_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err()
+    );
     assert!(shared::encode_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(shared::encode_opposite_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(shared::encode_oblique(SRC, "NET_A", [1, 4], [0, 1]).is_err());
