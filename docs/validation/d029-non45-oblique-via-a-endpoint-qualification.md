@@ -2,7 +2,7 @@
 
 > **Scope:** `SOURCE_GEOMETRY_ONLY`. This is an independently reconstructed **candidate** contact, never manufactured copper proof, plated barrel conduction, a global Open/Short result, or cross-layer electrical continuity.
 
-- **Tracker:** [Issue #427](https://github.com/july-rust/BoardSI/issues/427) — remain OPEN until full documentary acceptance.
+- **Tracker:** [Issue #427](https://github.com/july-rust/BoardSI/issues/427) — tracked for administrative closure after exact final closeout-docs main Push CI (do not pre-record Issue closure).
 - **Code:** [PR #428](https://github.com/july-rust/BoardSI/pull/428) — merged on 2026-11-04 KST.
 - **Exact final code PR HEAD:** `3f07ef8f0ee7ddcc7044f5ed3eb66acabcf698e0`.
 - **GitHub squash merge SHA:** [`54d345bfa5c4a60eb8d7c0dc2e9c3be7e7aeacf6`](https://github.com/july-rust/BoardSI/commit/54d345bfa5c4a60eb8d7c0dc2e9c3be7e7aeacf6).
@@ -29,12 +29,24 @@ Qt independently reimports and reconstructs exact canonical Source and SHA-bound
 - Independent Codex code review on the **same final HEAD**: `status=completed`, `has_any_findings=false`, `has_unresolved_findings=false`; unresolved review threads **0**. [Review summary](https://github.com/july-rust/BoardSI/pull/428#issuecomment-6623071078).
 - Initial superseded code HEAD had real Rustfmt and dead-code warnings. They were corrected before the final HEAD checks. Do not erase failed-history provenance.
 
-## 3. Code merge and evidence still pending
+## 3. Protected code-main and documentary acceptance — independently verified (2026-11-04 KST)
 
-- GitHub reported PR #428 `merged=true`, method `squash`, commit `54d345bfa5c4a60eb8d7c0dc2e9c3be7e7aeacf6`.
-- **NOT YET INDEPENDENTLY VERIFIED IN THIS RECORD:** exact merged commit signature `verified=true`, sole-parent ancestry, exact SHA post-code-main `event=push` workflow/check-run acceptance. The available connected workflow listing is limited to PR event runs; do not infer Push results from successful PR jobs.
-- **Separate Markdown-only documentation PR** is restricted to this ledger and `docs/development-checklist.md`; existing docs-only CI classifier must avoid native compiler jobs while retaining required check contexts.
-- Before completion: independently verify exact code-main Push CI and signature/parent, exact docs PR HEAD checks, same-HEAD Codex review, zero unresolved threads, protected docs Squash and exact docs-main Push CI. Only then mark D_029 complete and close Issue #427.
+### Code PR #428 and exact merged code SHA
+
+- Final code PR HEAD `3f07ef8f0ee7ddcc7044f5ed3eb66acabcf698e0`: **34/34 PR Check Runs SUCCESS and 11/11 pull_request Workflows SUCCESS**. Independent same-HEAD Codex `completed` / `has_any_findings=false` / `has_unresolved_findings=false`, **0 unresolved threads**. [Code PR #428](https://github.com/july-rust/BoardSI/pull/428).
+- Protected GitHub one-parent Squash: [`main@54d345bfa5c4a60eb8d7c0dc2e9c3be7e7aeacf6`](https://github.com/july-rust/BoardSI/commit/54d345bfa5c4a60eb8d7c0dc2e9c3be7e7aeacf6), sole parent `bb689a47685018c1ee4eba54412eb596f0489f94`; REST commit verification **`verified=true`, `reason=valid`**.
+- Independently queried `event=push` at exact code-main SHA: **8/8 Push Workflows SUCCESS and 28/28 final GitHub Check Runs SUCCESS**. [Qt Runtime Push #41778597784](https://github.com/july-rust/BoardSI/actions/runs/41778597784), [Numerical Core Push #41778597746](https://github.com/july-rust/BoardSI/actions/runs/41778597746). Each returned run has exact `head_sha=54d345bfa5c4a60eb8d7c0dc2e9c3be7e7aeacf6`.
+- **Historical cancellation preserved:** the first code-main Qt Runtime Push attempt was **CANCELLED** (3 Native Qt jobs), not SUCCESS. The existing workflow sets `concurrency.group: qt-runtime-${{ github.ref }}` and `cancel-in-progress: true`; later document-main push on the same `main` ref started during the earlier run. The cancellation timing is consistent with that concurrency policy; this is not evidence of a functional Qt defect. Invoked existing **re-run failed jobs**, resulting in attempt **2**, where Linux Qt 6.8.3 Offscreen and Windows x64 / ARM64 / macOS ARM64 Qt jobs all **SUCCESS**. Final Workflow `status=completed, conclusion=success, run_attempt=2`. No new native workflow family or relaxed check requirement.
+
+### Separate initial documentation PR #429 and exact merged docs SHA
+
+- [Docs PR #429](https://github.com/july-rust/BoardSI/pull/429), exact docs HEAD `5f7933a57175a10fcfb52a51dfc997b7c4c22a3d`: **8/8 pull_request Workflows SUCCESS**, independent same-HEAD Codex `completed`, findings=false, unresolved=false, **0 review threads**. Changed **only** `docs/development-checklist.md` and this ledger. Existing Docs-only classifier skipped native compiler jobs; required contexts were not weakened.
+- Protected GitHub one-parent Verified Squash: [`main@96cfe39bdd794a2c526c6c610a6e4c52dfe87a5c`](https://github.com/july-rust/BoardSI/commit/96cfe39bdd794a2c526c6c610a6e4c52dfe87a5c), sole parent `54d345bfa5c4a60eb8d7c0dc2e9c3be7e7aeacf6`, `verified=true/reason=valid`.
+- Independently queried exact docs-main SHA: **8/8 event=push Workflows SUCCESS**; **28/28 Check Runs completed (12 SUCCESS, 16 expected SKIPPED)**, preserving efficient Docs-only CI behavior. [Qt Docs Push #41779146552](https://github.com/july-rust/BoardSI/actions/runs/41779146552), [Numerical Docs Push #41779146592](https://github.com/july-rust/BoardSI/actions/runs/41779146592). Skip is not a compiler-test pass; true platform qualification came from the verified code PR and code-main Push runs.
+
+### Final administrative closeout
+
+This ledger upgrades the **bounded D_029 Source-only acceptance** from pending to checked only after the exact code-main rerun and initial docs-main independent Push verification. The final follow-up Markdown-only reconciliation PR itself must still satisfy exact-HEAD CI, independent Codex review, Verified one-parent Squash and exact post-merge Push CI. Record that *final PR* SHA and acceptance in [Issue #427](https://github.com/july-rust/BoardSI/issues/427); close the Issue only after its final Push CI success. Do **not** recursively create documentation PRs solely to insert a later administrative commit SHA into this file.
 
 ## 4. Explicit exclusions
 
