@@ -105,6 +105,42 @@ inline int selftest(const QString &importer) {
     }) {
         if (bad==source || !save(bad) || !query().isEmpty()) rejectsHostiles=false;
     }
+    // Independent Qt-hostile verification: import each hostile Source, bind the
+    // counterfeit wire to its REAL SHA and track coordinates, then ensure the
+    // Qt decoder itself rejects the geometry (not merely a stale receipt).
+    const auto originalSha=QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex();
+    const QByteArray originalTrack="TRACE|3|4|15000|25000|6000|37000|10\\n";
+    const auto rejectsQtReimport=[&](const QByteArray &bad, const QByteArray &hostileTrack) {
+        if (bad==source || !save(bad) || !load()) return false;
+        const auto hostileSha=QCryptographicHash::hash(bad,QCryptographicHash::Sha256).toHex();
+        if (hostileSha==originalSha || panel.acceptedSourceSha256()!=hostileSha
+            || wire.count(originalSha)!=1 || !wire.contains(originalTrack)
+            || !hostileTrack.startsWith("TRACE|3|4|")) return false;
+        auto counterfeit=wire;
+        counterfeit.replace(originalSha,hostileSha);
+        counterfeit.replace(originalTrack,hostileTrack);
+        // If Qt were to drop its D031 predicate, this exact constructed wire
+        // would otherwise match its rebuilt Source witness and get accepted.
+        return counterfeit!=wire && query().isEmpty()
+            && !d015::decode_non45_steep_via_a_endpoint_contact(
+                counterfeit,bad,&panel,"NET_A",ignored);
+    };
+    const bool rejectsQtGeometryHostiles=
+        rejectsQtReimport(QByteArray(source).replace(
+            "150 250 4 10 0\\n60 370 4 10 0",
+            "150.01 250 4 10 0\\n60 370 4 10 0"),
+            "TRACE|3|4|15001|25000|6000|37000|10\\n")
+        && rejectsQtReimport(QByteArray(source).replace(
+            "60 370 4 10 0","60.01 370 4 10 0"),
+            "TRACE|3|4|15000|25000|6001|37000|10\\n")
+        && rejectsQtReimport(QByteArray(source).replace(
+            "60 370 4 10 0","30 340 4 10 0"),
+            "TRACE|3|4|15000|25000|3000|34000|10\\n")
+        && rejectsQtReimport(QByteArray(source).replace(
+            "60 370 4 10 0","240 370 4 10 0"),
+            "TRACE|3|4|15000|25000|24000|37000|10\\n")
+        && rejectsQtReimport(QByteArray(source).replace(
+            "*SIGNAL* NET_A\\nU3.3","*SIGNAL* OTHER\\nU3.3"),originalTrack);
     auto reversedSource=source;
     reversedSource.replace("150 250 4 10 0\n60 370 4 10 0",
                            "60 370 4 10 0\n150 250 4 10 0");
@@ -115,10 +151,10 @@ inline int selftest(const QString &importer) {
     if (!save(decimal) || !load()) return 2;
     const bool lexical=d015::decode_non45_steep_via_a_endpoint_contact(query(),decimal,&panel,"NET_A",ignored);
     const bool ok=accepted && legacyModes && rejectsOldQtMode && rejectsForgery && rejectsCoordinate
-        && rejectsPromotion && rejectsStale && rejectsHostiles && reversed && lexical;
+        && rejectsPromotion && rejectsStale && rejectsHostiles && rejectsQtGeometryHostiles && reversed && lexical;
     qInfo()<<"D031_NATIVE_QT_NON45_STEEP_VIA_A_SOURCE"<<ok<<accepted<<legacyModes
         <<rejectsOldQtMode<<rejectsForgery<<rejectsCoordinate<<rejectsPromotion<<rejectsStale
-        <<rejectsHostiles<<reversed<<lexical<<"NO_ELECTRICAL_PROOF";
+        <<rejectsHostiles<<rejectsQtGeometryHostiles<<reversed<<lexical<<"NO_ELECTRICAL_PROOF";
     return ok?0:1;
 }
 } // namespace d031
