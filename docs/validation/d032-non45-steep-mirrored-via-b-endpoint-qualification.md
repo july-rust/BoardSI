@@ -1,6 +1,6 @@
 # D_032 — Exact Mirrored Negative Steep 3:4 Non-45° Via-B SOURCE Contact Qualification
 
-**Status:** CODE_PR_ACCEPTED; CODE_MAIN_PUSH_PENDING; documentation evidence under review. **2026-11-05 KST.**
+**Status:** D_032 bounded SOURCE geometry code acceptance PASS after independently verified code-main Push; separate documentation acceptance pending its exact final PR/docs-main CI. **2026-11-05 KST.**
 
 ## Scope: Source geometry only
 The bounded PADS V9.4 MILS fixture has exact 254 nm source ticks, Net `NET_A`, L4 Main Trace `(15000,25000)→(35000,25000)`, Via-B `(35000,25000)` and mirrored Branch `(35000,25000)→(44000,13000)`. Its canonical Via-B-to-exterior displacement is `(+9000,-12000)`, an exact negative steep 3:4 non-45° slope. The source-reversed Branch is accepted.
@@ -24,8 +24,8 @@ Rust signed i128 and independent Qt source reimport enforce exactly `3*abs(cross
 
 ## Protected code-main merge
 - PR #439 protected Squash code-main commit [`2afa5d3fccb4524037ca3f1ccf7e86b123d9a0e9`](https://github.com/july-rust/BoardSI/commit/2afa5d3fccb4524037ca3f1ccf7e86b123d9a0e9), **exactly one parent** `ebf039d25a7217aa87bff859ac8c0a03ed655090` and GitHub `verification.verified=true/reason=valid`.
-- **CODE_MAIN_PUSH_PENDING:** code-main `event=push` CI is still running and **must be independently verified** for exact commit SHA before this evidence can be marked fully accepted. Do not infer from PR 34/34.
-- No main Push status is claimed here without completed exact-SHA evidence.
+- **Exact code-main Push independently verified PASS:** GitHub REST restricted to the same `head_sha=2afa5d3fccb4524037ca3f1ccf7e86b123d9a0e9`, `event=push`: **8/8 Workflows SUCCESS and 28/28 Check Runs SUCCESS**, all completed. [Qt runtime Push #41919079083](https://github.com/july-rust/BoardSI/actions/runs/41919079083); [Numerical core Push #41919079100](https://github.com/july-rust/BoardSI/actions/runs/41919079100).
+- The exact code PR, signed Squash and post-merge Push are **distinct evidence gates** and were separately verified. No physical electrical or product acceptance is implied.
 
 ## Documentation-only closeout gates
 - Update `docs/development-checklist.md` and this validation ledger only, using existing Markdown-only native skip optimization, preserving required contexts.
