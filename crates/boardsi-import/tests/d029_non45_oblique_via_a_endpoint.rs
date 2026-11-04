@@ -15,8 +15,12 @@ fn exact_four_to_three_via_a_geometry_only() {
     assert!(wire.contains("CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|3|X|15000|Y|25000"));
     assert!(wire.contains("EDGE|4|5|7|SOURCE_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4"));
     assert!(wire.contains("EDGE|5|1|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4"));
-    assert!(wire.contains("COUNT|NODES|8|LAYER_LOCAL_EDGES|6|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0"));
-    assert!(wire.contains("SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE"));
+    assert!(wire.contains(
+        "COUNT|NODES|8|LAYER_LOCAL_EDGES|6|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0"
+    ));
+    assert!(wire.contains(
+        "SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE"
+    ));
     assert!(wire.ends_with("END|FAIL_CLOSED_NO_BARREL_PROOF\n"));
     assert_eq!(wire.lines().filter(|line| line.starts_with("EDGE|")).count(), 6);
     assert_eq!(wire, witness(SRC).unwrap());
@@ -61,12 +65,22 @@ fn reject_source_gaps_angles_modes_and_extra_artwork() {
         assert!(witness(bad.as_bytes()).is_err());
     }
     assert!(witness(D028).is_err());
-    assert!(shared::encode_non45_oblique_via_b_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
+    assert!(
+        shared::encode_non45_oblique_via_b_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err()
+    );
     assert!(shared::encode_oblique_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
-    assert!(shared::encode_orthogonal_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
+    assert!(
+        shared::encode_orthogonal_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err()
+    );
     assert!(shared::encode_opposite_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(witness(SRC).is_ok());
-    assert!(shared::encode_non45_oblique_via_a_endpoint_contact(SRC, "OTHER", [1, 4], [0, 1]).is_err());
-    assert!(shared::encode_non45_oblique_via_a_endpoint_contact(SRC, "NET_A", [1, 2], [0, 1]).is_err());
-    assert!(shared::encode_non45_oblique_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [1, 0]).is_err());
+    assert!(
+        shared::encode_non45_oblique_via_a_endpoint_contact(SRC, "OTHER", [1, 4], [0, 1]).is_err()
+    );
+    assert!(
+        shared::encode_non45_oblique_via_a_endpoint_contact(SRC, "NET_A", [1, 2], [0, 1]).is_err()
+    );
+    assert!(
+        shared::encode_non45_oblique_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [1, 0]).is_err()
+    );
 }
