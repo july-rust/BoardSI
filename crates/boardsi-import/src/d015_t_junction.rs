@@ -331,7 +331,13 @@ pub fn encode_non45_steep_mirrored_via_b_endpoint_contact(
     layers: [usize; 2],
     vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, ContactMode::Non45SteepMirroredViaB)
+    encode_with_mode(
+        bytes,
+        net,
+        layers,
+        vias,
+        ContactMode::Non45SteepMirroredViaB,
+    )
 }
 
 /// D_031 exact steep 3:4 non-45-degree Via-A Source endpoint; not electrical proof.
