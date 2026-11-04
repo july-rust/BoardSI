@@ -18,7 +18,7 @@ fn source() -> String {
 }
 
 #[test]
-fn exact_oblique_45_degree_via_b_source_only() {
+fn exact_oblique_45_degree_via_a_source_only() {
     let w = witness(SRC).unwrap();
     assert!(w.starts_with("BOARDSI_D027_OBLIQUE_VIA_A_ENDPOINT_CONTACT_V1|"));
     assert!(w.contains("CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|3|X|15000|Y|25000"));
