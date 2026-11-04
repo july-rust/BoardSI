@@ -323,6 +323,17 @@ pub fn encode_non45_steep_via_b_endpoint_contact(
     encode_with_mode(bytes, net, layers, vias, ContactMode::Non45SteepViaB)
 }
 
+/// D_031 exact steep 3:4 non-45-degree Via-A Source endpoint; not electrical proof.
+#[allow(dead_code)]
+pub fn encode_non45_steep_via_a_endpoint_contact(
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
+) -> Result<String, &'static str> {
+    encode_with_mode(bytes, net, layers, vias, ContactMode::Non45SteepViaA)
+}
+
 #[derive(Clone, Copy)]
 enum ContactMode {
     Perpendicular,
@@ -338,6 +349,7 @@ enum ContactMode {
     Non45ObliqueViaB,
     Non45ObliqueViaA,
     Non45SteepViaB,
+    Non45SteepViaA,
 }
 
 fn encode_with_mode(
@@ -355,6 +367,7 @@ fn encode_with_mode(
     let non45_oblique_via_b = matches!(mode, ContactMode::Non45ObliqueViaB);
     let non45_oblique_via_a = matches!(mode, ContactMode::Non45ObliqueViaA);
     let non45_steep_via_b = matches!(mode, ContactMode::Non45SteepViaB);
+    let non45_steep_via_a = matches!(mode, ContactMode::Non45SteepViaA);
     let oblique_via_b = matches!(mode, ContactMode::ObliqueViaB);
     let oblique_via_a = matches!(mode, ContactMode::ObliqueViaA);
     let orthogonal_endpoint = matches!(
@@ -372,6 +385,7 @@ fn encode_with_mode(
             | ContactMode::Non45ObliqueViaB
             | ContactMode::Non45ObliqueViaA
             | ContactMode::Non45SteepViaB
+            | ContactMode::Non45SteepViaA
     );
     if bytes.is_empty()
         || bytes.len() > route_preview::MAX_FILE_BYTES
@@ -420,7 +434,9 @@ fn encode_with_mode(
         })
     {
         return Err(if endpoint_contact {
-            if non45_steep_via_b {
+            if non45_steep_via_a {
+                "D031_COORDINATE_BOUNDS"
+            } else if non45_steep_via_b {
                 "D030_COORDINATE_BOUNDS"
             } else if non45_oblique_via_a {
                 "D029_COORDINATE_BOUNDS"
@@ -490,7 +506,14 @@ fn encode_with_mode(
         + (i128::from(exterior[1]) - i128::from(s[1].a[1])) * my;
     let valid_contact = if endpoint_contact {
         shared_a != shared_b
-            && (if non45_steep_via_b {
+            && (if non45_steep_via_a {
+                // Exact 3:4 steep non-45 Via-A exterior ray, source tick/i128 only.
+                shared == s[1].a
+                    && dot != 0
+                    && cross != 0
+                    && 3 * cross.abs() == 4 * dot.abs()
+                    && exterior_projection < 0
+            } else if non45_steep_via_b {
                 // Exact steep 3:4 non-45 Via-B ray, signed i128 source ticks only.
                 shared == s[1].b
                     && dot != 0
@@ -570,7 +593,9 @@ fn encode_with_mode(
     };
     if !valid_contact {
         return Err(if endpoint_contact {
-            if non45_steep_via_b {
+            if non45_steep_via_a {
+                "D031_NON45_STEEP_VIA_A_ENDPOINT_CONTACT"
+            } else if non45_steep_via_b {
                 "D030_NON45_STEEP_VIA_B_ENDPOINT_CONTACT"
             } else if non45_oblique_via_a {
                 "D029_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT"
@@ -633,7 +658,9 @@ fn encode_with_mode(
     for byte in digest::sha256(bytes) {
         write!(&mut sha, "{byte:02x}").map_err(|_| "D015_FMT")?;
     }
-    let mode = if non45_steep_via_b {
+    let mode = if non45_steep_via_a {
+        "D031_NON45_STEEP_VIA_A_ENDPOINT_CONTACT_V1"
+    } else if non45_steep_via_b {
         "D030_NON45_STEEP_VIA_B_ENDPOINT_CONTACT_V1"
     } else if non45_oblique_via_a {
         "D029_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_V1"
@@ -719,7 +746,9 @@ fn encode_with_mode(
             shared[0], shared[1]
         )
         .map_err(|_| {
-            if non45_steep_via_b {
+            if non45_steep_via_a {
+                "D031_FMT"
+            } else if non45_steep_via_b {
                 "D030_FMT"
             } else if non45_oblique_via_a {
                 "D029_FMT"
@@ -751,7 +780,9 @@ fn encode_with_mode(
         ("TRACE", 4, 3),
     ];
     // All edges are same-layer candidate contacts. NEVER a Via barrel edge.
-    let t_kind = if non45_steep_via_b {
+    let t_kind = if non45_steep_via_a {
+        "SOURCE_NON45_STEEP_VIA_A_ENDPOINT_CONTACT_CANDIDATE"
+    } else if non45_steep_via_b {
         "SOURCE_NON45_STEEP_VIA_B_ENDPOINT_CONTACT_CANDIDATE"
     } else if non45_oblique_via_a {
         "SOURCE_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_CANDIDATE"
@@ -787,7 +818,12 @@ fn encode_with_mode(
         // Via-A Source Pad node 1 (D023/D025); Via-B pad node 2 (D022/D024).
         // This remains layer-local Source geometry, not electrical barrel proof.
         edges.push((
-            if opposite_endpoint || orthogonal_via_a || oblique_via_a || non45_oblique_via_a {
+            if opposite_endpoint
+                || orthogonal_via_a
+                || oblique_via_a
+                || non45_oblique_via_a
+                || non45_steep_via_a
+            {
                 1
             } else {
                 2
@@ -822,7 +858,9 @@ fn encode_with_mode(
         components
     )
     .map_err(|_| "D015_FMT")?;
-    if non45_steep_via_b {
+    if non45_steep_via_a {
+        out.push_str("OVERALL|NON45_STEEP_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+    } else if non45_steep_via_b {
         out.push_str("OVERALL|NON45_STEEP_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
     } else if non45_oblique_via_a {
         out.push_str("OVERALL|NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");

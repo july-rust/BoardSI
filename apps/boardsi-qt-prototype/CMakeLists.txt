@@ -107,6 +107,21 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --d011-source-contact-graph-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-d011-source-contact-graph PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_031 exact steep 3:4 non-45 oblique Via-A Source-owned endpoint, reuse Qt runtime workflow.
+    add_executable(boardsi-d031-native-qt d031_qt_runner.cpp)
+    target_link_libraries(boardsi-d031-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+    if(WIN32)
+      target_link_libraries(boardsi-d031-native-qt PRIVATE psapi)
+    endif()
+    if(MSVC)
+      target_compile_options(boardsi-d031-native-qt PRIVATE /W4 /WX)
+    else()
+      target_compile_options(boardsi-d031-native-qt PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME qt-preview-d031-non45-steep-via-a-endpoint-source
+      COMMAND boardsi-d031-native-qt "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-d031-non45-steep-via-a-endpoint-source PROPERTIES TIMEOUT 60
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_030 exact steep 3:4 non-45 oblique Via-B Source-owned endpoint, reuse Qt runtime workflow.
     add_executable(boardsi-d030-native-qt d030_qt_runner.cpp)
     target_link_libraries(boardsi-d030-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
