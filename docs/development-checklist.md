@@ -9,7 +9,7 @@
 
 > **단일 정식 체크리스트:** 이 파일만 수정·운영합니다. 기존의 별도 조회용 `development-checklist-stage-view.md`는 통합 후 폐지합니다. 아래 표는 상세 원장의 체크 상태를 읽기 쉽게 정리한 것으로, 체크일·근거일·PR/CI/SHA와 제한 조건은 아래 원문을 우선합니다.
 >
-> **검증 범위:** 체크된 항목의 *한정 검증 PASS*는 실제 PCB의 전기적 Open/Short, P009 Return Path, 제품 RLGC/S Solver, PH-08 물리 Gate 또는 U/T 정식 제품 인수와 다릅니다. 현황판 수치는 2026-11-03 KST 기준이며 체크 항목 변경 시 함께 갱신합니다.
+> **검증 범위:** 체크된 항목의 *한정 검증 PASS*는 실제 PCB의 전기적 Open/Short, P009 Return Path, 제품 RLGC/S Solver, PH-08 물리 Gate 또는 U/T 정식 제품 인수와 다릅니다. 현황판 수치는 2026-11-04 KST 기준이며 체크 항목 변경 시 함께 갱신합니다.
 
 **빠른 이동:** [Stage A](#stage-a) · [Stage B](#stage-b) · [Stage C](#stage-c) · [Stage D](#stage-d) · [보안](#stage-security) · [제품 마일스톤](#stage-milestones) · [정식 U/T](#stage-acceptance) · [상세 원장](#목차)
 
