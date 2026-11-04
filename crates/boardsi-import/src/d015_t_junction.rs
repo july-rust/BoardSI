@@ -304,7 +304,10 @@ pub fn encode_non45_oblique_via_b_endpoint_contact(
 /// D_029 exact 4:3 non-45-degree Via-A Source endpoint; no barrel proof.
 #[allow(dead_code)]
 pub fn encode_non45_oblique_via_a_endpoint_contact(
-    bytes: &[u8], net: &str, layers: [usize; 2], vias: [usize; 2],
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
 ) -> Result<String, &'static str> {
     encode_with_mode(bytes, net, layers, vias, ContactMode::Non45ObliqueViaA)
 }
