@@ -694,6 +694,38 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // D_024 orthogonal Via-B Source endpoint contact; never fabricated electrical proof.
+    if args.len() == 8 && args[2] == std::ffi::OsStr::new("--d024-orthogonal-endpoint-contact-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let txt = |i: usize| args[i].to_str().ok_or("D024_UTF8");
+            let path = std::path::Path::new(&args[1]);
+            let meta = fs::metadata(path).map_err(|_| "D024_FILE")?;
+            if !meta.is_file() || meta.len() > MAX_FILE_BYTES as u64 {
+                return Err("D024_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D024_READ")?;
+            d015_core::encode_orthogonal_endpoint_contact(
+                &bytes,
+                txt(3)?,
+                [
+                    txt(4)?.parse::<usize>().map_err(|_| "D024_LAYER")?,
+                    txt(5)?.parse::<usize>().map_err(|_| "D024_LAYER")?,
+                ],
+                [
+                    txt(6)?.parse::<usize>().map_err(|_| "D024_VIA")?,
+                    txt(7)?.parse::<usize>().map_err(|_| "D024_VIA")?,
+                ],
+            )
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D024_COLLINEAR_ENDPOINT_CONTACT_SOURCE_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_023 opposite Via-A collinear Source endpoint contact; never fabricated electrical proof.
     if args.len() == 8
         && args[2] == std::ffi::OsStr::new("--d023-collinear-opposite-endpoint-contact-v1")
