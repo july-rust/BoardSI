@@ -220,7 +220,8 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                            : oppositeEndpoint ? "BOARDSI_D023_COLLINEAR_OPPOSITE_ENDPOINT_CONTACT_V1|"
                                               : "BOARDSI_D022_COLLINEAR_ENDPOINT_CONTACT_V1|");
         expected.replace("SOURCE_INTERIOR_T_CONTACT_CANDIDATE|4",
-                         orthogonalEndpoint ? "SOURCE_ORTHOGONAL_ENDPOINT_CONTACT_CANDIDATE|4"
+                         orthogonalViaA ? "SOURCE_ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4"
+                           : orthogonalEndpoint ? "SOURCE_ORTHOGONAL_ENDPOINT_CONTACT_CANDIDATE|4"
                                             : "SOURCE_COLLINEAR_ENDPOINT_CONTACT_CANDIDATE|4");
         expected.replace("COUNT|NODES|8|LAYER_LOCAL_EDGES|5",
                          oppositeEndpoint || orthogonalViaA
