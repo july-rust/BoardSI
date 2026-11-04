@@ -79,6 +79,7 @@ fn reject_1tick_angle_gap_wrong_mode_and_source_forgery() {
         s.replace("60 370 4 10 0", "150 340 4 10 0"),
         s.replace("60 370 4 10 0", "350 250 4 10 0"),
         s.replace("60 370 4 10 0", "230 340 4 10 0"),
+        s.replace("60 370 4 10 0", "240 370 4 10 0"), // exact 3:4 inward ray
         s.replace(
             "150 250 4 10 0\n60 370 4 10 0",
             "150 300 4 10 0\n60 370 4 10 0",
