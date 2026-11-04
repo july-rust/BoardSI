@@ -97,7 +97,7 @@ inline int selftest(const QString &importer) {
         QByteArray(source).replace("60 130 4 10 0","30 160 4 10 0"), // negative shallow 4:3
         QByteArray(source).replace("150 250 4 10 0\n60 130 4 10 0","150.01 250 4 10 0\n60 130 4 10 0"),
         QByteArray(source).replace("150 250 4 10 0\n60 130 4 10 0","150 250.01 4 10 0\n60 130 4 10 0"),
-        QByteArray(source).replace("60 130 4 10 0","60.01 370 4 10 0"),
+        QByteArray(source).replace("60 130 4 10 0","60.01 130 4 10 0"),
         QByteArray(source).replace("60 130 4 10 0","60 130.01 4 10 0"),
         QByteArray(source).replace("60 130 4 10 0","30 250 4 10 0"),
         QByteArray(source).replace("60 130 4 10 0","60 340 4 10 0"),
@@ -139,20 +139,19 @@ inline int selftest(const QString &importer) {
         && rejectsQtReimport(QByteArray(source).replace(
             "60 130 4 10 0","60 160 4 10 0"),
             "TRACE|3|4|15000|25000|6000|16000|1000\n")
-        &&
-        rejectsQtReimport(QByteArray(source).replace(
+        && rejectsQtReimport(QByteArray(source).replace(
             "150 250 4 10 0\n60 130 4 10 0",
             "150.01 250 4 10 0\n60 130 4 10 0"),
             "TRACE|3|4|15001|25000|6000|13000|1000\n")
         && rejectsQtReimport(QByteArray(source).replace(
-            "60 130 4 10 0","60.01 370 4 10 0"),
+            "60 130 4 10 0","60.01 130 4 10 0"),
             "TRACE|3|4|15000|25000|6001|13000|1000\n")
         && rejectsQtReimport(QByteArray(source).replace(
             "60 130 4 10 0","30 340 4 10 0"),
             "TRACE|3|4|15000|25000|3000|34000|1000\n")
         && rejectsQtReimport(QByteArray(source).replace(
             "60 130 4 10 0","240 370 4 10 0"),
-            "TRACE|3|4|15000|25000|24000|13000|1000\n")
+            "TRACE|3|4|15000|25000|24000|37000|1000\n")
         && rejectsQtReimport(QByteArray(source).replace(
             "*SIGNAL* NET_A\nU3.3","*SIGNAL* OTHER\nU3.3"),originalTrack);
     auto reversedSource=source;
