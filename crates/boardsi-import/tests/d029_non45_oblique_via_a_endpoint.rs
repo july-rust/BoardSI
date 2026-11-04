@@ -22,28 +22,37 @@ fn exact_four_to_three_via_a_geometry_only() {
         "SOURCE_GEOMETRY_ONLY|PLATING_IMPORTER_ASSUMED|BARREL_ELECTRICAL_NOT_VERIFIED|CROSS_LAYER_ELECTRICAL_NOT_PROVEN|SOLVER_READY_FALSE"
     ));
     assert!(wire.ends_with("END|FAIL_CLOSED_NO_BARREL_PROOF\n"));
-    assert_eq!(wire.lines().filter(|line| line.starts_with("EDGE|")).count(), 6);
+    assert_eq!(
+        wire.lines()
+            .filter(|line| line.starts_with("EDGE|"))
+            .count(),
+        6
+    );
     assert_eq!(wire, witness(SRC).unwrap());
 }
 
 #[test]
 fn reversed_branch_preserves_contact_and_sha_binding() {
-    let s = String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n");
+    let s = String::from_utf8(SRC.to_vec())
+        .unwrap()
+        .replace("\r\n", "\n");
     let reversed = s.replace(
         "150 250 4 10 0\n30 340 4 10 0",
         "30 340 4 10 0\n150 250 4 10 0",
     );
     assert_ne!(s, reversed);
-    assert!(witness(reversed.as_bytes()).unwrap().contains(
-        "CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|3|X|15000|Y|25000"
-    ));
+    assert!(witness(reversed.as_bytes())
+        .unwrap()
+        .contains("CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|3|X|15000|Y|25000"));
     let lexical = s.replace("80 250 1 10 0", "80.00 250 1 10 0");
     assert_ne!(witness(SRC).unwrap(), witness(lexical.as_bytes()).unwrap());
 }
 
 #[test]
 fn reject_source_gaps_angles_modes_and_extra_artwork() {
-    let s = String::from_utf8(SRC.to_vec()).unwrap().replace("\r\n", "\n");
+    let s = String::from_utf8(SRC.to_vec())
+        .unwrap()
+        .replace("\r\n", "\n");
     let pair = "150 250 4 10 0\n30 340 4 10 0";
     for bad in [
         s.replace(pair, "150.01 250 4 10 0\n30 340 4 10 0"),
@@ -73,6 +82,7 @@ fn reject_source_gaps_angles_modes_and_extra_artwork() {
         shared::encode_orthogonal_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err()
     );
     assert!(shared::encode_opposite_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
+    assert!(shared::encode(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(witness(SRC).is_ok());
     assert!(
         shared::encode_non45_oblique_via_a_endpoint_contact(SRC, "OTHER", [1, 4], [0, 1]).is_err()
