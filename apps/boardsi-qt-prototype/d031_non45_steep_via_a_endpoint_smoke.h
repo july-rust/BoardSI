@@ -88,18 +88,18 @@ inline int selftest(const QString &importer) {
         && d015::decode_non45_steep_via_a_endpoint_contact(query(),altered,&panel,"NET_A",ignored);
     bool rejectsHostiles=true;
     for (const auto &bad : {
-        QByteArray(source).replace("150 250 4 10 0\n60 370 4 10 0","350.01 250 4 10 0\n60 370 4 10 0"),
-        QByteArray(source).replace("150 250 4 10 0\n60 370 4 10 0","350 250.01 4 10 0\n60 370 4 10 0"),
-        QByteArray(source).replace("60 370 4 10 0","470.01 340 4 10 0"),
+        QByteArray(source).replace("150 250 4 10 0\n60 370 4 10 0","150.01 250 4 10 0\n60 370 4 10 0"),
+        QByteArray(source).replace("150 250 4 10 0\n60 370 4 10 0","150 250.01 4 10 0\n60 370 4 10 0"),
+        QByteArray(source).replace("60 370 4 10 0","60.01 370 4 10 0"),
         QByteArray(source).replace("60 370 4 10 0","60 370.01 4 10 0"),
-        QByteArray(source).replace("60 370 4 10 0","470 250 4 10 0"),
-        QByteArray(source).replace("60 370 4 10 0","440 340 4 10 0"),
-        QByteArray(source).replace("60 370 4 10 0","470 340 4 10 0"),
-        QByteArray(source).replace("60 370 4 10 0","350 340 4 10 0"),
+        QByteArray(source).replace("60 370 4 10 0","30 250 4 10 0"),
+        QByteArray(source).replace("60 370 4 10 0","60 340 4 10 0"),
+        QByteArray(source).replace("60 370 4 10 0","30 340 4 10 0"),
+        QByteArray(source).replace("60 370 4 10 0","150 340 4 10 0"),
         QByteArray(source).replace("60 370 4 10 0","350 250 4 10 0"),
         QByteArray(source).replace("60 370 4 10 0","230 340 4 10 0"),
-        QByteArray(source).replace("150 250 4 10 0\n60 370 4 10 0","350 300 4 10 0\n60 370 4 10 0"),
-        QByteArray(source).replace("150 250 4 10 0\n60 370 4 10 0","350 250 1 10 0\n60 370 1 10 0"),
+        QByteArray(source).replace("150 250 4 10 0\n60 370 4 10 0","150 300 4 10 0\n60 370 4 10 0"),
+        QByteArray(source).replace("150 250 4 10 0\n60 370 4 10 0","150 250 1 10 0\n60 370 1 10 0"),
         QByteArray(source).replace("*SIGNAL* NET_A\nU3.3","*SIGNAL* OTHER\nU3.3"),
         QByteArray(source).replace("*END*","*LINES*\nCOPCLS 5 0.01 0 4\n*END*")
     }) {
