@@ -1,6 +1,6 @@
 # D_032 — Exact Mirrored Negative Steep 3:4 Non-45° Via-B SOURCE Contact Qualification
 
-**Status:** D_032 bounded SOURCE geometry code acceptance PASS after independently verified code-main Push; separate documentation acceptance pending its exact final PR/docs-main CI. **2026-11-05 KST.**
+**Status:** D_032 bounded SOURCE-geometry qualification **CLOSED / ACCEPTED** (code, documentation, exact-commit CI, protected Verified Squash, and independent main Push confirmed). Tracking [Issue #438](https://github.com/july-rust/BoardSI/issues/438) **CLOSED / completed** on 2026-11-05 KST. **Electrical and product acceptance remain NOT_VERIFIED.**
 
 ## Scope: Source geometry only
 The bounded PADS V9.4 MILS fixture has exact 254 nm source ticks, Net `NET_A`, L4 Main Trace `(15000,25000)→(35000,25000)`, Via-B `(35000,25000)` and mirrored Branch `(35000,25000)→(44000,13000)`. Its canonical Via-B-to-exterior displacement is `(+9000,-12000)`, an exact negative steep 3:4 non-45° slope. The source-reversed Branch is accepted.
@@ -27,10 +27,12 @@ Rust signed i128 and independent Qt source reimport enforce exactly `3*abs(cross
 - **Exact code-main Push independently verified PASS:** GitHub REST restricted to the same `head_sha=2afa5d3fccb4524037ca3f1ccf7e86b123d9a0e9`, `event=push`: **8/8 Workflows SUCCESS and 28/28 Check Runs SUCCESS**, all completed. [Qt runtime Push #41919079083](https://github.com/july-rust/BoardSI/actions/runs/41919079083); [Numerical core Push #41919079100](https://github.com/july-rust/BoardSI/actions/runs/41919079100).
 - The exact code PR, signed Squash and post-merge Push are **distinct evidence gates** and were separately verified. No physical electrical or product acceptance is implied.
 
-## Documentation-only closeout gates
-- Update `docs/development-checklist.md` and this validation ledger only, using existing Markdown-only native skip optimization, preserving required contexts.
-- Separate PR exact final HEAD required Checks + independent same-HEAD Codex no findings/0 unresolved threads, protected Verified single-parent Squash, exact post-doc-main Push successful workflow and check-run auditing.
-- Record final docs-main SHA and Push outcome administratively in [Issue #438](https://github.com/july-rust/BoardSI/issues/438), avoiding recursive documentation PRs. Close Issue only after all verified gates.
+## Documentation-only closeout — independently verified PASS
+- [Docs PR #440](https://github.com/july-rust/BoardSI/pull/440), final HEAD [`ed8af4c9fc268436fb303ff4e915d2f1ddfc5814`](https://github.com/july-rust/BoardSI/commit/ed8af4c9fc268436fb303ff4e915d2f1ddfc5814): only the canonical development checklist and this D_032 validation ledger changed. **8/8 PR Workflows SUCCESS**; all **29/29 PR Check Runs completed (13 SUCCESS, 16 expected docs-only SKIPPED)**. All required checks retained; native compiler matrix was not restarted solely for Markdown edits.
+- Independent Codex review at the same exact PR HEAD **completed with no findings or unresolved findings**; **0 unresolved review threads**.
+- Protected **Verified one-parent Squash** docs-main commit [`b9546eb59d6b1c6f7d0e01ce01ca63603ac46b5c`](https://github.com/july-rust/BoardSI/commit/b9546eb59d6b1c6f7d0e01ce01ca63603ac46b5c); sole parent `2afa5d3fccb4524037ca3f1ccf7e86b123d9a0e9`, `verification.verified=true/reason=valid`.
+- **Exact docs-main Push independently verified PASS:** same head SHA, `event=push`, **8/8 Workflows SUCCESS and all 28/28 Check Runs completed (12 SUCCESS, 16 expected docs-only SKIPPED), 0 failures**. [Qt runtime Push #41921432673](https://github.com/july-rust/BoardSI/actions/runs/41921432673), [Validate planning docs Push #41921432762](https://github.com/july-rust/BoardSI/actions/runs/41921432762).
+- Final independent closeout evidence is preserved in the [Issue #438 audit comment](https://github.com/july-rust/BoardSI/issues/438#issuecomment-6643306796); [Issue #438](https://github.com/july-rust/BoardSI/issues/438) was verified **CLOSED / completed**. Stage D **53 checked / 2 pending**, all stages **124 checked / 122 pending**—limited evidence bookkeeping, not a product completion percentage.
 
 ## Explicit exclusions
 **NOT_VERIFIED:** real fabricated Copper or plated Via Barrel electrical continuity, whole-board Open/Short, reference return path P009/PH-08, RLGC/S solver fidelity, physical Scenario/Cache, M1/M2 formal U/T acceptance or product release. Parent [Issue #12](https://github.com/july-rust/BoardSI/issues/12) stays OPEN; legacy PR #35 remains CLOSED/UNMERGED. Acceptance here is a **local SOURCE geometry candidate**, not a fabricated or simulated electrical path.
