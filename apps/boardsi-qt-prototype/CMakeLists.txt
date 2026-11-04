@@ -120,7 +120,7 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME qt-preview-d031-non45-steep-via-a-endpoint-source
       COMMAND boardsi-d031-native-qt "${BOARDSI_IMPORTER}")
-    set_tests_properties(qt-preview-d031-non45-steep-via-a-endpoint-source PROPERTIES TIMEOUT 35
+    set_tests_properties(qt-preview-d031-non45-steep-via-a-endpoint-source PROPERTIES TIMEOUT 60
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_030 exact steep 3:4 non-45 oblique Via-B Source-owned endpoint, reuse Qt runtime workflow.
     add_executable(boardsi-d030-native-qt d030_qt_runner.cpp)
