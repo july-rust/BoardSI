@@ -694,6 +694,40 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // D_026 oblique Via-B Source endpoint contact; never fabricated electrical proof.
+    if args.len() == 8
+        && args[2] == std::ffi::OsStr::new("--d026-oblique-via-b-endpoint-contact-v1")
+    {
+        let result = (|| -> Result<String, &'static str> {
+            let txt = |i: usize| args[i].to_str().ok_or("D026_UTF8");
+            let path = std::path::Path::new(&args[1]);
+            let meta = fs::metadata(path).map_err(|_| "D026_FILE")?;
+            if !meta.is_file() || meta.len() > MAX_FILE_BYTES as u64 {
+                return Err("D026_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D026_READ")?;
+            d015_core::encode_oblique_via_b_endpoint_contact(
+                &bytes,
+                txt(3)?,
+                [
+                    txt(4)?.parse::<usize>().map_err(|_| "D026_LAYER")?,
+                    txt(5)?.parse::<usize>().map_err(|_| "D026_LAYER")?,
+                ],
+                [
+                    txt(6)?.parse::<usize>().map_err(|_| "D026_VIA")?,
+                    txt(7)?.parse::<usize>().map_err(|_| "D026_VIA")?,
+                ],
+            )
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D026_OBLIQUE_VIA_B_ENDPOINT_CONTACT_SOURCE_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_025 orthogonal Via-A Source endpoint contact; never fabricated electrical proof.
     if args.len() == 8
         && args[2] == std::ffi::OsStr::new("--d025-orthogonal-via-a-endpoint-contact-v1")
