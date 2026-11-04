@@ -91,7 +91,14 @@ fn reject_1tick_angle_gap_wrong_mode_and_source_forgery() {
     ] {
         assert!(witness(bad.as_bytes()).is_err(), "accepted hostile {bad}");
     }
-    for incompatible in [ORTHOGONAL_B, ORTHOGONAL_A, COLLINEAR, PARTIAL, OBLIQUE_45_B, OBLIQUE_45_A] {
+    for incompatible in [
+        ORTHOGONAL_B,
+        ORTHOGONAL_A,
+        COLLINEAR,
+        PARTIAL,
+        OBLIQUE_45_B,
+        OBLIQUE_45_A,
+    ] {
         assert!(witness(incompatible).is_err());
     }
     assert!(shared::encode_orthogonal_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
@@ -105,7 +112,13 @@ fn reject_1tick_angle_gap_wrong_mode_and_source_forgery() {
     assert!(shared::encode_oblique_via_b_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(shared::encode_oblique_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(witness(SRC).is_ok());
-    assert!(shared::encode_non45_oblique_via_b_endpoint_contact(SRC, "OTHER", [1, 4], [0, 1]).is_err());
-    assert!(shared::encode_non45_oblique_via_b_endpoint_contact(SRC, "NET_A", [1, 2], [0, 1]).is_err());
-    assert!(shared::encode_non45_oblique_via_b_endpoint_contact(SRC, "NET_A", [1, 4], [1, 0]).is_err());
+    assert!(
+        shared::encode_non45_oblique_via_b_endpoint_contact(SRC, "OTHER", [1, 4], [0, 1]).is_err()
+    );
+    assert!(
+        shared::encode_non45_oblique_via_b_endpoint_contact(SRC, "NET_A", [1, 2], [0, 1]).is_err()
+    );
+    assert!(
+        shared::encode_non45_oblique_via_b_endpoint_contact(SRC, "NET_A", [1, 4], [1, 0]).is_err()
+    );
 }

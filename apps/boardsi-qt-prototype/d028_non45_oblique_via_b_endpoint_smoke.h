@@ -1,4 +1,4 @@
-// D_028 source-tick 45-degree oblique Via-B endpoint contact native Qt qualification.
+// D_028 source-tick exact 4:3 non-45-degree Via-B endpoint native Qt qualification.
 // SOURCE GEOMETRY ONLY; never copper, barrel or whole-board electrical proof.
 #pragma once
 #include "d015_t_junction_qt.h"
