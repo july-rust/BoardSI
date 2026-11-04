@@ -18,12 +18,12 @@
 | [**A**](#stage-a) | Preview · Import · Artwork | 12 | 5 |
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
-| [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 50 | 2 |
+| [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 51 | 2 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
-**전체 체크 상태: 121건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
+**전체 체크 상태: 122건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
 
 <a id="stage-a"></a>
 ### Stage A — 제한 Preview / Import / Artwork
@@ -94,7 +94,7 @@
 <a id="stage-d"></a>
 ### Stage D — PADS Source Contact / Junction
 
-**50건 확인 · 2건 미확인.** 지원된 PADS Source 기하의 부분 접점 후보 증거이며, 제조 물리 접속과 전기적 연속성을 인증하지 않습니다.
+**51건 확인 · 2건 미확인.** 지원된 PADS Source 기하의 부분 접점 후보 증거이며, 제조 물리 접속과 전기적 연속성을 인증하지 않습니다.
 
 | 작업 | 제한 검증 범위 | 확인 | 미확인 |
 | :--- | :--- | ---: | ---: |
@@ -127,6 +127,7 @@
 | [**D_027**](#d_027) | 45° Oblique Via-A L-Bend Endpoint Source 후보 (한정 코드·Push 인수 완료) | 1 | 0 |
 | [**D_028**](#d_028) | Non-45° exact 4:3 Via-B L-Bend Endpoint Source 후보 (한정 코드·main Push 인수 완료) | 1 | 0 |
 | [**D_029**](#d_029) | Non-45° exact 4:3 Via-A L-Bend Endpoint Source 후보 (코드·문서 Push 한정 인수 완료) | 1 | 0 |
+| [**D_030**](#d_030) | Non-45° exact steep 3:4 Via-B Source 후보 (code-main Push 인수 완료) | 1 | 0 |
 
 <a id="stage-security"></a>
 ### 보안 — SEC_001
@@ -838,3 +839,9 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 ### D_029 — PADS Same-Layer Exact 4:3 Non-45° Via-A Endpoint-to-Endpoint SOURCE Contact (한정 인수 완료 · 2026-11-04 KST)
 
 - [x] **D_029 Source-only Via-A 정확한 4:3 비45° 사선 끝점 접속 후보 — 코드·문서 근거 한정 인수 완료** · **최초 기록일: 2026-11-04 KST** · **체크일: 2026-11-04 KST** · **근거일: 2026-11-04 KST**. [Issue #427](https://github.com/july-rust/BoardSI/issues/427), [코드 PR #428](https://github.com/july-rust/BoardSI/pull/428), [문서 PR #429](https://github.com/july-rust/BoardSI/pull/429), [D_029 검증 원장](validation/d029-non45-oblique-via-a-endpoint-qualification.md). 정확한 최종 코드 PR HEAD `3f07ef8f0ee7ddcc7044f5ed3eb66acabcf698e0`의 **34/34 PR Check Runs · 11/11 PR Workflows SUCCESS**, 독립 동일 HEAD Codex `completed/findings=false/unresolved=false`, 미해결 리뷰 스레드 0. Rust D_029 **Debug 3/3 · Release 3/3 PASS**, Linux Qt Offscreen **51/51 CTest PASS**, Windows x64·Windows ARM64·macOS ARM64 Native Qt 전용 D_029 및 기존 회귀 **SUCCESS**. PADS V9.4 MILS Source Tick 254 nm, L4 Main `(15000,25000)→(35000,25000)`, Branch `(15000,25000)→(3000,34000)`, Via-A `(15000,25000)`, 정확한 `i128 4×|cross|=3×|dot|`, Via-A 외측 음수 투영 및 Branch 역방향, 1 Tick Gap/Angle·모드 오인식·Net/Layer/Via·Source Inventory·Stale/Forged Receipt·전기적 승격 Fail-Closed를 재구성. **8 Source Nodes / 6 same-layer Candidate Edges / 3 local Components / 0 Proven Electrical Cross-layer Edges**, `SOURCE_GEOMETRY_ONLY`만 인정. 보호된 GitHub **Verified 단일 부모 Squash 코드-main** [`54d345bfa5c4a60eb8d7c0dc2e9c3be7e7aeacf6`](https://github.com/july-rust/BoardSI/commit/54d345bfa5c4a60eb8d7c0dc2e9c3be7e7aeacf6), sole parent `bb689a47685018c1ee4eba54412eb596f0489f94`, `verified=true/reason=valid`; 정확한 코드-main SHA의 독립 **28/28 Check Runs · 8/8 event=push Workflows SUCCESS** ([Qt Runtime #41778597784](https://github.com/july-rust/BoardSI/actions/runs/41778597784), [Numerical #41778597746](https://github.com/july-rust/BoardSI/actions/runs/41778597746)). **과거 이력 보존:** 최초 코드-main Qt Push 실행은 Docs-main 동시 실행으로 인해 3개 Native Qt Job이 `CANCELLED`되었으며, 기존 실패 Job 재실행으로 **attempt=2 모두 SUCCESS**; 처음부터 성공한 것으로 기록하지 않는다. 별도 2개 Markdown만 수정한 문서 PR #429의 최종 HEAD `5f7933a57175a10fcfb52a51dfc997b7c4c22a3d` **8/8 PR Workflows SUCCESS**, 동일 HEAD 독립 Codex findings=false/unresolved=false, 스레드 0. 보호 **Verified 단일 부모 docs-main** [`96cfe39bdd794a2c526c6c610a6e4c52dfe87a5c`](https://github.com/july-rust/BoardSI/commit/96cfe39bdd794a2c526c6c610a6e4c52dfe87a5c), sole parent `54d345bfa5c4a60eb8d7c0dc2e9c3be7e7aeacf6`, `verified=true/reason=valid`, 독립 **8/8 event=push Workflows SUCCESS**, **28/28 Check Runs 완료(12 SUCCESS / Docs-only 최적화에 따른 16 SKIPPED)** ([Qt Docs Push #41779146552](https://github.com/july-rust/BoardSI/actions/runs/41779146552)). **명시적 미인수:** 제조 Copper/Plated Via Barrel 실도통, Global Open/Short, P009·PH-08 Reference Return Path, RLGC/S, Physical Scenario/Cache, 정식 M1/M2 U/T 및 제품 릴리스는 **NOT_VERIFIED**. 부모 [Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN, 레거시 PR #35 CLOSED/UNMERGED. 본 한정 체크는 위에서 실측한 코드 및 최초 문서-main 근거까지이며, 이 체크리스트를 업데이트하는 별도 마지막 Markdown-only 정리 PR 자체의 최종 CI·리뷰·보호 병합·post-main Push 결과는 **Issue #427에서 별도 실증 후 행정 종료**한다.
+
+
+<a id="d_030"></a>
+### D_030 — PADS Same-Layer Exact Steep 3:4 Non-45° Via-B Endpoint-to-Endpoint SOURCE Contact (코드-main 한정 인수 완료 · 2026-11-04 KST)
+
+- [x] **D_030 Via-B exact steep 3:4 Source 끝점 접촉 후보 — 코드와 병합 Push 근거 한정 인수 완료** · **최초 기록일: 2026-11-04 KST** · **체크일: 2026-11-04 KST** · **근거일: 2026-11-04 KST**. [Issue #431](https://github.com/july-rust/BoardSI/issues/431), [코드 PR #432](https://github.com/july-rust/BoardSI/pull/432), [검증 원장](validation/d030-non45-steep-via-b-endpoint-qualification.md). 정확한 최종 코드 PR HEAD `c294d979e8ef1dc945be4a9174934ad6f655d565`: **34/34 PR Checks · 11/11 PR Workflows SUCCESS**, 독립 동일 HEAD Codex `completed/findings=false/unresolved=false`, 미해결 리뷰 스레드 0. Rust 전용 **Debug 3/3 및 Release 3/3 PASS**, Linux Qt Offscreen **52/52 CTest PASS**, Windows x64·Windows ARM64·macOS ARM64 D_030 Native Qt Smoke **SUCCESS**. PADS V9.4 MILS 254 nm Tick, NET_A L4, Main `(15000,25000)→(35000,25000)`, Branch `(35000,25000)→(44000,37000)`, Via-B `(35000,25000)`; Rust i128 `3×abs(cross)=4×abs(dot)` 및 Via-B 외측 투영, 역방향 Branch 허용, Qt 독립 Source 재구성. **8 Nodes / 6 Same-layer Candidate Edges / 3 Components / 0 Proven Electrical Cross-layer Edges**. 1-Tick Gap/Offset/Angle, 4:3/45°/직교/공선 모드, Net/Layer/Via, 추가·누락 Source, Stale/Forged Receipt, 전기적 증거 승격 Fail-Closed. 보호된 **Verified 단일 부모 Squash** [`main@f898ccc8ccedfca2be5876a986a521fb770d3dc1`](https://github.com/july-rust/BoardSI/commit/f898ccc8ccedfca2be5876a986a521fb770d3dc1) (`verified=true/reason=valid`, parent `beeb47e8e70301d12ae77e8ea978f52e13f4f474`) 및 정확한 code-main SHA 독립 **8/8 event=push Workflows · 28/28 Check Runs SUCCESS** ([Qt Runtime](https://github.com/july-rust/BoardSI/actions/runs/41795317730), [Numerical](https://github.com/july-rust/BoardSI/actions/runs/41795317722)). 초기 Rustfmt 실패·Codex P1(Qt CLI 옵션 불일치)는 최종 HEAD에서 수정·재검증하고 실패 이력 보존. **본 Docs-only PR 자체의 최종 CI·독립 리뷰·Verified Squash·post-doc-main Push 및 Issue #431 행정 종료는 별도로 확인**한다. SOURCE_GEOMETRY_ONLY이며 실제 Copper/Plated Via Barrel, Global Open/Short, P009/PH-08, RLGC/S, Physical Scenario/Cache, 정식 U/T·제품 릴리스 **NOT_VERIFIED**; 부모 Issue #12 OPEN, PR #35 CLOSED/UNMERGED.
