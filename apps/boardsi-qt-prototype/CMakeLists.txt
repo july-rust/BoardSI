@@ -107,6 +107,21 @@ if(BUILD_TESTING)
       COMMAND boardsi-preview-p0 --d011-source-contact-graph-selftest "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-d011-source-contact-graph PROPERTIES TIMEOUT 35
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_025 orthogonal Via-A Source-owned endpoint, reuse Qt runtime workflow.
+    add_executable(boardsi-d025-native-qt d025_qt_runner.cpp)
+    target_link_libraries(boardsi-d025-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+    if(WIN32)
+      target_link_libraries(boardsi-d025-native-qt PRIVATE psapi)
+    endif()
+    if(MSVC)
+      target_compile_options(boardsi-d025-native-qt PRIVATE /W4 /WX)
+    else()
+      target_compile_options(boardsi-d025-native-qt PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME qt-preview-d025-orthogonal-via-a-endpoint-source
+      COMMAND boardsi-d025-native-qt "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-d025-orthogonal-via-a-endpoint-source PROPERTIES TIMEOUT 35
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_024 orthogonal Via-B Source-owned endpoint, reuse Qt runtime workflow.
     add_executable(boardsi-d024-native-qt d024_qt_runner.cpp)
     target_link_libraries(boardsi-d024-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
