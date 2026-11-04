@@ -109,7 +109,7 @@ inline int selftest(const QString &importer) {
     // counterfeit wire to its REAL SHA and track coordinates, then ensure the
     // Qt decoder itself rejects the geometry (not merely a stale receipt).
     const auto originalSha=QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex();
-    const QByteArray originalTrack="TRACE|3|4|15000|25000|6000|37000|10\\n";
+    const QByteArray originalTrack="TRACE|3|4|15000|25000|6000|37000|1000\n";
     const auto rejectsQtReimport=[&](const QByteArray &bad, const QByteArray &hostileTrack) {
         if (bad==source || !save(bad) || !load()) return false;
         const auto hostileSha=QCryptographicHash::hash(bad,QCryptographicHash::Sha256).toHex();
@@ -127,20 +127,20 @@ inline int selftest(const QString &importer) {
     };
     const bool rejectsQtGeometryHostiles=
         rejectsQtReimport(QByteArray(source).replace(
-            "150 250 4 10 0\\n60 370 4 10 0",
-            "150.01 250 4 10 0\\n60 370 4 10 0"),
-            "TRACE|3|4|15001|25000|6000|37000|10\\n")
+            "150 250 4 10 0\n60 370 4 10 0",
+            "150.01 250 4 10 0\n60 370 4 10 0"),
+            "TRACE|3|4|15001|25000|6000|37000|1000\n")
         && rejectsQtReimport(QByteArray(source).replace(
             "60 370 4 10 0","60.01 370 4 10 0"),
-            "TRACE|3|4|15000|25000|6001|37000|10\\n")
+            "TRACE|3|4|15000|25000|6001|37000|1000\n")
         && rejectsQtReimport(QByteArray(source).replace(
             "60 370 4 10 0","30 340 4 10 0"),
-            "TRACE|3|4|15000|25000|3000|34000|10\\n")
+            "TRACE|3|4|15000|25000|3000|34000|1000\n")
         && rejectsQtReimport(QByteArray(source).replace(
             "60 370 4 10 0","240 370 4 10 0"),
-            "TRACE|3|4|15000|25000|24000|37000|10\\n")
+            "TRACE|3|4|15000|25000|24000|37000|1000\n")
         && rejectsQtReimport(QByteArray(source).replace(
-            "*SIGNAL* NET_A\\nU3.3","*SIGNAL* OTHER\\nU3.3"),originalTrack);
+            "*SIGNAL* NET_A\nU3.3","*SIGNAL* OTHER\nU3.3"),originalTrack);
     auto reversedSource=source;
     reversedSource.replace("150 250 4 10 0\n60 370 4 10 0",
                            "60 370 4 10 0\n150 250 4 10 0");
