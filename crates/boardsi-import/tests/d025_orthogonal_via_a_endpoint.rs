@@ -96,7 +96,13 @@ fn reject_bad_geometry_provenance_and_other_modes() {
     assert!(shared::encode(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(shared::encode_oblique(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(shared::encode_partial_overlap(SRC, "NET_A", [1, 4], [0, 1]).is_err());
-    assert!(shared::encode_orthogonal_via_a_endpoint_contact(SRC, "OTHER", [1, 4], [0, 1]).is_err());
-    assert!(shared::encode_orthogonal_via_a_endpoint_contact(SRC, "NET_A", [1, 2], [0, 1]).is_err());
-    assert!(shared::encode_orthogonal_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [1, 0]).is_err());
+    assert!(
+        shared::encode_orthogonal_via_a_endpoint_contact(SRC, "OTHER", [1, 4], [0, 1]).is_err()
+    );
+    assert!(
+        shared::encode_orthogonal_via_a_endpoint_contact(SRC, "NET_A", [1, 2], [0, 1]).is_err()
+    );
+    assert!(
+        shared::encode_orthogonal_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [1, 0]).is_err()
+    );
 }
