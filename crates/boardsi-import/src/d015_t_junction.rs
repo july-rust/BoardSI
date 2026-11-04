@@ -605,7 +605,9 @@ fn encode_with_mode(
         ("TRACE", 4, 3),
     ];
     // All edges are same-layer candidate contacts. NEVER a Via barrel edge.
-    let t_kind = if orthogonal_endpoint {
+    let t_kind = if orthogonal_via_a {
+        "SOURCE_ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_CANDIDATE"
+    } else if orthogonal_endpoint {
         "SOURCE_ORTHOGONAL_ENDPOINT_CONTACT_CANDIDATE"
     } else if endpoint_contact {
         "SOURCE_COLLINEAR_ENDPOINT_CONTACT_CANDIDATE"
