@@ -413,9 +413,7 @@ fn encode_with_mode(
             && (if orthogonal_endpoint {
                 // Two independent endpoint Source primitives meet at Via-B.
                 // Exact source-tick dot/cross; no floating tolerance, copper proof.
-                shared == (if orthogonal_via_a { s[1].a } else { s[1].b })
-                    && dot == 0
-                    && cross != 0
+                shared == (if orthogonal_via_a { s[1].a } else { s[1].b }) && dot == 0 && cross != 0
             } else {
                 cross == 0
                     && dot != 0
