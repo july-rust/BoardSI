@@ -257,6 +257,17 @@ pub fn encode_orthogonal_endpoint_contact(
     encode_with_mode(bytes, net, layers, vias, ContactMode::OrthogonalEndpoint)
 }
 
+/// D_025 exact-tick Via-A orthogonal source contact; never fabricated copper proof.
+#[allow(dead_code)]
+pub fn encode_orthogonal_via_a_endpoint_contact(
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
+) -> Result<String, &'static str> {
+    encode_with_mode(bytes, net, layers, vias, ContactMode::OrthogonalViaA)
+}
+
 #[derive(Clone, Copy)]
 enum ContactMode {
     Perpendicular,
@@ -266,6 +277,7 @@ enum ContactMode {
     Endpoint,
     OppositeEndpoint,
     OrthogonalEndpoint,
+    OrthogonalViaA,
 }
 
 fn encode_with_mode(
@@ -279,10 +291,17 @@ fn encode_with_mode(
     let contained_overlap = matches!(mode, ContactMode::Contained);
     let partial_overlap = matches!(mode, ContactMode::Partial);
     let opposite_endpoint = matches!(mode, ContactMode::OppositeEndpoint);
-    let orthogonal_endpoint = matches!(mode, ContactMode::OrthogonalEndpoint);
+    let orthogonal_via_a = matches!(mode, ContactMode::OrthogonalViaA);
+    let orthogonal_endpoint = matches!(
+        mode,
+        ContactMode::OrthogonalEndpoint | ContactMode::OrthogonalViaA
+    );
     let endpoint_contact = matches!(
         mode,
-        ContactMode::Endpoint | ContactMode::OppositeEndpoint | ContactMode::OrthogonalEndpoint
+        ContactMode::Endpoint
+            | ContactMode::OppositeEndpoint
+            | ContactMode::OrthogonalEndpoint
+            | ContactMode::OrthogonalViaA
     );
     if bytes.is_empty()
         || bytes.len() > route_preview::MAX_FILE_BYTES
@@ -331,7 +350,9 @@ fn encode_with_mode(
         })
     {
         return Err(if endpoint_contact {
-            if orthogonal_endpoint {
+            if orthogonal_via_a {
+                "D025_COORDINATE_BOUNDS"
+            } else if orthogonal_endpoint {
                 "D024_COORDINATE_BOUNDS"
             } else if opposite_endpoint {
                 "D023_COORDINATE_BOUNDS"
@@ -392,7 +413,9 @@ fn encode_with_mode(
             && (if orthogonal_endpoint {
                 // Two independent endpoint Source primitives meet at Via-B.
                 // Exact source-tick dot/cross; no floating tolerance, copper proof.
-                shared == s[1].b && dot == 0 && cross != 0
+                shared == (if orthogonal_via_a { s[1].a } else { s[1].b })
+                    && dot == 0
+                    && cross != 0
             } else {
                 cross == 0
                     && dot != 0
@@ -431,7 +454,9 @@ fn encode_with_mode(
     };
     if !valid_contact {
         return Err(if endpoint_contact {
-            if orthogonal_endpoint {
+            if orthogonal_via_a {
+                "D025_ORTHOGONAL_VIA_A_ENDPOINT_CONTACT"
+            } else if orthogonal_endpoint {
                 "D024_ORTHOGONAL_ENDPOINT_CONTACT"
             } else if opposite_endpoint {
                 "D023_COLLINEAR_OPPOSITE_ENDPOINT_CONTACT"
@@ -482,7 +507,9 @@ fn encode_with_mode(
     for byte in digest::sha256(bytes) {
         write!(&mut sha, "{byte:02x}").map_err(|_| "D015_FMT")?;
     }
-    let mode = if orthogonal_endpoint {
+    let mode = if orthogonal_via_a {
+        "D025_ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_V1"
+    } else if orthogonal_endpoint {
         "D024_ORTHOGONAL_ENDPOINT_CONTACT_V1"
     } else if opposite_endpoint {
         "D023_COLLINEAR_OPPOSITE_ENDPOINT_CONTACT_V1"
@@ -556,7 +583,9 @@ fn encode_with_mode(
             shared[0], shared[1]
         )
         .map_err(|_| {
-            if orthogonal_endpoint {
+            if orthogonal_via_a {
+                "D025_FMT"
+            } else if orthogonal_endpoint {
                 "D024_FMT"
             } else if opposite_endpoint {
                 "D023_FMT"
@@ -597,10 +626,14 @@ fn encode_with_mode(
         (5, 7, t_kind, 4),
     ];
     if endpoint_contact {
-        // At Via-A (D023) use Node 1; at Via-B (D022) use Node 2.
+        // Via-A Source Pad node 1 (D023/D025); Via-B pad node 2 (D022/D024).
         // This remains layer-local Source geometry, not electrical barrel proof.
         edges.push((
-            if opposite_endpoint { 1 } else { 2 },
+            if opposite_endpoint || orthogonal_via_a {
+                1
+            } else {
+                2
+            },
             7,
             "SOURCE_ENDPOINT_CONTACT_CANDIDATE",
             4,
@@ -631,7 +664,9 @@ fn encode_with_mode(
         components
     )
     .map_err(|_| "D015_FMT")?;
-    if orthogonal_endpoint {
+    if orthogonal_via_a {
+        out.push_str("OVERALL|ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+    } else if orthogonal_endpoint {
         out.push_str("OVERALL|ORTHOGONAL_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
     } else if opposite_endpoint {
         out.push_str("OVERALL|COLLINEAR_OPPOSITE_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
