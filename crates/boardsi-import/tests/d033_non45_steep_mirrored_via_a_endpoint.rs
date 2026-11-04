@@ -3,7 +3,8 @@ mod shared;
 
 const SRC: &[u8] = include_bytes!("fixtures/d033_non45_steep_mirrored_via_a_endpoint_v94.asc");
 const POSITIVE_D031: &[u8] = include_bytes!("fixtures/d031_non45_steep_via_a_endpoint_v94.asc");
-const MIRRORED_D032: &[u8] = include_bytes!("fixtures/d032_non45_steep_mirrored_via_b_endpoint_v94.asc");
+const MIRRORED_D032: &[u8] =
+    include_bytes!("fixtures/d032_non45_steep_mirrored_via_b_endpoint_v94.asc");
 const OBLIQUE_45_B: &[u8] = include_bytes!("fixtures/d026_oblique_via_b_endpoint_v94.asc");
 const OBLIQUE_45_A: &[u8] = include_bytes!("fixtures/d027_oblique_via_a_endpoint_v94.asc");
 const ORTHOGONAL_B: &[u8] = include_bytes!("fixtures/d024_orthogonal_via_b_endpoint_v94.asc");
@@ -140,16 +141,42 @@ fn reject_1tick_angle_gap_wrong_mode_and_source_forgery() {
     assert!(witness(SRC).is_ok());
     assert!(witness(POSITIVE_D031).is_err());
     assert!(witness(MIRRORED_D032).is_err());
-    assert!(shared::encode_non45_steep_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
-    assert!(shared::encode_non45_steep_via_a_endpoint_contact(POSITIVE_D031, "NET_A", [1, 4], [0, 1]).is_ok());
-    assert!(shared::encode_non45_steep_mirrored_via_b_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(
-        shared::encode_non45_steep_mirrored_via_a_endpoint_contact(SRC, "OTHER", [1, 4], [0, 1]).is_err()
+        shared::encode_non45_steep_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err()
     );
-    assert!(
-        shared::encode_non45_steep_mirrored_via_a_endpoint_contact(SRC, "NET_A", [1, 2], [0, 1]).is_err()
-    );
-    assert!(
-        shared::encode_non45_steep_mirrored_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [1, 0]).is_err()
-    );
+    assert!(shared::encode_non45_steep_via_a_endpoint_contact(
+        POSITIVE_D031,
+        "NET_A",
+        [1, 4],
+        [0, 1]
+    )
+    .is_ok());
+    assert!(shared::encode_non45_steep_mirrored_via_b_endpoint_contact(
+        SRC,
+        "NET_A",
+        [1, 4],
+        [0, 1]
+    )
+    .is_err());
+    assert!(shared::encode_non45_steep_mirrored_via_a_endpoint_contact(
+        SRC,
+        "OTHER",
+        [1, 4],
+        [0, 1]
+    )
+    .is_err());
+    assert!(shared::encode_non45_steep_mirrored_via_a_endpoint_contact(
+        SRC,
+        "NET_A",
+        [1, 2],
+        [0, 1]
+    )
+    .is_err());
+    assert!(shared::encode_non45_steep_mirrored_via_a_endpoint_contact(
+        SRC,
+        "NET_A",
+        [1, 4],
+        [1, 0]
+    )
+    .is_err());
 }
