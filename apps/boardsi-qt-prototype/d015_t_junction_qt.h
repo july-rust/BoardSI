@@ -75,7 +75,7 @@ inline bool boundedSourceInventory(const QByteArray &source,const QString &viaNa
 }
 inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                    const PreviewImportPanel *panel, const QString &net,
-                   c005::Receipt &out, bool oblique, bool containedOverlap, bool partialOverlap, bool endpointContact, bool oppositeEndpoint=false, bool orthogonalEndpoint=false, bool orthogonalViaA=false, bool obliqueViaB=false, bool obliqueViaA=false, bool non45ObliqueViaB=false, bool non45ObliqueViaA=false, bool non45SteepViaB=false) {
+                   c005::Receipt &out, bool oblique, bool containedOverlap, bool partialOverlap, bool endpointContact, bool oppositeEndpoint=false, bool orthogonalEndpoint=false, bool orthogonalViaA=false, bool obliqueViaB=false, bool obliqueViaA=false, bool non45ObliqueViaB=false, bool non45ObliqueViaA=false, bool non45SteepViaB=false, bool non45SteepViaA=false) {
     if (!panel || !panel->imported() || wire.isEmpty() || wire.size() > 16384
         || source.isEmpty() || source.size() > 8*1024*1024) return false;
     const auto sha=QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex();
@@ -153,7 +153,10 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
     const qint64 exteriorProjection=(exterior.x-main0.x)*mx+(exterior.y-main0.y)*my;
     const bool atViaB=(shared.x==main1.x && shared.y==main1.y);
     const bool strictEndpoint=(freeShared != joinShared)
-        && (non45SteepViaB
+        && (non45SteepViaA
+            ? ((shared.x==main0.x && shared.y==main0.y) && dot!=0 && cross!=0
+               && 3*qAbs(cross)==4*qAbs(dot) && exteriorProjection<0)
+            : non45SteepViaB
             ? (atViaB && dot!=0 && cross!=0
                && 3*qAbs(cross)==4*qAbs(dot) && exteriorProjection>lenSquared)
             : non45ObliqueViaA
@@ -230,7 +233,8 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
         "OVERALL|T_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n";
     if (endpointContact) {
         expected.replace("BOARDSI_D015_T_JUNCTION_V1|",
-                         non45SteepViaB ? "BOARDSI_D030_NON45_STEEP_VIA_B_ENDPOINT_CONTACT_V1|"
+                         non45SteepViaA ? "BOARDSI_D031_NON45_STEEP_VIA_A_ENDPOINT_CONTACT_V1|"
+                            : non45SteepViaB ? "BOARDSI_D030_NON45_STEEP_VIA_B_ENDPOINT_CONTACT_V1|"
                             : non45ObliqueViaA ? "BOARDSI_D029_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_V1|"
                             : non45ObliqueViaB ? "BOARDSI_D028_NON45_OBLIQUE_VIA_B_ENDPOINT_CONTACT_V1|"
                            : obliqueViaA ? "BOARDSI_D027_OBLIQUE_VIA_A_ENDPOINT_CONTACT_V1|"
@@ -240,7 +244,8 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                            : oppositeEndpoint ? "BOARDSI_D023_COLLINEAR_OPPOSITE_ENDPOINT_CONTACT_V1|"
                                               : "BOARDSI_D022_COLLINEAR_ENDPOINT_CONTACT_V1|");
         expected.replace("SOURCE_INTERIOR_T_CONTACT_CANDIDATE|4",
-                         non45SteepViaB ? "SOURCE_NON45_STEEP_VIA_B_ENDPOINT_CONTACT_CANDIDATE|4"
+                         non45SteepViaA ? "SOURCE_NON45_STEEP_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4"
+                            : non45SteepViaB ? "SOURCE_NON45_STEEP_VIA_B_ENDPOINT_CONTACT_CANDIDATE|4"
                             : non45ObliqueViaA ? "SOURCE_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4"
                             : non45ObliqueViaB ? "SOURCE_NON45_OBLIQUE_VIA_B_ENDPOINT_CONTACT_CANDIDATE|4"
                            : obliqueViaA ? "SOURCE_OBLIQUE_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4"
@@ -249,11 +254,12 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                            : orthogonalEndpoint ? "SOURCE_ORTHOGONAL_ENDPOINT_CONTACT_CANDIDATE|4"
                                             : "SOURCE_COLLINEAR_ENDPOINT_CONTACT_CANDIDATE|4");
         expected.replace("COUNT|NODES|8|LAYER_LOCAL_EDGES|5",
-                         oppositeEndpoint || orthogonalViaA || obliqueViaA || non45ObliqueViaA
+                         oppositeEndpoint || orthogonalViaA || obliqueViaA || non45ObliqueViaA || non45SteepViaA
                            ? "EDGE|5|1|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4\nCOUNT|NODES|8|LAYER_LOCAL_EDGES|6"
                            : "EDGE|5|2|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4\nCOUNT|NODES|8|LAYER_LOCAL_EDGES|6");
         expected.replace("OVERALL|T_JUNCTION_SOURCE_CANDIDATE_ONLY",
-                         non45SteepViaB ? "OVERALL|NON45_STEEP_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
+                         non45SteepViaA ? "OVERALL|NON45_STEEP_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
+                            : non45SteepViaB ? "OVERALL|NON45_STEEP_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
                             : non45ObliqueViaA ? "OVERALL|NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
                             : non45ObliqueViaB ? "OVERALL|NON45_OBLIQUE_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
                            : obliqueViaA ? "OVERALL|OBLIQUE_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
@@ -285,7 +291,8 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                          "OVERALL|OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_ONLY");
     }
     if (expected!=wire) return false;
-    out.state=non45SteepViaB?"NON45_STEEP_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
+    out.state=non45SteepViaA?"NON45_STEEP_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
+        :non45SteepViaB?"NON45_STEEP_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :non45ObliqueViaA?"NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :non45ObliqueViaB?"NON45_OBLIQUE_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :obliqueViaA?"OBLIQUE_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
@@ -298,7 +305,8 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
         :containedOverlap?"COLLINEAR_CONTAINED_OVERLAP_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :(oblique?"OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL"
                  :"T_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL");
-    out.reason=non45SteepViaB?"D_030 SOURCE VIA-B EXACT STEEP 3:4 NON-45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
+    out.reason=non45SteepViaA?"D_031 SOURCE VIA-A EXACT STEEP 3:4 NON-45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
+        :non45SteepViaB?"D_030 SOURCE VIA-B EXACT STEEP 3:4 NON-45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
         :non45ObliqueViaA?"D_029 SOURCE VIA-A EXACT 4:3 NON-45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
         :non45ObliqueViaB?"D_028 SOURCE VIA-B EXACT 4:3 NON-45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
         :obliqueViaA?"D_027 SOURCE VIA-A 45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
@@ -364,5 +372,9 @@ inline bool decode_non45_oblique_via_a_endpoint_contact(const QByteArray &wire, 
 inline bool decode_non45_steep_via_b_endpoint_contact(const QByteArray &wire, const QByteArray &source,
                      const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
     return decode_mode(wire,source,panel,net,out,false,false,false,true,false,false,false,false,false,false,false,true);
+}
+inline bool decode_non45_steep_via_a_endpoint_contact(const QByteArray &wire, const QByteArray &source,
+                     const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
+    return decode_mode(wire,source,panel,net,out,false,false,false,true,false,false,false,false,false,false,false,false,true);
 }
 } // namespace d015
