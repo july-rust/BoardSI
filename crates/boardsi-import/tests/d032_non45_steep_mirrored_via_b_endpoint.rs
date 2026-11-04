@@ -129,15 +129,35 @@ fn reject_1tick_angle_gap_wrong_mode_and_source_forgery() {
     assert!(witness(SRC).is_ok());
     // Do not let absolute slope or reversed endpoint order conflate D032 with D030.
     assert!(witness(POSITIVE_D030).is_err());
-    assert!(shared::encode_non45_steep_via_b_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
-    assert!(shared::encode_non45_steep_via_b_endpoint_contact(POSITIVE_D030, "NET_A", [1, 4], [0, 1]).is_ok());
     assert!(
-        shared::encode_non45_steep_mirrored_via_b_endpoint_contact(SRC, "OTHER", [1, 4], [0, 1]).is_err()
+        shared::encode_non45_steep_via_b_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err()
     );
-    assert!(
-        shared::encode_non45_steep_mirrored_via_b_endpoint_contact(SRC, "NET_A", [1, 2], [0, 1]).is_err()
-    );
-    assert!(
-        shared::encode_non45_steep_mirrored_via_b_endpoint_contact(SRC, "NET_A", [1, 4], [1, 0]).is_err()
-    );
+    assert!(shared::encode_non45_steep_via_b_endpoint_contact(
+        POSITIVE_D030,
+        "NET_A",
+        [1, 4],
+        [0, 1]
+    )
+    .is_ok());
+    assert!(shared::encode_non45_steep_mirrored_via_b_endpoint_contact(
+        SRC,
+        "OTHER",
+        [1, 4],
+        [0, 1]
+    )
+    .is_err());
+    assert!(shared::encode_non45_steep_mirrored_via_b_endpoint_contact(
+        SRC,
+        "NET_A",
+        [1, 2],
+        [0, 1]
+    )
+    .is_err());
+    assert!(shared::encode_non45_steep_mirrored_via_b_endpoint_contact(
+        SRC,
+        "NET_A",
+        [1, 4],
+        [1, 0]
+    )
+    .is_err());
 }
