@@ -696,7 +696,7 @@ fn main() {
     let args: Vec<_> = std::env::args_os().collect();
     // D_027 oblique Via-A Source endpoint contact; never fabricated electrical proof.
     if args.len() == 8
-        && args[2] == std::ffi::OsStr::new("--d027-oblique-via-b-endpoint-contact-v1")
+        && args[2] == std::ffi::OsStr::new("--d027-oblique-via-a-endpoint-contact-v1")
     {
         let result = (|| -> Result<String, &'static str> {
             let txt = |i: usize| args[i].to_str().ok_or("D027_UTF8");
