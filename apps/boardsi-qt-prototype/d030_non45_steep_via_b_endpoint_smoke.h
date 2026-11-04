@@ -33,7 +33,7 @@ inline int selftest(const QString &importer) {
         deadline.stop();
         return panel.importStatus().startsWith("PARTIAL");
     };
-    const auto query=[&](const QString &mode=QStringLiteral("--d030-non45-oblique-via-b-endpoint-contact-v1")) {
+    const auto query=[&](const QString &mode=QStringLiteral("--d030-non45-steep-via-b-endpoint-contact-v1")) {
         QProcess proc;
         proc.start(importer,{file.fileName(),mode,"NET_A","1","4","0","1"});
         if (!proc.waitForFinished(10000) || proc.exitStatus()!=QProcess::NormalExit
