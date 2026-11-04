@@ -118,8 +118,12 @@ fn reject_1tick_angle_gap_wrong_mode_and_source_forgery() {
     assert!(shared::encode(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(shared::encode_oblique_via_b_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(shared::encode_oblique_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
-    assert!(shared::encode_non45_oblique_via_b_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
-    assert!(shared::encode_non45_oblique_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
+    assert!(
+        shared::encode_non45_oblique_via_b_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err()
+    );
+    assert!(
+        shared::encode_non45_oblique_via_a_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err()
+    );
     assert!(witness(SRC).is_ok());
     assert!(
         shared::encode_non45_steep_via_b_endpoint_contact(SRC, "OTHER", [1, 4], [0, 1]).is_err()
