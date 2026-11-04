@@ -9,7 +9,7 @@
 
 > **단일 정식 체크리스트:** 이 파일만 수정·운영합니다. 기존의 별도 조회용 `development-checklist-stage-view.md`는 통합 후 폐지합니다. 아래 표는 상세 원장의 체크 상태를 읽기 쉽게 정리한 것으로, 체크일·근거일·PR/CI/SHA와 제한 조건은 아래 원문을 우선합니다.
 >
-> **검증 범위:** 체크된 항목의 *한정 검증 PASS*는 실제 PCB의 전기적 Open/Short, P009 Return Path, 제품 RLGC/S Solver, PH-08 물리 Gate 또는 U/T 정식 제품 인수와 다릅니다. 현황판 수치는 2026-11-03 KST 기준이며 체크 항목 변경 시 함께 갱신합니다.
+> **검증 범위:** 체크된 항목의 *한정 검증 PASS*는 실제 PCB의 전기적 Open/Short, P009 Return Path, 제품 RLGC/S Solver, PH-08 물리 Gate 또는 U/T 정식 제품 인수와 다릅니다. 현황판 수치는 2026-11-04 KST 기준이며 체크 항목 변경 시 함께 갱신합니다.
 
 **빠른 이동:** [Stage A](#stage-a) · [Stage B](#stage-b) · [Stage C](#stage-c) · [Stage D](#stage-d) · [보안](#stage-security) · [제품 마일스톤](#stage-milestones) · [정식 U/T](#stage-acceptance) · [상세 원장](#목차)
 
@@ -18,12 +18,12 @@
 | [**A**](#stage-a) | Preview · Import · Artwork | 12 | 5 |
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
-| [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 44 | 2 |
+| [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 45 | 2 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
-**전체 체크 상태: 115건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
+**전체 체크 상태: 116건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
 
 <a id="stage-a"></a>
 ### Stage A — 제한 Preview / Import / Artwork
@@ -94,7 +94,7 @@
 <a id="stage-d"></a>
 ### Stage D — PADS Source Contact / Junction
 
-**44건 확인 · 2건 미확인.** 지원된 PADS Source 기하의 부분 접점 후보 증거이며, 제조 물리 접속과 전기적 연속성을 인증하지 않습니다.
+**45건 확인 · 2건 미확인.** 지원된 PADS Source 기하의 부분 접점 후보 증거이며, 제조 물리 접속과 전기적 연속성을 인증하지 않습니다.
 
 | 작업 | 제한 검증 범위 | 확인 | 미확인 |
 | :--- | :--- | ---: | ---: |
@@ -121,6 +121,7 @@
 | [**D_021**](#d_021) | Same-Layer Partial Collinear Overlap Source 후보 (한정 검증 완료) | 1 | 0 |
 | [**D_022**](#d_022) | Same-Layer Collinear Endpoint-to-Endpoint Source 후보 (한정 검증 완료) | 1 | 0 |
 | [**D_023**](#d_023) | Opposite Via-A Collinear Endpoint Source 후보 (한정 코드 인수 완료) | 1 | 0 |
+| [**D_024**](#d_024) | Orthogonal Via-B L-Bend Endpoint Source 후보 (한정 검증 완료) | 1 | 0 |
 
 <a id="stage-security"></a>
 ### 보안 — SEC_001
@@ -800,3 +801,8 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 ### D_023 — PADS Opposite Via-A Collinear Endpoint Source Contact (한정 코드 인수 완료 · 2026-11-04 KST)
 
 - [x] **D_023 Source-only Via-A 공선 Trace 끝점 접촉 후보 — 한정 코드 검증 완료** — **최초 기록일: 2026-11-04 KST** · **체크일: 2026-11-04 KST** · **근거일: 2026-11-04 KST**. [Issue #409](https://github.com/july-rust/BoardSI/issues/409), [코드 PR #410](https://github.com/july-rust/BoardSI/pull/410), [검증 원장](validation/d023-opposite-via-a-endpoint-qualification.md). 최신 최종 코드 HEAD [`a39b3da592d60bd66d751f5d6295afc42e009bf8`](https://github.com/july-rust/BoardSI/commit/a39b3da592d60bd66d751f5d6295afc42e009bf8/checks)에서 **34/34 PR Checks · 11/11 PR Workflows SUCCESS**, 독립 동일 HEAD Codex `completed/findings=false/unresolved=false`, Review Thread 미해결 0. Linux Qt Offscreen **45/45 CTest PASS**, D_023 전용 Native Qt Windows x64·ARM64/macOS ARM64 **SUCCESS**. Layer-4 Via-A에서 정확한 공선 끝점 접촉 **8 Nodes / 6 Layer-local Candidate Edges / 3 Components / 0 Proven Electrical Cross-layer Edges**. D_022 Via-B 분리, 1 Source Tick Gap/Offset, Net/Layer, Stale/Forged Receipt 및 전기적 승격 Fail-Closed. 보호 Verified 단일 부모 Squash [`main@4de7ba2004e951ac1d6fabf600213e1a7ba4d4be`](https://github.com/july-rust/BoardSI/commit/4de7ba2004e951ac1d6fabf600213e1a7ba4d4be) (`verified=true/reason=valid`, parent `29c3b20b11b8df72a108c7f012af1b8c1acc53cc`), 정확한 코드 병합 SHA **post-main 28/28 Checks · 8/8 Push Workflows SUCCESS**. **과거 실패를 삭제하지 않음:** 초기 Rustfmt, Qt CLI 모드 P1, Qt 적대적 Fixture 좌표 변경의 오류는 최종 HEAD에서 수정되었으며, 기존 D_021 Windows ARM64 D_006 간헐 실패의 원인 해결로 단정하지 않음. **Source Geometry 후보만 인수:** 제조 Copper·Via Barrel 실제 도통·전역 Open/Short·Reference Return Path·P009·PH-08·RLGC/S Solver·Scenario/Cache·정식 U/T 미인수. 부모 [Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN 및 Draft #35 미병합. 문서 PR과 #409 행정 종료 상태는 코드 인수와 분리 확인.
+
+<a id="d_024"></a>
+### D_024 — PADS Same-Layer Orthogonal Via-B L-Bend Endpoint SOURCE Contact (한정 코드 인수 완료 · 2026-11-04 KST)
+
+- [x] **D_024 Source-only Via-B 직교 Trace 끝점 접촉 후보 — 한정 코드 검증 완료** — **최초 기록일: 2026-11-04 KST** · **체크일: 2026-11-04 KST** · **근거일: 2026-11-04 KST**. [Issue #412](https://github.com/july-rust/BoardSI/issues/412), [코드 PR #413](https://github.com/july-rust/BoardSI/pull/413), [검증 원장](validation/d024-orthogonal-endpoint-contact-qualification.md). 최종 코드 HEAD [`b2ccd95573acc61a0e26bcf6534da4e7fef7ef0b`](https://github.com/july-rust/BoardSI/commit/b2ccd95573acc61a0e26bcf6534da4e7fef7ef0b/checks)에서 **34/34 PR Checks · 11/11 PR Workflows SUCCESS**, 동일 HEAD 독립 Codex `completed/findings=false/unresolved=false`, 미해결 Review Thread 0. Linux Qt Offscreen **46/46 CTest PASS** 및 D_024 전용 Native Qt Windows x64·Windows ARM64·macOS ARM64 **SUCCESS**. PADS V9.4 MILS 0.01 mil(254 nm) Source Tick, Layer-4 Via-B (35000,25000)에서 수직 L-Bend Trace 접촉 **8 Source Nodes / 6 same-layer Candidate Edges / 3 Local Components / 0 Proven Electrical Cross-layer Edges**; 기존 D_022 공선 및 D_023 Via-A 후보와 분리. 1-Tick Gap/Offset, diagonal/collinear, Net/Layer, Source inventory, stale/forged SHA Receipt, 전기적 증거 승격 모두 Fail-Closed. 보호 Verified Single-parent Squash [`main@9829468384ebe94e3bbec979c9ae96b26a0a6b2e`](https://github.com/july-rust/BoardSI/commit/9829468384ebe94e3bbec979c9ae96b26a0a6b2e) (`verified=true/reason=valid`, parent `6f1ed6678934f460a0b52e1ebc61cc362c42af78`). 정확한 코드 main SHA에서 **Post-main 28/28 Check Runs · 8/8 event=push Workflows SUCCESS** ([Qt Runtime](https://github.com/july-rust/BoardSI/actions/runs/41745544417), [Numerical Core](https://github.com/july-rust/BoardSI/actions/runs/41745544598)). 이 체크는 Source Geometry 한정 인수이며 실제 전기 접속 인수가 아니다. 초기 superseded HEAD `78fed521...`의 `cargo fmt --check` 실패는 신규 CLI/테스트 formatting 수정으로 해결; 원인 범위를 확대하지 않음. **제조 Copper·Via Barrel 전기 도통, 전체 Open/Short, P009/PH-08 Return Path, RLGC/S Solver, Scenario/Cache, 정식 U/T 인수는 NOT_VERIFIED**. 부모 [Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN 및 Draft #35 미병합 유지. 문서 PR과 #412 행정 종료는 Post-main CI와 구분하여 판정한다.
