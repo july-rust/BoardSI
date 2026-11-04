@@ -29,7 +29,7 @@ The Rust mode uses bounded complete Source section inventory, exact `i128` dot/c
 ## Code-main push evidence
 
 - Correct push commit: [`9829468384ebe94e3bbec979c9ae96b26a0a6b2e`](https://github.com/july-rust/BoardSI/commit/9829468384ebe94e3bbec979c9ae96b26a0a6b2e/checks).
-- **PENDING:** Do not confuse the PR's checks with distinct push-triggered checks. Replace this line with exact 28/28 Check Runs and 8/8 event=push Workflow evidence only after independent confirmation.
+- Independently verified exact merged SHA: **28/28 Check Runs SUCCESS**, **8/8 event=push Workflows SUCCESS**, without failed, cancelled, pending or skipped checks. [Qt Runtime run #41745544417](https://github.com/july-rust/BoardSI/actions/runs/41745544417) and [Numerical Core run #41745544598](https://github.com/july-rust/BoardSI/actions/runs/41745544598) finished SUCCESS on the identical merge SHA. This is separate from the PR's 34/34 and 11/11.
 
 ## Preserved earlier failure
 
