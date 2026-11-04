@@ -75,7 +75,7 @@ inline bool boundedSourceInventory(const QByteArray &source,const QString &viaNa
 }
 inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                    const PreviewImportPanel *panel, const QString &net,
-                   c005::Receipt &out, bool oblique, bool containedOverlap, bool partialOverlap, bool endpointContact, bool oppositeEndpoint=false, bool orthogonalEndpoint=false, bool orthogonalViaA=false) {
+                   c005::Receipt &out, bool oblique, bool containedOverlap, bool partialOverlap, bool endpointContact, bool oppositeEndpoint=false, bool orthogonalEndpoint=false, bool orthogonalViaA=false, bool obliqueViaB=false) {
     if (!panel || !panel->imported() || wire.isEmpty() || wire.size() > 16384
         || source.isEmpty() || source.size() > 8*1024*1024) return false;
     const auto sha=QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex();
@@ -153,7 +153,10 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
     const qint64 exteriorProjection=(exterior.x-main0.x)*mx+(exterior.y-main0.y)*my;
     const bool atViaB=(shared.x==main1.x && shared.y==main1.y);
     const bool strictEndpoint=(freeShared != joinShared)
-        && (orthogonalEndpoint
+        && (obliqueViaB
+            ? (atViaB && dot!=0 && (dot==cross || dot==-cross)
+               && exteriorProjection>lenSquared)
+            : orthogonalEndpoint
             ? ((orthogonalViaA ? (shared.x==main0.x && shared.y==main0.y) : atViaB)
                && dot==0 && cross!=0)
             : (cross==0 && dot!=0
@@ -215,12 +218,14 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
         "OVERALL|T_JUNCTION_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n";
     if (endpointContact) {
         expected.replace("BOARDSI_D015_T_JUNCTION_V1|",
-                         orthogonalViaA ? "BOARDSI_D025_ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_V1|"
+                         obliqueViaB ? "BOARDSI_D026_OBLIQUE_VIA_B_ENDPOINT_CONTACT_V1|"
+                           : orthogonalViaA ? "BOARDSI_D025_ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_V1|"
                            : orthogonalEndpoint ? "BOARDSI_D024_ORTHOGONAL_ENDPOINT_CONTACT_V1|"
                            : oppositeEndpoint ? "BOARDSI_D023_COLLINEAR_OPPOSITE_ENDPOINT_CONTACT_V1|"
                                               : "BOARDSI_D022_COLLINEAR_ENDPOINT_CONTACT_V1|");
         expected.replace("SOURCE_INTERIOR_T_CONTACT_CANDIDATE|4",
-                         orthogonalViaA ? "SOURCE_ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4"
+                         obliqueViaB ? "SOURCE_OBLIQUE_VIA_B_ENDPOINT_CONTACT_CANDIDATE|4"
+                           : orthogonalViaA ? "SOURCE_ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4"
                            : orthogonalEndpoint ? "SOURCE_ORTHOGONAL_ENDPOINT_CONTACT_CANDIDATE|4"
                                             : "SOURCE_COLLINEAR_ENDPOINT_CONTACT_CANDIDATE|4");
         expected.replace("COUNT|NODES|8|LAYER_LOCAL_EDGES|5",
@@ -228,7 +233,8 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                            ? "EDGE|5|1|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4\nCOUNT|NODES|8|LAYER_LOCAL_EDGES|6"
                            : "EDGE|5|2|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4\nCOUNT|NODES|8|LAYER_LOCAL_EDGES|6");
         expected.replace("OVERALL|T_JUNCTION_SOURCE_CANDIDATE_ONLY",
-                         orthogonalViaA ? "OVERALL|ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
+                         obliqueViaB ? "OVERALL|OBLIQUE_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
+                           : orthogonalViaA ? "OVERALL|ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
                            : orthogonalEndpoint ? "OVERALL|ORTHOGONAL_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
                            : oppositeEndpoint ? "OVERALL|COLLINEAR_OPPOSITE_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
                                               : "OVERALL|COLLINEAR_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY");
@@ -255,7 +261,8 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                          "OVERALL|OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_ONLY");
     }
     if (expected!=wire) return false;
-    out.state=orthogonalViaA?"ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
+    out.state=obliqueViaB?"OBLIQUE_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
+        :orthogonalViaA?"ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :orthogonalEndpoint?"ORTHOGONAL_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :oppositeEndpoint?"COLLINEAR_OPPOSITE_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :endpointContact?"COLLINEAR_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
@@ -263,7 +270,8 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
         :containedOverlap?"COLLINEAR_CONTAINED_OVERLAP_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :(oblique?"OBLIQUE_T_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL"
                  :"T_JUNCTION_SOURCE_CANDIDATE_NOT_ELECTRICAL");
-    out.reason=orthogonalViaA?"D_025 SOURCE VIA-A RIGHT-ANGLE ENDPOINT ONLY; BARREL NOT VERIFIED"
+    out.reason=obliqueViaB?"D_026 SOURCE VIA-B 45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
+        :orthogonalViaA?"D_025 SOURCE VIA-A RIGHT-ANGLE ENDPOINT ONLY; BARREL NOT VERIFIED"
         :orthogonalEndpoint?"D_024 SOURCE RIGHT-ANGLE ENDPOINT ONLY; BARREL NOT VERIFIED"
         :oppositeEndpoint?"D_023 SOURCE OPPOSITE ENDPOINT ONLY; BARREL NOT VERIFIED"
         :endpointContact?"D_022 SOURCE ENDPOINT ONLY; BARREL NOT VERIFIED"
@@ -304,5 +312,9 @@ inline bool decode_orthogonal_endpoint_contact(const QByteArray &wire, const QBy
 inline bool decode_orthogonal_via_a_endpoint_contact(const QByteArray &wire, const QByteArray &source,
                     const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
     return decode_mode(wire,source,panel,net,out,false,false,false,true,false,true,true);
+}
+inline bool decode_oblique_via_b_endpoint_contact(const QByteArray &wire, const QByteArray &source,
+                    const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
+    return decode_mode(wire,source,panel,net,out,false,false,false,true,false,false,false,true);
 }
 } // namespace d015
