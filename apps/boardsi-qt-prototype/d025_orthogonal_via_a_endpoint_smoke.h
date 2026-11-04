@@ -12,7 +12,7 @@ inline int selftest(const QString &importer) {
         "*PCB*\nMAXLAYER 4\n*VIA*\nSIMPLEVIA 15 2\n-2 35 R\n0 35 R\n"
         "*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n"
         "80 250 1 10 0\n150 250 4 10 0 SIMPLEVIA\n"
-        "150 250 1 10 0 SIMPLEVIA\n420 250 1 10 0\n"
+        "350 250 1 10 0 SIMPLEVIA\n420 250 1 10 0\n"
         "*SIGNAL* NET_A\nU3.3 U4.4\n"
         "150 250 4 10 0\n150 350 4 10 0\n*END*\n");
     const auto save=[&](const QByteArray &bytes) {
@@ -48,7 +48,7 @@ inline int selftest(const QString &importer) {
         && receipt.state=="ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         && wire.count("NODE|")==8 && wire.count("EDGE|")==6
         && wire.contains("CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|3|X|15000|Y|25000")
-        && wire.contains("EDGE|4|5|7|SOURCE_ORTHOGONAL_ENDPOINT_CONTACT_CANDIDATE|4")
+        && wire.contains("EDGE|4|5|7|SOURCE_ORTHOGONAL_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4")
         && wire.contains("EDGE|5|1|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4")
         && wire.contains("COUNT|NODES|8|LAYER_LOCAL_EDGES|6|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0");
     if (!accepted) return 1;
@@ -64,7 +64,7 @@ inline int selftest(const QString &importer) {
                    "EDGE|5|2|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4");
     const bool rejectsForgery=!d015::decode_orthogonal_via_a_endpoint_contact(forged,source,&panel,"NET_A",ignored);
     auto forgedCoordinate=wire;
-    forgedCoordinate.replace("X|15000|Y|25000","X|35001|Y|25000");
+    forgedCoordinate.replace("X|15000|Y|25000","X|15001|Y|25000");
     const bool rejectsCoordinates=!d015::decode_orthogonal_via_a_endpoint_contact(forgedCoordinate,source,&panel,"NET_A",ignored);
     auto promoted=wire;
     promoted.replace("BARREL_ELECTRICAL_NOT_VERIFIED","BARREL_ELECTRICAL_VERIFIED");
@@ -83,7 +83,7 @@ inline int selftest(const QString &importer) {
         QByteArray(source).replace("150 350 4 10 0","150 250 4 10 0"),
         QByteArray(source).replace("150 350 4 10 0","450 250 4 10 0"),
         QByteArray(source).replace("150 350 4 10 0","450 350 4 10 0"),
-        QByteArray(source).replace("150 350 4 10 0","150 250 4 10 0"),
+        QByteArray(source).replace("150 350 4 10 0","350 250 4 10 0"),
         QByteArray(source).replace("150 250 4 10 0\n150 350 4 10 0","150 300 4 10 0\n150 350 4 10 0"),
         QByteArray(source).replace("150 250 4 10 0\n150 350 4 10 0","150 250 1 10 0\n150 350 1 10 0"),
         QByteArray(source).replace("*SIGNAL* NET_A\nU3.3","*SIGNAL* OTHER\nU3.3"),
