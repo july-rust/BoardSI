@@ -46,7 +46,7 @@ fn header_direction_and_same_net_lexical_variants() {
             check(&variant).unwrap().split_once('\n').unwrap().1
         );
     }
-    let crlf = base.replace("\n", "\r\n");
+    let crlf = base.replace('\n', "\r\n");
     assert!(check(&crlf).is_ok());
     let tokenized = base
         .replace("*SIGNAL* NET_A", "*SIGNAL*\tNET_A")
