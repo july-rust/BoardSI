@@ -1,4 +1,5 @@
 // D_036 is SOURCE geometry only; no fabricated plated barrel or electrical proof.
+use std::fmt::Write;
 #[path = "../src/d015_t_junction.rs"]
 #[allow(dead_code)]
 mod d015_core;
@@ -15,10 +16,10 @@ fn qualify(src: &str) -> Result<String, &'static str> {
 #[test]
 fn d036_source_dual_signed_negative_graph_and_sha() {
     let wire = qualify(FIXTURE).expect("exact dual Via geometry");
-    let sha: String = boardsi_import::digest::sha256(FIXTURE.as_bytes())
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
+    let mut sha = String::new();
+    for byte in boardsi_import::digest::sha256(FIXTURE.as_bytes()) {
+        write!(&mut sha, "{byte:02x}").expect("SHA-256 hex");
+    }
     assert!(wire.starts_with(&format!(
         "BOARDSI_D036_DUAL_MIRRORED_VIA_ENDPOINT_CONTACT_V1|{sha}|SOURCE_GEOMETRY_ONLY"
     )));
