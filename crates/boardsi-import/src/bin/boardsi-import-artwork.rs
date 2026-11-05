@@ -864,6 +864,7 @@ fn main() {
         }
         return;
     }
+    // D_035 non-45 oblique Via-A Source endpoint contact; never fabricated electrical proof.
     // D_034 non-45 oblique Via-B Source endpoint contact; never fabricated electrical proof.
     if args.len() == 8
         && args[2]
