@@ -941,6 +941,26 @@ fn main() {
         }
         return;
     }
+    // D_042: source-owned exact redundant detour / closed loop, no global electrical PASS.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d042-local-closed-loop-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let metadata = fs::metadata(path).map_err(|_| "D042_FILE")?;
+            if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES as u64 {
+                return Err("D042_FILE_LIMIT");
+            }
+            let source = fs::read(path).map_err(|_| "D042_READ")?;
+            boardsi_import::d042_local_closed_loop::encode(&source)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D042_LOCAL_CLOSED_LOOP_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_041: one explicit Source-owned bridge joining two local components.
     // The receipt is bounded geometry only, NOT global Electrical PASS.
     if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d041-local-bridge-v1") {
