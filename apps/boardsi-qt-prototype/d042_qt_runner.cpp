@@ -92,10 +92,17 @@ int main(int argc,char **argv) {
     missingTrace.replace("U1.2 U2.2\n150 250 1 10 0\n450 250 1 10 0\n","");
     if(missingTrace==original || !save(missingTrace))return 2;
     const bool missingRejected=run(bad)!=0;
+    QByteArray ownerSwap=original;
+    ownerSwap.replace("U1.1 U1.2\n200 300 1 10 0","TEMP_OWNER\n200 300 1 10 0");
+    ownerSwap.replace("U1.2 U2.2\n200 350 1 10 0","U1.1 U1.2\n200 350 1 10 0");
+    ownerSwap.replace("TEMP_OWNER\n200 300 1 10 0","U1.2 U2.2\n200 300 1 10 0");
+    if(ownerSwap==original || !save(ownerSwap) || !load())return 2;
+    const bool ownerSwapRejected=run(bad)!=0 &&
+        d042::reconstruct(ownerSwap,&panel).isEmpty();
     const bool ok=forged && forgedCycle && direction && windowsLineEndings && tokenWhitespace &&
-        netB && stale && gapRejected && wrongNet && missingRejected;
+        netB && stale && gapRejected && wrongNet && missingRejected && ownerSwapRejected;
     qInfo()<<"D042_NATIVE_QT_LOCAL_CLOSED_LOOP"<<ok<<forged<<direction<<netB
            <<windowsLineEndings<<tokenWhitespace<<stale<<gapRejected<<wrongNet
-           <<forgedCycle<<missingRejected<<"GLOBAL_ELECTRICAL_NOT_VERIFIED";
+           <<forgedCycle<<missingRejected<<ownerSwapRejected<<"GLOBAL_ELECTRICAL_NOT_VERIFIED";
     return ok?0:1;
 }
