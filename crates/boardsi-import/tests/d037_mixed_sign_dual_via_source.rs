@@ -39,8 +39,7 @@ fn d037_source_dual_signed_negative_graph_and_sha() {
     assert!(wire
         .contains("EDGE|4|5|7|SOURCE_NON45_OBLIQUE_MIRRORED_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4"));
     assert!(wire.contains("EDGE|5|1|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4"));
-    assert!(wire
-        .contains("EDGE|6|5|8|SOURCE_NON45_OBLIQUE_VIA_B_ENDPOINT_CONTACT_CANDIDATE|4"));
+    assert!(wire.contains("EDGE|6|5|8|SOURCE_NON45_OBLIQUE_VIA_B_ENDPOINT_CONTACT_CANDIDATE|4"));
     assert!(wire.contains("EDGE|7|2|8|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4"));
     assert!(wire.ends_with("END|FAIL_CLOSED_NO_BARREL_PROOF\n"));
 }
