@@ -85,7 +85,8 @@ inline QByteArray reconstruct(const QByteArray &src,const PreviewImportPanel *pa
         if(2*(qAbs(x.pad.x_nm-x.jointX)+qAbs(x.pad.y_nm-x.jointY))<=x.pad.width_nm ||
            2*(qAbs(y.pad.x_nm-y.jointX)+qAbs(y.pad.y_nm-y.jointY))<=y.pad.width_nm)return {};
     }
-    const auto &x=ps[0],&y=ps[2],&bridge=tr[static_cast<size_t>(missing)];
+    const auto &x=ps[0],&y=ps[2];
+    const auto &bridge=tr[static_cast<size_t>(missing)];
     const bool fwd=bridge.x0_nm==x.jointX && bridge.y0_nm==x.jointY &&
                    bridge.x1_nm==y.jointX && bridge.y1_nm==y.jointY;
     const bool rev=bridge.x1_nm==x.jointX && bridge.y1_nm==x.jointY &&
