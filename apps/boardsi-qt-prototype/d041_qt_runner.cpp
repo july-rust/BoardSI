@@ -54,6 +54,17 @@ int main(int argc,char **argv) {
     QByteArray reversed;
     const bool direction=run(reversed)==0 && d041::decode(reversed,reverse,&panel) &&
         reversed.mid(reversed.indexOf('\n'))==wire.mid(wire.indexOf('\n'));
+    QByteArray crlf=original;
+    crlf.replace("\n","\r\n");
+    if(crlf==original || !save(crlf) || !load())return 2;
+    QByteArray crlfWire;
+    const bool windowsLineEndings=run(crlfWire)==0 && d041::decode(crlfWire,crlf,&panel);
+    QByteArray tabbed=original;
+    tabbed.replace("*SIGNAL* NET_A","*SIGNAL*\tNET_A");
+    tabbed.replace("U1.1 U2.1\n","U1.1\tU2.1\n");
+    if(tabbed==original || !save(tabbed) || !load())return 2;
+    QByteArray tabbedWire;
+    const bool tokenWhitespace=run(tabbedWire)==0 && d041::decode(tabbedWire,tabbed,&panel);
     QByteArray onlyB=original;
     onlyB.replace("*SIGNAL* NET_A","*SIGNAL* NET_B");
     if(onlyB==original || !save(onlyB) || !load())return 2;
@@ -71,8 +82,9 @@ int main(int argc,char **argv) {
                      "*SIGNAL* NET_B\nU2.1 U2.2\n400 300 1 10 0");
     if(crossNet==original || !save(crossNet))return 2;
     const bool wrongNet=run(bad)!=0;
-    const bool ok=forged && direction && netB && stale && gapRejected && wrongNet;
+    const bool ok=forged && direction && windowsLineEndings && tokenWhitespace &&
+        netB && stale && gapRejected && wrongNet;
     qInfo()<<"D041_NATIVE_QT_LOCAL_BRIDGE"<<ok<<forged<<direction<<netB
-           <<stale<<gapRejected<<wrongNet<<"GLOBAL_ELECTRICAL_NOT_VERIFIED";
+           <<windowsLineEndings<<tokenWhitespace<<stale<<gapRejected<<wrongNet<<"GLOBAL_ELECTRICAL_NOT_VERIFIED";
     return ok?0:1;
 }
