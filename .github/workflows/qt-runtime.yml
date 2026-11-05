@@ -218,6 +218,13 @@ jobs:
           suffix=''
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-d038-native-qt$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix"
+      - name: D_039 native Qt same-layer local copper geometry and fail-closed qualification
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-d039-native-qt$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/d039_local_copper_v94.asc"
       - name: D_035 native Qt exact mirrored negative shallow 4:3 non-45 oblique Via-A endpoint Source qualification
         shell: bash
         run: |

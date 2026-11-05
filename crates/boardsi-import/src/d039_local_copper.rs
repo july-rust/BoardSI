@@ -7,6 +7,8 @@ use std::fmt::Write;
 fn bounded_sections(source: &[u8]) -> Result<(), &'static str> {
     let text = std::str::from_utf8(source).map_err(|_| "D039_UTF8")?;
     let mut counts = [0usize; 7];
+    let mut definitions = [0usize; 3];
+    let mut active = None;
     let mut ended = false;
     for line in text.lines().skip(1) {
         let trimmed = line.trim();
@@ -16,8 +18,31 @@ fn bounded_sections(source: &[u8]) -> Result<(), &'static str> {
             }
             continue;
         }
-        let tag = trimmed.split_ascii_whitespace().next().unwrap_or("");
+        let fields: Vec<_> = trimmed.split_ascii_whitespace().collect();
+        if fields.is_empty() || fields[0] == "*REMARK*" || fields[0] == "REMARK" {
+            continue;
+        }
+        let tag = fields[0];
         if !tag.starts_with('*') {
+            // The restricted D_039 fixture supports precisely one source
+            // decal, one source part-type, and one component instance. Legacy
+            // PART parsers can discard duplicate/unsupported definitions
+            // without incrementing skipped; this independent guard must not.
+            match active {
+                Some(1) => match tag {
+                    "D2" if fields.len() == 9 && fields[1] == "I" => definitions[0] += 1,
+                    "PAD" | "-2" | "-1" | "0" => {}
+                    name if name.starts_with('T') => {}
+                    _ => return Err("D039_UNSUPPORTED_DECAL_RECORD"),
+                },
+                Some(2) if tag == "TYPEA" => definitions[1] += 1,
+                Some(3) if tag == "U1" => definitions[2] += 1,
+                Some(2) | Some(3) => return Err("D039_UNSUPPORTED_PART_RECORD"),
+                _ => {}
+            }
+            if definitions.iter().any(|&count| count > 1) {
+                return Err("D039_DUPLICATE_PART_DEFINITION");
+            }
             continue;
         }
         let index = match tag {
@@ -28,18 +53,18 @@ fn bounded_sections(source: &[u8]) -> Result<(), &'static str> {
             "*ROUTE*" => 4,
             "*SIGNAL*" => 5,
             "*END*" => 6,
-            "*REMARK*" => continue,
             _ => return Err("D039_UNSUPPORTED_SECTION"),
         };
         counts[index] += 1;
         if counts[index] != 1 {
             return Err("D039_DUPLICATE_SECTION");
         }
+        active = Some(index);
         if tag == "*END*" {
             ended = true;
         }
     }
-    if counts != [1, 1, 1, 1, 1, 1, 1] {
+    if counts != [1, 1, 1, 1, 1, 1, 1] || definitions != [1, 1, 1] {
         return Err("D039_SOURCE_INVENTORY");
     }
     Ok(())

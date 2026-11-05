@@ -29,6 +29,8 @@ inline bool boundedSections(const QByteArray &source) {
         "*ROUTE*","*SIGNAL*","*END*"
     };
     std::array<int,7> counts={};
+    std::array<int,3> definitions={};
+    int active=-1;
     bool ended=false;
     for(int i=1;i<lines.size();++i) {
         const auto row=lines[i].trimmed();
@@ -36,16 +38,38 @@ inline bool boundedSections(const QByteArray &source) {
             if(!row.isEmpty())return false;
             continue;
         }
-        if(!row.startsWith('*'))continue;
-        const QByteArray tag=row.simplified().split(' ').first();
-        if(tag=="*REMARK*")continue;
+        const auto fields=row.simplified().split(' ',Qt::SkipEmptyParts);
+        if(fields.isEmpty() || fields[0]=="*REMARK*" || fields[0]=="REMARK")
+            continue;
+        const QByteArray tag=fields[0];
+        if(!tag.startsWith('*')) {
+            if(active==1) {
+                if(tag=="D2" && fields.size()==9 && fields[1]=="I")
+                    ++definitions[0];
+                else if(tag!="PAD" && tag!="-2" && tag!="-1" &&
+                        tag!="0" && !tag.startsWith('T'))
+                    return false;
+            } else if(active==2) {
+                if(tag!="TYPEA")return false;
+                ++definitions[1];
+            } else if(active==3) {
+                if(tag!="U1")return false;
+                ++definitions[2];
+            }
+            if(std::any_of(definitions.cbegin(),definitions.cend(),
+                           [](int count){return count>1;}))
+                return false;
+            continue;
+        }
         const auto pos=std::find(names.cbegin(),names.cend(),tag);
         if(pos==names.cend())return false;
-        const int index=static_cast<int>(pos-names.cbegin());
-        if(++counts[static_cast<size_t>(index)]!=1)return false;
+        active=static_cast<int>(pos-names.cbegin());
+        if(++counts[static_cast<size_t>(active)]!=1)return false;
         if(tag=="*END*")ended=true;
     }
     return std::all_of(counts.cbegin(),counts.cend(),
+                       [](int count){return count==1;}) &&
+           std::all_of(definitions.cbegin(),definitions.cend(),
                        [](int count){return count==1;});
 }
 

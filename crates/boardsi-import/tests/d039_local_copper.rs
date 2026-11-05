@@ -106,6 +106,12 @@ fn wrong_net_pad_ownership_and_source_inventory_fail_closed() {
         source.replace("*ROUTE*", "*VIA*\nSIMPLEVIA 10 2\n*ROUTE*"),
         source.replace("*END*\n", "*END*\n*SIGNAL* NET_A\n"),
         source.replace("*SIGNAL* NET_A", "*SIGNAL* NET_A\n*SIGNAL* NET_A"),
+        source.replace(
+            "*PARTTYPE*",
+            "D2 I 1000 1000 0 2 2 0 0\nT1000 0 0 0 1\nT100 0 0 0 2\nPAD 1 3\n-2 40 R 0\n-1 0 R 0\n0 0 R 0\nPAD 2 3\n-2 30 S 0\n-1 0 R 0\n0 0 R 0\n*PARTTYPE*",
+        ),
+        source.replace("*PARTTYPE*\nTYPEA D2 UND 0 0 0 0", "*PARTTYPE*\nTYPEA D2 UND 0 0 0 0\nTYPEA D2 UND 0 0 0 0"),
+        source.replace("*PARTDECAL*\n", "*PARTDECAL*\nUNKNOWN I 1000 1000 0 2 2 0 0\n"),
     ];
     for case in cases {
         assert_ne!(case, source);
