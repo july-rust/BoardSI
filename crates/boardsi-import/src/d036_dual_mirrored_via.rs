@@ -102,13 +102,11 @@ pub fn encode(
     {
         return Err("D036_BASE_PATH");
     }
-    // The L1 arms are separate source-local components; never bridge through a barrel.
-    let arm_a = (s[0].a[0].min(s[0].b[0]), s[0].a[0].max(s[0].b[0]));
-    let arm_b = (s[2].a[0].min(s[2].b[0]), s[2].a[0].max(s[2].b[0]));
-    if arm_a.1 >= arm_b.0
-        && s[0].a[1] == s[0].b[1]
-        && s[2].a[1] == s[2].b[1]
-        && s[0].a[1] == s[2].a[1]
+    // Full exact source-tick intersection, not a horizontal bounding-box proxy.
+    // The two Layer-1 arms remain separate components in the candidate graph.
+    if super::d015_core::on_segment(b.point, s[0].a, s[0].b)
+        || super::d015_core::on_segment(a.point, s[2].a, s[2].b)
+        || super::d015_core::segments_touch(s[0].a, s[0].b, s[2].a, s[2].b)
     {
         return Err("D036_UNMODELED_LAYER1_CONTACT");
     }
