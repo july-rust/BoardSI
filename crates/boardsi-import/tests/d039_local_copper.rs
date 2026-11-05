@@ -35,6 +35,22 @@ fn two_pad_two_trace_source_bounded_local_copper_graph() {
 }
 
 #[test]
+fn supported_v94_mils_headers_are_source_bound_and_not_electrical_proof() {
+    let original = SOURCE.replace("\r\n", "\n");
+    for variant in [
+        "!PADS-POWERPCB-V9.4-MILS-CP1252!",
+        "!PADS-POWERPCB-V9.4-MILS-250L!",
+        "!PADS-POWERPCB-V9.4-MILS-250L-CP1252!",
+    ] {
+        let modified = original.replace("!PADS-POWERPCB-V9.4-MILS!", variant);
+        assert_ne!(modified, original);
+        let wire = qualify(&modified).expect("supported source-unit header");
+        assert!(wire.contains("|LOCAL_COPPER_GEOMETRY_VERIFIED|"));
+        assert!(wire.contains("|GLOBAL_ELECTRICAL_NOT_VERIFIED\n"));
+    }
+}
+
+#[test]
 fn source_trace_record_reversal_keeps_local_topology_but_changes_sha() {
     let source = SOURCE.replace("\r\n", "\n");
     let reversed = source

@@ -21,8 +21,15 @@ struct Path {
 };
 
 inline bool boundedSections(const QByteArray &source) {
-    if(!source.startsWith("!PADS-POWERPCB-V9.4-MILS!") ||
-       source.isEmpty() || source.size()>8*1024*1024)return false;
+    if(source.isEmpty() || source.size()>8*1024*1024)return false;
+    const int lineBreak=source.indexOf('\n');
+    if(lineBreak<=0)return false;
+    const QByteArray header=source.left(lineBreak).trimmed().split(' ').first();
+    if(header!="!PADS-POWERPCB-V9.4-MILS!" &&
+       header!="!PADS-POWERPCB-V9.4-MILS-CP1252!" &&
+       header!="!PADS-POWERPCB-V9.4-MILS-250L!" &&
+       header!="!PADS-POWERPCB-V9.4-MILS-250L-CP1252!")
+        return false;
     const auto lines=source.split('\n');
     const std::array<QByteArray,7> names={
         "*PCB*","*PARTDECAL*","*PARTTYPE*","*PART*",
