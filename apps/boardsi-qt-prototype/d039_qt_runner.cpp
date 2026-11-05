@@ -1,5 +1,6 @@
 // D_039 independent native Qt local copper geometry, not a physical SI solver.
 #include "preview_import.h"
+#include "c005_reference_risk.h"
 #include "d039_local_copper_qt.h"
 #include <QApplication>
 

@@ -165,7 +165,8 @@ inline bool decode(const QByteArray &wire,const QByteArray &source,
 inline int selftest(const QString &importer,const QString &fixturePath) {
     QFile fixture(fixturePath);
     if(!fixture.open(QIODevice::ReadOnly))return 2;
-    const QByteArray original=fixture.readAll();
+    QByteArray original=fixture.readAll();
+    original.replace("\r\n","\n");
     fixture.close();
     QTemporaryFile input;
     if(!input.open())return 2;

@@ -125,9 +125,7 @@ pub fn encode(bytes: &[u8], net: &str, layer: u32) -> Result<String, &'static st
         }
         paths.push((pad, joint, segment.width_ticks));
     }
-    if paths[0].0.reference == paths[1].0.reference
-        && paths[0].0.pin == paths[1].0.pin
-    {
+    if paths[0].0.reference == paths[1].0.reference && paths[0].0.pin == paths[1].0.pin {
         return Err("D039_DUPLICATE_PAD_OWNER");
     }
     if paths[0].1 != paths[1].1 || paths[0].2 != paths[1].2 {
@@ -136,12 +134,8 @@ pub fn encode(bytes: &[u8], net: &str, layer: u32) -> Result<String, &'static st
     let a = paths[0].0.point;
     let b = paths[1].0.point;
     let middle = paths[0].1;
-    if !((a[0] == b[0]
-        && middle[0] == a[0]
-        && strict_between(a[1], middle[1], b[1]))
-        || (a[1] == b[1]
-            && middle[1] == a[1]
-            && strict_between(a[0], middle[0], b[0])))
+    if !((a[0] == b[0] && middle[0] == a[0] && strict_between(a[1], middle[1], b[1]))
+        || (a[1] == b[1] && middle[1] == a[1] && strict_between(a[0], middle[0], b[0])))
     {
         return Err("D039_PATH_NOT_BOUNDED_COLLINEAR");
     }
@@ -149,9 +143,7 @@ pub fn encode(bytes: &[u8], net: &str, layer: u32) -> Result<String, &'static st
     // an independently distinguishable conductive segment.
     let delta_a = (middle[0] - a[0]).abs() + (middle[1] - a[1]).abs();
     let delta_b = (middle[0] - b[0]).abs() + (middle[1] - b[1]).abs();
-    if 2 * delta_a <= paths[0].0.width_ticks
-        || 2 * delta_b <= paths[1].0.width_ticks
-    {
+    if 2 * delta_a <= paths[0].0.width_ticks || 2 * delta_b <= paths[1].0.width_ticks {
         return Err("D039_JUNCTION_INSIDE_PAD");
     }
     paths.sort_by(|left, right| {

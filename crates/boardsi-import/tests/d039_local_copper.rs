@@ -21,14 +21,23 @@ fn two_pad_two_trace_source_bounded_local_copper_graph() {
     assert_eq!(wire.matches("\nP|").count(), 2);
     assert_eq!(wire.matches("\nT|").count(), 2);
     assert_eq!(wire.matches("\nE|").count(), 3);
-    assert!(wire.contains("COUNT|NODES|4|EDGES|3|LOCAL_COMPONENTS|1|GLOBAL_ELECTRICAL|NOT_VERIFIED"));
+    assert!(
+        wire.contains("COUNT|NODES|4|EDGES|3|LOCAL_COMPONENTS|1|GLOBAL_ELECTRICAL|NOT_VERIFIED")
+    );
     assert!(wire.ends_with("END|LOCAL_COPPER_GEOMETRY_ONLY_NO_GLOBAL_PASS\n"));
-    assert_eq!(d001_pad_endpoint::audit(SOURCE.as_bytes()).unwrap().witnesses.len(), 2);
+    assert_eq!(
+        d001_pad_endpoint::audit(SOURCE.as_bytes())
+            .unwrap()
+            .witnesses
+            .len(),
+        2
+    );
 }
 
 #[test]
 fn source_trace_record_reversal_keeps_local_topology_but_changes_sha() {
-    let reversed = SOURCE
+    let source = SOURCE.replace("\r\n", "\n");
+    let reversed = source
         .replace(
             "200 300 1 10 0\n200 350 1 10 0",
             "200 350 1 10 0\n200 300 1 10 0",
@@ -37,7 +46,7 @@ fn source_trace_record_reversal_keeps_local_topology_but_changes_sha() {
             "200 400 1 10 0\n200 350 1 10 0",
             "200 350 1 10 0\n200 400 1 10 0",
         );
-    assert_ne!(reversed, SOURCE);
+    assert_ne!(reversed, source);
     let first = qualify(SOURCE).unwrap();
     let second = qualify(&reversed).unwrap();
     assert_ne!(first.lines().next(), second.lines().next());
@@ -46,58 +55,60 @@ fn source_trace_record_reversal_keeps_local_topology_but_changes_sha() {
         second.split_once('\n').unwrap().1
     );
     assert_eq!(qualify(SOURCE).unwrap(), qualify(SOURCE).unwrap());
-    let lexical = SOURCE.replace("T0 0 0 0 1\n", "T0 0 0 0 1  \n");
+    let lexical = source.replace("T0 0 0 0 1\n", "T0 0 0 0 1  \n");
     assert_ne!(lexical, SOURCE);
     assert_ne!(qualify(&lexical).unwrap(), first);
 }
 
 #[test]
 fn one_tick_gap_and_false_copper_junction_fail_closed() {
+    let source = SOURCE.replace("\r\n", "\n");
     let cases = [
-        SOURCE.replace(
+        source.replace(
             "200 400 1 10 0\n200 350 1 10 0",
             "200 400 1 10 0\n200 350.01 1 10 0",
         ),
-        SOURCE.replace(
+        source.replace(
             "200 400 1 10 0\n200 350 1 10 0",
             "200 400 1 10 0\n200 349.99 1 10 0",
         ),
-        SOURCE.replace(
+        source.replace(
             "200 400 1 10 0\n200 350 1 10 0",
             "200 400 1 10 0\n201 350 1 10 0",
         ),
-        SOURCE.replace("200 350 1 10 0", "200 450 1 10 0"),
-        SOURCE.replace("200 400 1 10 0", "200 300 1 10 0"),
-        SOURCE.replace("200 400 1 10 0", "200 400 2 10 0"),
-        SOURCE.replace(
+        source.replace("200 350 1 10 0", "200 450 1 10 0"),
+        source.replace("200 400 1 10 0", "200 300 1 10 0"),
+        source.replace("200 400 1 10 0", "200 400 2 10 0"),
+        source.replace(
             "200 400 1 10 0\n200 350 1 10 0",
             "200 400 1 11 0\n200 350 1 11 0",
         ),
     ];
     for case in cases {
-        assert_ne!(case, SOURCE);
+        assert_ne!(case, source);
         assert!(qualify(&case).is_err(), "hostile geometry accepted");
     }
 }
 
 #[test]
 fn wrong_net_pad_ownership_and_source_inventory_fail_closed() {
+    let source = SOURCE.replace("\r\n", "\n");
     let cases = [
-        SOURCE.replace("*SIGNAL* NET_A", "*SIGNAL* NET_B"),
-        SOURCE.replace("U1 TYPEA 200 300", "U1 TYPEA 200 301"),
-        SOURCE.replace("-2 40 R 0", "-2 0 R 0"),
-        SOURCE.replace("-2 30 S 0", "-2 30 RF 0 60 0 0"),
-        SOURCE.replace(
+        source.replace("*SIGNAL* NET_A", "*SIGNAL* NET_B"),
+        source.replace("U1 TYPEA 200 300", "U1 TYPEA 200 301"),
+        source.replace("-2 40 R 0", "-2 0 R 0"),
+        source.replace("-2 30 S 0", "-2 30 RF 0 60 0 0"),
+        source.replace(
             "*PART*\nU1 TYPEA 200 300 90 U N 0 -1 0 -1 0",
             "*PART*\nU1 TYPEA 200 300 90 U N 0 -1 0 -1 0\nU1 TYPEA 200 300 90 U N 0 -1 0 -1 0",
         ),
-        SOURCE.replace("*ROUTE*", "*LINES*\nRA COPPER 0 0 1 1 0 NET_A\n*ROUTE*"),
-        SOURCE.replace("*ROUTE*", "*VIA*\nSIMPLEVIA 10 2\n*ROUTE*"),
-        SOURCE.replace("*END*\n", "*END*\n*SIGNAL* NET_A\n"),
-        SOURCE.replace("*SIGNAL* NET_A", "*SIGNAL* NET_A\n*SIGNAL* NET_A"),
+        source.replace("*ROUTE*", "*LINES*\nRA COPPER 0 0 1 1 0 NET_A\n*ROUTE*"),
+        source.replace("*ROUTE*", "*VIA*\nSIMPLEVIA 10 2\n*ROUTE*"),
+        source.replace("*END*\n", "*END*\n*SIGNAL* NET_A\n"),
+        source.replace("*SIGNAL* NET_A", "*SIGNAL* NET_A\n*SIGNAL* NET_A"),
     ];
     for case in cases {
-        assert_ne!(case, SOURCE);
+        assert_ne!(case, source);
         assert!(qualify(&case).is_err(), "unqualified source accepted");
     }
     assert!(d039_local_copper::encode(SOURCE.as_bytes(), "NET_B", 1).is_err());
