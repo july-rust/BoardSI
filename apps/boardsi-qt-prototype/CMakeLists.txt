@@ -137,6 +137,21 @@ if(BUILD_TESTING)
       COMMAND boardsi-d033-native-qt "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-d033-non45-steep-mirrored-via-a-endpoint-source PROPERTIES TIMEOUT 90
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_036: dual signed-negative 4:3 Via-A/Via-B SOURCE-only graph, existing CI.
+    add_executable(boardsi-d036-native-qt d036_qt_runner.cpp)
+    target_link_libraries(boardsi-d036-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+    if(WIN32)
+      target_link_libraries(boardsi-d036-native-qt PRIVATE psapi)
+    endif()
+    if(MSVC)
+      target_compile_options(boardsi-d036-native-qt PRIVATE /W4 /WX)
+    else()
+      target_compile_options(boardsi-d036-native-qt PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME qt-preview-d036-dual-mirrored-via-source
+      COMMAND boardsi-d036-native-qt "${BOARDSI_IMPORTER}")
+    set_tests_properties(qt-preview-d036-dual-mirrored-via-source PROPERTIES TIMEOUT 90
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_035 exact mirrored negative shallow 4:3 non-45 oblique Via-A Source-owned endpoint, reuse Qt runtime workflow.
     add_executable(boardsi-d035-native-qt d035_qt_runner.cpp)
     target_link_libraries(boardsi-d035-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)

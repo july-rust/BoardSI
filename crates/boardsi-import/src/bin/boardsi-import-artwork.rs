@@ -36,6 +36,9 @@ mod d015_core;
 #[path = "../d016_x_junction.rs"]
 #[allow(dead_code)]
 mod d016_core;
+#[path = "../d036_dual_mirrored_via.rs"]
+#[allow(dead_code)]
+mod d036_core;
 fn run() -> Result<(usize, usize), &'static str> {
     let args: Vec<_> = env::args_os().collect();
     // The suffix protocol is opt-in. Existing one-path invocations keep
@@ -859,6 +862,40 @@ fn main() {
             Ok(wire) => print!("{wire}"),
             Err(reason) => {
                 eprintln!("D029_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_SOURCE_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
+    // D_036: combined Via-A/Via-B exact-negative 4:3 SOURCE candidates.
+    if args.len() == 8
+        && args[2] == std::ffi::OsStr::new("--d036-non45-dual-mirrored-via-endpoint-contact-v1")
+    {
+        let result = (|| -> Result<String, &'static str> {
+            let txt = |i: usize| args[i].to_str().ok_or("D036_UTF8");
+            let path = std::path::Path::new(&args[1]);
+            let meta = fs::metadata(path).map_err(|_| "D036_FILE")?;
+            if !meta.is_file() || meta.len() > MAX_FILE_BYTES as u64 {
+                return Err("D036_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D036_READ")?;
+            d036_core::encode(
+                &bytes,
+                txt(3)?,
+                [
+                    txt(4)?.parse::<usize>().map_err(|_| "D036_LAYER")?,
+                    txt(5)?.parse::<usize>().map_err(|_| "D036_LAYER")?,
+                ],
+                [
+                    txt(6)?.parse::<usize>().map_err(|_| "D036_VIA")?,
+                    txt(7)?.parse::<usize>().map_err(|_| "D036_VIA")?,
+                ],
+            )
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D036_DUAL_MIRRORED_VIA_SOURCE_ERROR:{reason}");
                 std::process::exit(3);
             }
         }

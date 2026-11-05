@@ -8,7 +8,7 @@ fn orient(a: [i64; 2], b: [i64; 2], c: [i64; 2]) -> i128 {
     let y = i128::from(b[1]) - i128::from(a[1]);
     x * (i128::from(c[1]) - i128::from(a[1])) - y * (i128::from(c[0]) - i128::from(a[0]))
 }
-fn on_segment(p: [i64; 2], a: [i64; 2], b: [i64; 2]) -> bool {
+pub(super) fn on_segment(p: [i64; 2], a: [i64; 2], b: [i64; 2]) -> bool {
     orient(a, b, p) == 0
         && p[0] >= a[0].min(b[0])
         && p[0] <= a[0].max(b[0])
@@ -18,7 +18,7 @@ fn on_segment(p: [i64; 2], a: [i64; 2], b: [i64; 2]) -> bool {
 fn strict_interior(p: [i64; 2], a: [i64; 2], b: [i64; 2]) -> bool {
     p != a && p != b && on_segment(p, a, b)
 }
-fn segments_touch(a: [i64; 2], b: [i64; 2], c: [i64; 2], d: [i64; 2]) -> bool {
+pub(super) fn segments_touch(a: [i64; 2], b: [i64; 2], c: [i64; 2], d: [i64; 2]) -> bool {
     let (x, y, z, w) = (
         orient(a, b, c),
         orient(a, b, d),
@@ -60,7 +60,12 @@ fn mils_lexeme(text: &str) -> bool {
         }
         && parts.next().is_none()
 }
-fn bounded_source_inventory(bytes: &[u8], via_name: &str) -> Result<(), &'static str> {
+pub(super) fn bounded_source_inventory(
+    bytes: &[u8],
+    via_name: &str,
+    expected_signals: usize,
+    expected_points: usize,
+) -> Result<(), &'static str> {
     let source = std::str::from_utf8(bytes).map_err(|_| "D015_SOURCE_TEXT")?;
     let mut section = "";
     let mut header = false;
@@ -173,9 +178,9 @@ fn bounded_source_inventory(bytes: &[u8], via_name: &str) -> Result<(), &'static
         || pad_rows != 2
         || !bottom_pad
         || !top_pad
-        || signals != 2
-        || route_pairs != 2
-        || route_points != 6
+        || signals != expected_signals
+        || route_pairs != expected_signals
+        || route_points != expected_points
     {
         return Err("D015_SOURCE_STRUCTURE");
     }
@@ -486,7 +491,7 @@ fn encode_with_mode(
         return Err("D015_SOURCE_INCOMPLETE");
     }
     let (a, b) = (&p.vias[0], &p.vias[1]);
-    bounded_source_inventory(bytes, &a.name)?;
+    bounded_source_inventory(bytes, &a.name, 2, 6)?;
     if a.net != net
         || b.net != net
         || a.name != b.name
