@@ -24,7 +24,7 @@ inline bool boundedSections(const QByteArray &source) {
     if(source.isEmpty() || source.size()>8*1024*1024)return false;
     const int lineBreak=source.indexOf('\n');
     if(lineBreak<=0)return false;
-    const QByteArray header=source.left(lineBreak).trimmed().split(' ').first();
+    const QByteArray header=source.left(lineBreak).simplified().split(' ').first();
     if(header!="!PADS-POWERPCB-V9.4-MILS!" &&
        header!="!PADS-POWERPCB-V9.4-MILS-CP1252!" &&
        header!="!PADS-POWERPCB-V9.4-MILS-250L!" &&
@@ -234,6 +234,25 @@ inline int selftest(const QString &importer,const QString &fixturePath) {
     QByteArray wire;
     const bool accepted=run(wire)==0 && decode(wire,original,&panel);
     if(!accepted)return 1;
+    // Independent real importer round-trips for every accepted V9.4 header
+    // plus ASCII tab/blank-row lexical parity with Rust.
+    const QByteArray baseHeader="!PADS-POWERPCB-V9.4-MILS! DESIGN";
+    const std::array<QByteArray,4> supportedHeaders={
+        QByteArray("!PADS-POWERPCB-V9.4-MILS!\tDESIGN"),
+        QByteArray("!PADS-POWERPCB-V9.4-MILS-CP1252! DESIGN"),
+        QByteArray("!PADS-POWERPCB-V9.4-MILS-250L! DESIGN"),
+        QByteArray("!PADS-POWERPCB-V9.4-MILS-250L-CP1252! DESIGN")
+    };
+    for(int k=0;k<4;++k) {
+        QByteArray variant=original;
+        variant.replace(baseHeader,supportedHeaders[static_cast<size_t>(k)]);
+        if(k==0)variant.replace("*PARTDECAL*\n","*PARTDECAL*\n  \n");
+        if(variant==original || !save(variant) || !load())return 2;
+        QByteArray sourceBound;
+        if(run(sourceBound)!=0 || !decode(sourceBound,variant,&panel))
+            return 1;
+    }
+    if(!save(original) || !load() || !decode(wire,original,&panel))return 2;
     QByteArray forgery=wire;
     forgery.replace("E|2|2|3|EXACT_TRACE_JUNCTION_LOCAL_COPPER",
                     "E|2|1|3|EXACT_TRACE_JUNCTION_LOCAL_COPPER");
