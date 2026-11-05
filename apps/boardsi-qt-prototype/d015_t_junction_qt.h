@@ -16,7 +16,8 @@ inline bool milsLexeme(QByteArray number) {
     }
     return parts.size()==1 || parts[1].size()<=2;
 }
-inline bool boundedSourceInventory(const QByteArray &source,const QString &viaName) {
+inline bool boundedSourceInventory(const QByteArray &source,const QString &viaName,
+                                   int expectedSignals=2,int expectedPoints=6) {
     QByteArray section;
     bool header=false,ended=false,bottom=false,top=false;
     int maxLayer=0,viaDefs=0,signalCount=0,pairs=0,points=0;
@@ -71,7 +72,7 @@ inline bool boundedSourceInventory(const QByteArray &source,const QString &viaNa
         }
     }
     return header && ended && maxLayer==1 && viaDefs==1 && bottom && top
-        && signalCount==2 && pairs==2 && points==6;
+        && signalCount==expectedSignals && pairs==expectedSignals && points==expectedPoints;
 }
 inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                    const PreviewImportPanel *panel, const QString &net,
