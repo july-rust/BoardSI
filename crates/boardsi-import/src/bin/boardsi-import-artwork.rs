@@ -941,6 +941,27 @@ fn main() {
         }
         return;
     }
+    // D_041: one explicit Source-owned bridge joining two local components.
+    // The receipt is bounded geometry only, NOT global Electrical PASS.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d041-local-bridge-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let metadata = fs::metadata(path).map_err(|_| "D041_FILE")?;
+            if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES as u64 {
+                return Err("D041_FILE_LIMIT");
+            }
+            let source = fs::read(path).map_err(|_| "D041_READ")?;
+            boardsi_import::d041_local_bridge::encode(&source)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D041_LOCAL_BRIDGE_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_040: exact two local copper components, not global Electrical Open/Short.
     if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d040-multi-component-v1") {
         let result = (|| -> Result<String, &'static str> {
