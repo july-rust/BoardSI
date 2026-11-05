@@ -43,7 +43,9 @@ fn d036_source_dual_signed_negative_graph_and_sha() {
 
 #[test]
 fn d036_reverse_branch_and_lexical_sha_independent() {
-    let reversed_a = FIXTURE.replace(
+    // Normalize CRLF checkout fixtures so reverse mutation is real on Windows.
+    let normalized = FIXTURE.replace("\r\n", "\n");
+    let reversed_a = normalized.replace(
         "150 250 4 10 0\n30 160 4 10 0",
         "30 160 4 10 0\n150 250 4 10 0",
     );
@@ -55,10 +57,13 @@ fn d036_reverse_branch_and_lexical_sha_independent() {
     assert_eq!(reversed_wire.matches("NODE|").count(), 9);
     assert_eq!(reversed_wire.matches("EDGE|").count(), 8);
     assert!(reversed_wire.contains("LOCAL_COMPONENTS|3"));
-    let lexical = FIXTURE.replace("80 250 1 10 0", "80.00 250 1 10 0");
+    assert_ne!(reversed_a, normalized);
+    assert_ne!(reversed_b, reversed_a);
+    let lexical = normalized.replace("80 250 1 10 0", "80.00 250 1 10 0");
+    assert_ne!(lexical, normalized);
     let lexical_wire = qualify(&lexical).expect("exact decimal lexical source");
     assert_ne!(
-        qualify(FIXTURE).unwrap(),
+        qualify(&normalized).unwrap(),
         lexical_wire,
         "SHA must bind original Source bytes"
     );
@@ -85,30 +90,32 @@ fn d036_reverse_branch_and_lexical_sha_independent() {
 
 #[test]
 fn d036_hostile_signed_geometry_source_and_selection_fail_closed() {
+    let normalized = FIXTURE.replace("\r\n", "\n");
+    let source = normalized.as_str();
     let hostiles = [
-        FIXTURE.replace("30 160 4 10 0", "30 160.01 4 10 0"),
-        FIXTURE.replace("470 160 4 10 0", "470 160.01 4 10 0"),
-        FIXTURE.replace("30 160 4 10 0", "30 340 4 10 0"),
-        FIXTURE.replace("470 160 4 10 0", "470 340 4 10 0"),
-        FIXTURE.replace("30 160 4 10 0", "60 160 4 10 0"),
-        FIXTURE.replace("470 160 4 10 0", "440 160 4 10 0"),
-        FIXTURE.replace("150 250 4 10 0\n30 160", "150.01 250 4 10 0\n30 160"),
-        FIXTURE.replace("350 250 4 10 0\n470 160", "350.01 250 4 10 0\n470 160"),
-        FIXTURE.replace("470 160 4 10 0", "470 160 1 10 0"),
-        FIXTURE.replace("*SIGNAL* NET_A\nU5.5", "*SIGNAL* OTHER\nU5.5"),
-        FIXTURE.replace("*END*", "*LINES*\nCOPCLS 5 0.01 0 4\n*END*"),
-        FIXTURE.replace("SIMPLEVIA 15 2", "SIMPLEVIA 15 2\nSIMPLEVIA 15 2"),
-        FIXTURE.replace(
+        source.replace("30 160 4 10 0", "30 160.01 4 10 0"),
+        source.replace("470 160 4 10 0", "470 160.01 4 10 0"),
+        source.replace("30 160 4 10 0", "30 340 4 10 0"),
+        source.replace("470 160 4 10 0", "470 340 4 10 0"),
+        source.replace("30 160 4 10 0", "60 160 4 10 0"),
+        source.replace("470 160 4 10 0", "440 160 4 10 0"),
+        source.replace("150 250 4 10 0\n30 160", "150.01 250 4 10 0\n30 160"),
+        source.replace("350 250 4 10 0\n470 160", "350.01 250 4 10 0\n470 160"),
+        source.replace("470 160 4 10 0", "470 160 1 10 0"),
+        source.replace("*SIGNAL* NET_A\nU5.5", "*SIGNAL* OTHER\nU5.5"),
+        source.replace("*END*", "*LINES*\nCOPCLS 5 0.01 0 4\n*END*"),
+        source.replace("SIMPLEVIA 15 2", "SIMPLEVIA 15 2\nSIMPLEVIA 15 2"),
+        source.replace(
             "350 250 4 10 0\n470 160 4 10 0",
             "150 250 4 10 0\n470 160 4 10 0",
         ),
-        FIXTURE.replace(
+        source.replace(
             "350 250 4 10 0\n470 160 4 10 0",
             "350 250 4 10 0\n30 160 4 10 0",
         ),
     ];
     for hostile in hostiles {
-        assert_ne!(hostile, FIXTURE, "hostile mutation must be effective");
+        assert_ne!(hostile, source, "hostile mutation must be effective");
         assert!(
             qualify(&hostile).is_err(),
             "hostile SOURCE unexpectedly accepted: {hostile}"
