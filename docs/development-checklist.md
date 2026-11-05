@@ -18,12 +18,12 @@
 | [**A**](#stage-a) | Preview · Import · Artwork | 12 | 5 |
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
-| [**D**](#stage-d) | PADS Source 접촉 후보 · T/X Junction | 59 | 2 |
+| [**D**](#stage-d) | PADS Source 접촉 후보 · 국소 Copper Geometry 통합 | 60 | 2 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
-**전체 체크 상태: 130건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
+**전체 체크 상태: 131건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
 
 <a id="stage-a"></a>
 ### Stage A — 제한 Preview / Import / Artwork
@@ -94,7 +94,7 @@
 <a id="stage-d"></a>
 ### Stage D — PADS Source Contact / Junction
 
-**59건 확인 · 2건 미확인.** 지원된 PADS Source 기하의 부분 접점 후보 증거이며, 제조 물리 접속과 전기적 연속성을 인증하지 않습니다.
+**60건 확인 · 2건 미확인.** D_039는 지원된 PADS 합성 Source에서 SMD Pad 2개와 직선 Trace 2개의 동일 Layer 국소 Copper Geometry만 검증하며 제조 실물 도통·글로벌 Open/Short·Return Path/SI를 인증하지 않습니다.
 
 | 작업 | 제한 검증 범위 | 확인 | 미확인 |
 | :--- | :--- | ---: | ---: |
@@ -136,6 +136,7 @@
 | [**D_036**](#d_036) | Dual mirrored negative shallow 4:3 Via-A/Via-B SOURCE 복합 후보 (코드·main Push 한정 인수 완료) | 1 | 0 |
 | [**D_037**](#d_037) | Mixed-sign negative Via-A / positive Via-B shallow 4:3 SOURCE 복합 후보 (코드·main Push 한정 인수 완료) | 1 | 0 |
 | [**D_038**](#d_038) | Mixed-sign positive Via-A / negative Via-B shallow 4:3 SOURCE 복합 후보 (코드·main Push 한정 인수 완료) | 1 | 0 |
+| [**D_039**](#d_039) | Same-layer SMD Pad–Trace–Trace–SMD Pad 국소 Copper Geometry Graph (코드·main Push 한정 인수 완료) | 1 | 0 |
 
 <a id="stage-security"></a>
 ### 보안 — SEC_001
@@ -896,3 +897,9 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 ### D_038 — PADS Same-Layer Reversed Mixed-Sign Shallow 4:3 Via-A Positive / Via-B Negative SOURCE Contact (코드·main Push 한정 인수 완료 · 2026-11-05 KST)
 
 - [x] **D_038 Via-A 양(+) / Via-B 음(-) exact shallow 4:3 단일 SOURCE 복합 접촉 후보 — 코드·Verified Squash·정확한 main Push 한정 검증 완료** · **최초 체크일: 2026-11-05 KST** · **체크일: 2026-11-05 KST** · **근거일: 2026-11-05 KST**. [Issue #457](https://github.com/july-rust/BoardSI/issues/457), [코드 PR #458](https://github.com/july-rust/BoardSI/pull/458), [D_038 검증 원장](validation/d038-mixed-sign-reversed-dual-via-endpoint-qualification.md). 한 개의 PADS V9.4 MILS SOURCE(254 nm/Tick, NET_A, 3 SIGNAL·2 Via·5 Trace), L4 Main `(15000,25000)→(35000,25000)`, Via-A branch `(15000,25000)→(3000,34000)`, Via-B branch `(35000,25000)→(47000,16000)`. Via→Exterior signed i128 exact `4×abs(cross)=3×abs(dot)`: **A dot=-240000000/cross=+180000000**, 외측 projection=-240000000; **B dot=+240000000/cross=-180000000**, 외측 projection=640000000 (Main len²=400000000). Rust/Qt 독립 SOURCE 재Import/Exact Contact Candidate 검증, 1 Tick 기하·틀린 부호/Net/Layer/Via·미지원/중복/누락 SOURCE·L1 교차·SHA/Trace/Edge/Receipt 위조·stale/전기적 승격 Fail-Closed, Branch 역전 및 180° 회전 정상 허용. **9 SOURCE Nodes / 8 Same-Layer Contact Candidate Edges / 3 Local Components / 0 Proven Electrical Cross-Layer Edges**. 최종 코드 PR HEAD [`52d5ddc59e4878e9ebc3399a561eff1bbddfb734`](https://github.com/july-rust/BoardSI/commit/52d5ddc59e4878e9ebc3399a561eff1bbddfb734/checks) **34/34 PR Check Runs·11/11 PR Workflows SUCCESS**, [Numerical #41975273279](https://github.com/july-rust/BoardSI/actions/runs/41975273279) Rust D038 Debug **4/4**, Release **4/4**, Rustfmt/Clippy PASS; [Qt #41975273361](https://github.com/july-rust/BoardSI/actions/runs/41975273361) Linux Offscreen **60/60 CTest PASS** 및 Windows x64·ARM64/macOS ARM64 Native D038 Qt SUCCESS. 독립 동일 최종 HEAD Codex `completed/findings=false/unresolved=false`, 미해결 Thread 0. 과거 최초 HEAD Rustfmt FAIL와 Codex P1 두 건(Qt CLI Mode 불일치 및 뒤바뀐 TRACE hostile receipt 좌표)은 다음 커밋에서 수리하고 새 HEAD 전체 재검증, 실패 이력 보존. 보호된 **Verified 단일 부모 Squash** 코드-main [`1de0cb2af0e7b0847441ea9fdca71ac413e0967e`](https://github.com/july-rust/BoardSI/commit/1de0cb2af0e7b0847441ea9fdca71ac413e0967e), sole parent `7096bc2f7611f9feb7f205c2b944d57f4f163664`, GitHub REST `verification.verified=true/reason=valid`; 정확한 코드-main SHA의 독립 **8/8 event=push Actions Workflows·28/28 Check Runs SUCCESS** ([Qt Push #41976797229](https://github.com/july-rust/BoardSI/actions/runs/41976797229) · [Numerical Push #41976797281](https://github.com/july-rust/BoardSI/actions/runs/41976797281)). **SOURCE_GEOMETRY_ONLY**: 실제 Copper/Pad/Via-Barrel 전기 도통, Global Open/Short, P009·PH-08 Return Path, Physical Scenario/Cache, RLGC/S, 정식 U/T 및 제품 릴리스는 **NOT_VERIFIED**. 부모 Issue #12 **OPEN**, 레거시 PR #35 **CLOSED/UNMERGED**. 본 체크는 **코드-main 한정 인수**이며, 별도 2개 Markdown 전용 문서 PR의 최신 HEAD 검증·Docs-only CI·Codex·Verified Squash·정확 docs-main Push·Issue #457 행정 종료는 [Issue #457](https://github.com/july-rust/BoardSI/issues/457) 최종 Comment에 기록한다. 재귀 문서 PR은 만들지 않는다.
+
+
+<a id="d_039"></a>
+### D_039 — PADS Same-Layer Copper Connectivity Foundation & Fail-Closed Qualification (코드·정확한 main Push 한정 인수 완료 · 2026-11-05 KST)
+
+- [x] **D_039 SOURCE 소유 Same-Layer 2 SMD Pad / 2 Trace 국소 Copper 기하 Graph 및 Fail-Closed 검증 — 코드·Verified Squash·정확한 main Push 완료** · **최초 체크일: 2026-11-05 KST** · **체크일: 2026-11-05 KST** · **근거일: 2026-11-05 KST**. [Issue #460](https://github.com/july-rust/BoardSI/issues/460), [코드 PR #461](https://github.com/july-rust/BoardSI/pull/461), [D_039 검증 원장](validation/d039-same-layer-copper-connectivity-qualification.md). 합성 PADS PowerPCB V9.4 MILS SOURCE(254 nm/Tick), Net NET_A, Layer 1 SMD Pad 2개와 직선 Trace 2개에서 엄격한 Pad 내부 접점·양의 Trace 폭·정확한 Trace 공동 Endpoint 및 SOURCE·Net·Layer·Owner를 Rust와 실제 Qt 재Import로 독립 확인. **4 Nodes / 3 Local Copper Geometry Edges / 1 Local Component**, SHA-256 바인딩과 결정성; **LOCAL_COPPER_GEOMETRY_VERIFIED ≠ Global Electrical PASS**. 반전 SOURCE Trace, 헤더 4종, ASCII 탭·빈 줄 정상 처리; 1 Tick Gap, 다른 Net/Layer/폭, 중복·미지원·누락된 Decal/Part/Source, 위조 Edge/Receipt, stale 재Import, 전역 전기적 승격은 Fail-Closed. 최종 코드 PR HEAD [b8c9525ccbeb993525089a06ed9932849ba1a283](https://github.com/july-rust/BoardSI/commit/b8c9525ccbeb993525089a06ed9932849ba1a283/checks) **34/34 PR Check Runs·11/11 PR Workflows SUCCESS**. [Numerical #41993386759](https://github.com/july-rust/BoardSI/actions/runs/41993386759) Rust D039 Debug **5/5**, Release **5/5**, rustfmt/Clippy PASS; [Qt #41993386772](https://github.com/july-rust/BoardSI/actions/runs/41993386772) Linux Offscreen **61/61 CTest**, Windows x64·ARM64 및 macOS ARM64 Native Qt D039 PASS. 독립 최신 HEAD Codex 완료/추가 지적 0/미해결 스레드 0. 과거 여러 HEAD의 Rustfmt·Qt 빌드·런타임 실패 및 Codex P2(중복 Pad Definition·실행 누락·빈 줄·헤더·탭 불일치)는 수정 후 새로운 HEAD 전체 재검증, 과거 실패 이력 보존. 보호된 **Verified 단일 부모 Squash** 코드-main [ad1f4f1992adb41b0ce47a54278ef8052b1b5909](https://github.com/july-rust/BoardSI/commit/ad1f4f1992adb41b0ce47a54278ef8052b1b5909), sole parent 69db0a263337f8e05c4be2df99f1120bb86badb1, GitHub REST verification.verified=true/reason=valid; 정확한 code-main에서 **8/8 event=push Workflows, 28/28 Check Runs SUCCESS** ([Qt Push #41995229580](https://github.com/july-rust/BoardSI/actions/runs/41995229580) · [Numerical Push #41995229505](https://github.com/july-rust/BoardSI/actions/runs/41995229505)). **제한 범위 외:** 제조 도통, 전역 Copper/Pad/Via-Barrel/Pour/Thermal Connectivity, Global Open/Short, P009·PH-08 Return Path, Physical Scenario/Cache, RLGC/S Solver, 정식 U01–U48/T01–T54, 제품 릴리스는 **NOT_VERIFIED**. 부모 [Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN. 문서 전용 PR은 정확히 이 체크리스트와 D039 검증 원장 **두 Markdown 파일만 수정**, Docs-only CI·독립 Codex·Verified Squash·정확한 docs-main Push·[Issue #460](https://github.com/july-rust/BoardSI/issues/460) 행정 종료의 근거는 Issue 최종 댓글에 기록하며 재귀 문서 PR을 만들지 않는다.
