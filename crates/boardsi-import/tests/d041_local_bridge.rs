@@ -15,7 +15,9 @@ fn exact_bridge_is_one_source_local_component() {
     assert_eq!(receipt.matches("\nE|").count(), 8);
     assert!(receipt.contains("E|6|4|8|EXACT_BRIDGE_JUNCTION_LOCAL_COPPER\n"));
     assert!(receipt.contains("E|7|8|6|EXACT_BRIDGE_JUNCTION_LOCAL_COPPER\n"));
-    assert!(receipt.contains("COUNT|NODES|9|EDGES|8|LOCAL_COMPONENTS|1|GLOBAL_ELECTRICAL|NOT_VERIFIED"));
+    assert!(
+        receipt.contains("COUNT|NODES|9|EDGES|8|LOCAL_COMPONENTS|1|GLOBAL_ELECTRICAL|NOT_VERIFIED")
+    );
     assert!(receipt.ends_with("END|SOURCE_LOCAL_BRIDGE_ONLY_NO_GLOBAL_PASS\n"));
     assert_eq!(check(SOURCE).unwrap(), receipt);
 }
@@ -58,22 +60,27 @@ fn absent_misaligned_wrong_net_or_unsupported_bridge_fails_closed() {
     let base = SOURCE.replace("\r\n", "\n");
     let failures = [
         base.replace("400 350 1 10 0\n*END*", "400 350.01 1 10 0\n*END*"),
-        base.replace("200 350 1 10 0\n400 350 1 10 0\n*END*",
-                     "200 350 2 10 0\n400 350 2 10 0\n*END*"),
-        base.replace("200 350 1 10 0\n400 350 1 10 0\n*END*",
-                     "200 350 1 11 0\n400 350 1 11 0\n*END*"),
+        base.replace(
+            "200 350 1 10 0\n400 350 1 10 0\n*END*",
+            "200 350 2 10 0\n400 350 2 10 0\n*END*",
+        ),
+        base.replace(
+            "200 350 1 10 0\n400 350 1 10 0\n*END*",
+            "200 350 1 11 0\n400 350 1 11 0\n*END*",
+        ),
         base.replace("U1.1 U2.1\n200 350", "U1.2 U2.1\n200 350"),
         base.replace("U1.1 U2.1\n200 350 1 10 0\n400 350 1 10 0\n", ""),
-        base.replace("*END*",
-                     "U1.1 U2.1\n200 350 1 10 0\n400 350 1 10 0\n*END*"),
+        base.replace("*END*", "U1.1 U2.1\n200 350 1 10 0\n400 350 1 10 0\n*END*"),
         base.replace("U2 TYPEA 400 300", "U2 TYPEA 200 300"),
         base.replace("U2 TYPEA 400 300", "U2 TYPEA 400 300.01"),
         base.replace("*ROUTE*", "*VIA*\nSIMPLEVIA 10 2\n*ROUTE*"),
         base.replace("*ROUTE*", "*LINES*\nRA COPCLS 0 0 1 1 0 NET_A\n*ROUTE*"),
         base.replace("U1.1 U2.1", "U1.1 U1.2"),
         base.replace("U1.1 U2.1", "*SIGNAL* NET_B\nU1.1 U2.1"),
-        base.replace("U2.1 U2.2\n400 300 1 10 0",
-                     "*SIGNAL* NET_B\nU2.1 U2.2\n400 300 1 10 0"),
+        base.replace(
+            "U2.1 U2.2\n400 300 1 10 0",
+            "*SIGNAL* NET_B\nU2.1 U2.2\n400 300 1 10 0",
+        ),
         base.replace("*END*", "*END*\n!PADS-POWERPCB-V9.4-MILS! DESIGN"),
     ];
     for (i, changed) in failures.iter().enumerate() {
