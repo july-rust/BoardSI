@@ -177,6 +177,8 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
         (13, 6),
     ];
     let mut parent: Vec<usize> = (0..14).collect();
+    let edge_count = edges.len();
+    let node_count = parent.len();
     let mut cycles = 0_usize;
     for (a, b) in edges {
         let mut x = a;
@@ -203,7 +205,7 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
             components += 1;
         }
     }
-    if components != 1 || cycles != 1 || 14 - 14 + components != cycles {
+    if components != 1 || cycles != 1 || edge_count - node_count + components != cycles {
         return Err("D042_TOPOLOGY");
     }
 
