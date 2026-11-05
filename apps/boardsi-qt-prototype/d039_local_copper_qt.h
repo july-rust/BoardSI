@@ -38,6 +38,7 @@ inline bool boundedSections(const QByteArray &source) {
             if(!row.isEmpty())return false;
             continue;
         }
+        if(row.isEmpty())continue; // match Rust and PADS parser blank-row handling
         const auto fields=row.simplified().split(' ');
         if(fields.isEmpty() || fields[0]=="*REMARK*" || fields[0]=="REMARK")
             continue;
