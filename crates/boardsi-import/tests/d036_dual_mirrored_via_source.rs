@@ -102,6 +102,10 @@ fn d036_hostile_signed_geometry_source_and_selection_fail_closed() {
         source.replace("150 250 4 10 0\n30 160", "150.01 250 4 10 0\n30 160"),
         source.replace("350 250 4 10 0\n470 160", "350.01 250 4 10 0\n470 160"),
         source.replace("470 160 4 10 0", "470 160 1 10 0"),
+        // Codex P2: formerly missed crossing of two nonhorizontal Layer-1 arms.
+        source
+            .replace("80 250 1 10 0", "350 450 1 10 0")
+            .replace("420 250 1 10 0", "150 450 1 10 0"),
         source.replace("*SIGNAL* NET_A\nU5.5", "*SIGNAL* OTHER\nU5.5"),
         source.replace("*END*", "*LINES*\nCOPCLS 5 0.01 0 4\n*END*"),
         source.replace("SIMPLEVIA 15 2", "SIMPLEVIA 15 2\nSIMPLEVIA 15 2"),
