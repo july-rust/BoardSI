@@ -178,6 +178,15 @@ if(BUILD_TESTING)
     else()
       target_compile_options(boardsi-d041-native-qt PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
+    # Native Windows/macOS Actions run the same regression after building.
+    # Linux already executes the registered CTest in its existing workflow.
+    if((WIN32 OR APPLE) AND "$ENV{GITHUB_ACTIONS}" STREQUAL "true")
+      add_custom_command(TARGET boardsi-d041-native-qt POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E env "QT_QPA_PLATFORM=offscreen"
+          "$<TARGET_FILE:boardsi-d041-native-qt>" "${BOARDSI_IMPORTER}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/d041_local_bridge_v94.asc"
+        VERBATIM)
+    endif()
     add_test(NAME qt-preview-d041-local-source-bridge
       COMMAND boardsi-d041-native-qt "${BOARDSI_IMPORTER}"
         "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/d041_local_bridge_v94.asc")
