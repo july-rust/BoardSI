@@ -8,7 +8,7 @@ fn orient(a: [i64; 2], b: [i64; 2], c: [i64; 2]) -> i128 {
     let y = i128::from(b[1]) - i128::from(a[1]);
     x * (i128::from(c[1]) - i128::from(a[1])) - y * (i128::from(c[0]) - i128::from(a[0]))
 }
-fn on_segment(p: [i64; 2], a: [i64; 2], b: [i64; 2]) -> bool {
+pub(super) fn on_segment(p: [i64; 2], a: [i64; 2], b: [i64; 2]) -> bool {
     orient(a, b, p) == 0
         && p[0] >= a[0].min(b[0])
         && p[0] <= a[0].max(b[0])
@@ -18,7 +18,7 @@ fn on_segment(p: [i64; 2], a: [i64; 2], b: [i64; 2]) -> bool {
 fn strict_interior(p: [i64; 2], a: [i64; 2], b: [i64; 2]) -> bool {
     p != a && p != b && on_segment(p, a, b)
 }
-fn segments_touch(a: [i64; 2], b: [i64; 2], c: [i64; 2], d: [i64; 2]) -> bool {
+pub(super) fn segments_touch(a: [i64; 2], b: [i64; 2], c: [i64; 2], d: [i64; 2]) -> bool {
     let (x, y, z, w) = (
         orient(a, b, c),
         orient(a, b, d),
