@@ -167,6 +167,22 @@ if(BUILD_TESTING)
       COMMAND boardsi-d037-native-qt "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-d037-mixed-sign-dual-via-source PROPERTIES TIMEOUT 90
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_040 same-layer multiple local Copper components; same existing native CI matrix.
+    add_executable(boardsi-d040-native-qt d040_qt_runner.cpp)
+    target_link_libraries(boardsi-d040-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+    if(WIN32)
+      target_link_libraries(boardsi-d040-native-qt PRIVATE psapi)
+    endif()
+    if(MSVC)
+      target_compile_options(boardsi-d040-native-qt PRIVATE /W4 /WX)
+    else()
+      target_compile_options(boardsi-d040-native-qt PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME qt-preview-d040-multi-component-copper-source
+      COMMAND boardsi-d040-native-qt "${BOARDSI_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/d040_multi_component_v94.asc")
+    set_tests_properties(qt-preview-d040-multi-component-copper-source PROPERTIES TIMEOUT 90
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_039: bounded same-layer two-Pad/two-Trace local copper geometry; existing native CI.
     add_executable(boardsi-d039-native-qt d039_qt_runner.cpp)
     target_link_libraries(boardsi-d039-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
