@@ -3,7 +3,10 @@ use crate::{d040_multi_component, digest, route_preview};
 use std::fmt::Write;
 
 fn without_bridge(bytes: &[u8]) -> Result<Vec<u8>, &'static str> {
-    let rows: Vec<_> = std::str::from_utf8(bytes).map_err(|_| "D041_UTF8")?.lines().collect();
+    let rows: Vec<_> = std::str::from_utf8(bytes)
+        .map_err(|_| "D041_UTF8")?
+        .lines()
+        .collect();
     let mut out = String::new();
     let (mut i, mut signals, mut bridges) = (0, 0, 0);
     let mut in_signal = false;
@@ -16,7 +19,9 @@ fn without_bridge(bytes: &[u8]) -> Result<Vec<u8>, &'static str> {
             in_signal = false;
         }
         if words == ["U1.1", "U2.1"] {
-            if !in_signal || bridges != 0 || i + 2 >= rows.len()
+            if !in_signal
+                || bridges != 0
+                || i + 2 >= rows.len()
                 || rows[i + 1].split_ascii_whitespace().count() != 5
                 || rows[i + 2].split_ascii_whitespace().count() != 5
             {
@@ -67,22 +72,25 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
     }
     // D_040 qualifies ALL four old traces/pads, source inventory and isolation.
     let baseline = d040_multi_component::encode(&without_bridge(bytes)?)?;
-    let old: Vec<_> = baseline.lines().filter(|l| l.starts_with("T|"))
-        .map(parse_t).collect::<Result<_, _>>()?;
+    let old: Vec<_> = baseline
+        .lines()
+        .filter(|l| l.starts_with("T|"))
+        .map(parse_t)
+        .collect::<Result<_, _>>()?;
     if old.len() != 4 || old.iter().any(|t| t.net != old[0].net) {
         return Err("D041_CROSS_NET_OR_BASE");
     }
     let (j0, j1) = (old[0].b, old[2].b);
-    let horizontal = j0[1] == j1[1] && j0[0] != j1[0]
-        && old.iter().all(|t| t.a[0] == t.b[0]);
-    let vertical = j0[0] == j1[0] && j0[1] != j1[1]
-        && old.iter().all(|t| t.a[1] == t.b[1]);
+    let horizontal = j0[1] == j1[1] && j0[0] != j1[0] && old.iter().all(|t| t.a[0] == t.b[0]);
+    let vertical = j0[0] == j1[0] && j0[1] != j1[1] && old.iter().all(|t| t.a[1] == t.b[1]);
     if !horizontal && !vertical {
         return Err("D041_BRIDGE_ORTHOGONAL");
     }
     let artwork = route_preview::parse(bytes)?;
-    if artwork.skipped != 0 || artwork.segments.len() != 5
-        || !artwork.vias.is_empty() || !artwork.arcs.is_empty()
+    if artwork.skipped != 0
+        || artwork.segments.len() != 5
+        || !artwork.vias.is_empty()
+        || !artwork.arcs.is_empty()
     {
         return Err("D041_ROUTE_INVENTORY");
     }
@@ -90,13 +98,19 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
     let mut bridge = false;
     for t in &artwork.segments {
         if let Some((i, _)) = old.iter().enumerate().find(|(i, o)| {
-            !used[*i] && t.layer == 1 && t.net == o.net
-                && t.width_ticks == o.width && same_pair(t.a, t.b, o.a, o.b)
+            !used[*i]
+                && t.layer == 1
+                && t.net == o.net
+                && t.width_ticks == o.width
+                && same_pair(t.a, t.b, o.a, o.b)
         }) {
             used[i] = true;
         } else {
-            if bridge || t.layer != 1 || t.net != old[0].net
-                || t.width_ticks != old[0].width || t.width_ticks != old[2].width
+            if bridge
+                || t.layer != 1
+                || t.net != old[0].net
+                || t.width_ticks != old[0].width
+                || t.width_ticks != old[2].width
                 || !same_pair(t.a, t.b, j0, j1)
             {
                 return Err("D041_BRIDGE_ENDPOINT_NET_WIDTH");
@@ -109,13 +123,19 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
     }
     // Reject pads crossed by the bridge's conservative copper envelope.
     let w = i128::from(old[0].width);
-    let (xlo, xhi) = (i128::from(j0[0].min(j1[0])) * 2 - w,
-                      i128::from(j0[0].max(j1[0])) * 2 + w);
-    let (ylo, yhi) = (i128::from(j0[1].min(j1[1])) * 2 - w,
-                      i128::from(j0[1].max(j1[1])) * 2 + w);
+    let (xlo, xhi) = (
+        i128::from(j0[0].min(j1[0])) * 2 - w,
+        i128::from(j0[0].max(j1[0])) * 2 + w,
+    );
+    let (ylo, yhi) = (
+        i128::from(j0[1].min(j1[1])) * 2 - w,
+        i128::from(j0[1].max(j1[1])) * 2 + w,
+    );
     for row in baseline.lines().filter(|l| l.starts_with("P|")) {
         let f: Vec<_> = row.split('|').collect();
-        if f.len() != 10 { return Err("D041_BASE_PAD"); }
+        if f.len() != 10 {
+            return Err("D041_BASE_PAD");
+        }
         let n = |i: usize| f[i].parse::<i128>().map_err(|_| "D041_BASE_PAD_VALUE");
         let (x, y, pw, ph) = (n(5)? * 2, n(6)? * 2, n(7)?, n(8)?);
         if xlo <= x + pw && x - pw <= xhi && ylo <= y + ph && y - ph <= yhi {
@@ -130,12 +150,18 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
         "BOARDSI_D041_LOCAL_BRIDGE_V1|{sha}|1|LOCAL_COPPER_BRIDGE_VERIFIED|P009_UNSUPPORTED|SI_NOT_RUN|GLOBAL_ELECTRICAL_NOT_VERIFIED\n"
     );
     writeln!(&mut out, "C|0|U1+U2|{}|1|9|8", old[0].net).map_err(|_| "D041_FORMAT")?;
-    for row in baseline.lines().filter(|l| l.starts_with("P|") || l.starts_with("T|")) {
+    for row in baseline
+        .lines()
+        .filter(|l| l.starts_with("P|") || l.starts_with("T|"))
+    {
         writeln!(&mut out, "{row}").map_err(|_| "D041_FORMAT")?;
     }
-    writeln!(&mut out, "T|4|1|{}|{}|{}|{}|{}|{}",
-        old[0].net, j0[0], j0[1], j1[0], j1[1], old[0].width)
-        .map_err(|_| "D041_FORMAT")?;
+    writeln!(
+        &mut out,
+        "T|4|1|{}|{}|{}|{}|{}|{}",
+        old[0].net, j0[0], j0[1], j1[0], j1[1], old[0].width
+    )
+    .map_err(|_| "D041_FORMAT")?;
     for row in baseline.lines().filter(|l| l.starts_with("E|")) {
         writeln!(&mut out, "{row}").map_err(|_| "D041_FORMAT")?;
     }
