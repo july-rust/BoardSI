@@ -39,6 +39,9 @@ mod d016_core;
 #[path = "../d036_dual_mirrored_via.rs"]
 #[allow(dead_code)]
 mod d036_core;
+#[path = "../d037_mixed_sign_dual_via.rs"]
+#[allow(dead_code)]
+mod d037_core;
 fn run() -> Result<(usize, usize), &'static str> {
     let args: Vec<_> = env::args_os().collect();
     // The suffix protocol is opt-in. Existing one-path invocations keep
@@ -896,6 +899,40 @@ fn main() {
             Ok(wire) => print!("{wire}"),
             Err(reason) => {
                 eprintln!("D036_DUAL_MIRRORED_VIA_SOURCE_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
+    // D_037: mixed-sign negative-A positive-B Via-A/Via-B 4:3 SOURCE candidates.
+    if args.len() == 8
+        && args[2] == std::ffi::OsStr::new("--d037-non45-mixed-sign-dual-via-endpoint-contact-v1")
+    {
+        let result = (|| -> Result<String, &'static str> {
+            let txt = |i: usize| args[i].to_str().ok_or("D037_UTF8");
+            let path = std::path::Path::new(&args[1]);
+            let meta = fs::metadata(path).map_err(|_| "D037_FILE")?;
+            if !meta.is_file() || meta.len() > MAX_FILE_BYTES as u64 {
+                return Err("D037_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D037_READ")?;
+            d037_core::encode(
+                &bytes,
+                txt(3)?,
+                [
+                    txt(4)?.parse::<usize>().map_err(|_| "D037_LAYER")?,
+                    txt(5)?.parse::<usize>().map_err(|_| "D037_LAYER")?,
+                ],
+                [
+                    txt(6)?.parse::<usize>().map_err(|_| "D037_VIA")?,
+                    txt(7)?.parse::<usize>().map_err(|_| "D037_VIA")?,
+                ],
+            )
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D037_MIXED_SIGN_DUAL_VIA_SOURCE_ERROR:{reason}");
                 std::process::exit(3);
             }
         }
