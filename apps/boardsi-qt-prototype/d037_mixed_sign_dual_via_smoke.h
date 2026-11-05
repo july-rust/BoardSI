@@ -103,7 +103,7 @@ inline int selftest(const QString &importer) {
     // verifies Qt geometry itself rejects the hostile (not merely a stale SHA).
     const auto originalSha=QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex();
     const QByteArray traceA="TRACE|3|4|15000|25000|3000|16000|1000\n";
-    const QByteArray traceB="TRACE|4|4|35000|25000|47000|16000|1000\n";
+    const QByteArray traceB="TRACE|4|4|35000|25000|47000|34000|1000\n";
     const auto qtHostile=[&](QByteArray bad,QByteArray oldTrack,QByteArray newTrack) {
         if (bad==source || !save(bad) || !load()) return false;
         const auto hostileSha=QCryptographicHash::hash(bad,QCryptographicHash::Sha256).toHex();
@@ -120,10 +120,10 @@ inline int selftest(const QString &importer) {
             traceA,"TRACE|3|4|15000|25000|3000|16001|1000\n")
         && qtHostile(
             QByteArray(source).replace("470 340 4 10 0","470 340.01 4 10 0"),
-            traceB,"TRACE|4|4|35000|25000|47000|16001|1000\n")
+            traceB,"TRACE|4|4|35000|25000|47000|34001|1000\n")
         && qtHostile(
             QByteArray(source).replace("470 340 4 10 0","470 160 4 10 0"),
-            traceB,"TRACE|4|4|35000|25000|47000|34000|1000\n");
+            traceB,"TRACE|4|4|35000|25000|47000|16000|1000\n");
     auto reversed=source;
     reversed.replace("150 250 4 10 0\n30 160 4 10 0",
                      "30 160 4 10 0\n150 250 4 10 0");
