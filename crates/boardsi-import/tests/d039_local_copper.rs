@@ -48,7 +48,10 @@ fn supported_v94_mils_headers_are_source_bound_and_not_electrical_proof() {
         assert!(wire.contains("|LOCAL_COPPER_GEOMETRY_VERIFIED|"));
         assert!(wire.contains("|GLOBAL_ELECTRICAL_NOT_VERIFIED\n"));
     }
-    let tabbed = original.replace("!PADS-POWERPCB-V9.4-MILS! DESIGN", "!PADS-POWERPCB-V9.4-MILS!\tDESIGN");
+    let tabbed = original.replace(
+        "!PADS-POWERPCB-V9.4-MILS! DESIGN",
+        "!PADS-POWERPCB-V9.4-MILS!\tDESIGN",
+    );
     assert_ne!(tabbed, original);
     assert!(qualify(&tabbed).is_ok());
 }
