@@ -25,7 +25,7 @@ fn same_net_two_disconnected_components_do_not_merge() {
 }
 #[test]
 fn mixed_net_components_are_isolated_not_short_or_open_certificates() {
-    let changed = mixed(SOURCE);
+    let changed = mixed(&SOURCE.replace("\r\n", "\n"));
     let out = check(&changed).expect("two distinct source-owned nets");
     assert!(out.contains("C|0|U1|NET_A|1|4|3\n"));
     assert!(out.contains("C|1|U2|NET_B|1|4|3\n"));
@@ -33,6 +33,15 @@ fn mixed_net_components_are_isolated_not_short_or_open_certificates() {
     assert!(out.contains("|GLOBAL_ELECTRICAL_NOT_VERIFIED\n"));
     assert_ne!(out.lines().next(), check(SOURCE).unwrap().lines().next());
 }
+#[test]
+fn net_b_only_source_keeps_two_components() {
+    let source = SOURCE.replace("\r\n", "\n").replace("NET_A", "NET_B");
+    let out = check(&source).expect("two same-net NET_B components");
+    assert!(out.contains("C|0|U1|NET_B|1|4|3\n"));
+    assert!(out.contains("C|1|U2|NET_B|1|4|3\n"));
+    assert!(out.contains("COUNT|NODES|8|EDGES|6|LOCAL_COMPONENTS|2"));
+}
+
 #[test]
 fn supported_headers_reversal_and_lexical_changes_preserve_only_topology() {
     let base = SOURCE.replace("\r\n", "\n");

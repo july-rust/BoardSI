@@ -131,14 +131,15 @@ inline QByteArray reconstruct(const QByteArray &src,
     const auto sha=QCryptographicHash::hash(src,QCryptographicHash::Sha256).toHex();
     if(sha!=panel->acceptedSourceSha256())return {};
     QStringList declaredA,declaredB;
-    if(!d005::declaredPins(src,sha,"NET_A",declaredA))return {};
-    // Different Net is optional; its source declaration is verified when used.
+    const bool hasA=d005::declaredPins(src,sha,"NET_A",declaredA);
     const bool hasB=d005::declaredPins(src,sha,"NET_B",declaredB);
+    if(!hasA && !hasB)return {};
     std::array<ImportedTrack,4> traces;
     for(int t=0;t<4;++t) {
         auto &tr=traces[static_cast<size_t>(t)];
         if(!art->importedTrack(t,tr) || tr.layer!=1 ||
            (tr.net!="NET_A" && tr.net!="NET_B") ||
+           (tr.net=="NET_A" && !hasA) ||
            (tr.net=="NET_B" && !hasB) ||
            tr.width_nm<=0 || tr.width_nm%254!=0 ||
            tr.x0_nm%254!=0 || tr.y0_nm%254!=0 ||
@@ -308,6 +309,13 @@ inline int selftest(const QString &importer,const QString &fixturePath) {
     forged.replace("E|5|6|7|EXACT_TRACE_JUNCTION_LOCAL_COPPER",
                    "E|5|4|7|EXACT_TRACE_JUNCTION_LOCAL_COPPER");
     const bool forgedRejected=forged!=mixedWire && !decode(forged,mixed,&panel);
+    QByteArray onlyB=original;
+    onlyB.replace("*SIGNAL* NET_A","*SIGNAL* NET_B");
+    if(onlyB==original || !save(onlyB) || !load())return 2;
+    QByteArray onlyBWire;
+    const bool netBOnly=run(onlyBWire)==0 && decode(onlyBWire,onlyB,&panel) &&
+        onlyBWire.contains("C|0|U1|NET_B|1|4|3\n") &&
+        onlyBWire.contains("C|1|U2|NET_B|1|4|3\n");
     QByteArray collision=mixed;
     collision.replace("U2 TYPEA 400 300","U2 TYPEA 200 300");
     if(collision==mixed || !save(collision))return 2;
@@ -321,10 +329,10 @@ inline int selftest(const QString &importer,const QString &fixturePath) {
                 "400 400 1 10 0\n400 350.01 1 10 0");
     if(gap==original || !save(gap))return 2;
     const bool gapRejected=run(negative)!=0;
-    const bool ok=sameNet && twoNets && forgedRejected &&
+    const bool ok=sameNet && twoNets && netBOnly && forgedRejected &&
                   collisionRejected && stale && gapRejected;
     qInfo()<<"D040_NATIVE_QT_COMPONENT_ISOLATION"<<ok<<sameNet<<twoNets
-           <<forgedRejected<<collisionRejected<<stale<<gapRejected
+           <<netBOnly<<forgedRejected<<collisionRejected<<stale<<gapRejected
            <<"GLOBAL_ELECTRICAL_NOT_VERIFIED";
     return ok?0:1;
 }
