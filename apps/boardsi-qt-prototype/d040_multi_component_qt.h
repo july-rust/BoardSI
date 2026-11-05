@@ -56,9 +56,14 @@ inline bool boundedSections(const QByteArray &src) {
     bool ended=false;
     int signalPairs=0;
     QList<QByteArray> netNames;
+    bool firstLine=true;
     for(const auto &row:src.split('\n')) {
-        // The header and its literal DESIGN metadata are not a PCB section.
-        if(row.startsWith("!PADS-POWERPCB-"))continue;
+        // Only the validated first SOURCE line is a header. All later rows,
+        // including a header-shaped row after *END*, are source inventory.
+        if(firstLine) {
+            firstLine=false;
+            continue;
+        }
         const auto fields=row.simplified().split(' ');
         if(fields.size()==1 && fields[0].isEmpty())continue;
         if(ended)return false;
@@ -329,8 +334,14 @@ inline int selftest(const QString &importer,const QString &fixturePath) {
                 "400 400 1 10 0\n400 350.01 1 10 0");
     if(gap==original || !save(gap))return 2;
     const bool gapRejected=run(negative)!=0;
+    QByteArray trailingHeader=original;
+    trailingHeader+="!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n";
+    const bool trailerQtRejected=!boundedSections(trailingHeader);
+    if(!save(trailingHeader))return 2;
+    const bool trailerRustRejected=run(negative)!=0;
     const bool ok=sameNet && twoNets && netBOnly && forgedRejected &&
-                  collisionRejected && stale && gapRejected;
+                  collisionRejected && stale && gapRejected &&
+                  trailerQtRejected && trailerRustRejected;
     qInfo()<<"D040_NATIVE_QT_COMPONENT_ISOLATION"<<ok<<sameNet<<twoNets
            <<netBOnly<<forgedRejected<<collisionRejected<<stale<<gapRejected
            <<"GLOBAL_ELECTRICAL_NOT_VERIFIED";
