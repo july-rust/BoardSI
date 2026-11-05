@@ -82,6 +82,9 @@ int main(int argc,char **argv) {
                      "*SIGNAL* NET_B\nU2.1 U2.2\n400 300 1 10 0");
     if(crossNet==original || !save(crossNet))return 2;
     const bool wrongNet=run(bad)!=0;
+    // Re-load the exact accepted original before testing a forged cycle;
+    // otherwise a stale SHA mismatch would mask the targeted test.
+    if(!save(original) || !load() || !d042::decode(wire,original,&panel))return 2;
     QByteArray cycleForged=wire;
     cycleForged.replace("CYCLE|LOCAL|1|","CYCLE|LOCAL|2|");
     const bool forgedCycle=cycleForged!=wire && !d042::decode(cycleForged,original,&panel);
