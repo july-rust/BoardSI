@@ -293,9 +293,18 @@ pub fn encode_oblique_via_a_endpoint_contact(
 /// D_034 distinct signed-negative 4:3 exterior Via-B SOURCE, not electrical proof.
 #[allow(dead_code)]
 pub fn encode_non45_oblique_mirrored_via_b_endpoint_contact(
-    bytes: &[u8], net: &str, layers: [usize; 2], vias: [usize; 2],
+    bytes: &[u8],
+    net: &str,
+    layers: [usize; 2],
+    vias: [usize; 2],
 ) -> Result<String, &'static str> {
-    encode_with_mode(bytes, net, layers, vias, ContactMode::Non45ObliqueMirroredViaB)
+    encode_with_mode(
+        bytes,
+        net,
+        layers,
+        vias,
+        ContactMode::Non45ObliqueMirroredViaB,
+    )
 }
 
 /// D_028 bounded exact 4:3 non-45-degree exterior Via-B endpoint; source only.
@@ -607,13 +616,17 @@ fn encode_with_mode(
                     && exterior_projection < 0
             } else if non45_oblique_mirrored_via_b {
                 // Reverse-safe signed Via-B -> exterior, negative 4:3 only.
-                shared == s[1].b && dot != 0 && cross != 0
+                shared == s[1].b
+                    && dot != 0
+                    && cross != 0
                     && 4 * cross.abs() == 3 * dot.abs()
                     && canonical_cross < 0
                     && exterior_projection > main_length_squared
             } else if non45_oblique_via_b {
                 // D_028 positive signed mode remains separate from D_034.
-                shared == s[1].b && dot != 0 && cross != 0
+                shared == s[1].b
+                    && dot != 0
+                    && cross != 0
                     && 4 * cross.abs() == 3 * dot.abs()
                     && canonical_cross > 0
                     && exterior_projection > main_length_squared

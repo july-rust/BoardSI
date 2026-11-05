@@ -866,7 +866,8 @@ fn main() {
     }
     // D_034 non-45 oblique Via-B Source endpoint contact; never fabricated electrical proof.
     if args.len() == 8
-        && args[2] == std::ffi::OsStr::new("--d034-non45-oblique-mirrored-via-b-endpoint-contact-v1")
+        && args[2]
+            == std::ffi::OsStr::new("--d034-non45-oblique-mirrored-via-b-endpoint-contact-v1")
     {
         let result = (|| -> Result<String, &'static str> {
             let txt = |i: usize| args[i].to_str().ok_or("D034_UTF8");

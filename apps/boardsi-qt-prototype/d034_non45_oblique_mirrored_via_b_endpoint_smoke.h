@@ -132,11 +132,11 @@ inline int selftest(const QString &importer) {
             "350.01 250 4 10 0\n470 160 4 10 0"),
             "TRACE|3|4|35001|25000|47000|16000|1000\n")
         && rejectsQtReimport(QByteArray(source).replace(
-            "470 160 4 10 0","440.01 130 4 10 0"),
-            "TRACE|3|4|35000|25000|44001|13000|1000\n")
+            "470 160 4 10 0","470.01 160 4 10 0"),
+            "TRACE|3|4|35000|25000|47001|16000|1000\n")
         && rejectsQtReimport(QByteArray(source).replace(
-            "470 160 4 10 0","440 370 4 10 0"),
-            "TRACE|3|4|35000|25000|44000|37000|1000\n")
+            "470 160 4 10 0","470 340 4 10 0"),
+            "TRACE|3|4|35000|25000|47000|34000|1000\n")
         && rejectsQtReimport(QByteArray(source).replace(
             "470 160 4 10 0","440 130 4 10 0"),
             "TRACE|3|4|35000|25000|44000|13000|1000\n")
