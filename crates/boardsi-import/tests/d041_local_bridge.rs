@@ -46,6 +46,12 @@ fn header_direction_and_same_net_lexical_variants() {
             check(&variant).unwrap().split_once('\n').unwrap().1
         );
     }
+    let crlf = base.replace("\n", "\r\n");
+    assert!(check(&crlf).is_ok());
+    let tokenized = base
+        .replace("*SIGNAL* NET_A", "*SIGNAL*\tNET_A")
+        .replace("U1.1 U2.1\n", "U1.1\tU2.1\n");
+    assert!(check(&tokenized).is_ok());
     let net_b = base.replace("NET_A", "NET_B");
     assert!(check(&net_b).unwrap().contains("C|0|U1+U2|NET_B|1|9|8\n"));
     let tabs = base.replace(
