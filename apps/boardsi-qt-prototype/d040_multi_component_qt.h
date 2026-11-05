@@ -54,6 +54,7 @@ inline bool boundedSections(const QByteArray &src) {
     std::array<int,2> pairs={};
     int active=-1,partIndex=0,decIndex=0,vertices=0,types=0;
     bool ended=false;
+    int signalPairs=0;
     QList<QByteArray> netNames;
     for(const auto &row:src.split('\n')) {
         // The header and its literal DESIGN metadata are not a PCB section.
@@ -68,11 +69,14 @@ inline bool boundedSections(const QByteArray &src) {
             if(it==sections.cend())return false;
             const int index=static_cast<int>(it-sections.cbegin());
             if(++counts[static_cast<size_t>(index)]>(index==5?2:1))return false;
+            if((index==5 || index==6) && active==5 && signalPairs==0)
+                return false;
             if(index==5) {
                 if((active!=4 && active!=5) || fields.size()!=2 ||
                    (fields[1]!="NET_A" && fields[1]!="NET_B") ||
                    netNames.contains(fields[1]))return false;
                 netNames.append(fields[1]);
+                signalPairs=0;
             } else if(fields.size()!=1)return false;
             active=index;
             if(index==6)ended=true;
@@ -98,6 +102,7 @@ inline bool boundedSections(const QByteArray &src) {
             ++partIndex;
         } else if(active==5) {
             if(fields.size()==2) {
+                ++signalPairs;
                 if(fields[0]=="U1.1" && fields[1]=="U1.2")++pairs[0];
                 else if(fields[0]=="U2.1" && fields[1]=="U2.2")++pairs[1];
                 else return false;
