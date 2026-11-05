@@ -1,6 +1,6 @@
 # D_036 — PADS Dual Mirrored Negative Shallow 4:3 Via-A/Via-B SOURCE Contact Qualification
 
-**Status:** CODE PR ACCEPTED; protected GitHub Verified one-parent Squash code-main confirmed. Exact code-main Push check verification is tracked separately below and in [Issue #451](https://github.com/july-rust/BoardSI/issues/451). The separate Markdown-only documentation PR and its own verified push are administrative acceptance gates; avoid interpreting a bounded SOURCE candidate as electrical proof. **First checked / evidence date: 2026-11-05 KST.**
+**Status:** BOUNDED CODE AND CODE-MAIN PUSH ACCEPTED; exact final code PR HEAD, independent Codex, protected GitHub Verified one-parent Squash, and exact code-main post-merge Push independently confirmed. Administrative docs-only PR and Issue #451 closure are separate gates. The separate Markdown-only documentation PR and its own verified push are administrative acceptance gates; avoid interpreting a bounded SOURCE candidate as electrical proof. **First checked / evidence date: 2026-11-05 KST.**
 
 ## Frozen SOURCE and geometry
 
@@ -29,10 +29,11 @@
 - Codex independent code review on exact final `59a6712...` completed with `has_any_findings=false` and `has_unresolved_findings=false`; both earlier P2 geometry review threads resolved. Historically reported P2 issues: nonhorizontal Layer-1 arms crossing and reversed-main one-sided interval false rejection; both fixed using exact general L1 segment intersection and targeted regression tests. No failing intermediate HEAD is represented as passing.
 - Protected GitHub **Verified one-parent Squash** code-main [`ed802d2de37b2a2701db333c625d10f916eeede0`](https://github.com/july-rust/BoardSI/commit/ed802d2de37b2a2701db333c625d10f916eeede0), parent `d00d866b0904a8c37dc2ef68fdcaf171c56a3ca1`; REST `commit.verification.verified=true`, `reason=valid`. The exact protected `main` ref was confirmed at this code commit.
 
-## Code-main push acceptance — PENDING FINAL RUN RECONCILIATION
+## Code-main push acceptance — PASS
 
-- Inspect the **exact** code-main `ed802d2de37b2a2701db333c625d10f916eeede0` workflow runs filtered to `event=push`, as well as the exact commit's check-run results. Do not count the synthetic dynamic `Push on main` overview as a standard Actions workflow.
-- Include run links and counts only after the post-merge push jobs are **all** complete SUCCESS. Until then code-main push acceptance remains pending even though PR CI was green.
+- Independently queried the **exact** code-main SHA [`ed802d2de37b2a2701db333c625d10f916eeede0`](https://github.com/july-rust/BoardSI/commit/ed802d2de37b2a2701db333c625d10f916eeede0/checks): **8/8 `event=push` Actions workflows completed SUCCESS; 28/28 commit check runs completed SUCCESS**. No queued/in-progress/skipped/failed check is represented as passed.
+- [Qt Push #41963718339](https://github.com/july-rust/BoardSI/actions/runs/41963718339) succeeded on Linux x86_64, Windows x64, Windows ARM64, macOS ARM64. [Numerical Push #41963718255](https://github.com/july-rust/BoardSI/actions/runs/41963718255) succeeded on Windows x64, Windows ARM64, macOS ARM64, plus numerical job. All six additional actual Push workflows succeeded as recorded by GitHub.
+- Synthetic dynamic `Push on main` PR-overview run is **not** counted among the 8 Actions workflows. Protected `main` was independently read at this exact commit before docs branch work.
 
 ## Separate documentation PR and Issue closeout
 
