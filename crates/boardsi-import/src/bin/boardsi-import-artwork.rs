@@ -943,7 +943,8 @@ fn main() {
     }
     // D_038: mixed-sign positive-A negative-B Via-A/Via-B 4:3 SOURCE candidates.
     if args.len() == 8
-        && args[2] == std::ffi::OsStr::new("--d038-non45-mixed-sign-reversed-dual-via-endpoint-contact-v1")
+        && args[2]
+            == std::ffi::OsStr::new("--d038-non45-mixed-sign-reversed-dual-via-endpoint-contact-v1")
     {
         let result = (|| -> Result<String, &'static str> {
             let txt = |i: usize| args[i].to_str().ok_or("D038_UTF8");

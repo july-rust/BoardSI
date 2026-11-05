@@ -39,10 +39,10 @@ fn d038_source_dual_signed_reversed_graph_and_sha() {
     ));
     assert!(wire.contains("CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|3|VIA|A|X|15000|Y|25000"));
     assert!(wire.contains("CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|4|VIA|B|X|35000|Y|25000"));
-    assert!(wire
-        .contains("EDGE|4|5|7|SOURCE_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4"));
+    assert!(wire.contains("EDGE|4|5|7|SOURCE_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4"));
     assert!(wire.contains("EDGE|5|1|7|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4"));
-    assert!(wire.contains("EDGE|6|5|8|SOURCE_NON45_OBLIQUE_MIRRORED_VIA_B_ENDPOINT_CONTACT_CANDIDATE|4"));
+    assert!(wire
+        .contains("EDGE|6|5|8|SOURCE_NON45_OBLIQUE_MIRRORED_VIA_B_ENDPOINT_CONTACT_CANDIDATE|4"));
     assert!(wire.contains("EDGE|7|2|8|SOURCE_ENDPOINT_CONTACT_CANDIDATE|4"));
     assert!(wire.ends_with("END|FAIL_CLOSED_NO_BARREL_PROOF\n"));
 }
@@ -67,7 +67,10 @@ fn d038_reverse_branch_and_lexical_sha_independent() {
     assert_ne!(reversed_b, reversed_a);
     assert!(d036_core::encode(FIXTURE.as_bytes(), "NET_A", [1, 4], [0, 1]).is_err());
     assert!(d037_original_core::encode(FIXTURE.as_bytes(), "NET_A", [1, 4], [0, 1]).is_err());
-    assert!(qualify(include_str!("fixtures/d037_mixed_sign_dual_via_endpoint_v94.asc")).is_err());
+    assert!(qualify(include_str!(
+        "fixtures/d037_mixed_sign_dual_via_endpoint_v94.asc"
+    ))
+    .is_err());
     let lexical = normalized.replace("80 250 1 10 0", "80.00 250 1 10 0");
     assert_ne!(lexical, normalized);
     let lexical_wire = qualify(&lexical).expect("exact decimal lexical source");
