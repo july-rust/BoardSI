@@ -38,7 +38,7 @@ inline bool boundedSections(const QByteArray &source) {
             if(!row.isEmpty())return false;
             continue;
         }
-        const auto fields=row.simplified().split(' ',Qt::SkipEmptyParts);
+        const auto fields=row.simplified().split(' ');
         if(fields.isEmpty() || fields[0]=="*REMARK*" || fields[0]=="REMARK")
             continue;
         const QByteArray tag=fields[0];
