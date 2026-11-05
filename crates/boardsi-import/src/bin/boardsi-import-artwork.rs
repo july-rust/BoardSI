@@ -941,6 +941,27 @@ fn main() {
         }
         return;
     }
+    // D_039: two Source-owned SMD pads and two straight same-layer traces;
+    // local copper geometry only, never global electrical or physical SI.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d039-local-copper-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let metadata = fs::metadata(path).map_err(|_| "D039_FILE")?;
+            if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES as u64 {
+                return Err("D039_FILE_LIMIT");
+            }
+            let source = fs::read(path).map_err(|_| "D039_READ")?;
+            boardsi_import::d039_local_copper::encode(&source, "NET_A", 1)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D039_LOCAL_COPPER_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_038: mixed-sign positive-A negative-B Via-A/Via-B 4:3 SOURCE candidates.
     if args.len() == 8
         && args[2]
