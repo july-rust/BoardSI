@@ -95,7 +95,7 @@ fn d037_reverse_branch_and_lexical_sha_independent() {
 
 #[test]
 fn d037_rotated_board_remains_valid_with_disjoint_layer1_arms() {
-    // Exact 180-degree rotation around (250,250) mil preserves signed-negative
+    // Exact 180-degree rotation around (250,250) mil preserves both signed
     // exterior 4:3 ratios, but main direction is reversed. No L1 false contact.
     let base = FIXTURE.replace("\r\n", "\n");
     let rotated = base
@@ -103,14 +103,12 @@ fn d037_rotated_board_remains_valid_with_disjoint_layer1_arms() {
             "80 250 1 10 0\n150 250 4 10 0 SIMPLEVIA\n350 250 1 10 0 SIMPLEVIA\n420 250 1 10 0",
             "420 250 1 10 0\n350 250 4 10 0 SIMPLEVIA\n150 250 1 10 0 SIMPLEVIA\n80 250 1 10 0",
         )
-        .replace(
-            "150 250 4 10 0\n30 160 4 10 0",
-            "350 250 4 10 0\n470 340 4 10 0",
-        )
-        .replace(
-            "350 250 4 10 0\n470 340 4 10 0",
-            "150 250 4 10 0\n30 160 4 10 0",
-        );
+        // Distinct placeholders prevent the first rotated branch from being
+        // accidentally substituted again by the second replacement.
+        .replace("150 250 4 10 0\n30 160 4 10 0", "__D037_ROT_A__")
+        .replace("350 250 4 10 0\n470 340 4 10 0", "__D037_ROT_B__")
+        .replace("__D037_ROT_A__", "350 250 4 10 0\n470 340 4 10 0")
+        .replace("__D037_ROT_B__", "150 250 4 10 0\n30 160 4 10 0");
     assert_ne!(rotated, base);
     assert!(rotated.contains("350 250 4 10 0\n470 340 4 10 0"));
     assert!(rotated.contains("150 250 4 10 0\n30 160 4 10 0"));
@@ -132,7 +130,7 @@ fn d037_hostile_signed_geometry_source_and_selection_fail_closed() {
         source.replace("30 160 4 10 0", "30 340 4 10 0"),
         source.replace("470 340 4 10 0", "470 160 4 10 0"),
         source.replace("30 160 4 10 0", "60 160 4 10 0"),
-        source.replace("470 340 4 10 0", "440 160 4 10 0"),
+        source.replace("470 340 4 10 0", "440 340 4 10 0"),
         source.replace("150 250 4 10 0\n30 160", "150.01 250 4 10 0\n30 160"),
         source.replace("350 250 4 10 0\n470 340", "350.01 250 4 10 0\n470 340"),
         source.replace("470 340 4 10 0", "470 340 1 10 0"),
