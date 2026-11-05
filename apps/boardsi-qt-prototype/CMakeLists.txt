@@ -167,6 +167,29 @@ if(BUILD_TESTING)
       COMMAND boardsi-d037-native-qt "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-d037-mixed-sign-dual-via-source PROPERTIES TIMEOUT 90
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_042 source-owned second path and one local cycle; existing native CI.
+    add_executable(boardsi-d042-native-qt d042_qt_runner.cpp)
+    target_link_libraries(boardsi-d042-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+    if(WIN32)
+      target_link_libraries(boardsi-d042-native-qt PRIVATE psapi)
+    endif()
+    if(MSVC)
+      target_compile_options(boardsi-d042-native-qt PRIVATE /W4 /WX)
+    else()
+      target_compile_options(boardsi-d042-native-qt PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    if((WIN32 OR APPLE) AND "$ENV{GITHUB_ACTIONS}" STREQUAL "true")
+      add_custom_command(TARGET boardsi-d042-native-qt POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E env "QT_QPA_PLATFORM=offscreen"
+          "$<TARGET_FILE:boardsi-d042-native-qt>" "${BOARDSI_IMPORTER}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/d042_local_closed_loop_v94.asc"
+        VERBATIM)
+    endif()
+    add_test(NAME qt-preview-d042-local-closed-loop-source
+      COMMAND boardsi-d042-native-qt "${BOARDSI_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/d042_local_closed_loop_v94.asc")
+    set_tests_properties(qt-preview-d042-local-closed-loop-source PROPERTIES TIMEOUT 90
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_041 source-owned exact same-layer bridge; existing native CI.
     add_executable(boardsi-d041-native-qt d041_qt_runner.cpp)
     target_link_libraries(boardsi-d041-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
