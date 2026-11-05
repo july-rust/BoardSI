@@ -29,6 +29,56 @@ inline QByteArray reconstruct(const QByteArray &src,const PreviewImportPanel *pa
         } else base+=rows[i]+'\n';
     }
     if(signalCount!=1 || bridges!=1 || detours!=5 || !d040::boundedSections(base))return {};
+    // Keep declaration ownership independently linked to exact SOURCE
+    // coordinates. ImportedArtwork alone loses each trace's pin-pair header.
+    struct Decl { const char *pinA,*pinB; int ax,ay,bx,by; };
+    const std::array<Decl,10> declarations={{
+        {"U1.1","U1.2",200,300,200,350},
+        {"U1.1","U1.2",200,400,200,350},
+        {"U2.1","U2.2",400,300,400,350},
+        {"U2.1","U2.2",400,400,400,350},
+        {"U1.1","U2.1",200,350,400,350},
+        {"U1.2","U2.2",200,350,150,350},
+        {"U1.2","U2.2",150,350,150,250},
+        {"U1.2","U2.2",150,250,450,250},
+        {"U1.2","U2.2",450,250,450,350},
+        {"U1.2","U2.2",450,350,400,350}
+    }};
+    std::array<bool,10> declaredSeen={};
+    bool recordSignal=false;
+    for(int i=0;i<rows.size();++i) {
+        const auto words=rows[i].simplified().split(' ');
+        if(words[0]=="*SIGNAL*") {recordSignal=true;continue;}
+        if(words[0]=="*END*") {recordSignal=false;continue;}
+        if(!recordSignal || words.size()!=2 || !words[0].startsWith('U'))continue;
+        if(i+2>=rows.size())return {};
+        const auto aa=rows[i+1].simplified().split(' ');
+        const auto bb=rows[i+2].simplified().split(' ');
+        if(aa.size()!=5 || bb.size()!=5 ||
+           aa[2]!="1" || bb[2]!="1" ||
+           aa[3]!="10" || bb[3]!="10" ||
+           aa[4]!="0" || bb[4]!="0")return {};
+        bool okA=false,okB=false,okC=false,okD=false;
+        const double ax=aa[0].toDouble(&okA), ay=aa[1].toDouble(&okB);
+        const double bx=bb[0].toDouble(&okC), by=bb[1].toDouble(&okD);
+        if(!okA || !okB || !okC || !okD)return {};
+        int match=-1;
+        for(int j=0;j<10;++j) {
+            const auto &d=declarations[static_cast<size_t>(j)];
+            if(words[0]!=d.pinA || words[1]!=d.pinB)continue;
+            const bool forward=ax==d.ax && ay==d.ay && bx==d.bx && by==d.by;
+            const bool reverse=ax==d.bx && ay==d.by && bx==d.ax && by==d.ay;
+            if(forward || reverse) {
+                if(match>=0)return {};
+                match=j;
+            }
+        }
+        if(match<0 || declaredSeen[static_cast<size_t>(match)])return {};
+        declaredSeen[static_cast<size_t>(match)]=true;
+        i+=2;
+    }
+    if(std::any_of(declaredSeen.cbegin(),declaredSeen.cend(),
+                   [](bool present){return !present;}))return {};
     const auto *art=panel->imported();
     if(art->importedSkippedCount()!=0 || art->importedTraceCount()!=10 ||
        art->padCount()!=4 || art->arcCount()!=0 || art->viaCount()!=0)return {};
