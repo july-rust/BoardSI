@@ -941,6 +941,26 @@ fn main() {
         }
         return;
     }
+    // D_040: exact two local copper components, not global Electrical Open/Short.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d040-multi-component-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let metadata = fs::metadata(path).map_err(|_| "D040_FILE")?;
+            if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES as u64 {
+                return Err("D040_FILE_LIMIT");
+            }
+            let source = fs::read(path).map_err(|_| "D040_READ")?;
+            boardsi_import::d040_multi_component::encode(&source)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D040_MULTI_COMPONENT_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_039: two Source-owned SMD pads and two straight same-layer traces;
     // local copper geometry only, never global electrical or physical SI.
     if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d039-local-copper-v1") {

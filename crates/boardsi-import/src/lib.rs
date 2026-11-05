@@ -194,6 +194,7 @@ pub mod d003_three_area_copcut;
 pub mod d004_endpoint_attachment;
 pub mod d005_pad_trace_area;
 pub mod d039_local_copper;
+pub mod d040_multi_component;
 pub mod digest;
 pub mod material_contract;
 pub mod outline_arc;
