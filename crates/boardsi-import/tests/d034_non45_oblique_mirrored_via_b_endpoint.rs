@@ -137,6 +137,7 @@ fn hostile_source_fails_closed_and_legacy_modes_are_isolated() {
     assert!(shared::encode_oblique_via_b_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(shared::encode_orthogonal_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(shared::encode_endpoint_contact(SRC, "NET_A", [1, 4], [0, 1]).is_err());
+    assert!(shared::encode(SRC, "NET_A", [1, 4], [0, 1]).is_err());
     assert!(
         shared::encode_non45_oblique_mirrored_via_b_endpoint_contact(SRC, "OTHER", [1, 4], [0, 1])
             .is_err()
