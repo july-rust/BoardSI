@@ -60,7 +60,9 @@ fn mils_lexeme(text: &str) -> bool {
         }
         && parts.next().is_none()
 }
-fn bounded_source_inventory(bytes: &[u8], via_name: &str) -> Result<(), &'static str> {
+pub(super) fn bounded_source_inventory(
+    bytes: &[u8], via_name: &str, expected_signals: usize, expected_points: usize,
+) -> Result<(), &'static str> {
     let source = std::str::from_utf8(bytes).map_err(|_| "D015_SOURCE_TEXT")?;
     let mut section = "";
     let mut header = false;
@@ -173,9 +175,9 @@ fn bounded_source_inventory(bytes: &[u8], via_name: &str) -> Result<(), &'static
         || pad_rows != 2
         || !bottom_pad
         || !top_pad
-        || signals != 2
-        || route_pairs != 2
-        || route_points != 6
+        || signals != expected_signals
+        || route_pairs != expected_signals
+        || route_points != expected_points
     {
         return Err("D015_SOURCE_STRUCTURE");
     }
@@ -486,7 +488,7 @@ fn encode_with_mode(
         return Err("D015_SOURCE_INCOMPLETE");
     }
     let (a, b) = (&p.vias[0], &p.vias[1]);
-    bounded_source_inventory(bytes, &a.name)?;
+    bounded_source_inventory(bytes, &a.name, 2, 6)?;
     if a.net != net
         || b.net != net
         || a.name != b.name
