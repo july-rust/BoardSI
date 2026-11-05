@@ -83,7 +83,8 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
     let (j0, j1) = (old[4].a, old[4].b);
     // This stage qualifies exactly the documented public synthetic geometry.
     // Arbitrary translations/rotations and other loop geometries are unsupported.
-    if j0 != [20_000, 35_000] || j1 != [40_000, 35_000]
+    if j0 != [20_000, 35_000]
+        || j1 != [40_000, 35_000]
         || old.iter().any(|t| t.width != old[4].width)
     {
         return Err("D042_UNSUPPORTED_BASE_GEOMETRY");
@@ -133,13 +134,17 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
         let mut found = None;
         for (i, base) in old.iter().enumerate() {
             if same_pair(t.a, t.b, base.a, base.b) {
-                if found.is_some() { return Err("D042_AMBIGUOUS_EDGE"); }
+                if found.is_some() {
+                    return Err("D042_AMBIGUOUS_EDGE");
+                }
                 found = Some(i);
             }
         }
         for i in 0..5 {
             if same_pair(t.a, t.b, points[i], points[i + 1]) {
-                if found.is_some() { return Err("D042_AMBIGUOUS_DETOUR"); }
+                if found.is_some() {
+                    return Err("D042_AMBIGUOUS_DETOUR");
+                }
                 found = Some(i + 5);
             }
         }
@@ -156,25 +161,47 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
     // SOURCE edges: four pad contacts, two old local junctions, original
     // bridge endpoints, then five detour segments with six exact attachments.
     let edges: [(usize, usize); 14] = [
-        (0, 4), (1, 5), (4, 5),
-        (2, 6), (3, 7), (6, 7),
-        (4, 8), (8, 6),
-        (4, 9), (9, 10), (10, 11), (11, 12), (12, 13), (13, 6),
+        (0, 4),
+        (1, 5),
+        (4, 5),
+        (2, 6),
+        (3, 7),
+        (6, 7),
+        (4, 8),
+        (8, 6),
+        (4, 9),
+        (9, 10),
+        (10, 11),
+        (11, 12),
+        (12, 13),
+        (13, 6),
     ];
     let mut parent: Vec<usize> = (0..14).collect();
     let mut cycles = 0_usize;
     for (a, b) in edges {
         let mut x = a;
-        while parent[x] != x { x = parent[x]; }
+        while parent[x] != x {
+            x = parent[x];
+        }
         let mut y = b;
-        while parent[y] != y { y = parent[y]; }
-        if x == y { cycles += 1; } else { parent[x] = y; }
+        while parent[y] != y {
+            y = parent[y];
+        }
+        if x == y {
+            cycles += 1;
+        } else {
+            parent[x] = y;
+        }
     }
     let mut components = 0_usize;
     for n in 0..14 {
         let mut r = n;
-        while parent[r] != r { r = parent[r]; }
-        if r == n { components += 1; }
+        while parent[r] != r {
+            r = parent[r];
+        }
+        if r == n {
+            components += 1;
+        }
     }
     if components != 1 || cycles != 1 || 14 - 14 + components != cycles {
         return Err("D042_TOPOLOGY");
@@ -188,25 +215,32 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
         "BOARDSI_D042_LOCAL_CLOSED_LOOP_V1|{sha}|1|LOCAL_COPPER_CLOSED_LOOP_VERIFIED|P009_UNSUPPORTED|SI_NOT_RUN|GLOBAL_ELECTRICAL_NOT_VERIFIED\n"
     );
     writeln!(&mut out, "C|0|U1+U2|{}|1|14|14", old[0].net).map_err(|_| "D042_FORMAT")?;
-    for row in baseline.lines().filter(|l| l.starts_with("P|") || l.starts_with("T|")) {
+    for row in baseline
+        .lines()
+        .filter(|l| l.starts_with("P|") || l.starts_with("T|"))
+    {
         writeln!(&mut out, "{row}").map_err(|_| "D042_FORMAT")?;
     }
     for i in 0..5 {
         writeln!(
             &mut out,
             "T|{}|1|{}|{}|{}|{}|{}|{}",
-            i + 5, old[0].net, points[i][0], points[i][1],
-            points[i+1][0], points[i+1][1], old[4].width
-        ).map_err(|_| "D042_FORMAT")?;
+            i + 5,
+            old[0].net,
+            points[i][0],
+            points[i][1],
+            points[i + 1][0],
+            points[i + 1][1],
+            old[4].width
+        )
+        .map_err(|_| "D042_FORMAT")?;
     }
     for row in baseline.lines().filter(|l| l.starts_with("E|")) {
         writeln!(&mut out, "{row}").map_err(|_| "D042_FORMAT")?;
     }
     for (n, (a, b)) in edges.iter().enumerate().skip(8) {
-        writeln!(
-            &mut out,
-            "E|{n}|{a}|{b}|EXACT_DETOUR_JUNCTION_LOCAL_COPPER"
-        ).map_err(|_| "D042_FORMAT")?;
+        writeln!(&mut out, "E|{n}|{a}|{b}|EXACT_DETOUR_JUNCTION_LOCAL_COPPER")
+            .map_err(|_| "D042_FORMAT")?;
     }
     out.push_str("CYCLE|LOCAL|1|INDEPENDENT_PATHS|2\n");
     out.push_str("COUNT|NODES|14|EDGES|14|LOCAL_COMPONENTS|1|LOCAL_CYCLES|1|GLOBAL_ELECTRICAL|NOT_VERIFIED\n");
