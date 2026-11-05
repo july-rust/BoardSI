@@ -231,7 +231,7 @@ inline int selftest(const QString &importer,const QString &fixturePath) {
                     "E|2|1|3|EXACT_TRACE_JUNCTION_LOCAL_COPPER");
     const bool forgedRejected=forgery!=wire && !decode(forgery,original,&panel);
     ImportedReferenceRiskMarker marker;
-    marker.state="D039_LOCAL_COPPER_GEOMETRY";
+    marker.state="D001_PAD_ENDPOINT_CANDIDATE"; // existing source-only viewer overlay
     marker.reason="Same-layer bounded pad/trace footprint only; global NOT VERIFIED";
     marker.net="NET_A";
     marker.sourceObject="D039:U1.1-U1.2";
