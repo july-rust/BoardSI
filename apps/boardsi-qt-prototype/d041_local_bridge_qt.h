@@ -5,23 +5,35 @@
 #include <algorithm>
 namespace d041 {
 inline QByteArray reconstruct(const QByteArray &src,const PreviewImportPanel *panel) {
-    if(!panel || !panel->imported() || src.count("*SIGNAL*")!=1)return {};
-    const QByteArray marker="U1.1 U2.1\n";
-    const int at=src.indexOf(marker);
-    if(at<0 || src.indexOf(marker,at+1)>=0)return {};
-    const int p=at+marker.size(),a=src.indexOf('\n',p);
-    const int b=a<0?-1:src.indexOf('\n',a+1);
-    if(a<0 || b<0)return {};
-    QByteArray base=src;base.remove(at,b+1-at);
-    if(!d040::boundedSections(base))return {};
+    if(!panel || !panel->imported())return {};
+    const auto rows=src.split('\n');
+    QByteArray base,signalNet;
+    int signals=0,bridges=0;
+    bool inSignal=false;
+    for(int i=0;i<rows.size();++i) {
+        const auto fields=rows[i].simplified().split(' ');
+        if(fields[0]=="*SIGNAL*") {
+            if(fields.size()!=2 || ++signals!=1)return {};
+            signalNet=fields[1];
+            inSignal=true;
+        }
+        if(fields[0]=="*END*")inSignal=false;
+        if(fields.size()==2 && fields[0]=="U1.1" && fields[1]=="U2.1") {
+            if(!inSignal || bridges++ || i+2>=rows.size() ||
+               rows[i+1].simplified().split(' ').size()!=5 ||
+               rows[i+2].simplified().split(' ').size()!=5)return {};
+            i+=2;
+        } else base+=rows[i]+'\n';
+    }
+    if(signals!=1 || bridges!=1 || !d040::boundedSections(base))return {};
     const auto *art=panel->imported();
     if(art->importedSkippedCount()!=0 || art->importedTraceCount()!=5 ||
        art->padCount()!=4 || art->arcCount()!=0 || art->viaCount()!=0)return {};
     const auto sha=QCryptographicHash::hash(src,QCryptographicHash::Sha256).toHex();
     if(sha!=panel->acceptedSourceSha256())return {};
     QStringList pins;
-    const QString net=src.contains("*SIGNAL* NET_A")?"NET_A":"NET_B";
-    if(net=="NET_B" && !src.contains("*SIGNAL* NET_B"))return {};
+    const QString net=QString::fromLatin1(signalNet);
+    if(net!="NET_A" && net!="NET_B")return {};
     if(!d005::declaredPins(src,sha,net,pins))return {};
     std::array<ImportedTrack,5> tr;
     for(int i=0;i<5;++i) {
