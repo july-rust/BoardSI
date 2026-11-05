@@ -90,6 +90,35 @@ fn d036_reverse_branch_and_lexical_sha_independent() {
 }
 
 #[test]
+fn d036_rotated_board_remains_valid_with_disjoint_layer1_arms() {
+    // Exact 180-degree rotation around (250,250) mil preserves signed-negative
+    // exterior 4:3 ratios, but main direction is reversed. No L1 false contact.
+    let base = FIXTURE.replace("\r\n", "\n");
+    let rotated = base
+        .replace(
+            "80 250 1 10 0\n150 250 4 10 0 SIMPLEVIA\n350 250 1 10 0 SIMPLEVIA\n420 250 1 10 0",
+            "420 250 1 10 0\n350 250 4 10 0 SIMPLEVIA\n150 250 1 10 0 SIMPLEVIA\n80 250 1 10 0",
+        )
+        .replace(
+            "150 250 4 10 0\n30 160 4 10 0",
+            "350 250 4 10 0\n470 340 4 10 0",
+        )
+        .replace(
+            "350 250 4 10 0\n470 160 4 10 0",
+            "150 250 4 10 0\n30 340 4 10 0",
+        );
+    assert_ne!(rotated, base);
+    assert!(rotated.contains("350 250 4 10 0\n470 340 4 10 0"));
+    assert!(rotated.contains("150 250 4 10 0\n30 340 4 10 0"));
+    let wire = qualify(&rotated).expect("rotated disjoint L1 geometry qualifies");
+    assert!(wire.contains(
+        "COUNT|NODES|9|LAYER_LOCAL_EDGES|8|LOCAL_COMPONENTS|3|ELECTRICAL_CROSS_LAYER_EDGES|0"
+    ));
+    assert!(wire.contains("CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|3|VIA|A|X|35000|Y|25000"));
+    assert!(wire.contains("CONTACT|MAIN_TRACE|1|ENDPOINT_TRACE|4|VIA|B|X|15000|Y|25000"));
+}
+
+#[test]
 fn d036_hostile_signed_geometry_source_and_selection_fail_closed() {
     let normalized = FIXTURE.replace("\r\n", "\n");
     let source = normalized.as_str();
