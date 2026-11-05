@@ -864,6 +864,41 @@ fn main() {
         }
         return;
     }
+    // D_035 non-45 oblique Via-A Source endpoint contact; never fabricated electrical proof.
+    if args.len() == 8
+        && args[2]
+            == std::ffi::OsStr::new("--d035-non45-oblique-mirrored-via-a-endpoint-contact-v1")
+    {
+        let result = (|| -> Result<String, &'static str> {
+            let txt = |i: usize| args[i].to_str().ok_or("D035_UTF8");
+            let path = std::path::Path::new(&args[1]);
+            let meta = fs::metadata(path).map_err(|_| "D035_FILE")?;
+            if !meta.is_file() || meta.len() > MAX_FILE_BYTES as u64 {
+                return Err("D035_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D035_READ")?;
+            d015_core::encode_non45_oblique_mirrored_via_a_endpoint_contact(
+                &bytes,
+                txt(3)?,
+                [
+                    txt(4)?.parse::<usize>().map_err(|_| "D035_LAYER")?,
+                    txt(5)?.parse::<usize>().map_err(|_| "D035_LAYER")?,
+                ],
+                [
+                    txt(6)?.parse::<usize>().map_err(|_| "D035_VIA")?,
+                    txt(7)?.parse::<usize>().map_err(|_| "D035_VIA")?,
+                ],
+            )
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D035_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_SOURCE_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_034 non-45 oblique Via-B Source endpoint contact; never fabricated electrical proof.
     if args.len() == 8
         && args[2]
