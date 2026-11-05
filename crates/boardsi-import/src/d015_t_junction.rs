@@ -61,7 +61,10 @@ fn mils_lexeme(text: &str) -> bool {
         && parts.next().is_none()
 }
 pub(super) fn bounded_source_inventory(
-    bytes: &[u8], via_name: &str, expected_signals: usize, expected_points: usize,
+    bytes: &[u8],
+    via_name: &str,
+    expected_signals: usize,
+    expected_points: usize,
 ) -> Result<(), &'static str> {
     let source = std::str::from_utf8(bytes).map_err(|_| "D015_SOURCE_TEXT")?;
     let mut section = "";
