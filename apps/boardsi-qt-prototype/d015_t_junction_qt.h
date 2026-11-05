@@ -75,7 +75,7 @@ inline bool boundedSourceInventory(const QByteArray &source,const QString &viaNa
 }
 inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                    const PreviewImportPanel *panel, const QString &net,
-                   c005::Receipt &out, bool oblique, bool containedOverlap, bool partialOverlap, bool endpointContact, bool oppositeEndpoint=false, bool orthogonalEndpoint=false, bool orthogonalViaA=false, bool obliqueViaB=false, bool obliqueViaA=false, bool non45ObliqueViaB=false, bool non45ObliqueViaA=false, bool non45SteepViaB=false, bool non45SteepViaA=false, bool non45SteepMirroredViaB=false, bool non45SteepMirroredViaA=false) {
+                   c005::Receipt &out, bool oblique, bool containedOverlap, bool partialOverlap, bool endpointContact, bool oppositeEndpoint=false, bool orthogonalEndpoint=false, bool orthogonalViaA=false, bool obliqueViaB=false, bool obliqueViaA=false, bool non45ObliqueViaB=false, bool non45ObliqueViaA=false, bool non45SteepViaB=false, bool non45SteepViaA=false, bool non45SteepMirroredViaB=false, bool non45SteepMirroredViaA=false, bool non45ObliqueMirroredViaB=false) {
     if (!panel || !panel->imported() || wire.isEmpty() || wire.size() > 16384
         || source.isEmpty() || source.size() > 8*1024*1024) return false;
     const auto sha=QCryptographicHash::hash(source,QCryptographicHash::Sha256).toHex();
@@ -173,9 +173,12 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
             : non45ObliqueViaA
             ? ((shared.x==main0.x && shared.y==main0.y) && dot!=0 && cross!=0
                && 4*qAbs(cross)==3*qAbs(dot) && exteriorProjection<0)
+            : non45ObliqueMirroredViaB
+            ? (atViaB && dot!=0 && cross!=0
+               && 4*qAbs(cross)==3*qAbs(dot) && canonicalCross<0 && exteriorProjection>lenSquared)
             : non45ObliqueViaB
             ? (atViaB && dot!=0 && cross!=0
-               && 4*qAbs(cross)==3*qAbs(dot) && exteriorProjection>lenSquared)
+               && 4*qAbs(cross)==3*qAbs(dot) && canonicalCross>0 && exteriorProjection>lenSquared)
             : obliqueViaA
             ? ((shared.x==main0.x && shared.y==main0.y) && dot!=0 && cross!=0
                && (dot==cross || dot==-cross) && exteriorProjection<0)
@@ -249,6 +252,7 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                             : non45SteepViaA ? "BOARDSI_D031_NON45_STEEP_VIA_A_ENDPOINT_CONTACT_V1|"
                             : non45SteepViaB ? "BOARDSI_D030_NON45_STEEP_VIA_B_ENDPOINT_CONTACT_V1|"
                             : non45ObliqueViaA ? "BOARDSI_D029_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_V1|"
+                            : non45ObliqueMirroredViaB ? "BOARDSI_D034_NON45_OBLIQUE_MIRRORED_VIA_B_ENDPOINT_CONTACT_V1|"
                             : non45ObliqueViaB ? "BOARDSI_D028_NON45_OBLIQUE_VIA_B_ENDPOINT_CONTACT_V1|"
                            : obliqueViaA ? "BOARDSI_D027_OBLIQUE_VIA_A_ENDPOINT_CONTACT_V1|"
                            : obliqueViaB ? "BOARDSI_D026_OBLIQUE_VIA_B_ENDPOINT_CONTACT_V1|"
@@ -262,6 +266,7 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                             : non45SteepViaA ? "SOURCE_NON45_STEEP_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4"
                             : non45SteepViaB ? "SOURCE_NON45_STEEP_VIA_B_ENDPOINT_CONTACT_CANDIDATE|4"
                             : non45ObliqueViaA ? "SOURCE_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4"
+                            : non45ObliqueMirroredViaB ? "SOURCE_NON45_OBLIQUE_MIRRORED_VIA_B_ENDPOINT_CONTACT_CANDIDATE|4"
                             : non45ObliqueViaB ? "SOURCE_NON45_OBLIQUE_VIA_B_ENDPOINT_CONTACT_CANDIDATE|4"
                            : obliqueViaA ? "SOURCE_OBLIQUE_VIA_A_ENDPOINT_CONTACT_CANDIDATE|4"
                            : obliqueViaB ? "SOURCE_OBLIQUE_VIA_B_ENDPOINT_CONTACT_CANDIDATE|4"
@@ -278,6 +283,7 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
                             : non45SteepViaA ? "OVERALL|NON45_STEEP_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
                             : non45SteepViaB ? "OVERALL|NON45_STEEP_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
                             : non45ObliqueViaA ? "OVERALL|NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
+                            : non45ObliqueMirroredViaB ? "OVERALL|NON45_OBLIQUE_MIRRORED_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
                             : non45ObliqueViaB ? "OVERALL|NON45_OBLIQUE_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
                            : obliqueViaA ? "OVERALL|OBLIQUE_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
                            : obliqueViaB ? "OVERALL|OBLIQUE_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY"
@@ -313,6 +319,7 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
         :non45SteepViaA?"NON45_STEEP_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :non45SteepViaB?"NON45_STEEP_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :non45ObliqueViaA?"NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
+        :non45ObliqueMirroredViaB?"NON45_OBLIQUE_MIRRORED_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :non45ObliqueViaB?"NON45_OBLIQUE_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :obliqueViaA?"OBLIQUE_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
         :obliqueViaB?"OBLIQUE_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_NOT_ELECTRICAL"
@@ -329,6 +336,7 @@ inline bool decode_mode(const QByteArray &wire, const QByteArray &source,
         :non45SteepViaA?"D_031 SOURCE VIA-A EXACT STEEP 3:4 NON-45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
         :non45SteepViaB?"D_030 SOURCE VIA-B EXACT STEEP 3:4 NON-45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
         :non45ObliqueViaA?"D_029 SOURCE VIA-A EXACT 4:3 NON-45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
+        :non45ObliqueMirroredViaB?"D_034 SOURCE VIA-B MIRRORED NEGATIVE 4:3 NON-45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
         :non45ObliqueViaB?"D_028 SOURCE VIA-B EXACT 4:3 NON-45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
         :obliqueViaA?"D_027 SOURCE VIA-A 45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
         :obliqueViaB?"D_026 SOURCE VIA-B 45-DEGREE ENDPOINT ONLY; BARREL NOT VERIFIED"
@@ -397,6 +405,10 @@ inline bool decode_non45_steep_via_b_endpoint_contact(const QByteArray &wire, co
 inline bool decode_non45_steep_via_a_endpoint_contact(const QByteArray &wire, const QByteArray &source,
                      const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
     return decode_mode(wire,source,panel,net,out,false,false,false,true,false,false,false,false,false,false,false,false,true);
+}
+inline bool decode_non45_oblique_mirrored_via_b_endpoint_contact(const QByteArray &wire, const QByteArray &source,
+                     const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {
+    return decode_mode(wire,source,panel,net,out,false,false,false,true,false,false,false,false,false,false,false,false,false,false,false,true);
 }
 inline bool decode_non45_steep_mirrored_via_b_endpoint_contact(const QByteArray &wire, const QByteArray &source,
                      const PreviewImportPanel *panel, const QString &net, c005::Receipt &out) {

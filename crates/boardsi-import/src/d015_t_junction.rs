@@ -290,6 +290,14 @@ pub fn encode_oblique_via_a_endpoint_contact(
     encode_with_mode(bytes, net, layers, vias, ContactMode::ObliqueViaA)
 }
 
+/// D_034 distinct signed-negative 4:3 exterior Via-B SOURCE, not electrical proof.
+#[allow(dead_code)]
+pub fn encode_non45_oblique_mirrored_via_b_endpoint_contact(
+    bytes: &[u8], net: &str, layers: [usize; 2], vias: [usize; 2],
+) -> Result<String, &'static str> {
+    encode_with_mode(bytes, net, layers, vias, ContactMode::Non45ObliqueMirroredViaB)
+}
+
 /// D_028 bounded exact 4:3 non-45-degree exterior Via-B endpoint; source only.
 #[allow(dead_code)]
 pub fn encode_non45_oblique_via_b_endpoint_contact(
@@ -381,6 +389,7 @@ enum ContactMode {
     ObliqueViaB,
     ObliqueViaA,
     Non45ObliqueViaB,
+    Non45ObliqueMirroredViaB,
     Non45ObliqueViaA,
     Non45SteepViaB,
     Non45SteepViaA,
@@ -401,6 +410,7 @@ fn encode_with_mode(
     let opposite_endpoint = matches!(mode, ContactMode::OppositeEndpoint);
     let orthogonal_via_a = matches!(mode, ContactMode::OrthogonalViaA);
     let non45_oblique_via_b = matches!(mode, ContactMode::Non45ObliqueViaB);
+    let non45_oblique_mirrored_via_b = matches!(mode, ContactMode::Non45ObliqueMirroredViaB);
     let non45_oblique_via_a = matches!(mode, ContactMode::Non45ObliqueViaA);
     let non45_steep_via_b = matches!(mode, ContactMode::Non45SteepViaB);
     let non45_steep_via_a = matches!(mode, ContactMode::Non45SteepViaA);
@@ -421,6 +431,7 @@ fn encode_with_mode(
             | ContactMode::ObliqueViaB
             | ContactMode::ObliqueViaA
             | ContactMode::Non45ObliqueViaB
+            | ContactMode::Non45ObliqueMirroredViaB
             | ContactMode::Non45ObliqueViaA
             | ContactMode::Non45SteepViaB
             | ContactMode::Non45SteepViaA
@@ -484,6 +495,8 @@ fn encode_with_mode(
                 "D030_COORDINATE_BOUNDS"
             } else if non45_oblique_via_a {
                 "D029_COORDINATE_BOUNDS"
+            } else if non45_oblique_mirrored_via_b {
+                "D034_COORDINATE_BOUNDS"
             } else if non45_oblique_via_b {
                 "D028_COORDINATE_BOUNDS"
             } else if oblique_via_a {
@@ -592,13 +605,17 @@ fn encode_with_mode(
                     && cross != 0
                     && 4 * cross.abs() == 3 * dot.abs()
                     && exterior_projection < 0
-            } else if non45_oblique_via_b {
-                // Exact 3:4 perpendicular-to-parallel ratio at Via-B, source-tick only.
-                // i128 prevents overflow, no floating tolerance; reverse-safe.
-                shared == s[1].b
-                    && dot != 0
-                    && cross != 0
+            } else if non45_oblique_mirrored_via_b {
+                // Reverse-safe signed Via-B -> exterior, negative 4:3 only.
+                shared == s[1].b && dot != 0 && cross != 0
                     && 4 * cross.abs() == 3 * dot.abs()
+                    && canonical_cross < 0
+                    && exterior_projection > main_length_squared
+            } else if non45_oblique_via_b {
+                // D_028 positive signed mode remains separate from D_034.
+                shared == s[1].b && dot != 0 && cross != 0
+                    && 4 * cross.abs() == 3 * dot.abs()
+                    && canonical_cross > 0
                     && exterior_projection > main_length_squared
             } else if oblique_via_a {
                 // Exact 45-degree exterior projection beyond Via-A; reversal-safe.
@@ -737,6 +754,8 @@ fn encode_with_mode(
         "D030_NON45_STEEP_VIA_B_ENDPOINT_CONTACT_V1"
     } else if non45_oblique_via_a {
         "D029_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_V1"
+    } else if non45_oblique_mirrored_via_b {
+        "D034_NON45_OBLIQUE_MIRRORED_VIA_B_ENDPOINT_CONTACT_V1"
     } else if non45_oblique_via_b {
         "D028_NON45_OBLIQUE_VIA_B_ENDPOINT_CONTACT_V1"
     } else if oblique_via_a {
@@ -867,6 +886,8 @@ fn encode_with_mode(
         "SOURCE_NON45_STEEP_VIA_B_ENDPOINT_CONTACT_CANDIDATE"
     } else if non45_oblique_via_a {
         "SOURCE_NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_CANDIDATE"
+    } else if non45_oblique_mirrored_via_b {
+        "SOURCE_NON45_OBLIQUE_MIRRORED_VIA_B_ENDPOINT_CONTACT_CANDIDATE"
     } else if non45_oblique_via_b {
         "SOURCE_NON45_OBLIQUE_VIA_B_ENDPOINT_CONTACT_CANDIDATE"
     } else if oblique_via_a {
@@ -950,6 +971,8 @@ fn encode_with_mode(
         out.push_str("OVERALL|NON45_STEEP_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
     } else if non45_oblique_via_a {
         out.push_str("OVERALL|NON45_OBLIQUE_VIA_A_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
+    } else if non45_oblique_mirrored_via_b {
+        out.push_str("OVERALL|NON45_OBLIQUE_MIRRORED_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
     } else if non45_oblique_via_b {
         out.push_str("OVERALL|NON45_OBLIQUE_VIA_B_ENDPOINT_CONTACT_SOURCE_CANDIDATE_ONLY\nEND|FAIL_CLOSED_NO_BARREL_PROOF\n");
     } else if oblique_via_a {
