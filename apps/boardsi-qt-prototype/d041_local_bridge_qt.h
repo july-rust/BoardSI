@@ -8,12 +8,12 @@ inline QByteArray reconstruct(const QByteArray &src,const PreviewImportPanel *pa
     if(!panel || !panel->imported())return {};
     const auto rows=src.split('\n');
     QByteArray base,signalNet;
-    int signals=0,bridges=0;
+    int signalCount=0,bridges=0;
     bool inSignal=false;
     for(int i=0;i<rows.size();++i) {
         const auto fields=rows[i].simplified().split(' ');
         if(fields[0]=="*SIGNAL*") {
-            if(fields.size()!=2 || ++signals!=1)return {};
+            if(fields.size()!=2 || ++signalCount!=1)return {};
             signalNet=fields[1];
             inSignal=true;
         }
@@ -25,7 +25,7 @@ inline QByteArray reconstruct(const QByteArray &src,const PreviewImportPanel *pa
             i+=2;
         } else base+=rows[i]+'\n';
     }
-    if(signals!=1 || bridges!=1 || !d040::boundedSections(base))return {};
+    if(signalCount!=1 || bridges!=1 || !d040::boundedSections(base))return {};
     const auto *art=panel->imported();
     if(art->importedSkippedCount()!=0 || art->importedTraceCount()!=5 ||
        art->padCount()!=4 || art->arcCount()!=0 || art->viaCount()!=0)return {};
