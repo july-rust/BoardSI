@@ -22,7 +22,7 @@ pub fn encode(source: &[u8], cuts: &[usize]) -> Result<String, &'static str> {
     let header = full.lines().next().ok_or("D043_HEADER")?;
     let fields: Vec<_> = header.split('|').collect();
     if fields.first() != Some(&"BOARDSI_D042_LOCAL_CLOSED_LOOP_V1")
-        || fields.get(1).map(str::len) != Some(64)
+        || fields.get(1).map(|s| s.len()) != Some(64)
     {
         return Err("D043_SOURCE_RECEIPT");
     }
@@ -80,7 +80,7 @@ pub fn encode(source: &[u8], cuts: &[usize]) -> Result<String, &'static str> {
     };
     let components = (0..14)
         .filter(|&n| enabled[n])
-        .map(root)
+        .map(|n| root(n))
         .collect::<BTreeSet<_>>()
         .len();
     let rank = edges
