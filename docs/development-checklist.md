@@ -18,12 +18,12 @@
 | [**A**](#stage-a) | Preview · Import · Artwork | 12 | 5 |
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
-| [**D**](#stage-d) | PADS Source 접촉 후보 · 국소 Copper Geometry 통합 | 65 | 2 |
+| [**D**](#stage-d) | PADS Source 접촉 후보 · 국소 Copper Geometry 통합 | 66 | 2 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
-**전체 체크 상태: 136건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
+**전체 체크 상태: 137건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
 
 <a id="stage-a"></a>
 ### Stage A — 제한 Preview / Import / Artwork
@@ -94,7 +94,7 @@
 <a id="stage-d"></a>
 ### Stage D — PADS Source Contact / Junction
 
-**65건 확인 · 2건 미확인.** D_044는 동일 층의 서로 다른 Trace 중심선 사이에 생기는 양의 폭 접촉 후보를 둥근 끝단의 정확한 거리 제곱으로 한정 검증합니다. 단순 AABB 교차나 실물 전기 도통은 인수하지 않습니다. D_043은 D_042의 완전한 SOURCE를 먼저 검증한 뒤 별도 진단에서 Trace 노드·Incident Edge를 제외하여 12개 가상 단선 시나리오의 국소 Component/Cycle/Reachability 변화를 검증합니다. 실제 Copper 파손·전기적 Open/Short는 검증하지 않습니다. D_042는 D_041 직접 Bridge에 5개 SOURCE-owned 우회 Trace를 추가하여 하나의 국소 Closed Loop(14 Nodes/14 Edges/1 Component/1 Cycle)가 형성되는 정확한 지원 기하만 검증합니다. D_041은 독립 Component 2개의 국소 병합, D_040은 두 독립 Component의 분리 검증입니다. D_039를 포함한 Stage D의 체크는 지원된 공개 합성 PADS Source의 한정 결과이며 제조 실물 도통·글로벌 Open/Short·Return Path/SI를 인증하지 않습니다.
+**66건 확인 · 2건 미확인.** D_045는 서로 직교하는 Trace의 중심선이 만나지 않아도 둥근 끝단 Copper 선폭이 양의 면적으로 중첩되는 한정 SOURCE 후보를 정확한 최소거리 제곱으로 검증합니다. D_044의 Qt 적대적 변형 재Import 누락도 독립 회귀 테스트에서 보완했습니다. D_044는 동일 층의 서로 다른 Trace 중심선 사이에 생기는 양의 폭 접촉 후보를 둥근 끝단의 정확한 거리 제곱으로 한정 검증합니다. 단순 AABB 교차나 실물 전기 도통은 인수하지 않습니다. D_043은 D_042의 완전한 SOURCE를 먼저 검증한 뒤 별도 진단에서 Trace 노드·Incident Edge를 제외하여 12개 가상 단선 시나리오의 국소 Component/Cycle/Reachability 변화를 검증합니다. 실제 Copper 파손·전기적 Open/Short는 검증하지 않습니다. D_042는 D_041 직접 Bridge에 5개 SOURCE-owned 우회 Trace를 추가하여 하나의 국소 Closed Loop(14 Nodes/14 Edges/1 Component/1 Cycle)가 형성되는 정확한 지원 기하만 검증합니다. D_041은 독립 Component 2개의 국소 병합, D_040은 두 독립 Component의 분리 검증입니다. D_039를 포함한 Stage D의 체크는 지원된 공개 합성 PADS Source의 한정 결과이며 제조 실물 도통·글로벌 Open/Short·Return Path/SI를 인증하지 않습니다.
 
 | 작업 | 제한 검증 범위 | 확인 | 미확인 |
 | :--- | :--- | ---: | ---: |
@@ -142,6 +142,7 @@
 | [**D_042**](#d_042) | Same-layer SOURCE Closed Loop / Redundant Path (코드·main Push 한정 인수 완료) | 1 | 0 |
 | [**D_043**](#d_043) | Same-layer SOURCE Virtual Trace Cut-Set / Redundancy (코드·main Push 한정 인수 완료) | 1 | 0 |
 | [**D_044**](#d_044) | Finite-width parallel SOURCE Copper contact candidate (코드 한정 인수) | 1 | 0 |
+| [**D_045**](#d_045) | Finite-width perpendicular SOURCE Copper contact + D_044 native Qt negative reimport (코드 한정 인수) | 1 | 0 |
 
 <a id="stage-security"></a>
 ### 보안 — SEC_001
@@ -937,3 +938,8 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 ### D_044 — PADS Same-Layer Parallel Finite-Width Trace Contact (코드 한정 검증 · 2026-11-06 KST)
 
 - [x] **D_044 SOURCE 소유 동일 Layer 평행 Trace 선폭 접촉 후보의 정확한 둥근 끝단 접촉 및 Fail-Closed 코드 한정 인수** · **최초 체크일: 2026-11-06 KST** · **체크일: 2026-11-06 KST** · **근거일: 2026-11-06 KST**. [Issue #475](https://github.com/july-rust/BoardSI/issues/475) · [코드 PR #476](https://github.com/july-rust/BoardSI/pull/476) · [검증 원장](validation/d044-parallel-finite-width-contact-qualification.md). 공개 합성 PADS V9.4 MILS, Layer 1, 254 nm/Tick, U1/U2 Pad 4개와 기존 Trace 4개 + 추가 52 mil Trace 하나의 SOURCE/Owner/Pin-Pair/Net/Layer/Width/Geometry/SHA-256 완전 검증. 중심선 간격 30 mil, 합 반폭 31 mil의 엄격한 둥근 Copper 면적 접촉 후보만 인정하여 **9 Nodes / 10 국소 Edges / 1 Local Component** 구성. Rust i128와 Native Qt가 각각 정확한 선분 최소거리 제곱 판정식을 구현하며 정상 SOURCE Receipt를 독립 재구성한다. Rust 회귀·CLI는 50 mil 접선, 48 mil Gap, 358–358.5 mil AABB 코너 Gap 및 Wrong Layer/Owner/Missing SOURCE를 거부하고, Qt Runner는 정상/반전/NET_B/CRLF/탭 재Import, 위조 Receipt, stale SHA 및 50 mil 접선을 직접 검증한다. **Qt에서 코너 Gap·48 mil Gap·Wrong Layer/Owner·Missing SOURCE를 별도로 재Import하는 음성 회귀는 아직 실행되지 않았으므로 Qt 독립 테스트 PASS로 표시하지 않는다.** [최종 코드 HEAD e4c944fe8d52cf3299d2e2252581fac97488a9aa](https://github.com/july-rust/BoardSI/commit/e4c944fe8d52cf3299d2e2252581fac97488a9aa/checks): **34개 PR Checks 중 33 SUCCESS·1 NEUTRAL·실패 0, 11/11 PR Workflows SUCCESS**, 동일 HEAD 독립 Codex 지적 없음·미해결 Review Thread 0. 초기 P2 AABB 허위 접촉, Rustfmt/소유권/CRLF, Qt 매크로 오류 및 기존 macOS D_006 간헐 임시파일 실패는 수정 또는 동일 코드 HEAD 재실행 성공으로 최종 검증. 보호 [Verified 단일 부모 Squash 코드 main c46eaae7bc13cc224cc96f1b0d64172392c55bd5](https://github.com/july-rust/BoardSI/commit/c46eaae7bc13cc224cc96f1b0d64172392c55bd5), parent 06f4433963a12522a0de68085df69f19b9420138, verification.verified=true. 코드-main 및 별도 문서-main의 정확한 독립 Push CI 최종 상태는 **검증 종료 후 Issue #475 최종 댓글로 기록**하며, 이 코드 인수 근거를 미래 결과로 소급하지 않는다. SOURCE_LOCAL_FINITE_WIDTH_ONLY: 제조 도통, Global Electrical Open/Short, 임의 PCB/Pours/Planes/Vias/Thermals, P009/PH-08 Return Path, 실제 Scenario/Cache 및 RLGC/S Solver, U01–U48/T01–T54 정식 인수·제품 출시 **NOT_VERIFIED**. Parent [Issue #12](https://github.com/july-rust/BoardSI/issues/12) OPEN. Issue #475는 코드 병합 시점 2026-11-06T02:35:04Z에 CLOSED/completed여서 문서 최종 검증과 시점 차이를 마지막 Issue 댓글에 명시한다. 재귀 문서 PR 금지.
+
+<a id="d_045"></a>
+### D_045 — PADS Same-Layer Perpendicular Finite-Width Trace Contact & Fail-Closed Qualification (코드 한정 인수 · 2026-11-06 KST)
+
+- [x] **D_045 SOURCE 소유 동일 Layer 직교 Trace의 실제 선폭·둥근 끝단 접촉 후보 및 D_044 Native Qt 적대적 재Import 보완 — 한정 코드·Verified Squash 검증 완료** · **최초 체크일: 2026-11-06 KST** · **체크일: 2026-11-06 KST** · **근거일: 2026-11-06 KST**. [Issue #478](https://github.com/july-rust/BoardSI/issues/478) · [코드 PR #479](https://github.com/july-rust/BoardSI/pull/479) · [검증 원장](validation/d045-perpendicular-finite-width-contact-qualification.md). 공개 합성 PADS V9.4 MILS SOURCE 254 nm/Tick, NET_A/NET_B Layer 1의 SMD Pads **4개**/기존 수직 Traces **4개**와 추가 **수평 42 mil Bridge Trace** `(224,350)→(236,350)` mil을 검증. 중심선 간 최소거리 **24 mil**, 반폭 합 **26 mil**이므로 정확한 양의 면적 Round-Cap Copper 접촉만 인정: **9 Nodes / 10 same-layer Candidate Edges / 1 Local Component**, 교차 Layer 실제 도통 증거 0. Rust `i128` 및 Native Qt `qint64`의 독립 최소거리 제곱 검증, SOURCE Net/Layer/Pad/Owner/Pin-Pair/Trace Inventory 및 SHA-256-bound Receipt. 반전·CRLF·NET_B·지원 Header·탭을 검증하며 **38 mil 접선 / 36 mil Gap / y=361 mil AABB Corner 오판 / Wrong Layer·Owner / 누락·중복·위조 SOURCE / Stale SHA / Forged Receipt**는 Fail-Closed. D_044 Native Qt의 Corner Gap·48 mil Gap·Wrong Layer·Owner·Missing SOURCE 음성 회귀도 실제 Qt 재Import·Reconstruction을 실행하도록 수정, Rust CLI의 거부만으로 Qt 독립 성공을 선언하지 않음. **최종 코드 HEAD** [`5d66d20e93eeb6ceffc84e217f30d786c1a4f240`](https://github.com/july-rust/BoardSI/commit/5d66d20e93eeb6ceffc84e217f30d786c1a4f240/checks) **34/34 PR Check Runs · 11/11 PR Workflows SUCCESS**, 동일 HEAD Codex `completed/findings=false/unresolved=false`, 미해결 Thread **0**. 초기 Rustfmt 및 Clippy CRLF 단일문자 경고 실패는 최종 HEAD에서 수정하고 새 CI로 재검증. 보호 **Verified 단일 부모 Squash** [code-main `99695309b1481c03a7e20480a5e97aa4677b18d6`](https://github.com/july-rust/BoardSI/commit/99695309b1481c03a7e20480a5e97aa4677b18d6), sole parent `0921df4c035ebb3643f4772d692b1fa69acdcfa0`, REST verified=true/reason=valid, 정확한 code-main ref 확인. **코드-main 독립 Push CI, 별도 Markdown-only 문서 PR 검증·서명 병합 및 docs-main Push의 최종 결과는 [Issue #478](https://github.com/july-rust/BoardSI/issues/478)의 최종 증거 댓글로 별도 판정**하며 PR 통과를 Push 성공으로 소급하지 않는다. Issue #478은 코드 병합 시 **2026-11-06T03:36:37Z**에 자동 CLOSED 처리되어 문서 인수 시점과 다르므로 최종 댓글에 시간 순서를 기록한다. **SOURCE_LOCAL_FINITE_WIDTH_ONLY** 한정: 실제 제조 Copper/전역 Electrical Open/Short/임의 PCB/Via/Pour/Thermal/P009·PH-08 Return Path/Physical Scenario·Cache/RLGC·S Solver/U01–U48·T01–T54/제품 출시 **NOT_VERIFIED**. [부모 Issue #12](https://github.com/july-rust/BoardSI/issues/12)는 OPEN. 재귀 문서 PR 금지.
