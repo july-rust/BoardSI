@@ -70,7 +70,21 @@ fn tangency_gap_aabb_owner_layer_shape_and_hostile_sources_fail_closed() {
 
 #[test]
 fn relocated_second_component_must_not_forge_isolation() {
-    let source = SOURCE
+    let far = SOURCE
+        .replace("U2 TYPEA 400 300", "U2 TYPEA 420 300")
+        .replace("400 300 1 10 0", "420 300 1 10 0")
+        .replace("400 350 1 10 0", "420 350 1 10 0")
+        .replace("400 400 1 10 0", "420 400 1 10 0");
+    assert_ne!(far, SOURCE);
+    let stripped = far.replace("U1.2 U2.2\n217 390 1 8 0\n217 410 1 8 0\n", "");
+    let base = boardsi_import::d040_multi_component::encode(stripped.as_bytes());
+    assert!(base.is_ok(), "moved but isolated D_040 baseline: {base:?}");
+    assert!(
+        audit(&far).is_err(),
+        "D_047 fixes all four pad and baseline trace coordinates"
+    );
+    // A near U2 cannot be silently added to the original two-component receipt.
+    let near = SOURCE
         .replace("U2 TYPEA 400 300", "U2 TYPEA 250 410")
         .replace("400 300 1 10 0", "250 410 1 10 0")
         .replace("400 350 1 10 0", "250 460 1 10 0")
@@ -79,14 +93,6 @@ fn relocated_second_component_must_not_forge_isolation() {
             "217 390 1 8 0\n217 410 1 8 0",
             "217 400 1 8 0\n230 410 1 8 0",
         );
-    assert_ne!(source, SOURCE);
-    let stripped = source.replace("U1.2 U2.2\n217 400 1 8 0\n230 410 1 8 0\n", "");
-    assert!(
-        boardsi_import::d040_multi_component::encode(stripped.as_bytes()).is_ok(),
-        "baseline is locally isolated under D_040"
-    );
-    assert!(
-        audit(&source).is_err(),
-        "D_047 must not omit an additional U2 contact"
-    );
+    assert_ne!(near, SOURCE);
+    assert!(audit(&near).is_err(), "potential U2 contact must fail closed");
 }
