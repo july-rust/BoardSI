@@ -197,6 +197,7 @@ pub mod d039_local_copper;
 pub mod d040_multi_component;
 pub mod d041_local_bridge;
 pub mod d042_local_closed_loop;
+pub mod d043_local_cutset;
 pub mod digest;
 pub mod material_contract;
 pub mod outline_arc;

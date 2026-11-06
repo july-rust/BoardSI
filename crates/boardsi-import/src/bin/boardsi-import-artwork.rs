@@ -941,6 +941,34 @@ fn main() {
         }
         return;
     }
+    // D_043 opt-in SOURCE-local counterfactual trace cuts; no physical Open/Short.
+    if (3..=5).contains(&args.len())
+        && args[2] == std::ffi::OsStr::new("--d043-local-trace-cutset-v1")
+    {
+        let result = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let metadata = fs::metadata(path).map_err(|_| "D043_FILE")?;
+            if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES as u64 {
+                return Err("D043_FILE_LIMIT");
+            }
+            let mut cuts = Vec::new();
+            for arg in &args[3..] {
+                cuts.push(boardsi_import::d043_local_cutset::parse_cut_id(
+                    arg.to_str().ok_or("D043_CUT_UTF8")?,
+                )?);
+            }
+            let source = fs::read(path).map_err(|_| "D043_READ")?;
+            boardsi_import::d043_local_cutset::encode(&source, &cuts)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D043_LOCAL_CUTSET_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_042: source-owned exact redundant detour / closed loop, no global electrical PASS.
     if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d042-local-closed-loop-v1") {
         let result = (|| -> Result<String, &'static str> {
