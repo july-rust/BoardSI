@@ -1,0 +1,29 @@
+# D_044 — Parallel Finite-Width Same-Layer PADS SOURCE Contact Qualification
+
+**2026-11-06 KST · [Issue #475](https://github.com/july-rust/BoardSI/issues/475) · [Code PR #476](https://github.com/july-rust/BoardSI/pull/476) · [Checklist](../development-checklist.md).**
+
+## Scope and original SOURCE
+
+The supported public [PADS V9.4 MILS synthetic fixture](../../crates/boardsi-import/tests/fixtures/d044_parallel_width_v94.asc) has exactly four SMD Pads, four original vertical 10 mil traces, and one vertical 52 mil extra trace, all on Layer 1, NET_A (NET_B variant). Source Tick is 0.01 mil = 254 nm. Two original vertical rails lie at x=200 and x=260 mil, spanning y=300–350 and y=400–350 mil. The additional trace lies at x=230 mil, y=349–351 mil. The independently verified D_040 base Source inventory, Pad owners, Pin-Pair, Width, Net, Layer, complete trace geometry and SHA MUST pass before qualifying a new local candidate. Unsupported geometries fail closed.
+
+## Exact geometry instead of bounding-box inference
+
+Original centerlines remain 30 mil apart; the sum of copper half-widths equals (10+52)/2 = 31 mil. For supported parallel round-ended segments, strict positive-area contact uses the squared Euclidean minimum centerline distance. Let dx be the transverse centerline spacing and dy the non-overlapping longitudinal gap, or zero when ranges overlap. Accept only when 4*(dx²+dy²) < (widthA+widthB)². Equality is boundary-only and rejected. Rust uses i128 integer distance, and Qt independently recomputes using bounded ImportedArtwork coordinates.
+
+A true P2 review finding identified false positives when axis-aligned bounding boxes touch at rounded-stroke corners. Moving the additional trace to (230,358)–(230,358.5) mil yields minimum centerline distance sqrt(30²+8²) ≈ 31.048 mil, greater than the 31 mil radius sum; rejection is mandatory. Width 50 mil tangency and width 48 mil gap are also rejected. No arbitrary diagonal/arc/complex Copper, Via, Pour or Thermal is supported.
+
+## Results and independent Rust/Qt qualification
+
+The [opt-in CLI implementation](../../crates/boardsi-import/src/d044_parallel_width.rs), activated as boardsi-import-artwork FILE --d044-parallel-width-v1, validates original SOURCE before constructing a SHA-bound BOARDSI_D044_PARALLEL_WIDTH_CONTACT_V1 receipt. Four Pads plus five Traces make 9 local geometry Nodes; six original edges plus four positive-width parallel contact candidates make 10 local Edges and 1 local Component. Validation coverage is deliberately asymmetric. The [Rust regression](../../crates/boardsi-import/tests/d044_parallel_width.rs) and Rust CLI reject 50 mil tangency, 48 mil gap, the (230,358)–(230,358.5) mil AABB-corner false contact, wrong ownership/layer, invalid or missing Source and other hostile cases. The [native Qt implementation](../../apps/boardsi-qt-prototype/d044_parallel_width_qt.h) independently computes exact positive-width distance from reimported Artwork; the [Qt runner](../../apps/boardsi-qt-prototype/d044_qt_runner.cpp) actually reimports and checks the valid original, reversed direction, NET_B, CRLF and tab variants, forged receipts, SHA freshness/staleness and a 50 mil tangency rejection. For the corner-gap, 48 mil gap, wrong ownership/layer and missing SOURCE variants, the current Qt runner invokes the **Rust CLI rejection only**, without reimporting those mutated variants into the Qt panel. Therefore these negative cases are **not independently exercised as Qt negative regressions**, although the Qt production reconstruction contains its own exact-distance predicate. Do not claim independent native Qt regression coverage for these cases. All accepted results retain SOURCE_LOCAL_FINITE_WIDTH_ONLY, P009_UNSUPPORTED, SI_NOT_RUN, GLOBAL_ELECTRICAL_NOT_VERIFIED and SOURCE_LOCAL_FINITE_WIDTH_ONLY_NO_GLOBAL_PASS.
+
+## Code checks, independent review and protected integration
+
+- Exact final code PR HEAD [e4c944fe8d52cf3299d2e2252581fac97488a9aa](https://github.com/july-rust/BoardSI/commit/e4c944fe8d52cf3299d2e2252581fac97488a9aa/checks): 34 Check Runs = 33 SUCCESS + 1 NEUTRAL + 0 failure; 11/11 pull_request Workflows SUCCESS, including Rustfmt/Clippy, Rust Debug/Release and Native Qt on Linux, Windows x64/ARM64 and macOS ARM64. Historical macOS D_006 temp-file race recovered by a rerun of the same SHA.
+- Independent exact-HEAD Codex review completed without findings or unresolved threads. The earlier geometry P2 review was fixed and verified, not waived. Previous Rustfmt, Rust ownership, Qt signals macro, source CRLF and macOS D_006 CI failures remain visible in history.
+- Protected Verified one-parent Squash [code-main c46eaae7bc13cc224cc96f1b0d64172392c55bd5](https://github.com/july-rust/BoardSI/commit/c46eaae7bc13cc224cc96f1b0d64172392c55bd5), parent 06f4433963a12522a0de68085df69f19b9420138; GitHub verification.verified=true/reason=valid. The exact code-main push and separate docs PR/push terminal evidence are not inferred; they must be verified and recorded in Issue #475 after completion.
+
+## Explicit non-acceptance and checklist policy
+
+Stage D checked 64→65, total checked 135→136; pending Stage D 2 and total 122 unchanged. Exactly two Markdown-only files comprise the separate documentation PR. This is a bounded count of verified diagnostic scenarios, not a percentage of overall product completion. NOT_VERIFIED: manufactured copper continuity, global physical Open/Short, arbitrary PCB/Via/Pour/Thermal electrical connectivity, P009/PH-08 reference return path, physical Scenario/Cache, RLGC/S-parameter Solver, U01–U48/T01–T54 formal acceptance, product release. [Parent Issue #12](https://github.com/july-rust/BoardSI/issues/12) stays OPEN.
+
+Issue #475 was already CLOSED/completed on 2026-11-06T02:35:04Z, after code merge and before final documentation; evidence chronology must be preserved in its final comment. No recursive documentation PR.
