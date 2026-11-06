@@ -134,11 +134,32 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
         .filter(|line| line.starts_with("T|"))
         .map(parse_track)
         .collect::<Result<_, _>>()?;
+    // The fixed receipt assumes two disconnected components. D_040 allows
+    // relocated components, so bind the *entire* baseline inventory here:
+    // otherwise a moved U2 could contact the witness without being recorded.
+    let expected_pads = [
+        "P|0|U1|1|1|20000|30000|4000|4000|R",
+        "P|1|U1|2|1|20000|40000|3000|3000|S",
+        "P|2|U2|1|1|40000|30000|4000|4000|R",
+        "P|3|U2|2|1|40000|40000|3000|3000|S",
+    ];
+    let pads: Vec<_> = baseline
+        .lines()
+        .filter(|line| line.starts_with("P|"))
+        .collect();
+    let expected_tracks = [
+        ([20_000, 30_000], [20_000, 35_000]),
+        ([20_000, 40_000], [20_000, 35_000]),
+        ([40_000, 30_000], [40_000, 35_000]),
+        ([40_000, 40_000], [40_000, 35_000]),
+    ];
     if old.len() != 4
-        || !baseline
-            .lines()
-            .any(|line| line == "P|1|U1|2|1|20000|40000|3000|3000|S")
+        || pads.as_slice() != expected_pads.as_slice()
         || old.iter().any(|t| t.net != old[0].net || t.width != 1000)
+        || old
+            .iter()
+            .zip(expected_tracks.iter())
+            .any(|(track, (a, b))| !same_pair(track.a, track.b, *a, *b))
     {
         return Err("D047_UNSUPPORTED_BASE");
     }
