@@ -12,11 +12,11 @@ fn metrics(receipt: &str) -> &str {
 
 #[test]
 fn baseline_and_each_cut_set_have_graph_derived_rank_and_reachability() {
-    let cases: Vec<(Vec<usize>, usize, usize, usize, usize, &str)> =
+    let cases =
         std::iter::once((vec![], 14, 14, 1, 1, "YES"))
             .chain((4..=9).map(|i| (vec![i], 13, 12, 1, 0, "YES")))
             .chain((5..=9).map(|i| (vec![4, i], 12, 10, 2, 0, "NO")))
-            .collect();
+            .collect::<Vec<_>>();
     assert_eq!(cases.len(), 12);
     for (cut, nodes, edges, components, cycles, reachable) in cases {
         let result = encode(SOURCE.as_bytes(), &cut).expect("valid fixture");
@@ -76,7 +76,7 @@ fn header_direction_newlines_and_net_preserve_bounded_results() {
         metrics(&expected)
     );
     for variant in [
-        src.replace("\n", "\r\n"),
+        src.replace('\n', "\r\n"),
         src.replace("NET_A", "NET_B"),
         src.replace(
             "!PADS-POWERPCB-V9.4-MILS!",
