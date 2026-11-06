@@ -241,10 +241,7 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
         return Err("D046_OBLIQUE_GEOMETRY");
     }
     let footprint = Rect::trace(&bridge);
-    if !old
-        .iter()
-        .all(|track| oblique_positive(track, &bridge))
-    {
+    if !old.iter().all(|track| oblique_positive(track, &bridge)) {
         return Err("D046_GAP_OR_BOUNDARY_ONLY");
     }
     for row in baseline.lines().filter(|row| row.starts_with("P|")) {
@@ -325,27 +322,82 @@ mod tests {
         };
         assert!(oblique_positive(&upper, &bridge));
         assert!(oblique_positive(&bridge, &upper));
-        assert!(!oblique_positive(&upper, &Track { width: 40, ..bridge.clone() }));
-        assert!(!oblique_positive(&upper, &Track { width: 38, ..bridge.clone() }));
-        let corner = Track { a: [24, 63], b: [36, 70], ..bridge.clone() };
+        assert!(!oblique_positive(
+            &upper,
+            &Track {
+                width: 40,
+                ..bridge.clone()
+            }
+        ));
+        assert!(!oblique_positive(
+            &upper,
+            &Track {
+                width: 38,
+                ..bridge.clone()
+            }
+        ));
+        let corner = Track {
+            a: [24, 63],
+            b: [36, 70],
+            ..bridge.clone()
+        };
         assert!(Rect::trace(&upper).touches(Rect::trace(&corner)));
         assert!(!oblique_positive(&upper, &corner));
-        let crossing = Track { a: [58, 48], b: [62, 52], ..bridge.clone() };
+        let crossing = Track {
+            a: [58, 48],
+            b: [62, 52],
+            ..bridge.clone()
+        };
         assert!(!oblique_positive(&upper, &crossing));
-        let perpendicular = Track { a: [24, 50], b: [36, 50], ..bridge.clone() };
+        let perpendicular = Track {
+            a: [24, 50],
+            b: [36, 50],
+            ..bridge.clone()
+        };
         assert!(!oblique_positive(&upper, &perpendicular));
-        let parallel = Track { a: [36, 0], b: [36, 50], ..bridge.clone() };
+        let parallel = Track {
+            a: [36, 0],
+            b: [36, 50],
+            ..bridge.clone()
+        };
         assert!(!oblique_positive(&upper, &parallel));
-        let degenerate = Track { b: [24, 50], ..bridge };
+        let degenerate = Track {
+            b: [24, 50],
+            ..bridge
+        };
         assert!(!oblique_positive(&upper, &degenerate));
     }
 
     #[test]
     fn interior_projection_is_rational_exact_and_reversal_invariant() {
-        let a = Track { net: "NET_A".into(), a: [0, 0], b: [0, 100], width: 10 };
-        let b = Track { net: "NET_A".into(), a: [24, 40], b: [36, 47], width: 42 };
+        let a = Track {
+            net: "NET_A".into(),
+            a: [0, 0],
+            b: [0, 100],
+            width: 10,
+        };
+        let b = Track {
+            net: "NET_A".into(),
+            a: [24, 40],
+            b: [36, 47],
+            width: 42,
+        };
         assert!(oblique_positive(&a, &b));
-        assert!(oblique_positive(&a, &Track { a: b.b, b: b.a, ..b.clone() }));
-        assert!(oblique_positive(&Track { a: a.b, b: a.a, ..a }, &b));
+        assert!(oblique_positive(
+            &a,
+            &Track {
+                a: b.b,
+                b: b.a,
+                ..b.clone()
+            }
+        ));
+        assert!(oblique_positive(
+            &Track {
+                a: a.b,
+                b: a.a,
+                ..a
+            },
+            &b
+        ));
     }
 }

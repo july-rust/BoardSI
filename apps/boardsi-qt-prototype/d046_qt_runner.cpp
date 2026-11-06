@@ -83,14 +83,14 @@ int main(int argc,char **argv) {
             && d046::reconstruct(mutation,&panel).isEmpty();
     };
     QByteArray tangent=source;
-    tangent.replace("1 42 0","1 38 0");
+    tangent.replace("1 42 0","1 40 0");
     const bool boundaryRejected=rejected(tangent);
     QByteArray corner=source;
     corner.replace("224 350 1 42 0\n236 357 1 42 0",
-                   "224 361 1 42 0\n236 361 1 42 0");
+                   "224 363 1 42 0\n236 370 1 42 0");
     const bool cornerRejected=rejected(corner);
     QByteArray gap=source;
-    gap.replace("1 42 0","1 36 0");
+    gap.replace("1 42 0","1 38 0");
     const bool gapRejected=rejected(gap);
     QByteArray owner=source;
     owner.replace("U1.1 U2.1","U1.1 U1.2");
