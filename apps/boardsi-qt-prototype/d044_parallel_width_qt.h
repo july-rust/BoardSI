@@ -6,13 +6,25 @@
 namespace d044 {
 struct Rect {
     qint64 x0,y0,x1,y1;
-    bool positive(const Rect &o)const {
-        return x0<o.x1 && o.x0<x1 && y0<o.y1 && o.y0<y1;
-    }
     bool touches(const Rect &o)const {
         return x0<=o.x1 && o.x0<=x1 && y0<=o.y1 && o.y0<=y1;
     }
 };
+// Exact round-capped parallel-stroke separation; qint64 is safe here because
+// both source rails and the candidate coordinates are tightly bounded below.
+inline bool parallelPositive(const ImportedTrack &a,const ImportedTrack &b) {
+    const bool vertical=a.x0_nm==a.x1_nm && b.x0_nm==b.x1_nm;
+    const bool horizontal=a.y0_nm==a.y1_nm && b.y0_nm==b.y1_nm;
+    if(!vertical && !horizontal)return false;
+    const qint64 transverse=vertical ? a.x0_nm-b.x0_nm : a.y0_nm-b.y0_nm;
+    const qint64 a0=vertical?std::min(a.y0_nm,a.y1_nm):std::min(a.x0_nm,a.x1_nm);
+    const qint64 a1=vertical?std::max(a.y0_nm,a.y1_nm):std::max(a.x0_nm,a.x1_nm);
+    const qint64 b0=vertical?std::min(b.y0_nm,b.y1_nm):std::min(b.x0_nm,b.x1_nm);
+    const qint64 b1=vertical?std::max(b.y0_nm,b.y1_nm):std::max(b.x0_nm,b.x1_nm);
+    const qint64 gap=std::max<qint64>(0,std::max(a0,b0)-std::min(a1,b1));
+    const qint64 sum=a.width_nm+b.width_nm;
+    return 4*(transverse*transverse+gap*gap)<sum*sum;
+}
 inline Rect traceBox(const ImportedTrack &t) {
     return {2*std::min(t.x0_nm,t.x1_nm)-t.width_nm,
             2*std::min(t.y0_nm,t.y1_nm)-t.width_nm,
@@ -119,7 +131,7 @@ inline QByteArray reconstruct(const QByteArray &source,const PreviewImportPanel 
        extraTrack.y1_nm<34000*254LL || extraTrack.y1_nm>36000*254LL)return {};
     const auto envelope=traceBox(extraTrack);
     for(const auto &p:paths) {
-        if(!envelope.positive(traceBox(p.trace)) ||
+        if(!parallelPositive(extraTrack,p.trace) ||
            envelope.touches(padBox(p.pad)))return {};
     }
     QByteArray out="BOARDSI_D044_PARALLEL_WIDTH_CONTACT_V1|"+sha+

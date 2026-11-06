@@ -54,6 +54,8 @@ fn reversed_headers_nets_and_crlf_are_validated() {
 fn boundary_gap_layer_owner_and_invalid_source_fail_closed() {
     let fail = [
         SOURCE.replace("1 52 0", "1 50 0"),
+        SOURCE.replace("230 349 1 52 0\n230 351 1 52 0",
+                       "230 358 1 52 0\n230 358.5 1 52 0"),
         SOURCE.replace("1 52 0", "1 48 0"),
         SOURCE.replace("1 52 0", "2 52 0"),
         SOURCE.replace("230 349 1 52 0", "230 349 1 0 0"),

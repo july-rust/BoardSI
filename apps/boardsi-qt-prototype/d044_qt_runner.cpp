@@ -75,6 +75,11 @@ int main(int argc,char **argv) {
     tangent.replace("1 52 0","1 50 0");
     if(tangent==source || !save(tangent) || !load())return 2;
     const bool boundaryRejected=run(wire)!=0 && d044::reconstruct(tangent,&panel).isEmpty();
+    QByteArray corner=source;
+    corner.replace("230 349 1 52 0\n230 351 1 52 0",
+                   "230 358 1 52 0\n230 358.5 1 52 0");
+    if(corner==source || !save(corner))return 2;
+    const bool cornerRejected=run(wire)!=0;
     QByteArray gap=source;
     gap.replace("1 52 0","1 48 0");
     if(gap==source || !save(gap))return 2;
@@ -93,7 +98,7 @@ int main(int argc,char **argv) {
     const bool missingRejected=run(wire)!=0;
     if(!save(source) || !load() || !d044::decode(original,source,&panel))return 2;
     const bool ok=forgeryRejected && direction && netVariant && crlfVariant &&
-        tabVariant && boundaryRejected && gapRejected && ownerRejected &&
+        tabVariant && boundaryRejected && cornerRejected && gapRejected && ownerRejected &&
         layerRejected && missingRejected;
     qInfo()<<"D044_NATIVE_QT_FINITE_WIDTH"<<ok
            <<"GLOBAL_ELECTRICAL_NOT_VERIFIED";

@@ -85,19 +85,38 @@ impl Rect {
         }
     }
 
-    fn positive_overlap(self, other: Self) -> bool {
-        self.xmin < other.xmax
-            && other.xmin < self.xmax
-            && self.ymin < other.ymax
-            && other.ymin < self.ymax
-    }
-
     fn touches(self, other: Self) -> bool {
         self.xmin <= other.xmax
             && other.xmin <= self.xmax
             && self.ymin <= other.ymax
             && other.ymin <= self.ymax
     }
+}
+
+// For parallel round-ended copper strokes, actual positive-area overlap
+// requires exact Euclidean centerline distance < sum of the two radii.
+// AABB corner intersection alone is NOT sufficient, especially near endpoints.
+fn parallel_positive(a: &Track, b: &Track) -> bool {
+    if a.width <= 0 || b.width <= 0 {
+        return false;
+    }
+    let vertical = a.a[0] == a.b[0] && b.a[0] == b.b[0];
+    let horizontal = a.a[1] == a.b[1] && b.a[1] == b.b[1];
+    if !vertical && !horizontal {
+        return false;
+    }
+    let axis = if vertical { 1 } else { 0 };
+    let other = 1 - axis;
+    let delta = i128::from(a.a[other]) - i128::from(b.a[other]);
+    let (amin, amax) = (a.a[axis].min(a.b[axis]), a.a[axis].max(a.b[axis]));
+    let (bmin, bmax) = (b.a[axis].min(b.b[axis]), b.a[axis].max(b.b[axis]));
+    let separation = i128::from(amin.max(bmin)) - i128::from(amax.min(bmax));
+    let gap = separation.max(0);
+    let radius_sum_twice = i128::from(a.width) + i128::from(b.width);
+    let distance_x2 = 2 * delta;
+    let distance_y2 = 2 * gap;
+    distance_x2 * distance_x2 + distance_y2 * distance_y2
+        < radius_sum_twice * radius_sum_twice
 }
 
 fn same_pair(a: [i64; 2], b: [i64; 2], x: [i64; 2], y: [i64; 2]) -> bool {
@@ -177,10 +196,7 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
         return Err("D044_PARALLEL_GEOMETRY");
     }
     let footprint = Rect::trace(&bridge);
-    if !old
-        .iter()
-        .all(|track| footprint.positive_overlap(Rect::trace(track)))
-    {
+    if !old.iter().all(|track| parallel_positive(track, &bridge)) {
         return Err("D044_GAP_OR_BOUNDARY_ONLY");
     }
     for row in baseline.lines().filter(|row| row.starts_with("P|")) {
@@ -246,7 +262,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn exact_rectangle_contact_is_symmetric_and_strict() {
+    fn exact_parallel_stroke_overlap_is_symmetric_and_strict() {
         let a = Track {
             net: "NET_A".into(),
             a: [0, 0],
@@ -259,13 +275,13 @@ mod tests {
             b: [30, 60],
             width: 52,
         };
-        assert!(Rect::trace(&a).positive_overlap(Rect::trace(&b)));
-        assert!(Rect::trace(&b).positive_overlap(Rect::trace(&a)));
+        assert!(parallel_positive(&a, &b));
+        assert!(parallel_positive(&b, &a));
         let tangent = Track {
             width: 50,
             ..b.clone()
         };
-        assert!(!Rect::trace(&a).positive_overlap(Rect::trace(&tangent)));
+        assert!(!parallel_positive(&a, &tangent));
         assert!(Rect::trace(&a).touches(Rect::trace(&tangent)));
         // Horizontal geometry uses the same exact axis-aligned integer predicate.
         let horizontal = Track {
@@ -278,6 +294,15 @@ mod tests {
             b: [60, 30],
             ..b
         };
-        assert!(Rect::trace(&horizontal).positive_overlap(Rect::trace(&crossing)));
+        assert!(parallel_positive(&horizontal, &crossing));
+        let corner = Track {
+            a: [30, 108],
+            b: [30, 108 + 5],
+            ..b
+        };
+        // The rounded endpoints are separated by sqrt(30² + 8²) > 31.
+        // Its expanded AABB touches the old stroke corner but copper does not.
+        assert!(Rect::trace(&a).touches(Rect::trace(&corner)));
+        assert!(!parallel_positive(&a, &corner));
     }
 }
