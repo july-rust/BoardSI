@@ -80,10 +80,7 @@ fn relocated_second_component_must_not_forge_isolation() {
             "217 400 1 8 0\n230 410 1 8 0",
         );
     assert_ne!(source, SOURCE);
-    let stripped = source.replace(
-        "U1.2 U2.2\n217 400 1 8 0\n230 410 1 8 0\n",
-        "",
-    );
+    let stripped = source.replace("U1.2 U2.2\n217 400 1 8 0\n230 410 1 8 0\n", "");
     assert!(
         boardsi_import::d040_multi_component::encode(stripped.as_bytes()).is_ok(),
         "baseline is locally isolated under D_040"
