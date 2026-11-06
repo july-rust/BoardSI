@@ -167,6 +167,29 @@ if(BUILD_TESTING)
       COMMAND boardsi-d037-native-qt "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-d037-mixed-sign-dual-via-source PROPERTIES TIMEOUT 90
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_047 bounded finite-width oblique SOURCE contacts; use existing CI matrix.
+    add_executable(boardsi-d047-native-qt d047_qt_runner.cpp)
+    target_link_libraries(boardsi-d047-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+    if(WIN32)
+      target_link_libraries(boardsi-d047-native-qt PRIVATE psapi)
+    endif()
+    if(MSVC)
+      target_compile_options(boardsi-d047-native-qt PRIVATE /W4 /WX)
+    else()
+      target_compile_options(boardsi-d047-native-qt PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    if((WIN32 OR APPLE) AND "$ENV{GITHUB_ACTIONS}" STREQUAL "true")
+      add_custom_command(TARGET boardsi-d047-native-qt POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E env "QT_QPA_PLATFORM=offscreen"
+          "$<TARGET_FILE:boardsi-d047-native-qt>" "${BOARDSI_IMPORTER}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/d047_trace_square_pad_width_v94.asc"
+        VERBATIM)
+    endif()
+    add_test(NAME qt-preview-d047-trace-square-pad-finite-width-source
+      COMMAND boardsi-d047-native-qt "${BOARDSI_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/d047_trace_square_pad_width_v94.asc")
+    set_tests_properties(qt-preview-d047-trace-square-pad-finite-width-source PROPERTIES TIMEOUT 90
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_046 bounded finite-width oblique SOURCE contacts; use existing CI matrix.
     add_executable(boardsi-d046-native-qt d046_qt_runner.cpp)
     target_link_libraries(boardsi-d046-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)

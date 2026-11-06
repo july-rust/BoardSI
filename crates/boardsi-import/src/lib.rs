@@ -201,6 +201,7 @@ pub mod d043_local_cutset;
 pub mod d044_parallel_width;
 pub mod d045_perpendicular_width;
 pub mod d046_oblique_width;
+pub mod d047_trace_square_pad_width;
 pub mod digest;
 pub mod material_contract;
 pub mod outline_arc;
