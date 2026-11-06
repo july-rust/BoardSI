@@ -115,8 +115,7 @@ fn parallel_positive(a: &Track, b: &Track) -> bool {
     let radius_sum_twice = i128::from(a.width) + i128::from(b.width);
     let distance_x2 = 2 * delta;
     let distance_y2 = 2 * gap;
-    distance_x2 * distance_x2 + distance_y2 * distance_y2
-        < radius_sum_twice * radius_sum_twice
+    distance_x2 * distance_x2 + distance_y2 * distance_y2 < radius_sum_twice * radius_sum_twice
 }
 
 fn same_pair(a: [i64; 2], b: [i64; 2], x: [i64; 2], y: [i64; 2]) -> bool {
@@ -287,18 +286,18 @@ mod tests {
         let horizontal = Track {
             a: [0, 0],
             b: [100, 0],
-            ..a
+            ..a.clone()
         };
         let crossing = Track {
             a: [40, 30],
             b: [60, 30],
-            ..b
+            ..b.clone()
         };
         assert!(parallel_positive(&horizontal, &crossing));
         let corner = Track {
             a: [30, 108],
             b: [30, 108 + 5],
-            ..b
+            ..b.clone()
         };
         // The rounded endpoints are separated by sqrt(30² + 8²) > 31.
         // Its expanded AABB touches the old stroke corner but copper does not.

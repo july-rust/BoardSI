@@ -56,8 +56,10 @@ fn boundary_gap_layer_owner_and_invalid_source_fail_closed() {
     let source = SOURCE.replace("\r\n", "\n");
     let fail = [
         source.replace("1 52 0", "1 50 0"),
-        source.replace("230 349 1 52 0\n230 351 1 52 0",
-                       "230 358 1 52 0\n230 358.5 1 52 0"),
+        source.replace(
+            "230 349 1 52 0\n230 351 1 52 0",
+            "230 358 1 52 0\n230 358.5 1 52 0",
+        ),
         source.replace("1 52 0", "1 48 0"),
         source.replace("1 52 0", "2 52 0"),
         source.replace("230 349 1 52 0", "230 349 1 0 0"),
@@ -72,7 +74,11 @@ fn boundary_gap_layer_owner_and_invalid_source_fail_closed() {
         source.replace("*END*", "*END*\nUNSUPPORTED"),
     ];
     for (index, source) in fail.iter().enumerate() {
-        assert_ne!(source, &SOURCE.replace("\r\n", "\n"), "inert mutation {index}");
+        assert_ne!(
+            source,
+            &SOURCE.replace("\r\n", "\n"),
+            "inert mutation {index}"
+        );
         assert!(audit(source).is_err(), "accepted hostile variant {index}");
     }
 }
