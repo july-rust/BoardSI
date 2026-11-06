@@ -167,6 +167,29 @@ if(BUILD_TESTING)
       COMMAND boardsi-d037-native-qt "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-d037-mixed-sign-dual-via-source PROPERTIES TIMEOUT 90
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_044 bounded finite-width parallel SOURCE contacts; use existing CI matrix.
+    add_executable(boardsi-d044-native-qt d044_qt_runner.cpp)
+    target_link_libraries(boardsi-d044-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+    if(WIN32)
+      target_link_libraries(boardsi-d044-native-qt PRIVATE psapi)
+    endif()
+    if(MSVC)
+      target_compile_options(boardsi-d044-native-qt PRIVATE /W4 /WX)
+    else()
+      target_compile_options(boardsi-d044-native-qt PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    if((WIN32 OR APPLE) AND "$ENV{GITHUB_ACTIONS}" STREQUAL "true")
+      add_custom_command(TARGET boardsi-d044-native-qt POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E env "QT_QPA_PLATFORM=offscreen"
+          "$<TARGET_FILE:boardsi-d044-native-qt>" "${BOARDSI_IMPORTER}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/d044_parallel_width_v94.asc"
+        VERBATIM)
+    endif()
+    add_test(NAME qt-preview-d044-parallel-finite-width-source
+      COMMAND boardsi-d044-native-qt "${BOARDSI_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/d044_parallel_width_v94.asc")
+    set_tests_properties(qt-preview-d044-parallel-finite-width-source PROPERTIES TIMEOUT 90
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_043 independent SOURCE-local counterfactual cut-set regression.
     add_executable(boardsi-d043-native-qt d043_qt_runner.cpp)
     target_link_libraries(boardsi-d043-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
