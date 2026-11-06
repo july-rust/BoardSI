@@ -98,17 +98,9 @@ fn perpendicular_positive(a: &Track, b: &Track) -> bool {
     if a.width <= 0 || b.width <= 0 {
         return false;
     }
-    let (v, h) = if a.a[0] == a.b[0]
-        && a.a[1] != a.b[1]
-        && b.a[1] == b.b[1]
-        && b.a[0] != b.b[0]
-    {
+    let (v, h) = if a.a[0] == a.b[0] && a.a[1] != a.b[1] && b.a[1] == b.b[1] && b.a[0] != b.b[0] {
         (a, b)
-    } else if b.a[0] == b.b[0]
-        && b.a[1] != b.b[1]
-        && a.a[1] == a.b[1]
-        && a.a[0] != a.b[0]
-    {
+    } else if b.a[0] == b.b[0] && b.a[1] != b.b[1] && a.a[1] == a.b[1] && a.a[0] != a.b[0] {
         (b, a)
     } else {
         return false;
@@ -205,7 +197,10 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
         return Err("D045_PERPENDICULAR_GEOMETRY");
     }
     let footprint = Rect::trace(&bridge);
-    if !old.iter().all(|track| perpendicular_positive(track, &bridge)) {
+    if !old
+        .iter()
+        .all(|track| perpendicular_positive(track, &bridge))
+    {
         return Err("D045_GAP_OR_BOUNDARY_ONLY");
     }
     for row in baseline.lines().filter(|row| row.starts_with("P|")) {
@@ -286,14 +281,28 @@ mod tests {
         };
         assert!(perpendicular_positive(&a, &b));
         assert!(perpendicular_positive(&b, &a));
-        let tangent = Track { width: 38, ..b.clone() };
+        let tangent = Track {
+            width: 38,
+            ..b.clone()
+        };
         assert!(!perpendicular_positive(&a, &tangent));
-        let gap = Track { width: 36, ..b.clone() };
+        let gap = Track {
+            width: 36,
+            ..b.clone()
+        };
         assert!(!perpendicular_positive(&a, &gap));
-        let corner = Track { a: [24, 111], b: [36, 111], ..b.clone() };
+        let corner = Track {
+            a: [24, 111],
+            b: [36, 111],
+            ..b.clone()
+        };
         assert!(Rect::trace(&a).touches(Rect::trace(&corner)));
         assert!(!perpendicular_positive(&a, &corner));
-        let crossing = Track { a: [-5, 50], b: [5, 50], ..b.clone() };
+        let crossing = Track {
+            a: [-5, 50],
+            b: [5, 50],
+            ..b.clone()
+        };
         assert!(!perpendicular_positive(&a, &crossing));
     }
 }
