@@ -941,6 +941,26 @@ fn main() {
         }
         return;
     }
+    // D_044: bounded SOURCE-local parallel finite-width copper contact candidate.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d044-parallel-width-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let metadata = fs::metadata(path).map_err(|_| "D044_FILE")?;
+            if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES as u64 {
+                return Err("D044_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D044_READ")?;
+            boardsi_import::d044_parallel_width::encode(&bytes)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D044_PARALLEL_WIDTH_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_043 opt-in SOURCE-local counterfactual trace cuts; no physical Open/Short.
     if (3..=5).contains(&args.len())
         && args[2] == std::ffi::OsStr::new("--d043-local-trace-cutset-v1")
