@@ -80,7 +80,7 @@ pub fn encode(source: &[u8], cuts: &[usize]) -> Result<String, &'static str> {
     };
     let components = (0..14)
         .filter(|&n| enabled[n])
-        .map(|n| root(n))
+        .map(root)
         .collect::<BTreeSet<_>>()
         .len();
     let rank = edges
