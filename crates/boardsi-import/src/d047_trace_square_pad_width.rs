@@ -75,12 +75,7 @@ fn dot(a: [i128; 2], b: [i128; 2]) -> i128 {
 fn cross(a: [i128; 2], b: [i128; 2]) -> i128 {
     a[0] * b[1] - a[1] * b[0]
 }
-fn strict_point_segment(
-    p: [i128; 2],
-    a: [i128; 2],
-    b: [i128; 2],
-    width_sq: i128,
-) -> bool {
+fn strict_point_segment(p: [i128; 2], a: [i128; 2], b: [i128; 2], width_sq: i128) -> bool {
     let d = sub(b, a);
     let w = sub(p, a);
     let length_sq = dot(d, d);

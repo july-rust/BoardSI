@@ -16,7 +16,9 @@ fn local_square_pad_contact_is_not_global_connectivity() {
     assert_eq!(receipt.matches("\nT|").count(), 5);
     assert_eq!(receipt.matches("\nE|").count(), 7);
     assert!(receipt.contains("E|6|1|8|POSITIVE_FINITE_WIDTH_TRACE_PAD_CONTACT\n"));
-    assert!(receipt.contains("COUNT|NODES|9|EDGES|7|LOCAL_COMPONENTS|2|GLOBAL_ELECTRICAL|NOT_VERIFIED"));
+    assert!(
+        receipt.contains("COUNT|NODES|9|EDGES|7|LOCAL_COMPONENTS|2|GLOBAL_ELECTRICAL|NOT_VERIFIED")
+    );
     assert!(receipt.ends_with("END|SOURCE_LOCAL_TRACE_PAD_FINITE_WIDTH_ONLY_NO_GLOBAL_PASS\n"));
 }
 
