@@ -30,7 +30,7 @@ fn direction_net_headers_crlf_and_tab_pass() {
     assert_ne!(reversed, source);
     assert!(audit(&reversed).is_ok());
     assert!(audit(&source.replace("NET_A", "NET_B")).is_ok());
-    assert!(audit(&source.replace("\n", "\r\n")).is_ok());
+    assert!(audit(&source.replace('\n', "\r\n")).is_ok());
     assert!(audit(&source.replace("*SIGNAL* NET_A", "*SIGNAL*\tNET_A")).is_ok());
     for header in [
         "!PADS-POWERPCB-V9.4-MILS-CP1252!",
