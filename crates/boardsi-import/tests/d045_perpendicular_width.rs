@@ -15,7 +15,8 @@ fn exact_perpendicular_bridge_connects_without_centerline_crossing() {
     assert_eq!(receipt.matches("\nT|").count(), 5);
     assert_eq!(receipt.matches("\nE|").count(), 10);
     assert!(receipt.contains("E|9|7|8|POSITIVE_FINITE_WIDTH_PERPENDICULAR_CONTACT\n"));
-    assert!(receipt.contains("COUNT|NODES|9|EDGES|10|LOCAL_COMPONENTS|1|GLOBAL_ELECTRICAL|NOT_VERIFIED"));
+    assert!(receipt
+        .contains("COUNT|NODES|9|EDGES|10|LOCAL_COMPONENTS|1|GLOBAL_ELECTRICAL|NOT_VERIFIED"));
     assert!(receipt.ends_with("END|SOURCE_LOCAL_FINITE_WIDTH_ONLY_NO_GLOBAL_PASS\n"));
 }
 
