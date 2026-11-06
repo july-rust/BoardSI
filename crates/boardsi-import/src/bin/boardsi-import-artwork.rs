@@ -961,6 +961,26 @@ fn main() {
         }
         return;
     }
+    // D_045: bounded SOURCE-local perpendicular finite-width candidate.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d045-perpendicular-width-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let metadata = fs::metadata(path).map_err(|_| "D045_FILE")?;
+            if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES as u64 {
+                return Err("D045_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D045_READ")?;
+            boardsi_import::d045_perpendicular_width::encode(&bytes)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D045_PERPENDICULAR_WIDTH_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_043 opt-in SOURCE-local counterfactual trace cuts; no physical Open/Short.
     if (3..=5).contains(&args.len())
         && args[2] == std::ffi::OsStr::new("--d043-local-trace-cutset-v1")
