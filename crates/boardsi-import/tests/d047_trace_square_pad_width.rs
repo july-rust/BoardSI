@@ -94,5 +94,8 @@ fn relocated_second_component_must_not_forge_isolation() {
             "217 400 1 8 0\n230 410 1 8 0",
         );
     assert_ne!(near, SOURCE);
-    assert!(audit(&near).is_err(), "potential U2 contact must fail closed");
+    assert!(
+        audit(&near).is_err(),
+        "potential U2 contact must fail closed"
+    );
 }
