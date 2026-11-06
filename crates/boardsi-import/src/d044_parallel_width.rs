@@ -206,8 +206,7 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
     let mut out = format!(
         "BOARDSI_D044_PARALLEL_WIDTH_CONTACT_V1|{sha}|1|SOURCE_LOCAL_FINITE_WIDTH_ONLY|P009_UNSUPPORTED|SI_NOT_RUN|GLOBAL_ELECTRICAL_NOT_VERIFIED\n"
     );
-    writeln!(&mut out, "C|0|U1+U2|{}|1|9|10", old[0].net)
-        .map_err(|_| "D044_FORMAT")?;
+    writeln!(&mut out, "C|0|U1+U2|{}|1|9|10", old[0].net).map_err(|_| "D044_FORMAT")?;
     for row in baseline
         .lines()
         .filter(|line| line.starts_with("P|") || line.starts_with("T|") || line.starts_with("E|"))
@@ -220,12 +219,7 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
     writeln!(
         &mut out,
         "T|4|1|{}|{}|{}|{}|{}|{}",
-        bridge.net,
-        bridge.a[0],
-        bridge.a[1],
-        bridge.b[0],
-        bridge.b[1],
-        bridge.width
+        bridge.net, bridge.a[0], bridge.a[1], bridge.b[0], bridge.b[1], bridge.width
     )
     .map_err(|_| "D044_FORMAT")?;
     for row in baseline.lines().filter(|line| line.starts_with("E|")) {
@@ -267,7 +261,10 @@ mod tests {
         };
         assert!(Rect::trace(&a).positive_overlap(Rect::trace(&b)));
         assert!(Rect::trace(&b).positive_overlap(Rect::trace(&a)));
-        let tangent = Track { width: 50, ..b.clone() };
+        let tangent = Track {
+            width: 50,
+            ..b.clone()
+        };
         assert!(!Rect::trace(&a).positive_overlap(Rect::trace(&tangent)));
         assert!(Rect::trace(&a).touches(Rect::trace(&tangent)));
         // Horizontal geometry uses the same exact axis-aligned integer predicate.

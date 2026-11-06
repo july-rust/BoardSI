@@ -16,7 +16,8 @@ fn finite_width_connects_two_local_components_without_centerline_coincidence() {
     assert_eq!(receipt.matches("\nT|").count(), 5);
     assert_eq!(receipt.matches("\nE|").count(), 10);
     assert!(receipt.contains("E|9|7|8|POSITIVE_FINITE_WIDTH_PARALLEL_CONTACT\n"));
-    assert!(receipt.contains("COUNT|NODES|9|EDGES|10|LOCAL_COMPONENTS|1|GLOBAL_ELECTRICAL|NOT_VERIFIED"));
+    assert!(receipt
+        .contains("COUNT|NODES|9|EDGES|10|LOCAL_COMPONENTS|1|GLOBAL_ELECTRICAL|NOT_VERIFIED"));
     assert!(receipt.ends_with("END|SOURCE_LOCAL_FINITE_WIDTH_ONLY_NO_GLOBAL_PASS\n"));
     assert_eq!(receipt, audit(SOURCE).unwrap());
 }
@@ -31,7 +32,14 @@ fn reversed_headers_nets_and_crlf_are_validated() {
     // Geometry identity is preserved even though the source digest changes.
     let normal = audit(SOURCE).unwrap();
     let flipped = audit(&reverse).unwrap();
-    assert_eq!(normal.split_once('\n').unwrap().1.replace("23000|34900|23000|35100", "23000|35100|23000|34900"), flipped.split_once('\n').unwrap().1);
+    assert_eq!(
+        normal
+            .split_once('\n')
+            .unwrap()
+            .1
+            .replace("23000|34900|23000|35100", "23000|35100|23000|34900"),
+        flipped.split_once('\n').unwrap().1
+    );
     assert!(audit(&SOURCE.replace('\n', "\r\n")).is_ok());
     assert!(audit(&SOURCE.replace("NET_A", "NET_B")).is_ok());
     for header in [
