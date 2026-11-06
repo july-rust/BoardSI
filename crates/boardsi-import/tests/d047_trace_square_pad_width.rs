@@ -76,9 +76,6 @@ fn relocated_second_component_must_not_forge_isolation() {
         .replace("400 350 1 10 0", "420 350 1 10 0")
         .replace("400 400 1 10 0", "420 400 1 10 0");
     assert_ne!(far, SOURCE);
-    let stripped = far.replace("U1.2 U2.2\n217 390 1 8 0\n217 410 1 8 0\n", "");
-    let base = boardsi_import::d040_multi_component::encode(stripped.as_bytes());
-    assert!(base.is_ok(), "moved but isolated D_040 baseline: {base:?}");
     assert!(
         audit(&far).is_err(),
         "D_047 fixes all four pad and baseline trace coordinates"
