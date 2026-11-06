@@ -71,31 +71,37 @@ int main(int argc,char **argv) {
     tab.replace("*SIGNAL* NET_A","*SIGNAL*\tNET_A");
     if(tab==source || !save(tab) || !load())return 2;
     const bool tabVariant=run(wire)==0 && d044::decode(wire,tab,&panel);
+    // D_044 backlog: reimport each negative SOURCE through the actual Qt panel.
+    // A failed Rust CLI alone cannot establish independent Native Qt rejection.
+    const auto rejected=[&](const QByteArray &mutation) {
+        if(mutation==source || !save(mutation))return false;
+        const bool imported=load();
+        QByteArray rejectedWire;
+        if(run(rejectedWire)==0)return false;
+        if(!imported)return panel.importStatus().startsWith("FAILED");
+        return panel.acceptedSourceSha256()==
+                   QCryptographicHash::hash(mutation,QCryptographicHash::Sha256).toHex()
+            && d044::reconstruct(mutation,&panel).isEmpty();
+    };
     QByteArray tangent=source;
     tangent.replace("1 52 0","1 50 0");
-    if(tangent==source || !save(tangent) || !load())return 2;
-    const bool boundaryRejected=run(wire)!=0 && d044::reconstruct(tangent,&panel).isEmpty();
+    const bool boundaryRejected=rejected(tangent);
     QByteArray corner=source;
     corner.replace("230 349 1 52 0\n230 351 1 52 0",
                    "230 358 1 52 0\n230 358.5 1 52 0");
-    if(corner==source || !save(corner))return 2;
-    const bool cornerRejected=run(wire)!=0;
+    const bool cornerRejected=rejected(corner);
     QByteArray gap=source;
     gap.replace("1 52 0","1 48 0");
-    if(gap==source || !save(gap))return 2;
-    const bool gapRejected=run(wire)!=0;
+    const bool gapRejected=rejected(gap);
     QByteArray owner=source;
     owner.replace("U1.1 U2.1","U1.1 U1.2");
-    if(owner==source || !save(owner))return 2;
-    const bool ownerRejected=run(wire)!=0;
+    const bool ownerRejected=rejected(owner);
     QByteArray layer=source;
     layer.replace("230 349 1 52 0","230 349 2 52 0");
-    if(layer==source || !save(layer))return 2;
-    const bool layerRejected=run(wire)!=0;
+    const bool layerRejected=rejected(layer);
     QByteArray missing=source;
     missing.replace("U1.1 U2.1\n230 349 1 52 0\n230 351 1 52 0\n","");
-    if(missing==source || !save(missing))return 2;
-    const bool missingRejected=run(wire)!=0;
+    const bool missingRejected=rejected(missing);
     if(!save(source) || !load() || !d044::decode(original,source,&panel))return 2;
     const bool ok=forgeryRejected && direction && netVariant && crlfVariant &&
         tabVariant && boundaryRejected && cornerRejected && gapRejected && ownerRejected &&

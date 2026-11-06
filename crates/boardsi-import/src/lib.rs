@@ -199,6 +199,7 @@ pub mod d041_local_bridge;
 pub mod d042_local_closed_loop;
 pub mod d043_local_cutset;
 pub mod d044_parallel_width;
+pub mod d045_perpendicular_width;
 pub mod digest;
 pub mod material_contract;
 pub mod outline_arc;
