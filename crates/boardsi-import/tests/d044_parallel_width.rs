@@ -24,13 +24,14 @@ fn finite_width_connects_two_local_components_without_centerline_coincidence() {
 
 #[test]
 fn reversed_headers_nets_and_crlf_are_validated() {
-    let reverse = SOURCE.replace(
+    let source = SOURCE.replace("\r\n", "\n");
+    let reverse = source.replace(
         "230 349 1 52 0\n230 351 1 52 0",
         "230 351 1 52 0\n230 349 1 52 0",
     );
-    assert_ne!(reverse, SOURCE);
+    assert_ne!(reverse, source);
     // Geometry identity is preserved even though the source digest changes.
-    let normal = audit(SOURCE).unwrap();
+    let normal = audit(&source).unwrap();
     let flipped = audit(&reverse).unwrap();
     assert_eq!(
         normal
@@ -40,37 +41,38 @@ fn reversed_headers_nets_and_crlf_are_validated() {
             .replace("23000|34900|23000|35100", "23000|35100|23000|34900"),
         flipped.split_once('\n').unwrap().1
     );
-    assert!(audit(&SOURCE.replace('\n', "\r\n")).is_ok());
-    assert!(audit(&SOURCE.replace("NET_A", "NET_B")).is_ok());
+    assert!(audit(&source.replace('\n', "\r\n")).is_ok());
+    assert!(audit(&source.replace("NET_A", "NET_B")).is_ok());
     for header in [
         "!PADS-POWERPCB-V9.4-MILS-CP1252!",
         "!PADS-POWERPCB-V9.4-MILS-250L!",
     ] {
-        assert!(audit(&SOURCE.replace("!PADS-POWERPCB-V9.4-MILS!", header)).is_ok());
+        assert!(audit(&source.replace("!PADS-POWERPCB-V9.4-MILS!", header)).is_ok());
     }
 }
 
 #[test]
 fn boundary_gap_layer_owner_and_invalid_source_fail_closed() {
+    let source = SOURCE.replace("\r\n", "\n");
     let fail = [
-        SOURCE.replace("1 52 0", "1 50 0"),
-        SOURCE.replace("230 349 1 52 0\n230 351 1 52 0",
+        source.replace("1 52 0", "1 50 0"),
+        source.replace("230 349 1 52 0\n230 351 1 52 0",
                        "230 358 1 52 0\n230 358.5 1 52 0"),
-        SOURCE.replace("1 52 0", "1 48 0"),
-        SOURCE.replace("1 52 0", "2 52 0"),
-        SOURCE.replace("230 349 1 52 0", "230 349 1 0 0"),
-        SOURCE.replace("U1.1 U2.1", "U1.1 U1.2"),
-        SOURCE.replace("230 349 1 52 0", "200 349 1 52 0"),
-        SOURCE.replace("230 349 1 52 0", "230 300 1 52 0"),
-        SOURCE.replace("230 349 1 52 0", "230 351 1 52 0"),
-        SOURCE.replace("U1.1 U2.1\n230 349 1 52 0\n230 351 1 52 0\n", ""),
-        SOURCE.replace("*END*", "U1.1 U2.1\n230 349 1 52 0\n230 351 1 52 0\n*END*"),
-        SOURCE.replace("U2 TYPEA 260 300", "U2 TYPEA 200 300"),
-        SOURCE.replace("*END*", "*VIA*\n*END*"),
-        SOURCE.replace("*END*", "*END*\nUNSUPPORTED"),
+        source.replace("1 52 0", "1 48 0"),
+        source.replace("1 52 0", "2 52 0"),
+        source.replace("230 349 1 52 0", "230 349 1 0 0"),
+        source.replace("U1.1 U2.1", "U1.1 U1.2"),
+        source.replace("230 349 1 52 0", "200 349 1 52 0"),
+        source.replace("230 349 1 52 0", "230 300 1 52 0"),
+        source.replace("230 349 1 52 0", "230 351 1 52 0"),
+        source.replace("U1.1 U2.1\n230 349 1 52 0\n230 351 1 52 0\n", ""),
+        source.replace("*END*", "U1.1 U2.1\n230 349 1 52 0\n230 351 1 52 0\n*END*"),
+        source.replace("U2 TYPEA 260 300", "U2 TYPEA 200 300"),
+        source.replace("*END*", "*VIA*\n*END*"),
+        source.replace("*END*", "*END*\nUNSUPPORTED"),
     ];
     for (index, source) in fail.iter().enumerate() {
-        assert_ne!(source, SOURCE, "inert mutation {index}");
+        assert_ne!(source, &SOURCE.replace("\r\n", "\n"), "inert mutation {index}");
         assert!(audit(source).is_err(), "accepted hostile variant {index}");
     }
 }

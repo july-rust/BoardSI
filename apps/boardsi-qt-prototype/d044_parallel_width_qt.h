@@ -38,13 +38,13 @@ inline Rect padBox(const ImportedPad &p) {
 inline QByteArray reconstruct(const QByteArray &source,const PreviewImportPanel *panel) {
     if(!panel || !panel->imported())return {};
     QByteArray baseline,net;
-    int signals=0,candidates=0;
+    int signalCount=0,candidates=0;
     bool inSignal=false;
     const auto rows=source.split('\n');
     for(int i=0;i<rows.size();++i) {
         const auto f=rows[i].simplified().split(' ');
         if(f[0]=="*SIGNAL*") {
-            if(f.size()!=2 || ++signals!=1)return {};
+            if(f.size()!=2 || ++signalCount!=1)return {};
             net=f[1];inSignal=true;
         } else if(f[0]=="*END*")inSignal=false;
         if(f.size()==2 && f[0]=="U1.1" && f[1]=="U2.1") {
@@ -54,7 +54,7 @@ inline QByteArray reconstruct(const QByteArray &source,const PreviewImportPanel 
             i+=2;
         } else baseline+=rows[i]+'\n';
     }
-    if(signals!=1 || candidates!=1 || !d040::boundedSections(baseline) ||
+    if(signalCount!=1 || candidates!=1 || !d040::boundedSections(baseline) ||
        (net!="NET_A" && net!="NET_B"))return {};
     const auto *art=panel->imported();
     if(art->importedSkippedCount()!=0 || art->importedTraceCount()!=5 ||
