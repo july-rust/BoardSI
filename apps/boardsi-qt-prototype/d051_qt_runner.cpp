@@ -9,6 +9,7 @@
 #include <QTemporaryFile>
 #include <QEventLoop>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QDebug>
 #include <array>
 
@@ -33,13 +34,27 @@ int main(int argc,char **argv) {
         panel.setStatusCallback([&loop](const QString &state) {
             if(state.startsWith("PARTIAL") || state.startsWith("FAILED"))loop.quit();
         });
-        if(!panel.openPath(file.fileName()))return false;
-        QTimer timeout;
-        timeout.setSingleShot(true);
-        QObject::connect(&timeout,&QTimer::timeout,&loop,&QEventLoop::quit);
-        timeout.start(8000);
-        loop.exec();
-        return panel.importStatus().startsWith("PARTIAL");
+        const bool started=panel.openPath(file.fileName());
+        if(started) {
+            QTimer timeout;
+            timeout.setSingleShot(true);
+            QObject::connect(&timeout,&QTimer::timeout,&loop,&QEventLoop::quit);
+            timeout.start(8000);
+            loop.exec();
+        }
+        const bool accepted=started && panel.importStatus().startsWith("PARTIAL");
+        // Never retain a callback to a stack-local QEventLoop. If our 8 s
+        // watchdog wins, kill and drain the worker before the next import.
+        panel.setStatusCallback({});
+        if(panel.busy()) {
+            panel.stop();
+            QElapsedTimer cleanup;
+            cleanup.start();
+            while(panel.busy() && cleanup.elapsed()<1500)
+                QCoreApplication::processEvents(QEventLoop::AllEvents,25);
+        }
+        return accepted && !panel.busy() &&
+            panel.importStatus().startsWith("PARTIAL");
     };
     QByteArray reduced;
     const auto reimport=[&](const QByteArray &source) {
