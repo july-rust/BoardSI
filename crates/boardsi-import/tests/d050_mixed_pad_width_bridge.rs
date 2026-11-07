@@ -17,7 +17,8 @@ fn one_exact_source_graph_with_all_mixed_pad_contacts() {
     assert!(wire.contains("T|6|1|NET_A|22600|30000|37800|30000|800\n"));
     assert!(wire.contains("E|8|8|10|POSITIVE_FINITE_WIDTH_TRACE_TRACE_BRIDGE\n"));
     assert!(wire.contains("E|9|2|10|POSITIVE_FINITE_WIDTH_TRACE_ROUND_PAD_BRIDGE\n"));
-    assert!(wire.contains("COUNT|NODES|11|EDGES|10|LOCAL_COMPONENTS|1|GLOBAL_ELECTRICAL|NOT_VERIFIED\n"));
+    assert!(wire
+        .contains("COUNT|NODES|11|EDGES|10|LOCAL_COMPONENTS|1|GLOBAL_ELECTRICAL|NOT_VERIFIED\n"));
     assert!(wire.ends_with("END|SOURCE_LOCAL_MIXED_PAD_FINITE_WIDTH_BRIDGE_ONLY_NO_GLOBAL_PASS\n"));
 }
 #[test]
@@ -48,7 +49,8 @@ fn tangency_gap_cross_net_ambiguity_and_forged_inventory_fail_closed() {
         SOURCE.replace("378 300 1 8 0", "376 300 1 8 0"),
         SOURCE.replace("378 300 1 8 0", "375.99 300 1 8 0"),
         SOURCE.replace("378 300 1 8 0", "380 300 1 8 0"),
-        SOURCE.replace("226 300 1 8 0", "226 322 1 8 0")
+        SOURCE
+            .replace("226 300 1 8 0", "226 322 1 8 0")
             .replace("378 300 1 8 0", "378 322 1 8 0"),
         SOURCE.replace("226 300 1 8 0", "226 300 2 8 0"),
         SOURCE.replace("226 300 1 8 0", "226 300 1 10 0"),
