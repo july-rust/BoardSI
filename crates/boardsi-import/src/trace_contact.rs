@@ -386,7 +386,11 @@ pub fn contact(a: &Stroke, b: &Stroke) -> Result<Contact, &'static str> {
     }
     let ea = envelope(a);
     let eb = envelope(b);
-    if ea[0] > eb[2] || eb[0] > ea[2] || ea[1] > eb[3] || eb[1] > ea[3] {
+    if ea[0] > eb[2] + BOUNDARY_GUARD_TICKS
+        || eb[0] > ea[2] + BOUNDARY_GUARD_TICKS
+        || ea[1] > eb[3] + BOUNDARY_GUARD_TICKS
+        || eb[1] > ea[3] + BOUNDARY_GUARD_TICKS
+    {
         return Ok(Contact::Separated);
     }
     let d = distance(a, b);
@@ -452,12 +456,12 @@ pub fn contact_candidates(art: &route_preview::Artwork) -> Result<Vec<Candidate>
     let mut tested = 0usize;
     for (i, &lhs) in order.iter().enumerate() {
         for &rhs in order.iter().skip(i + 1) {
-            if boxes[rhs][0] > boxes[lhs][2] {
+            if boxes[rhs][0] > boxes[lhs][2] + BOUNDARY_GUARD_TICKS {
                 break;
             }
             if strokes[lhs].layer != strokes[rhs].layer
-                || boxes[lhs][1] > boxes[rhs][3]
-                || boxes[rhs][1] > boxes[lhs][3]
+                || boxes[lhs][1] > boxes[rhs][3] + BOUNDARY_GUARD_TICKS
+                || boxes[rhs][1] > boxes[lhs][3] + BOUNDARY_GUARD_TICKS
             {
                 continue;
             }
@@ -665,6 +669,41 @@ mod tests {
             contact(&arc_a, &tangent).unwrap(),
             Contact::BoundaryUncertain
         );
+    }
+    #[test]
+    fn bounded_aabb_cannot_hide_near_tangency_uncertainty() {
+        // Regression for independent PR #507 review: the tight circle AABB
+        // is separated by ~1e-6 SOURCE ticks, below the guard of 1e-5.
+        let a = round([0, 0], [500_000, 1_000], [500_000, -1_000], true, 1);
+        let b = line([500_002, -1_000], [500_002, 1_000], 1);
+        assert_eq!(contact(&a, &b).unwrap(), Contact::BoundaryUncertain);
+        let art = route_preview::Artwork {
+            segments: vec![route_preview::Segment {
+                layer: 1,
+                net: "N".into(),
+                a: [500_002, -1_000],
+                b: [500_002, 1_000],
+                width_ticks: 1,
+                source_line: 2,
+            }],
+            arcs: vec![route_preview::RouteArc {
+                layer: 1,
+                net: "N".into(),
+                start: [500_000, 1_000],
+                centre: [0, 0],
+                end: [500_000, -1_000],
+                clockwise: true,
+                width_ticks: 1,
+                source_line: 1,
+            }],
+            vias: vec![],
+            max_layer: 2,
+            skipped: 0,
+        };
+        assert!(matches!(
+            contact_candidates(&art),
+            Err("UNCERTAIN_COPPER_TANGENCY")
+        ));
     }
     #[test]
     fn real_pads_parser_handles_arbitrary_line_and_arc_in_one_source() {
