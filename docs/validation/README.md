@@ -4,6 +4,8 @@
 
 > **As of 2026-11-07 KST:** This directory contains **bounded verification evidence and historical executed reports**, not a blanket statement that the BoardSI product is validated. **Current implementation and the authoritative first-check/evidence dates belong to the [single checklist](../development-checklist.md).** Frozen PH case contracts and original historical failure results must not be redefined as part of documentation cleanup.
 
+**전체 원본 보고서를 파일 단위로 찾으려면 [158개 검증 보고서 전체 색인](INDEX.md)을 사용하십시오.** 이 색인은 과거 단위 테스트와 미완·실패 데이터를 보존하며 공식 제품 인수 PASS를 의미하지 않습니다.
+
 ## Which evidence are you looking for?
 
 | Test family | Entry points | Qualified scope / still blocked |

@@ -78,12 +78,24 @@ Actual [docs-only PR #512](https://github.com/july-rust/BoardSI/pull/512) change
 6. The **required documentation GitHub check** must PASS at the actual docs PR-head. Docs-only native/Qt/FEM skipping is the **intended efficiency goal, presently incomplete** for component READMEs and some F6/F7 jobs ([Issue #513](https://github.com/july-rust/BoardSI/issues/513)). Until fixed, run all required jobs and report the cost honestly. Never bypass branch protection.
 7. **Post-main Push CI** is a separate completion gate; do not equate it with the PR-head check if it has not been observed.
 
+## 2026-11-07 보완 점검 — 보관 문서 색인과 수학적 계약
+
+추가 GitHub Tree 및 파일 조회 점검에서는 기준선 저장소에 **Markdown 182개**, 그중 `docs/validation/` 내 **159개(README 1개, 역사적 개별 증거 158개)**가 확인되었습니다. 기존 Markdown의 상대경로 **일반 인라인 링크**를 전체 목록과 대조했으며, 디렉터리 경로를 파일 링크로 오판하지 않도록 Git Tree의 blob/tree 종류를 분리했습니다. 이 검사는 **링크 대상 경로 존재 점검**이며 모든 GitHub 생성 Heading Anchor·Reference-style 링크, 외부 URL 및 과거 연구 숫자의 재실행 인증이 아닙니다.
+
+`docs/`에 저장된 비-Markdown JSON 자료 **7개는 모두 JSON 구문 파싱 PASS**를 확인했습니다. 이는 수치 해석 독립 오라클의 재계산이나 JSON 스키마 의미 검증을 뜻하지 않습니다.
+
+- **[158개 검증 보고서 단계별 통합 색인](../validation/INDEX.md)**: A/B/C/D, M0/M2, PH-08, Security의 기존 파일을 전부 찾을 수 있도록 연결하며 옛 증거 원문은 바꾸지 않습니다.
+- **[Trace–Via–SMD Pad 범용 기하 접촉 계약](../architecture/trace-copper-contact.md)**: 기존 D_054/D_055 코드의 비중심 Via 환형 구리와 SMD Pad 전체 면적 판정, 수학적 전제, SOURCE-local 한계를 문서화합니다.
+- **[문서/증거 작성 기준](../documentation-standards.md)**: 증거일·SHA·상태 용어·사실과 제안·과거 원장 보호·Docs-only CI의 실제 누락을 함께 규정합니다.
+
+**남은 구별:** 전체 Markdown 인라인 상대경로 대상이 존재한다는 관측은 모든 기록의 기술 내용·앵커·외부 웹주소가 최신으로 유효하다는 주장과 다릅니다. 또한 문서 정리로 정식 U/T 인수 상태는 변경되지 않습니다.
+
 ## Remaining known limitations (not hidden)
 
 - Full private/vendor PADS export, ODB++ and all shape/Layer/Net configurations are **not** accepted by the importer; that is a **software capability gap**, not solved by documentation.
 - D_054/D_055 candidates are not yet promoted to the full Canonical/Qt net connectivity graph and do not resolve Return Path, Via geometry model fitting or product S-parameter physics.
 - Complete independent real-board, U01–U48/T01–T54, installation/redistribution and PH-08 original physical acceptance remain separate engineering gates.
 - Old date-pinned validation records can legitimately contain feature-status statements that were correct **at their own dates**. The new [status hub](../README.md) prevents treating them as a present-day product declaration.
-- Additional file-by-file historical-document review and comprehensive automated relative-link validation may be valuable, but **are not claimed completed** by this scoped documentation PR. A new CI linter would itself change workflow/code files and require the full existing code validation policy.
+- Historic-report **technical claims** have not been independently re-simulated or line-by-line physically certified. Supplemental inventory and inline local-link target scans are recorded above, but **external URL freshness, anchors and non-inline reference links** still require separate verification. A new CI linter would itself change workflow/code files and require the full existing code validation policy.
 
 **Quality standard:** a reader should be able to reach *purpose → execution → design → original proof → limits → next implementation boundary* in a few clearly named links without needing to inspect hundreds of archived PRs.
