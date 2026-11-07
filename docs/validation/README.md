@@ -1,4 +1,35 @@
-# Independent verification
+# BoardSI verification hub — evidence, exclusions and negative results
+
+[← Documentation hub](../README.md) · [Development checklist](../development-checklist.md) · [Developer Quickstart](../developer-quickstart.md) · [Architecture](../architecture/README.md)
+
+> **As of 2026-11-07 KST:** This directory contains **bounded verification evidence and historical executed reports**, not a blanket statement that the BoardSI product is validated. **Current implementation and the authoritative first-check/evidence dates belong to the [single checklist](../development-checklist.md).** Frozen PH case contracts and original historical failure results must not be redefined as part of documentation cleanup.
+
+## Which evidence are you looking for?
+
+| Test family | Entry points | Qualified scope / still blocked |
+| :--- | :--- | :--- |
+| M0 scalar math | [Numerical foundation](m0-numerical-foundation.md), [numerical contract](../architecture/numerical-contract.md) | Externally supplied scalar R/L/G/C → mathematical two-port S. **NOT** PCB geometry→R/L/G/C |
+| M0 Canonical geometry | [Canonical model verification](m0-canonical-board-model.md), [model contract](../architecture/canonical-board-model.md) | Type/identity/coordinate/integrity invariants; not vendor exporter compatibility or whole-board Open/Short |
+| M0 Qt, Worker, IPC | [Qt native evidence](m0-qt-native-runtime.md), [follow-up](m0-qt-runtime-followup.md), [M0 gate](m0-completion-gate.md) | Synthetic Native GUI and Worker; **M0 exit BLOCKED** and redistributability NOT_VERIFIED |
+| A-series / Preview | [A_035 scoped handoff](a035-p2z-final-preview-acceptance.md), [Qt Preview guide](../../apps/boardsi-qt-prototype/README.md) | Public synthetic PADS subset/Qt 2D Viewer, no SI product acceptance |
+| B-series / Reference | [B_009 bounded audit](b009-b-series-final-acceptance.md), [checklist stage B](../development-checklist.md) | Source-owned candidate reference geometry, not full physical return-path or solver approval |
+| C-series / Reference & Qt | [Single checklist stage C](../development-checklist.md), [development history](../development-history.md) | Restricted Copper/Gap/Layer/Qt risk evidence, not real PCB electrical acceptance |
+| D-series / local Copper | [D_039 contact foundation](d039-same-layer-copper-connectivity-qualification.md), [D_054–D_055 generalized contacts](d054-d055-general-trace-contact-qualification.md) | Any-angle Trace/arc; off-centre Via annulus/SMD pad overlap candidates, **not** canonical full-board electrical graph |
+| M2 numerical and synthetic fields | [Physical RLGC independent verification plan](m2-rlgc-independent-verification-plan.md) and PH-03/05/06/07 sections below | Ideal mathematically bounded PEC/lossless coupons; not 30 GHz measured PCB or qualified losses |
+| PH-08 historical original HMM | [Stage 5B original replay](m2-g2-ph08-stage5b-original-replay-evidence.md) and PH-08 section below | **Gate Q FAIL** retained; no physical go/no-go promotion |
+| Formal product acceptance | [U01–U48/T01–T54 checklist](../development-checklist.md) and [v1.0 specification](../specification/BoardSI_Development_Spec_v1.0.md) | A requirement/test number, fixture, or prototype gate is **not** a completed official product acceptance test |
+
+## Evidence label rules
+
+| Label | Meaning | Required documentation |
+| :--- | :--- | :--- |
+| **PASS (scoped)** | Precisely stated cases and checks passed on specified code/source and host | Date, fixture provenance, exact SHA, OS/toolchain, expected/observed evidence, excluded inputs |
+| **PARTIAL** | Supported subset only | What is implemented *and* what fails closed/not accepted |
+| **FAIL** | The acceptance condition did **not** pass | Preserve failing evidence and causal uncertainty; no reclassification from newer unrelated tests |
+| **BLOCKED** | Required dependency/approval is missing | Named missing gate and how to verify it later |
+| **NOT_RUN** | No executed test result | Never convert into PASS by writing a specification or synthetic test |
+| **NOT_VERIFIED** | Insufficient evidence for claimed product scope | Do not equate an algorithmic candidate with physical electrical contact |
+| **PROPOSED** | Design or reference method, not frozen/accepted | State who/what must approve, and separate from executed cases |
 
 The v1.0 development specification contains T01–T54 acceptance test definitions. These tests are NOT implemented merely because IDs appear in documentation. Separate: format parsing fidelity, electrical/numerical reference solutions, coupling/port conventions, adaptive vs direct sweep, GUI responsiveness, crash recovery, confidentiality and native platform execution. Each future PASS must include sample provenance, reference, model validity, method/units, hash, OS/compiler and observed results.
 
