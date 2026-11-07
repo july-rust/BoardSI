@@ -519,6 +519,54 @@ mod tests {
         ));
     }
     #[test]
+    fn original_source_off_centre_via_route_is_detected() {
+        let original = include_str!("../tests/fixtures/pads_via_round_through_v94.asc");
+        let modified = original.replace(
+            "*END*",
+            "U3.1 U4.1\n310 210 1 5 0\n330 210 1 5 0\n*END*",
+        );
+        let art = route_preview::parse(modified.as_bytes()).unwrap();
+        assert_eq!(art.vias.len(), 1);
+        assert_eq!(art.skipped, 0);
+        let candidates = source_candidates(modified.as_bytes()).unwrap();
+        let offcentre = art
+            .segments
+            .iter()
+            .find(|t| t.a == [31_000, 21_000] && t.b == [33_000, 21_000])
+            .unwrap();
+        assert_ne!(offcentre.a, art.vias[0].point);
+        assert_ne!(offcentre.b, art.vias[0].point);
+        assert!(candidates.iter().any(|c| c.trace_source_line == offcentre.source_line
+            && matches!(c.target, Target::Via(0))));
+    }
+    #[test]
+    fn original_source_square_pad_corner_attachment_is_detected() {
+        let original = include_str!("../tests/fixtures/d040_multi_component_v94.asc");
+        let modified = original.replace(
+            "*END*",
+            "U1.1 U1.2\n215 415 1 10 0\n240 440 1 10 0\n*END*",
+        );
+        let art = route_preview::parse(modified.as_bytes()).unwrap();
+        assert_eq!(art.skipped, 0);
+        let imported = part_preview::parse(modified.as_bytes(), art.max_layer);
+        assert_eq!(imported.skipped, 0);
+        let corner_trace = art
+            .segments
+            .iter()
+            .find(|t| t.a == [21_500, 41_500] && t.b == [24_000, 44_000])
+            .unwrap();
+        let pad_index = imported.pads.iter().position(|p|
+            p.reference == "U1" && p.pin == "2"
+        ).unwrap();
+        let corner_pad = &imported.pads[pad_index];
+        assert_ne!(corner_trace.a, corner_pad.point);
+        assert_ne!(corner_trace.b, corner_pad.point);
+        assert!(source_candidates(modified.as_bytes()).unwrap().iter().any(|c|
+            c.trace_source_line == corner_trace.source_line
+                && c.target == Target::SmdPad(pad_index)
+        ));
+    }
+    #[test]
     fn original_source_via_and_smd_inventories_remain_accepted() {
         let bytes = include_bytes!("../tests/fixtures/pads_via_round_through_v94.asc");
         let candidates = source_candidates(bytes).unwrap();
