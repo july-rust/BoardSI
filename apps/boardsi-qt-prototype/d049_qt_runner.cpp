@@ -90,6 +90,22 @@ int main(int argc,char **argv) {
                            "217 410 1 8 0\n217 390 1 8 0");
     if(squareReversed==source || !save(squareReversed) || !load())return 2;
     const bool squareDirection=run(wire)==0 && d049::decode(wire,squareReversed,&panel);
+    QByteArray roundNumeric=source;
+    roundNumeric.replace("222 285 1 8 0","+222 285 1 8.00 128");
+    if(roundNumeric==source || !save(roundNumeric) || !load())return 2;
+    const bool roundNumericParity=run(wire)==0 && d049::decode(wire,roundNumeric,&panel);
+    QByteArray squareNumeric=source;
+    squareNumeric.replace("217 390 1 8 0","+217 390 1 8.00 1024");
+    if(squareNumeric==source || !save(squareNumeric) || !load())return 2;
+    const bool squareNumericParity=run(wire)==0 && d049::decode(wire,squareNumeric,&panel);
+    QByteArray roundTerminal=source;
+    roundTerminal.replace("222 315 1 8 0","222 315 65 8 0");
+    if(roundTerminal==source || !save(roundTerminal) || !load())return 2;
+    const bool roundTerminalParity=run(wire)==0 && d049::decode(wire,roundTerminal,&panel);
+    QByteArray squareTerminal=source;
+    squareTerminal.replace("217 410 1 8 0","217 410 65 8 0");
+    if(squareTerminal==source || !save(squareTerminal) || !load())return 2;
+    const bool squareTerminalParity=run(wire)==0 && d049::decode(wire,squareTerminal,&panel);
     const auto rejected=[&](const QByteArray &mutation) {
         if(mutation==source || !save(mutation))return false;
         const bool imported=load();
@@ -142,6 +158,12 @@ int main(int argc,char **argv) {
     QByteArray squareLayer=source;
     squareLayer.replace("217 390 1 8 0","217 390 2 8 0");
     const bool squareLayerRejected=rejected(squareLayer);
+    QByteArray invalidPrecision=source;
+    invalidPrecision.replace("222 285 1 8 0","222 285 1 8.001 0");
+    const bool invalidPrecisionRejected=rejected(invalidPrecision);
+    QByteArray invalidFlag=source;
+    invalidFlag.replace("217 390 1 8 0","217 390 1 8 16");
+    const bool invalidFlagRejected=rejected(invalidFlag);
     QByteArray squareOwner=source;
     squareOwner.replace("U1.2 U2.2\n217 390","U1.1 U2.2\n217 390");
     const bool squareOwnerRejected=rejected(squareOwner);
@@ -159,8 +181,10 @@ int main(int argc,char **argv) {
     const bool squareMissingRejected=rejected(squareMissing);
     if(!save(source) || !load() || !d049::decode(original,source,&panel))return 2;
     const bool ok=forgeryRejected && forgerySquareRejected && direction && squareDirection && netVariant && crlfVariant &&
-        tabVariant && capContact && squareCapContact && oneTickContact && oneTickGapRejected && boundaryRejected && squareBoundaryRejected && squareOneTickGapRejected && gapRejected && cornerRejected && squareCornerRejected &&
-        ownerRejected && squareOwnerRejected && layerRejected && squareLayerRejected && shapeRejected && squareShapeRejected && missingRejected && squareMissingRejected;
+        tabVariant && capContact && squareCapContact && roundNumericParity && squareNumericParity &&
+        roundTerminalParity && squareTerminalParity && oneTickContact && oneTickGapRejected && boundaryRejected && squareBoundaryRejected && squareOneTickGapRejected && gapRejected && cornerRejected && squareCornerRejected &&
+        ownerRejected && squareOwnerRejected && layerRejected && squareLayerRejected &&
+        invalidPrecisionRejected && invalidFlagRejected && shapeRejected && squareShapeRejected && missingRejected && squareMissingRejected;
     qInfo()<<"D049_NATIVE_QT_TRACE_PAD_WIDTH"<<ok
            <<"GLOBAL_ELECTRICAL_NOT_VERIFIED";
     return ok?0:1;
