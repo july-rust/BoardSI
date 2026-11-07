@@ -311,12 +311,12 @@ mod tests {
     }
     #[test]
     fn arbitrary_slopes_and_endpoint_reversal_are_not_angle_cases() {
-        let rail=line([0,0],[123,457],10);
+        let rail=line([0,0],[246,914],10);
         for dx in -20..=20 {
-            let crossing=line([50+dx,-30],[60+dx,270],7);
+            let crossing=line([23+dx,257],[223-dx,657],7);
             assert_eq!(contact(&rail,&crossing).unwrap(),Contact::PositiveArea);
             assert_eq!(contact(&crossing,&rail).unwrap(),Contact::PositiveArea);
-            assert_eq!(contact(&rail,&line([60+dx,270],[50+dx,-30],7)).unwrap(),Contact::PositiveArea);
+            assert_eq!(contact(&rail,&line([223-dx,657],[23+dx,257],7)).unwrap(),Contact::PositiveArea);
         }
         let other=line([200,0],[300,30],10);
         assert_eq!(contact(&rail,&other).unwrap(),Contact::Separated);
