@@ -52,6 +52,8 @@ A PR limited to supported Markdown documentation files (\`docs/**/*.md\`, \`READ
 - Group related editorial changes into a **single docs-only PR**, check link targets and document consistency locally, and preserve the single canonical checklist.
 - Documentation PR CI **does not** test actual PCB SI physics or Qt GUI; never treat it as a product validation event.
 
+**Observed exception (2026-11-07):** as proven by [documentation PR #512](https://github.com/july-rust/BoardSI/pull/512), the present classifier does **not** yet admit `apps/*/README.md` or `crates/*/README.md`; native jobs therefore execute even for those Markdown-only edits. Some M0 F6/F7 workflows also lack documentation-specific job skipping. See [CI corrective Issue #513](https://github.com/july-rust/BoardSI/issues/513). **Until its changes are implemented and tested, do not promise that all documentation-only PRs avoid Windows/macOS/native runners.** Mandatory checks remain in force.
+
 The number and names of required workflow groups may evolve. Use the **current** protected repository rules and workflow files; do not assume a historical count from an older audit is the active set.
 
 ## 5. Security, licensing and release
