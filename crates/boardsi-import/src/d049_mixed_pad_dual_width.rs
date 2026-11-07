@@ -1,6 +1,9 @@
 //! D_049: compose two independently qualified same-layer finite-width contacts.
 //! SOURCE-local synthetic geometry only; NOT a physical or global electrical proof.
-use crate::{d040_multi_component, d047_trace_square_pad_width, d048_trace_round_pad_width, digest, route_preview};
+use crate::{
+    d040_multi_component, d047_trace_square_pad_width, d048_trace_round_pad_width, digest,
+    route_preview,
+};
 use std::fmt::Write;
 
 fn without_pair(bytes: &[u8], a: &str, b: &str) -> Result<Vec<u8>, &'static str> {
@@ -145,7 +148,12 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
         writeln!(
             &mut result,
             "T|{index}|{}|{}|{}|{}|{}|{}|{}",
-            track.layer, track.net, track.a[0], track.a[1], track.b[0], track.b[1],
+            track.layer,
+            track.net,
+            track.a[0],
+            track.a[1],
+            track.b[0],
+            track.b[1],
             track.width_ticks
         )
         .map_err(|_| "D049_FORMAT")?;
