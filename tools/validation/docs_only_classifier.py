@@ -74,7 +74,7 @@ def classify_changes(base: str, head: str, cwd: str | Path | None = None) -> boo
 
     # --no-renames below sees all original deletes/adds independently.
     # Reject symlinks, mode changes, submodules and unexpected raw statuses.
-    raw = _git("diff", "--no-renames", "--raw", "-z", base, head, cwd=cwd)
+    raw = _git("diff", "--no-renames", "--raw", "--abbrev=40", "-z", base, head, cwd=cwd)
     if raw is None or not raw:
         return False
     records = raw.split(b"\0")
