@@ -68,6 +68,6 @@ Historical PH-08 Stage 4 and authorized private **Stage 5B** original HMM replay
 - **Offline/confidential first:** never commit or upload employer PCB artwork, design exports, netlists, stackup, Touchstone data, customer results, credentials or private filesystem paths. CI uses public-licensed or synthetic fixtures only.
 - **No implied distribution grant:** public source visibility does not establish open-source reuse rights or satisfy Qt/third-party distribution obligations. Production installers and licensing remain unqualified.
 - **Strict verification:** keep source SHA, platform, test scope, evidence date and negative/uncertain outcomes. A green build is not physical model validation.
-- **Efficient documentation:** true Markdown-only PRs run the required documentation check and skip native platform jobs; requirements and historical validation contracts are not changed by a docs cleanup.
+- **Efficient documentation:** the current classifier skips many Rust/Qt/FEM jobs for eligible root and `docs/` Markdown edits, **but component READMEs and some M0 F6/F7 workflows are not yet covered**. [CI gap #513](https://github.com/july-rust/BoardSI/issues/513) documents the required one-time workflow correction. Required branch-protection checks are never bypassed.
 
 [Contributing guide](CONTRIBUTING.md) · [Security policy](SECURITY.md) · [Documentation conventions](docs/README.md).
