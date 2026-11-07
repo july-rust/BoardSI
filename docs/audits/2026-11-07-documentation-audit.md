@@ -62,6 +62,12 @@ For the **11 documents edited or created in this reconciliation**, GitHub connec
 
 **Method limit:** this check verifies *file existence* only. It does **not** certify remote HTTP links, GitHub permissions for every reader, heading-anchor accuracy in all unedited records, GitHub Mermaid rendering on all devices, or the scientific correctness of the linked archived data. No source code, workflow, test fixture, JSON metadata or frozen acceptance contract was changed merely to perform the docs-only link check.
 
+## CI-efficiency regression exposed by this audit — NOT YET FIXED
+
+Actual [docs-only PR #512](https://github.com/july-rust/BoardSI/pull/512) changed **11 Markdown files only**, but the current \`.github/actions/classify-docs-only/action.yml\` returned \`docs_only=false\` with **\`Full check required for: apps/boardsi-qt-prototype/README.md\`**. Thus Rust/Qt native Windows/macOS jobs were allocated despite zero application code changes. The allowlist covers root \`README.md\`/\`CONTRIBUTING.md\`/\`SECURITY.md\` and \`docs/*.md\`-style paths, **not** \`apps/*/README.md\` or \`crates/*/README.md\`. In addition, M0 F6/F7 workflow jobs do not consistently share that classifier. This is **verified in the PR classifier job logs**, not a hypothetical limitation.
+
+**Disposition:** [CI corrective Issue #513](https://github.com/july-rust/BoardSI/issues/513) created with exact failure evidence and acceptance criteria; **this documentation cleanup does not quietly change YAML, required check names or branch-protection rules**. Documentation statements that claimed *all* Markdown-only changes skip native builds have been corrected. A dedicated workflow modification must go through full applicable CI before a later all-Markdown PR can prove that optimization.
+
 ## Publication and editorial quality gates
 
 1. [Documentation hub](../README.md) is the **only navigation front door**, not a new progress ledger.
@@ -69,7 +75,7 @@ For the **11 documents edited or created in this reconciliation**, GitHub connec
 3. The Quickstart uses **existing source options and public fixture** and warns that diagnostics are not S-parameters.
 4. Historical PH-08 original Gate Q FAIL, M0 BLOCKED, unknown licensing and no final installer are **explicit**.
 5. Markdown local links and section references should be verified in the PR; if a target does not exist, replace or remove that link rather than creating a fictitious citation.
-6. The **required documentation GitHub check** must PASS at the actual docs PR-head. Docs-only native/Qt/FEM jobs should be **skipped**, not scheduled on Windows/macOS to evaluate prose. This is a CI-efficiency requirement, not an exemption from repository branch protection.
+6. The **required documentation GitHub check** must PASS at the actual docs PR-head. Docs-only native/Qt/FEM skipping is the **intended efficiency goal, presently incomplete** for component READMEs and some F6/F7 jobs ([Issue #513](https://github.com/july-rust/BoardSI/issues/513)). Until fixed, run all required jobs and report the cost honestly. Never bypass branch protection.
 7. **Post-main Push CI** is a separate completion gate; do not equate it with the PR-head check if it has not been observed.
 
 ## Remaining known limitations (not hidden)
