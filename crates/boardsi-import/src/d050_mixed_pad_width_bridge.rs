@@ -40,9 +40,12 @@ fn positive_bridge(track: &route_preview::Segment, net: &str) -> bool {
     } else {
         (track.b, track.a)
     };
-    if a[1] != 30_000 || b[1] != 30_000
-        || a[0] <= 22_400 || a[0] >= 23_000
-        || b[0] <= 37_600 || b[0] >= 38_000
+    if a[1] != 30_000
+        || b[1] != 30_000
+        || a[0] <= 22_400
+        || a[0] >= 23_000
+        || b[0] <= 37_600
+        || b[0] >= 38_000
     {
         return false;
     }
@@ -86,7 +89,9 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
         return Err("D050_SOURCE_SIZE");
     }
     let complete = route_preview::parse(bytes)?;
-    if complete.skipped != 0 || !complete.vias.is_empty() || !complete.arcs.is_empty()
+    if complete.skipped != 0
+        || !complete.vias.is_empty()
+        || !complete.arcs.is_empty()
         || complete.segments.len() != 7
     {
         return Err("D050_SOURCE_INVENTORY");
@@ -141,16 +146,23 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
     }
     let mut used = [false; 7];
     for expected in &old_tracks {
-        let matches: Vec<_> = complete.segments.iter().enumerate()
+        let matches: Vec<_> = complete
+            .segments
+            .iter()
+            .enumerate()
             .filter(|(i, actual)| !used[*i] && match_track(actual, expected))
-            .map(|(i, _)| i).collect();
+            .map(|(i, _)| i)
+            .collect();
         if matches.len() != 1 {
             return Err("D050_SOURCE_NOT_ONE_TO_ONE");
         }
         used[matches[0]] = true;
     }
-    let bridge_indices: Vec<_> = used.iter().enumerate()
-        .filter_map(|(i, matched)| if !matched { Some(i) } else { None }).collect();
+    let bridge_indices: Vec<_> = used
+        .iter()
+        .enumerate()
+        .filter_map(|(i, matched)| if !matched { Some(i) } else { None })
+        .collect();
     if bridge_indices.len() != 1 {
         return Err("D050_BRIDGE_IDENTITY");
     }
@@ -169,7 +181,10 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
         "BOARDSI_D050_MIXED_PAD_WIDTH_BRIDGE_V1|{sha}|1|SOURCE_LOCAL_MIXED_PAD_FINITE_WIDTH_BRIDGE_ONLY|P009_UNSUPPORTED|SI_NOT_RUN|GLOBAL_ELECTRICAL_NOT_VERIFIED\n"
     );
     writeln!(&mut wire, "C|0|U1_U2|{net}|1|11|10").map_err(|_| "D050_FORMAT")?;
-    for row in old_wire.lines().filter(|r| r.starts_with("P|") || r.starts_with("T|")) {
+    for row in old_wire
+        .lines()
+        .filter(|r| r.starts_with("P|") || r.starts_with("T|"))
+    {
         writeln!(&mut wire, "{row}").map_err(|_| "D050_FORMAT")?;
     }
     let (a, b) = if bridge.a[0] < bridge.b[0] {
@@ -178,9 +193,11 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
         (bridge.b, bridge.a)
     };
     writeln!(
-        &mut wire, "T|6|1|{net}|{}|{}|{}|{}|800",
+        &mut wire,
+        "T|6|1|{net}|{}|{}|{}|{}|800",
         a[0], a[1], b[0], b[1]
-    ).map_err(|_| "D050_FORMAT")?;
+    )
+    .map_err(|_| "D050_FORMAT")?;
     for row in old_wire.lines().filter(|r| r.starts_with("E|")) {
         writeln!(&mut wire, "{row}").map_err(|_| "D050_FORMAT")?;
     }
