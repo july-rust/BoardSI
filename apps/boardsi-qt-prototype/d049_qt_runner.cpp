@@ -94,6 +94,10 @@ int main(int argc,char **argv) {
     roundNumeric.replace("222 285 1 8 0","+222 285 1 8.00 128");
     if(roundNumeric==source || !save(roundNumeric) || !load())return 2;
     const bool roundNumericParity=run(wire)==0 && d049::decode(wire,roundNumeric,&panel);
+    QByteArray leadingZero=source;
+    leadingZero.replace("222 285 1 8 0","000222 285 1 8 0");
+    if(leadingZero==source || !save(leadingZero) || !load())return 2;
+    const bool leadingZeroParity=run(wire)==0 && d049::decode(wire,leadingZero,&panel);
     QByteArray squareNumeric=source;
     squareNumeric.replace("217 390 1 8 0","+217 390 1 8.00 1024");
     if(squareNumeric==source || !save(squareNumeric) || !load())return 2;
@@ -181,7 +185,7 @@ int main(int argc,char **argv) {
     const bool squareMissingRejected=rejected(squareMissing);
     if(!save(source) || !load() || !d049::decode(original,source,&panel))return 2;
     const bool ok=forgeryRejected && forgerySquareRejected && direction && squareDirection && netVariant && crlfVariant &&
-        tabVariant && capContact && squareCapContact && roundNumericParity && squareNumericParity &&
+        tabVariant && capContact && squareCapContact && roundNumericParity && leadingZeroParity && squareNumericParity &&
         roundTerminalParity && squareTerminalParity && oneTickContact && oneTickGapRejected && boundaryRejected && squareBoundaryRejected && squareOneTickGapRejected && gapRejected && cornerRejected && squareCornerRejected &&
         ownerRejected && squareOwnerRejected && layerRejected && squareLayerRejected &&
         invalidPrecisionRejected && invalidFlagRejected && shapeRejected && squareShapeRejected && missingRejected && squareMissingRejected;
