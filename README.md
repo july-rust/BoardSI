@@ -61,7 +61,7 @@ The last command reports **local copper-area candidates only**, not electrical n
 
 The v1.0 *target workflow* is **Import → Artwork → Stackup/Materials → Reference Nets → Signals/Ports → Frequency & Resources → Run/Results**. This **is not** a declaration that the whole workflow currently works. The initial product excludes whole-board 3D full-wave EM and unvalidated discontinuity models; BGA/Substrate support does not imply full bump, solder-ball, Cu-pillar or wirebond physics.
 
-Historical PH-08 Stage 4 and authorized private Stage 5B original HMM replay preserved **Gate Q FAIL**; synthetic mathematical CI does not overturn it. AC-P1 remains pending and original PH-08 physical error bounds remain unqualified. [PH-08 evidence and limitations](docs/validation/README.md).
+Historical PH-08 Stage 4 and authorized private **Stage 5B** original HMM replay preserved **Gate Q FAIL**; synthetic mathematical CI does not overturn it. **AC-P1 PENDING; T/R PROPOSED_NOT_FROZEN; PH-08 contract NOT_FROZEN; Rust FEM NO_GO; Gate M NOT_VERIFIED; physical BOUND_NOT_CERTIFIED.** See the [PH-08 evidence and limitations](docs/validation/README.md), the [independent M2 validation audit](docs/validation/m2-validation-audit-hardening.md) and [original replay record](docs/validation/m2-g2-ph08-stage5b-original-replay-evidence.md).
 
 ## Security, licensing and contributing
 
