@@ -9,7 +9,7 @@
 
 > **단일 정식 체크리스트:** 이 파일만 수정·운영합니다. 기존의 별도 조회용 `development-checklist-stage-view.md`는 통합 후 폐지합니다. 아래 표는 상세 원장의 체크 상태를 읽기 쉽게 정리한 것으로, 체크일·근거일·PR/CI/SHA와 제한 조건은 아래 원문을 우선합니다.
 >
-> **검증 범위:** 체크된 항목의 *한정 검증 PASS*는 실제 PCB의 전기적 Open/Short, P009 Return Path, 제품 RLGC/S Solver, PH-08 물리 Gate 또는 U/T 정식 제품 인수와 다릅니다. 현황판 수치는 2026-11-07 KST 기준이며 체크 항목 변경 시 함께 갱신합니다.
+> **검증 범위:** 체크된 항목의 *한정 검증 PASS*는 실제 PCB의 전기적 Open/Short, P009 Return Path, 제품 RLGC/S Solver, PH-08 물리 Gate 또는 U/T 정식 제품 인수와 다릅니다. 현황판 수치는 2026-11-08 KST 기준이며 체크 항목 변경 시 함께 갱신합니다.
 
 **빠른 이동:** [Stage A](#stage-a) · [Stage B](#stage-b) · [Stage C](#stage-c) · [Stage D](#stage-d) · [보안](#stage-security) · [제품 마일스톤](#stage-milestones) · [정식 U/T](#stage-acceptance) · [문서·CI 관리](#documentation-ci-evidence) · [상세 원장](#목차)
 
@@ -18,17 +18,17 @@
 | [**A**](#stage-a) | Preview · Import · Artwork | 12 | 5 |
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
-| [**D**](#stage-d) | PADS Source 접촉 후보 · 국소 Copper Geometry 통합 | 76 | 2 |
+| [**D**](#stage-d) | PADS Source 접촉 후보 · 국소 Copper Geometry 통합 | 76 | 3 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
-**전체 체크 상태: 147건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
+**전체 체크 상태: 147건 확인 · 123건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
 
 <a id="documentation-ci-evidence"></a>
 ### 문서 정합성·Docs-only CI 운영 검증 (비집계 관리 이력)
 
-> **최초 정리일: 2026-11-08 KST · 근거 확인일: 2026-11-08 KST.** 이 표는 공식 요구사항·A/B/C/D 구현 항목을 추가한 것이 아닌 **문서와 CI 운영의 변경 추적표**입니다. 따라서 위 **147건 확인 / 122건 미확인**과 U/T 제품 인수 수치는 바꾸지 않습니다. 모든 Markdown 파일을 개별 체크박스로 중복 관리하지 않으며, 실제 파일별 길찾기는 [문서 허브](README.md)와 [검증 색인](validation/INDEX.md)에 맡깁니다.
+> **최초 정리일: 2026-11-08 KST · 근거 확인일: 2026-11-08 KST.** 이 표는 공식 요구사항·A/B/C/D 구현 항목을 추가한 것이 아닌 **문서와 CI 운영의 변경 추적표**입니다. 따라서 위 **147건 확인 / 123건 미확인**과 U/T 제품 인수 수치는 바꾸지 않습니다. 모든 Markdown 파일을 개별 체크박스로 중복 관리하지 않으며, 실제 파일별 길찾기는 [문서 허브](README.md)와 [검증 색인](validation/INDEX.md)에 맡깁니다.
 
 | 관리 대상 | 실제 검증·완료 근거 (2026-11-08 KST 재확인) | 한계 / 다음 확인 |
 | :--- | :--- | :--- |
