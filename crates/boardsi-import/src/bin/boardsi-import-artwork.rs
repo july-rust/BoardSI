@@ -981,6 +981,26 @@ fn main() {
         }
         return;
     }
+    // D_049: SOURCE-local mixed round/square pad dual finite-width SOURCE contacts.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d049-mixed-pad-dual-width-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let metadata = fs::metadata(path).map_err(|_| "D049_FILE")?;
+            if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES as u64 {
+                return Err("D049_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D049_READ")?;
+            boardsi_import::d049_mixed_pad_dual_width::encode(&bytes)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D049_UNSUPPORTED:{reason}");
+                std::process::exit(2);
+            }
+        }
+        return;
+    }
     // D_048: SOURCE-local round-capped trace to round SMD pad.
     if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d048-trace-round-pad-width-v1") {
         let result = (|| -> Result<String, &'static str> {
