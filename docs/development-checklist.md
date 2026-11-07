@@ -9,7 +9,7 @@
 
 > **단일 정식 체크리스트:** 이 파일만 수정·운영합니다. 기존의 별도 조회용 `development-checklist-stage-view.md`는 통합 후 폐지합니다. 아래 표는 상세 원장의 체크 상태를 읽기 쉽게 정리한 것으로, 체크일·근거일·PR/CI/SHA와 제한 조건은 아래 원문을 우선합니다.
 >
-> **검증 범위:** 체크된 항목의 *한정 검증 PASS*는 실제 PCB의 전기적 Open/Short, P009 Return Path, 제품 RLGC/S Solver, PH-08 물리 Gate 또는 U/T 정식 제품 인수와 다릅니다. 현황판 수치는 2026-11-07 KST 기준이며 체크 항목 변경 시 함께 갱신합니다.
+> **검증 범위:** 체크된 항목의 *한정 검증 PASS*는 실제 PCB의 전기적 Open/Short, P009 Return Path, 제품 RLGC/S Solver, PH-08 물리 Gate 또는 U/T 정식 제품 인수와 다릅니다. 현황판 수치는 2026-11-08 KST 기준이며 체크 항목 변경 시 함께 갱신합니다.
 
 **빠른 이동:** [Stage A](#stage-a) · [Stage B](#stage-b) · [Stage C](#stage-c) · [Stage D](#stage-d) · [보안](#stage-security) · [제품 마일스톤](#stage-milestones) · [정식 U/T](#stage-acceptance) · [문서·CI 관리](#documentation-ci-evidence) · [상세 원장](#목차)
 
@@ -18,17 +18,17 @@
 | [**A**](#stage-a) | Preview · Import · Artwork | 12 | 5 |
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
-| [**D**](#stage-d) | PADS Source 접촉 후보 · 국소 Copper Geometry 통합 | 76 | 2 |
+| [**D**](#stage-d) | PADS Source 접촉 후보 · 국소 Copper Geometry 통합 | 76 | 3 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
-**전체 체크 상태: 147건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
+**전체 체크 상태: 147건 확인 · 123건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
 
 <a id="documentation-ci-evidence"></a>
 ### 문서 정합성·Docs-only CI 운영 검증 (비집계 관리 이력)
 
-> **최초 정리일: 2026-11-08 KST · 근거 확인일: 2026-11-08 KST.** 이 표는 공식 요구사항·A/B/C/D 구현 항목을 추가한 것이 아닌 **문서와 CI 운영의 변경 추적표**입니다. 따라서 위 **147건 확인 / 122건 미확인**과 U/T 제품 인수 수치는 바꾸지 않습니다. 모든 Markdown 파일을 개별 체크박스로 중복 관리하지 않으며, 실제 파일별 길찾기는 [문서 허브](README.md)와 [검증 색인](validation/INDEX.md)에 맡깁니다.
+> **최초 정리일: 2026-11-08 KST · 근거 확인일: 2026-11-08 KST.** 이 표는 공식 요구사항·A/B/C/D 구현 항목을 추가한 것이 아닌 **문서와 CI 운영의 변경 추적표**입니다. 따라서 위 **147건 확인 / 123건 미확인**과 U/T 제품 인수 수치는 바꾸지 않습니다. 모든 Markdown 파일을 개별 체크박스로 중복 관리하지 않으며, 실제 파일별 길찾기는 [문서 허브](README.md)와 [검증 색인](validation/INDEX.md)에 맡깁니다.
 
 | 관리 대상 | 실제 검증·완료 근거 (2026-11-08 KST 재확인) | 한계 / 다음 확인 |
 | :--- | :--- | :--- |
@@ -108,7 +108,7 @@
 <a id="stage-d"></a>
 ### Stage D — PADS Source Contact / Junction
 
-**76건 확인 · 2건 미확인.** D_054/D_055는 각도·접속 위치별 개별 분기 추가를 중단하고, 임의 방향 직선/원호 Trace와 Via의 도금 환형 패드 및 SMD 원형·사각 Pad 전체 구리 면적을 사용하는 공통 SOURCE 기하 판정 엔진을 Rust에 구현했습니다. 실제 PADS 원본 2종 오프센터/모서리 변형과 신규 D_055 테스트 10종을 Debug/Release에서 PASS했으며 PR 필수 CI 모두 PASS입니다. 그러나 **국소 기하 후보만 한정 확인**한 것이고 실제 Qt 전체 연결 그래프·Open/Short·SI 계산과 U/T 공식 인수는 여전히 미검증입니다. D_053은 실제 SOURCE Repair Trace를 독립 레코드로 추가해 D_052의 두 단선을 한쪽 또는 양쪽에서 국소적으로 복구하는 6개 합성 상태를 Rust와 Native Qt에서 한정 검증했습니다. BREAK_BOTH는 14/12/2/0, 단일 Repair는 15/14/1/0, 양쪽 Repair는 16/16/1/1, 단일 단선 복구는 14/14/1/1 (Nodes/Edges/Components/Cycle Rank)입니다. 완전한 SOURCE SHA-256·Inventory·양 끝 Copper 양의 접촉·Fail-Closed를 검증했지만 실물·전역 전기 도통은 NOT_VERIFIED입니다.
+**76건 확인 · 3건 미확인 (D_056 단계별 작업 진행 중).** D_054/D_055는 각도·접속 위치별 개별 분기 추가를 중단하고, 임의 방향 직선/원호 Trace와 Via의 도금 환형 패드 및 SMD 원형·사각 Pad 전체 구리 면적을 사용하는 공통 SOURCE 기하 판정 엔진을 Rust에 구현했습니다. 실제 PADS 원본 2종 오프센터/모서리 변형과 신규 D_055 테스트 10종을 Debug/Release에서 PASS했으며 PR 필수 CI 모두 PASS입니다. 그러나 **국소 기하 후보만 한정 확인**한 것이고 실제 Qt 전체 연결 그래프·Open/Short·SI 계산과 U/T 공식 인수는 여전히 미검증입니다. D_053은 실제 SOURCE Repair Trace를 독립 레코드로 추가해 D_052의 두 단선을 한쪽 또는 양쪽에서 국소적으로 복구하는 6개 합성 상태를 Rust와 Native Qt에서 한정 검증했습니다. BREAK_BOTH는 14/12/2/0, 단일 Repair는 15/14/1/0, 양쪽 Repair는 16/16/1/1, 단일 단선 복구는 14/14/1/1 (Nodes/Edges/Components/Cycle Rank)입니다. 완전한 SOURCE SHA-256·Inventory·양 끝 Copper 양의 접촉·Fail-Closed를 검증했지만 실물·전역 전기 도통은 NOT_VERIFIED입니다.
 
 D_052는 D_051의 가상 Bridge Node 제거를 실제 PADS V9.4 SOURCE의 중간 Copper 간격(폭 8 mil, 중심선 간격 20 mil, Copper 간격 12 mil)으로 확장해 INTACT/Break-A/Break-B/Break-Both의 SOURCE 국소 연결성을 Rust·독립 Native Qt에서 한정 검증했습니다. 그래프는 12/12/1/1, 13/12/1/0, 13/12/1/0, 14/12/2/0 (Nodes/Edges/Components/Cycle Rank)이고, 실물 전기적 도통·전역 Open/Short는 NOT_VERIFIED입니다. D_051은 동일층 혼합 원형·정사각형 SMD Pad에 두 개의 독립 유한 선폭 Bridge를 구성하고 12 Nodes / 12 Same-Layer Candidate Edges / 1 Component / Cycle Rank 1 및 단일 Bridge 가상 제거 후 연결 유지, 양 Bridge 제거 후 2 Components를 Rust·독립 Native Qt에서 SOURCE 국소 기하 한정 검증했습니다. 실물 전기적 도통은 NOT_VERIFIED입니다. D_050은 D_049의 분리된 혼합 원형·정사각형 SMD Pad 국소 Component 두 개를 폭 8 mil의 명시적인 동일 Layer SOURCE Bridge Trace 하나로 접촉시켜 **11 Nodes / 10 Same-Layer Candidate Edges / 1 Local Component**를 Rust·Native Qt에서 독립 검증했습니다. D_049는 D_047/D_048의 원형·정사각형 SMD Pad와 별개 SOURCE Trace 접촉 후보 둘을 하나의 원본 PADS에서 독립 검증하여 10 Nodes/8 Edges/2 Local Components로 결합합니다. 인수는 SOURCE-local 한정이고 실제 전기적 도통은 NOT_VERIFIED입니다. D_048은 SOURCE 소유 동일 Layer의 원형 SMD Pad와 유한 선폭 둥근 끝단 Trace 간 양의 면적 중첩을 정확한 최소거리로 한정 검증합니다. D_047은 SOURCE 소유 동일 Layer의 8 mil 유한 선폭 Trace가 SMD 정사각형 Pad에 양의 면적으로 중첩되는 후보를 정확한 선분-직사각형 거리로 검증합니다. D_046은 비직교·비평행 두 Trace의 선폭 중첩을 정확한 SOURCE Tick 기반 최소 선분 거리로 한정 검증합니다. D_045는 서로 직교하는 Trace의 중심선이 만나지 않아도 둥근 끝단 Copper 선폭이 양의 면적으로 중첩되는 한정 SOURCE 후보를 정확한 최소거리 제곱으로 검증합니다. D_044의 Qt 적대적 변형 재Import 누락도 독립 회귀 테스트에서 보완했습니다. D_044는 동일 층의 서로 다른 Trace 중심선 사이에 생기는 양의 폭 접촉 후보를 둥근 끝단의 정확한 거리 제곱으로 한정 검증합니다. 단순 AABB 교차나 실물 전기 도통은 인수하지 않습니다. D_043은 D_042의 완전한 SOURCE를 먼저 검증한 뒤 별도 진단에서 Trace 노드·Incident Edge를 제외하여 12개 가상 단선 시나리오의 국소 Component/Cycle/Reachability 변화를 검증합니다. 실제 Copper 파손·전기적 Open/Short는 검증하지 않습니다. D_042는 D_041 직접 Bridge에 5개 SOURCE-owned 우회 Trace를 추가하여 하나의 국소 Closed Loop(14 Nodes/14 Edges/1 Component/1 Cycle)가 형성되는 정확한 지원 기하만 검증합니다. D_041은 독립 Component 2개의 국소 병합, D_040은 두 독립 Component의 분리 검증입니다. D_039를 포함한 Stage D의 체크는 지원된 공개 합성 PADS Source의 한정 결과이며 제조 실물 도통·글로벌 Open/Short·Return Path/SI를 인증하지 않습니다.
 
@@ -169,6 +169,7 @@ D_052는 D_051의 가상 Bridge Node 제거를 실제 PADS V9.4 SOURCE의 중간
 | [**D_053**](#d_053) | PADS SOURCE-real dual finite-width midspan repair / Rust + Native Qt | 1 | 0 |
 | [**D_054**](#d_054) | General-angle finite-width straight/circular SOURCE Trace local contact Rust engine (code/PR regression limited) | 1 | 0 |
 | [**D_055**](#d_055) | Off-centre straight/circular Trace to plated Via annulus and round/square/rect SMD Pad copper footprint (code/PR regression limited) | 1 | 0 |
+| [**D_056**](#d_056) | Generic stackup-aware Via normalization and full input architecture audit (first code slice; verification pending) | 0 | 1 |
 
 <a id="stage-security"></a>
 ### 보안 — SEC_001
@@ -1026,3 +1027,8 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 ### D_055 — Via 비중심 Annulus · SMD Pad 전체 면적 공통 Trace 접촉 (한정 코드 검증 · 2026-11-07 KST)
 
 - [x] **Trace 중심/종점의 Via·Pad 중심 일치 가정을 제거한 재사용 가능한 Copper 겹침 분류 및 SOURCE Net/Layer/드릴/Shape/접선 Fail-Closed 검증** · **최초 체크일: 2026-11-07 KST** · **체크일: 2026-11-07 KST** · **근거일: 2026-11-07 KST**. [Issue #508](https://github.com/july-rust/BoardSI/issues/508) · [코드 PR #509](https://github.com/july-rust/BoardSI/pull/509) · [코드 main 983f2b8](https://github.com/july-rust/BoardSI/commit/983f2b871d9a96b361899573207ca3a89c529c27) · [D_054–D_055 통합 증거](validation/d054-d055-general-trace-contact-qualification.md). 원본 PADS V9.4 MILS 실제 SOURCE 변형 2개(중심에서 벗어난 Via 접속, 정사각형 Pad 코너 접속) 포함 신규 Rust 10개 Debug/Release PASS. 필수 PR 9 Workflow 모두 SUCCESS, Rust Linux/Windows x64/ARM64/macOS ARM64와 기존 Qt Linux/Windows x64/ARM64/macOS ARM64 회귀 PASS. Via 드릴 구멍만 중첩되면 접촉 미인정; Via의 명시적 도체 레이어만 인정; SMD R/S/RF Pad의 전체 구리 영역 접촉; 미확인 Net 및 서로 다른 Net은 연결 확정이 아닌 별도 후보. 현재 opt-in \`--trace-pad-via-contacts-v1\`의 **SOURCE_LOCAL_ONLY**이며 Qt의 실제 전체 Connectivity/Port/SI, 제조 Copper 도통, 임의 형상·전 PADS 리비전, P009/PH-08 및 U/T 공식 인수는 **NOT_VERIFIED**. Docs-only PR 확인과 main Push 별도 인수는 실제 결과 확보 전 PASS로 단정하지 않음.
+
+<a id="d_056"></a>
+### D_056 — 범용 PCB 입력 정규화 및 실제 층수·Span 기반 Via 구조 (진행 중 · 2026-11-08 KST)
+
+- [ ] **범용 입력 구조 최종 인수 미완료** · **최초 체크일: 2026-11-08 KST** · [Issue #520](https://github.com/july-rust/BoardSI/issues/520) · [구현 범위와 미완료 게이트](architecture/input-normalization.md). 첫 코드 단계는 별도의 비아 종류별 알고리즘을 나열하지 않고 `NormalizedVia`에 전체 Copper Layer 수, 실제 Start/End Layer, 명시적 ViaKind, Drill/Plating, Layer별 Copper Pad를 데이터로 전달하고 검증한다. 2/4/6/8/64층 Through와 L2–L4·L2–L3 Buried, L1–L3·L3–L6 Blind, 인접층 Microvia를 **정규화 수준에서** 시험 대상으로 추가했으며 기존 PADS 제한 Through-Via Padstack 생성 경로에 공통 정규화기를 연결했다. **아직 검증 전:** 정확한 PR-head CI·main Push. **미구현:** native PADS Blind/Buried/Microvia 실제 입력 파싱, 비균일 Padstack 지원 경로의 모든 레거시 소비자 정합화, Custom/Backdrill/Stacked 형상, Canonical 전체 전기적 Connectivity 및 Viewer/Solver, 전 입력 포맷 감사 완료. 이러한 부분이 검증되기 전에는 D_056을 [x]로 변경하거나 전체 PCB 지원을 주장하지 않는다.

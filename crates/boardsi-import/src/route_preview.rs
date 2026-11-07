@@ -831,29 +831,20 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         let drill_key = format!("simple-via-drill-{}", via.name);
         let drill_id = ObjectId::new(&source, ObjectKind::Drill, &drill_key, "");
         if !board.padstacks.iter().any(|p| p.meta.id == padstack_id) {
-            let diameter_m = Rational::new(i128::from(via.diameter_ticks) * 127, 500_000_000)
-                .map_err(|_| "VIA_DIMENSION_OVERFLOW")?;
-            let mut entries = vec![
-                PadstackLayer {
-                    layer: start.clone(),
-                    role: PadRole::Conductive,
-                    shape: PadShape::Circle { diameter_m },
-                },
-                PadstackLayer {
-                    layer: end.clone(),
-                    role: PadRole::Conductive,
-                    shape: PadShape::Circle { diameter_m },
-                },
-            ];
-            if via.inner_pad {
-                for n in 2..via.last_layer {
-                    entries.push(PadstackLayer {
-                        layer: ObjectId::new(&source, ObjectKind::Layer, &format!("layer-{n}"), ""),
-                        role: PadRole::Conductive,
-                        shape: PadShape::Circle { diameter_m },
-                    });
-                }
-            }
+            // D_056: all layer footprints come from one normalized, checked
+            // padstack description, not a hard-coded 4-layer branch.
+            // The restricted PADS adapter still accepts only equal round
+            // through-via pads. Partial native spans remain unsupported.
+            let normalized = crate::via_topology::NormalizedVia::pads_v94_through(
+                parsed.max_layer,
+                via.drill_ticks,
+                via.diameter_ticks,
+                via.inner_pad.then_some(via.diameter_ticks),
+                via.diameter_ticks,
+            )?;
+            let entries = normalized.canonical_circular_pads(|n| {
+                ObjectId::new(&source, ObjectKind::Layer, &format!("layer-{n}"), "")
+            })?;
             board.padstacks.push(Padstack {
                 meta: meta_with_provenance(
                     &source,
@@ -1265,6 +1256,39 @@ mod p2b_via_tests {
 mod p2b_via_regressions {
     use super::*;
     const BASE: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\n*REMARK* keep section\nSIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 2 10 0 SIMPLEVIA\n500 200 2 10 0\n*END*\n";
+    #[test]
+    fn d056_same_source_via_definition_supports_multiple_board_layer_counts() {
+        // The same PADS top/inner/bottom definition is expanded using each
+        // board's parsed max layer, not a compiled 2-/4-/6-/8-layer branch.
+        for layers in [2u32, 4, 6, 8] {
+            let source = BASE.replace("MAXLAYER 4", &format!("MAXLAYER {layers}"));
+            let artwork = parse(source.as_bytes()).expect("valid through-via source");
+            assert_eq!(artwork.max_layer, layers);
+            assert_eq!(artwork.vias.len(), 1);
+            assert_eq!(artwork.vias[0].last_layer, layers);
+            let model = into_canonical(source.as_bytes(), &artwork).unwrap();
+            assert_eq!(model.stackup.layers.len(), layers as usize);
+            assert_eq!(model.padstacks[0].entries.len(), layers as usize);
+            assert_eq!(model.vias[0].kind, ViaKind::Through);
+            assert!(!model.validate().has_errors());
+        }
+    }
+
+    #[test]
+    fn d056_no_declared_inner_pad_is_not_synthesized() {
+        let without_inner = BASE
+            .replace(
+                "SIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R",
+                "SIMPLEVIA 15 2\n-2 35 R\n0 35 R",
+            )
+            .replace("MAXLAYER 4", "MAXLAYER 6");
+        let artwork = parse(without_inner.as_bytes()).unwrap();
+        assert!(!artwork.vias[0].inner_pad);
+        let model = into_canonical(without_inner.as_bytes(), &artwork).unwrap();
+        assert_eq!(model.padstacks[0].entries.len(), 2);
+        assert!(!model.validate().has_errors());
+    }
+
     #[test]
     fn pcb_layer_parameter_names_accept_ascii_case_variants() {
         for keyword in ["maximumlayer", "MaximumLayer", "maxlayer", "MaxLayer"] {

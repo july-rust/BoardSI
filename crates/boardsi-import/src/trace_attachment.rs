@@ -6,6 +6,7 @@
 use crate::part_preview::{self, ComponentPad};
 use crate::route_preview::{self, ViaInstance};
 use crate::trace_contact::{self, Contact, Stroke, BOUNDARY_GUARD_TICKS};
+use crate::via_topology::NormalizedVia;
 use std::collections::BTreeMap;
 
 const MAX_TICKS: i64 = 5_600_000;
@@ -56,16 +57,27 @@ pub fn trace_to_via(trace: &Stroke, via: &ViaInstance) -> Result<Contact, &'stat
         let _ = trace_contact::centreline_envelope(trace)?;
         return Ok(Contact::Separated);
     }
-    let dmin = trace_contact::centreline_point_distance(trace, via.point)?;
-    let dmax = trace_contact::centreline_point_farthest(trace, via.point)?;
+    annular_contact(trace, via.point, via.diameter_ticks, via.drill_ticks)
+}
+
+/// A single annulus kernel shared by the legacy restricted SOURCE contact
+/// path and normalized topology with per-layer conductive diameters.
+fn annular_contact(
+    trace: &Stroke,
+    point: [i64; 2],
+    diameter_ticks: i64,
+    drill_ticks: i64,
+) -> Result<Contact, &'static str> {
+    let dmin = trace_contact::centreline_point_distance(trace, point)?;
+    let dmax = trace_contact::centreline_point_farthest(trace, point)?;
     let stroke_radius = trace.width_ticks as f64 / 2.0;
-    let outer_clearance = dmin - (via.diameter_ticks as f64 / 2.0 + stroke_radius);
-    let inner_clearance = (via.drill_ticks as f64 / 2.0 - stroke_radius) - dmax;
+    let outer_clearance = dmin - (diameter_ticks as f64 / 2.0 + stroke_radius);
+    let inner_clearance = (drill_ticks as f64 / 2.0 - stroke_radius) - dmax;
     if !outer_clearance.is_finite() || !inner_clearance.is_finite() {
         return Err("NONFINITE_VIA_CONTACT");
     }
-    // The trace must reach BOTH the outer pad disk and the exterior of the
-    // drilled aperture. Strict inequalities prove positive-area overlap.
+    // Both exterior annulus and its drilled aperture matter: a trace wholly
+    // inside the bore must never become a positive copper contact.
     Ok(
         if outer_clearance > BOUNDARY_GUARD_TICKS || inner_clearance > BOUNDARY_GUARD_TICKS {
             Contact::Separated
@@ -77,6 +89,25 @@ pub fn trace_to_via(trace: &Stroke, via: &ViaInstance) -> Result<Contact, &'stat
             Contact::PositiveArea
         },
     )
+}
+
+/// Data-driven geometry path: no fixed layer count, span, or pad diameter.
+/// Plating/net continuity is a separate canonical graph qualification.
+pub fn trace_to_normalized_via(
+    trace: &Stroke,
+    point: [i64; 2],
+    via: &NormalizedVia,
+) -> Result<Contact, &'static str> {
+    via.validate()?;
+    if point.iter().any(|p| !(-MAX_TICKS..=MAX_TICKS).contains(p)) {
+        return Err("INVALID_VIA_COPPER_FOOTPRINT");
+    }
+    let Some(diameter) = via.diameter_on(trace.layer) else {
+        // Even a nonparticipating layer must not hide malformed trace data.
+        let _ = trace_contact::centreline_envelope(trace)?;
+        return Ok(Contact::Separated);
+    };
+    annular_contact(trace, point, diameter, via.drill_ticks)
 }
 
 /// Generic footprint intersection for the original supported SMD shapes.
@@ -353,6 +384,60 @@ mod tests {
             height_ticks: if rectangular { 60 } else { 100 },
         }
     }
+    #[test]
+    fn d056_arbitrary_buried_span_and_unequal_layer_pads_share_annulus_kernel() {
+        use crate::via_topology::CircularLayerPad;
+        let mut via = NormalizedVia {
+            copper_layers: 6,
+            first_layer: 2,
+            last_layer: 4,
+            kind: boardsi_model::ViaKind::Buried,
+            drill_ticks: 40,
+            plated: true,
+            pads: vec![
+                CircularLayerPad {
+                    layer: 2,
+                    diameter_ticks: 100,
+                },
+                CircularLayerPad {
+                    layer: 4,
+                    diameter_ticks: 60,
+                },
+            ],
+        };
+        let wide = line([-100, 59], [100, 59], 20, 2);
+        assert_eq!(
+            trace_to_normalized_via(&wide, [0, 0], &via),
+            Ok(Contact::PositiveArea)
+        );
+        assert_eq!(
+            trace_to_normalized_via(&line([-100, 59], [100, 59], 20, 4), [0, 0], &via),
+            Ok(Contact::Separated)
+        );
+        assert_eq!(
+            trace_to_normalized_via(&line([-100, 39], [100, 39], 20, 4), [0, 0], &via),
+            Ok(Contact::PositiveArea)
+        );
+        for layer in [1, 3, 5, 6] {
+            assert_eq!(
+                trace_to_normalized_via(&line([-100, 0], [100, 0], 20, layer), [0, 0], &via),
+                Ok(Contact::Separated)
+            );
+        }
+        assert_eq!(
+            trace_to_normalized_via(&line([-5, 0], [5, 0], 4, 2), [0, 0], &via),
+            Ok(Contact::Separated)
+        );
+        // Same code also handles the L2-L3 buried case, without introducing
+        // a separate layer-pair-specific branch.
+        via.last_layer = 3;
+        via.pads[1].layer = 3;
+        assert_eq!(
+            trace_to_normalized_via(&line([-100, 39], [100, 39], 20, 3), [0, 0], &via),
+            Ok(Contact::PositiveArea)
+        );
+    }
+
     #[test]
     fn off_centre_trace_contacts_conductive_annulus_not_just_via_centre() {
         let v = via();
