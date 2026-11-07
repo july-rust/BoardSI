@@ -124,6 +124,21 @@ pub fn encode(bytes: &[u8]) -> Result<String, &'static str> {
     if old_tracks.len() != 6 {
         return Err("D050_RECEIPT_INVENTORY");
     }
+    // D_050 deliberately fixes the inherited supplementary traces: D_049
+    // permits alternate round-cap witnesses that would no longer touch this
+    // bridge, so those cannot be promoted to a D_050 connectivity edge.
+    let round = &old_tracks[4];
+    let square = &old_tracks[5];
+    let exact_ends = |t: &route_preview::Segment, a: [i64; 2], b: [i64; 2]| {
+        (t.a == a && t.b == b) || (t.a == b && t.b == a)
+    };
+    if round.width_ticks != 800
+        || square.width_ticks != 800
+        || !exact_ends(round, [22_200, 28_500], [22_200, 31_500])
+        || !exact_ends(square, [21_700, 39_000], [21_700, 41_000])
+    {
+        return Err("D050_INHERITED_TRACE_GEOMETRY");
+    }
     let mut used = [false; 7];
     for expected in &old_tracks {
         let matches: Vec<_> = complete.segments.iter().enumerate()
