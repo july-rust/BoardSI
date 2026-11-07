@@ -21,7 +21,7 @@ Until there is a verified mitigation, avoid publishing a working exploit against
 
 BoardSI's intended processing is **local/offline**. Never upload company PCB artwork, PADS/ODB++ exports, layer stacks, nets, Touchstone/SNP, measurements, original private PH-08 archives, license secrets or private file paths to third-party services or public CI. Only publicly redistributable or fully synthetic sample data belong in the repository and automated test fixtures.
 
-Security requires more than a \`.gitignore\`, secret scan or “offline” label: check that errors, exported artifacts, crash dumps, command-line argument logs, test receipts, viewer diagnostics and GitHub Actions never leak source content or Net/Pad identifiers from confidential designs.
+Security requires more than a `.gitignore`, secret scan or “offline” label: check that errors, exported artifacts, crash dumps, command-line argument logs, test receipts, viewer diagnostics and GitHub Actions never leak source content or Net/Pad identifiers from confidential designs.
 
 ## Trust boundaries and known unqualified areas
 
