@@ -2,6 +2,10 @@ name: M0 F6 free restricted 8 GiB Worker baseline
 on:
   pull_request:
     paths:
+      # Changes to the shared classifier or its tests always run full checks.
+      - .github/actions/classify-docs-only/action.yml
+      - tools/validation/docs_only_classifier.py
+      - tools/validation/test_docs_only_classifier.py
       - .github/workflows/m0-f6-constrained-baseline.yml
       - apps/boardsi-worker/**
       - crates/boardsi-model/**
@@ -11,7 +15,21 @@ on:
 permissions:
   contents: read
 jobs:
+  classify:
+    name: Classify documentation-only changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    outputs:
+      docs_only: ${{ steps.docs_only.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: ./.github/actions/classify-docs-only
+        id: docs_only
   synthetic-worker:
+    needs: classify
+    # Fail closed: a missing/failed classifier must run the original native job.
+    # A verified docs-only change skips this entire job BEFORE runner allocation.
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: F6 CPU-only Worker memory-limited prototype (not full-PC)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
