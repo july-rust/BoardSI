@@ -12,7 +12,7 @@ inline bool sourceCoordTicks(QByteArray value, qint64 &ticks) {
     if(negative || value.startsWith('+'))value.remove(0,1);
     const auto parts=value.split('.');
     if(parts.isEmpty() || parts.size()>2 || parts[0].isEmpty() ||
-       parts[0].size()>6 || (parts.size()==2 && (parts[1].isEmpty() || parts[1].size()>2)))
+       (parts.size()==2 && (parts[1].isEmpty() || parts[1].size()>2)))
         return false;
     for(const auto &part:parts) {
         for(const char digit:part) {
@@ -21,7 +21,7 @@ inline bool sourceCoordTicks(QByteArray value, qint64 &ticks) {
     }
     bool ok=false;
     const qint64 integral=parts[0].toLongLong(&ok);
-    if(!ok)return false;
+    if(!ok || integral>56000)return false;
     qint64 fraction=0;
     if(parts.size()==2) {
         fraction=parts[1].toLongLong(&ok);
@@ -63,7 +63,8 @@ inline bool sourcePairTrack(const ImportedTrack &track,
 }
 
 inline QByteArray reconstruct(const QByteArray &source,const PreviewImportPanel *panel) {
-    if(!panel || !panel->imported())return {};
+    if(!panel || !panel->imported() || source.isEmpty() ||
+       source.size()>8*1024*1024)return {};
     QByteArray baseline,net;
     int signalCount=0,roundCount=0,squareCount=0;
     bool inSignal=false;
