@@ -1,22 +1,74 @@
-# BoardSI architecture — current prototypes and open product choices
+# BoardSI architecture — implementation map and contract boundaries
 
-**2026-10-18 KST evidence checkpoint:** [complete-project audit](../audits/2026-10-18-pre-ph08-project-audit.md). Version 1.0 specification, frozen physics contracts and numerical thresholds remain unchanged.
+[← Documentation hub](../README.md) · [Developer Quickstart](../developer-quickstart.md) · [v1.0 specification](../specification/BoardSI_Development_Spec_v1.0.md) · [Canonical implementation tracker](../development-checklist.md)
 
-## Built and scope-tested (not full product)
+> **Scope checkpoint: 2026-11-07 KST.** This is an overview of **implemented partial prototypes and open engineering gates**, not a new normative architecture decision, an end-to-end PCB solver approval, or a rewrite of frozen mathematical/physical contracts.
 
-- M0 Rust scalar uniform RLGC/ABCD/S numerical engine: independent reference tests, [numerical contract](numerical-contract.md).
-- M0 canonical board geometry/provenance typed Rust model: synthetic integrity/validation, [canonical model](canonical-board-model.md). Neither PADS ASCII nor ODB++ real import adapter is production-qualified.
-- M0 asynchronous **Qt Widgets + QProcess** to isolated Rust Worker with versioned local framed IPC: native prototype tests, [IPC contract](worker-ipc-qt-prototype.md) and [Qt evidence](qt-native-runtime.md). This does **not** include complete layout viewer, crash-safe cache, production release or installer.
-- M2 research G0/G1 and PH-03/05/06/07: independent restricted **PEC/lossless** 2D FEM validation only, [validation index](../validation/README.md).
+## System view: present implementation vs intended product flow
 
-## Still open
+```mermaid
+flowchart LR
+    S["PADS V9.4 MILS<br/>public synthetic/source subset"] --> I["boardsi-import<br/>restricted parser"]
+    I --> M["boardsi-model<br/>Canonical Model / provenance"]
+    I --> A["Qt Artwork Preview<br/>supported partial shapes"]
+    I --> L["D_054 / D_055<br/>SOURCE-local copper candidates"]
+    M --> P["boardsi-ipc<br/>framed local protocol"]
+    P --> W["boardsi-worker<br/>isolated process"]
+    W --> Q["Qt Widgets Preview<br/>QProcess / scenario UI"]
+    M -. "M1 integration not accepted" .-> C["Verified full-board topology<br/>ports and reference mapping"]
+    C -. "M2 physical acceptance pending" .-> R["Board geometry→RLGC<br/>sweeps and Touchstone"]
+    N["boardsi-numerics<br/>supplied scalar RLGC→2-port S"] -. "not geometry extraction" .-> R
+    F["M2 ideal PEC/lossless FEM<br/>synthetic research coupons"] -. "not physical model validation" .-> R
+```
 
-Qt Widgets is the implemented **prototype choice**; final Widgets/Quick UX/render architecture, Qt SDK distribution and licensing are not frozen. C ABI/CXX-Qt was not introduced; the process boundary was selected for M0. Actual PCB adapter/model→physical solver G5, true 30 GHz material and conductor losses G3, coupled lines G4, real artwork/ports, progressive sweep and packaging are unqualified.
+**Read the arrows carefully:** solid connections identify *existing code paths/components*, not a fully accepted product workflow. Dashed connections are **missing or independently unqualified integration**. The local Rust geometry candidates do **not** automatically become a verified electrical connectivity graph or Qt visualized result.
 
-Original PH-08 HMM Stage 4 and privately re-executed Stage 5B Gate Q **FAIL**; AC-P1 PENDING, T/R PROPOSED_NOT_FROZEN, contract NOT_FROZEN, Rust FEM NO_GO, Gate M NOT_VERIFIED, physical **BOUND_NOT_CERTIFIED**. [Issue #51](https://github.com/july-rust/BoardSI/issues/51) was administratively CLOSED on 2026-10-18 KST (not physics acceptance), G5 [Draft PR #35](https://github.com/july-rust/BoardSI/pull/35) **DO NOT MERGE**. Separate cross-platform Qt intermittent >1000 ms global event-loop gap [#46](https://github.com/july-rust/BoardSI/issues/46) remains OPEN: macOS ARM64 originally observed 1134 ms; a 2026-10-18 Windows ARM64 staging run also measured 1255 ms (1240 ms within the first synchronous window-show interval). This sentence records the historical 1,000 ms policy **at the time of those runs**. By explicit owner decision 2026-10-20, only the provisional M0 whole-test Qt callback-gap acceptance is now 1,500 ms; the 1,000 ms failed runs remain historical FAIL. [Policy and release-stabilization revisit](../validation/m0-f8-provisional-1500ms-policy.md). Same-SHA rerun passing does not identify or fix the root cause; ROOT_CAUSE_NOT_CONFIRMED.
+## Repository packages and responsibility
 
-Normalize each future CAD adapter to common Canonical Board Model; ODB++ is an input format, not internal representation. Never report a physical PCB Validated status from synthetic-only tests.
+| Layer | Implemented boundary | Current caveat / evidence |
+| :--- | :--- | :--- |
+| `crates/boardsi-import` | PADS signature probe; subset parser and canonical/artwork output; selected pads/vias/copper/arc/source-provenance; SOURCE-local finite-width contact candidates | [Importer README](../../crates/boardsi-import/README.md); incomplete full exporter/Padstack/Net connectivity support |
+| `crates/boardsi-model` | Typed identities, geometry, frames, materials, diagnostics and evidence-bearing connectivity structures | [Canonical Model contract](canonical-board-model.md); structural correctness alone is not physical correctness |
+| `crates/boardsi-ipc` | Bounded versioned local Rust/Qt Worker transport | [IPC/Qt design](worker-ipc-qt-prototype.md); source paths and net confidentiality are separate security concerns |
+| `apps/boardsi-worker` | Isolated synthetic progress/model handoff | [M0 handoff](m0-model-gated-worker-handoff.md); **not** real geometry-derived SI |
+| `apps/boardsi-qt-prototype` | Qt Widgets/QProcess, partial Artwork/Explorer and optional graphics backends | [Qt build & developer Preview](../../apps/boardsi-qt-prototype/README.md); GPU requested ≠ GPU verified |
+| `crates/boardsi-numerics` | Given scalar R/L/G/C and length/frequency → complex uniform two-port math | [Numerical contract](numerical-contract.md); does not calculate physical R/L/G/C from imported geometry |
+| `docs/architecture/m2-rlgc-physical-model-adr.md` | Proposed physics extraction stages, coupled conductors, loss and 30 GHz gating | [ADR](m2-rlgc-physical-model-adr.md) is **proposed**, not product-certified implementation |
 
-## M0 fast closeout gate (2026-10-19)
+**Input independence:** import adapters must normalize their own formats to the **same Canonical Board Model**. ODB++Design, PADS ASC, IPC-2581, Gerber and KiCad are **inputs/roadmap targets**, not interchangeable native storage or evidence of already complete importers.
 
-The [M0 completion gate and blocking evidence matrix](../validation/m0-completion-gate.md) distinguishes the existing native synthetic prototypes from **unresolved** Canonical Model → immutable/versioned snapshot → Worker → Qt integration, baseline PC, public board fixtures, Qt redistributable-deployment/licensing and intermittent event-loop diagnostics. **Current phase status: BLOCKED**, not product or physical-accuracy acceptance. For M0, Qt Widgets + QProcess IPC v1 is the retained implemented technology choice; production packaging/Qt Quick enhancements and restricted synthetic Snapshot v2 do not expand the original M0 gate.
+## Copper connectivity: what the new geometry layer really proves
+
+D_054 and D_055 remove **angle-specific, via-centre-only and pad-centre-only** predicates for supported SOURCE objects.
+
+- Generic **straight and directed circular-arc** Trace centreline distances are combined with finite conductor widths.
+- Via contact evaluates the **outer pad disk minus drilled hole (conductive annulus)** and checks that the relevant layer actually has a pad. Passing through a drill aperture **is not a copper contact**.
+- Component SMD pads use **whole round, square or rectangle footprints**, including edges, corners and non-centred/Trace-midspan hits.
+- Ambiguous near-tangency and unsupported records are **fail-closed**, not silent PASS. Different-net intersections are tagged as conflict *candidates*, not automatic real-world shorts.
+- Source SHA, supported PADS grammar and provenance determine what can be trusted. Restricted public synthetic examples are validated; physical copper plating, thermal connections, full CAD nets and measured PCB correlates remain **NOT_VERIFIED**.
+
+[Source-local qualification and CLI](../validation/d054-d055-general-trace-contact-qualification.md). **Still open:** integrate candidate evidence into the actual Canonical full-board connectivity graph and Qt UI, then verify a legitimate Import→Port→Solver path separately. Avoid creating a new phase for each possible angle/side/corner. This is a single algorithm with parameterized/property-based tests.
+
+## Decisions, non-decisions and program status
+
+| Topic | Decision/evidence | Open product gate |
+| :--- | :--- | :--- |
+| Desktop UI | Existing **Qt Widgets + QProcess** prototype, optional OpenGL/Qt Quick-RHI artwork backends | Final UX, performance on actual dense boards and Qt redistribution/licensing |
+| IPC | Isolated Rust Worker, versioned bounded frames, synthetic model handoff | Actual solver jobs and full-board provenance/stale/cancel contracts |
+| Model | Format-neutral Canonical Board Model | Validated full import/solver fidelity on real source exports |
+| Physics | Restricted M0 scalar mathematical API, M2 synthetic PEC/lossless PH-03/05/06/07 evidence | Real frequency-dependent loss, multiconductor, coupling, vias/discontinuities, measured 30 GHz |
+| PH-08 | Original Stage 4 + authorized private Stage 5B HMM Gate Q historical **FAIL** reproduced | AC-P1 PENDING, T/R PROPOSED_NOT_FROZEN, PH-08 contract NOT_FROZEN, Rust FEM NO_GO, physical BOUND_NOT_CERTIFIED |
+| M0 | Narrow native prototype gates and source-only runnable Preview | [M0 completion gate](../validation/m0-completion-gate.md) remains **BLOCKED** |
+
+**Historical Qt latency note:** former 1,000 ms event-loop checks had specific failures on macOS ARM64 and Windows ARM64. Owner's **2026-10-20 provisional M0 F8 limit is 1,500 ms**; the old failure was not erased and its root cause is not proved resolved by a rerun. [Historical vs current acceptance policy](../validation/m0-f8-provisional-1500ms-policy.md); [issue #46](https://github.com/july-rust/BoardSI/issues/46).
+
+## Read the contracts and evidence in this order
+
+1. [Specification v1.0](../specification/BoardSI_Development_Spec_v1.0.md) — product requirements; change only through explicit versioned requirements control.
+2. [Canonical Model contract](canonical-board-model.md) and [Worker/IPC](worker-ipc-qt-prototype.md) — data ownership, provenance, validation/transport.
+3. [Numerical contract](numerical-contract.md) — exact reference impedance, sign/unit and scalar 2-port conventions.
+4. [M2 physical RLGC ADR](m2-rlgc-physical-model-adr.md) and [independent verification plan](../validation/m2-rlgc-independent-verification-plan.md) — **proposals and required reference methods**, not a sign-off.
+5. [Executed scoped M0/M1/M2 evidence index](../validation/README.md), [current checklist](../development-checklist.md) — real status and exceptions.
+6. [Whole-project historical audit, 2026-10-18](../audits/2026-10-18-pre-ph08-project-audit.md) — a **date-pinned snapshot**, not a current inventory.
+
+**Never promote:** syntax/structural PASS → geometry/Net correctness; geometry candidate → manufactured electrical Open/Short; scalar numerical PASS → 2D/3D physics accuracy; synthetic PH PASS → PH-08 approval; or CI success → release eligibility.

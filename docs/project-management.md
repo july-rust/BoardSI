@@ -1,10 +1,16 @@
 # BoardSI Project Management
 
+[← 문서 허브](README.md) · [개발자 Quickstart](developer-quickstart.md) · [단일 체크리스트](development-checklist.md) · [개발/문서 작성 규칙](../CONTRIBUTING.md)
+
 Source of truth: [Development Specification v1.0](specification/BoardSI_Development_Spec_v1.0.md). Requirements U01–U48; acceptance tests T01–T54. A document's completion is NOT proof of program correctness.
 
 **Living implementation tracker:** [A_036 Development Completion Checklist](development-checklist.md). For the normal workflow, ChatGPT alone maintains checklist content through reviewed GitHub PRs; the repository owner reads the Markdown tracker without manually ticking boxes. Every B-series and later feature PR must update the affected requirements/test rows and evidence, recording `체크일: YYYY-MM-DD KST` and the dated source for new checks, or explicitly record that checklist status does not change. This assigns editing responsibility but does not alter the owner's GitHub administrator permissions. A-series scoped Preview successes must not be promoted to full M0/M1/M2 acceptance without the applicable gate evidence.
 
-**Documentation efficiency (2026-11-03 KST):** Document affected checklist states and exact-SHA evidence inside the code/feature PR rather than creating an automatic second documentation PR. For genuine Markdown-only corrections, the required Ubuntu `docs` check runs while all required native/FEM jobs are skipped **before allocating Windows/macOS runners**. Do not manufacture fresh release tests for an evidence correction. JSON, workflow, source and test-fixture changes still require the full applicable CI. The checklist's C_025_01–10 stage index includes audit-only rows without duplicating accepted [x] counts.
+**Documentation efficiency (2026-11-03 KST):** Document affected checklist states and exact-SHA evidence inside the code/feature PR rather than creating an automatic second documentation PR. For Markdown corrections under the root and `docs/`, the shared classifier can skip applicable Rust/Qt/FEM jobs **before allocating Windows/macOS runners**. **Exception observed on 2026-11-07:** component `apps/*/README.md` and `crates/*/README.md` are not accepted by the current classifier, and some M0 F6/F7 workflows still run; actual Markdown-only [PR #512](https://github.com/july-rust/BoardSI/pull/512) allocated native runners. [CI Issue #513](https://github.com/july-rust/BoardSI/issues/513) tracks the safe, explicit workflow fix. **Do not assume all platform jobs are skipped until that change is merged and checked.** Do not manufacture fresh release tests for an evidence correction. JSON, workflow, source and test-fixture changes still require the full applicable CI. The checklist's C_025_01–10 stage index includes audit-only rows without duplicating accepted [x] counts.
+
+
+
+**Documentation-wide reconciliation (2026-11-07 KST):** The [documentation hub](README.md) is a navigation layer, **not** a second checklist or a second requirements specification. Older A/B/C/D and PH-08 validation reports are date-pinned; do not rewrite their historical PASS/FAIL to look current. The preferred workflow remains one feature PR including its evidence; if a later documentation-only cleanup is needed, isolate it in one Markdown-only PR, retain code acceptance SHA and record the separation without consuming native platform runners. Product U/T and M0/PH-08 gates stay unaltered by editorial work.
 
 ## Milestones and labels
 
@@ -12,7 +18,7 @@ Source of truth: [Development Specification v1.0](specification/BoardSI_Developm
 
 ## GitHub Projects v2
 
-The connected GitHub service does not offer a direct Projects creation action. User: create a Board project **BoardSI Development** at https://github.com/users/july-rust/projects/new and link the BoardSI repository. Recommended status columns: Backlog, Ready, In Progress, In Review, Blocked, Done. Add Priority (P0/P1/P2), Area and Requirement/Test fields when supported. Issues and Milestones remain the durable task records.
+GitHub **Projects v2** is an **optional visual planning board**, not the authoritative implementation ledger. If the repository owner enables a project board, a useful layout is Backlog → Ready → In Progress → In Review → Blocked → Done, with Priority (P0/P1/P2), Area and Requirement/Test fields where supported. Use the repository's **Issues, Milestones, exact PRs/SHAs and the single [development checklist](development-checklist.md)** as the durable evidence records. Creating or editing a Project board does not mark U/T acceptance tests as PASS. Project creation instructions depend on current GitHub UI and account permissions; do not embed the temporary capabilities of an AI connector as a permanent repository limitation.
 
 ## Development policy
 

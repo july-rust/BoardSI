@@ -1,6 +1,36 @@
-# BoardSI M1 PADS ASCII signature probe (partial)
+# BoardSI PADS ASCII Import — supported subset and historical milestones
 
-This directory implements a bounded, **read-only first-line signature check** for PADS PowerPCB and PADS Logic ASCII exports. It **does not** parse board geometry, units, nets, layers, pads, vias or stackup; it does not populate the Canonical Board Model or run an SI calculation. All detections are **SIGNATURE_ONLY**, regardless of reported source revision.
+[← Documentation hub](../../docs/README.md) · [Developer Quickstart](../../docs/developer-quickstart.md) · [Canonical checklist](../../docs/development-checklist.md) · [Detailed D_054–D_055 evidence](../../docs/validation/d054-d055-general-trace-contact-qualification.md)
+
+> **2026-11-07 current scope.** This crate contains **two different tools**: (1) a signature-only PADS probe and (2) a **restricted** V9.4 MILS PADS geometry importer feeding a partial Canonical/Qt Artwork protocol. The original P2-A straight-only introduction below is a **dated baseline**, not the total current capability. Neither tool is a complete vendor-export compatible CAD converter or a validated PCB SI solver.
+
+## Current command matrix
+
+| Executable / mode | What it does | What it does **not** prove |
+| :--- | :--- | :--- |
+| `boardsi-import-probe FILE.asc` | Read-only PADS PowerPCB/Logic first-line signature only | Not full file, object or board recognition |
+| `boardsi-import-artwork FILE.asc` | Supported SOURCE straight/arc Trace, Via, SMD Pad and selected Copper/outline partial Geometry → versioned Qt Artwork transport | Not all PADS objects or electrical connectivity |
+| `boardsi-import-artwork FILE.asc --general-trace-contacts-v1` | D_054 generic angle straight/arc **Trace-to-Trace** local finite-width overlap candidates | Not global nets, actual copper continuity, solver |
+| `boardsi-import-artwork FILE.asc --trace-pad-via-contacts-v1` | D_055 generic non-centred Trace contact with **Via conductive annulus** and **round/square/rectangle SMD Pad** footprints | Not proof of electrical Open/Short, plating or all Padstacks |
+
+Example from the **repository root** (public synthetic fixture only):
+
+```sh
+cargo test --locked -p boardsi-import
+cargo run --locked -p boardsi-import --bin boardsi-import-probe -- \
+  crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc
+cargo run --locked -p boardsi-import --bin boardsi-import-artwork -- \
+  crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc \
+  --trace-pad-via-contacts-v1
+```
+
+For D_054/D_055 the result is bounded, SOURCE-SHA-bound *geometry-candidate diagnostic output*. **Different-Net overlaps are only flagged as conflict candidates; missing Pad-Net ownership stays unverified; near-boundary uncertainty and unsupported records are not silently certified.** Via drill-only overlap is not assumed conductive. The normal Qt artwork stdout protocol is unchanged by those two opt-in modes.
+
+**Supported scope remains narrow:** only the current PADS V9.4 MILS subset; specific SOURCE-anchored part decals, SMD round/square/limited RF rectangle, declared Via copper layers, segmented straight/circular routes and selected explicit Copper/outline. Arbitrary custom/rotated-oval Padstack, blind/buried/microvias, thermal reconstruction, complete pours, full-board physical connectivity and real vendor-export cross-qualification are **NOT_VERIFIED**. A parse result, screenshot or source-local candidate must never be reported as measured PCB SI.
+
+## Signature probe (standalone)
+
+The `boardsi-import-probe` executable implements a bounded **read-only first-line signature check** for PADS PowerPCB and PADS Logic ASCII exports. **This executable alone** does not parse board geometry, nets, layers, pads, vias or stackup and returns `SIGNATURE_ONLY` regardless of revision.
 
 ## Usage
 
@@ -20,7 +50,7 @@ References:
 Roadmap trace: [Issue #8](https://github.com/july-rust/BoardSI/issues/8) (format detection) and [Issue #9](https://github.com/july-rust/BoardSI/issues/9) (future real PADS importer). Product acceptance tests T01/T02/T03/T16/T17/T20/T22 remain NOT_RUN: the new unit tests are limited parser-preflight evidence, **not** the M1 import acceptance gate. No SI accuracy, provenance transformation or redistribution claim.
 
 
-## P2-A (restricted, experimental)
+## Historical P2-A (initial straight-only baseline; superseded by later additive features)
 The developer Preview has an **offline straight-segment-only** parser for
 PADS POWERPCB V9.4-MILS ROUTE entries. This is NOT full PADS support.
 Reference: PADS Layout ASCII Format Specification 9.4, pp. 51-55;
@@ -85,8 +115,7 @@ exported board comparison. Proprietary PCB data remain excluded from GitHub.
 The local UI continues to report PARTIAL and SI_NOT_RUN. Native desktop GUI
 smoke does not qualify a self-contained, redistributable Qt package.
 
-Reference: [PADS Layout ASCII Format Specification 9.4, ROUTE Definition pp. 51–52]
-(https://www.freecalypso.org/pub/CAD/PADS/pdfdocs/Ppcb_ASCII.pdf).
+Reference: [PADS Layout ASCII Format Specification 9.4, ROUTE Definition pp. 51–52](https://www.freecalypso.org/pub/CAD/PADS/pdfdocs/Ppcb_ASCII.pdf).
 
 ### A_007 Windows x64 local Developer Preview launcher
 
