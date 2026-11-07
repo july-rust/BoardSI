@@ -981,6 +981,26 @@ fn main() {
         }
         return;
     }
+    // D_048: SOURCE-local round-capped trace to round SMD pad.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d048-trace-round-pad-width-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let metadata = fs::metadata(path).map_err(|_| "D048_FILE")?;
+            if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES as u64 {
+                return Err("D048_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D048_READ")?;
+            boardsi_import::d048_trace_round_pad_width::encode(&bytes)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D048_UNSUPPORTED:{reason}");
+                std::process::exit(2);
+            }
+        }
+        return;
+    }
     // D_047: SOURCE-local round-capped trace to square SMD pad.
     if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d047-trace-square-pad-width-v1") {
         let result = (|| -> Result<String, &'static str> {

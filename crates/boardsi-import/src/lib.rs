@@ -202,6 +202,7 @@ pub mod d044_parallel_width;
 pub mod d045_perpendicular_width;
 pub mod d046_oblique_width;
 pub mod d047_trace_square_pad_width;
+pub mod d048_trace_round_pad_width;
 pub mod digest;
 pub mod material_contract;
 pub mod outline_arc;
