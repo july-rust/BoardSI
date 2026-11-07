@@ -4,6 +4,9 @@
 
 [← 프로젝트 README](../README.md) · [처음 실행하기](developer-quickstart.md) · [현재 구현 범위](development-checklist.md) · [개발 참여](../CONTRIBUTING.md)
 
+**문서 현황 검증(2026-11-08 KST):** Markdown **189개** 중 검증 원장 158개는 [전체 색인](validation/INDEX.md)에 있고, 나머지 안내·설계·운영 파일은 이 허브와 분야별 README에서 관리합니다. 최근 [문서 정리 PR #512/#515 및 CI 최적화 PR #516/#517의 정식 근거](development-checklist.md#documentation-ci-evidence)는 **단일 체크리스트에 별도로 기록**했습니다. 문서 개수는 제품 개발 완료율이 아닙니다.
+
+
 ## 처음 방문했다면 — 읽기 순서
 
 | 순서 | 문서 | 무엇을 확인하나 |

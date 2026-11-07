@@ -149,7 +149,7 @@
 - [D_051 · dual finite width bridge loop qualification](d051-dual-finite-width-bridge-loop-qualification.md)
 - [D_052 · dual bridge midspan break qualification](d052-dual-bridge-midspan-break-qualification.md)
 - [D_053 · dual bridge midspan reconnection qualification](d053-dual-bridge-midspan-reconnection-qualification.md)
-- [D_054 · d055 general trace contact qualification](d054-d055-general-trace-contact-qualification.md)
+- [D_054–D_055 · 범용 Trace·원호·Via 환형 패드·SMD Pad 접촉 검증](d054-d055-general-trace-contact-qualification.md)
 
 </details>
 
