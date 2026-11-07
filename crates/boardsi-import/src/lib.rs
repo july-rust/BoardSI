@@ -239,3 +239,6 @@ pub mod via_copper_contact;
 
 // A_032_2 opt-in local endpoint-evidence wire adapter.
 pub mod contact_wire;
+
+// Generic SOURCE-local finite-width straight and circular arc candidates.
+pub mod trace_contact;

@@ -703,6 +703,53 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // D_054 opt-in SOURCE-local candidate report. Keep the normal Qt artwork
+    // wire unchanged; no electrical graph edge or SI result is inferred.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--general-trace-contacts-v1") {
+        let report = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let meta = fs::metadata(path).map_err(|_| "SOURCE_FILE_UNAVAILABLE")?;
+            if !meta.is_file() || meta.len() > MAX_FILE_BYTES as u64 {
+                return Err("SOURCE_FILE_SIZE");
+            }
+            let bytes = fs::read(path).map_err(|_| "SOURCE_READ")?;
+            let pairs = boardsi_import::trace_contact::source_candidates(&bytes)?;
+            let mut hash = String::with_capacity(64);
+            for byte in boardsi_import::digest::sha256(&bytes) {
+                std::fmt::Write::write_fmt(&mut hash, format_args!("{byte:02x}"))
+                    .map_err(|_| "SOURCE_SHA_FORMAT")?;
+            }
+            let mut report = format!(
+                "BOARDSI_GENERAL_TRACE_CONTACT_V1|{hash}|{}|SOURCE_LOCAL_ONLY|GLOBAL_ELECTRICAL_NOT_VERIFIED|SI_NOT_RUN\n",
+                pairs.len()
+            );
+            for pair in pairs {
+                let relation = match pair.net_relation {
+                    boardsi_import::trace_contact::NetRelation::SameDeclaredNet => "SAME_NET_LABEL",
+                    boardsi_import::trace_contact::NetRelation::DifferentDeclaredNets => {
+                        "DIFFERENT_NET_LABELS"
+                    }
+                };
+                report.push_str(&format!(
+                    "C|{}|{}|{}|{}|{relation}|POSITIVE_FINITE_WIDTH_COPPER_ONLY\n",
+                    pair.first, pair.second, pair.first_source_line, pair.second_source_line
+                ));
+                if report.len() > 2 * 1024 * 1024 {
+                    return Err("SOURCE_CONTACT_OUTPUT_LIMIT");
+                }
+            }
+            report.push_str("END|GEOMETRY_ONLY|P009_UNSUPPORTED|NOT_SI_READY\n");
+            Ok(report)
+        })();
+        match report {
+            Ok(report) => print!("{report}"),
+            Err(reason) => {
+                eprintln!("SOURCE_TRACE_CONTACT_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_031 steep 3:4 non-45 oblique Via-A Source endpoint contact; never fabricated electrical proof.
     if args.len() == 8
         && args[2] == std::ffi::OsStr::new("--d031-non45-steep-via-a-endpoint-contact-v1")
