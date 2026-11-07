@@ -8,21 +8,21 @@
 
 | Executable / mode | What it does | What it does **not** prove |
 | :--- | :--- | :--- |
-| \`boardsi-import-probe FILE.asc\` | Read-only PADS PowerPCB/Logic first-line signature only | Not full file, object or board recognition |
-| \`boardsi-import-artwork FILE.asc\` | Supported SOURCE straight/arc Trace, Via, SMD Pad and selected Copper/outline partial Geometry → versioned Qt Artwork transport | Not all PADS objects or electrical connectivity |
-| \`boardsi-import-artwork FILE.asc --general-trace-contacts-v1\` | D_054 generic angle straight/arc **Trace-to-Trace** local finite-width overlap candidates | Not global nets, actual copper continuity, solver |
-| \`boardsi-import-artwork FILE.asc --trace-pad-via-contacts-v1\` | D_055 generic non-centred Trace contact with **Via conductive annulus** and **round/square/rectangle SMD Pad** footprints | Not proof of electrical Open/Short, plating or all Padstacks |
+| `boardsi-import-probe FILE.asc` | Read-only PADS PowerPCB/Logic first-line signature only | Not full file, object or board recognition |
+| `boardsi-import-artwork FILE.asc` | Supported SOURCE straight/arc Trace, Via, SMD Pad and selected Copper/outline partial Geometry → versioned Qt Artwork transport | Not all PADS objects or electrical connectivity |
+| `boardsi-import-artwork FILE.asc --general-trace-contacts-v1` | D_054 generic angle straight/arc **Trace-to-Trace** local finite-width overlap candidates | Not global nets, actual copper continuity, solver |
+| `boardsi-import-artwork FILE.asc --trace-pad-via-contacts-v1` | D_055 generic non-centred Trace contact with **Via conductive annulus** and **round/square/rectangle SMD Pad** footprints | Not proof of electrical Open/Short, plating or all Padstacks |
 
 Example from the **repository root** (public synthetic fixture only):
 
-\`\`\`sh
+```sh
 cargo test --locked -p boardsi-import
 cargo run --locked -p boardsi-import --bin boardsi-import-probe -- \
   crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc
 cargo run --locked -p boardsi-import --bin boardsi-import-artwork -- \
   crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc \
   --trace-pad-via-contacts-v1
-\`\`\`
+```
 
 For D_054/D_055 the result is bounded, SOURCE-SHA-bound *geometry-candidate diagnostic output*. **Different-Net overlaps are only flagged as conflict candidates; missing Pad-Net ownership stays unverified; near-boundary uncertainty and unsupported records are not silently certified.** Via drill-only overlap is not assumed conductive. The normal Qt artwork stdout protocol is unchanged by those two opt-in modes.
 
@@ -30,7 +30,7 @@ For D_054/D_055 the result is bounded, SOURCE-SHA-bound *geometry-candidate diag
 
 ## Signature probe (standalone)
 
-The \`boardsi-import-probe\` executable implements a bounded **read-only first-line signature check** for PADS PowerPCB and PADS Logic ASCII exports. **This executable alone** does not parse board geometry, nets, layers, pads, vias or stackup and returns \`SIGNATURE_ONLY\` regardless of revision.
+The `boardsi-import-probe` executable implements a bounded **read-only first-line signature check** for PADS PowerPCB and PADS Logic ASCII exports. **This executable alone** does not parse board geometry, nets, layers, pads, vias or stackup and returns `SIGNATURE_ONLY` regardless of revision.
 
 ## Usage
 
