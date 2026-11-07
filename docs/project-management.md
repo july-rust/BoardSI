@@ -1,4 +1,10 @@
-# BoardSI Project Management
+# BoardSI 프로젝트 관리 · 실제 상태와 운영 규칙
+
+> **2026-11-07 KST 현재 운영 안내.** [문서 홈](README.md) · [공식 단일 개발 체크리스트](development-checklist.md) · [요구사항 v1.0](specification/BoardSI_Development_Spec_v1.0.md) · [프로젝트 전반 문서 감사](audits/2026-11-07-documentation-review.md).
+>
+> **실제 완료 경계:** 개발자 프리뷰와 A/B/C/D 한정 시험은 존재하지만, 정식 M0/M1/M2 종료/제품 U/T는 완료되지 않았습니다. 새 D_054/D_055 범용 Copper 접촉은 **SOURCE-local** 계산만 한정 검증됐습니다. 이전 실험을 각도/Pad 모서리별로 무한 반복하는 것은 개발 정책이 아닙니다. [공통 기하 계약](architecture/trace-copper-contact.md).
+>
+> **오래된 운영 기록 정정:** G5 설계 [PR #35](https://github.com/july-rust/BoardSI/pull/35)는 기준일 현재 **Closed / Not Merged**입니다. 아래 2026-10월 이력에서 'Draft'라고 기술한 부분은 *당시의 상태*이며 지금 열려 있는 PR이나 현재 진행 중인 소스 구현으로 간주하지 않습니다.
 
 Source of truth: [Development Specification v1.0](specification/BoardSI_Development_Spec_v1.0.md). Requirements U01–U48; acceptance tests T01–T54. A document's completion is NOT proof of program correctness.
 
@@ -12,7 +18,7 @@ Source of truth: [Development Specification v1.0](specification/BoardSI_Developm
 
 ## GitHub Projects v2
 
-The connected GitHub service does not offer a direct Projects creation action. User: create a Board project **BoardSI Development** at https://github.com/users/july-rust/projects/new and link the BoardSI repository. Recommended status columns: Backlog, Ready, In Progress, In Review, Blocked, Done. Add Priority (P0/P1/P2), Area and Requirement/Test fields when supported. Issues and Milestones remain the durable task records.
+GitHub Projects v2 Board creation is **not part of this repository's bootstrap workflow**; a Project board's actual existence must be verified in GitHub. If the owner chooses to create it, the GitHub interface is https://github.com/users/july-rust/projects/new ; link this repository after creation. Recommended status columns: Backlog, Ready, In Progress, In Review, Blocked, Done. Add Priority (P0/P1/P2), Area and Requirement/Test fields when supported. Issues and Milestones remain the durable task records.
 
 ## Development policy
 
@@ -37,8 +43,8 @@ The original runnable-Preview-first policy was preserved from [legacy PR #153](h
 
 ## Post-PH07 validation audit
 
-PH-03/05/06/07 restricted synthetic coupons are merged; see [audit #41 status and evidence](validation/m2-validation-audit-hardening.md). PH-08 was researched under Issue #51 (administratively CLOSED on 2026-10-18 KST), while the original physics Gate Q remains **FAIL**, NOT_FROZEN and BOUND_NOT_CERTIFIED; this is **not** completed product functionality. G5 PR #35 and overall physics Issue #16 remain open. Administrative main-rule enforcement is tracked separately from implemented CI.
+PH-03/05/06/07 restricted synthetic coupons are merged; see [audit #41 status and evidence](validation/m2-validation-audit-hardening.md). PH-08 was researched under Issue #51 (administratively CLOSED on 2026-10-18 KST), while the original physics Gate Q remains **FAIL**, NOT_FROZEN and BOUND_NOT_CERTIFIED; this is **not** completed product functionality. G5 design PR #35 is **closed without merge** (as checked 2026-11-07); the overall physics Issue #16 remains **OPEN**. Administrative main-rule enforcement is tracked separately from implemented CI.
 
 ## 2026-10-18 baseline audit checkpoint
 
-[Whole-project reconciliation](audits/2026-10-18-pre-ph08-project-audit.md) distinguishes 17/17 successful current main CI from unverified full application/release. Stage 5B original HMM was privately re-executed with historical Gate Q **FAIL**, not run in public synthetic GitHub Actions. Issue #51 (original HMM) is administratively CLOSED, but its scientific Gate Q **FAIL** is unresolved. Keep #46 (Qt timer) and #16 (Solver) OPEN and [G5 Draft PR #35](https://github.com/july-rust/BoardSI/pull/35) unmerged. The present SVG [option B design master](branding/boardsi-icon-decision.md) is explicitly DESIGN_APPROVED by the owner (2026-10-18); previous PNG byte identity and release packaging are NOT VERIFIED.
+[Whole-project reconciliation](audits/2026-10-18-pre-ph08-project-audit.md) distinguishes 17/17 successful current main CI from unverified full application/release. Stage 5B original HMM was privately re-executed with historical Gate Q **FAIL**, not run in public synthetic GitHub Actions. Issue #51 (original HMM) is administratively CLOSED, but its scientific Gate Q **FAIL** is unresolved. Keep #46 (Qt timer) and #16 (Solver) tracked as OPEN at this 2026-11-07 checkpoint. [G5 PR #35](https://github.com/july-rust/BoardSI/pull/35) is now **closed without merge**, and its historical design preflight is not accepted product G5 implementation. The present SVG [option B design master](branding/boardsi-icon-decision.md) is explicitly DESIGN_APPROVED by the owner (2026-10-18); previous PNG byte identity and release packaging are NOT VERIFIED.
