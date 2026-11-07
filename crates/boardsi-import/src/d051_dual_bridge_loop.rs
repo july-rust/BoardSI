@@ -86,9 +86,7 @@ fn graph_diagnostic(
     remove_first: bool,
     remove_second: bool,
 ) -> Result<(usize, usize, usize, usize, bool), &'static str> {
-    let removed = |node: usize| {
-        (remove_first && node == 10) || (remove_second && node == 11)
-    };
+    let removed = |node: usize| (remove_first && node == 10) || (remove_second && node == 11);
     let mut roots: [usize; 12] = std::array::from_fn(|i| i);
     let find = |roots: &[usize; 12], mut x: usize| {
         while roots[x] != x {

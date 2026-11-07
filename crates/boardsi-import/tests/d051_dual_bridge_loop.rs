@@ -30,51 +30,53 @@ fn exact_dual_bridge_loop_and_single_failure_reachability() {
 }
 #[test]
 fn accepted_source_variants_and_exact_one_tick_boundaries() {
+    let source = SOURCE.replace("\r\n", "\n");
     let variants = [
-        SOURCE.replace(BRIDGE, "U1.2 U2.2\n382 400 1 8 0\n222 400 1 8 0"),
-        SOURCE.replace("NET_A", "NET_B"),
-        SOURCE.replace('\n', "\r\n"),
-        SOURCE.replace("*SIGNAL* NET_A", "*SIGNAL*\tNET_A"),
-        SOURCE.replace("222 400 1 8 0", "+222 400 1 8.00 128"),
-        SOURCE.replace("382 400 1 8 0", "382 400 65 8 0"),
-        SOURCE.replace("222 400 1 8 0", "224.99 400 1 8 0"),
-        SOURCE.replace("222 400 1 8 0", "219.01 400 1 8 0"),
-        SOURCE.replace("382 400 1 8 0", "381.01 400 1 8 0"),
-        SOURCE.replace("382 400 1 8 0", "384.99 400 1 8 0"),
+        source.replace(BRIDGE, "U1.2 U2.2\n382 400 1 8 0\n222 400 1 8 0"),
+        source.replace("NET_A", "NET_B"),
+        source.replace('\n', "\r\n"),
+        source.replace("*SIGNAL* NET_A", "*SIGNAL*\tNET_A"),
+        source.replace("222 400 1 8 0", "+222 400 1 8.00 128"),
+        source.replace("382 400 1 8 0", "382 400 65 8 0"),
+        source.replace("222 400 1 8 0", "224.99 400 1 8 0"),
+        source.replace("222 400 1 8 0", "219.01 400 1 8 0"),
+        source.replace("382 400 1 8 0", "381.01 400 1 8 0"),
+        source.replace("382 400 1 8 0", "384.99 400 1 8 0"),
     ];
-    for (i, source) in variants.iter().enumerate() {
-        assert_ne!(source, SOURCE, "inert positive {i}");
-        assert!(audit(source).is_ok(), "positive {i}");
+    for (i, variant) in variants.iter().enumerate() {
+        assert_ne!(variant, &source, "inert positive {i}");
+        assert!(audit(variant).is_ok(), "positive {i}");
     }
 }
 #[test]
 fn hostile_missing_duplicate_tangent_wrong_owner_and_stale_shape_fail_closed() {
+    let source = SOURCE.replace("\r\n", "\n");
     let cases = [
-        SOURCE.replace("222 400 1 8 0", "225 400 1 8 0"),
-        SOURCE.replace("222 400 1 8 0", "225.01 400 1 8 0"),
-        SOURCE.replace("222 400 1 8 0", "219 400 1 8 0"),
-        SOURCE.replace("382 400 1 8 0", "381 400 1 8 0"),
-        SOURCE.replace("382 400 1 8 0", "380.99 400 1 8 0"),
-        SOURCE.replace("382 400 1 8 0", "385 400 1 8 0"),
-        SOURCE.replace("222 400 1 8 0", "222 401 1 8 0"),
-        SOURCE.replace("222 400 1 8 0", "222 400 2 8 0"),
-        SOURCE.replace("222 400 1 8 0", "222 400 1 10 0"),
-        SOURCE.replace("222 400 1 8 0", "222 400 1 8.001 0"),
-        SOURCE.replace("222 400 1 8 0", "222 400 1 8 16"),
-        SOURCE.replace(BRIDGE, "U1.1 U2.2\n222 400 1 8 0\n382 400 1 8 0"),
-        SOURCE.replace(BRIDGE, &format!("*SIGNAL* NET_B\n{BRIDGE}")),
-        SOURCE.replace("217 390 1 8 0", "217 370 1 8 0"),
-        SOURCE.replace("PAD 2 3\n-2 30 S 0", "PAD 2 3\n-2 30 R 0"),
-        SOURCE.replace("U2 TYPEA 400 300", "U2 TYPEA 398 300"),
-        SOURCE.replace("NET_A", "NET_C"),
-        SOURCE.replace(&format!("{BRIDGE}\n"), ""),
-        SOURCE.replace("*END*", &format!("{BRIDGE}\n*END*")),
-        SOURCE.replace("*END*", "U1.1 U2.1\n240 320 1 8 0\n360 320 1 8 0\n*END*"),
-        SOURCE.replace("226 300 1 8 0", "230 300 1 8 0"),
-        SOURCE.replace("*END*", "*END*\nFORGED"),
+        source.replace("222 400 1 8 0", "225 400 1 8 0"),
+        source.replace("222 400 1 8 0", "225.01 400 1 8 0"),
+        source.replace("222 400 1 8 0", "219 400 1 8 0"),
+        source.replace("382 400 1 8 0", "381 400 1 8 0"),
+        source.replace("382 400 1 8 0", "380.99 400 1 8 0"),
+        source.replace("382 400 1 8 0", "385 400 1 8 0"),
+        source.replace("222 400 1 8 0", "222 401 1 8 0"),
+        source.replace("222 400 1 8 0", "222 400 2 8 0"),
+        source.replace("222 400 1 8 0", "222 400 1 10 0"),
+        source.replace("222 400 1 8 0", "222 400 1 8.001 0"),
+        source.replace("222 400 1 8 0", "222 400 1 8 16"),
+        source.replace(BRIDGE, "U1.1 U2.2\n222 400 1 8 0\n382 400 1 8 0"),
+        source.replace(BRIDGE, &format!("*SIGNAL* NET_B\n{BRIDGE}")),
+        source.replace("217 390 1 8 0", "217 370 1 8 0"),
+        source.replace("PAD 2 3\n-2 30 S 0", "PAD 2 3\n-2 30 R 0"),
+        source.replace("U2 TYPEA 400 300", "U2 TYPEA 398 300"),
+        source.replace("NET_A", "NET_C"),
+        source.replace(&format!("{BRIDGE}\n"), ""),
+        source.replace("*END*", &format!("{BRIDGE}\n*END*")),
+        source.replace("*END*", "U1.1 U2.1\n240 320 1 8 0\n360 320 1 8 0\n*END*"),
+        source.replace("226 300 1 8 0", "230 300 1 8 0"),
+        source.replace("*END*", "*END*\nFORGED"),
     ];
-    for (i, source) in cases.iter().enumerate() {
-        assert_ne!(source, SOURCE, "inert hostile {i}");
-        assert!(audit(source).is_err(), "hostile {i} passed");
+    for (i, variant) in cases.iter().enumerate() {
+        assert_ne!(variant, &source, "inert hostile {i}");
+        assert!(audit(variant).is_err(), "hostile {i} passed");
     }
 }
