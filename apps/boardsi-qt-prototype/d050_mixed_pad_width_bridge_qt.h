@@ -213,6 +213,21 @@ inline QByteArray reconstruct(const QByteArray &source,const PreviewImportPanel 
     if(extras!=3 || roundIndex<0 || squareIndex<0 || bridgeIndex<0 ||
        roundIndex==squareIndex || roundIndex==bridgeIndex ||
        squareIndex==bridgeIndex)return {};
+    // D_049 also accepts alternative Pad-contact cap witnesses. D_050's
+    // new edge must be bound to the exact existing x=22200 vertical trace;
+    // do not silently connect a moved supplementary contact.
+    const auto exactEndpoints=[](const ImportedTrack &t,
+                                 qint64 ax,qint64 ay,qint64 bx,qint64 by) {
+        const bool forward=t.x0_nm==ax*254 && t.y0_nm==ay*254 &&
+                           t.x1_nm==bx*254 && t.y1_nm==by*254;
+        const bool backward=t.x0_nm==bx*254 && t.y0_nm==by*254 &&
+                            t.x1_nm==ax*254 && t.y1_nm==ay*254;
+        return forward || backward;
+    };
+    if(!exactEndpoints(tracks[static_cast<size_t>(roundIndex)],
+                       22200,28500,22200,31500) ||
+       !exactEndpoints(tracks[static_cast<size_t>(squareIndex)],
+                       21700,39000,21700,41000))return {};
     // Bounded round y=27000..33000 and square y=38000..43500 regions
     // cannot touch each other, the baseline vertical rails, or remote U2.
     QByteArray out="BOARDSI_D050_MIXED_PAD_WIDTH_BRIDGE_V1|"+sha+
