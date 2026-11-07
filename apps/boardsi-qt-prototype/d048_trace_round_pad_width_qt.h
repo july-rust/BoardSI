@@ -5,7 +5,7 @@
 #include <algorithm>
 namespace d048 {
 // The bounded 8-mil track centerline is strictly right of round U1.1.
-// Minimum distance to the rectangle equals distance to its right edge.
+// Exact center-to-segment squared distance is independently reconstructed.
 // Reconstruct independently; do not trust Rust geometry edge list.
 inline bool positiveTraceRound(const ImportedTrack &t,const ImportedPad &pad) {
     using P=std::array<qint64,2>;
