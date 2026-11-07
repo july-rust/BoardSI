@@ -6,7 +6,7 @@
 
 ## System view: present implementation vs intended product flow
 
-\`\`\`mermaid
+```mermaid
 flowchart LR
     S["PADS V9.4 MILS<br/>public synthetic/source subset"] --> I["boardsi-import<br/>restricted parser"]
     I --> M["boardsi-model<br/>Canonical Model / provenance"]
@@ -19,7 +19,7 @@ flowchart LR
     C -. "M2 physical acceptance pending" .-> R["Board geometry→RLGC<br/>sweeps and Touchstone"]
     N["boardsi-numerics<br/>supplied scalar RLGC→2-port S"] -. "not geometry extraction" .-> R
     F["M2 ideal PEC/lossless FEM<br/>synthetic research coupons"] -. "not physical model validation" .-> R
-\`\`\`
+```
 
 **Read the arrows carefully:** solid connections identify *existing code paths/components*, not a fully accepted product workflow. Dashed connections are **missing or independently unqualified integration**. The local Rust geometry candidates do **not** automatically become a verified electrical connectivity graph or Qt visualized result.
 
@@ -27,13 +27,13 @@ flowchart LR
 
 | Layer | Implemented boundary | Current caveat / evidence |
 | :--- | :--- | :--- |
-| \`crates/boardsi-import\` | PADS signature probe; subset parser and canonical/artwork output; selected pads/vias/copper/arc/source-provenance; SOURCE-local finite-width contact candidates | [Importer README](../../crates/boardsi-import/README.md); incomplete full exporter/Padstack/Net connectivity support |
-| \`crates/boardsi-model\` | Typed identities, geometry, frames, materials, diagnostics and evidence-bearing connectivity structures | [Canonical Model contract](canonical-board-model.md); structural correctness alone is not physical correctness |
-| \`crates/boardsi-ipc\` | Bounded versioned local Rust/Qt Worker transport | [IPC/Qt design](worker-ipc-qt-prototype.md); source paths and net confidentiality are separate security concerns |
-| \`apps/boardsi-worker\` | Isolated synthetic progress/model handoff | [M0 handoff](m0-model-gated-worker-handoff.md); **not** real geometry-derived SI |
-| \`apps/boardsi-qt-prototype\` | Qt Widgets/QProcess, partial Artwork/Explorer and optional graphics backends | [Qt build & developer Preview](../../apps/boardsi-qt-prototype/README.md); GPU requested ≠ GPU verified |
-| \`crates/boardsi-numerics\` | Given scalar R/L/G/C and length/frequency → complex uniform two-port math | [Numerical contract](numerical-contract.md); does not calculate physical R/L/G/C from imported geometry |
-| \`docs/architecture/m2-rlgc-physical-model-adr.md\` | Proposed physics extraction stages, coupled conductors, loss and 30 GHz gating | [ADR](m2-rlgc-physical-model-adr.md) is **proposed**, not product-certified implementation |
+| `crates/boardsi-import` | PADS signature probe; subset parser and canonical/artwork output; selected pads/vias/copper/arc/source-provenance; SOURCE-local finite-width contact candidates | [Importer README](../../crates/boardsi-import/README.md); incomplete full exporter/Padstack/Net connectivity support |
+| `crates/boardsi-model` | Typed identities, geometry, frames, materials, diagnostics and evidence-bearing connectivity structures | [Canonical Model contract](canonical-board-model.md); structural correctness alone is not physical correctness |
+| `crates/boardsi-ipc` | Bounded versioned local Rust/Qt Worker transport | [IPC/Qt design](worker-ipc-qt-prototype.md); source paths and net confidentiality are separate security concerns |
+| `apps/boardsi-worker` | Isolated synthetic progress/model handoff | [M0 handoff](m0-model-gated-worker-handoff.md); **not** real geometry-derived SI |
+| `apps/boardsi-qt-prototype` | Qt Widgets/QProcess, partial Artwork/Explorer and optional graphics backends | [Qt build & developer Preview](../../apps/boardsi-qt-prototype/README.md); GPU requested ≠ GPU verified |
+| `crates/boardsi-numerics` | Given scalar R/L/G/C and length/frequency → complex uniform two-port math | [Numerical contract](numerical-contract.md); does not calculate physical R/L/G/C from imported geometry |
+| `docs/architecture/m2-rlgc-physical-model-adr.md` | Proposed physics extraction stages, coupled conductors, loss and 30 GHz gating | [ADR](m2-rlgc-physical-model-adr.md) is **proposed**, not product-certified implementation |
 
 **Input independence:** import adapters must normalize their own formats to the **same Canonical Board Model**. ODB++Design, PADS ASC, IPC-2581, Gerber and KiCad are **inputs/roadmap targets**, not interchangeable native storage or evidence of already complete importers.
 
