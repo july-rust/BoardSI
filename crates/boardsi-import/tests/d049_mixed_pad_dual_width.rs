@@ -17,7 +17,9 @@ fn combined_pad_contacts_are_one_source_bound_graph() {
     assert_eq!(wire.matches("\nE|").count(), 8);
     assert!(wire.contains("E|6|0|8|POSITIVE_FINITE_WIDTH_TRACE_ROUND_PAD_CONTACT\n"));
     assert!(wire.contains("E|7|1|9|POSITIVE_FINITE_WIDTH_TRACE_PAD_CONTACT\n"));
-    assert!(wire.contains("COUNT|NODES|10|EDGES|8|LOCAL_COMPONENTS|2|GLOBAL_ELECTRICAL|NOT_VERIFIED"));
+    assert!(
+        wire.contains("COUNT|NODES|10|EDGES|8|LOCAL_COMPONENTS|2|GLOBAL_ELECTRICAL|NOT_VERIFIED")
+    );
     assert!(wire.ends_with("END|SOURCE_LOCAL_MIXED_PAD_DUAL_FINITE_WIDTH_ONLY_NO_GLOBAL_PASS\n"));
 }
 
@@ -74,6 +76,9 @@ fn either_failed_contact_or_hostile_provenance_fails_entire_graph() {
     ];
     for (i, modified) in cases.iter().enumerate() {
         assert_ne!(modified, SOURCE, "inert hostile case {i}");
-        assert!(audit(modified).is_err(), "hostile case {i} unexpectedly accepted");
+        assert!(
+            audit(modified).is_err(),
+            "hostile case {i} unexpectedly accepted"
+        );
     }
 }
