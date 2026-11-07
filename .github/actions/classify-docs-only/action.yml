@@ -30,16 +30,11 @@ runs:
         if ! git fetch --no-tags --depth=1 origin "$BOARDSI_CI_BASE" "$BOARDSI_CI_HEAD"; then
           full_check
         fi
-        if ! changed="$(git diff --no-renames --name-only "$BOARDSI_CI_BASE" "$BOARDSI_CI_HEAD")"; then
+        # The shared Python predicate inspects Git raw diff records using NUL
+        # paths and disallows renames, symlinks, non-docs and mode changes.
+        # Fail closed whenever the executable or comparison cannot be trusted.
+        if ! python3 tools/validation/docs_only_classifier.py "$BOARDSI_CI_BASE" "$BOARDSI_CI_HEAD"; then
           full_check
         fi
-        [[ -n "$changed" ]] || full_check
-        while IFS= read -r file; do
-          case "$file" in
-            README.md|CONTRIBUTING.md|SECURITY.md) ;;
-            docs/*.md|docs/*.mdx|docs/*.rst) ;;
-            *) echo "Full check required for: $file"; full_check ;;
-          esac
-        done <<< "$changed"
         echo "docs_only=true" >> "$GITHUB_OUTPUT"
         echo "Documentation text only: leave required job checks successful without heavy Rust/Qt/FEM builds."

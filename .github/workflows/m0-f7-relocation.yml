@@ -2,6 +2,10 @@ name: M0 F7 native relocation smoke
 on:
   pull_request:
     paths:
+      # Changes to the shared classifier or its tests always run full checks.
+      - .github/actions/classify-docs-only/action.yml
+      - tools/validation/docs_only_classifier.py
+      - tools/validation/test_docs_only_classifier.py
       - .github/scripts/m0_f7_relocation_probe.py
       - .github/scripts/m0_f7_bundle_manifest.py
       - .github/scripts/test_m0_f7_bundle_manifest.py
@@ -20,7 +24,21 @@ on:
 permissions:
   contents: read
 jobs:
+  classify:
+    name: Classify documentation-only changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    outputs:
+      docs_only: ${{ steps.docs_only.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: ./.github/actions/classify-docs-only
+        id: docs_only
   relocation:
+    needs: classify
+    # Fail closed: a missing/failed classifier must run the original native job.
+    # A verified docs-only change skips this entire job BEFORE runner allocation.
+    if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: F7 relocated Qt Worker ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
