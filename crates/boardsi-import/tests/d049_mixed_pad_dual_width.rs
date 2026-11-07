@@ -36,6 +36,7 @@ fn independent_cap_direction_net_and_source_variants() {
         SOURCE.replace('\n', "\r\n"),
         SOURCE.replace("*SIGNAL* NET_A", "*SIGNAL*\tNET_A"),
         SOURCE.replace("222 285 1 8 0", "+222 285 1 8.00 128"),
+        SOURCE.replace("222 285 1 8 0", "000222 285 1 8 0"),
         SOURCE.replace("222 315 1 8 0", "222 315 65 8 0"),
         SOURCE.replace("217 390 1 8 0", "+217 390 1 8.00 1024"),
         SOURCE.replace("217 410 1 8 0", "217 410 65 8 0"),
