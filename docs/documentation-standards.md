@@ -59,7 +59,7 @@
 
 1. **코드 변경**: 같은 PR에서 해당 기능의 제한 범위와 시험 증거를 업데이트하는 것이 원칙. 요구사항 공식 완료 전에는 Txx를 PASS로 표시하지 않습니다.
 2. **문서 정정**: 순수 Markdown 수정은 작은 수의 의미상 관련 문서만 한 PR로 묶습니다. 오래된 이슈의 과거 증거 문서를 일괄 재작성하지 않습니다.
-3. **문서 변경 감지**: 순수 `docs/**/*.md` 변경은 분류기가 올바르게 인식하는 경우 불필요한 네이티브 작업을 SKIP할 수 있습니다. 그러나 **현재 전체 Markdown 경로에 일관되게 적용되지는 않습니다**. 컴포넌트 README와 일부 F6/F7 작업의 기존 누락은 [Issue #513](https://github.com/july-rust/BoardSI/issues/513)에서 추적합니다. 필수 체크는 그대로 유지하고 실제 PR-head `docs` 검사, 분류기, 각 네이티브 작업의 SKIP/PASS를 확인해야 합니다.
+3. **문서 변경 감지**: [CI PR #516](https://github.com/july-rust/BoardSI/pull/516) 이후 공통 SHA 검증 분류기는 `docs/**/*.md`, 루트 README/CONTRIBUTING/SECURITY, `apps/**/README.md`, `crates/**/README.md`만 명시적으로 허용하고, F6/F7 실제 네이티브 작업도 분류 결과가 `true`일 때만 SKIP합니다. 단, 실제 Runner 절감은 [Issue #513](https://github.com/july-rust/BoardSI/issues/513)의 **별도 README 전용 PR 검증 결과**를 확인하여 확정합니다. 코드·설정·JSON·Fixture·rename·분류 실패에서는 반드시 기존 전체 검증을 유지하고 필수 체크 이름/보호 정책을 변경하지 않습니다.
 4. **경로·구조 검증**: 로컬 Markdown 링크의 대상 파일 존재 여부, `#anchor` 안정성, 이미지 경로, 중복 제목, 존재하지 않는 섹션 이동, 금지된 기업 정보 노출을 점검합니다. 상대 파일 링크가 있다고 해서 외부 URL의 최신성이나 내부 앵커의 유효성이 자동 보장되는 것은 아닙니다.
 5. **병합**: 보호된 `main`, Verified·Squash-only·필수 CI·리뷰 정책을 준수하고, 병합 SHA와 필요한 main Push 결과를 별도로 구분합니다.
 6. **범위 이동**: 새로운 Via/Pad 접촉 형태를 **각도별 케이스로 재구현하지 말고**, 기존 공통 기하 엔진 또는 일반화된 도체 Footprint API를 확장한 뒤 모델 불변성·대칭성·경계조건 시험으로 검증합니다.
