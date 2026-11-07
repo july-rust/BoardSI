@@ -48,7 +48,8 @@ pub fn trace_to_via(trace: &Stroke, via: &ViaInstance) -> Result<Contact, &'stat
         return Err("INVALID_VIA_COPPER_FOOTPRINT");
     }
     let layer = trace.layer;
-    if layer < via.first_layer || layer > via.last_layer
+    if layer < via.first_layer
+        || layer > via.last_layer
         || (layer != via.first_layer && layer != via.last_layer && !via.inner_pad)
     {
         // Validate trace even when its layer does not participate.
@@ -65,17 +66,17 @@ pub fn trace_to_via(trace: &Stroke, via: &ViaInstance) -> Result<Contact, &'stat
     }
     // The trace must reach BOTH the outer pad disk and the exterior of the
     // drilled aperture. Strict inequalities prove positive-area overlap.
-    Ok(if outer_clearance > BOUNDARY_GUARD_TICKS
-        || inner_clearance > BOUNDARY_GUARD_TICKS
-    {
-        Contact::Separated
-    } else if outer_clearance >= -BOUNDARY_GUARD_TICKS
-        || inner_clearance >= -BOUNDARY_GUARD_TICKS
-    {
-        Contact::BoundaryUncertain
-    } else {
-        Contact::PositiveArea
-    })
+    Ok(
+        if outer_clearance > BOUNDARY_GUARD_TICKS || inner_clearance > BOUNDARY_GUARD_TICKS {
+            Contact::Separated
+        } else if outer_clearance >= -BOUNDARY_GUARD_TICKS
+            || inner_clearance >= -BOUNDARY_GUARD_TICKS
+        {
+            Contact::BoundaryUncertain
+        } else {
+            Contact::PositiveArea
+        },
+    )
 }
 
 /// Generic footprint intersection for the original supported SMD shapes.
@@ -84,7 +85,10 @@ pub fn trace_to_pad(trace: &Stroke, pad: &ComponentPad) -> Result<Contact, &'sta
     if !(1..=64).contains(&pad.layer)
         || pad.reference.is_empty()
         || pad.pin.is_empty()
-        || pad.point.iter().any(|p| !(-MAX_TICKS..=MAX_TICKS).contains(p))
+        || pad
+            .point
+            .iter()
+            .any(|p| !(-MAX_TICKS..=MAX_TICKS).contains(p))
         || pad.width_ticks <= 0
         || pad.height_ticks <= 0
         || pad.width_ticks > MAX_TICKS
@@ -123,19 +127,23 @@ struct Footprint {
     kind: Target,
     box_xy: [f64; 4],
 }
-fn target_envelope(
-    kind: Target,
-    vias: &[ViaInstance],
-    pads: &[ComponentPad],
-) -> [f64; 4] {
+fn target_envelope(kind: Target, vias: &[ViaInstance], pads: &[ComponentPad]) -> [f64; 4] {
     let (c, rx, ry) = match kind {
         Target::Via(i) => {
             let v = &vias[i];
-            (v.point, v.diameter_ticks as f64 / 2.0, v.diameter_ticks as f64 / 2.0)
+            (
+                v.point,
+                v.diameter_ticks as f64 / 2.0,
+                v.diameter_ticks as f64 / 2.0,
+            )
         }
         Target::SmdPad(i) => {
             let p = &pads[i];
-            (p.point, p.width_ticks as f64 / 2.0, p.height_ticks as f64 / 2.0)
+            (
+                p.point,
+                p.width_ticks as f64 / 2.0,
+                p.height_ticks as f64 / 2.0,
+            )
         }
     };
     [
@@ -173,19 +181,33 @@ pub fn contact_candidates(
     // Fail before broadphase, including target objects on another layer.
     // Source parse cannot silently hide a malformed pad/via behind a bounding box.
     for v in vias {
-        if v.diameter_ticks <= v.drill_ticks || v.drill_ticks <= 0
-            || v.diameter_ticks > MAX_TICKS || v.point.iter().any(|p| !(-MAX_TICKS..=MAX_TICKS).contains(p))
-            || v.first_layer == 0 || v.last_layer < v.first_layer || v.last_layer > 64
-            || v.name.is_empty() || v.net.is_empty()
+        if v.diameter_ticks <= v.drill_ticks
+            || v.drill_ticks <= 0
+            || v.diameter_ticks > MAX_TICKS
+            || v.point
+                .iter()
+                .any(|p| !(-MAX_TICKS..=MAX_TICKS).contains(p))
+            || v.first_layer == 0
+            || v.last_layer < v.first_layer
+            || v.last_layer > 64
+            || v.name.is_empty()
+            || v.net.is_empty()
         {
             return Err("INVALID_VIA_COPPER_FOOTPRINT");
         }
     }
     for p in pads {
-        if p.width_ticks <= 0 || p.height_ticks <= 0
-            || p.width_ticks > MAX_TICKS || p.height_ticks > MAX_TICKS
-            || p.point.iter().any(|v| !(-MAX_TICKS..=MAX_TICKS).contains(v))
-            || p.layer == 0 || p.layer > 64 || p.pin.is_empty() || p.reference.is_empty()
+        if p.width_ticks <= 0
+            || p.height_ticks <= 0
+            || p.width_ticks > MAX_TICKS
+            || p.height_ticks > MAX_TICKS
+            || p.point
+                .iter()
+                .any(|v| !(-MAX_TICKS..=MAX_TICKS).contains(v))
+            || p.layer == 0
+            || p.layer > 64
+            || p.pin.is_empty()
+            || p.reference.is_empty()
             || (p.square && p.rectangular)
             || (!p.rectangular && p.width_ticks != p.height_ticks)
         {
@@ -220,7 +242,11 @@ pub fn contact_candidates(
                     } else {
                         DeclaredNetRelation::Different
                     };
-                    (trace_to_via(stroke, v)?, format!("{}@{}", v.name, v.source_line), rel)
+                    (
+                        trace_to_via(stroke, v)?,
+                        format!("{}@{}", v.name, v.source_line),
+                        rel,
+                    )
                 }
                 Target::SmdPad(j) => {
                     let p = &pads[j];
@@ -246,10 +272,15 @@ pub fn contact_candidates(
             }
         }
     }
-    out.sort_by_key(|c| (c.trace_index, match c.target {
-        Target::Via(index) => index,
-        Target::SmdPad(index) => vias.len() + index,
-    }));
+    out.sort_by_key(|c| {
+        (
+            c.trace_index,
+            match c.target {
+                Target::Via(index) => index,
+                Target::SmdPad(index) => vias.len() + index,
+            },
+        )
+    });
     Ok(out)
 }
 
@@ -327,63 +358,99 @@ mod tests {
         let v = via();
         let tangent = line([-100, 60], [100, 60], 20, 1);
         assert_eq!(trace_to_via(&tangent, &v), Ok(Contact::BoundaryUncertain));
-        assert_eq!(trace_to_via(&line([-100, 59], [100, 59], 20, 1), &v),
-            Ok(Contact::PositiveArea));
-        assert_eq!(trace_to_via(&line([-100, 61], [100, 61], 20, 1), &v),
-            Ok(Contact::Separated));
+        assert_eq!(
+            trace_to_via(&line([-100, 59], [100, 59], 20, 1), &v),
+            Ok(Contact::PositiveArea)
+        );
+        assert_eq!(
+            trace_to_via(&line([-100, 61], [100, 61], 20, 1), &v),
+            Ok(Contact::Separated)
+        );
         // Endpoints and entire segment lie within the copper-free drill aperture.
-        assert_eq!(trace_to_via(&line([-5, 0], [5, 0], 4, 1), &v),
-            Ok(Contact::Separated));
-        assert_eq!(trace_to_via(&line([-10, 0], [10, 0], 20, 1), &v),
-            Ok(Contact::BoundaryUncertain));
-        assert_eq!(trace_to_via(&line([-11, 0], [11, 0], 20, 1), &v),
-            Ok(Contact::PositiveArea));
+        assert_eq!(
+            trace_to_via(&line([-5, 0], [5, 0], 4, 1), &v),
+            Ok(Contact::Separated)
+        );
+        assert_eq!(
+            trace_to_via(&line([-10, 0], [10, 0], 20, 1), &v),
+            Ok(Contact::BoundaryUncertain)
+        );
+        assert_eq!(
+            trace_to_via(&line([-11, 0], [11, 0], 20, 1), &v),
+            Ok(Contact::PositiveArea)
+        );
     }
     #[test]
     fn via_only_connects_explicit_conductive_layers() {
         let v = via();
-        assert_eq!(trace_to_via(&line([0, 35], [100, 35], 10, 2), &v),
-            Ok(Contact::Separated));
-        assert_eq!(trace_to_via(&line([0, 35], [100, 35], 10, 4), &v),
-            Ok(Contact::PositiveArea));
+        assert_eq!(
+            trace_to_via(&line([0, 35], [100, 35], 10, 2), &v),
+            Ok(Contact::Separated)
+        );
+        assert_eq!(
+            trace_to_via(&line([0, 35], [100, 35], 10, 4), &v),
+            Ok(Contact::PositiveArea)
+        );
         let mut inner = via();
         inner.inner_pad = true;
-        assert_eq!(trace_to_via(&line([0, 35], [100, 35], 10, 2), &inner),
-            Ok(Contact::PositiveArea));
+        assert_eq!(
+            trace_to_via(&line([0, 35], [100, 35], 10, 2), &inner),
+            Ok(Contact::PositiveArea)
+        );
     }
     #[test]
     fn whole_pad_surface_including_edges_corners_and_midspan() {
         let rect = pad(false, true);
-        assert_eq!(trace_to_pad(&line([48, 28], [80, 60], 8, 1), &rect),
-            Ok(Contact::PositiveArea));
-        assert_eq!(trace_to_pad(&line([-90, 0], [90, 0], 8, 1), &rect),
-            Ok(Contact::PositiveArea));
-        assert_eq!(trace_to_pad(&line([50, 34], [70, 34], 8, 1), &rect),
-            Ok(Contact::BoundaryUncertain));
-        assert_eq!(trace_to_pad(&line([50, 35], [70, 35], 8, 1), &rect),
-            Ok(Contact::Separated));
-        assert_eq!(trace_to_pad(&line([50, 33], [70, 33], 8, 1), &rect),
-            Ok(Contact::PositiveArea));
-        assert_eq!(trace_to_pad(&line([48, 28], [80, 60], 8, 2), &rect),
-            Ok(Contact::Separated));
+        assert_eq!(
+            trace_to_pad(&line([48, 28], [80, 60], 8, 1), &rect),
+            Ok(Contact::PositiveArea)
+        );
+        assert_eq!(
+            trace_to_pad(&line([-90, 0], [90, 0], 8, 1), &rect),
+            Ok(Contact::PositiveArea)
+        );
+        assert_eq!(
+            trace_to_pad(&line([50, 34], [70, 34], 8, 1), &rect),
+            Ok(Contact::BoundaryUncertain)
+        );
+        assert_eq!(
+            trace_to_pad(&line([50, 35], [70, 35], 8, 1), &rect),
+            Ok(Contact::Separated)
+        );
+        assert_eq!(
+            trace_to_pad(&line([50, 33], [70, 33], 8, 1), &rect),
+            Ok(Contact::PositiveArea)
+        );
+        assert_eq!(
+            trace_to_pad(&line([48, 28], [80, 60], 8, 2), &rect),
+            Ok(Contact::Separated)
+        );
         let round = pad(false, false);
-        assert_eq!(trace_to_pad(&line([45, -100], [45, 100], 12, 1), &round),
-            Ok(Contact::PositiveArea));
+        assert_eq!(
+            trace_to_pad(&line([45, -100], [45, 100], 12, 1), &round),
+            Ok(Contact::PositiveArea)
+        );
         let square = pad(true, false);
-        assert_eq!(trace_to_pad(&line([48, 48], [90, 90], 8, 1), &square),
-            Ok(Contact::PositiveArea));
+        assert_eq!(
+            trace_to_pad(&line([48, 48], [90, 90], 8, 1), &square),
+            Ok(Contact::PositiveArea)
+        );
     }
     #[test]
     fn arc_to_via_and_corner_pad_stays_analytic() {
         let mut big = via();
         big.diameter_ticks = 120;
         big.drill_ticks = 20;
-        assert_eq!(trace_to_via(&arc([45, 0], [0, 45]), &big),
-            Ok(Contact::PositiveArea));
+        assert_eq!(
+            trace_to_via(&arc([45, 0], [0, 45]), &big),
+            Ok(Contact::PositiveArea)
+        );
         let mut p = pad(false, true);
         p.point = [70, 70];
-        assert_eq!(trace_to_pad(&arc([100, 0], [0, 100]), &p),
-            Ok(Contact::PositiveArea));
+        assert_eq!(
+            trace_to_pad(&arc([100, 0], [0, 100]), &p),
+            Ok(Contact::PositiveArea)
+        );
     }
     #[test]
     fn source_provenance_conflict_labels_and_missing_net_are_not_edges() {
@@ -393,10 +460,22 @@ mod tests {
         let pads = vec![pad(false, true)];
         let result = contact_candidates(&strokes, &[v], &pads, &BTreeMap::new()).unwrap();
         assert_eq!(result.len(), 2);
-        assert_eq!(result.iter().find(|x| matches!(x.target, Target::Via(_))).unwrap().net_relation,
-            DeclaredNetRelation::Different);
-        assert_eq!(result.iter().find(|x| matches!(x.target, Target::SmdPad(_))).unwrap().net_relation,
-            DeclaredNetRelation::PadNetUnverified);
+        assert_eq!(
+            result
+                .iter()
+                .find(|x| matches!(x.target, Target::Via(_)))
+                .unwrap()
+                .net_relation,
+            DeclaredNetRelation::Different
+        );
+        assert_eq!(
+            result
+                .iter()
+                .find(|x| matches!(x.target, Target::SmdPad(_)))
+                .unwrap()
+                .net_relation,
+            DeclaredNetRelation::PadNetUnverified
+        );
         let mut net = BTreeMap::new();
         net.insert("U1.1".to_owned(), "NET_A".to_owned());
         let result = contact_candidates(&strokes, &[], &pads, &net).unwrap();
@@ -411,30 +490,46 @@ mod tests {
             let x = (40.0 * angle.cos()).round() as i64;
             let y = (40.0 * angle.sin()).round() as i64;
             // Short segment entirely in annular copper, not through centre.
-            let test = line([1000+x, -1000+y], [1000+x-y/20, -1000+y+x/20], 6, 1);
-            assert_eq!(trace_to_via(&test, &v), Ok(Contact::PositiveArea),
-                "source direction sampled at {deg}");
+            let test = line(
+                [1000 + x, -1000 + y],
+                [1000 + x - y / 20, -1000 + y + x / 20],
+                6,
+                1,
+            );
+            assert_eq!(
+                trace_to_via(&test, &v),
+                Ok(Contact::PositiveArea),
+                "source direction sampled at {deg}"
+            );
         }
     }
     #[test]
     fn invalid_shapes_fail_closed() {
         let mut v = via();
         v.drill_ticks = 100;
-        assert!(matches!(trace_to_via(&line([0, 0], [100, 0], 10, 1), &v),
-            Err("INVALID_VIA_COPPER_FOOTPRINT")));
+        assert!(matches!(
+            trace_to_via(&line([0, 0], [100, 0], 10, 1), &v),
+            Err("INVALID_VIA_COPPER_FOOTPRINT")
+        ));
         let mut p = pad(false, true);
         p.width_ticks = 0;
-        assert!(matches!(trace_to_pad(&line([0, 0], [100, 0], 10, 1), &p),
-            Err("INVALID_SMD_COPPER_FOOTPRINT")));
+        assert!(matches!(
+            trace_to_pad(&line([0, 0], [100, 0], 10, 1), &p),
+            Err("INVALID_SMD_COPPER_FOOTPRINT")
+        ));
     }
     #[test]
     fn original_source_via_and_smd_inventories_remain_accepted() {
         let bytes = include_bytes!("../tests/fixtures/pads_via_round_through_v94.asc");
         let candidates = source_candidates(bytes).unwrap();
         assert!(!candidates.is_empty());
-        assert!(candidates.iter().any(|c| matches!(c.target, Target::Via(_))));
+        assert!(candidates
+            .iter()
+            .any(|c| matches!(c.target, Target::Via(_))));
         let bytes = include_bytes!("../tests/fixtures/d040_multi_component_v94.asc");
         let candidates = source_candidates(bytes).unwrap();
-        assert!(candidates.iter().any(|c| matches!(c.target, Target::SmdPad(_))));
+        assert!(candidates
+            .iter()
+            .any(|c| matches!(c.target, Target::SmdPad(_))));
     }
 }
