@@ -47,10 +47,12 @@ int main(int argc,char **argv) {
         wire=process.readAllStandardOutput();
         return process.exitCode();
     };
+    QByteArray original;
     const auto positive=[&](const QByteArray &source) {
         if(source==originalSource || !save(source) || !load())return false;
         QByteArray wire;
         return run(wire)==0 && d050::decode(wire,source,&panel) &&
+            !d050::decode(original,source,&panel) &&
             wire.contains("COUNT|NODES|11|EDGES|10|LOCAL_COMPONENTS|1");
     };
     const auto rejected=[&](const QByteArray &source) {
@@ -64,7 +66,6 @@ int main(int argc,char **argv) {
             && d050::reconstruct(source,&panel).isEmpty();
     };
     if(!save(originalSource) || !load())return 2;
-    QByteArray original;
     if(run(original)!=0 || !d050::decode(original,originalSource,&panel) ||
        !original.contains("COUNT|NODES|11|EDGES|10|LOCAL_COMPONENTS|1"))return 1;
     QByteArray forged=original;
