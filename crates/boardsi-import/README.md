@@ -1,6 +1,23 @@
-# BoardSI M1 PADS ASCII signature probe (partial)
+# BoardSI PADS Importer — 서명 검사와 제한 Artwork 파서
 
-This directory implements a bounded, **read-only first-line signature check** for PADS PowerPCB and PADS Logic ASCII exports. It **does not** parse board geometry, units, nets, layers, pads, vias or stackup; it does not populate the Canonical Board Model or run an SI calculation. All detections are **SIGNATURE_ONLY**, regardless of reported source revision.
+> **현재 기준: 2026-11-07 KST.** 이 디렉터리에는 **서로 다른 두 단계**가 있습니다. \`boardsi-import-probe\`는 여전히 첫 줄 형식 식별만 합니다. 반면 \`boardsi-import-artwork\`는 **PADS PowerPCB V9.4 MILS의 제한된 SOURCE 기하 서브셋**을 읽고 일부 Trace/Arc/Via/SMD Pad/구리 영역을 보존합니다. 어느 쪽도 완전한 PADS Import 또는 정식 PCB SI 해석기는 아닙니다.
+>
+> [프로젝트 문서 홈](../../docs/README.md) · [개발 가이드](../../docs/getting-started.md) · [정식 구현 상태](../../docs/development-checklist.md) · [Trace–Via–Pad 기하 계약](../../docs/architecture/trace-copper-contact.md).
+
+## 도구별 실제 역할
+
+| 명령 | 실제 지원 범위 | 결과 의미 |
+| :--- | :--- | :--- |
+| \`boardsi-import-probe\` | 제한된 ASCII 첫 줄 서명 검사만 | \`SIGNATURE_ONLY\`; **형상 파싱 없음** |
+| \`boardsi-import-artwork\` | 제한 PADS V9.4 MILS ROUTE 및 일부 Copper/Component/Pad/Via/Arc | Source SHA·기하·부분 Capability; \`SI_NOT_RUN\` |
+| \`boardsi-import-artwork --general-trace-contacts-v1\` | 선분/원호 Trace 사이 선폭을 고려한 SOURCE 국소 접촉 후보 | **D_054** Geometry-only |
+| \`boardsi-import-artwork --trace-pad-via-contacts-v1\` | 임의 방향 Trace와 **비중심 Via 환형 Pad / SMD Pad 전체 면적**의 접촉 후보 | **D_055** Geometry-only; 전역 전기 연결/Short 미판정 |
+
+**중요한 정정:** 이 아래 오래된 \`P2-A\`/A_005 기록의 ‘straight-segment-only’, ‘Via/Arc not rendered’는 **초기 단계 당시의 제한 사항**입니다. 현재 임포터 전체의 동작을 뜻하지 않습니다. 해당 절은 회귀시험 역사를 위해 보존합니다. 지원이 늘어난 형상은 제한된 SOURCE 자료 및 공개 합성 회귀시험으로만 입증됐습니다.
+
+## Historical signature-probe behavior (still valid)
+
+This directory originally implemented a bounded **read-only first-line signature check** for PADS PowerPCB and PADS Logic ASCII exports. **The signature-probe binary**, not the separate Artwork importer, does not parse board geometry, units, nets, layers, pads, vias or stackup. Its detections are **SIGNATURE_ONLY**, regardless of reported revision.
 
 ## Usage
 
@@ -20,9 +37,8 @@ References:
 Roadmap trace: [Issue #8](https://github.com/july-rust/BoardSI/issues/8) (format detection) and [Issue #9](https://github.com/july-rust/BoardSI/issues/9) (future real PADS importer). Product acceptance tests T01/T02/T03/T16/T17/T20/T22 remain NOT_RUN: the new unit tests are limited parser-preflight evidence, **not** the M1 import acceptance gate. No SI accuracy, provenance transformation or redistribution claim.
 
 
-## P2-A (restricted, experimental)
-The developer Preview has an **offline straight-segment-only** parser for
-PADS POWERPCB V9.4-MILS ROUTE entries. This is NOT full PADS support.
+## Historical P2-A first artwork subset (restricted, superseded)
+**Historical checkpoint:** the original P2-A developer Preview used an **offline straight-segment-only** parser for PADS POWERPCB V9.4-MILS ROUTE entries. Its individual exclusions below document that early milestone; **they are not an up-to-date feature matrix**. Current limited Arc/Via/Pad/Copper subsets and D_054/D_055 geometry diagnostics are listed at the top of this README. Full PADS support and real-board physical SI still remain unverified.
 Reference: PADS Layout ASCII Format Specification 9.4, pp. 51-55;
 KiCad developer documentation on PADS units/ROUTE.
 
@@ -198,3 +214,29 @@ Source: PADS Layout ASCII Format Specification 9.4 Part List pp. 45-46;
 KiCad PADS importer footprint bottom-layer `Flip(... LEFT_RIGHT)`
 implementation. The KiCad reference does not constitute a formal vendor
 compatibility certification. Issues #9/#11 remain open.
+
+---
+
+## Current generic Trace–Via–SMD Pad contact diagnostic (D_054/D_055; 2026-11-07 KST)
+
+The common SOURCE-grid predicates do **not** enumerate separate cases for each trace angle, Via-centric endpoint, SMD pad edge or corner. Finite-width straight and circular-arc routes are checked against actual supported circular Via annuli (outer copper diameter minus drill aperture) and circular/square/rectangular SMD pad footprints. A Via that spans a layer without an explicitly supported conductive pad is not assumed to contact copper there. Source Net ownership is preserved; cross-net positive-area intersection is a **conflict candidate**, not a validated electrical Short.
+
+From the repository root, build and run only publicly safe fixtures or approved offline local files:
+
+\`\`\`sh
+cargo build --locked -p boardsi-import --bin boardsi-import-artwork
+
+# Source-local Trace vs Via/SMD Pad copper candidate report
+./target/debug/boardsi-import-artwork \
+  crates/boardsi-import/tests/fixtures/d040_multi_component_v94.asc \
+  --trace-pad-via-contacts-v1
+
+# Source-local straight/circular Trace vs Trace candidate report
+./target/debug/boardsi-import-artwork \
+  crates/boardsi-import/tests/fixtures/d040_multi_component_v94.asc \
+  --general-trace-contacts-v1
+\`\`\`
+
+The output is **opt-in**, versioned and SHA-256-bound. The normal Qt Artwork V1–V14 wire format remains unchanged. A positive contact is a **local geometry observation**, not a full Canonical electrical graph edge, actual solder/plating evidence or physical RLGC/S accuracy guarantee. Fail-closed near-tangency, unsupported source records, invalid geometry and pair limits remain explicit.
+
+Code: [straight/arc kernel](src/trace_contact.rs) · [Via/SMD footprint kernel](src/trace_attachment.rs). Verification: [D_054/D_055 scoped results](../../docs/validation/d054-d055-general-trace-contact-qualification.md). Product acceptance: [single checklist](../../docs/development-checklist.md).
