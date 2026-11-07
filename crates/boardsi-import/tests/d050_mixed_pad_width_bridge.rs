@@ -52,7 +52,7 @@ fn tangency_gap_cross_net_ambiguity_and_forged_inventory_fail_closed() {
         source.replace("378 300 1 8 0", "376 300 1 8 0"),
         source.replace("378 300 1 8 0", "375.99 300 1 8 0"),
         source.replace("378 300 1 8 0", "380 300 1 8 0"),
-        SOURCE
+        source
             .replace("226 300 1 8 0", "226 322 1 8 0")
             .replace("378 300 1 8 0", "378 322 1 8 0"),
         source.replace("226 300 1 8 0", "226 300 2 8 0"),
