@@ -13,7 +13,7 @@
 | 구현 진척·첫 검증일·미완성 | [개발 체크리스트](development-checklist.md) **한 파일** | 스테이지별 별도 독립 체크리스트 생성 |
 | 기술 설계·알고리즘 계약 | [아키텍처](architecture/README.md), [Trace 접촉](architecture/trace-copper-contact.md) | 합성 시연을 물리 검증 완료로 표현 |
 | 입력/수치/UI 테스트 원장 | [Validation](validation/README.md), [색인](validation/INDEX.md) | 과거 실패를 소급 지우거나 그 당시 작성된 SHA 교체 |
-| 개발환경 및 실제 실행 | [개발 가이드](getting-started.md)와 하위 모듈 README | 한 가지 환경에서만 통하는 명령을 모든 플랫폼에서 검증됐다고 일반화 |
+| 개발환경 및 실제 실행 | [개발 가이드](developer-quickstart.md)와 하위 모듈 README | 한 가지 환경에서만 통하는 명령을 모든 플랫폼에서 검증됐다고 일반화 |
 | 소스 보안·기여 및 CI | [SECURITY](../SECURITY.md), [CONTRIBUTING](../CONTRIBUTING.md) | 검증되지 않은 라이선스/보안 채널/배포 승인을 꾸며냄 |
 
 ## 2. 반드시 구분하는 상태 용어
@@ -53,7 +53,7 @@
 - 문서의 상대경로 링크는 실제 Git 저장소에서 존재하는 파일을 가리켜야 합니다. 디렉터리 링크는 `README.md`로 명시적으로 연결하는 편을 권장합니다.
 - 오래된 결정문은 **당시의 근거**로 보존하고, 현재와 다른 결론은 본문 맨 위에 `Historical checkpoint — superseded by ...` 형태의 주석과 링크를 둡니다.
 - 과거 수치 오차·Fail 사례는 불편하더라도 삭제하지 않습니다. 오류 정정은 `Erratum: <날짜> — 기존 문장의 무엇을 고쳤는지`를 기록해 추적합니다.
-- `README.md`는 3분 내 전체 구조 파악이 가능하도록 유지하고, 실무 상세 절차는 [Getting started](getting-started.md)로 분리합니다.
+- `README.md`는 3분 내 전체 구조 파악이 가능하도록 유지하고, 실무 상세 절차는 [Getting started](developer-quickstart.md)로 분리합니다.
 
 ## 5. 변경·리뷰·CI 운영
 
@@ -74,4 +74,4 @@
 - PH-08 실패, 미지원 객체, 자료 보안과 미선정 라이선스가 은폐되지 않았는가?
 - 이 변경이 코드/CI 설정을 바꾸지 않았는데 불필요한 네이티브 검증을 다시 실행하지는 않는가?
 
-프로젝트 전수 리뷰 근거와 미해결 항목은 [2026-11-07 문서 감사](audits/2026-11-07-documentation-review.md)에서 관리합니다.
+프로젝트 전수 리뷰 근거와 미해결 항목은 [2026-11-07 문서 감사](audits/2026-11-07-documentation-audit.md)에서 관리합니다.
