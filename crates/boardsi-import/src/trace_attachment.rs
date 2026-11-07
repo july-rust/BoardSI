@@ -84,7 +84,7 @@ pub fn trace_to_pad(trace: &Stroke, pad: &ComponentPad) -> Result<Contact, &'sta
     if !(1..=64).contains(&pad.layer)
         || pad.reference.is_empty()
         || pad.pin.is_empty()
-        || pad.point.iter().any(|p| p.abs() > MAX_TICKS)
+        || pad.point.iter().any(|p| !(-MAX_TICKS..=MAX_TICKS).contains(p))
         || pad.width_ticks <= 0
         || pad.height_ticks <= 0
         || pad.width_ticks > MAX_TICKS
@@ -174,7 +174,7 @@ pub fn contact_candidates(
     // Source parse cannot silently hide a malformed pad/via behind a bounding box.
     for v in vias {
         if v.diameter_ticks <= v.drill_ticks || v.drill_ticks <= 0
-            || v.diameter_ticks > MAX_TICKS || v.point.iter().any(|p| p.abs() > MAX_TICKS)
+            || v.diameter_ticks > MAX_TICKS || v.point.iter().any(|p| !(-MAX_TICKS..=MAX_TICKS).contains(p))
             || v.first_layer == 0 || v.last_layer < v.first_layer || v.last_layer > 64
             || v.name.is_empty() || v.net.is_empty()
         {
@@ -184,7 +184,7 @@ pub fn contact_candidates(
     for p in pads {
         if p.width_ticks <= 0 || p.height_ticks <= 0
             || p.width_ticks > MAX_TICKS || p.height_ticks > MAX_TICKS
-            || p.point.iter().any(|v| v.abs() > MAX_TICKS)
+            || p.point.iter().any(|v| !(-MAX_TICKS..=MAX_TICKS).contains(v))
             || p.layer == 0 || p.layer > 64 || p.pin.is_empty() || p.reference.is_empty()
             || (p.square && p.rectangular)
             || (!p.rectangular && p.width_ticks != p.height_ticks)
@@ -380,7 +380,8 @@ mod tests {
         big.drill_ticks = 20;
         assert_eq!(trace_to_via(&arc([45, 0], [0, 45]), &big),
             Ok(Contact::PositiveArea));
-        let p = pad(false, true);
+        let mut p = pad(false, true);
+        p.point = [70, 70];
         assert_eq!(trace_to_pad(&arc([100, 0], [0, 100]), &p),
             Ok(Contact::PositiveArea));
     }
@@ -388,7 +389,7 @@ mod tests {
     fn source_provenance_conflict_labels_and_missing_net_are_not_edges() {
         let mut v = via();
         v.net = "NET_B".into();
-        let strokes = vec![line([-80, 35], [80, 35], 10, 1)];
+        let strokes = vec![line([-80, 34], [80, 34], 10, 1)];
         let pads = vec![pad(false, true)];
         let result = contact_candidates(&strokes, &[v], &pads, &BTreeMap::new()).unwrap();
         assert_eq!(result.len(), 2);
