@@ -1,4 +1,8 @@
-# BoardSI — verified M2 development history
+# BoardSI — M2 개발 및 검증 이력 (역사적 보고서)
+
+> **문서 위치 정정 (2026-11-07 KST):** 아래는 2026-10월 M2 수치/PH-08 연구 과정의 **당시 기록**입니다. 현재 전체 BoardSI 구현 상황을 나타내는 통합 개발 일지가 아닙니다. 최신 A/B/C/D 구현 상태는 [단일 체크리스트](development-checklist.md), 정리된 모듈 위치는 [아키텍처 지도](architecture/README.md), 158개 검증 보고서 목록은 [검증 색인](validation/INDEX.md), 개발 안내는 [문서 홈](README.md)을 사용하십시오. **PH-08 원본 HMM Gate Q FAIL은 이후 시연이나 행정 Issue 종료와 무관하게 유지됩니다.**
+>
+> 2026-11-07 D_054/D_055의 범용 Copper 접촉 엔진은 [별도 SOURCE 국소 검증 기록](validation/d054-d055-general-trace-contact-qualification.md)에 있으며, **M2 실제 PCB Solver/실물 PCB 인수에 포함되지 않습니다**.
 
 This is a phase-scoped engineering record, not an assertion of overall M2 completion. Detailed evidence and raw references are linked. A PH-case numerical PASS does not imply actual PCB physical validity.
 
