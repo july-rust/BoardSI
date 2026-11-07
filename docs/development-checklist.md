@@ -160,7 +160,6 @@ D_052는 D_051의 가상 Bridge Node 제거를 실제 PADS V9.4 SOURCE의 중간
 | [**D_044**](#d_044) | Finite-width parallel SOURCE Copper contact candidate (코드 한정 인수) | 1 | 0 |
 | [**D_045**](#d_045) | Finite-width perpendicular SOURCE Copper contact + D_044 native Qt negative reimport (코드 한정 인수) | 1 | 0 |
 | [**D_046**](#d_046) | Finite-width oblique SOURCE Copper contact / exact segment-distance Rust·Native Qt qualification (코드·main Push 한정 인수) | 1 | 0 |
-
 | [**D_047**](#d_047) | Finite-width SOURCE Trace-to-SMD Square Pad positive-area contact / independent Rust·Native Qt | 1 | 0 |
 | [**D_048**](#d_048) | Finite-width SOURCE Trace-to-SMD Round Pad positive-area contact / independent Rust·Native Qt (code-main Push accepted) | 1 | 0 |
 | [**D_049**](#d_049) | Mixed Round/Square SMD Pad dual finite-width SOURCE-local contacts / independent Rust·Native Qt | 1 | 0 |
