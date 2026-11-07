@@ -23,6 +23,10 @@ flowchart LR
 
 **Read the arrows carefully:** solid connections identify *existing code paths/components*, not a fully accepted product workflow. Dashed connections are **missing or independently unqualified integration**. The local Rust geometry candidates do **not** automatically become a verified electrical connectivity graph or Qt visualized result.
 
+### 범용 Trace 접촉의 공통 설계 근거
+
+[D_054/D_055 Copper 접촉 계약](trace-copper-contact.md)은 임의 방향 직선·원호 Trace의 유한 선폭과 비중심 Via 환형 패드, 원형·정사각형·직사각형 SMD Pad 전체 영역 사이의 SOURCE-local 접촉 후보를 정리합니다. 이는 **전체 PCB Open/Short, 글로벌 연결 그래프, 물리 SI 검증**의 완료가 아닙니다. 검증 보고서는 [D_054/D_055 기록](../validation/d054-d055-general-trace-contact-qualification.md)을 확인하십시오.
+
 ## Repository packages and responsibility
 
 | Layer | Implemented boundary | Current caveat / evidence |
