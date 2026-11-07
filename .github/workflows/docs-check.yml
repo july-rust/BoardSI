@@ -16,6 +16,8 @@ jobs:
         run: |
           python3 tools/validation/ph08_private_archive_guard.py
           python3 -m unittest discover -s tools/validation -p 'test_ph08_private_archive_guard.py' -v
+      - name: Regression-test fail-closed documentation-only classifier
+        run: python3 -m unittest discover -s tools/validation -p 'test_docs_only_classifier.py' -v
       - name: Enforce one authoritative development checklist and honest overview counts
         run: |
           python3 - <<'PY'
