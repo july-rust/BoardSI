@@ -474,7 +474,9 @@ pub fn augment_source_bound(
     Ok(())
 }
 
-pub(crate) fn declared_route_pin_nets(source_bytes: &[u8]) -> Result<BTreeMap<String, String>, &'static str> {
+pub(crate) fn declared_route_pin_nets(
+    source_bytes: &[u8],
+) -> Result<BTreeMap<String, String>, &'static str> {
     // This function is called only after route_preview::parse accepted the source.
     // Restrict declarations to the first END and the explicit ROUTE/SIGNAL section.
     let source = String::from_utf8_lossy(source_bytes);
