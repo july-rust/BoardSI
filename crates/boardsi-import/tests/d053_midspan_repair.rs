@@ -117,7 +117,7 @@ fn missing_or_tangent_contacts_and_hostile_inventory_fail_closed() {
         full.replace("U2 TYPEA 400 300", "U2 TYPEA 398 300"),
         full.replace("*END*", &format!("{RA}*END*")), // duplicate
         full.replace("*END*", "U1.1 U2.1\n260 300 1 8 0\n265 300 1 8 0\n*END*"), // extra
-        full.replace(RA, ""),
+        full.replace(RA, "U1.1 U2.1\n288 300 1 8 0\n"), // malformed repair row
         full.replace("290 300 1 8 0", "270 300 1 8 0"),
         full.replace("*END*", "FORGED\n*END*"),
         insert(&INTACT.replace("\r\n", "\n"), RA), // repair without gap
