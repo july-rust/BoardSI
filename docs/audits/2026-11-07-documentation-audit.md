@@ -56,6 +56,12 @@
 
 **Coverage qualification:** this is a cross-cutting review of architecture, navigation, current main developer entrypoints, representative high-risk evidence and their status contracts. The date-pinned A/B/C/D and M2 original reports are numerous; this task **does not claim independent line-by-line recreation of every numerical result or every hyperlink within every archived report**. Do not invent a "100% documentation correctness certificate" based on a docs-only PR.
 
+## Executed documentation-link check
+
+For the **11 documents edited or created in this reconciliation**, GitHub connector reads supplied **61 unique local relative-link target files** resolved against the source document directory. **Result: 61/61 target files exist in the documentation PR branch; 0 missing files.** The scan included the top-level README, CONTRIBUTING, SECURITY, new docs index/Quickstart/audit, architecture/validation indexes, project management, and both importer/Qt READMEs.
+
+**Method limit:** this check verifies *file existence* only. It does **not** certify remote HTTP links, GitHub permissions for every reader, heading-anchor accuracy in all unedited records, GitHub Mermaid rendering on all devices, or the scientific correctness of the linked archived data. No source code, workflow, test fixture, JSON metadata or frozen acceptance contract was changed merely to perform the docs-only link check.
+
 ## Publication and editorial quality gates
 
 1. [Documentation hub](../README.md) is the **only navigation front door**, not a new progress ledger.
