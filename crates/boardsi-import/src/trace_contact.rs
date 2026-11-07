@@ -367,19 +367,13 @@ pub(crate) fn centreline_rectangle_distance(
     height: i64,
 ) -> Result<f64, &'static str> {
     valid_stroke(stroke)?;
-    if !valid_point(centre) || width <= 0 || height <= 0
-        || width > MAX_TICK || height > MAX_TICK {
+    if !valid_point(centre) || width <= 0 || height <= 0 || width > MAX_TICK || height > MAX_TICK {
         return Err("INVALID_CONTACT_RECTANGLE");
     }
     let (cx, cy) = (i128::from(centre[0]) * 2, i128::from(centre[1]) * 2);
     let (w, h) = (i128::from(width), i128::from(height));
     let (left, right, bottom, top) = (cx - w, cx + w, cy - h, cy + h);
-    let corners = [
-        [left, bottom],
-        [right, bottom],
-        [right, top],
-        [left, top],
-    ];
+    let corners = [[left, bottom], [right, bottom], [right, top], [left, top]];
     let inside = |point: [i64; 2]| {
         let x = i128::from(point[0]) * 2;
         let y = i128::from(point[1]) * 2;
