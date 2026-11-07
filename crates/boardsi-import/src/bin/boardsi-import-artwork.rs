@@ -714,10 +714,11 @@ fn main() {
             }
             let bytes = fs::read(path).map_err(|_| "SOURCE_READ")?;
             let pairs = boardsi_import::trace_contact::source_candidates(&bytes)?;
-            let hash = boardsi_import::digest::sha256(&bytes)
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>();
+            let mut hash = String::with_capacity(64);
+            for byte in boardsi_import::digest::sha256(&bytes) {
+                std::fmt::Write::write_fmt(&mut hash, format_args!("{byte:02x}"))
+                    .map_err(|_| "SOURCE_SHA_FORMAT")?;
+            }
             let mut report = format!(
                 "BOARDSI_GENERAL_TRACE_CONTACT_V1|{hash}|{}|SOURCE_LOCAL_ONLY|GLOBAL_ELECTRICAL_NOT_VERIFIED|SI_NOT_RUN\n",
                 pairs.len()
