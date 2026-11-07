@@ -1,4 +1,12 @@
-# Qt Widgets M0 Worker prototype
+# BoardSI Qt 개발자 프리뷰 — Worker, Artwork 및 Native UI
+
+> **현재 읽기 안내 (2026-11-07):** 아래의 M0 Worker/P0/P1 절은 각각 그 단계에서 실행된 **역사적·한정된 검증 기록**입니다. 이후 Qt Widgets 기반 개발자 프리뷰는 제한 PADS Artwork CPU·Qt Quick/RHI 렌더링까지 확장됐습니다. 따라서 P0 절의 ‘Open PCB는 파일 선택만 한다’는 문장은 **당시 P0 셸에 한한 설명**이지 현재 Importer/Artwork 전체의 기능 한계가 아닙니다. 실제 완제품 PCB SI/전체 전기 연결성·사용자 배포판은 여전히 **NOT_VERIFIED**입니다.
+>
+> 시작: [문서 홈](../../docs/README.md) · [환경·실행](../../docs/getting-started.md) · [현재 구조](../../docs/architecture/README.md) · [정식 체크리스트](../../docs/development-checklist.md). 서명 검사와 실제 SOURCE Artwork Import의 차이는 [Importer README](../../crates/boardsi-import/README.md)를 참조하세요.
+>
+> **검증 범위 주의:** Native Qt GUI/Worker 테스트 PASS는 새 D_054/D_055 구리 접촉 후보가 전체 Canonical 전기 그래프나 Qt의 기능 UI에 연결됐다는 뜻이 아닙니다. 범용 접촉 코어는 현재 [독립 진단 기능](../../docs/architecture/trace-copper-contact.md)으로 한정됩니다.
+
+## Historical M0 Worker prototype — original evidence
 
 Actual Linux x86_64 build and QApplication/Rust Worker execution: **PASS, Qt 6.8.3 offscreen**.
 Windows x64/ARM64 windows backend and macOS ARM64 cocoa backend: **PASS**.
@@ -61,7 +69,7 @@ Offscreen diagnostics are recorded; desktop rendering is not validated.
 [CI](../../.github/workflows/qt-runtime.yml).
 
 
-## Developer Preview P0 (native desktop, NOT PCB SI)
+## Developer Preview P0 — historical bounded shell (native desktop, NOT PCB SI)
 
 Build the existing Rust Worker and two offline synthetic Canonical Model fixtures
 using the commands above, then compile the new `boardsi-preview-p0` Qt target
