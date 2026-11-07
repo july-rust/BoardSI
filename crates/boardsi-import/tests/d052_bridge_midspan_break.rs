@@ -32,7 +32,10 @@ fn real_source_breaks_and_graph_are_independent_of_virtual_node_deletions() {
         ),
         (clean(BOTH), "BREAK_BOTH", "14|12|2|0|SEPARATED", 10),
     ];
-    assert_eq!(clean(ORIGINAL).replace(A, SPLIT_A).replace(B, SPLIT_B), clean(BOTH));
+    assert_eq!(
+        clean(ORIGINAL).replace(A, SPLIT_A).replace(B, SPLIT_B),
+        clean(BOTH)
+    );
     for (src, state, counts, tracks) in cases {
         let result = audit(&src).unwrap_or_else(|reason| panic!("{state}: {reason}"));
         assert!(result.starts_with("BOARDSI_D052_DUAL_BRIDGE_MIDSPAN_BREAK_V1|"));
@@ -65,14 +68,18 @@ fn positive_orientation_net_and_one_tick_copper_separation() {
     let reverse_b =
         "U1.2 U2.2\n290 400 1 8 0\n222 400 1 8 0\nU1.2 U2.2\n382 400 1 8 0\n310 400 1 8 0";
     let mut cases = vec![
-        clean(BOTH).replace(SPLIT_A, reverse_a).replace(SPLIT_B, reverse_b),
+        clean(BOTH)
+            .replace(SPLIT_A, reverse_a)
+            .replace(SPLIT_B, reverse_b),
         clean(BOTH).replace("NET_A", "NET_B"),
         clean(BOTH).replace('\n', "\r\n"),
         clean(BOTH).replace("*SIGNAL* NET_A", "*SIGNAL*\tNET_A"),
         clean(BOTH).replace("226 300 1 8 0", "+226.00 300.00 1 8.00 0"),
-        clean(BOTH).replace("290 300 1 8 0", "300 300 1 8 0")
+        clean(BOTH)
+            .replace("290 300 1 8 0", "300 300 1 8 0")
             .replace("310 300 1 8 0", "308.01 300 1 8 0"),
-        clean(BOTH).replace("290 400 1 8 0", "300 400 1 8 0")
+        clean(BOTH)
+            .replace("290 400 1 8 0", "300 400 1 8 0")
             .replace("310 400 1 8 0", "308.01 400 1 8 0"),
     ];
     cases.retain(|s| s != &clean(BOTH));
