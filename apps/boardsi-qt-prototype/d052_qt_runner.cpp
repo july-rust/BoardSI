@@ -18,7 +18,8 @@ int main(int argc,char **argv) {
     const QString importer=QString::fromLocal8Bit(argv[1]);
     QFile file(QString::fromLocal8Bit(argv[2]));
     if(!file.open(QIODevice::ReadOnly))return 2;
-    const QByteArray both=file.readAll();
+    QByteArray both=file.readAll();
+    both.replace("\r\n","\n");
     file.close();
     QByteArray intact;
     d052::Path a,b;
