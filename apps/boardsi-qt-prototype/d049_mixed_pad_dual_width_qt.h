@@ -9,7 +9,7 @@
 namespace d049 {
 inline bool sourceCoordTicks(QByteArray value, qint64 &ticks) {
     const bool negative=value.startsWith('-');
-    if(negative)value.remove(0,1);
+    if(negative || value.startsWith('+'))value.remove(0,1);
     const auto parts=value.split('.');
     if(parts.isEmpty() || parts.size()>2 || parts[0].isEmpty() ||
        parts[0].size()>6 || (parts.size()==2 && (parts[1].isEmpty() || parts[1].size()>2)))
@@ -39,9 +39,20 @@ inline bool sourcePairTrack(const ImportedTrack &track,
     std::array<std::array<qint64,2>,2> points{};
     for(int i=0;i<2;++i) {
         const auto f=vertices[static_cast<size_t>(i)].simplified().split(' ');
-        if(f.size()!=5 || f[2]!="1" || f[3]!="8" || f[4]!="0" ||
+        if(f.size()!=5 ||
            !sourceCoordTicks(f[0],points[static_cast<size_t>(i)][0]) ||
            !sourceCoordTicks(f[1],points[static_cast<size_t>(i)][1]))return false;
+        // Match the PADS SOURCE straight-segment grammar, not literal tokens:
+        // optional '+' and 0..2 decimal places are legal; terminal layer 65
+        // inherits the preceding layer only on the second vertex.
+        qint64 width=0;
+        bool layerOk=false,flagOk=false;
+        const qint64 layer=f[2].toLongLong(&layerOk,10);
+        const qint64 flag=f[4].toLongLong(&flagOk,10);
+        if(!sourceCoordTicks(f[3],width) || width!=800 ||
+           !layerOk || !flagOk ||
+           (i==0 ? layer!=1 : (layer!=1 && layer!=65)) ||
+           flag<0 || flag>32767 || (flag & ~qint64(0x0680))!=0)return false;
     }
     const qint64 ax=track.x0_nm/254,ay=track.y0_nm/254;
     const qint64 bx=track.x1_nm/254,by=track.y1_nm/254;
