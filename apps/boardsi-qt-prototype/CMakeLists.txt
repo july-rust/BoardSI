@@ -167,6 +167,29 @@ if(BUILD_TESTING)
       COMMAND boardsi-d037-native-qt "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-d037-mixed-sign-dual-via-source PROPERTIES TIMEOUT 90
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_050: SOURCE finite-width bridge, one connected mixed-pad component.
+    add_executable(boardsi-d050-native-qt d050_qt_runner.cpp)
+    target_link_libraries(boardsi-d050-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+    if(WIN32)
+      target_link_libraries(boardsi-d050-native-qt PRIVATE psapi)
+    endif()
+    if(MSVC)
+      target_compile_options(boardsi-d050-native-qt PRIVATE /W4 /WX)
+    else()
+      target_compile_options(boardsi-d050-native-qt PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    if((WIN32 OR APPLE) AND "$ENV{GITHUB_ACTIONS}" STREQUAL "true")
+      add_custom_command(TARGET boardsi-d050-native-qt POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E env "QT_QPA_PLATFORM=offscreen"
+          "$<TARGET_FILE:boardsi-d050-native-qt>" "${BOARDSI_IMPORTER}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/d050_mixed_pad_finite_width_bridge_v94.asc"
+        VERBATIM)
+    endif()
+    add_test(NAME qt-preview-d050-mixed-pad-finite-width-bridge-source
+      COMMAND boardsi-d050-native-qt "${BOARDSI_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/d050_mixed_pad_finite_width_bridge_v94.asc")
+    set_tests_properties(qt-preview-d050-mixed-pad-finite-width-bridge-source PROPERTIES TIMEOUT 90
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_049 mixed round/square SMD Pad dual-contact SOURCE composition; use existing CI matrix.
     add_executable(boardsi-d049-native-qt d049_qt_runner.cpp)
     target_link_libraries(boardsi-d049-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)

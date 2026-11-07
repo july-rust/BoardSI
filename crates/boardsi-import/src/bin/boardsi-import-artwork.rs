@@ -981,6 +981,26 @@ fn main() {
         }
         return;
     }
+    // D_050: bounded finite-width SOURCE bridge linking mixed pad components.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d050-mixed-pad-width-bridge-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let metadata = fs::metadata(path).map_err(|_| "D050_FILE")?;
+            if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES as u64 {
+                return Err("D050_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D050_READ")?;
+            boardsi_import::d050_mixed_pad_width_bridge::encode(&bytes)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D050_UNSUPPORTED:{reason}");
+                std::process::exit(2);
+            }
+        }
+        return;
+    }
     // D_049: SOURCE-local mixed round/square pad dual finite-width SOURCE contacts.
     if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d049-mixed-pad-dual-width-v1") {
         let result = (|| -> Result<String, &'static str> {
