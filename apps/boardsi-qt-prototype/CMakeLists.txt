@@ -167,6 +167,29 @@ if(BUILD_TESTING)
       COMMAND boardsi-d037-native-qt "${BOARDSI_IMPORTER}")
     set_tests_properties(qt-preview-d037-mixed-sign-dual-via-source PROPERTIES TIMEOUT 90
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # D_052: SOURCE-real finite-width dual bridge midspan cuts.
+    add_executable(boardsi-d052-native-qt d052_qt_runner.cpp)
+    target_link_libraries(boardsi-d052-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+    if(WIN32)
+      target_link_libraries(boardsi-d052-native-qt PRIVATE psapi)
+    endif()
+    if(MSVC)
+      target_compile_options(boardsi-d052-native-qt PRIVATE /W4 /WX)
+    else()
+      target_compile_options(boardsi-d052-native-qt PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    if((WIN32 OR APPLE) AND "$ENV{GITHUB_ACTIONS}" STREQUAL "true")
+      add_custom_command(TARGET boardsi-d052-native-qt POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E env "QT_QPA_PLATFORM=offscreen"
+          "$<TARGET_FILE:boardsi-d052-native-qt>" "${BOARDSI_IMPORTER}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/d052_dual_bridge_midspan_break_both_v94.asc"
+        VERBATIM)
+    endif()
+    add_test(NAME qt-preview-d052-dual-bridge-midspan-break-source
+      COMMAND boardsi-d052-native-qt "${BOARDSI_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/d052_dual_bridge_midspan_break_both_v94.asc")
+    set_tests_properties(qt-preview-d052-dual-bridge-midspan-break-source PROPERTIES TIMEOUT 180
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # D_051: SOURCE-local dual finite-width bridge loop / virtual single-cut.
     add_executable(boardsi-d051-native-qt d051_qt_runner.cpp)
     target_link_libraries(boardsi-d051-native-qt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)

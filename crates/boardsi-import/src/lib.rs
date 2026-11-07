@@ -206,6 +206,7 @@ pub mod d048_trace_round_pad_width;
 pub mod d049_mixed_pad_dual_width;
 pub mod d050_mixed_pad_width_bridge;
 pub mod d051_dual_bridge_loop;
+pub mod d052_bridge_midspan_break;
 pub mod digest;
 pub mod material_contract;
 pub mod outline_arc;
