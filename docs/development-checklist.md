@@ -11,7 +11,7 @@
 >
 > **검증 범위:** 체크된 항목의 *한정 검증 PASS*는 실제 PCB의 전기적 Open/Short, P009 Return Path, 제품 RLGC/S Solver, PH-08 물리 Gate 또는 U/T 정식 제품 인수와 다릅니다. 현황판 수치는 2026-11-07 KST 기준이며 체크 항목 변경 시 함께 갱신합니다.
 
-**빠른 이동:** [Stage A](#stage-a) · [Stage B](#stage-b) · [Stage C](#stage-c) · [Stage D](#stage-d) · [보안](#stage-security) · [제품 마일스톤](#stage-milestones) · [정식 U/T](#stage-acceptance) · [상세 원장](#목차)
+**빠른 이동:** [Stage A](#stage-a) · [Stage B](#stage-b) · [Stage C](#stage-c) · [Stage D](#stage-d) · [보안](#stage-security) · [제품 마일스톤](#stage-milestones) · [정식 U/T](#stage-acceptance) · [문서·CI 관리](#documentation-ci-evidence) · [상세 원장](#목차)
 
 | 영역 | 작업 의미 | 한정 확인 | 미확인 |
 | :--- | :--- | ---: | ---: |
@@ -24,6 +24,20 @@
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
 **전체 체크 상태: 147건 확인 · 122건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
+
+<a id="documentation-ci-evidence"></a>
+### 문서 정합성·Docs-only CI 운영 검증 (비집계 관리 이력)
+
+> **최초 정리일: 2026-11-08 KST · 근거 확인일: 2026-11-08 KST.** 이 표는 공식 요구사항·A/B/C/D 구현 항목을 추가한 것이 아닌 **문서와 CI 운영의 변경 추적표**입니다. 따라서 위 **147건 확인 / 122건 미확인**과 U/T 제품 인수 수치는 바꾸지 않습니다. 모든 Markdown 파일을 개별 체크박스로 중복 관리하지 않으며, 실제 파일별 길찾기는 [문서 허브](README.md)와 [검증 색인](validation/INDEX.md)에 맡깁니다.
+
+| 관리 대상 | 실제 검증·완료 근거 (2026-11-08 KST 재확인) | 한계 / 다음 확인 |
+| :--- | :--- | :--- |
+| **문서 전수 목록 및 현황** | 보호된 main SHA **0faed4133e2cb726860aa021b4c95db9bc900a2a** Git Tree의 **Markdown 189개**: docs/validation/ **160개**(기존 검증 보고서 **158개** + README.md + INDEX.md), 그 외 **29개**. [문서 허브](README.md) · [158개 보고서 색인](validation/INDEX.md) · [날짜별 전체 문서 감사](audits/2026-11-07-documentation-audit.md). 2026-11-07의 182개는 **당시 스냅샷**이지 현재 파일 개수가 아님 | **189개 모든 문장의 독립 기술 재검증, 모든 외부 URL·내부 Anchor 인증은 NOT_VERIFIED**. 과거 FAIL/PASS 기록은 보존 |
+| **프로젝트 문서 구조·기술 설명 정정** | [문서 정리 Issue #511](https://github.com/july-rust/BoardSI/issues/511) · [PR #512](https://github.com/july-rust/BoardSI/pull/512) → [main 7f02600](https://github.com/july-rust/BoardSI/commit/7f0260007c81ea29127df8ee3c347e37401a2875). 문서 허브·Importer/Qt README, Quickstart, 보안·기여 정책 정정. 해당 PR **필수 10개 워크플로 SUCCESS** | 초기 P0/P2-A 당시 상태와 실제 현재 기능 구분. 문서 보완이 보드 SI 정식 인수라는 뜻은 아님 |
+| **검증 보고서 색인·범용 기하 계약 보강** | [문서 감사 Issue #514](https://github.com/july-rust/BoardSI/issues/514) · [PR #515](https://github.com/july-rust/BoardSI/pull/515) → [main 97f5c69](https://github.com/july-rust/BoardSI/commit/97f5c6941b103ca8039f2bd841bd79d1a181d4ed). 보고서 **158/158개** 색인, 변경 문서의 상대경로 **323개 점검 / 파일 누락 0건**. 필수 PR 8개 및 해당 main Push **8개 워크플로 SUCCESS**. [D_054/D_055 기하 계약](architecture/trace-copper-contact.md) · [문서 작성 표준](documentation-standards.md) | SOURCE-local 구리 접촉 후보와 전체 전기 연결성/물리 SI 구분. 과거 시험 수치를 모두 재계산한 것은 아님 |
+| **README-only CI 자원 절감과 필수 검사 보존** | [CI Issue #513](https://github.com/july-rust/BoardSI/issues/513) **Closed** · [코드 PR #516](https://github.com/july-rust/BoardSI/pull/516) → [main 4618ce2](https://github.com/july-rust/BoardSI/commit/4618ce2220eccabeb36174b482fee57a1bc705da) (필수 **12개 PR 워크플로 SUCCESS**, 신규 분류기 회귀시험 **8개 PASS**) · [실증 문서 PR #517](https://github.com/july-rust/BoardSI/pull/517) → [main 0faed41](https://github.com/july-rust/BoardSI/commit/0faed4133e2cb726860aa021b4c95db9bc900a2a) (**11개 PR 워크플로 SUCCESS**, 최종 main Push **8개 SUCCESS**). 실제 컴포넌트 README만 바뀐 PR에서 **Qt/Rust/FEM/F6/F7 무거운 작업 SKIPPED**, 경량 분류기와 Docs Check SUCCESS. [F6 실증](https://github.com/july-rust/BoardSI/actions/runs/42379930266) · [F7 실증](https://github.com/july-rust/BoardSI/actions/runs/42379930151) · [Qt 실증](https://github.com/july-rust/BoardSI/actions/runs/42379930142) | 코드·JSON·YAML·Fixture·Rename·SHA 불명확시 **Fail-Closed 전체 검증 실행**. 과거 중간 main 4618ce2 Push의 Qt/Numerical **CANCELLED 2개**는 PASS로 집계하지 않음; 최종 main 0faed41의 8/8 SUCCESS와 구분 |
+
+**관리 원칙:** 구현 상태는 기존 상세 원장의 최초 체크일·근거일·원본 SHA 기준을 유지합니다. 이 표는 *문서와 운영 변경의 추적성만* 관리합니다. 후속 문서 추가는 [문서 허브](README.md)·[검증 색인](validation/INDEX.md)에 반영하고, 실제 기능 구현과 U/T 수락에 영향이 있을 때만 위 A/B/C/D 또는 제품 인수의 공식 체크 상태를 변경합니다.
 
 <a id="stage-a"></a>
 ### Stage A — 제한 Preview / Import / Artwork
