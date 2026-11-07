@@ -21,7 +21,7 @@ The owner-approved BoardSI SVG brand master and frozen physical acceptance contr
 1. **Keep the work small, meaningful and reusable.** One product capability or one coherent integration boundary per PR; prefer generic geometry/algorithm tests over separate work for every trace angle, Via-side entry or Pad corner. [D_054/D_055 pattern](docs/validation/d054-d055-general-trace-contact-qualification.md).
 2. **State what is supported and rejected.** Include exact input revision/object subset, layer/Net provenance, units, performance budgets, uncertainty handling and output contract. Unsupported or ambiguous records must fail closed instead of silently producing fictitious copper or a false “PASS.”
 3. **Use independent evidence.** Couple Rust tests with synthetic source inputs, adversarial/negative cases and platform tests as applicable. Exact source SHA, expected and actual results, compiler/OS, test type and dates must be clear.
-4. **Preserve the full safety boundary.** \`local geometric contact candidate\` is not \`verified electrical edge\`; \`supplied scalar RLGC mathematics\` is not \`measured PCB physics\`; a native Qt build is not a redistributable release.
+4. **Preserve the full safety boundary.** `local geometric contact candidate` is not `verified electrical edge`; `supplied scalar RLGC mathematics` is not `measured PCB physics`; a native Qt build is not a redistributable release.
 5. **Update the checklist in the same code PR** when implementation status truly changes. If no requirement/test acceptance changed, state so rather than marking formal U/T completed. Avoid creating a second PR just to transcribe that same evidence.
 6. **Use protected PR workflows and Squash Merge.** Required checks and Verified-commit policy are not bypassed for speed. Keep review issues resolved, and distinguish PR-head CI from the post-main Push check.
 
@@ -39,16 +39,16 @@ Every new or substantially revised **living** page should answer, near its top:
 
 Prefer short introductory paragraphs, small comparison tables, one diagram when it clarifies ownership/flow, and specific link labels. **Do not bury the only warning in a footnote.** Avoid overlong chronological narratives on the root landing page; preserve that level of detail in dated validation/audit files.
 
-Use clear evidence labels: \`PASS (scoped)\`, \`PARTIAL\`, \`PROPOSED\`, \`BLOCKED\`, \`NOT_RUN\`, \`NOT_VERIFIED\`, \`FAIL\`. These are **not interchangeable**. Distinguish verified facts from engineering inference or a planned target. Use SI units in engineering prose; PADS' intrinsic source-unit notation must be identified as the file format, not silently converted or rounded.
+Use clear evidence labels: `PASS (scoped)`, `PARTIAL`, `PROPOSED`, `BLOCKED`, `NOT_RUN`, `NOT_VERIFIED`, `FAIL`. These are **not interchangeable**. Distinguish verified facts from engineering inference or a planned target. Use SI units in engineering prose; PADS' intrinsic source-unit notation must be identified as the file format, not silently converted or rounded.
 
 **Links and structure:** use relative links for repository documents; check that both target *files* and referenced anchors exist. Do not link to mutable branch content as permanent proof when an exact SHA/PR evidence link is available. Keep the specification, test contracts and old PASS/FAIL receipts immutable except for a clearly identified erratum that cites the original.
 
 ## 4. Documentation-only CI (save Windows/macOS runners)
 
-A PR limited to supported Markdown documentation files (\`docs/**/*.md\`, \`README.md\`, \`CONTRIBUTING.md\`, \`SECURITY.md\`, plus other patterns explicitly recognized by the [shared classifier](.github/actions/classify-docs-only/action.yml)) keeps all protected status-check **jobs** visible, but **skips actual native Rust/Qt/FEM runner allocation**. A lightweight Linux classification check and [required docs checker](.github/workflows/docs-check.yml) still run.
+A PR limited to supported Markdown documentation files (`docs/**/*.md`, `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, plus other patterns explicitly recognized by the [shared classifier](.github/actions/classify-docs-only/action.yml)) keeps all protected status-check **jobs** visible, but **skips actual native Rust/Qt/FEM runner allocation**. A lightweight Linux classification check and [required docs checker](.github/workflows/docs-check.yml) still run.
 
-- **Do not** add workflow-level \`paths-ignore\` to a required check: skipped workflows can remain pending and block protected merges.
-- Edits to code, \`*.json\` metadata, tests, fixtures or workflows are **not** docs-only and continue through full applicable native validations. Git diff/classifier failures fail closed.
+- **Do not** add workflow-level `paths-ignore` to a required check: skipped workflows can remain pending and block protected merges.
+- Edits to code, `*.json` metadata, tests, fixtures or workflows are **not** docs-only and continue through full applicable native validations. Git diff/classifier failures fail closed.
 - Group related editorial changes into a **single docs-only PR**, check link targets and document consistency locally, and preserve the single canonical checklist.
 - Documentation PR CI **does not** test actual PCB SI physics or Qt GUI; never treat it as a product validation event.
 
