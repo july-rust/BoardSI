@@ -4,8 +4,10 @@ const ORIGINAL: &str = include_str!("fixtures/d051_mixed_pad_dual_finite_width_l
 const BOTH: &str = include_str!("fixtures/d052_dual_bridge_midspan_break_both_v94.asc");
 const A: &str = "U1.1 U2.1\n226 300 1 8 0\n378 300 1 8 0";
 const B: &str = "U1.2 U2.2\n222 400 1 8 0\n382 400 1 8 0";
-const SPLIT_A: &str = "U1.1 U2.1\n226 300 1 8 0\n290 300 1 8 0\nU1.1 U2.1\n310 300 1 8 0\n378 300 1 8 0";
-const SPLIT_B: &str = "U1.2 U2.2\n222 400 1 8 0\n290 400 1 8 0\nU1.2 U2.2\n310 400 1 8 0\n382 400 1 8 0";
+const SPLIT_A: &str =
+    "U1.1 U2.1\n226 300 1 8 0\n290 300 1 8 0\nU1.1 U2.1\n310 300 1 8 0\n378 300 1 8 0";
+const SPLIT_B: &str =
+    "U1.2 U2.2\n222 400 1 8 0\n290 400 1 8 0\nU1.2 U2.2\n310 400 1 8 0\n382 400 1 8 0";
 fn audit(s: &str) -> Result<String, &'static str> {
     d052_bridge_midspan_break::encode(s.as_bytes())
 }
@@ -13,8 +15,18 @@ fn audit(s: &str) -> Result<String, &'static str> {
 fn real_source_breaks_and_graph_are_independent_of_virtual_node_deletions() {
     let cases = [
         (ORIGINAL.to_owned(), "INTACT", "12|12|1|1|REACHABLE", 8),
-        (ORIGINAL.replace(A, SPLIT_A), "BREAK_A", "13|12|1|0|REACHABLE", 9),
-        (ORIGINAL.replace(B, SPLIT_B), "BREAK_B", "13|12|1|0|REACHABLE", 9),
+        (
+            ORIGINAL.replace(A, SPLIT_A),
+            "BREAK_A",
+            "13|12|1|0|REACHABLE",
+            9,
+        ),
+        (
+            ORIGINAL.replace(B, SPLIT_B),
+            "BREAK_B",
+            "13|12|1|0|REACHABLE",
+            9,
+        ),
         (BOTH.to_owned(), "BREAK_BOTH", "14|12|2|0|SEPARATED", 10),
     ];
     assert_eq!(ORIGINAL.replace(A, SPLIT_A).replace(B, SPLIT_B), BOTH);
@@ -26,9 +38,14 @@ fn real_source_breaks_and_graph_are_independent_of_virtual_node_deletions() {
         assert!(result.contains("E|9|2|"));
         assert!(result.contains("E|11|3|"));
         assert_eq!(result.lines().filter(|s| s.starts_with("P|")).count(), 4);
-        assert_eq!(result.lines().filter(|s| s.starts_with("T|")).count(), tracks);
+        assert_eq!(
+            result.lines().filter(|s| s.starts_with("T|")).count(),
+            tracks
+        );
         assert_eq!(result.lines().filter(|s| s.starts_with("E|")).count(), 12);
-        assert!(result.ends_with("END|SOURCE_LOCAL_DUAL_BRIDGE_MIDSPAN_BREAK_ONLY_NO_GLOBAL_PASS\n"));
+        assert!(
+            result.ends_with("END|SOURCE_LOCAL_DUAL_BRIDGE_MIDSPAN_BREAK_ONLY_NO_GLOBAL_PASS\n")
+        );
     }
     let full = audit(BOTH).unwrap();
     assert!(full.contains("S|A|BREAK|CENTER_GAP_TICKS|2000|COPPER_GAP_TICKS|1200\n"));
@@ -40,8 +57,10 @@ fn real_source_breaks_and_graph_are_independent_of_virtual_node_deletions() {
 }
 #[test]
 fn positive_orientation_net_and_one_tick_copper_separation() {
-    let reverse_a = "U1.1 U2.1\n290 300 1 8 0\n226 300 1 8 0\nU1.1 U2.1\n378 300 1 8 0\n310 300 1 8 0";
-    let reverse_b = "U1.2 U2.2\n290 400 1 8 0\n222 400 1 8 0\nU1.2 U2.2\n382 400 1 8 0\n310 400 1 8 0";
+    let reverse_a =
+        "U1.1 U2.1\n290 300 1 8 0\n226 300 1 8 0\nU1.1 U2.1\n378 300 1 8 0\n310 300 1 8 0";
+    let reverse_b =
+        "U1.2 U2.2\n290 400 1 8 0\n222 400 1 8 0\nU1.2 U2.2\n382 400 1 8 0\n310 400 1 8 0";
     let mut cases = vec![
         BOTH.replace(SPLIT_A, reverse_a).replace(SPLIT_B, reverse_b),
         BOTH.replace("NET_A", "NET_B"),
@@ -83,7 +102,10 @@ fn hostile_gap_collision_ownership_inventory_and_stale_receipts() {
         BOTH.replace("*END*", "U1.1 U2.1\n290 300 1 8 0\n310 300 1 8 0\n*END*"),
         BOTH.replace("*END*", "FORGED\n*END*"),
     ];
-    cases.push(BOTH.replace("310 300 1 8 0", "310 300 1 8 0\nU1.1 U2.1\n320 300 1 8 0\n330 300 1 8 0"));
+    cases.push(BOTH.replace(
+        "310 300 1 8 0",
+        "310 300 1 8 0\nU1.1 U2.1\n320 300 1 8 0\n330 300 1 8 0",
+    ));
     for (i, source) in cases.iter().enumerate() {
         assert_ne!(source, BOTH, "inert negative {i}");
         assert!(audit(source).is_err(), "hostile {i} silently accepted");
