@@ -641,7 +641,10 @@ mod tests {
         let pairs = contact_candidates(&art).unwrap();
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].net_relation, NetRelation::DifferentDeclaredNets);
-        assert_eq!((pairs[0].first_source_line, pairs[0].second_source_line), (7, 11));
+        assert_eq!(
+            (pairs[0].first_source_line, pairs[0].second_source_line),
+            (7, 11)
+        );
         art.skipped = 1;
         assert!(matches!(
             contact_candidates(&art),
@@ -658,7 +661,10 @@ mod tests {
         let arc_b = round([0, 0], [110, 0], [0, 110], false, 10);
         assert_eq!(contact(&arc_a, &arc_b).unwrap(), Contact::BoundaryUncertain);
         let tangent = line([-10, 110], [10, 110], 10);
-        assert_eq!(contact(&arc_a, &tangent).unwrap(), Contact::BoundaryUncertain);
+        assert_eq!(
+            contact(&arc_a, &tangent).unwrap(),
+            Contact::BoundaryUncertain
+        );
     }
     #[test]
     fn real_pads_parser_handles_arbitrary_line_and_arc_in_one_source() {
