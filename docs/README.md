@@ -4,7 +4,7 @@
 
 [← 프로젝트 README](../README.md) · [처음 실행하기](developer-quickstart.md) · [현재 구현 범위](development-checklist.md) · [개발 참여](../CONTRIBUTING.md)
 
-**문서 현황 검증(2026-11-08 KST):** Markdown **189개** 중 검증 원장 158개는 [전체 색인](validation/INDEX.md)에 있고, 나머지 안내·설계·운영 파일은 이 허브와 분야별 README에서 관리합니다. 최근 [문서 정리 PR #512/#515 및 CI 최적화 PR #516/#517의 정식 근거](development-checklist.md#documentation-ci-evidence)는 **단일 체크리스트에 별도로 기록**했습니다. 문서 개수는 제품 개발 완료율이 아닙니다.
+**문서 현황 검증(2026-11-08 KST):** Markdown **190개** 중 검증 원장 158개는 [전체 색인](validation/INDEX.md)에 있고, 나머지 안내·설계·운영 파일은 이 허브와 분야별 README에서 관리합니다. 최근 [문서 정리 PR #512/#515 및 CI 최적화 PR #516/#517의 정식 근거](development-checklist.md#documentation-ci-evidence)는 **단일 체크리스트에 별도로 기록**했습니다. 문서 개수는 제품 개발 완료율이 아닙니다.
 
 
 ## 처음 방문했다면 — 읽기 순서
@@ -36,6 +36,7 @@
 ## 세부 자료 빠른 링크
 
 - **[전체 검증 보고서 158개 색인](validation/INDEX.md)** — Stage A/B/C/D, M0/M2/PH-08과 보안 증거를 구분해 원문으로 이동합니다.
+- **[D_056 범용 PCB 입력 및 Via Span 정규화 계약](architecture/input-normalization.md)** — 검증된 첫 코드 단계와 아직 지원되지 않는 Native PADS 부분 비아·전체 Connectivity의 경계를 설명합니다.
 - **[Trace–Via–SMD Pad의 범용 구리 접촉 설계 계약](architecture/trace-copper-contact.md)** — 비중심 Via·Pad 모서리·원호와 드릴 구멍의 판정 수학, Net/Layer·Fail-Closed 경계를 설명합니다.
 - **[문서 작성 및 검증 표준](documentation-standards.md)** — 증거 SHA, 검증 상태 용어, 역사적 기록 보호 및 문서 전용 CI 규칙입니다.
 
