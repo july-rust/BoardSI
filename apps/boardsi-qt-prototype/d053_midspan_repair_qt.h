@@ -131,10 +131,11 @@ inline QByteArray reconstruct(const QByteArray &source,
         const auto &r=repairs[size_t(side)];
         if(r.row<0)continue;
         if(!(side==0?splitA:splitB))return {};
-        const int left=6+side;
+        const int leftTrack=6+side;
+        const int leftNode=10+side;
         const int rightTrack=8+(side==1?int(splitA):0);
         if(rightTrack>=tracks.size())return {};
-        const auto &l=tracks[left],&rr=tracks[rightTrack];
+        const auto &l=tracks[leftTrack],&rr=tracks[rightTrack];
         const qint64 leftStart=l[4].toLongLong(),leftEnd=l[6].toLongLong();
         const qint64 rightStart=rr[4].toLongLong(),rightEnd=rr[6].toLongLong();
         if(l[5].toLongLong()!=r.y || rr[5].toLongLong()!=r.y ||
@@ -148,7 +149,7 @@ inline QByteArray reconstruct(const QByteArray &source,
         const int rightNode=12+(side==1?int(splitA):0);
         const QByteArray prefix="POSITIVE_FINITE_WIDTH_REPAIR_"+
             QByteArray(side==0?"A":"B");
-        edges.append({left,next,prefix+"_LEFT"});
+        edges.append({leftNode,next,prefix+"_LEFT"});
         edges.append({rightNode,next,prefix+"_RIGHT"});
         ++next;
     }
