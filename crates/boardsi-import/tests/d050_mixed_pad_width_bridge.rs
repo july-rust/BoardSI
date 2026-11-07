@@ -60,6 +60,7 @@ fn tangency_gap_cross_net_ambiguity_and_forged_inventory_fail_closed() {
         source.replace("226 300 1 8 0", "226 300 1 8.001 0"),
         source.replace("226 300 1 8 0", "226 300 1 8 16"),
         source.replace(BRIDGE, "U1.2 U2.1\n226 300 1 8 0\n378 300 1 8 0"),
+        source.replace(BRIDGE, &format!("*SIGNAL* NET_B\n{BRIDGE}")),
         source.replace("PAD 1 3\n-2 40 R 0", "PAD 1 3\n-2 40 S 0"),
         source.replace("PAD 2 3\n-2 30 S 0", "PAD 2 3\n-2 30 R 0"),
         source.replace("U2 TYPEA 400 300", "U2 TYPEA 398 300"),
