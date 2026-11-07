@@ -831,29 +831,20 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         let drill_key = format!("simple-via-drill-{}", via.name);
         let drill_id = ObjectId::new(&source, ObjectKind::Drill, &drill_key, "");
         if !board.padstacks.iter().any(|p| p.meta.id == padstack_id) {
-            let diameter_m = Rational::new(i128::from(via.diameter_ticks) * 127, 500_000_000)
-                .map_err(|_| "VIA_DIMENSION_OVERFLOW")?;
-            let mut entries = vec![
-                PadstackLayer {
-                    layer: start.clone(),
-                    role: PadRole::Conductive,
-                    shape: PadShape::Circle { diameter_m },
-                },
-                PadstackLayer {
-                    layer: end.clone(),
-                    role: PadRole::Conductive,
-                    shape: PadShape::Circle { diameter_m },
-                },
-            ];
-            if via.inner_pad {
-                for n in 2..via.last_layer {
-                    entries.push(PadstackLayer {
-                        layer: ObjectId::new(&source, ObjectKind::Layer, &format!("layer-{n}"), ""),
-                        role: PadRole::Conductive,
-                        shape: PadShape::Circle { diameter_m },
-                    });
-                }
-            }
+            // D_056: all layer footprints come from one normalized, checked
+            // padstack description, not a hard-coded 4-layer branch.
+            // The restricted PADS adapter still accepts only equal round
+            // through-via pads. Partial native spans remain unsupported.
+            let normalized = crate::via_topology::NormalizedVia::pads_v94_through(
+                parsed.max_layer,
+                via.drill_ticks,
+                via.diameter_ticks,
+                via.inner_pad.then_some(via.diameter_ticks),
+                via.diameter_ticks,
+            )?;
+            let entries = normalized.canonical_circular_pads(|n| {
+                ObjectId::new(&source, ObjectKind::Layer, &format!("layer-{n}"), "")
+            })?;
             board.padstacks.push(Padstack {
                 meta: meta_with_provenance(
                     &source,
