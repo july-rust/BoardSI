@@ -60,7 +60,10 @@ impl NormalizedVia {
     }
 
     pub fn diameter_on(&self, layer: u32) -> Option<i64> {
-        self.pads.iter().find(|p| p.layer == layer).map(|p| p.diameter_ticks)
+        self.pads
+            .iter()
+            .find(|p| p.layer == layer)
+            .map(|p| p.diameter_ticks)
     }
 
     /// Only explicit conductive circles. No inferred intermediary connection.
@@ -72,11 +75,8 @@ impl NormalizedVia {
         self.pads
             .iter()
             .map(|pad| {
-                let diameter_m = Rational::new(
-                    i128::from(pad.diameter_ticks) * 127,
-                    500_000_000,
-                )
-                .map_err(|_| "D056_VIA_DIMENSION_OVERFLOW")?;
+                let diameter_m = Rational::new(i128::from(pad.diameter_ticks) * 127, 500_000_000)
+                    .map_err(|_| "D056_VIA_DIMENSION_OVERFLOW")?;
                 Ok(PadstackLayer {
                     layer: layer_id(pad.layer),
                     role: PadRole::Conductive,
@@ -98,13 +98,22 @@ impl NormalizedVia {
         if !(2..=64).contains(&copper_layers) {
             return Err("D056_INVALID_VIA_STACKUP");
         }
-        let mut pads = vec![CircularLayerPad { layer: 1, diameter_ticks: top_ticks }];
+        let mut pads = vec![CircularLayerPad {
+            layer: 1,
+            diameter_ticks: top_ticks,
+        }];
         if let Some(diameter_ticks) = inner_ticks {
             for layer in 2..copper_layers {
-                pads.push(CircularLayerPad { layer, diameter_ticks });
+                pads.push(CircularLayerPad {
+                    layer,
+                    diameter_ticks,
+                });
             }
         }
-        pads.push(CircularLayerPad { layer: copper_layers, diameter_ticks: bottom_ticks });
+        pads.push(CircularLayerPad {
+            layer: copper_layers,
+            diameter_ticks: bottom_ticks,
+        });
         let value = Self {
             copper_layers,
             first_layer: 1,
@@ -147,11 +156,21 @@ mod tests {
             (8, 4, 5, ViaKind::Microvia),
         ] {
             let via = NormalizedVia {
-                copper_layers: count, first_layer: first, last_layer: last, kind,
-                drill_ticks: 1000, plated: true,
+                copper_layers: count,
+                first_layer: first,
+                last_layer: last,
+                kind,
+                drill_ticks: 1000,
+                plated: true,
                 pads: vec![
-                    CircularLayerPad { layer: first, diameter_ticks: 2600 },
-                    CircularLayerPad { layer: last, diameter_ticks: 3100 },
+                    CircularLayerPad {
+                        layer: first,
+                        diameter_ticks: 2600,
+                    },
+                    CircularLayerPad {
+                        layer: last,
+                        diameter_ticks: 3100,
+                    },
                 ],
             };
             via.validate().unwrap();
@@ -173,9 +192,16 @@ mod tests {
     #[test]
     fn malformed_vias_fail_closed() {
         let base = NormalizedVia {
-            copper_layers: 6, first_layer: 2, last_layer: 4,
-            kind: ViaKind::Buried, drill_ticks: 1000, plated: true,
-            pads: vec![CircularLayerPad { layer: 2, diameter_ticks: 2500 }],
+            copper_layers: 6,
+            first_layer: 2,
+            last_layer: 4,
+            kind: ViaKind::Buried,
+            drill_ticks: 1000,
+            plated: true,
+            pads: vec![CircularLayerPad {
+                layer: 2,
+                diameter_ticks: 2500,
+            }],
         };
         assert!(base.validate().is_ok());
         let mut x = base.clone();
@@ -185,7 +211,10 @@ mod tests {
         x.pads.push(x.pads[0]);
         assert_eq!(x.validate(), Err("D056_INVALID_LAYER_PAD"));
         let mut x = base.clone();
-        x.pads.push(CircularLayerPad { layer: 5, diameter_ticks: 3000 });
+        x.pads.push(CircularLayerPad {
+            layer: 5,
+            diameter_ticks: 3000,
+        });
         assert_eq!(x.validate(), Err("D056_INVALID_LAYER_PAD"));
         let mut x = base.clone();
         x.pads[0].diameter_ticks = 999;
