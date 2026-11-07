@@ -1,4 +1,30 @@
-# Independent verification
+# BoardSI 검증 원칙 및 결과 읽기 | Validation
+
+> **검증 보고서 인벤토리:** **[전체 과거 검증 기록 158개 — 단계별 색인](INDEX.md)** · [공식 개발 체크리스트](../development-checklist.md) · [문서 홈](../README.md).
+>
+> 이 문서 하단의 M2/PH-08 수치는 **당시 특정 쿠폰·시험 계약의 증거**입니다. 최신 전체 기능 상태와 U01–U48/T01–T54의 인수 결과는 오직 [개발 체크리스트](../development-checklist.md)에서 확인합니다.
+
+## 검증 대상과 주장 가능한 범위
+
+| 시험 층위 | 검증 대상 | 통과하더라도 검증되지 않는 것 |
+| :--- | :--- | :--- |
+| **형식 파서·Source 품질** | PADS 형식 서명, 지오메트리, Net/Layer, 미지원 항목 추적 | 전체 PADS 리비전/ODB++, 보드 도통, 실제 임피던스 |
+| **2D 구리 기하** | 동일 층 Trace–Trace·Trace–Via·Trace–Pad의 SOURCE 국소 후보 | 모든 Padstack/Pour/Thermal/Plane, 전체 전기 Open/Short |
+| **Canonical/Qt·IPC** | 동기화, Snapshot, 렌더링, 취소·오류, 네이티브 플랫폼 회귀시험 | 제조 실물 구리 연결성, SI 물리 계산/배포 승인 |
+| **수치 코어·연구 쿠폰** | 고정 RLGC/2-port 계산, 제한 독립 PEC/lossless FEM 수학 참조 | 기하→손실 RLGC 추출, 실측 PCB, DC–30 GHz 완제품 |
+| **제품 인수 U/T** | 사양서 규정 전체 사용자 작업 흐름과 수치·성능·플랫폼 조건 | 이 Gate만이 별도 정식 PASS의 근거가 됨 |
+
+### 최근 국소 Copper 연구의 대표 증거
+
+- [D_054·D_055 공통 SOURCE 접촉 검증](d054-d055-general-trace-contact-qualification.md): 임의 각도 직선/원호, 비중심 Via 환형 패드, SMD Pad 모서리·변·내부, SOURCE 해시와 경계조건을 확인한 **한정 Rust 결과**입니다.
+- [D_039–D_053 역사적 국소 연결 시험](INDEX.md): 이전 단계의 개별 기하/네트워크 Fixture는 그대로 보존합니다. 해당 파일들이 모든 각도에 별도 코드가 필요하다는 뜻은 아닙니다.
+- [D_055 코드 계약](../architecture/trace-copper-contact.md): 전기적 실제 연결성으로 오해하지 않도록 수학적 전제·드릴 영역·Net 소유권을 설명합니다.
+
+### PASS와 불확실성의 표기
+
+검증 결론은 **입력 데이터/모델/조건·코드 SHA·OS/컴파일러·실제 결과·미확인 범위**가 있어야 합니다. \`NOT_RUN\`, \`NOT_VERIFIED\`, \`BLOCKED\`, \`FAIL\`은 다른 의미입니다. 과거 PH-08 Original HMM **Gate Q FAIL**은 synthetic CI PASS로 대체되지 않으며, 과거 Issue를 닫았다는 사실도 물리 Gate를 통과했다는 뜻이 아닙니다. [문서/증거 표준](../documentation-standards.md).
+
+## 역사적 M2 독립 검증 보고
 
 The v1.0 development specification contains T01–T54 acceptance test definitions. These tests are NOT implemented merely because IDs appear in documentation. Separate: format parsing fidelity, electrical/numerical reference solutions, coupling/port conventions, adaptive vs direct sweep, GUI responsiveness, crash recovery, confidentiality and native platform execution. Each future PASS must include sample provenance, reference, model validity, method/units, hash, OS/compiler and observed results.
 
