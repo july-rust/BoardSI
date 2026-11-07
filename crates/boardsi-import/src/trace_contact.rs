@@ -7,7 +7,7 @@ use std::f64::consts::TAU;
 const MAX_TICK: i64 = 5_600_000;
 // > worst f64 operation noise on the bounded source grid. A candidate within
 // this guard band of exact tangency is UNKNOWN, never silently connected.
-const BOUNDARY_GUARD_TICKS: f64 = 1.0e-5;
+pub(crate) const BOUNDARY_GUARD_TICKS: f64 = 1.0e-5;
 const MAX_BROADPHASE_PAIRS: usize = 1_000_000;
 
 #[derive(Clone, Debug)]
@@ -446,6 +446,25 @@ pub(crate) fn centreline_rectangle_distance(
         return Err("NONFINITE_CONTACT_RECTANGLE");
     }
     Ok(distance / 2.0)
+}
+
+/// Reuse the same uncertainty policy for trace-to-pad and trace-to-via.
+pub(crate) fn classify_proximity(distance: f64, limit: f64) -> Result<Contact, &'static str> {
+    if !distance.is_finite() || !limit.is_finite() || limit <= 0.0 {
+        return Err("NONFINITE_COPPER_PROXIMITY");
+    }
+    Ok(if distance < limit - BOUNDARY_GUARD_TICKS {
+        Contact::PositiveArea
+    } else if distance > limit + BOUNDARY_GUARD_TICKS {
+        Contact::Separated
+    } else {
+        Contact::BoundaryUncertain
+    })
+}
+
+pub(crate) fn centreline_envelope(stroke: &Stroke) -> Result<[f64; 4], &'static str> {
+    valid_stroke(stroke)?;
+    Ok(envelope(stroke))
 }
 
 fn envelope(s: &Stroke) -> [f64; 4] {
