@@ -1,5 +1,7 @@
 # BoardSI Qt Widgets Developer Preview — current behavior and milestone history
 
+**관련 Rust 실행 엔진:** [Rust Worker 개발자 README](../boardsi-worker/README.md) · [구현·검증 경계](../../docs/development-checklist.md). 이 문서는 실제 Qt Developer Preview와 Worker의 합성 검증 범위를 구별합니다.
+
 [← Documentation hub](../../docs/README.md) · [Developer Quickstart](../../docs/developer-quickstart.md) · [Architecture](../../docs/architecture/README.md) · [Current checklist](../../docs/development-checklist.md)
 
 > **2026-11-07 scope note:** the `boardsi-preview-p0` **executable name is retained** but the source tree has advanced beyond its original P0 and mock-only P1 prototypes. It now includes restricted PADS V9.4 Artwork import/display features, Source-owned Copper/Reference overlays and optional graphics backends. The dated P0/P1 descriptions preserved below describe **those milestone baselines**, **not all present-day application behavior**. None is evidence of a complete Import→Port→physical Solver→Touchstone product.

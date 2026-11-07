@@ -1,5 +1,7 @@
 # BoardSI PADS ASCII Import — supported subset and historical milestones
 
+**실행 경로 연결:** [Qt Developer Preview](../../apps/boardsi-qt-prototype/README.md) · [독립 Rust Worker](../../apps/boardsi-worker/README.md). Importer의 제한 SOURCE 국소 판정이 전체 전기적 연결성 또는 실제 물리 SI 결과로 자동 승격되지는 않습니다.
+
 [← Documentation hub](../../docs/README.md) · [Developer Quickstart](../../docs/developer-quickstart.md) · [Canonical checklist](../../docs/development-checklist.md) · [Detailed D_054–D_055 evidence](../../docs/validation/d054-d055-general-trace-contact-qualification.md)
 
 > **2026-11-07 current scope.** This crate contains **two different tools**: (1) a signature-only PADS probe and (2) a **restricted** V9.4 MILS PADS geometry importer feeding a partial Canonical/Qt Artwork protocol. The original P2-A straight-only introduction below is a **dated baseline**, not the total current capability. Neither tool is a complete vendor-export compatible CAD converter or a validated PCB SI solver.
