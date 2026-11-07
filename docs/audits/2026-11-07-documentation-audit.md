@@ -5,6 +5,15 @@
 **Tracking:** [Issue #511](https://github.com/july-rust/BoardSI/issues/511) · [Documentation hub](../README.md) · [Single status ledger](../development-checklist.md).  
 **Audit source baseline:** protected `main@0549393b8912fbe9bfcde265de4f58560c62e3ee` after D_055 code and record updates; **evidence date 2026-11-07 KST**. CI results for this documentation cleanup itself must be checked at its actual PR-head and are **not** inferred from previous code-PR tests.
 
+## 2026-11-08 후속 정정 — 전수 목록과 CI Issue #513 완료
+
+> **이 절만 2026-11-08 KST의 후속 확인 결과입니다.** 아래 2026-11-07 본문은 그날의 감사 스냅샷이므로 당시 CI #513을 미해결로 설명한 문장은 소급 삭제하지 않습니다. **최신 구현·검증 집계와 변경 근거의 공식 기록은 [단일 개발 체크리스트의 문서·CI 섹션](../development-checklist.md#documentation-ci-evidence)을 우선합니다.**
+
+- **문서 수 정정:** 보호된 main 0faed4133e2cb726860aa021b4c95db9bc900a2a의 실제 Git Tree에서 **Markdown 189개**입니다. docs/validation/ 아래 **160개** 중 **158개는 원본 검증 보고서**이고, 나머지 두 파일은 해당 폴더 README와 INDEX입니다. 그 밖의 Markdown은 **29개**입니다. 기존 182개는 이 후속 README/운영 문서가 추가되기 전인 2026-11-07 스냅샷 수치이므로 오류로 소급 변경하지 않습니다.
+- **문서 구조 정리 증거:** [PR #512](https://github.com/july-rust/BoardSI/pull/512) (주요 개발 안내·README 정정)와 [PR #515](https://github.com/july-rust/BoardSI/pull/515) (검증 보고서 **158/158개** 색인·기하 계약·작성 표준)이 보호된 main에 병합됐습니다. PR #515에서 변경 문서의 상대경로 **323개를 검사해 누락 파일 0건**을 확인했으며, 모든 외부 웹 링크/내부 Anchor/실물 SI 결과까지 검증했다는 뜻은 아닙니다.
+- **CI #513 해결:** [코드 PR #516](https://github.com/july-rust/BoardSI/pull/516)으로 apps/crates 터미널 README의 문서 전용 분류와 F6/F7 네이티브 작업 게이트를 구현했습니다. **12개 해당 코드 PR 워크플로 SUCCESS**, 신규 분류기 회귀시험 8개 PASS. [Markdown-only 실증 PR #517](https://github.com/july-rust/BoardSI/pull/517)에서는 **11개 PR 워크플로 SUCCESS**이며 Windows/macOS/Linux Qt·Rust·FEM와 F6/F7 무거운 작업은 모두 SKIPPED, 필수 경량 검사 SUCCESS였습니다. 최종 main 0faed4133e2cb726860aa021b4c95db9bc900a2a의 별도 **Push CI 8/8 SUCCESS**도 확인했습니다. [Issue #513](https://github.com/july-rust/BoardSI/issues/513)은 **Closed**입니다. 코드·CI 파일·JSON·불명확한 비교는 여전히 전체 검증을 수행합니다.
+- **제품 기술 완성은 별도:** 이 문서 수정은 D_054/D_055의 SOURCE-local 기하 후보를 전체 전기적 연결성이나 실제 보드 RLGC/S Solver로 승격하지 않으며, PH-08 Original HMM Gate Q FAIL, M0 BLOCKED 및 공식 U/T NOT_VERIFIED 상태를 변경하지 않습니다.
+
 ## Executive assessment
 
 **Problem found:** the project has excellent detailed *date-specific evidence* but its front door was **chronology-first rather than task-first**. Implemented status, future goals, historic P0/P1 behavior, current PADS/Qt capabilities and M2 physical-research conditions were scattered across different READMEs. That architecture increases onboarding errors and raises the chance of mistaking a passing synthetic test for product readiness.
