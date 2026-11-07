@@ -7,7 +7,7 @@ use std::f64::consts::TAU;
 const MAX_TICK: i64 = 5_600_000;
 // > worst f64 operation noise on the bounded source grid. A candidate within
 // this guard band of exact tangency is UNKNOWN, never silently connected.
-const BOUNDARY_GUARD_TICKS: f64 = 1.0e-5;
+pub(crate) const BOUNDARY_GUARD_TICKS: f64 = 1.0e-5;
 const MAX_BROADPHASE_PAIRS: usize = 1_000_000;
 
 #[derive(Clone, Debug)]
@@ -294,6 +294,173 @@ fn arc_arc(a: CircleArc, b: CircleArc) -> f64 {
     }
     best
 }
+/// Distance between the analytical trace centreline and a SOURCE-tick point.
+/// This helper is only geometry: the caller must account for copper stroke width.
+pub(crate) fn centreline_point_distance(
+    stroke: &Stroke,
+    centre: [i64; 2],
+) -> Result<f64, &'static str> {
+    valid_stroke(stroke)?;
+    if !valid_point(centre) {
+        return Err("INVALID_CONTACT_POINT");
+    }
+    let p = P::from_ticks(centre);
+    Ok(match stroke.centreline {
+        Centreline::Straight { start, end } => point_line_distance(
+            p,
+            Line {
+                a: P::from_ticks(start),
+                b: P::from_ticks(end),
+            },
+        ),
+        Centreline::Circular {
+            centre,
+            start,
+            end,
+            clockwise,
+        } => arc(centre, start, end, clockwise).closest(p),
+    })
+}
+
+/// Maximum radius from a point to the whole directed centreline, required to
+/// distinguish contact with a plated annulus from copper falling ONLY in a drill.
+pub(crate) fn centreline_point_farthest(
+    stroke: &Stroke,
+    centre: [i64; 2],
+) -> Result<f64, &'static str> {
+    valid_stroke(stroke)?;
+    if !valid_point(centre) {
+        return Err("INVALID_CONTACT_POINT");
+    }
+    let p = P::from_ticks(centre);
+    Ok(match stroke.centreline {
+        Centreline::Straight { start, end } => p
+            .distance(P::from_ticks(start))
+            .max(p.distance(P::from_ticks(end))),
+        Centreline::Circular {
+            centre,
+            start,
+            end,
+            clockwise,
+        } => {
+            let a = arc(centre, start, end, clockwise);
+            let mut farthest = p.distance(a.a).max(p.distance(a.b));
+            let radial = p.minus(a.c);
+            if radial.norm2() > 0.0 {
+                let opposite = a.c.minus(radial.mul(a.r / radial.norm()));
+                if a.contains(opposite) {
+                    farthest = farthest.max(p.distance(opposite));
+                }
+            }
+            farthest
+        }
+    })
+}
+
+/// Exact SOURCE rectangle edges can fall on half-ticks. Double all coordinates
+/// before calling the shared integer-safe line/arc intersection predicates,
+/// then scale the result back. No rectangular-pad corner special cases.
+pub(crate) fn centreline_rectangle_distance(
+    stroke: &Stroke,
+    centre: [i64; 2],
+    width: i64,
+    height: i64,
+) -> Result<f64, &'static str> {
+    valid_stroke(stroke)?;
+    if !valid_point(centre) || width <= 0 || height <= 0 || width > MAX_TICK || height > MAX_TICK {
+        return Err("INVALID_CONTACT_RECTANGLE");
+    }
+    let (cx, cy) = (i128::from(centre[0]) * 2, i128::from(centre[1]) * 2);
+    let (w, h) = (i128::from(width), i128::from(height));
+    let (left, right, bottom, top) = (cx - w, cx + w, cy - h, cy + h);
+    let corners = [[left, bottom], [right, bottom], [right, top], [left, top]];
+    let inside = |point: [i64; 2]| {
+        let x = i128::from(point[0]) * 2;
+        let y = i128::from(point[1]) * 2;
+        (left..=right).contains(&x) && (bottom..=top).contains(&y)
+    };
+    let (start, end) = match stroke.centreline {
+        Centreline::Straight { start, end } => (start, end),
+        Centreline::Circular { start, end, .. } => (start, end),
+    };
+    if inside(start) || inside(end) {
+        return Ok(0.0);
+    }
+    let double = |point: [i64; 2]| -> P {
+        P {
+            x: point[0] as f64 * 2.0,
+            y: point[1] as f64 * 2.0,
+        }
+    };
+    let doubled_arc = match stroke.centreline {
+        Centreline::Circular {
+            centre,
+            start,
+            end,
+            clockwise,
+        } => {
+            let c = double(centre);
+            let a = double(start);
+            Some(CircleArc {
+                c,
+                a,
+                b: double(end),
+                r: a.distance(c),
+                clockwise,
+            })
+        }
+        Centreline::Straight { .. } => None,
+    };
+    let mut distance = f64::INFINITY;
+    for i in 0..4 {
+        let (a, b) = (corners[i], corners[(i + 1) % 4]);
+        let edge = Line {
+            a: P {
+                x: a[0] as f64,
+                y: a[1] as f64,
+            },
+            b: P {
+                x: b[0] as f64,
+                y: b[1] as f64,
+            },
+        };
+        let candidate = match doubled_arc {
+            Some(curve) => line_arc(edge, curve),
+            None => line_line(
+                Line {
+                    a: double(start),
+                    b: double(end),
+                },
+                edge,
+            ),
+        };
+        distance = distance.min(candidate);
+    }
+    if !distance.is_finite() {
+        return Err("NONFINITE_CONTACT_RECTANGLE");
+    }
+    Ok(distance / 2.0)
+}
+
+/// Reuse the same uncertainty policy for trace-to-pad and trace-to-via.
+pub(crate) fn classify_proximity(distance: f64, limit: f64) -> Result<Contact, &'static str> {
+    if !distance.is_finite() || !limit.is_finite() || limit <= 0.0 {
+        return Err("NONFINITE_COPPER_PROXIMITY");
+    }
+    Ok(if distance < limit - BOUNDARY_GUARD_TICKS {
+        Contact::PositiveArea
+    } else if distance > limit + BOUNDARY_GUARD_TICKS {
+        Contact::Separated
+    } else {
+        Contact::BoundaryUncertain
+    })
+}
+
+pub(crate) fn centreline_envelope(stroke: &Stroke) -> Result<[f64; 4], &'static str> {
+    valid_stroke(stroke)?;
+    Ok(envelope(stroke))
+}
+
 fn envelope(s: &Stroke) -> [f64; 4] {
     let r = s.width_ticks as f64 / 2.0;
     match s.centreline {

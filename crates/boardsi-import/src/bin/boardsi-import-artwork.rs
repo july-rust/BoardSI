@@ -703,6 +703,62 @@ fn main() {
     // Preserve the ordinary importer contract on Unix paths containing
     // non-Unicode bytes: only textual audit parameters require UTF-8.
     let args: Vec<_> = std::env::args_os().collect();
+    // D_055 separate SOURCE-local trace-to-via-annulus/SMD-pad diagnosis.
+    // Existing PADS-to-Qt V1-V14 artwork transport is not changed.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--trace-pad-via-contacts-v1") {
+        let report = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let meta = fs::metadata(path).map_err(|_| "SOURCE_FILE_UNAVAILABLE")?;
+            if !meta.is_file() || meta.len() > MAX_FILE_BYTES as u64 {
+                return Err("SOURCE_FILE_SIZE");
+            }
+            let bytes = fs::read(path).map_err(|_| "SOURCE_READ")?;
+            let contacts = boardsi_import::trace_attachment::source_candidates(&bytes)?;
+            let mut hash = String::with_capacity(64);
+            for byte in boardsi_import::digest::sha256(&bytes) {
+                std::fmt::Write::write_fmt(&mut hash, format_args!("{byte:02x}"))
+                    .map_err(|_| "SOURCE_SHA_FORMAT")?;
+            }
+            let mut report = format!(
+                "BOARDSI_TRACE_PAD_VIA_CONTACT_V1|{hash}|{}|SOURCE_LOCAL_ONLY|GLOBAL_ELECTRICAL_NOT_VERIFIED|SI_NOT_RUN\n",
+                contacts.len()
+            );
+            for c in contacts {
+                let (kind, index) = match c.target {
+                    boardsi_import::trace_attachment::Target::Via(index) => ("VIA", index),
+                    boardsi_import::trace_attachment::Target::SmdPad(index) => ("SMD_PAD", index),
+                };
+                let relation = match c.net_relation {
+                    boardsi_import::trace_attachment::DeclaredNetRelation::Same => {
+                        "SAME_DECLARED_NET"
+                    }
+                    boardsi_import::trace_attachment::DeclaredNetRelation::Different => {
+                        "DIFFERENT_DECLARED_NET"
+                    }
+                    boardsi_import::trace_attachment::DeclaredNetRelation::PadNetUnverified => {
+                        "PAD_NET_UNVERIFIED"
+                    }
+                };
+                report.push_str(&format!(
+                    "A|{}|{}|{}|{}|{}|{}|POSITIVE_COPPER_AREA_ONLY\n",
+                    c.trace_index, c.trace_source_line, kind, index, c.target_identity, relation
+                ));
+                if report.len() > 2 * 1024 * 1024 {
+                    return Err("SOURCE_CONTACT_OUTPUT_LIMIT");
+                }
+            }
+            report.push_str("END|GEOMETRY_ONLY|P009_UNSUPPORTED|NOT_SI_READY\n");
+            Ok(report)
+        })();
+        match report {
+            Ok(report) => print!("{report}"),
+            Err(reason) => {
+                eprintln!("SOURCE_TRACE_ATTACHMENT_ERROR:{reason}");
+                std::process::exit(3);
+            }
+        }
+        return;
+    }
     // D_054 opt-in SOURCE-local candidate report. Keep the normal Qt artwork
     // wire unchanged; no electrical graph edge or SI result is inferred.
     if args.len() == 3 && args[2] == std::ffi::OsStr::new("--general-trace-contacts-v1") {

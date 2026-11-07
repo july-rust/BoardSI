@@ -242,3 +242,6 @@ pub mod contact_wire;
 
 // Generic SOURCE-local finite-width straight and circular arc candidates.
 pub mod trace_contact;
+
+// D_055 generic off-centre SOURCE trace-to-via-annulus and SMD pad contacts.
+pub mod trace_attachment;
