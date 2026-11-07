@@ -105,7 +105,7 @@ int main(int argc,char **argv) {
             positiveOk=false;
         }
     }
-    const std::array<QByteArray,18> hostile={
+    const std::array<QByteArray,19> hostile={
         mutate("226 300 1 8 0","230 300 1 8 0"),
         mutate("226 300 1 8 0","230.01 300 1 8 0"),
         mutate("226 300 1 8 0","224 300 1 8 0"),
@@ -118,6 +118,7 @@ int main(int argc,char **argv) {
         mutate("226 300 1 8 0","226 300 1 8.001 0"),
         mutate("226 300 1 8 0","226 300 1 8 16"),
         mutate(bridge,"U1.2 U2.1\n226 300 1 8 0\n378 300 1 8 0"),
+        mutate(bridge,QByteArray("*SIGNAL* NET_B\n")+bridge),
         mutate("222 285 1 8 0","227 285 1 8 0"),
         mutate("PAD 1 3\n-2 40 R 0","PAD 1 3\n-2 40 S 0"),
         mutate("U2 TYPEA 400 300","U2 TYPEA 398 300"),
