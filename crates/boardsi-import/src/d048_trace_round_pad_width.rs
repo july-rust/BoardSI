@@ -80,9 +80,9 @@ fn cross(a: [i128; 2], b: [i128; 2]) -> i128 {
 fn positive_round_contact(trace: &Track) -> bool {
     if trace.width != 800
         || trace.a == trace.b
-        || [trace.a, trace.b].iter().any(|p| {
-            !(21_400..=23_000).contains(&p[0]) || !(27_000..=33_000).contains(&p[1])
-        })
+        || [trace.a, trace.b]
+            .iter()
+            .any(|p| !(21_400..=23_000).contains(&p[0]) || !(27_000..=33_000).contains(&p[1]))
     {
         return false;
     }
@@ -230,21 +230,54 @@ mod tests {
 
     #[test]
     fn strict_round_annular_contact_and_tangent() {
-        let sample = Track { net: "NET_A".to_owned(), a: [22_200, 28_500], b: [22_200, 31_500], width: 800 };
+        let sample = Track {
+            net: "NET_A".to_owned(),
+            a: [22_200, 28_500],
+            b: [22_200, 31_500],
+            width: 800,
+        };
         assert!(positive_round_contact(&sample));
-        let tangent = Track { a: [22_400, 28_500], b: [22_400, 31_500], ..sample.clone() };
+        let tangent = Track {
+            a: [22_400, 28_500],
+            b: [22_400, 31_500],
+            ..sample.clone()
+        };
         assert!(!positive_round_contact(&tangent));
-        let gap = Track { a: [22_500, 28_500], b: [22_500, 31_500], ..sample.clone() };
+        let gap = Track {
+            a: [22_500, 28_500],
+            b: [22_500, 31_500],
+            ..sample.clone()
+        };
         assert!(!positive_round_contact(&gap));
-        let inside = Track { a: [21_900, 28_500], b: [21_900, 31_500], ..sample.clone() };
+        let inside = Track {
+            a: [21_900, 28_500],
+            b: [21_900, 31_500],
+            ..sample.clone()
+        };
         assert!(!positive_round_contact(&inside));
-        let cap = Track { a: [21_700, 31_600], b: [22_000, 31_900], ..sample.clone() };
+        let cap = Track {
+            a: [21_700, 31_600],
+            b: [22_000, 31_900],
+            ..sample.clone()
+        };
         assert!(positive_round_contact(&cap));
-        let aabb_only = Track { a: [22_200, 32_200], b: [23_000, 33_000], ..sample.clone() };
+        let aabb_only = Track {
+            a: [22_200, 32_200],
+            b: [23_000, 33_000],
+            ..sample.clone()
+        };
         assert!(!positive_round_contact(&aabb_only));
-        let one_tick_overlap = Track { a: [22_399, 28_500], b: [22_399, 31_500], ..sample.clone() };
+        let one_tick_overlap = Track {
+            a: [22_399, 28_500],
+            b: [22_399, 31_500],
+            ..sample.clone()
+        };
         assert!(positive_round_contact(&one_tick_overlap));
-        let one_tick_gap = Track { a: [22_401, 28_500], b: [22_401, 31_500], ..sample };
+        let one_tick_gap = Track {
+            a: [22_401, 28_500],
+            b: [22_401, 31_500],
+            ..sample
+        };
         assert!(!positive_round_contact(&one_tick_gap));
     }
 }
