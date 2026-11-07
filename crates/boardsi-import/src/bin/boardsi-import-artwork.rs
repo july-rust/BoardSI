@@ -981,6 +981,26 @@ fn main() {
         }
         return;
     }
+    // D_051: second finite-width SOURCE bridge, local loop and virtual cut-set.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d051-dual-finite-width-loop-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let metadata = fs::metadata(path).map_err(|_| "D051_FILE")?;
+            if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES as u64 {
+                return Err("D051_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D051_READ")?;
+            boardsi_import::d051_dual_bridge_loop::encode(&bytes)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D051_UNSUPPORTED:{reason}");
+                std::process::exit(2);
+            }
+        }
+        return;
+    }
     // D_050: bounded finite-width SOURCE bridge linking mixed pad components.
     if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d050-mixed-pad-width-bridge-v1") {
         let result = (|| -> Result<String, &'static str> {
