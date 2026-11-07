@@ -1257,6 +1257,37 @@ mod p2b_via_regressions {
     use super::*;
     const BASE: &str = "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 4\n*VIA*\n*REMARK* keep section\nSIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R\n*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n100 200 1 10 0\n300 200 2 10 0 SIMPLEVIA\n500 200 2 10 0\n*END*\n";
     #[test]
+    fn d056_same_source_via_definition_supports_multiple_board_layer_counts() {
+        // The same PADS top/inner/bottom definition is expanded using each
+        // board's parsed max layer, not a compiled 2-/4-/6-/8-layer branch.
+        for layers in [2u32, 4, 6, 8] {
+            let source = BASE.replace("MAXLAYER 4", &format!("MAXLAYER {layers}"));
+            let artwork = parse(source.as_bytes()).expect("valid through-via source");
+            assert_eq!(artwork.max_layer, layers);
+            assert_eq!(artwork.vias.len(), 1);
+            assert_eq!(artwork.vias[0].last_layer, layers);
+            let model = into_canonical(source.as_bytes(), &artwork).unwrap();
+            assert_eq!(model.stackup.layers.len(), layers as usize);
+            assert_eq!(model.padstacks[0].entries.len(), layers as usize);
+            assert_eq!(model.vias[0].kind, ViaKind::Through);
+            assert!(!model.validate().has_errors());
+        }
+    }
+
+    #[test]
+    fn d056_no_declared_inner_pad_is_not_synthesized() {
+        let without_inner = BASE.replace(
+            "SIMPLEVIA 15 3\\n-2 35 R\\n-1 35 R\\n0 35 R",
+            "SIMPLEVIA 15 2\\n-2 35 R\\n0 35 R",
+        ).replace("MAXLAYER 4", "MAXLAYER 6");
+        let artwork = parse(without_inner.as_bytes()).unwrap();
+        assert!(!artwork.vias[0].inner_pad);
+        let model = into_canonical(without_inner.as_bytes(), &artwork).unwrap();
+        assert_eq!(model.padstacks[0].entries.len(), 2);
+        assert!(!model.validate().has_errors());
+    }
+
+    #[test]
     fn pcb_layer_parameter_names_accept_ascii_case_variants() {
         for keyword in ["maximumlayer", "MaximumLayer", "maxlayer", "MaxLayer"] {
             let source = BASE.replace("MAXLAYER", keyword);
