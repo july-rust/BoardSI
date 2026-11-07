@@ -24,7 +24,7 @@ BoardSI aims to make **offline, resource-conscious PCB signal-integrity review**
 
 Requirements for the documented source baseline: Rust **1.75.0** (repository toolchain), C++17, CMake **≥3.21**, Qt **≥6.5** (tested configurations document Qt 6.8.3). From the repository root:
 
-\`\`\`sh
+```sh
 cargo fmt --all -- --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
@@ -35,7 +35,7 @@ cargo run --locked -p boardsi-import --bin boardsi-import-probe -- \
 cargo run --locked -p boardsi-import --bin boardsi-import-artwork -- \
   crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc \
   --trace-pad-via-contacts-v1
-\`\`\`
+```
 
 The last command reports **local copper-area candidates only**, not electrical network connectivity or SI. For **Qt Widgets/Worker build instructions, Windows developer launcher, model fixtures and troubleshooting**, use the [complete Quickstart](docs/developer-quickstart.md). The [importer](crates/boardsi-import/README.md) and [Qt Preview](apps/boardsi-qt-prototype/README.md) READMEs provide component-specific details.
 
@@ -43,17 +43,17 @@ The last command reports **local copper-area candidates only**, not electrical n
 
 | Path | Responsibility |
 | :--- | :--- |
-| \`crates/boardsi-import/\` | PADS signature, restricted source parsing, geometry/provenance and local contact candidates |
-| \`crates/boardsi-model/\` | Shared Canonical Board Model and structural validation |
-| \`crates/boardsi-numerics/\` | Supplied scalar RLGC and single-ended 2-port mathematics |
-| \`crates/boardsi-ipc/\` | Versioned local Worker IPC contracts |
-| \`apps/boardsi-worker/\` | Isolated Rust Worker and synthetic model evidence |
-| \`apps/boardsi-qt-prototype/\` | Qt Widgets Preview, Artwork viewer, runtime/harness |
-| \`docs/specification/\` | **Normative** approved v1.0 product requirements and U/T definitions |
-| \`docs/architecture/\` | Architecture decisions and scope-bound contracts |
-| \`docs/validation/\` | Per-test executed evidence, failures, accepted limits |
-| \`docs/development-checklist.md\` | **Only** authoritative live A/B/C/D and U/T implementation ledger |
-| \`docs/audits/\` | Date-pinned audits; historical snapshots, not guaranteed current truth |
+| `crates/boardsi-import/` | PADS signature, restricted source parsing, geometry/provenance and local contact candidates |
+| `crates/boardsi-model/` | Shared Canonical Board Model and structural validation |
+| `crates/boardsi-numerics/` | Supplied scalar RLGC and single-ended 2-port mathematics |
+| `crates/boardsi-ipc/` | Versioned local Worker IPC contracts |
+| `apps/boardsi-worker/` | Isolated Rust Worker and synthetic model evidence |
+| `apps/boardsi-qt-prototype/` | Qt Widgets Preview, Artwork viewer, runtime/harness |
+| `docs/specification/` | **Normative** approved v1.0 product requirements and U/T definitions |
+| `docs/architecture/` | Architecture decisions and scope-bound contracts |
+| `docs/validation/` | Per-test executed evidence, failures, accepted limits |
+| `docs/development-checklist.md` | **Only** authoritative live A/B/C/D and U/T implementation ledger |
+| `docs/audits/` | Date-pinned audits; historical snapshots, not guaranteed current truth |
 
 [Architecture map](docs/architecture/README.md) · [Validation index](docs/validation/README.md) · [Project management](docs/project-management.md) · [Preview-first development policy](docs/preview-delivery-playbook.md) · [Recent documentation audit](docs/audits/2026-11-07-documentation-audit.md).
 
