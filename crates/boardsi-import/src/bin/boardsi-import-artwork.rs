@@ -981,6 +981,26 @@ fn main() {
         }
         return;
     }
+    // D_053: opt-in real SOURCE local finite-width repair. No global electrical claims.
+    if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d053-source-midspan-repair-v1") {
+        let result = (|| -> Result<String, &'static str> {
+            let path = std::path::Path::new(&args[1]);
+            let metadata = fs::metadata(path).map_err(|_| "D053_FILE")?;
+            if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES as u64 {
+                return Err("D053_FILE_LIMIT");
+            }
+            let bytes = fs::read(path).map_err(|_| "D053_READ")?;
+            boardsi_import::d053_midspan_repair::encode(&bytes)
+        })();
+        match result {
+            Ok(wire) => print!("{wire}"),
+            Err(reason) => {
+                eprintln!("D053_UNSUPPORTED:{reason}");
+                std::process::exit(2);
+            }
+        }
+        return;
+    }
     // D_052: actual SOURCE midspan gaps, not merely virtual bridge removal.
     if args.len() == 3 && args[2] == std::ffi::OsStr::new("--d052-dual-bridge-midspan-break-v1") {
         let result = (|| -> Result<String, &'static str> {
