@@ -1276,10 +1276,12 @@ mod p2b_via_regressions {
 
     #[test]
     fn d056_no_declared_inner_pad_is_not_synthesized() {
-        let without_inner = BASE.replace(
-            "SIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R",
-            "SIMPLEVIA 15 2\n-2 35 R\n0 35 R",
-        ).replace("MAXLAYER 4", "MAXLAYER 6");
+        let without_inner = BASE
+            .replace(
+                "SIMPLEVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R",
+                "SIMPLEVIA 15 2\n-2 35 R\n0 35 R",
+            )
+            .replace("MAXLAYER 4", "MAXLAYER 6");
         let artwork = parse(without_inner.as_bytes()).unwrap();
         assert!(!artwork.vias[0].inner_pad);
         let model = into_canonical(without_inner.as_bytes(), &artwork).unwrap();
