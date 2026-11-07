@@ -16,7 +16,9 @@ fn positive_round_pad_candidate_has_exact_graph_and_scope() {
     assert_eq!(wire.matches("\nT|").count(), 5);
     assert_eq!(wire.matches("\nE|").count(), 7);
     assert!(wire.contains("E|6|0|8|POSITIVE_FINITE_WIDTH_TRACE_ROUND_PAD_CONTACT\n"));
-    assert!(wire.contains("COUNT|NODES|9|EDGES|7|LOCAL_COMPONENTS|2|GLOBAL_ELECTRICAL|NOT_VERIFIED"));
+    assert!(
+        wire.contains("COUNT|NODES|9|EDGES|7|LOCAL_COMPONENTS|2|GLOBAL_ELECTRICAL|NOT_VERIFIED")
+    );
     assert!(wire.ends_with("END|SOURCE_LOCAL_TRACE_ROUND_PAD_FINITE_WIDTH_ONLY_NO_GLOBAL_PASS\n"));
 }
 
@@ -31,7 +33,10 @@ fn round_cap_reverse_net_header_and_whitespace_parity() {
         s.replace("NET_A", "NET_B"),
         s.replace('\n', "\r\n"),
         s.replace("*SIGNAL* NET_A", "*SIGNAL*\tNET_A"),
-        s.replace("!PADS-POWERPCB-V9.4-MILS!", "!PADS-POWERPCB-V9.4-MILS-CP1252!"),
+        s.replace(
+            "!PADS-POWERPCB-V9.4-MILS!",
+            "!PADS-POWERPCB-V9.4-MILS-CP1252!",
+        ),
     ];
     for (i, v) in variants.iter().enumerate() {
         assert_ne!(v, &s, "inert supported variant {i}");
