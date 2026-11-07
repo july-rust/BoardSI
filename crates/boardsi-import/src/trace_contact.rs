@@ -599,6 +599,68 @@ mod tests {
         );
     }
     #[test]
+    fn angle_sweep_is_one_property_not_hundreds_of_hardcoded_rules() {
+        for degree in 0..360 {
+            let theta = (degree as f64).to_radians();
+            let dx = (500.0 * theta.cos()).round() as i64;
+            let dy = (500.0 * theta.sin()).round() as i64;
+            let a = line([-dx, -dy], [dx, dy], 20);
+            let b = line([dy, -dx], [-dy, dx], 20);
+            assert_eq!(
+                contact(&a, &b).unwrap(),
+                Contact::PositiveArea,
+                "failed at sampled degree {degree}"
+            );
+        }
+    }
+    #[test]
+    fn source_candidate_labels_do_not_create_electrical_short_or_open() {
+        let mut a = route_preview::Segment {
+            layer: 1,
+            net: "SIGNAL".into(),
+            a: [0, 0],
+            b: [100, 0],
+            width_ticks: 10,
+            source_line: 7,
+        };
+        let b = route_preview::Segment {
+            layer: 1,
+            net: "OTHER".into(),
+            a: [0, 9],
+            b: [100, 9],
+            width_ticks: 10,
+            source_line: 11,
+        };
+        let mut art = route_preview::Artwork {
+            segments: vec![a.clone(), b],
+            arcs: vec![],
+            vias: vec![],
+            max_layer: 2,
+            skipped: 0,
+        };
+        let pairs = contact_candidates(&art).unwrap();
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].net_relation, NetRelation::DifferentDeclaredNets);
+        assert_eq!((pairs[0].first_source_line, pairs[0].second_source_line), (7, 11));
+        art.skipped = 1;
+        assert!(matches!(
+            contact_candidates(&art),
+            Err("UNSUPPORTED_ROUTE_GEOMETRY")
+        ));
+        art.skipped = 0;
+        a.layer = 2;
+        art.segments[0] = a;
+        assert!(contact_candidates(&art).unwrap().is_empty());
+    }
+    #[test]
+    fn circle_arc_tangencies_are_not_silently_accepted() {
+        let arc_a = round([0, 0], [100, 0], [0, 100], false, 10);
+        let arc_b = round([0, 0], [110, 0], [0, 110], false, 10);
+        assert_eq!(contact(&arc_a, &arc_b).unwrap(), Contact::BoundaryUncertain);
+        let tangent = line([-10, 110], [10, 110], 10);
+        assert_eq!(contact(&arc_a, &tangent).unwrap(), Contact::BoundaryUncertain);
+    }
+    #[test]
     fn real_pads_parser_handles_arbitrary_line_and_arc_in_one_source() {
         let source=b"!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n*PCB*\nMAXLAYER 2\n*ROUTE*\n*SIGNAL* N\nU1.1 U2.1\n0 0 1 10 0\n40 40 1 10 0\nU1.2 U2.2\n20 0 1 10 0\n20 40 1 10 0\nU1.3 U2.3\n100 0 1 8 0\n0 0 1 8 4096 CCW\n0 100 1 8 0\nU1.4 U2.4\n68 68 1 10 0\n75 75 1 10 0\n*END*\n";
         let art = route_preview::parse(source).unwrap();
