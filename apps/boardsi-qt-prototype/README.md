@@ -1,4 +1,22 @@
-# Qt Widgets M0 Worker prototype
+# BoardSI Qt Widgets Developer Preview — current behavior and milestone history
+
+[← Documentation hub](../../docs/README.md) · [Developer Quickstart](../../docs/developer-quickstart.md) · [Architecture](../../docs/architecture/README.md) · [Current checklist](../../docs/development-checklist.md)
+
+> **2026-11-07 scope note:** the \`boardsi-preview-p0\` **executable name is retained** but the source tree has advanced beyond its original P0 and mock-only P1 prototypes. It now includes restricted PADS V9.4 Artwork import/display features, Source-owned Copper/Reference overlays and optional graphics backends. The dated P0/P1 descriptions preserved below describe **those milestone baselines**, **not all present-day application behavior**. None is evidence of a complete Import→Port→physical Solver→Touchstone product.
+
+## Which Preview capability does the documentation describe?
+
+| Stage / executable | Current interpretation | Required caveat |
+| :--- | :--- | :--- |
+| \`boardsi-qt-prototype\` | Standalone synthetic Qt/Worker event-loop demo | Not an imported PCB geometry or actual SI simulator |
+| \`boardsi-preview-p0\` original P0 | Native shell, Worker progress and synthetic Canonical Model fixture A/B | Historical early Open PCB only selected a path |
+| P1 synthetic Artwork | Example layers/nets/Qt Graphics View interaction | Historical **mock** dataset; NOT_IMPORTED |
+| P2 / current source subtree | Restricted local V9.4-MILS PADS source subset rendered in Qt Artwork Preview (some CPU/GPU drawing options) | Partial parser, partial Canonical/Reference geometry, not full electrical connectivity |
+| D_054/D_055 Rust source geometry | Generic off-centre Trace/arc↔Via annulus/SMD Pad local contact **in separate Rust diagnostics** | Existing Qt CI PASS is a **regression**. It **does not** mean that new candidate data is already displayed or merged into a verified Qt global connectivity graph |
+
+**Start here for new users:** [source build and on-device execution](../../docs/developer-quickstart.md) and [PADS component/mode matrix](../../crates/boardsi-import/README.md). The source commands are the supported developer entrypoint, not a redistributable application installer.
+
+## M0 Qt Widgets / Worker historical baseline
 
 Actual Linux x86_64 build and QApplication/Rust Worker execution: **PASS, Qt 6.8.3 offscreen**.
 Windows x64/ARM64 windows backend and macOS ARM64 cocoa backend: **PASS**.
@@ -61,7 +79,7 @@ Offscreen diagnostics are recorded; desktop rendering is not validated.
 [CI](../../.github/workflows/qt-runtime.yml).
 
 
-## Developer Preview P0 (native desktop, NOT PCB SI)
+## Historical Developer Preview P0 (native desktop, NOT PCB SI)
 
 Build the existing Rust Worker and two offline synthetic Canonical Model fixtures
 using the commands above, then compile the new `boardsi-preview-p0` Qt target
@@ -111,7 +129,7 @@ Binary redistribution remains BLOCKED pending F7 legal/package review;
 a CI compilation or selftest PASS does not authorize public release.
 
 
-## Developer Preview P1 — synthetic artwork UI (Issue #11 subset)
+## Historical Developer Preview P1 — synthetic artwork UI (Issue #11 subset)
 
 The existing **boardsi-preview-p0** executable name and P0 Qt/Rust Worker
 interfaces are retained for compatibility while the Preview P1 UI is developed.
@@ -148,7 +166,7 @@ The independent M0 F1/F6/F7 legal/hardware gates and the Qt binary
 redistribution restriction remain unchanged; no Qt executables are published.
 
 
-## GPU-first Artwork rendering policy (A_013 OpenGL follow-up; PR #164)
+## GPU-first Artwork rendering policy (A_013 decision and later optional RHI support)
 
 **Default: GPU preferred, not GPU guaranteed.** The existing Qt Widgets
 QGraphicsScene/QGraphicsView retained all Canonical artwork selection, layers,
@@ -176,6 +194,8 @@ remain CPU constrained.
   no-frame timeout reverts to CPU. Hidden/imported tabs are probed only when
   first displayed rather than timing out while inactive.
 - `QGraphicsView` uses FullViewportUpdate with QOpenGLWidget per Qt guidance.
+
+**Historical decision note:** the original A_013/OpenGL work below describes the earlier GPU-first path. Since then the Qt build can also enable **optional Qt Quick/RHI** artwork support when the matching SDK is available; this does not prove production-level GPU throughput or universal hardware activation. Refer to [CMake capability detection](CMakeLists.txt) and actual [Native Qt CI](../../.github/workflows/qt-runtime.yml), not the old future-tense paragraph alone.
 
 **Future high-volume PCB renderer:** do not use a QOpenGLWidget as a permanent
 cross-platform Metal/Direct3D engine. Preserve the Canonical source and Qt
