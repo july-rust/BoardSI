@@ -2,14 +2,14 @@
 
 [← Documentation hub](../../docs/README.md) · [Developer Quickstart](../../docs/developer-quickstart.md) · [Architecture](../../docs/architecture/README.md) · [Current checklist](../../docs/development-checklist.md)
 
-> **2026-11-07 scope note:** the \`boardsi-preview-p0\` **executable name is retained** but the source tree has advanced beyond its original P0 and mock-only P1 prototypes. It now includes restricted PADS V9.4 Artwork import/display features, Source-owned Copper/Reference overlays and optional graphics backends. The dated P0/P1 descriptions preserved below describe **those milestone baselines**, **not all present-day application behavior**. None is evidence of a complete Import→Port→physical Solver→Touchstone product.
+> **2026-11-07 scope note:** the `boardsi-preview-p0` **executable name is retained** but the source tree has advanced beyond its original P0 and mock-only P1 prototypes. It now includes restricted PADS V9.4 Artwork import/display features, Source-owned Copper/Reference overlays and optional graphics backends. The dated P0/P1 descriptions preserved below describe **those milestone baselines**, **not all present-day application behavior**. None is evidence of a complete Import→Port→physical Solver→Touchstone product.
 
 ## Which Preview capability does the documentation describe?
 
 | Stage / executable | Current interpretation | Required caveat |
 | :--- | :--- | :--- |
-| \`boardsi-qt-prototype\` | Standalone synthetic Qt/Worker event-loop demo | Not an imported PCB geometry or actual SI simulator |
-| \`boardsi-preview-p0\` original P0 | Native shell, Worker progress and synthetic Canonical Model fixture A/B | Historical early Open PCB only selected a path |
+| `boardsi-qt-prototype` | Standalone synthetic Qt/Worker event-loop demo | Not an imported PCB geometry or actual SI simulator |
+| `boardsi-preview-p0` original P0 | Native shell, Worker progress and synthetic Canonical Model fixture A/B | Historical early Open PCB only selected a path |
 | P1 synthetic Artwork | Example layers/nets/Qt Graphics View interaction | Historical **mock** dataset; NOT_IMPORTED |
 | P2 / current source subtree | Restricted local V9.4-MILS PADS source subset rendered in Qt Artwork Preview (some CPU/GPU drawing options) | Partial parser, partial Canonical/Reference geometry, not full electrical connectivity |
 | D_054/D_055 Rust source geometry | Generic off-centre Trace/arc↔Via annulus/SMD Pad local contact **in separate Rust diagnostics** | Existing Qt CI PASS is a **regression**. It **does not** mean that new candidate data is already displayed or merged into a verified Qt global connectivity graph |
