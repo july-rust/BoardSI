@@ -1,5 +1,6 @@
 // D_050 actual PreviewImportPanel reImport and independent Qt graph oracle.
 #include "preview_import.h"
+#include "c005_reference_risk.h"
 #include "d050_mixed_pad_width_bridge_qt.h"
 #include <QApplication>
 #include <QFile>
