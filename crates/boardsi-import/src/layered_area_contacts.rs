@@ -57,12 +57,10 @@ fn shape_region(shape: &CopperGeometry, p: [i64; 2]) -> Result<Region, &'static 
             let dy = i128::from(p[1]) - i128::from(centre[1]);
             let d = dx * dx + dy * dy;
             let r2 = i128::from(*radius) * i128::from(*radius);
-            Ok(if d < r2 {
-                Region::Inside
-            } else if d > r2 {
-                Region::Outside
-            } else {
-                Region::Boundary
+            Ok(match d.cmp(&r2) {
+                std::cmp::Ordering::Less => Region::Inside,
+                std::cmp::Ordering::Greater => Region::Outside,
+                std::cmp::Ordering::Equal => Region::Boundary,
             })
         }
         CopperGeometry::Curved { .. } => Err("D05603_UNSUPPORTED_CURVED_AREA_CONTACT"),
