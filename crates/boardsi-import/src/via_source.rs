@@ -72,9 +72,7 @@ impl ViaDefinition {
 
 /// Do not expand or merge a truncated VIA record with post-*END* bytes.
 /// Each declared definition either normalizes, or has a source-specific error.
-pub fn scan_definitions(
-    text: &str,
-) -> BTreeMap<String, Result<ViaDefinition, &'static str>> {
+pub fn scan_definitions(text: &str) -> BTreeMap<String, Result<ViaDefinition, &'static str>> {
     let lines: Vec<_> = text
         .lines()
         .take_while(|line| line.split_ascii_whitespace().next() != Some("*END*"))
@@ -217,7 +215,10 @@ mod tests {
             );
             let defs = scan_definitions(&source);
             let via = defs["CUSTOM"].as_ref().unwrap().normalize(6).unwrap();
-            assert_eq!((via.first_layer, via.last_layer, via.kind), (first, last, expected));
+            assert_eq!(
+                (via.first_layer, via.last_layer, via.kind),
+                (first, last, expected)
+            );
             assert_eq!(via.diameter_on(first), Some(3500));
             assert_eq!(via.diameter_on(last), Some(3900));
             if last > first + 1 {
@@ -230,9 +231,8 @@ mod tests {
 
     #[test]
     fn explicit_inner_layer_override_does_not_change_other_layers() {
-        let defs = scan_definitions(
-            "*VIA*\nCUSTOM 15 4 2 5\n-2 35 R\n-1 42 R\n4 50 R\n0 39 R\n*END*\n"
-        );
+        let defs =
+            scan_definitions("*VIA*\nCUSTOM 15 4 2 5\n-2 35 R\n-1 42 R\n4 50 R\n0 39 R\n*END*\n");
         let via = defs["CUSTOM"].as_ref().unwrap().normalize(6).unwrap();
         assert_eq!(via.diameter_on(3), Some(4200));
         assert_eq!(via.diameter_on(4), Some(5000));
@@ -271,7 +271,12 @@ mod tests {
     fn unnamed_source_microvia_is_not_inferred_from_one_layer_step() {
         let defs = scan_definitions("*VIA*\nUNLABELED 15 2 1 2\n-2 35 R\n0 35 R\n*END*");
         assert_eq!(
-            defs["UNLABELED"].as_ref().unwrap().normalize(6).unwrap().kind,
+            defs["UNLABELED"]
+                .as_ref()
+                .unwrap()
+                .normalize(6)
+                .unwrap()
+                .kind,
             ViaKind::Blind
         );
     }
