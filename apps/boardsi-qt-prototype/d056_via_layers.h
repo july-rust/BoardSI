@@ -17,6 +17,7 @@
 #include <QVector>
 #include <QBrush>
 #include <QPen>
+#include <utility>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <algorithm>
@@ -205,7 +206,7 @@ class Panel final : public QWidget {
                                            : QBrush(Qt::NoBrush));
             item->setToolTip(QString("%1 | Net %2 | Layer %3 | %4 | %5 | "
                                      "source line %6 | GEOMETRY ONLY")
-                                 .arg(via.name, via.net).arg(pad.layer)
+                                 .arg(via.name.toHtmlEscaped(), via.net.toHtmlEscaped()).arg(pad.layer)
                                  .arg(pad.shape, via.kind).arg(via.sourceLine));
         }
         if (!scene_->items().isEmpty()) {
@@ -241,6 +242,14 @@ public:
             status_->setText("FAILED / SOURCE_IMPORT_TIMEOUT / SI NOT_RUN");
         });
         worker_.setProcessChannelMode(QProcess::SeparateChannels);
+        connect(&worker_, &QProcess::errorOccurred, this,
+                [this](QProcess::ProcessError) {
+            if (worker_.state() == QProcess::NotRunning) {
+                deadline_.stop();
+                clear();
+                status_->setText("FAILED / SOURCE_IMPORT_PROCESS_ERROR / SI NOT_RUN");
+            }
+        });
         connect(&worker_, &QProcess::readyReadStandardOutput, this,
                 [this] { appendOutput(); });
         connect(&worker_, &QProcess::finished, this,
