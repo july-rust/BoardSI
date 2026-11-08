@@ -28,14 +28,67 @@ fn run() -> Result<Vec<u8>, &'static str> {
         return Err("D056_CANONICAL_VIA_MISMATCH");
     }
     let mut out = String::new();
+    let has_shaped_pads = parsed.vias.iter().any(|via| via.shaped.is_some());
+    let magic = if has_shaped_pads {
+        "BOARDSI_SOURCE_VIA_TOPOLOGY_V2"
+    } else {
+        "BOARDSI_SOURCE_VIA_TOPOLOGY_V1"
+    };
     writeln!(
         out,
-        "BOARDSI_SOURCE_VIA_TOPOLOGY_V1|V9.4-MILS|{}|{}|GEOMETRY_ONLY|SI_NOT_RUN",
+        "{}|V9.4-MILS|{}|{}|GEOMETRY_ONLY|SI_NOT_RUN",
+        magic,
         parsed.max_layer,
         parsed.vias.len()
     )
     .map_err(|_| "D056_WIRE_ERROR")?;
     for (index, via) in parsed.vias.iter().enumerate() {
+        if let Some(profile) = &via.shaped {
+            profile.validate()?;
+            writeln!(
+                out,
+                "V|{}|{}|{}|{}|{}|{}|{}|{}|{:?}|{}|{}|{}",
+                index,
+                via.name,
+                via.net,
+                via.source_line,
+                via.point[0],
+                via.point[1],
+                profile.first_layer,
+                profile.last_layer,
+                profile.kind,
+                profile.drill_ticks,
+                profile.plated,
+                profile.pads.len()
+            )
+            .map_err(|_| "D056_WIRE_ERROR")?;
+            for pad in &profile.pads {
+                match pad.shape {
+                    boardsi_import::via_shapes::ViaLayerShape::Annular {
+                        inner_diameter_ticks,
+                    } => {
+                        writeln!(
+                            out,
+                            "P|{}|{}|A|{}|{}",
+                            index, pad.layer, pad.size_ticks, inner_diameter_ticks
+                        )
+                        .map_err(|_| "D056_WIRE_ERROR")?;
+                    }
+                    _ => {
+                        writeln!(
+                            out,
+                            "P|{}|{}|{}|{}",
+                            index,
+                            pad.layer,
+                            pad.shape.wire_code(),
+                            pad.size_ticks
+                        )
+                        .map_err(|_| "D056_WIRE_ERROR")?;
+                    }
+                }
+            }
+            continue;
+        }
         let normalized = if let Some(topology) = &via.topology {
             topology.clone()
         } else {

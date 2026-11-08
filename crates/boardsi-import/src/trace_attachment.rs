@@ -6,6 +6,7 @@
 use crate::part_preview::{self, ComponentPad};
 use crate::route_preview::{self, ViaInstance};
 use crate::trace_contact::{self, Contact, Stroke, BOUNDARY_GUARD_TICKS};
+use crate::via_shapes::{NormalizedViaShapes, ViaLayerShape};
 use crate::via_topology::NormalizedVia;
 use std::collections::BTreeMap;
 
@@ -47,6 +48,20 @@ pub fn trace_to_via(trace: &Stroke, via: &ViaInstance) -> Result<Contact, &'stat
         || via.drill_ticks >= via.diameter_ticks
     {
         return Err("INVALID_VIA_COPPER_FOOTPRINT");
+    }
+    if let Some(profile) = &via.shaped {
+        if via.first_layer != profile.first_layer
+            || via.last_layer != profile.last_layer
+            || via.drill_ticks != profile.drill_ticks
+            || via.diameter_ticks
+                != profile
+                    .layer_pad(profile.first_layer)
+                    .map(|p| p.size_ticks)
+                    .unwrap_or(0)
+        {
+            return Err("D056_VIA_SOURCE_TOPOLOGY_MISMATCH");
+        }
+        return trace_to_layered_via(trace, via.point, profile);
     }
     if let Some(normalized) = &via.topology {
         if via.first_layer != normalized.first_layer
@@ -120,6 +135,57 @@ pub fn trace_to_normalized_via(
     annular_contact(trace, point, diameter, via.drill_ticks)
 }
 
+/// Shape-aware positive area contact. Plane anti-pads are explicit voids,
+/// and must never create a trace-to-via conductive contact candidate.
+pub fn trace_to_layered_via(
+    trace: &Stroke,
+    point: [i64; 2],
+    via: &NormalizedViaShapes,
+) -> Result<Contact, &'static str> {
+    via.validate()?;
+    if point.iter().any(|p| !(-MAX_TICKS..=MAX_TICKS).contains(p)) {
+        return Err("INVALID_VIA_COPPER_FOOTPRINT");
+    }
+    let Some(pad) = via.conductive_pad(trace.layer) else {
+        let _ = trace_contact::centreline_envelope(trace)?;
+        return Ok(Contact::Separated);
+    };
+    if pad.shape == ViaLayerShape::Round {
+        return annular_contact(trace, point, pad.size_ticks, via.drill_ticks);
+    }
+    if let ViaLayerShape::Annular {
+        inner_diameter_ticks,
+    } = pad.shape
+    {
+        return annular_contact(trace, point, pad.size_ticks, inner_diameter_ticks);
+    }
+    if pad.shape != ViaLayerShape::Square {
+        return Err("D056_UNEXPECTED_CONDUCTIVE_PAD_SHAPE");
+    }
+    // A square external boundary with an explicitly circular drilled hole.
+    // Both outer and bore distances must prove positive copper area.
+    let distance =
+        trace_contact::centreline_rectangle_distance(trace, point, pad.size_ticks, pad.size_ticks)?;
+    let dmax = trace_contact::centreline_point_farthest(trace, point)?;
+    let trace_radius = trace.width_ticks as f64 / 2.0;
+    let outer_clearance = distance - trace_radius;
+    let inner_clearance = (via.drill_ticks as f64 / 2.0 - trace_radius) - dmax;
+    if !outer_clearance.is_finite() || !inner_clearance.is_finite() {
+        return Err("NONFINITE_VIA_CONTACT");
+    }
+    Ok(
+        if outer_clearance > BOUNDARY_GUARD_TICKS || inner_clearance > BOUNDARY_GUARD_TICKS {
+            Contact::Separated
+        } else if outer_clearance >= -BOUNDARY_GUARD_TICKS
+            || inner_clearance >= -BOUNDARY_GUARD_TICKS
+        {
+            Contact::BoundaryUncertain
+        } else {
+            Contact::PositiveArea
+        },
+    )
+}
+
 /// Generic footprint intersection for the original supported SMD shapes.
 /// Rectangles include every edge and corner. Circle contact uses actual radius.
 pub fn trace_to_pad(trace: &Stroke, pad: &ComponentPad) -> Result<Contact, &'static str> {
@@ -174,14 +240,24 @@ fn target_envelope(kind: Target, vias: &[ViaInstance], pads: &[ComponentPad]) ->
             let v = &vias[i];
             (
                 v.point,
-                v.topology
+                v.shaped
                     .as_ref()
-                    .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
+                    .and_then(|via| via.pads.iter().map(|pad| pad.size_ticks).max())
+                    .or_else(|| {
+                        v.topology
+                            .as_ref()
+                            .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
+                    })
                     .unwrap_or(v.diameter_ticks) as f64
                     / 2.0,
-                v.topology
+                v.shaped
                     .as_ref()
-                    .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
+                    .and_then(|via| via.pads.iter().map(|pad| pad.size_ticks).max())
+                    .or_else(|| {
+                        v.topology
+                            .as_ref()
+                            .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
+                    })
                     .unwrap_or(v.diameter_ticks) as f64
                     / 2.0,
             )
@@ -232,6 +308,9 @@ pub fn contact_candidates(
     for v in vias {
         if let Some(normalized) = &v.topology {
             normalized.validate()?;
+        }
+        if let Some(profile) = &v.shaped {
+            profile.validate()?;
         }
         if v.diameter_ticks <= v.drill_ticks
             || v.drill_ticks <= 0
@@ -403,6 +482,7 @@ mod tests {
             last_layer: 4,
             inner_pad: false,
             topology: None,
+            shaped: None,
             source_line: 13,
         }
     }
@@ -445,6 +525,92 @@ U3.1 U4.2\n100 100 3 10 0\n300 200 3 10 0\n*END*\n";
         assert_eq!(
             source_candidates_generalized(wrong_span.as_bytes()).unwrap_err(),
             "D056_ROUTE_OUTSIDE_VIA_SPAN"
+        );
+    }
+
+    #[test]
+    fn d056_square_copper_and_plane_void_qualify_by_actual_layer() {
+        use crate::via_shapes::ViaLayerFootprint;
+        let shaped = NormalizedViaShapes {
+            copper_layers: 6,
+            first_layer: 2,
+            last_layer: 4,
+            kind: boardsi_model::ViaKind::Buried,
+            drill_ticks: 40,
+            plated: true,
+            pads: vec![
+                ViaLayerFootprint {
+                    layer: 2,
+                    size_ticks: 100,
+                    shape: ViaLayerShape::Square,
+                },
+                ViaLayerFootprint {
+                    layer: 3,
+                    size_ticks: 150,
+                    shape: ViaLayerShape::RoundAntiPad,
+                },
+                ViaLayerFootprint {
+                    layer: 4,
+                    size_ticks: 100,
+                    shape: ViaLayerShape::Round,
+                },
+            ],
+        };
+        assert_eq!(
+            trace_to_layered_via(&line([-100, 45], [100, 45], 10, 2), [0, 0], &shaped),
+            Ok(Contact::PositiveArea)
+        );
+        assert_eq!(
+            trace_to_layered_via(&line([-100, 0], [100, 0], 10, 3), [0, 0], &shaped),
+            Ok(Contact::Separated)
+        );
+        assert_eq!(
+            trace_to_layered_via(&line([-100, 0], [100, 0], 10, 1), [0, 0], &shaped),
+            Ok(Contact::Separated)
+        );
+        assert_eq!(
+            trace_to_layered_via(&line([-5, 0], [5, 0], 4, 2), [0, 0], &shaped),
+            Ok(Contact::Separated)
+        );
+    }
+
+    #[test]
+    fn d056_annular_inner_void_excludes_copper_contacts_inside_clearance() {
+        use crate::via_shapes::ViaLayerFootprint;
+        let ring = NormalizedViaShapes {
+            copper_layers: 6,
+            first_layer: 2,
+            last_layer: 4,
+            kind: boardsi_model::ViaKind::Buried,
+            drill_ticks: 30,
+            plated: true,
+            pads: vec![
+                ViaLayerFootprint {
+                    layer: 2,
+                    size_ticks: 100,
+                    shape: ViaLayerShape::Square,
+                },
+                ViaLayerFootprint {
+                    layer: 3,
+                    size_ticks: 130,
+                    shape: ViaLayerShape::Annular {
+                        inner_diameter_ticks: 100,
+                    },
+                },
+                ViaLayerFootprint {
+                    layer: 4,
+                    size_ticks: 100,
+                    shape: ViaLayerShape::Round,
+                },
+            ],
+        };
+        assert_eq!(
+            trace_to_layered_via(&line([-4, 0], [4, 0], 4, 3), [0, 0], &ring),
+            Ok(Contact::Separated)
+        );
+        assert_eq!(
+            trace_to_layered_via(&line([-100, 57], [100, 57], 10, 3), [0, 0], &ring),
+            Ok(Contact::PositiveArea)
         );
     }
 

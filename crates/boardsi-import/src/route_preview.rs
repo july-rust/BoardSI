@@ -49,6 +49,9 @@ pub struct ViaInstance {
     /// Explicit SOURCE-backed per-layer pad geometry for the opt-in V9.4 via
     /// adapter. None denotes the unchanged legacy equal-round Through subset.
     pub topology: Option<crate::via_topology::NormalizedVia>,
+    /// Independent SOURCE-layer geometry for non-round copper and plane voids.
+    /// Never use a uniform round diameter for these layers.
+    pub shaped: Option<crate::via_shapes::NormalizedViaShapes>,
     pub source_line: usize,
 }
 #[derive(Clone, Copy)]
@@ -520,17 +523,22 @@ fn parse_with_via_mode(
             } else {
                 via_defs.get(fields[5])
             };
-            let topology = if allow_generalized_vias {
+            let (topology, shaped) = if allow_generalized_vias {
                 let definition = source_via_defs
                     .get(fields[5])
                     .ok_or("D056_UNDECLARED_VIA_DEFINITION")?
                     .as_ref()
                     .map_err(|error| *error)?;
-                Some(definition.normalize(max_layer)?)
+                let profile = definition.normalize_shapes(max_layer)?;
+                if profile.is_only_round_copper() {
+                    (Some(definition.normalize(max_layer)?), None)
+                } else {
+                    (None, Some(profile))
+                }
             } else {
-                None
+                (None, None)
             };
-            if simple.is_some() || topology.is_some() {
+            if simple.is_some() || topology.is_some() || shaped.is_some() {
                 if !(1..=i64::from(max_layer)).contains(&layer) || max_layer < 2 {
                     return Err("D056_VIA_ROUTE_LAYER_OUT_OF_RANGE");
                 }
@@ -547,6 +555,21 @@ fn parse_with_via_mode(
                                     && p.layer != normalized.last_layer
                             }),
                             normalized.drill_ticks,
+                        )
+                    } else if let Some(profile) = &shaped {
+                        (
+                            profile.first_layer,
+                            profile.last_layer,
+                            profile
+                                .layer_pad(profile.first_layer)
+                                .ok_or("D056_MISSING_TOP_VIA_PAD")?
+                                .size_ticks,
+                            profile.pads.iter().any(|p| {
+                                p.layer != profile.first_layer
+                                    && p.layer != profile.last_layer
+                                    && p.shape.conductive()
+                            }),
+                            profile.drill_ticks,
                         )
                     } else {
                         let definition = simple.ok_or("D056_MISSING_SIMPLE_VIA")?;
@@ -598,6 +621,7 @@ fn parse_with_via_mode(
                     last_layer,
                     inner_pad,
                     topology,
+                    shaped,
                     source_line: line_no + 1,
                 });
                 previous = Some((p, layer, width));
@@ -712,7 +736,9 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             logical_path: "local/source.asc".into(),
             sha256: sha,
         }],
-        importer_version: if parsed.vias.iter().any(|via| via.topology.is_some()) {
+        importer_version: if parsed.vias.iter().any(|via| via.shaped.is_some()) {
+            "preview-d056-source-layered-padshapes-v2"
+        } else if parsed.vias.iter().any(|via| via.topology.is_some()) {
             "preview-d056-source-layered-via-v1"
         } else if !parsed.arcs.is_empty() {
             "preview-p2f-strict-route-arc-v1"
@@ -730,7 +756,12 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                     "strict-centre-cw-ccw-source-grid".into(),
                 ));
             }
-            if parsed.vias.iter().any(|via| via.topology.is_some()) {
+            if parsed.vias.iter().any(|via| via.shaped.is_some()) {
+                conditions.push((
+                    "via_subset".into(),
+                    "source-explicit-round-square-and-antipad-no-electrical-proof".into(),
+                ));
+            } else if parsed.vias.iter().any(|via| via.topology.is_some()) {
                 conditions.push((
                     "via_subset".into(),
                     "source-explicit-round-layered-via-span-no-electrical-proof".into(),
@@ -768,9 +799,14 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                         "ROUTE strict exact-radius CW/CCW Arc geometry; electrical contact not verified".into(),
                     );
                 }
-                if !parsed.vias.is_empty() {
+                if parsed.vias.iter().any(|via| via.shaped.is_some()) {
                     coverage.push(
-                        "VIA explicit round through-hole padstack and drill geometry; contact not verified"
+                        "VIA source-declared round/square copper, plane antipad and drill geometry; global contact not verified"
+                            .into(),
+                    );
+                } else if !parsed.vias.is_empty() {
+                    coverage.push(
+                        "VIA explicit round layer padstack and drill geometry; contact not verified"
                             .into(),
                     );
                 }
@@ -890,16 +926,30 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         });
     }
     for via in &parsed.vias {
-        let normalized = if let Some(topology) = &via.topology {
-            topology.clone()
+        // Source profiles carry PadRole and exact round/square shapes. The
+        // legacy normalized circular path remains only for truly round vias.
+        let rounded = if via.shaped.is_some() {
+            None
+        } else if let Some(topology) = &via.topology {
+            Some(topology.clone())
         } else {
-            crate::via_topology::NormalizedVia::pads_v94_through(
+            Some(crate::via_topology::NormalizedVia::pads_v94_through(
                 parsed.max_layer,
                 via.drill_ticks,
                 via.diameter_ticks,
                 via.inner_pad.then_some(via.diameter_ticks),
                 via.diameter_ticks,
-            )?
+            )?)
+        };
+        let kind = if let Some(profile) = &via.shaped {
+            profile.kind
+        } else {
+            rounded.as_ref().ok_or("D056_MISSING_VIA_PROFILE")?.kind
+        };
+        let plated = if let Some(profile) = &via.shaped {
+            profile.plated
+        } else {
+            rounded.as_ref().ok_or("D056_MISSING_VIA_PROFILE")?.plated
         };
         let start = ObjectId::new(
             &source,
@@ -924,9 +974,15 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         if !board.padstacks.iter().any(|p| p.meta.id == padstack_id) {
             // Canonical padstacks consume exactly the source-backed layer
             // inventory; no guessed interior conductive entry.
-            let entries = normalized.canonical_circular_pads(|n| {
-                ObjectId::new(&source, ObjectKind::Layer, &format!("layer-{n}"), "")
-            })?;
+            let layer_id = |n| ObjectId::new(&source, ObjectKind::Layer, &format!("layer-{n}"), "");
+            let entries = if let Some(profile) = &via.shaped {
+                profile.canonical_entries(layer_id)?
+            } else {
+                rounded
+                    .as_ref()
+                    .ok_or("D056_MISSING_VIA_PROFILE")?
+                    .canonical_circular_pads(layer_id)?
+            };
             board.padstacks.push(Padstack {
                 meta: meta_with_provenance(
                     &source,
@@ -945,7 +1001,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                 ),
                 diameter_m: Rational::new(i128::from(via.drill_ticks) * 127, 500_000_000)
                     .map_err(|_| "VIA_DIMENSION_OVERFLOW")?,
-                plated: normalized.plated,
+                plated,
                 span: span.clone(),
             });
         }
@@ -954,7 +1010,9 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                 &source,
                 ObjectKind::Via,
                 &format!("via-line-{}", via.source_line),
-                if via.topology.is_some() {
+                if via.shaped.is_some() {
+                    "PADS Layout ROUTE via placement (SOURCE-declared layer-shaped padstack)"
+                } else if via.topology.is_some() {
                     "PADS Layout ROUTE via placement (SOURCE-declared round layer span)"
                 } else {
                     "PADS Layout ROUTE via placement (restricted round through-via)"
@@ -967,7 +1025,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             padstack: padstack_id,
             drill: drill_id,
             span,
-            kind: normalized.kind,
+            kind,
             net: nets.get(&via.net).cloned(),
             // Never infer electrical contacts solely from same net or drill span.
             connected_layers: vec![],
@@ -1593,6 +1651,68 @@ mod d056_native_via_source_regressions {
     }
 
     #[test]
+    fn d056_square_and_antipad_records_keep_canonical_roles() {
+        let source = source(6, 2, 4, "V_TEST 15 3 2 4\n-2 35 S\n-1 65 RA\n0 40 R");
+        let artwork = parse_generalized(source.as_bytes()).unwrap();
+        assert_eq!(artwork.vias.len(), 1);
+        assert!(artwork.vias[0].topology.is_none());
+        let shapes = artwork.vias[0].shaped.as_ref().unwrap();
+        assert_eq!(shapes.first_layer, 2);
+        assert_eq!(shapes.last_layer, 4);
+        assert!(shapes.conductive_pad(2).is_some());
+        assert!(shapes.conductive_pad(3).is_none());
+        assert_eq!(
+            shapes.layer_pad(3).unwrap().shape,
+            crate::via_shapes::ViaLayerShape::RoundAntiPad
+        );
+        let board = into_canonical(source.as_bytes(), &artwork).unwrap();
+        assert_eq!(board.vias[0].kind, ViaKind::Buried);
+        assert_eq!(board.vias[0].connected_layers.len(), 0);
+        assert_eq!(board.padstacks[0].entries.len(), 3);
+        assert_eq!(
+            board.padstacks[0].entries[0].role,
+            boardsi_model::PadRole::Conductive
+        );
+        assert_eq!(
+            board.padstacks[0].entries[1].role,
+            boardsi_model::PadRole::AntiPad
+        );
+        assert_eq!(
+            board.padstacks[0].entries[2].role,
+            boardsi_model::PadRole::Conductive
+        );
+        assert!(matches!(
+            board.padstacks[0].entries[0].shape,
+            boardsi_model::PadShape::Rectangle { .. }
+        ));
+        assert!(matches!(
+            board.padstacks[0].entries[1].shape,
+            boardsi_model::PadShape::Circle { .. }
+        ));
+        assert!(!board.validate().has_errors());
+    }
+
+    #[test]
+    fn d056_annular_inner_void_reaches_canonical_without_copper_fill() {
+        let source = source(6, 2, 4, "V_TEST 15 3 2 4\n-2 35 S\n-1 65 A 50\n0 40 R");
+        let artwork = parse_generalized(source.as_bytes()).unwrap();
+        let profile = artwork.vias[0].shaped.as_ref().unwrap();
+        assert_eq!(
+            profile.layer_pad(3).unwrap().shape,
+            crate::via_shapes::ViaLayerShape::Annular {
+                inner_diameter_ticks: 5000
+            }
+        );
+        let board = into_canonical(source.as_bytes(), &artwork).unwrap();
+        assert!(!board.validate().has_errors());
+        assert!(matches!(
+            board.padstacks[0].entries[1].shape,
+            boardsi_model::PadShape::Annulus { .. }
+        ));
+        assert!(board.vias[0].connected_layers.is_empty());
+    }
+
+    #[test]
     fn missing_inner_pad_and_explicit_layer_override_not_synthesized() {
         let definition = "V_TEST 15 3 2 4\n-2 35 R\n3 46 R\n0 40 R";
         let source = source(6, 2, 4, definition);
@@ -1614,10 +1734,10 @@ mod d056_native_via_source_regressions {
             parse_generalized(invalid_route.as_bytes()).unwrap_err(),
             "D056_ROUTE_OUTSIDE_VIA_SPAN"
         );
-        let unsupported = source(6, 2, 4, "V_TEST 15 2 2 4\n-2 35 S\n0 40 R");
+        let unsupported = source(6, 2, 4, "V_TEST 15 2 2 4\n-2 35 RT 45 84 15 4\n0 40 R");
         assert_eq!(
             parse_generalized(unsupported.as_bytes()).unwrap_err(),
-            "D056_UNSUPPORTED_VIA_PAD_SHAPE"
+            "D056_THERMAL_CONTACT_UNSUPPORTED"
         );
         let malformed = source(6, 2, 4, "V_TEST 15 2 4 2\n-2 35 R\n0 40 R");
         assert_eq!(

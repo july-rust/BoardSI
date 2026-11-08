@@ -236,6 +236,7 @@ pub mod reference_topology;
 pub mod route_preview;
 pub mod scenario_contract;
 pub mod via_copper_contact;
+pub mod via_shapes;
 pub mod via_source;
 pub mod via_topology;
 
