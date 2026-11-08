@@ -167,8 +167,13 @@ fn source_scope_disconnected_endpoints_are_open_only_when_independently_qualifie
     let mut isolated = board;
     isolated.unverified_barrels.clear();
     let report = qualify(&isolated, SHA, &c, &[], &[path()]).unwrap();
-    assert_eq!(report.open_witnesses[0].disposition, OpenDisposition::CandidateOnly);
-    assert!(report.diagnostics.contains(&"PAD_CONTACT_COVERAGE_PARTIAL".to_owned()));
+    assert_eq!(
+        report.open_witnesses[0].disposition,
+        OpenDisposition::CandidateOnly
+    );
+    assert!(report
+        .diagnostics
+        .contains(&"PAD_CONTACT_COVERAGE_PARTIAL".to_owned()));
 
     // The separately attested complete source scope contains only two
     // disconnected stroke nodes, with no pad/area/process ambiguities.
@@ -178,7 +183,10 @@ fn source_scope_disconnected_endpoints_are_open_only_when_independently_qualifie
     ];
     isolated.geometry_contacts.clear();
     let report = qualify(&isolated, SHA, &c, &[], &[path()]).unwrap();
-    assert_eq!(report.open_witnesses[0].disposition, OpenDisposition::QualifiedSourceScope);
+    assert_eq!(
+        report.open_witnesses[0].disposition,
+        OpenDisposition::QualifiedSourceScope
+    );
 }
 
 #[test]
