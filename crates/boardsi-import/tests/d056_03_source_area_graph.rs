@@ -4,8 +4,11 @@
 use boardsi_import::electrical_graph_qualification::{
     qualify, OpenDisposition, RequiredNetPath, SourceCoverage,
 };
+use boardsi_import::layered_area_contacts::augment_source_areas;
+use boardsi_import::route_preview;
+use boardsi_import::trace_contact;
 use boardsi_import::layered_source_graph::{
-    from_pads_v94_source, ContactKind, CopperFootprint, DeclaredNetCheck,
+    from_pads_v94_source, ContactKind, CopperFootprint, DeclaredNetCheck, GeometryContact,
 };
 
 // Git may check out fixture files with CRLF on Windows. Normalize only
@@ -238,4 +241,37 @@ fn circular_cutout_with_independent_island_has_no_false_short() {
     )
     .unwrap();
     assert!(report.net_conflicts.is_empty());
+}
+
+#[test]
+fn area_contact_limit_fails_before_appending_new_edges() {
+    let original = fixture_text(include_bytes!("fixtures/pads_copper_filled_v94.asc")).unwrap();
+    let source = original.replace(
+        "10 20 1 10 0\n100 20 1 10 0",
+        "10 60 1 10 0\n100 60 1 10 0",
+    );
+    assert_ne!(original, source);
+    let mut graph = from_pads_v94_source(source.as_bytes()).unwrap();
+    graph.nodes.retain(|n| !matches!(&n.footprint, CopperFootprint::CopperArea { .. }));
+    let baseline_nodes = graph.nodes.len();
+    // Deliberately saturated candidate inventory: the area augment is a
+    // transactional fail-closed operation, and may not append one more edge.
+    graph.geometry_contacts = vec![
+        GeometryContact {
+            first_node: 0,
+            second_node: 0,
+            layer: 1,
+            kind: ContactKind::TraceTrace,
+            declared_net_check: DeclaredNetCheck::Same,
+        };
+        100_000
+    ];
+    let artwork = route_preview::parse_generalized(source.as_bytes()).unwrap();
+    let strokes = trace_contact::from_artwork(&artwork).unwrap();
+    assert_eq!(
+        augment_source_areas(&mut graph, source.as_bytes(), &strokes).unwrap_err(),
+        "D05603_AREA_EDGE_LIMIT"
+    );
+    assert_eq!(graph.nodes.len(), baseline_nodes);
+    assert_eq!(graph.geometry_contacts.len(), 100_000);
 }
