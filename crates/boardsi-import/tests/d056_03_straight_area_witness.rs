@@ -26,29 +26,17 @@ fn area(geometry: CopperGeometry, cutouts: Vec<CopperGeometry>) -> CopperArea {
     }
 }
 fn square(x0: i64, y0: i64, x1: i64, y1: i64) -> CopperGeometry {
-    CopperGeometry::Polygon(vec![
-        [x0, y0],
-        [x1, y0],
-        [x1, y1],
-        [x0, y1],
-        [x0, y0],
-    ])
+    CopperGeometry::Polygon(vec![[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]])
 }
 #[test]
 fn narrow_midspan_rectangle_contact_not_at_any_quarter_sample() {
     let region = area(square(43, 50, 47, 70), vec![]);
-    assert!(positive_straight_area_witness(
-        &line([0, 60], [100, 60]),
-        &region
-    ).unwrap());
+    assert!(positive_straight_area_witness(&line([0, 60], [100, 60]), &region).unwrap());
 }
 #[test]
 fn arbitrary_oblique_angle_positive_copper_crossing() {
     let region = area(square(43, 43, 47, 47), vec![]);
-    assert!(positive_straight_area_witness(
-        &line([0, 0], [100, 100]),
-        &region
-    ).unwrap());
+    assert!(positive_straight_area_witness(&line([0, 0], [100, 100]), &region).unwrap());
 }
 #[test]
 fn circle_cutout_inside_polygon_prevents_false_contact() {
@@ -59,10 +47,7 @@ fn circle_cutout_inside_polygon_prevents_false_contact() {
             radius: 30,
         }],
     );
-    assert!(!positive_straight_area_witness(
-        &line([43, 50], [57, 50]),
-        &region
-    ).unwrap());
+    assert!(!positive_straight_area_witness(&line([43, 50], [57, 50]), &region).unwrap());
 }
 #[test]
 fn circle_midspan_contact_and_tangent_remain_distinct() {
@@ -73,14 +58,8 @@ fn circle_midspan_contact_and_tangent_remain_distinct() {
         },
         vec![],
     );
-    assert!(positive_straight_area_witness(
-        &line([0, 50], [100, 50]),
-        &region
-    ).unwrap());
-    assert!(!positive_straight_area_witness(
-        &line([0, 60], [100, 60]),
-        &region
-    ).unwrap());
+    assert!(positive_straight_area_witness(&line([0, 50], [100, 50]), &region).unwrap());
+    assert!(!positive_straight_area_witness(&line([0, 60], [100, 60]), &region).unwrap());
 }
 #[test]
 fn no_chord_interpolation_for_circular_trace() {
@@ -111,17 +90,21 @@ fn stale_layer_or_zero_width_is_not_positive() {
 }
 #[test]
 fn original_pads_source_narrow_copper_crossing_enters_candidate_graph() {
-    let original = String::from_utf8(
-        include_bytes!("fixtures/pads_copper_filled_v94.asc").to_vec(),
-    ).unwrap().replace("\r\n", "\n");
+    let original =
+        String::from_utf8(include_bytes!("fixtures/pads_copper_filled_v94.asc").to_vec())
+            .unwrap()
+            .replace("\r\n", "\n");
     let before = "COP_A COPPER 40 40 1 1 0 GND\nCOPCLS 7 0.01 0 1\n0 0\n100 0\n100 40\n60 40\n60 80\n0 80\n0 0";
     let after = "COP_A COPPER 43 50 1 1 0 GND\nCOPCLS 5 0.01 0 1\n0 0\n4 0\n4 20\n0 20\n0 0";
-    let source = original.replace(before, after)
+    let source = original
+        .replace(before, after)
         .replace("10 20 1 10 0\n100 20 1 10 0", "0 60 1 2 0\n100 60 1 2 0");
     assert_ne!(source, original);
     assert!(source.contains(after));
     let graph = from_pads_v94_source(source.as_bytes()).unwrap();
-    let edges: Vec<_> = graph.geometry_contacts.iter()
+    let edges: Vec<_> = graph
+        .geometry_contacts
+        .iter()
         .filter(|e| e.kind == ContactKind::TraceCopperArea)
         .collect();
     assert_eq!(edges.len(), 1);
