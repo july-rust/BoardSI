@@ -1572,6 +1572,28 @@ mod d056_native_via_source_regressions {
     }
 
     #[test]
+    fn generalized_mode_cannot_bypass_conflicting_source_via_names() {
+        // Legacy scan recognizes the first equal-round Through Via, but
+        // the same name has a second, contradictory L2-L4 definition.
+        // Generalized import must reject rather than reuse the old match.
+        let source = source(
+            6,
+            1,
+            6,
+            "V_TEST 15 2\n-2 35 R\n0 35 R\nV_TEST 15 2 2 4\n-2 35 R\n0 40 R",
+        );
+        assert_eq!(parse(source.as_bytes()).unwrap().vias.len(), 1);
+        assert_eq!(
+            parse_generalized(source.as_bytes()).unwrap_err(),
+            "D056_DUPLICATE_VIA_DEFINITION"
+        );
+        assert_eq!(
+            crate::trace_attachment::source_candidates_generalized(source.as_bytes()).unwrap_err(),
+            "D056_DUPLICATE_VIA_DEFINITION"
+        );
+    }
+
+    #[test]
     fn missing_inner_pad_and_explicit_layer_override_not_synthesized() {
         let definition = "V_TEST 15 3 2 4\n-2 35 R\n3 46 R\n0 40 R";
         let source = source(6, 2, 4, definition);
