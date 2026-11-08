@@ -2,6 +2,19 @@
 
 **First checked:** 2026-11-08 KST. **State:** THREE CODE SLICES MERGED, exact PR-head CI VERIFIED; D_056 OVERALL OPEN. Core foundation [PR #521](https://github.com/july-rust/BoardSI/pull/521) → [main `288b16e`](https://github.com/july-rust/BoardSI/commit/288b16e19054102e752d433ab60088e669ea235a); PADS source-backed partial circular via [PR #523](https://github.com/july-rust/BoardSI/pull/523) exact HEAD `b113e8a41b96d8d87e17f8d7cb6a91f9eddb8918` → verified single-parent squash [main `63183cb`](https://github.com/july-rust/BoardSI/commit/63183cbcf94e30134c08aee795b51ae9057bdc08). Additional source-shaped VIA [PR #526](https://github.com/july-rust/BoardSI/pull/526) exact final HEAD `2f65d08321d183f4a446163f7b05705d5b5fb7f9` (38/38 GitHub checks and 13/13 workflows SUCCESS, completed automatic code review with no findings, 0 unresolved threads) → protected single-parent verified squash [main `7e10d7b`](https://github.com/july-rust/BoardSI/commit/7e10d7ba07d6c9e0f959eb3e2e4be570af6dd88b). The separate post-merge main Push CI is a distinct gate, not inferred from PR-head results. This does NOT certify vendor-wide imports, electrical connectivity, per-layer Qt display or SI.
 
+## D_056_01 inspected-source audit and future adapter contract (2026-11-08 KST)
+
+[**D_056_01 source evidence audit, concrete codepath inventory, fail-closed contract, regression matrix and D_056_02–12 gates**](d056-01-source-evidence-audit.md) inspects protected `main@4118e2c0a525ba732e16ea9062d1b22e05c2af30` following merged [opt-in Qt source-layer viewer #528](https://github.com/july-rust/BoardSI/pull/528). It is a **separate source-code and architecture audit, not a new electrical graph implementation**.
+
+Key non-equivalences to preserve:
+- `SourceIdentity`/SHA and `ObjectId` already exist, but do not guarantee per-record provenance, complete import inventory, or native ODB++/IPC-2581/Gerber/KiCad readers.
+- The PADS adapter's `plated: true` and Canonical `Drill.plated` boolean are **not independent plated-barrel fabrication proof**; actual connected layers require verified local landing and process evidence.
+- Placeholder Copper layers synthesized from `MAXLAYER` are **not** a measured or source-qualified physical stackup.
+- The D_056 Qt V2 **separate diagnostic viewer** now exists; the legacy main Qt Artwork V1–V14 transport is still not per-layer shape integrated. Review #531 before calling it done.
+- Geometry-only PositiveArea, source Net label and shared XY are **not** full-board electrical verification; graph work remains #529.
+
+The 12-stage named plan is D_056_01 through D_056_12. Parent #520 and child #529/#530/#531/#532 stay open until their separate acceptance tests are met.
+
 ## Why
 
 D_055 implemented generic off-centre trace-to-via annulus overlap, but the source importer has a separate limitation. Its `scan_simple_via_defs` currently accepts only PADS V9.4 MILS round `-2/-1/0` definitions with **equal diameters**, and source route placements are interpreted as Through-Via `L1..MAXLAYER`. The original Qt-compatible `route_preview::parse` remains restricted. A separate opt-in PADS V9.4 source adapter was added in merged PR #523 and subsequently extended in merged PR #526 with source-backed R/S/A conductive and RA/SA plane-void shapes. This does not imply Microvia process identification, thermal reconstruction or full vendor grammar. `ViaKind` and `ViaSpan` in `boardsi-model` can represent more topology than the legacy PADS/Qt adapter.
