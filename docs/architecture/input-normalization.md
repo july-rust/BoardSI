@@ -1,6 +1,6 @@
 # D_056 — Generalized Input Normalization and Via Topology Contract
 
-**First checked:** 2026-11-08 KST. **State:** PARTIAL IMPLEMENTATION, CI/PUSH/PRODUCT acceptance not established.
+**First checked:** 2026-11-08 KST. **State:** FIRST CODE SLICE MERGED; D_056 OVERALL OPEN, NATIVE PARTIAL-VIA INPUT / FULL CONNECTIVITY / PRODUCT NOT VERIFIED. **Code PR-head:** [#521](https://github.com/july-rust/BoardSI/pull/521) 30/30 checks and 10/10 workflows SUCCESS; **protected squash main:** [288b16e](https://github.com/july-rust/BoardSI/commit/288b16e19054102e752d433ab60088e669ea235a) (one parent, GitHub verified=true/reason=valid). Post-main push checks are a distinct evidence gate.
 
 ## Why
 
@@ -19,6 +19,7 @@ D_055 implemented generic off-centre trace-to-via annulus overlap, but the sourc
 - New `crates/boardsi-import/src/via_topology.rs` with `NormalizedVia`, `CircularLayerPad` and validated copper-layer bounds/kind/diameters.
 - A reusable PADS V9.4 through pad mapping, with independently supplied top, interior (optional) and bottom pad diameters at normalization level. **The shipping source parser still accepts only equal-diameter PADS records** until all legacy consumers can preserve nonuniform geometry.
 - The existing PADS restricted Through-Via importer now uses the shared normalizer to build canonical padstack entries. Its existing SOURCE grammar, normal Qt artwork output and electrical qualification level are unchanged.
+- `trace_attachment::trace_to_normalized_via` reuses the D_055 annular-copper kernel with the actual layer-specific pad diameter for bounded SOURCE-grid geometry; L2–L4 / L2–L3 and missing-layer-pad tests are included. This remains a geometry result only; it is not wired to native PADS blind/buried parsing or verified global electrical graph edges.
 - Generated-style parameter tests cover 2, 4, 6, 8 and 64 copper-layer through normalization and L2–L4, L2–L3 buried, L1–L3 and L3–L6 blind, and adjacent-span microvia data **at the normalization layer**. Additional PADS restricted parser matrix covers 2, 4, 6, 8.
 - Invalid duplicate/out-of-span pad, drill/pad overlap, inconsistent kind/span and missing inner pads fail closed.
 
@@ -39,4 +40,4 @@ D_055 implemented generic off-centre trace-to-via annulus overlap, but the sourc
 - [Generic D_054/D_055 contact geometry](trace-copper-contact.md)
 - [D_054/D_055 SOURCE qualification](../validation/d054-d055-general-trace-contact-qualification.md)
 
-No locally executed compiler or tests are claimed by this document. GitHub CI statuses must be read separately on the PR head and main push.
+The protected code PR-head reported 30/30 GitHub Checks SUCCESS and all 10 workflow groups SUCCESS (Rust `fmt`/Clippy, Debug/Release workspace regression, Windows x64/ARM64/macOS ARM64 native Rust, Linux/Windows/macOS native Qt regressions, docs, A032, M2). These are repository-reported CI results, not a claim of local or measured hardware validation. Code-main push CI is separate and is not inferred from the PR-head results.
