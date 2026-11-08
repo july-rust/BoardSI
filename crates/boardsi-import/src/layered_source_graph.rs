@@ -31,6 +31,10 @@ pub enum CopperFootprint {
         height_ticks: i64,
         rectangular: bool,
     },
+    /// Original filled COPPER object, not a flood/physical conductor proof.
+    CopperArea {
+        cutout_count: usize,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -49,6 +53,10 @@ pub enum ContactKind {
     TraceTrace,
     TraceViaPad,
     TraceSmdPad,
+    TraceCopperArea,
+    ViaPadCopperArea,
+    SmdPadCopperArea,
+    CopperAreaCopperArea,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -323,14 +331,16 @@ pub fn from_pads_v94_source(bytes: &[u8]) -> Result<LayeredSourceGraph, &'static
         return Err("D05602_GRAPH_CONTACT_LIMIT");
     }
     geometry_contacts.sort_by_key(|e| (e.first_node, e.second_node, e.kind));
-    Ok(LayeredSourceGraph {
+    let mut graph = LayeredSourceGraph {
         source_sha256: crate::digest::sha256(bytes),
         declared_copper_layers: art.max_layer,
         nodes,
         geometry_contacts,
         unverified_barrels,
         verified_electrical_edges: Vec::new(),
-    })
+    };
+    crate::layered_area_contacts::augment_source_areas(&mut graph, bytes, &strokes)?;
+    Ok(graph)
 }
 
 #[cfg(test)]

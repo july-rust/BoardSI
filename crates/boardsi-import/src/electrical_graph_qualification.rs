@@ -194,6 +194,22 @@ pub fn qualify(
                 ContactKind::TraceSmdPad,
                 CopperFootprint::SmdPad { .. },
                 CopperFootprint::Stroke { .. }
+            ) | (
+                ContactKind::TraceCopperArea,
+                CopperFootprint::Stroke { .. },
+                CopperFootprint::CopperArea { .. }
+            ) | (
+                ContactKind::ViaPadCopperArea,
+                CopperFootprint::ViaPad { .. },
+                CopperFootprint::CopperArea { .. }
+            ) | (
+                ContactKind::SmdPadCopperArea,
+                CopperFootprint::SmdPad { .. },
+                CopperFootprint::CopperArea { .. }
+            ) | (
+                ContactKind::CopperAreaCopperArea,
+                CopperFootprint::CopperArea { .. },
+                CopperFootprint::CopperArea { .. }
             )
         );
         if !type_matches {
@@ -298,6 +314,16 @@ pub fn qualify(
     if !source_scope_qualified {
         diagnostics.push("PARTIAL_SOURCE_COVERAGE_NO_GLOBAL_OPEN_CLAIM".to_owned());
     }
+    // D_056_03 area contact samples are sound-positive but NOT exhaustive.
+    // A third-party source-inventory attestation does not imply complete
+    // positive-area contact discovery or permit a definitive Open.
+    let incomplete_area_contacts = graph
+        .nodes
+        .iter()
+        .any(|node| matches!(&node.footprint, CopperFootprint::CopperArea { .. }));
+    if incomplete_area_contacts {
+        diagnostics.push("COPPER_AREA_CONTACT_COVERAGE_PARTIAL".to_owned());
+    }
     let unverified_barrel_keys: Vec<String> = barrels
         .keys()
         .filter(|k| !qualified_barrels.contains(**k))
@@ -367,7 +393,10 @@ pub fn qualify(
                 net: req.net.clone(),
                 endpoints,
                 component_ids,
-                disposition: if source_scope_qualified && unverified_barrel_keys.is_empty() {
+                disposition: if source_scope_qualified
+                    && unverified_barrel_keys.is_empty()
+                    && !incomplete_area_contacts
+                {
                     OpenDisposition::QualifiedSourceScope
                 } else {
                     OpenDisposition::CandidateOnly

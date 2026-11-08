@@ -213,6 +213,8 @@ pub mod digest;
 pub mod electrical_graph_qualification;
 // D_056_02 opt-in source-evidence layered copper candidate graph.
 pub mod layered_source_graph;
+// D_056_03 opt-in SOURCE-filled COPPER area-positive-contact candidates.
+pub mod layered_area_contacts;
 pub mod material_contract;
 pub mod outline_arc;
 pub mod outline_preview;
