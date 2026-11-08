@@ -1,8 +1,8 @@
 //! Independent D_056_03 graph oracles. Expected topology is specified as
 //! hand-enumerated node partitions, not reproduced from production DFS.
 use boardsi_import::electrical_graph_qualification::{
-    qualify, BarrelProcessWitness, OpenDisposition, QualifiedEdgeKind,
-    RequiredNetPath, SourceCoverage,
+    qualify, BarrelProcessWitness, OpenDisposition, QualifiedEdgeKind, RequiredNetPath,
+    SourceCoverage,
 };
 use boardsi_import::layered_source_graph::{
     ContactKind, CopperFootprint, CopperNode, DeclaredNetCheck, GeometryContact,
@@ -91,17 +91,23 @@ fn partial() -> SourceCoverage {
 fn universal_layers_have_two_local_components_without_plating_evidence() {
     for layers in [2, 4, 6, 8, 64] {
         for (first, last) in [(1, layers), (2, 3)] {
-            if last > layers { continue; }
+            if last > layers {
+                continue;
+            }
             let board = graph(layers, first, last);
             let report = qualify(&board, SHA, &partial(), &[], &[path()]).unwrap();
             assert_eq!(report.components, vec![vec![0, 1], vec![2, 3]]);
             assert_eq!(report.component_by_node, vec![0, 0, 1, 1]);
             assert_eq!(report.edges.len(), 2);
-            assert!(report.edges.iter().all(|e|
-                e.kind == QualifiedEdgeKind::SourceLocalPositiveArea
-            ));
+            assert!(report
+                .edges
+                .iter()
+                .all(|e| e.kind == QualifiedEdgeKind::SourceLocalPositiveArea));
             assert_eq!(report.open_witnesses.len(), 1);
-            assert_eq!(report.open_witnesses[0].disposition, OpenDisposition::CandidateOnly);
+            assert_eq!(
+                report.open_witnesses[0].disposition,
+                OpenDisposition::CandidateOnly
+            );
             assert_eq!(report.unverified_barrel_keys, vec![VIA]);
             assert_eq!(report.bridge_edges, vec![(0, 1), (2, 3)]);
             assert!(report.articulation_nodes.is_empty());
@@ -124,9 +130,14 @@ fn explicit_process_proof_joins_only_actual_pad_layers_and_has_cut_witnesses() {
         let report = qualify(&board, SHA, &partial(), &[proof(first, last)], &[path()]).unwrap();
         assert_eq!(report.components, vec![vec![0, 1, 2, 3]]);
         assert_eq!(report.edges.len(), 3);
-        assert_eq!(report.edges.iter().filter(|e|
-            e.kind == QualifiedEdgeKind::EvidenceQualifiedBarrel
-        ).count(), 1);
+        assert_eq!(
+            report
+                .edges
+                .iter()
+                .filter(|e| e.kind == QualifiedEdgeKind::EvidenceQualifiedBarrel)
+                .count(),
+            1
+        );
         assert_eq!(report.bridge_edges, vec![(0, 1), (1, 2), (2, 3)]);
         assert_eq!(report.articulation_nodes, vec![1, 2]);
         assert!(report.open_witnesses.is_empty());
@@ -145,7 +156,10 @@ fn source_scope_disconnected_endpoints_are_open_only_when_independently_qualifie
     let report = qualify(&board, SHA, &c, &[], &[path()]).unwrap();
     assert_eq!(report.open_witnesses.len(), 1);
     // Without process evidence for this via, a positive Open is still unsafe.
-    assert_eq!(report.open_witnesses[0].disposition, OpenDisposition::CandidateOnly);
+    assert_eq!(
+        report.open_witnesses[0].disposition,
+        OpenDisposition::CandidateOnly
+    );
     assert!(report.source_scope_qualified);
 
     // With no barrel dependency, two independent nodes in an otherwise qualified
@@ -153,7 +167,10 @@ fn source_scope_disconnected_endpoints_are_open_only_when_independently_qualifie
     let mut isolated = board;
     isolated.unverified_barrels.clear();
     let report = qualify(&isolated, SHA, &c, &[], &[path()]).unwrap();
-    assert_eq!(report.open_witnesses[0].disposition, OpenDisposition::QualifiedSourceScope);
+    assert_eq!(
+        report.open_witnesses[0].disposition,
+        OpenDisposition::QualifiedSourceScope
+    );
 }
 
 #[test]
@@ -161,7 +178,10 @@ fn cross_net_conflict_requires_a_real_source_contact_or_proved_transition() {
     let mut board = graph(6, 2, 4);
     board.nodes[2].declared_net = Some("NET_B".into());
     board.nodes[3].declared_net = Some("NET_B".into());
-    assert!(qualify(&board, SHA, &partial(), &[], &[]).unwrap().net_conflicts.is_empty());
+    assert!(qualify(&board, SHA, &partial(), &[], &[])
+        .unwrap()
+        .net_conflicts
+        .is_empty());
     let report = qualify(&board, SHA, &partial(), &[proof(2, 4)], &[]).unwrap();
     assert_eq!(report.net_conflicts.len(), 1);
     let conflict = &report.net_conflicts[0];
@@ -185,12 +205,27 @@ fn three_node_redundant_loop_has_no_bridges_or_articulation() {
         node("c", 1, "NET_A", false),
     ];
     board.geometry_contacts = vec![
-        GeometryContact { first_node: 0, second_node: 1, layer: 1,
-            kind: ContactKind::TraceTrace, declared_net_check: DeclaredNetCheck::Same },
-        GeometryContact { first_node: 1, second_node: 2, layer: 1,
-            kind: ContactKind::TraceTrace, declared_net_check: DeclaredNetCheck::Same },
-        GeometryContact { first_node: 2, second_node: 0, layer: 1,
-            kind: ContactKind::TraceTrace, declared_net_check: DeclaredNetCheck::Same },
+        GeometryContact {
+            first_node: 0,
+            second_node: 1,
+            layer: 1,
+            kind: ContactKind::TraceTrace,
+            declared_net_check: DeclaredNetCheck::Same,
+        },
+        GeometryContact {
+            first_node: 1,
+            second_node: 2,
+            layer: 1,
+            kind: ContactKind::TraceTrace,
+            declared_net_check: DeclaredNetCheck::Same,
+        },
+        GeometryContact {
+            first_node: 2,
+            second_node: 0,
+            layer: 1,
+            kind: ContactKind::TraceTrace,
+            declared_net_check: DeclaredNetCheck::Same,
+        },
     ];
     let r = qualify(&board, SHA, &partial(), &[], &[]).unwrap();
     assert_eq!(r.components, vec![vec![0, 1, 2]]);
@@ -242,10 +277,16 @@ fn invalid_span_missing_pad_stale_sha_and_forged_preverification_fail_closed() {
 fn duplicate_and_cross_layer_source_contacts_fail_closed() {
     let mut board = graph(6, 2, 4);
     board.nodes[3].source_key = "trace:start".into();
-    assert_eq!(qualify(&board, SHA, &partial(), &[], &[]).unwrap_err(), "D05603_DUPLICATE_SOURCE_KEY");
+    assert_eq!(
+        qualify(&board, SHA, &partial(), &[], &[]).unwrap_err(),
+        "D05603_DUPLICATE_SOURCE_KEY"
+    );
     board.nodes[3].source_key = "trace:end".into();
     board.geometry_contacts[0].layer = 4;
-    assert_eq!(qualify(&board, SHA, &partial(), &[], &[]).unwrap_err(), "D05603_INVALID_LOCAL_CONTACT");
+    assert_eq!(
+        qualify(&board, SHA, &partial(), &[], &[]).unwrap_err(),
+        "D05603_INVALID_LOCAL_CONTACT"
+    );
 }
 
 #[test]
@@ -256,8 +297,13 @@ fn iterative_cut_detection_is_bounded_for_long_trace_chain() {
         .map(|i| node(&format!("stroke:{i}"), 1, "NET_A", false))
         .collect();
     board.geometry_contacts = (0..11_999)
-        .map(|i| GeometryContact { first_node: i, second_node: i + 1, layer: 1,
-            kind: ContactKind::TraceTrace, declared_net_check: DeclaredNetCheck::Same })
+        .map(|i| GeometryContact {
+            first_node: i,
+            second_node: i + 1,
+            layer: 1,
+            kind: ContactKind::TraceTrace,
+            declared_net_check: DeclaredNetCheck::Same,
+        })
         .collect();
     let report = qualify(&board, SHA, &partial(), &[], &[]).unwrap();
     assert_eq!(report.components.len(), 1);
