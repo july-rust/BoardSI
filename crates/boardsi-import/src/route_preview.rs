@@ -1693,6 +1693,31 @@ mod d056_native_via_source_regressions {
     }
 
     #[test]
+    fn d056_annular_inner_void_reaches_canonical_without_copper_fill() {
+        let source = source(
+            6,
+            2,
+            4,
+            "V_TEST 15 3 2 4\n-2 35 S\n-1 65 A 50\n0 40 R",
+        );
+        let artwork = parse_generalized(source.as_bytes()).unwrap();
+        let profile = artwork.vias[0].shaped.as_ref().unwrap();
+        assert_eq!(
+            profile.layer_pad(3).unwrap().shape,
+            crate::via_shapes::ViaLayerShape::Annular {
+                inner_diameter_ticks: 5000
+            }
+        );
+        let board = into_canonical(source.as_bytes(), &artwork).unwrap();
+        assert!(!board.validate().has_errors());
+        assert!(matches!(
+            board.padstacks[0].entries[1].shape,
+            boardsi_model::PadShape::Annulus { .. }
+        ));
+        assert!(board.vias[0].connected_layers.is_empty());
+    }
+
+    #[test]
     fn missing_inner_pad_and_explicit_layer_override_not_synthesized() {
         let definition = "V_TEST 15 3 2 4\n-2 35 R\n3 46 R\n0 40 R";
         let source = source(6, 2, 4, definition);
@@ -1714,10 +1739,15 @@ mod d056_native_via_source_regressions {
             parse_generalized(invalid_route.as_bytes()).unwrap_err(),
             "D056_ROUTE_OUTSIDE_VIA_SPAN"
         );
-        let unsupported = source(6, 2, 4, "V_TEST 15 2 2 4\n-2 35 A 20\n0 40 R");
+        let unsupported = source(
+            6,
+            2,
+            4,
+            "V_TEST 15 2 2 4\n-2 35 RT 45 84 15 4\n0 40 R",
+        );
         assert_eq!(
             parse_generalized(unsupported.as_bytes()).unwrap_err(),
-            "D056_ANNULAR_INNER_HOLE_UNSUPPORTED"
+            "D056_THERMAL_CONTACT_UNSUPPORTED"
         );
         let malformed = source(6, 2, 4, "V_TEST 15 2 4 2\n-2 35 R\n0 40 R");
         assert_eq!(
