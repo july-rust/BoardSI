@@ -157,6 +157,28 @@ fn area_witness_samples(area: &CopperArea) -> Vec<[i64; 2]> {
         CopperGeometry::Curved { .. } => Vec::new(),
     }
 }
+/// A source polygon outer vertex is a valid positive-overlap witness when
+/// strictly inside the *other* filled Area: the source polygon has a
+/// positive-area wedge there. Circle samples must be strictly inside their
+/// OWN filled copper, not merely inside the other Area (which might lie
+/// wholly in a circular cutout).
+fn valid_own_area_sample(area: &CopperArea, p: [i64; 2]) -> Result<bool, &'static str> {
+    if area
+        .cutouts
+        .iter()
+        .any(|hole| shape_region(hole, p).unwrap_or(Region::Boundary) != Region::Outside)
+    {
+        return Ok(false);
+    }
+    match &area.geometry {
+        CopperGeometry::Circle { .. } => strictly_in_area(area, p),
+        CopperGeometry::Polygon(vertices) => Ok(vertices
+            .iter()
+            .take(vertices.len().saturating_sub(1))
+            .any(|v| *v == p)),
+        CopperGeometry::Curved { .. } => Err("D05603_UNSUPPORTED_CURVED_AREA_CONTACT"),
+    }
+}
 fn kind_for(node: &CopperFootprint) -> Option<ContactKind> {
     match node {
         CopperFootprint::Stroke { .. } => Some(ContactKind::TraceCopperArea),
@@ -282,12 +304,13 @@ pub fn augment_source_areas(
                 continue;
             }
             let identical = area.geometry == other.geometry && area.cutouts == other.cutouts;
-            let mutual = area_witness_samples(area)
-                .iter()
-                .any(|&p| strictly_in_area(other, p).unwrap_or(false))
-                || area_witness_samples(other)
-                    .iter()
-                    .any(|&p| strictly_in_area(area, p).unwrap_or(false));
+            let mutual = area_witness_samples(area).iter().any(|&p| {
+                valid_own_area_sample(area, p).unwrap_or(false)
+                    && strictly_in_area(other, p).unwrap_or(false)
+            }) || area_witness_samples(other).iter().any(|&p| {
+                valid_own_area_sample(other, p).unwrap_or(false)
+                    && strictly_in_area(area, p).unwrap_or(false)
+            });
             if identical || mutual {
                 let (a, b) = (preexisting + old_index, new_index);
                 if seen.insert((a, b, ContactKind::CopperAreaCopperArea)) {
