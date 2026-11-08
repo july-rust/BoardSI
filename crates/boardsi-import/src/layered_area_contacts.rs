@@ -92,13 +92,15 @@ fn midpoint(a: [i64; 2], b: [i64; 2], numerator: i128) -> Option<[i64; 2]> {
     Some(out)
 }
 fn stroke_samples(s: &Stroke) -> Vec<[i64; 2]> {
-    let (start, end) = match s.centreline {
-        Centreline::Straight { start, end } | Centreline::Circular { start, end, .. } => (start, end),
+    let (start, end) = match &s.centreline {
+        Centreline::Straight { start, end } | Centreline::Circular { start, end, .. } => {
+            (*start, *end)
+        }
     };
     let mut samples = vec![start, end];
     // Only points actually on a STRAIGHT centreline. Circular arcs have
     // endpoints only; unproven interpolation cannot qualify an arc contact.
-    if matches!(s.centreline, Centreline::Straight { .. }) {
+    if matches!(&s.centreline, Centreline::Straight { .. }) {
         for part in 1..4 {
             if let Some(p) = midpoint(start, end, part) {
                 samples.push(p);
