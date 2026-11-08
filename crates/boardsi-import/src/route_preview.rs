@@ -512,8 +512,15 @@ fn parse_with_via_mode(
         // A named via is a separate placement at this exact route vertex,
         // NOT proof of electrical contact with other copper layers.
         if fields.len() == 6 && flag & !SUPPORTED_STRAIGHT_FLAGS == 0 {
-            let simple = via_defs.get(fields[5]);
-            let topology = if allow_generalized_vias && simple.is_none() {
+            // Generalized mode always checks the strict source-definition
+            // inventory, including conflicting duplicate names. A matching
+            // legacy equal-round through definition must not bypass it.
+            let simple = if allow_generalized_vias {
+                None
+            } else {
+                via_defs.get(fields[5])
+            };
+            let topology = if allow_generalized_vias {
                 let definition = source_via_defs
                     .get(fields[5])
                     .ok_or("D056_UNDECLARED_VIA_DEFINITION")?
