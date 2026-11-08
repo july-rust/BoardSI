@@ -209,6 +209,8 @@ pub mod d051_dual_bridge_loop;
 pub mod d052_bridge_midspan_break;
 pub mod d053_midspan_repair;
 pub mod digest;
+// D_056_02 opt-in source-evidence layered copper candidate graph.
+pub mod layered_source_graph;
 pub mod material_contract;
 pub mod outline_arc;
 pub mod outline_preview;
