@@ -188,3 +188,30 @@ fn sampled_area_graph_cannot_promote_disconnection_to_verified_open() {
     assert_eq!(r.open_witnesses[0].disposition, OpenDisposition::CandidateOnly);
     assert!(r.diagnostics.contains(&"COPPER_AREA_CONTACT_COVERAGE_PARTIAL".to_owned()));
 }
+
+#[test]
+fn circular_cutout_with_independent_island_has_no_false_short() {
+    let raw = String::from_utf8(
+        include_bytes!("fixtures/pads_copper_circular_void_v94.asc").to_vec(),
+    ).unwrap();
+    // COP_CIRC: outer source polygon from (50,50) to (170,170);
+    // first circular cutout is centred at (90,80), radius 10.
+    // COP_INNER lies entirely within that source-owned empty cutout.
+    let source = raw.replace(
+        "*END*",
+        "COP_INNER COPPER 90 80 1 1 0 NET_INNER\n\
+         COPCIR 2 0.01 0 1\n\
+         -5 0\n5 0\n\
+         *ROUTE*\n*SIGNAL* OTHER\nU1.1 U2.2\n\
+         10 20 1 5 0\n20 20 1 5 0\n*END*",
+    );
+    assert_ne!(raw, source);
+    let graph = from_pads_v94_source(source.as_bytes()).unwrap();
+    assert_eq!(
+        area_contact_count(&graph, ContactKind::CopperAreaCopperArea),
+        0,
+        "a circle inside an owned void must never contact its enclosing copper",
+    );
+    let report = qualify(&graph, graph.source_sha256, &SourceCoverage::Partial, &[], &[]).unwrap();
+    assert!(report.net_conflicts.is_empty());
+}
