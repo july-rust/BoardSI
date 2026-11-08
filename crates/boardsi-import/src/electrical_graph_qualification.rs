@@ -194,6 +194,22 @@ pub fn qualify(
                 ContactKind::TraceSmdPad,
                 CopperFootprint::SmdPad { .. },
                 CopperFootprint::Stroke { .. }
+            ) | (
+                ContactKind::TraceCopperArea,
+                CopperFootprint::Stroke { .. },
+                CopperFootprint::CopperArea { .. }
+            ) | (
+                ContactKind::ViaPadCopperArea,
+                CopperFootprint::ViaPad { .. },
+                CopperFootprint::CopperArea { .. }
+            ) | (
+                ContactKind::SmdPadCopperArea,
+                CopperFootprint::SmdPad { .. },
+                CopperFootprint::CopperArea { .. }
+            ) | (
+                ContactKind::CopperAreaCopperArea,
+                CopperFootprint::CopperArea { .. },
+                CopperFootprint::CopperArea { .. }
             )
         );
         if !type_matches {
