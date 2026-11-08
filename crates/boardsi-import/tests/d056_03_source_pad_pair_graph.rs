@@ -250,14 +250,18 @@ U3.1 U4.2
     let graph = from_pads_v94_source(source)
         .expect("PADS source must be parsed with actual Via layer pads");
     assert_eq!(graph.unverified_barrels.len(), 2);
-    assert_eq!(count(&graph, ContactKind::ViaPadViaPad), 2);
+    // Centre separation = sqrt(25^2 + 25^2) ticks. L1 diameter 35:
+    // no positive copper overlap; L4 diameter 40: positive overlap.
+    // This MUST follow the actual per-layer pad diameter, not one Via
+    // definition's nominal/uniform footprint.
+    assert_eq!(count(&graph, ContactKind::ViaPadViaPad), 1);
     let layers: std::collections::BTreeSet<_> = graph
         .geometry_contacts
         .iter()
         .filter(|e| e.kind == ContactKind::ViaPadViaPad)
         .map(|e| e.layer)
         .collect();
-    assert_eq!(layers, [1, 4].into_iter().collect());
+    assert_eq!(layers, [4].into_iter().collect());
     assert!(graph.verified_electrical_edges.is_empty());
     let report = qualify(
         &graph,
