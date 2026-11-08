@@ -75,6 +75,12 @@ The official [PADS Layout ASCII Format Specification 9.4, Via Definition pp. 39â
 
 [PR #535](https://github.com/july-rust/BoardSI/pull/535) adds a PADS V9.4 **source-local** `layered_source_graph` module and [scope/negative evidence contract](d056-02-source-layer-graph.md). It retains source SHA, declared Copper layer, Source record line where available, R/S/A conductive footprints, Trace/SMD geometry candidates, and explicit unverified Via Barrel spans. Native R/S/A/RA/SA source evidence is not a global electrical graph. Bare drill span and parser `plated=true` do not certify manufacture; `verified_electrical_edges` stays empty. This is the D_056_02 limited foundation, not D_056_03 Open/Short or D_056 full import acceptance. The protected code squash is [main 2eddeac](https://github.com/july-rust/BoardSI/commit/2eddeacbb985c14313544c958e2c5a0707a89aa0).
 
+## D_056_03 opt-in source-scope graph qualification (2026-11-08 KST)
+
+[PR #538](https://github.com/july-rust/BoardSI/pull/538) adds the standalone Rust [electrical qualification algorithm](../../crates/boardsi-import/src/electrical_graph_qualification.rs) and independent [source-scoped design and test contract](d056-03-electrical-graph-qualification.md). It validates source SHA, actual node/layer and local contact evidence, and admits cross-layer edges only with an independently referenced qualified design/process witness; unknown plating remains disconnected/unknown. Connected components, open *candidates* or scoped qualified disconnects, declared-net conflict paths, bridges and articulation points have an independent 2/4/6/8/64-layer test matrix. The protected [main code squash `ca87a4d`](https://github.com/july-rust/BoardSI/commit/ca87a4d6b08bc75ccff9827bcfdf6d0ffed64cc4) is signed/verified.
+
+**Boundary:** D_056_02 still does not import a certified whole-board conductive inventory (polygon pours, special manufacturing forms and process evidence remain restricted or unknown). D_056_03 does not prove fabricated-barrel continuity, entire-board Open/Short or SI readiness. Keep #529 and #520 OPEN. The D_056_03 standalone code suite is a verified *subset*, not a closure of the full electrical graph gate.
+
 ## Evidence
 
 - [D_056 parent issue](https://github.com/july-rust/BoardSI/issues/520)
