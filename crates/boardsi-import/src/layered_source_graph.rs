@@ -421,4 +421,66 @@ mod tests {
             .iter()
             .all(|e| e.declared_net_check == DeclaredNetCheck::Same));
     }
+
+    #[test]
+    fn native_square_and_antipad_do_not_create_false_copper_nodes() {
+        let raw = String::from_utf8(source(6, 2, 4)).unwrap();
+        let raw = raw.replace(
+            "V_TEST 15 2 2 4\n-2 35 R\n0 40 R",
+            "V_TEST 15 3 2 4\n-2 35 S\n-1 60 RA\n0 40 R",
+        );
+        assert!(raw.contains("-1 60 RA"));
+        let graph = from_pads_v94_source(raw.as_bytes()).unwrap();
+        let via_nodes: Vec<_> = graph
+            .nodes
+            .iter()
+            .filter(|n| matches!(&n.footprint, CopperFootprint::ViaPad { .. }))
+            .collect();
+        assert_eq!(via_nodes.len(), 2); // L3 is a plane void, not copper.
+        assert_eq!(via_nodes[0].physical_copper_layer, 2);
+        assert_eq!(via_nodes[1].physical_copper_layer, 4);
+        assert!(matches!(
+            &via_nodes[0].footprint,
+            CopperFootprint::ViaPad {
+                shape: ViaLayerShape::Square,
+                ..
+            }
+        ));
+        assert_eq!(
+            graph
+                .geometry_contacts
+                .iter()
+                .filter(|e| e.kind == ContactKind::TraceViaPad)
+                .count(),
+            2
+        );
+        assert!(graph.verified_electrical_edges.is_empty());
+    }
+
+    #[test]
+    fn off_centre_contact_and_cross_net_are_geometry_only_not_a_short() {
+        let raw = String::from_utf8(source(6, 2, 4)).unwrap();
+        let raw = raw.replace(
+            "*END*\n",
+            "*SIGNAL* NET_B\nU3.1 U4.2\n100 215 2 10 0\n500 215 2 10 0\n\
+             U5.1 U6.2\n100 230 2 10 0\n500 230 2 10 0\n*END*\n",
+        );
+        let graph = from_pads_v94_source(raw.as_bytes()).unwrap();
+        let via_contacts: Vec<_> = graph
+            .geometry_contacts
+            .iter()
+            .filter(|e| e.kind == ContactKind::TraceViaPad)
+            .collect();
+        // Two centred route landings plus one off-centre positive-area landing.
+        // The y=230 trace is outside the via's (radius + trace half-width).
+        assert_eq!(via_contacts.len(), 3);
+        assert_eq!(
+            via_contacts
+                .iter()
+                .filter(|e| e.declared_net_check == DeclaredNetCheck::Different)
+                .count(),
+            1
+        );
+        assert!(graph.verified_electrical_edges.is_empty());
+    }
 }
