@@ -198,6 +198,12 @@ pub enum PadShape {
     Rectangle {
         size_m: [Rational; 2],
     },
+    /// Annular copper ring with a SOURCE-declared inner void.
+    /// Its void must not be replaced by the drill diameter when larger.
+    Annulus {
+        outer_diameter_m: Rational,
+        inner_diameter_m: Rational,
+    },
     /// Reusable pad-local geometry; its frame maps source ticks to local metres.
     /// Apply Pad position/orientation once when instantiating it in board space.
     Custom(Boundary),
