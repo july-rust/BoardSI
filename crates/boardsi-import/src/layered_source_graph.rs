@@ -57,6 +57,9 @@ pub enum ContactKind {
     ViaPadCopperArea,
     SmdPadCopperArea,
     CopperAreaCopperArea,
+    ViaPadViaPad,
+    ViaPadSmdPad,
+    SmdPadSmdPad,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -339,6 +342,7 @@ pub fn from_pads_v94_source(bytes: &[u8]) -> Result<LayeredSourceGraph, &'static
         unverified_barrels,
         verified_electrical_edges: Vec::new(),
     };
+    crate::layered_pad_contacts::augment_pad_contacts(&mut graph)?;
     crate::layered_area_contacts::augment_source_areas(&mut graph, bytes, &strokes)?;
     Ok(graph)
 }
