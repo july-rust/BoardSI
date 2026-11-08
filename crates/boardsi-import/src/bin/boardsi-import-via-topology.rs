@@ -36,6 +36,38 @@ fn run() -> Result<Vec<u8>, &'static str> {
     )
     .map_err(|_| "D056_WIRE_ERROR")?;
     for (index, via) in parsed.vias.iter().enumerate() {
+        if let Some(profile) = &via.shaped {
+            profile.validate()?;
+            writeln!(
+                out,
+                "V|{}|{}|{}|{}|{}|{}|{}|{}|{:?}|{}|{}|{}",
+                index,
+                via.name,
+                via.net,
+                via.source_line,
+                via.point[0],
+                via.point[1],
+                profile.first_layer,
+                profile.last_layer,
+                profile.kind,
+                profile.drill_ticks,
+                profile.plated,
+                profile.pads.len()
+            )
+            .map_err(|_| "D056_WIRE_ERROR")?;
+            for pad in &profile.pads {
+                writeln!(
+                    out,
+                    "P|{}|{}|{}|{}",
+                    index,
+                    pad.layer,
+                    pad.shape.wire_code(),
+                    pad.size_ticks
+                )
+                .map_err(|_| "D056_WIRE_ERROR")?;
+            }
+            continue;
+        }
         let normalized = if let Some(topology) = &via.topology {
             topology.clone()
         } else {
