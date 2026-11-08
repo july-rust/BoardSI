@@ -438,10 +438,7 @@ U3.1 U4.2\n100 100 3 10 0\n300 200 3 10 0\n*END*\n";
         }));
         // The third trace reaches the same XY, but Layer 3 has no
         // explicitly declared via conductive pad.
-        assert_eq!(
-            candidates.iter().filter(|c| c.trace_index == 2).count(),
-            0
-        );
+        assert_eq!(candidates.iter().filter(|c| c.trace_index == 2).count(), 0);
         let wrong_span = String::from_utf8(bytes.to_vec())
             .unwrap()
             .replace("V_TEST 15 2 2 4", "V_TEST 15 2 2 3");
