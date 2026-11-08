@@ -36,7 +36,8 @@
 ## 세부 자료 빠른 링크
 
 - **[전체 검증 보고서 158개 색인](validation/INDEX.md)** — Stage A/B/C/D, M0/M2/PH-08과 보안 증거를 구분해 원문으로 이동합니다.
-- **[D_056 범용 PCB 입력 및 Via Span 정규화 계약](architecture/input-normalization.md)** — 검증된 첫 코드 단계와 아직 지원되지 않는 Native PADS 부분 비아·전체 Connectivity의 경계를 설명합니다.
+- **[D_056 범용 PCB 입력 및 Via Span 정규화 계약](architecture/input-normalization.md)** — 제한 PADS Source 기반 부분 비아·형상 구현과 메인 Qt·전체 Connectivity의 미완료 경계를 설명합니다.
+- **[D_056_01 구현 감사 및 공통 Source Evidence 계약](architecture/d056-01-source-evidence-audit.md)** — 실제 코드 경로, 하드코딩 분류, 전기적 증거 수준과 D_056_02–12 인수 Gate를 연결합니다.
 - **[Trace–Via–SMD Pad의 범용 구리 접촉 설계 계약](architecture/trace-copper-contact.md)** — 비중심 Via·Pad 모서리·원호와 드릴 구멍의 판정 수학, Net/Layer·Fail-Closed 경계를 설명합니다.
 - **[문서 작성 및 검증 표준](documentation-standards.md)** — 증거 SHA, 검증 상태 용어, 역사적 기록 보호 및 문서 전용 CI 규칙입니다.
 
