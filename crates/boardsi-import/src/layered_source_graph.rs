@@ -32,7 +32,9 @@ pub enum CopperFootprint {
         rectangular: bool,
     },
     /// Original filled COPPER object, not a flood/physical conductor proof.
-    CopperArea { cutout_count: usize },
+    CopperArea {
+        cutout_count: usize,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
