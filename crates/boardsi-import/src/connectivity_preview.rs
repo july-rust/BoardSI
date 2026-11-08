@@ -213,7 +213,7 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
                 .meta
                 .provenance
                 .source_object_type
-                .contains("SOURCE-declared round layer span")
+                .contains("SOURCE-declared")
         {
             continue;
         }
