@@ -1587,10 +1587,9 @@ mod d056_native_via_source_regressions {
             parse_generalized(source.as_bytes()).unwrap_err(),
             "D056_DUPLICATE_VIA_DEFINITION"
         );
-        assert_eq!(
-            crate::trace_attachment::source_candidates_generalized(source.as_bytes()).unwrap_err(),
-            "D056_DUPLICATE_VIA_DEFINITION"
-        );
+        let contact_error =
+            crate::trace_attachment::source_candidates_generalized(source.as_bytes()).unwrap_err();
+        assert_eq!(contact_error, "D056_DUPLICATE_VIA_DEFINITION");
     }
 
     #[test]
