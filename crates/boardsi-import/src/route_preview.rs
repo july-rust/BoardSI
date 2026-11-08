@@ -1496,3 +1496,121 @@ mod p2b_via_regressions {
         );
     }
 }
+
+#[cfg(test)]
+mod d056_native_via_source_regressions {
+    use super::*;
+
+    fn source(layers: u32, first: u32, last: u32, definition: &str) -> String {
+        format!(
+            "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n\
+*PCB*\nMAXLAYER {layers}\n*VIA*\n{definition}\n\
+*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n\
+100 200 {first} 10 0\n300 200 {last} 10 0 V_TEST\n\
+500 200 {last} 10 0\n*END*\n"
+        )
+    }
+
+    #[test]
+    fn source_declared_partial_spans_2_3_and_2_4_share_one_canonical_path() {
+        for (first, last, expected) in [
+            (2, 4, ViaKind::Buried),
+            (2, 3, ViaKind::Buried),
+            (1, 3, ViaKind::Blind),
+            (3, 6, ViaKind::Blind),
+            (1, 6, ViaKind::Through),
+        ] {
+            let definition = format!("V_TEST 15 3 {first} {last}\n-2 35 R\n-1 45 R\n0 40 R");
+            let source = source(6, first, last, &definition);
+            // The original Qt V1-V14 wire must not guess a diameter/span.
+            assert!(parse(source.as_bytes()).is_err());
+            let artwork = parse_generalized(source.as_bytes()).unwrap();
+            assert_eq!(artwork.vias.len(), 1);
+            assert_eq!(artwork.skipped, 0);
+            let v = &artwork.vias[0];
+            let topology = v.topology.as_ref().unwrap();
+            assert_eq!((v.first_layer, v.last_layer), (first, last));
+            assert_eq!(topology.kind, expected);
+            assert_eq!(topology.diameter_on(first), Some(3500));
+            assert_eq!(topology.diameter_on(last), Some(4000));
+            assert_eq!(
+                topology.diameter_on(first + 1),
+                if last > first + 1 { Some(4500) } else { Some(4000) }
+            );
+            let board = into_canonical(source.as_bytes(), &artwork).unwrap();
+            assert_eq!(board.vias[0].kind, expected);
+            assert_eq!(board.padstacks[0].entries.len(), topology.pads.len());
+            assert_eq!(board.vias[0].connected_layers.len(), 0);
+            assert!(!board.validate().has_errors());
+        }
+    }
+
+    #[test]
+    fn source_declared_nonuniform_through_pads_follow_board_layer_count() {
+        for layers in [2, 4, 6, 8] {
+            let source = source(
+                layers,
+                1,
+                layers,
+                "V_TEST 15 3\n-2 35 R\n-1 45 R\n0 40 R",
+            );
+            let artwork = parse_generalized(source.as_bytes()).unwrap();
+            let topology = artwork.vias[0].topology.as_ref().unwrap();
+            assert_eq!(topology.pads.len(), layers as usize);
+            assert_eq!(topology.diameter_on(layers), Some(4000));
+            assert_eq!(topology.kind, ViaKind::Through);
+            let board = into_canonical(source.as_bytes(), &artwork).unwrap();
+            assert_eq!(board.padstacks[0].entries.len(), layers as usize);
+            assert!(!board.validate().has_errors());
+        }
+    }
+
+    #[test]
+    fn missing_inner_pad_and_explicit_layer_override_not_synthesized() {
+        let definition = "V_TEST 15 3 2 4\n-2 35 R\n3 46 R\n0 40 R";
+        let source = source(6, 2, 4, definition);
+        let artwork = parse_generalized(source.as_bytes()).unwrap();
+        let via = artwork.vias[0].topology.as_ref().unwrap();
+        assert_eq!(via.pads.len(), 3);
+        assert_eq!(via.diameter_on(1), None);
+        assert_eq!(via.diameter_on(3), Some(4600));
+        assert_eq!(via.diameter_on(5), None);
+        let board = into_canonical(source.as_bytes(), &artwork).unwrap();
+        assert_eq!(board.padstacks[0].entries.len(), 3);
+        assert!(!board.validate().has_errors());
+    }
+
+    #[test]
+    fn wrong_route_span_and_unsupported_native_shape_fail_closed() {
+        let invalid_route = source(
+            6,
+            1,
+            3,
+            "V_TEST 15 2 2 3\n-2 35 R\n0 40 R",
+        );
+        assert_eq!(
+            parse_generalized(invalid_route.as_bytes()).unwrap_err(),
+            "D056_ROUTE_OUTSIDE_VIA_SPAN"
+        );
+        let unsupported = source(
+            6,
+            2,
+            4,
+            "V_TEST 15 2 2 4\n-2 35 S\n0 40 R",
+        );
+        assert_eq!(
+            parse_generalized(unsupported.as_bytes()).unwrap_err(),
+            "D056_UNSUPPORTED_VIA_PAD_SHAPE"
+        );
+        let malformed = source(
+            6,
+            2,
+            4,
+            "V_TEST 15 2 4 2\n-2 35 R\n0 40 R",
+        );
+        assert_eq!(
+            parse_generalized(malformed.as_bytes()).unwrap_err(),
+            "D056_INVALID_VIA_SPAN_OR_DRILL"
+        );
+    }
+}
