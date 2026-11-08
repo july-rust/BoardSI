@@ -4,24 +4,54 @@
 //! top/interior/bottom *pad-stack selectors*, not copper layer IDs.
 //! Geometry-only: unknown pad shapes and missing/contradictory rows fail closed.
 use crate::route_preview::parse_fixed;
+use crate::via_shapes::{NormalizedViaShapes, ViaLayerFootprint, ViaLayerShape};
 use crate::via_topology::{CircularLayerPad, NormalizedVia};
 use boardsi_model::ViaKind;
 use std::collections::{BTreeMap, BTreeSet};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SourcePad {
+    size_ticks: i64,
+    shape: ViaLayerShape,
+}
 
 #[derive(Clone, Debug)]
 pub struct ViaDefinition {
     drill_ticks: i64,
     span: Option<(u32, u32)>,
-    top: i64,
-    interior: Option<i64>,
-    bottom: i64,
-    explicit_layers: BTreeMap<u32, i64>,
+    top: SourcePad,
+    interior: Option<SourcePad>,
+    bottom: SourcePad,
+    explicit_layers: BTreeMap<u32, SourcePad>,
 }
 
 impl ViaDefinition {
-    /// Applies relative source pad codes to a source-proven board stack.
-    /// An adjacent L1-L2/L2-L3 span does not itself prove a microvia process.
+    /// Preserve the original R-only interface for the existing safe consumers.
+    /// A square or plane anti-pad must never be misrepresented as a circle.
     pub fn normalize(&self, copper_layers: u32) -> Result<NormalizedVia, &'static str> {
+        let shaped = self.normalize_shapes(copper_layers)?;
+        if !shaped.is_only_round_copper() {
+            return Err("D056_NONCIRCULAR_VIA_REQUIRES_SHAPED_PATH");
+        }
+        let normalized = NormalizedVia {
+            copper_layers: shaped.copper_layers,
+            first_layer: shaped.first_layer,
+            last_layer: shaped.last_layer,
+            kind: shaped.kind,
+            drill_ticks: shaped.drill_ticks,
+            plated: shaped.plated,
+            pads: shaped.pads.into_iter().map(|p| CircularLayerPad {
+                layer: p.layer,
+                diameter_ticks: p.size_ticks,
+            }).collect(),
+        };
+        normalized.validate()?;
+        Ok(normalized)
+    }
+
+    /// Data-only normalization of actual PADS 9.4 conductive and plane-void
+    /// shapes. R/S are copper; RA/SA are anti-pads (never copper).
+    pub fn normalize_shapes(&self, copper_layers: u32) -> Result<NormalizedViaShapes, &'static str> {
         if !(2..=64).contains(&copper_layers) {
             return Err("D056_INVALID_VIA_STACKUP");
         }
@@ -36,34 +66,32 @@ impl ViaDefinition {
         } else {
             ViaKind::Buried
         };
-        let mut diameters = BTreeMap::<u32, i64>::new();
-        diameters.insert(first, self.top);
-        diameters.insert(last, self.bottom);
-        if let Some(diameter) = self.interior {
+        let mut layer_map = BTreeMap::<u32, SourcePad>::new();
+        layer_map.insert(first, self.top);
+        layer_map.insert(last, self.bottom);
+        if let Some(pad) = self.interior {
             for layer in first + 1..last {
-                diameters.insert(layer, diameter);
+                layer_map.insert(layer, pad);
             }
         }
-        for (&layer, &diameter) in &self.explicit_layers {
+        for (&layer, &pad) in &self.explicit_layers {
             if layer <= first || layer >= last {
                 return Err("D056_EXPLICIT_VIA_LAYER_CONFLICT");
             }
-            diameters.insert(layer, diameter);
+            layer_map.insert(layer, pad);
         }
-        let normalized = NormalizedVia {
+        let normalized = NormalizedViaShapes {
             copper_layers,
             first_layer: first,
             last_layer: last,
             kind,
             drill_ticks: self.drill_ticks,
             plated: true,
-            pads: diameters
-                .into_iter()
-                .map(|(layer, diameter_ticks)| CircularLayerPad {
-                    layer,
-                    diameter_ticks,
-                })
-                .collect(),
+            pads: layer_map.into_iter().map(|(layer, pad)| ViaLayerFootprint {
+                layer,
+                size_ticks: pad.size_ticks,
+                shape: pad.shape,
+            }).collect(),
         };
         normalized.validate()?;
         Ok(normalized)
@@ -164,25 +192,32 @@ fn parse_rows(
     let mut seen = BTreeSet::new();
     for row in rows {
         let parts: Vec<_> = row.split_ascii_whitespace().collect();
-        if parts.len() != 3 {
+        if parts.len() < 3 {
             return Err("D056_INVALID_VIA_PAD_RECORD");
         }
-        if parts[2] != "R" {
-            return Err("D056_UNSUPPORTED_VIA_PAD_SHAPE");
-        }
+        let shape = match parts[2] {
+            "R" if parts.len() == 3 => ViaLayerShape::Round,
+            "S" if parts.len() == 3 => ViaLayerShape::Square,
+            "RA" if parts.len() == 3 => ViaLayerShape::RoundAntiPad,
+            "SA" if parts.len() == 3 => ViaLayerShape::SquareAntiPad,
+            "A" if parts.len() == 4 => return Err("D056_ANNULAR_INNER_HOLE_UNSUPPORTED"),
+            "RT" | "ST" => return Err("D056_THERMAL_CONTACT_UNSUPPORTED"),
+            _ => return Err("D056_UNSUPPORTED_VIA_PAD_SHAPE"),
+        };
         let level = parts[0]
             .parse::<i64>()
             .map_err(|_| "D056_INVALID_VIA_PAD_LAYER")?;
         let width = parse_fixed(parts[1])?;
+        let pad = SourcePad { size_ticks: width, shape };
         if !seen.insert(level) {
             return Err("D056_DUPLICATE_VIA_PAD_LAYER");
         }
         match level {
-            -2 => top = Some(width),
-            -1 => interior = Some(width),
-            0 => bottom = Some(width),
+            -2 => top = Some(pad),
+            -1 => interior = Some(pad),
+            0 => bottom = Some(pad),
             1..=64 => {
-                explicit_layers.insert(level as u32, width);
+                explicit_layers.insert(level as u32, pad);
             }
             _ => return Err("D056_INVALID_VIA_PAD_LAYER"),
         }
@@ -243,8 +278,8 @@ mod tests {
     #[test]
     fn unsupported_shape_duplicate_source_and_bad_spans_fail_closed() {
         for (row, reason) in [
-            ("-2 35 S", "D056_UNSUPPORTED_VIA_PAD_SHAPE"),
-            ("-2 35 RA", "D056_UNSUPPORTED_VIA_PAD_SHAPE"),
+            ("-2 35 O", "D056_UNSUPPORTED_VIA_PAD_SHAPE"),
+            ("-2 35 A 20", "D056_ANNULAR_INNER_HOLE_UNSUPPORTED"),
             ("-2 35 R\n-2 36 R", "D056_DUPLICATE_VIA_PAD_LAYER"),
         ] {
             let count = if row.contains('\n') { 3 } else { 2 };
@@ -265,6 +300,23 @@ mod tests {
             "*VIA*\nTRUNC 15 3 2 4\n-2 35 R\n0 35 R\n*END*\n*VIA*\nTRUNC 15 2 2 4\n-2 35 R\n0 35 R\n"
         );
         assert!(defs["TRUNC"].is_err());
+    }
+
+    #[test]
+    fn square_and_plane_antipad_rows_keep_roles_on_a_buried_stack() {
+        let defs = scan_definitions(
+            "*VIA*\nV_TEST 15 3 2 4\n-2 35 S\n-1 60 RA\n0 40 R\n*END*\n",
+        );
+        let shapes = defs["V_TEST"].as_ref().unwrap().normalize_shapes(6).unwrap();
+        assert_eq!(shapes.pads.len(), 3);
+        assert_eq!(shapes.layer_pad(2).unwrap().shape, ViaLayerShape::Square);
+        assert_eq!(shapes.layer_pad(3).unwrap().shape, ViaLayerShape::RoundAntiPad);
+        assert_eq!(shapes.conductive_pad(3), None);
+        assert_eq!(shapes.layer_pad(4).unwrap().shape, ViaLayerShape::Round);
+        assert_eq!(
+            defs["V_TEST"].as_ref().unwrap().normalize(6).unwrap_err(),
+            "D056_NONCIRCULAR_VIA_REQUIRES_SHAPED_PATH"
+        );
     }
 
     #[test]
