@@ -48,6 +48,16 @@ pub fn trace_to_via(trace: &Stroke, via: &ViaInstance) -> Result<Contact, &'stat
     {
         return Err("INVALID_VIA_COPPER_FOOTPRINT");
     }
+    if let Some(normalized) = &via.topology {
+        if via.first_layer != normalized.first_layer
+            || via.last_layer != normalized.last_layer
+            || via.drill_ticks != normalized.drill_ticks
+            || via.diameter_ticks != normalized.diameter_on(normalized.first_layer).unwrap_or(0)
+        {
+            return Err("D056_VIA_SOURCE_TOPOLOGY_MISMATCH");
+        }
+        return trace_to_normalized_via(trace, via.point, normalized);
+    }
     let layer = trace.layer;
     if layer < via.first_layer
         || layer > via.last_layer
@@ -164,8 +174,16 @@ fn target_envelope(kind: Target, vias: &[ViaInstance], pads: &[ComponentPad]) ->
             let v = &vias[i];
             (
                 v.point,
-                v.diameter_ticks as f64 / 2.0,
-                v.diameter_ticks as f64 / 2.0,
+                v.topology
+                    .as_ref()
+                    .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
+                    .unwrap_or(v.diameter_ticks) as f64
+                    / 2.0,
+                v.topology
+                    .as_ref()
+                    .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
+                    .unwrap_or(v.diameter_ticks) as f64
+                    / 2.0,
             )
         }
         Target::SmdPad(i) => {
@@ -212,6 +230,9 @@ pub fn contact_candidates(
     // Fail before broadphase, including target objects on another layer.
     // Source parse cannot silently hide a malformed pad/via behind a bounding box.
     for v in vias {
+        if let Some(normalized) = &v.topology {
+            normalized.validate()?;
+        }
         if v.diameter_ticks <= v.drill_ticks
             || v.drill_ticks <= 0
             || v.diameter_ticks > MAX_TICKS
@@ -327,6 +348,22 @@ pub fn source_candidates(bytes: &[u8]) -> Result<Vec<Candidate>, &'static str> {
     contact_candidates(&strokes, &art.vias, &imported.pads, &pin_nets)
 }
 
+/// Opt-in native partial-via source candidates. Never used by legacy
+/// Qt V1-V14 wire, and never promoted to global electrical graph proof.
+pub fn source_candidates_generalized(bytes: &[u8]) -> Result<Vec<Candidate>, &'static str> {
+    let art = route_preview::parse_generalized(bytes)?;
+    if art.skipped != 0 {
+        return Err("D056_UNSUPPORTED_SOURCE_ROUTE_INVENTORY");
+    }
+    let strokes = trace_contact::from_artwork(&art)?;
+    let imported = part_preview::parse(bytes, art.max_layer);
+    if imported.skipped != 0 {
+        return Err("UNSUPPORTED_SOURCE_PAD_INVENTORY");
+    }
+    let pin_nets = part_preview::declared_route_pin_nets(bytes)?;
+    contact_candidates(&strokes, &art.vias, &imported.pads, &pin_nets)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,6 +402,7 @@ mod tests {
             first_layer: 1,
             last_layer: 4,
             inner_pad: false,
+            topology: None,
             source_line: 13,
         }
     }
@@ -384,6 +422,32 @@ mod tests {
             height_ticks: if rectangular { 60 } else { 100 },
         }
     }
+    #[test]
+    fn d056_native_partial_source_candidates_are_layer_qualified() {
+        let bytes = b"!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n\
+*PCB*\nMAXLAYER 6\n*VIA*\n\
+V_TEST 15 2 2 4\n-2 35 R\n0 40 R\n\
+*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n\
+100 200 2 10 0\n300 200 4 10 0 V_TEST\n500 200 4 10 0\n\
+U3.1 U4.2\n100 100 3 10 0\n300 200 3 10 0\n*END*\n";
+        let candidates = source_candidates_generalized(bytes).unwrap();
+        assert_eq!(candidates.len(), 2);
+        assert!(candidates.iter().all(|candidate| {
+            candidate.target == Target::Via(0)
+                && candidate.net_relation == DeclaredNetRelation::Same
+        }));
+        // The third trace reaches the same XY, but Layer 3 has no
+        // explicitly declared via conductive pad.
+        assert_eq!(candidates.iter().filter(|c| c.trace_index == 2).count(), 0);
+        let wrong_span = String::from_utf8(bytes.to_vec())
+            .unwrap()
+            .replace("V_TEST 15 2 2 4", "V_TEST 15 2 2 3");
+        assert_eq!(
+            source_candidates_generalized(wrong_span.as_bytes()).unwrap_err(),
+            "D056_ROUTE_OUTSIDE_VIA_SPAN"
+        );
+    }
+
     #[test]
     fn d056_arbitrary_buried_span_and_unequal_layer_pads_share_annulus_kernel() {
         use crate::via_topology::CircularLayerPad;

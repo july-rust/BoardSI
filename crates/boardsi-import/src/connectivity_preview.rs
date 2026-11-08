@@ -201,7 +201,20 @@ pub fn augment(board: &mut BoardModel) -> Result<ContactAudit, &'static str> {
             .iter()
             .find(|x| x.meta.id == via.drill)
             .ok_or("MISSING_CONTACT_DRILL")?;
-        if !drill.plated || via.kind != ViaKind::Through {
+        // The existing endpoint/barrel witness is qualified only for the
+        // restricted equal-round legacy Through subset. An opt-in D_056
+        // SOURCE-declared padstack can be nonuniform or partial; a matching
+        // XY centre and net name is NOT an independently proven contact.
+        // Keep it out of the Canonical verified-edge graph until the
+        // per-layer geometry/contact witness is accepted.
+        if !drill.plated
+            || via.kind != ViaKind::Through
+            || via
+                .meta
+                .provenance
+                .source_object_type
+                .contains("SOURCE-declared round layer span")
+        {
             continue;
         }
         let padstack = board

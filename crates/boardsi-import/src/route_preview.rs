@@ -46,6 +46,9 @@ pub struct ViaInstance {
     pub first_layer: u32,
     pub last_layer: u32,
     pub inner_pad: bool,
+    /// Explicit SOURCE-backed per-layer pad geometry for the opt-in V9.4 via
+    /// adapter. None denotes the unchanged legacy equal-round Through subset.
+    pub topology: Option<crate::via_topology::NormalizedVia>,
     pub source_line: usize,
 }
 #[derive(Clone, Copy)]
@@ -170,7 +173,7 @@ fn parse_i64(value: &str) -> Result<i64, &'static str> {
 }
 // PADS 9.4 MILS coordinates are decimal, not integer-only. Preserve
 // hundredth-mil precision without f64 rounding or truncation.
-fn parse_fixed(value: &str) -> Result<i64, &'static str> {
+pub(crate) fn parse_fixed(value: &str) -> Result<i64, &'static str> {
     let (negative, digits) = if let Some(rest) = value.strip_prefix('-') {
         (true, rest)
     } else if let Some(rest) = value.strip_prefix('+') {
@@ -234,6 +237,20 @@ fn mul_nm(n: i64) -> Result<i64, &'static str> {
     n.checked_mul(NM_PER_TICK).ok_or("COORDINATE_OVERFLOW")
 }
 pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
+    parse_with_via_mode(source, false)
+}
+
+/// Explicit, opt-in PADS V9.4 circular via source support including verified
+/// partial drill spans. Existing Qt V1-V14 and historical source receipts
+/// continue using parse() and cannot misrepresent these extra structures.
+pub fn parse_generalized(source: &[u8]) -> Result<Artwork, &'static str> {
+    parse_with_via_mode(source, true)
+}
+
+fn parse_with_via_mode(
+    source: &[u8],
+    allow_generalized_vias: bool,
+) -> Result<Artwork, &'static str> {
     if source.len() > MAX_FILE_BYTES {
         return Err("INPUT_TOO_LARGE");
     }
@@ -261,6 +278,11 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
     let source_bytes = source; // Preserve CP1252 raw byte count for the outline parser.
     let source = String::from_utf8_lossy(source);
     let via_defs = scan_simple_via_defs(&source);
+    let source_via_defs = if allow_generalized_vias {
+        crate::via_source::scan_definitions(&source)
+    } else {
+        BTreeMap::new()
+    };
     let mut vias = Vec::new();
     let mut max_layer = 0u32;
     let mut in_pcb = false;
@@ -490,45 +512,96 @@ pub fn parse(source: &[u8]) -> Result<Artwork, &'static str> {
         // A named via is a separate placement at this exact route vertex,
         // NOT proof of electrical contact with other copper layers.
         if fields.len() == 6 && flag & !SUPPORTED_STRAIGHT_FLAGS == 0 {
-            if let Some(definition) = via_defs.get(fields[5]) {
-                if (1..=i64::from(max_layer)).contains(&layer) && max_layer >= 2 {
-                    if vias.len() >= MAX_SEGMENTS {
-                        return Err("VIA_LIMIT");
-                    }
-                    // The explicit via vertex terminates the incoming copper on
-                    // the preceding layer and begins outgoing copper on the
-                    // newly declared layer. Never connect unrelated pin pairs.
-                    if let Some((before, old_layer, old_width)) = previous {
-                        if old_width == width && before != p {
-                            if segments.len() + arcs.len() >= MAX_SEGMENTS {
-                                return Err("SEGMENT_LIMIT");
-                            }
-                            segments.push(Segment {
-                                layer: old_layer as u32,
-                                net: net.unwrap_or_default().to_string(),
-                                a: before,
-                                b: p,
-                                width_ticks: width,
-                                source_line: line_no + 1,
-                            });
-                        } else {
-                            skipped = skipped.saturating_add(1);
-                        }
-                    }
-                    vias.push(ViaInstance {
-                        name: fields[5].to_string(),
-                        net: net.unwrap_or_default().to_string(),
-                        point: p,
-                        diameter_ticks: definition.diameter_ticks,
-                        drill_ticks: definition.drill_ticks,
-                        first_layer: 1,
-                        last_layer: max_layer,
-                        inner_pad: definition.inner_pad,
-                        source_line: line_no + 1,
-                    });
-                    previous = Some((p, layer, width));
-                    continue;
+            // Generalized mode always checks the strict source-definition
+            // inventory, including conflicting duplicate names. A matching
+            // legacy equal-round through definition must not bypass it.
+            let simple = if allow_generalized_vias {
+                None
+            } else {
+                via_defs.get(fields[5])
+            };
+            let topology = if allow_generalized_vias {
+                let definition = source_via_defs
+                    .get(fields[5])
+                    .ok_or("D056_UNDECLARED_VIA_DEFINITION")?
+                    .as_ref()
+                    .map_err(|error| *error)?;
+                Some(definition.normalize(max_layer)?)
+            } else {
+                None
+            };
+            if simple.is_some() || topology.is_some() {
+                if !(1..=i64::from(max_layer)).contains(&layer) || max_layer < 2 {
+                    return Err("D056_VIA_ROUTE_LAYER_OUT_OF_RANGE");
                 }
+                let (first_layer, last_layer, diameter_ticks, inner_pad, drill_ticks) =
+                    if let Some(normalized) = &topology {
+                        (
+                            normalized.first_layer,
+                            normalized.last_layer,
+                            normalized
+                                .diameter_on(normalized.first_layer)
+                                .ok_or("D056_MISSING_TOP_VIA_PAD")?,
+                            normalized.pads.iter().any(|p| {
+                                p.layer != normalized.first_layer
+                                    && p.layer != normalized.last_layer
+                            }),
+                            normalized.drill_ticks,
+                        )
+                    } else {
+                        let definition = simple.ok_or("D056_MISSING_SIMPLE_VIA")?;
+                        (
+                            1,
+                            max_layer,
+                            definition.diameter_ticks,
+                            definition.inner_pad,
+                            definition.drill_ticks,
+                        )
+                    };
+                // A route transition cannot pass through a layer that the
+                // declared source drill does not physically span.
+                if layer < i64::from(first_layer)
+                    || layer > i64::from(last_layer)
+                    || previous.is_some_and(|(_, old_layer, _)| {
+                        old_layer < i64::from(first_layer) || old_layer > i64::from(last_layer)
+                    })
+                {
+                    return Err("D056_ROUTE_OUTSIDE_VIA_SPAN");
+                }
+                if vias.len() >= MAX_SEGMENTS {
+                    return Err("VIA_LIMIT");
+                }
+                if let Some((before, old_layer, old_width)) = previous {
+                    if old_width == width && before != p {
+                        if segments.len() + arcs.len() >= MAX_SEGMENTS {
+                            return Err("SEGMENT_LIMIT");
+                        }
+                        segments.push(Segment {
+                            layer: old_layer as u32,
+                            net: net.unwrap_or_default().to_string(),
+                            a: before,
+                            b: p,
+                            width_ticks: width,
+                            source_line: line_no + 1,
+                        });
+                    } else {
+                        skipped = skipped.saturating_add(1);
+                    }
+                }
+                vias.push(ViaInstance {
+                    name: fields[5].to_string(),
+                    net: net.unwrap_or_default().to_string(),
+                    point: p,
+                    diameter_ticks,
+                    drill_ticks,
+                    first_layer,
+                    last_layer,
+                    inner_pad,
+                    topology,
+                    source_line: line_no + 1,
+                });
+                previous = Some((p, layer, width));
+                continue;
             }
         }
         // Arc/miter/via extensions never become fictitious straight chords.
@@ -639,7 +712,9 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             logical_path: "local/source.asc".into(),
             sha256: sha,
         }],
-        importer_version: if !parsed.arcs.is_empty() {
+        importer_version: if parsed.vias.iter().any(|via| via.topology.is_some()) {
+            "preview-d056-source-layered-via-v1"
+        } else if !parsed.arcs.is_empty() {
             "preview-p2f-strict-route-arc-v1"
         } else if parsed.vias.is_empty() {
             "preview-p2a-straight-v2-centimil"
@@ -655,7 +730,12 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                     "strict-centre-cw-ccw-source-grid".into(),
                 ));
             }
-            if !parsed.vias.is_empty() {
+            if parsed.vias.iter().any(|via| via.topology.is_some()) {
+                conditions.push((
+                    "via_subset".into(),
+                    "source-explicit-round-layered-via-span-no-electrical-proof".into(),
+                ));
+            } else if !parsed.vias.is_empty() {
                 conditions.push((
                     "via_subset".into(),
                     "explicit-equal-round-through-pad-and-drill-no-connectivity".into(),
@@ -810,6 +890,17 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         });
     }
     for via in &parsed.vias {
+        let normalized = if let Some(topology) = &via.topology {
+            topology.clone()
+        } else {
+            crate::via_topology::NormalizedVia::pads_v94_through(
+                parsed.max_layer,
+                via.drill_ticks,
+                via.diameter_ticks,
+                via.inner_pad.then_some(via.diameter_ticks),
+                via.diameter_ticks,
+            )?
+        };
         let start = ObjectId::new(
             &source,
             ObjectKind::Layer,
@@ -831,17 +922,8 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         let drill_key = format!("simple-via-drill-{}", via.name);
         let drill_id = ObjectId::new(&source, ObjectKind::Drill, &drill_key, "");
         if !board.padstacks.iter().any(|p| p.meta.id == padstack_id) {
-            // D_056: all layer footprints come from one normalized, checked
-            // padstack description, not a hard-coded 4-layer branch.
-            // The restricted PADS adapter still accepts only equal round
-            // through-via pads. Partial native spans remain unsupported.
-            let normalized = crate::via_topology::NormalizedVia::pads_v94_through(
-                parsed.max_layer,
-                via.drill_ticks,
-                via.diameter_ticks,
-                via.inner_pad.then_some(via.diameter_ticks),
-                via.diameter_ticks,
-            )?;
+            // Canonical padstacks consume exactly the source-backed layer
+            // inventory; no guessed interior conductive entry.
             let entries = normalized.canonical_circular_pads(|n| {
                 ObjectId::new(&source, ObjectKind::Layer, &format!("layer-{n}"), "")
             })?;
@@ -863,7 +945,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                 ),
                 diameter_m: Rational::new(i128::from(via.drill_ticks) * 127, 500_000_000)
                     .map_err(|_| "VIA_DIMENSION_OVERFLOW")?,
-                plated: true,
+                plated: normalized.plated,
                 span: span.clone(),
             });
         }
@@ -872,7 +954,11 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                 &source,
                 ObjectKind::Via,
                 &format!("via-line-{}", via.source_line),
-                "PADS Layout ROUTE via placement (restricted round through-via)",
+                if via.topology.is_some() {
+                    "PADS Layout ROUTE via placement (SOURCE-declared round layer span)"
+                } else {
+                    "PADS Layout ROUTE via placement (restricted round through-via)"
+                },
             ),
             position: Point {
                 frame: frame_id.clone(),
@@ -881,7 +967,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             padstack: padstack_id,
             drill: drill_id,
             span,
-            kind: ViaKind::Through,
+            kind: normalized.kind,
             net: nets.get(&via.net).cloned(),
             // Never infer electrical contacts solely from same net or drill span.
             connected_layers: vec![],
@@ -1414,6 +1500,129 @@ mod p2b_via_regressions {
         assert_eq!(
             parse(unknown.as_bytes()).unwrap_err(),
             "NO_SUPPORTED_TRACES"
+        );
+    }
+}
+
+#[cfg(test)]
+mod d056_native_via_source_regressions {
+    use super::*;
+
+    fn source(layers: u32, first: u32, last: u32, definition: &str) -> String {
+        format!(
+            "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n\
+*PCB*\nMAXLAYER {layers}\n*VIA*\n{definition}\n\
+*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n\
+100 200 {first} 10 0\n300 200 {last} 10 0 V_TEST\n\
+500 200 {last} 10 0\n*END*\n"
+        )
+    }
+
+    #[test]
+    fn source_declared_partial_spans_2_3_and_2_4_share_one_canonical_path() {
+        for (first, last, expected) in [
+            (2, 4, ViaKind::Buried),
+            (2, 3, ViaKind::Buried),
+            (1, 3, ViaKind::Blind),
+            (3, 6, ViaKind::Blind),
+            (1, 6, ViaKind::Through),
+        ] {
+            let definition = format!("V_TEST 15 3 {first} {last}\n-2 35 R\n-1 45 R\n0 40 R");
+            let source = source(6, first, last, &definition);
+            // The original Qt V1-V14 wire must not guess a diameter/span.
+            assert!(parse(source.as_bytes()).is_err());
+            let artwork = parse_generalized(source.as_bytes()).unwrap();
+            assert_eq!(artwork.vias.len(), 1);
+            assert_eq!(artwork.skipped, 0);
+            let v = &artwork.vias[0];
+            let topology = v.topology.as_ref().unwrap();
+            assert_eq!((v.first_layer, v.last_layer), (first, last));
+            assert_eq!(topology.kind, expected);
+            assert_eq!(topology.diameter_on(first), Some(3500));
+            assert_eq!(topology.diameter_on(last), Some(4000));
+            assert_eq!(
+                topology.diameter_on(first + 1),
+                if last > first + 1 {
+                    Some(4500)
+                } else {
+                    Some(4000)
+                }
+            );
+            let board = into_canonical(source.as_bytes(), &artwork).unwrap();
+            assert_eq!(board.vias[0].kind, expected);
+            assert_eq!(board.padstacks[0].entries.len(), topology.pads.len());
+            assert_eq!(board.vias[0].connected_layers.len(), 0);
+            assert!(!board.validate().has_errors());
+        }
+    }
+
+    #[test]
+    fn source_declared_nonuniform_through_pads_follow_board_layer_count() {
+        for layers in [2, 4, 6, 8] {
+            let source = source(layers, 1, layers, "V_TEST 15 3\n-2 35 R\n-1 45 R\n0 40 R");
+            let artwork = parse_generalized(source.as_bytes()).unwrap();
+            let topology = artwork.vias[0].topology.as_ref().unwrap();
+            assert_eq!(topology.pads.len(), layers as usize);
+            assert_eq!(topology.diameter_on(layers), Some(4000));
+            assert_eq!(topology.kind, ViaKind::Through);
+            let board = into_canonical(source.as_bytes(), &artwork).unwrap();
+            assert_eq!(board.padstacks[0].entries.len(), layers as usize);
+            assert!(!board.validate().has_errors());
+        }
+    }
+
+    #[test]
+    fn generalized_mode_cannot_bypass_conflicting_source_via_names() {
+        // Legacy scan recognizes the first equal-round Through Via, but
+        // the same name has a second, contradictory L2-L4 definition.
+        // Generalized import must reject rather than reuse the old match.
+        let source = source(
+            6,
+            1,
+            6,
+            "V_TEST 15 2\n-2 35 R\n0 35 R\nV_TEST 15 2 2 4\n-2 35 R\n0 40 R",
+        );
+        assert_eq!(parse(source.as_bytes()).unwrap().vias.len(), 1);
+        assert_eq!(
+            parse_generalized(source.as_bytes()).unwrap_err(),
+            "D056_DUPLICATE_VIA_DEFINITION"
+        );
+        let contact_error =
+            crate::trace_attachment::source_candidates_generalized(source.as_bytes()).unwrap_err();
+        assert_eq!(contact_error, "D056_DUPLICATE_VIA_DEFINITION");
+    }
+
+    #[test]
+    fn missing_inner_pad_and_explicit_layer_override_not_synthesized() {
+        let definition = "V_TEST 15 3 2 4\n-2 35 R\n3 46 R\n0 40 R";
+        let source = source(6, 2, 4, definition);
+        let artwork = parse_generalized(source.as_bytes()).unwrap();
+        let via = artwork.vias[0].topology.as_ref().unwrap();
+        assert_eq!(via.pads.len(), 3);
+        assert_eq!(via.diameter_on(1), None);
+        assert_eq!(via.diameter_on(3), Some(4600));
+        assert_eq!(via.diameter_on(5), None);
+        let board = into_canonical(source.as_bytes(), &artwork).unwrap();
+        assert_eq!(board.padstacks[0].entries.len(), 3);
+        assert!(!board.validate().has_errors());
+    }
+
+    #[test]
+    fn wrong_route_span_and_unsupported_native_shape_fail_closed() {
+        let invalid_route = source(6, 1, 3, "V_TEST 15 2 2 3\n-2 35 R\n0 40 R");
+        assert_eq!(
+            parse_generalized(invalid_route.as_bytes()).unwrap_err(),
+            "D056_ROUTE_OUTSIDE_VIA_SPAN"
+        );
+        let unsupported = source(6, 2, 4, "V_TEST 15 2 2 4\n-2 35 S\n0 40 R");
+        assert_eq!(
+            parse_generalized(unsupported.as_bytes()).unwrap_err(),
+            "D056_UNSUPPORTED_VIA_PAD_SHAPE"
+        );
+        let malformed = source(6, 2, 4, "V_TEST 15 2 4 2\n-2 35 R\n0 40 R");
+        assert_eq!(
+            parse_generalized(malformed.as_bytes()).unwrap_err(),
+            "D056_INVALID_VIA_SPAN_OR_DRILL"
         );
     }
 }
