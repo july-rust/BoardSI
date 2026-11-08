@@ -18,17 +18,17 @@
 | [**A**](#stage-a) | Preview · Import · Artwork | 12 | 5 |
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
-| [**D**](#stage-d) | PADS Source 접촉 후보 · 국소 Copper Geometry 통합 | 76 | 3 |
+| [**D**](#stage-d) | PADS Source 접촉 후보 · 국소 Copper Geometry 통합 | 76 | 4 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
-**전체 체크 상태: 147건 확인 · 123건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
+**전체 체크 상태: 147건 확인 · 124건 미확인.** 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
 
 <a id="documentation-ci-evidence"></a>
 ### 문서 정합성·Docs-only CI 운영 검증 (비집계 관리 이력)
 
-> **최초 정리일: 2026-11-08 KST · 근거 확인일: 2026-11-08 KST.** 이 표는 공식 요구사항·A/B/C/D 구현 항목을 추가한 것이 아닌 **문서와 CI 운영의 변경 추적표**입니다. 따라서 위 **147건 확인 / 123건 미확인**과 U/T 제품 인수 수치는 바꾸지 않습니다. 모든 Markdown 파일을 개별 체크박스로 중복 관리하지 않으며, 실제 파일별 길찾기는 [문서 허브](README.md)와 [검증 색인](validation/INDEX.md)에 맡깁니다.
+> **최초 정리일: 2026-11-08 KST · 근거 확인일: 2026-11-08 KST.** 이 표는 공식 요구사항·A/B/C/D 구현 항목을 추가한 것이 아닌 **문서와 CI 운영의 변경 추적표**입니다. 따라서 해당 관리 이력 자체는 A/B/C/D 체크 수에 영향을 주지 않습니다. D_056_01의 신규 정식 체크 항목은 위 현황판에 별도로 1건 미확인으로 집계했습니다. 모든 Markdown 파일을 개별 체크박스로 중복 관리하지 않으며, 실제 파일별 길찾기는 [문서 허브](README.md)와 [검증 색인](validation/INDEX.md)에 맡깁니다.
 
 | 관리 대상 | 실제 검증·완료 근거 (2026-11-08 KST 재확인) | 한계 / 다음 확인 |
 | :--- | :--- | :--- |
@@ -108,7 +108,7 @@
 <a id="stage-d"></a>
 ### Stage D — PADS Source Contact / Junction
 
-**76건 확인 · 3건 미확인 (D_056 단계별 작업 진행 중).** D_054/D_055는 각도·접속 위치별 개별 분기 추가를 중단하고, 임의 방향 직선/원호 Trace와 Via의 도금 환형 패드 및 SMD 원형·사각 Pad 전체 구리 면적을 사용하는 공통 SOURCE 기하 판정 엔진을 Rust에 구현했습니다. 실제 PADS 원본 2종 오프센터/모서리 변형과 신규 D_055 테스트 10종을 Debug/Release에서 PASS했으며 PR 필수 CI 모두 PASS입니다. 그러나 **국소 기하 후보만 한정 확인**한 것이고 실제 Qt 전체 연결 그래프·Open/Short·SI 계산과 U/T 공식 인수는 여전히 미검증입니다. D_053은 실제 SOURCE Repair Trace를 독립 레코드로 추가해 D_052의 두 단선을 한쪽 또는 양쪽에서 국소적으로 복구하는 6개 합성 상태를 Rust와 Native Qt에서 한정 검증했습니다. BREAK_BOTH는 14/12/2/0, 단일 Repair는 15/14/1/0, 양쪽 Repair는 16/16/1/1, 단일 단선 복구는 14/14/1/1 (Nodes/Edges/Components/Cycle Rank)입니다. 완전한 SOURCE SHA-256·Inventory·양 끝 Copper 양의 접촉·Fail-Closed를 검증했지만 실물·전역 전기 도통은 NOT_VERIFIED입니다.
+**76건 확인 · 4건 미확인 (D_056 단계별 작업 진행 중).** D_054/D_055는 각도·접속 위치별 개별 분기 추가를 중단하고, 임의 방향 직선/원호 Trace와 Via의 도금 환형 패드 및 SMD 원형·사각 Pad 전체 구리 면적을 사용하는 공통 SOURCE 기하 판정 엔진을 Rust에 구현했습니다. 실제 PADS 원본 2종 오프센터/모서리 변형과 신규 D_055 테스트 10종을 Debug/Release에서 PASS했으며 PR 필수 CI 모두 PASS입니다. 그러나 **국소 기하 후보만 한정 확인**한 것이고 실제 Qt 전체 연결 그래프·Open/Short·SI 계산과 U/T 공식 인수는 여전히 미검증입니다. D_053은 실제 SOURCE Repair Trace를 독립 레코드로 추가해 D_052의 두 단선을 한쪽 또는 양쪽에서 국소적으로 복구하는 6개 합성 상태를 Rust와 Native Qt에서 한정 검증했습니다. BREAK_BOTH는 14/12/2/0, 단일 Repair는 15/14/1/0, 양쪽 Repair는 16/16/1/1, 단일 단선 복구는 14/14/1/1 (Nodes/Edges/Components/Cycle Rank)입니다. 완전한 SOURCE SHA-256·Inventory·양 끝 Copper 양의 접촉·Fail-Closed를 검증했지만 실물·전역 전기 도통은 NOT_VERIFIED입니다.
 
 D_052는 D_051의 가상 Bridge Node 제거를 실제 PADS V9.4 SOURCE의 중간 Copper 간격(폭 8 mil, 중심선 간격 20 mil, Copper 간격 12 mil)으로 확장해 INTACT/Break-A/Break-B/Break-Both의 SOURCE 국소 연결성을 Rust·독립 Native Qt에서 한정 검증했습니다. 그래프는 12/12/1/1, 13/12/1/0, 13/12/1/0, 14/12/2/0 (Nodes/Edges/Components/Cycle Rank)이고, 실물 전기적 도통·전역 Open/Short는 NOT_VERIFIED입니다. D_051은 동일층 혼합 원형·정사각형 SMD Pad에 두 개의 독립 유한 선폭 Bridge를 구성하고 12 Nodes / 12 Same-Layer Candidate Edges / 1 Component / Cycle Rank 1 및 단일 Bridge 가상 제거 후 연결 유지, 양 Bridge 제거 후 2 Components를 Rust·독립 Native Qt에서 SOURCE 국소 기하 한정 검증했습니다. 실물 전기적 도통은 NOT_VERIFIED입니다. D_050은 D_049의 분리된 혼합 원형·정사각형 SMD Pad 국소 Component 두 개를 폭 8 mil의 명시적인 동일 Layer SOURCE Bridge Trace 하나로 접촉시켜 **11 Nodes / 10 Same-Layer Candidate Edges / 1 Local Component**를 Rust·Native Qt에서 독립 검증했습니다. D_049는 D_047/D_048의 원형·정사각형 SMD Pad와 별개 SOURCE Trace 접촉 후보 둘을 하나의 원본 PADS에서 독립 검증하여 10 Nodes/8 Edges/2 Local Components로 결합합니다. 인수는 SOURCE-local 한정이고 실제 전기적 도통은 NOT_VERIFIED입니다. D_048은 SOURCE 소유 동일 Layer의 원형 SMD Pad와 유한 선폭 둥근 끝단 Trace 간 양의 면적 중첩을 정확한 최소거리로 한정 검증합니다. D_047은 SOURCE 소유 동일 Layer의 8 mil 유한 선폭 Trace가 SMD 정사각형 Pad에 양의 면적으로 중첩되는 후보를 정확한 선분-직사각형 거리로 검증합니다. D_046은 비직교·비평행 두 Trace의 선폭 중첩을 정확한 SOURCE Tick 기반 최소 선분 거리로 한정 검증합니다. D_045는 서로 직교하는 Trace의 중심선이 만나지 않아도 둥근 끝단 Copper 선폭이 양의 면적으로 중첩되는 한정 SOURCE 후보를 정확한 최소거리 제곱으로 검증합니다. D_044의 Qt 적대적 변형 재Import 누락도 독립 회귀 테스트에서 보완했습니다. D_044는 동일 층의 서로 다른 Trace 중심선 사이에 생기는 양의 폭 접촉 후보를 둥근 끝단의 정확한 거리 제곱으로 한정 검증합니다. 단순 AABB 교차나 실물 전기 도통은 인수하지 않습니다. D_043은 D_042의 완전한 SOURCE를 먼저 검증한 뒤 별도 진단에서 Trace 노드·Incident Edge를 제외하여 12개 가상 단선 시나리오의 국소 Component/Cycle/Reachability 변화를 검증합니다. 실제 Copper 파손·전기적 Open/Short는 검증하지 않습니다. D_042는 D_041 직접 Bridge에 5개 SOURCE-owned 우회 Trace를 추가하여 하나의 국소 Closed Loop(14 Nodes/14 Edges/1 Component/1 Cycle)가 형성되는 정확한 지원 기하만 검증합니다. D_041은 독립 Component 2개의 국소 병합, D_040은 두 독립 Component의 분리 검증입니다. D_039를 포함한 Stage D의 체크는 지원된 공개 합성 PADS Source의 한정 결과이며 제조 실물 도통·글로벌 Open/Short·Return Path/SI를 인증하지 않습니다.
 
@@ -170,6 +170,7 @@ D_052는 D_051의 가상 Bridge Node 제거를 실제 PADS V9.4 SOURCE의 중간
 | [**D_054**](#d_054) | General-angle finite-width straight/circular SOURCE Trace local contact Rust engine (code/PR regression limited) | 1 | 0 |
 | [**D_055**](#d_055) | Off-centre straight/circular Trace to plated Via annulus and round/square/rect SMD Pad copper footprint (code/PR regression limited) | 1 | 0 |
 | [**D_056**](#d_056) | 범용 Layer/Span + PADS 원형·사각·환형 구리/R·S·A 및 RA/SA 안티패드 (코드 #521/#523/#526 인수, 전체 입력 미완료) | 0 | 1 |
+| [**D_056_01**](#d_056_01) | 기존 구현 감사·범용 Source Evidence 계약·후속 12단계 Gate (PR 검증·병합 전) | 0 | 1 |
 
 <a id="stage-security"></a>
 ### 보안 — SEC_001
@@ -1036,3 +1037,28 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 **세 번째 코드 단계 한정 인수 — 2026-11-08 KST:** [PR #526](https://github.com/july-rust/BoardSI/pull/526) 정확한 최종 HEAD `2f65d08321d183f4a446163f7b05705d5b5fb7f9`에서 **38/38 Checks · 13/13 PR Workflows SUCCESS**, 자동 코드 리뷰 `completed/findings=false/unresolved=false`, 미해결 리뷰 Thread 0. PADS V9.4 R 원형/S 사각형/A 외경+별도 내경 환형은 `NormalizedViaShapes`와 Canonical `PadShape::{Circle,Rectangle,Annulus}`로, RA/SA는 전도성 Copper가 아닌 `PadRole::AntiPad`로 정규화. Shared SOURCE-local 후보 엔진은 Square 드릴 구멍과 Annular 별도 Inner Void를 제외하며 RT/ST Thermal Spoke를 Fail-Closed한다. CLI 단독 Via 진단 V2는 Source 형상별 Layer 정보를 출력하며 기존 Qt V1–V14는 변경하지 않는다. 검증된 보호된 단일 부모 **Verified Squash** `main` [`7e10d7b`](https://github.com/july-rust/BoardSI/commit/7e10d7ba07d6c9e0f959eb3e2e4be570af6dd88b) 반영(verification.verified=true/reason=valid). **PR-head CI와 코드-main Push CI는 별도 증거이며 Push CI 종료 전 PASS로 기재하지 않는다.**
 
 **D_056 부모 상태:** [Issue #520](https://github.com/july-rust/BoardSI/issues/520) OPEN, 통합 원장 이 항목 **[ ] 유지**. Native RT/ST 형상, Qt Layer별 Via UI/IPC, 글로벌 Source 기반 전체 전기 Connected Layers/Short/Open, 다중 포맷 입력 어댑터 및 Vendor Export 독립 실물 검증은 제품 인수 요건으로 남음. 부분 SOURCE Geometry 처리 완료를 전체 PCB 입력/실물 SI 완료로 승격하지 않는다.
+
+
+<a id="d_056_01"></a>
+### D_056_01 — Existing Implementation Audit & Universal PCB Source Evidence Contract (2026-11-08 KST)
+
+- [ ] **D_056_01 기존 구현 감사 및 범용 Source Evidence 계약 최종 검증·병합 대기** · **최초 체크일: 2026-11-08 KST** · **근거일: 2026-11-08 KST**. 보호 `main@4118e2c0a525ba732e16ea9062d1b22e05c2af30`의 [실제 구현 감사·데이터 계약·음성/양성 테스트 매트릭스](architecture/d056-01-source-evidence-audit.md)를 작성하고 [범용 입력 계약](architecture/input-normalization.md)에 연결. [부모 #520](https://github.com/july-rust/BoardSI/issues/520) 및 [#529](https://github.com/july-rust/BoardSI/issues/529) / [#530](https://github.com/july-rust/BoardSI/issues/530) / [#531](https://github.com/july-rust/BoardSI/issues/531) / [#532](https://github.com/july-rust/BoardSI/issues/532) 후속 인수 조건을 매핑. **Docs-only PR의 정확한 HEAD CI, Verified Squash 및 병합 후 main Push CI 확인 전에는 [x]로 승격하지 않는다.** 이 단계는 코드 감사/계약 문서화이며 Rust·Qt 직접 실행, 실제 PCB 제조 연결 또는 신규 포맷 구현의 PASS를 주장하지 않는다.
+
+**D_056_01~12 후속 추적 (아래 표는 계획이며 별도 체크 항목/진행률 집계가 아님):**
+
+| 개발 단계 | 기능별 작업 | 이슈 및 완료 관문 |
+| :--- | :--- | :--- |
+| D_056_01 | 기존 Source/Canonical/Qt 감사 및 증거 계약 | #520; 문서 PR 검증 후 완료 |
+| D_056_02 | Source 증거 기반 다층 Via Graph | #529; Layer별 Graph 독립 시험 |
+| D_056_03 | Electrical Open/Short / Graph 경계조건 | #529; 독립 Oracle 통과 후 종료 |
+| D_056_04 | Canonical Layer별 Padstack / Qt IPC | #531; 버전/손실/취소 확인 |
+| D_056_05 | Qt CPU/RHI / Legacy V1~V14 통합 | #531; Native 회귀 후 종료 |
+| D_056_06 | 공식 PADS RT/ST Thermal Spokes | #530; 제조 문법 증거 |
+| D_056_07 | PADS Slot/NPTH/Backdrill/Microvia 제조 구조 | #530; 근거 없는 형식은 UNSUPPORTED |
+| D_056_08 | ODB++ Source Adapter | #532; 네이티브 형식 검증 |
+| D_056_09 | IPC-2581 Source Adapter | #532; 네이티브 형식 검증 |
+| D_056_10 | KiCad PCB Source Adapter | #532; 네이티브 형식 검증 |
+| D_056_11 | Gerber + Drill Source Adapter | #532; Net/Stackup 불명은 UNKNOWN |
+| D_056_12 | Cross-format / D_001~D_055 회귀 / 최종 인수 | #532, #520; 모든 범위 검증 후 종료 |
+
+**주의:** 계획 표의 11개 후속 단계는 현재 미개발이며 진행 완료로 집계하지 않는다. 체크리스트 전체 수와 Stage D 수는 위 D_056_01 공식 `- [ ]` 항목 하나만 추가하여 갱신했다. 이전 D_056 `- [ ]`과 과거 PR·CI 근거는 변경하지 않는다.
