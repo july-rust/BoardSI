@@ -19,8 +19,8 @@ fn import_with_route(
     original: &str,
     replacement: &str,
 ) -> boardsi_import::layered_source_graph::LayeredSourceGraph {
-    let input = fixture_text(include_bytes!("fixtures/pads_copper_filled_v94.asc"))
-        .expect("ASCII fixture");
+    let input =
+        fixture_text(include_bytes!("fixtures/pads_copper_filled_v94.asc")).expect("ASCII fixture");
     let modified = input.replace(original, replacement);
     assert_ne!(modified, input, "fixture mutation must be applied");
     from_pads_v94_source(modified.as_bytes()).expect("parsed source areas and route")
@@ -70,8 +70,8 @@ fn source_polygon_contains_finite_width_trace_and_reports_cross_net_candidate() 
 
 #[test]
 fn trace_wholly_inside_copcut_hole_has_no_positive_area_contact() {
-    let source = fixture_text(include_bytes!("fixtures/pads_copper_cutout_v94.asc"))
-        .expect("ASCII source");
+    let source =
+        fixture_text(include_bytes!("fixtures/pads_copper_cutout_v94.asc")).expect("ASCII source");
     // First hole: X 60..80/Y 60..80; this short, narrow trace has no
     // copper footprint outside its source-owned hole.
     let bytes = source.replace("10 20 1 10 0\n100 20 1 10 0", "68 70 1 2 0\n72 70 1 2 0");
@@ -120,8 +120,7 @@ fn copper_circle_is_layer_specific_and_unknown_net_stays_unknown() {
 
 #[test]
 fn identical_source_polygons_on_same_layer_form_area_to_area_short_candidate() {
-    let source =
-        fixture_text(include_bytes!("fixtures/pads_copper_filled_v94.asc")).unwrap();
+    let source = fixture_text(include_bytes!("fixtures/pads_copper_filled_v94.asc")).unwrap();
     let first = "COP_A COPPER 40 40 1 1 0 GND\nCOPCLS 7 0.01 0 1\n0 0\n100 0\n100 40\n60 40\n60 80\n0 80\n0 0";
     assert!(source.contains(first));
     let duplicate = first
@@ -147,8 +146,7 @@ fn identical_source_polygons_on_same_layer_form_area_to_area_short_candidate() {
 
 #[test]
 fn coincident_shapes_on_different_layers_are_not_merged() {
-    let source =
-        fixture_text(include_bytes!("fixtures/pads_copper_filled_v94.asc")).unwrap();
+    let source = fixture_text(include_bytes!("fixtures/pads_copper_filled_v94.asc")).unwrap();
     let first = "COP_A COPPER 40 40 1 1 0 GND\nCOPCLS 7 0.01 0 1\n0 0\n100 0\n100 40\n60 40\n60 80\n0 80\n0 0";
     let duplicate = first
         .replace("COP_A COPPER", "COP_X COPPER")
@@ -166,8 +164,7 @@ fn coincident_shapes_on_different_layers_are_not_merged() {
 fn sampled_area_graph_cannot_promote_disconnection_to_verified_open() {
     // Even an attested complete source inventory cannot turn the limited
     // interior-sample contact search into a proof of no other positive contact.
-    let raw =
-        fixture_text(include_bytes!("fixtures/pads_copper_filled_v94.asc")).unwrap();
+    let raw = fixture_text(include_bytes!("fixtures/pads_copper_filled_v94.asc")).unwrap();
     let bytes = raw.replace("0 GND\nCOPCLS", "0 SIGNAL0\nCOPCLS");
     let graph = from_pads_v94_source(bytes.as_bytes()).unwrap();
     let trace = graph
@@ -213,9 +210,7 @@ fn sampled_area_graph_cannot_promote_disconnection_to_verified_open() {
 
 #[test]
 fn circular_cutout_with_independent_island_has_no_false_short() {
-    let raw =
-        fixture_text(include_bytes!("fixtures/pads_copper_circular_void_v94.asc"))
-            .unwrap();
+    let raw = fixture_text(include_bytes!("fixtures/pads_copper_circular_void_v94.asc")).unwrap();
     // COP_CIRC: outer source polygon from (50,50) to (170,170);
     // first circular cutout is centred at (90,80), radius 10.
     // COP_INNER lies entirely within that source-owned empty cutout.
