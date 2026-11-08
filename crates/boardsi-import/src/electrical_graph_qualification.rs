@@ -5,7 +5,9 @@
 //! and accepts cross-layer edges ONLY with separately supplied process evidence.
 //! Neither a nominal drill span nor parser `plated=true` nor a matching Net
 //! constitutes such evidence. No result proves manufactured PCB continuity or SI.
-use crate::layered_source_graph::{ContactKind, CopperFootprint, DeclaredNetCheck, LayeredSourceGraph};
+use crate::layered_source_graph::{
+    ContactKind, CopperFootprint, DeclaredNetCheck, LayeredSourceGraph,
+};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 /// Source coverage is not inferred from the parser's successful return. A
@@ -172,11 +174,27 @@ pub fn qualify(
         // Never relabel a ViaPad/ViaPad or SMD/SMD pair as a trace contact.
         let type_matches = matches!(
             (hit.kind, &a.footprint, &b.footprint),
-            (ContactKind::TraceTrace, CopperFootprint::Stroke { .. }, CopperFootprint::Stroke { .. })
-                | (ContactKind::TraceViaPad, CopperFootprint::Stroke { .. }, CopperFootprint::ViaPad { .. })
-                | (ContactKind::TraceViaPad, CopperFootprint::ViaPad { .. }, CopperFootprint::Stroke { .. })
-                | (ContactKind::TraceSmdPad, CopperFootprint::Stroke { .. }, CopperFootprint::SmdPad { .. })
-                | (ContactKind::TraceSmdPad, CopperFootprint::SmdPad { .. }, CopperFootprint::Stroke { .. })
+            (
+                ContactKind::TraceTrace,
+                CopperFootprint::Stroke { .. },
+                CopperFootprint::Stroke { .. }
+            ) | (
+                ContactKind::TraceViaPad,
+                CopperFootprint::Stroke { .. },
+                CopperFootprint::ViaPad { .. }
+            ) | (
+                ContactKind::TraceViaPad,
+                CopperFootprint::ViaPad { .. },
+                CopperFootprint::Stroke { .. }
+            ) | (
+                ContactKind::TraceSmdPad,
+                CopperFootprint::Stroke { .. },
+                CopperFootprint::SmdPad { .. }
+            ) | (
+                ContactKind::TraceSmdPad,
+                CopperFootprint::SmdPad { .. },
+                CopperFootprint::Stroke { .. }
+            )
         );
         if !type_matches {
             return Err("D05603_CONTACT_KIND_MISMATCH");
