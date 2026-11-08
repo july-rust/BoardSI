@@ -331,3 +331,33 @@ fn mutated_coverage_and_missing_required_source_identity_are_rejected() {
         "D05603_MISSING_REQUIRED_ENDPOINT"
     );
 }
+
+#[test]
+fn contact_kind_and_unbounded_conflicts_are_rejected() {
+    let mut wrong = graph(6, 2, 4);
+    wrong.geometry_contacts[0].kind = ContactKind::TraceTrace;
+    assert_eq!(
+        qualify(&wrong, SHA, &partial(), &[], &[]).unwrap_err(),
+        "D05603_CONTACT_KIND_MISMATCH"
+    );
+
+    // An adversarial multi-net chain must not allocate quadratic path witnesses.
+    let mut many = graph(4, 1, 4);
+    many.unverified_barrels.clear();
+    many.nodes = (0..500)
+        .map(|i| node(&format!("net:{i}"), 1, &format!("NET_{i}"), false))
+        .collect();
+    many.geometry_contacts = (0..499)
+        .map(|i| GeometryContact {
+            first_node: i,
+            second_node: i + 1,
+            layer: 1,
+            kind: ContactKind::TraceTrace,
+            declared_net_check: DeclaredNetCheck::Different,
+        })
+        .collect();
+    assert_eq!(
+        qualify(&many, SHA, &partial(), &[], &[]).unwrap_err(),
+        "D05603_CONFLICT_WITNESS_BOUNDS"
+    );
+}
