@@ -109,25 +109,30 @@ impl NormalizedViaShapes {
         layer_id: impl Fn(u32) -> ObjectId,
     ) -> Result<Vec<PadstackLayer>, &'static str> {
         self.validate()?;
-        self.pads.iter().map(|p| {
-            let size_m = Rational::new(i128::from(p.size_ticks) * 127, 500_000_000)
-                .map_err(|_| "D056_VIA_DIMENSION_OVERFLOW")?;
-            let shape = match p.shape {
-                ViaLayerShape::Round | ViaLayerShape::RoundAntiPad =>
-                    PadShape::Circle { diameter_m: size_m },
-                ViaLayerShape::Square | ViaLayerShape::SquareAntiPad =>
-                    PadShape::Rectangle { size_m: [size_m; 2] },
-            };
-            Ok(PadstackLayer {
-                layer: layer_id(p.layer),
-                role: if p.shape.conductive() {
-                    PadRole::Conductive
-                } else {
-                    PadRole::AntiPad
-                },
-                shape,
+        self.pads
+            .iter()
+            .map(|p| {
+                let size_m = Rational::new(i128::from(p.size_ticks) * 127, 500_000_000)
+                    .map_err(|_| "D056_VIA_DIMENSION_OVERFLOW")?;
+                let shape = match p.shape {
+                    ViaLayerShape::Round | ViaLayerShape::RoundAntiPad => {
+                        PadShape::Circle { diameter_m: size_m }
+                    }
+                    ViaLayerShape::Square | ViaLayerShape::SquareAntiPad => PadShape::Rectangle {
+                        size_m: [size_m; 2],
+                    },
+                };
+                Ok(PadstackLayer {
+                    layer: layer_id(p.layer),
+                    role: if p.shape.conductive() {
+                        PadRole::Conductive
+                    } else {
+                        PadRole::AntiPad
+                    },
+                    shape,
+                })
             })
-        }).collect()
+            .collect()
     }
 }
 
@@ -144,9 +149,21 @@ mod tests {
             drill_ticks: 1500,
             plated: true,
             pads: vec![
-                ViaLayerFootprint { layer: 2, size_ticks: 3200, shape: ViaLayerShape::Square },
-                ViaLayerFootprint { layer: 3, size_ticks: 5000, shape: ViaLayerShape::RoundAntiPad },
-                ViaLayerFootprint { layer: 4, size_ticks: 4000, shape: ViaLayerShape::Round },
+                ViaLayerFootprint {
+                    layer: 2,
+                    size_ticks: 3200,
+                    shape: ViaLayerShape::Square,
+                },
+                ViaLayerFootprint {
+                    layer: 3,
+                    size_ticks: 5000,
+                    shape: ViaLayerShape::RoundAntiPad,
+                },
+                ViaLayerFootprint {
+                    layer: 4,
+                    size_ticks: 4000,
+                    shape: ViaLayerShape::Round,
+                },
             ],
         }
     }
