@@ -62,7 +62,7 @@ inline bool decode(const QByteArray &bytes, Source &out) {
     if (bytes.isEmpty() || bytes.size() > 1'000'000 || !bytes.endsWith('\n') ||
         QString::fromUtf8(bytes).toUtf8() != bytes) return false;
     const QStringList lines = QString::fromUtf8(bytes).split('\n', Qt::KeepEmptyParts);
-    if (lines.size() < 3 || lines.size() > 30000 || !lines.last().isEmpty()) return false;
+    if (lines.size() < 3 || !lines.last().isEmpty()) return false;
     const auto h = lines.first().split('|', Qt::KeepEmptyParts);
     if (h.size() != 6 ||
         (h[0] != "BOARDSI_SOURCE_VIA_TOPOLOGY_V1" &&
@@ -268,6 +268,17 @@ public:
             }
         });
         resize(800, 600);
+    }
+    ~Panel() override {
+        // Qt may synchronously deliver QProcess signals during destruction.
+        // Disconnect before stopping the worker while all member state is live.
+        deadline_.stop();
+        QObject::disconnect(&worker_, nullptr, this, nullptr);
+        QObject::disconnect(&deadline_, nullptr, this, nullptr);
+        if (worker_.state() != QProcess::NotRunning) {
+            worker_.kill();
+            worker_.waitForFinished(3000); // destruction only; never on GUI import path
+        }
     }
     void clear() {
         source_ = {}; output_.clear();
