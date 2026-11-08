@@ -71,6 +71,10 @@ The official [PADS Layout ASCII Format Specification 9.4, Via Definition pp. 39â
 
 **Exit gate for D_056:** source adapters must independently prove actual source layer/shape/span/role, all downstream SOURCE/Qt consumers must preserve per-layer footprints or explicitly fail closed, and source-driven full connectivity plus independent negative/multi-format regression must pass. Keep [Issue #520](https://github.com/july-rust/BoardSI/issues/520) OPEN until those gates are met. A tested round-pad PADS source subset is **not** universal PCB input support.
 
+## D_056_02 opt-in source layer copper graph (2026-11-08 KST)
+
+[PR #535](https://github.com/july-rust/BoardSI/pull/535) adds a PADS V9.4 **source-local** `layered_source_graph` module and [scope/negative evidence contract](d056-02-source-layer-graph.md). It retains source SHA, declared Copper layer, Source record line where available, R/S/A conductive footprints, Trace/SMD geometry candidates, and explicit unverified Via Barrel spans. Native R/S/A/RA/SA source evidence is not a global electrical graph. Bare drill span and parser `plated=true` do not certify manufacture; `verified_electrical_edges` stays empty. This is the D_056_02 limited foundation, not D_056_03 Open/Short or D_056 full import acceptance. The protected code squash is [main 2eddeac](https://github.com/july-rust/BoardSI/commit/2eddeacbb985c14313544c958e2c5a0707a89aa0).
+
 ## Evidence
 
 - [D_056 parent issue](https://github.com/july-rust/BoardSI/issues/520)
