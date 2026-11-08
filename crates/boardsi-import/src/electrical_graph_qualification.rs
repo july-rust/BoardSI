@@ -393,7 +393,10 @@ pub fn qualify(
                 net: req.net.clone(),
                 endpoints,
                 component_ids,
-                disposition: if source_scope_qualified && unverified_barrel_keys.is_empty() && !incomplete_area_contacts {
+                disposition: if source_scope_qualified
+                    && unverified_barrel_keys.is_empty()
+                    && !incomplete_area_contacts
+                {
                     OpenDisposition::QualifiedSourceScope
                 } else {
                     OpenDisposition::CandidateOnly
