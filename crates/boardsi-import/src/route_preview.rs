@@ -1643,6 +1643,44 @@ mod d056_native_via_source_regressions {
     }
 
     #[test]
+    fn d056_square_and_antipad_records_keep_canonical_roles() {
+        let source = source(
+            6,
+            2,
+            4,
+            "V_TEST 15 3 2 4\n-2 35 S\n-1 65 RA\n0 40 R",
+        );
+        let artwork = parse_generalized(source.as_bytes()).unwrap();
+        assert_eq!(artwork.vias.len(), 1);
+        assert!(artwork.vias[0].topology.is_none());
+        let shapes = artwork.vias[0].shaped.as_ref().unwrap();
+        assert_eq!(shapes.first_layer, 2);
+        assert_eq!(shapes.last_layer, 4);
+        assert!(shapes.conductive_pad(2).is_some());
+        assert!(shapes.conductive_pad(3).is_none());
+        assert_eq!(
+            shapes.layer_pad(3).unwrap().shape,
+            crate::via_shapes::ViaLayerShape::RoundAntiPad
+        );
+        let board = into_canonical(source.as_bytes(), &artwork).unwrap();
+        assert_eq!(board.vias[0].kind, ViaKind::Buried);
+        assert_eq!(board.vias[0].connected_layers.len(), 0);
+        assert_eq!(board.padstacks[0].entries.len(), 3);
+        assert_eq!(board.padstacks[0].entries[0].role, boardsi_model::PadRole::Conductive);
+        assert_eq!(board.padstacks[0].entries[1].role, boardsi_model::PadRole::AntiPad);
+        assert_eq!(board.padstacks[0].entries[2].role, boardsi_model::PadRole::Conductive);
+        assert!(matches!(
+            board.padstacks[0].entries[0].shape,
+            boardsi_model::PadShape::Rectangle { .. }
+        ));
+        assert!(matches!(
+            board.padstacks[0].entries[1].shape,
+            boardsi_model::PadShape::Circle { .. }
+        ));
+        assert!(!board.validate().has_errors());
+    }
+
+    #[test]
     fn missing_inner_pad_and_explicit_layer_override_not_synthesized() {
         let definition = "V_TEST 15 3 2 4\n-2 35 R\n3 46 R\n0 40 R";
         let source = source(6, 2, 4, definition);
