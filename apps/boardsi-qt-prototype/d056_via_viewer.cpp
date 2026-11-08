@@ -46,7 +46,7 @@ static bool selftest() {
     // An empty but source-valid VIA inventory is not a fabricated via.
     const QByteArray empty =
         "BOARDSI_SOURCE_VIA_TOPOLOGY_V1|V9.4-MILS|4|0|GEOMETRY_ONLY|SI_NOT_RUN\n"
-        "END|0|SOURCE_PROVENANCE_ONLY|GLOBAL_CONNECTIVITY_NOT_VERIFIED\\n";
+        "END|0|SOURCE_PROVENANCE_ONLY|GLOBAL_CONNECTIVITY_NOT_VERIFIED\n";
     d056::Source noVia;
     if (!d056::decode(empty, noVia) || noVia.vias.size() != 0 ||
         noVia.layers != 4 || !panel.loadWire(empty) ||
