@@ -210,6 +210,22 @@ pub fn qualify(
                 ContactKind::CopperAreaCopperArea,
                 CopperFootprint::CopperArea { .. },
                 CopperFootprint::CopperArea { .. }
+            ) | (
+                ContactKind::ViaPadViaPad,
+                CopperFootprint::ViaPad { .. },
+                CopperFootprint::ViaPad { .. }
+            ) | (
+                ContactKind::ViaPadSmdPad,
+                CopperFootprint::ViaPad { .. },
+                CopperFootprint::SmdPad { .. }
+            ) | (
+                ContactKind::ViaPadSmdPad,
+                CopperFootprint::SmdPad { .. },
+                CopperFootprint::ViaPad { .. }
+            ) | (
+                ContactKind::SmdPadSmdPad,
+                CopperFootprint::SmdPad { .. },
+                CopperFootprint::SmdPad { .. }
             )
         );
         if !type_matches {
@@ -324,6 +340,19 @@ pub fn qualify(
     if incomplete_area_contacts {
         diagnostics.push("COPPER_AREA_CONTACT_COVERAGE_PARTIAL".to_owned());
     }
+    // Exact round-ring and solid-rectangle pad pairs are exhaustive, but
+    // the restricted mixed square/round/hollow witness search is not.
+    // Even a source-inventory attestation cannot prove a global Open if a
+    // remaining pad-to-pad contact has only positive-only witness coverage.
+    let incomplete_pad_contacts = graph.nodes.iter().any(|node| {
+        matches!(
+            &node.footprint,
+            CopperFootprint::ViaPad { .. } | CopperFootprint::SmdPad { .. }
+        )
+    });
+    if incomplete_pad_contacts {
+        diagnostics.push("PAD_CONTACT_COVERAGE_PARTIAL".to_owned());
+    }
     let unverified_barrel_keys: Vec<String> = barrels
         .keys()
         .filter(|k| !qualified_barrels.contains(**k))
@@ -396,6 +425,7 @@ pub fn qualify(
                 disposition: if source_scope_qualified
                     && unverified_barrel_keys.is_empty()
                     && !incomplete_area_contacts
+                    && !incomplete_pad_contacts
                 {
                     OpenDisposition::QualifiedSourceScope
                 } else {
