@@ -48,6 +48,16 @@ pub fn trace_to_via(trace: &Stroke, via: &ViaInstance) -> Result<Contact, &'stat
     {
         return Err("INVALID_VIA_COPPER_FOOTPRINT");
     }
+    if let Some(normalized) = &via.topology {
+        if via.first_layer != normalized.first_layer
+            || via.last_layer != normalized.last_layer
+            || via.drill_ticks != normalized.drill_ticks
+            || via.diameter_ticks != normalized.diameter_on(normalized.first_layer).unwrap_or(0)
+        {
+            return Err("D056_VIA_SOURCE_TOPOLOGY_MISMATCH");
+        }
+        return trace_to_normalized_via(trace, via.point, normalized);
+    }
     let layer = trace.layer;
     if layer < via.first_layer
         || layer > via.last_layer
@@ -164,8 +174,16 @@ fn target_envelope(kind: Target, vias: &[ViaInstance], pads: &[ComponentPad]) ->
             let v = &vias[i];
             (
                 v.point,
-                v.diameter_ticks as f64 / 2.0,
-                v.diameter_ticks as f64 / 2.0,
+                v.topology
+                    .as_ref()
+                    .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
+                    .unwrap_or(v.diameter_ticks) as f64
+                    / 2.0,
+                v.topology
+                    .as_ref()
+                    .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
+                    .unwrap_or(v.diameter_ticks) as f64
+                    / 2.0,
             )
         }
         Target::SmdPad(i) => {
@@ -212,6 +230,9 @@ pub fn contact_candidates(
     // Fail before broadphase, including target objects on another layer.
     // Source parse cannot silently hide a malformed pad/via behind a bounding box.
     for v in vias {
+        if let Some(normalized) = &v.topology {
+            normalized.validate()?;
+        }
         if v.diameter_ticks <= v.drill_ticks
             || v.drill_ticks <= 0
             || v.diameter_ticks > MAX_TICKS
@@ -327,6 +348,22 @@ pub fn source_candidates(bytes: &[u8]) -> Result<Vec<Candidate>, &'static str> {
     contact_candidates(&strokes, &art.vias, &imported.pads, &pin_nets)
 }
 
+/// Opt-in native partial-via source candidates. Never used by legacy
+/// Qt V1-V14 wire, and never promoted to global electrical graph proof.
+pub fn source_candidates_generalized(bytes: &[u8]) -> Result<Vec<Candidate>, &'static str> {
+    let art = route_preview::parse_generalized(bytes)?;
+    if art.skipped != 0 {
+        return Err("D056_UNSUPPORTED_SOURCE_ROUTE_INVENTORY");
+    }
+    let strokes = trace_contact::from_artwork(&art)?;
+    let imported = part_preview::parse(bytes, art.max_layer);
+    if imported.skipped != 0 {
+        return Err("UNSUPPORTED_SOURCE_PAD_INVENTORY");
+    }
+    let pin_nets = part_preview::declared_route_pin_nets(bytes)?;
+    contact_candidates(&strokes, &art.vias, &imported.pads, &pin_nets)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,6 +402,7 @@ mod tests {
             first_layer: 1,
             last_layer: 4,
             inner_pad: false,
+            topology: None,
             source_line: 13,
         }
     }
