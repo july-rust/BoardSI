@@ -195,7 +195,10 @@ pub fn augment_source_areas(
         // Retain validated source geometry, but do not pretend the conservative
         // display polyline of an analytical curve proves actual copper contact.
         if matches!(&area.geometry, CopperGeometry::Curved { .. })
-            || area.cutouts.iter().any(|h| matches!(h, CopperGeometry::Curved { .. }))
+            || area
+                .cutouts
+                .iter()
+                .any(|h| matches!(h, CopperGeometry::Curved { .. }))
         {
             return Err("D05603_UNSUPPORTED_CURVED_AREA_CONTACT");
         }
@@ -204,7 +207,11 @@ pub fn augment_source_areas(
     if preexisting + areas.len() > MAX_NODES {
         return Err("D05603_AREA_NODE_LIMIT");
     }
-    if preexisting.checked_mul(areas.len()).ok_or("D05603_AREA_WORK_LIMIT")? > MAX_AREA_NODE_WORK {
+    if preexisting
+        .checked_mul(areas.len())
+        .ok_or("D05603_AREA_WORK_LIMIT")?
+        > MAX_AREA_NODE_WORK
+    {
         return Err("D05603_AREA_WORK_LIMIT");
     }
     let mut new_nodes = Vec::new();
@@ -236,20 +243,34 @@ pub fn augment_source_areas(
             let samples = match &candidate.footprint {
                 CopperFootprint::Stroke { .. } => stroke_samples(&strokes[index]),
                 CopperFootprint::ViaPad {
-                    centre, outer_ticks, drill_ticks, shape,
+                    centre,
+                    outer_ticks,
+                    drill_ticks,
+                    shape,
                 } => via_samples(*centre, *outer_ticks, *drill_ticks, *shape),
                 CopperFootprint::SmdPad { centre, .. } => vec![*centre],
                 CopperFootprint::CopperArea { .. } => unreachable!(),
             };
-            if samples.iter().any(|&p| strictly_in_area(area, p).unwrap_or(false)) {
+            if samples
+                .iter()
+                .any(|&p| strictly_in_area(area, p).unwrap_or(false))
+            {
                 // An inner-point witness *proves* nonzero overlap, but missing
                 // such a witness does NOT prove separation.
-                let relation = declared_relation(candidate.declared_net.as_ref(), area.net_label.as_ref());
-                let (a, b) = if index < new_index { (index, new_index) } else { (new_index, index) };
+                let relation =
+                    declared_relation(candidate.declared_net.as_ref(), area.net_label.as_ref());
+                let (a, b) = if index < new_index {
+                    (index, new_index)
+                } else {
+                    (new_index, index)
+                };
                 if seen.insert((a, b, kind)) {
                     new_edges.push(GeometryContact {
-                        first_node: a, second_node: b, layer: area.layer,
-                        kind, declared_net_check: relation,
+                        first_node: a,
+                        second_node: b,
+                        layer: area.layer,
+                        kind,
+                        declared_net_check: relation,
                     });
                 }
             }
@@ -271,10 +292,13 @@ pub fn augment_source_areas(
                 let (a, b) = (preexisting + old_index, new_index);
                 if seen.insert((a, b, ContactKind::CopperAreaCopperArea)) {
                     new_edges.push(GeometryContact {
-                        first_node: a, second_node: b, layer: area.layer,
+                        first_node: a,
+                        second_node: b,
+                        layer: area.layer,
                         kind: ContactKind::CopperAreaCopperArea,
                         declared_net_check: declared_relation(
-                            other.net_label.as_ref(), area.net_label.as_ref()
+                            other.net_label.as_ref(),
+                            area.net_label.as_ref(),
                         ),
                     });
                 }
@@ -287,7 +311,9 @@ pub fn augment_source_areas(
     }
     graph.nodes.extend(new_nodes);
     graph.geometry_contacts.extend(new_edges);
-    graph.geometry_contacts.sort_by_key(|e| (e.first_node, e.second_node, e.kind));
+    graph
+        .geometry_contacts
+        .sort_by_key(|e| (e.first_node, e.second_node, e.kind));
     Ok(())
 }
 fn declared_relation(a: Option<&String>, b: Option<&String>) -> DeclaredNetCheck {
