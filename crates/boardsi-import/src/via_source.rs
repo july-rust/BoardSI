@@ -40,10 +40,14 @@ impl ViaDefinition {
             kind: shaped.kind,
             drill_ticks: shaped.drill_ticks,
             plated: shaped.plated,
-            pads: shaped.pads.into_iter().map(|p| CircularLayerPad {
-                layer: p.layer,
-                diameter_ticks: p.size_ticks,
-            }).collect(),
+            pads: shaped
+                .pads
+                .into_iter()
+                .map(|p| CircularLayerPad {
+                    layer: p.layer,
+                    diameter_ticks: p.size_ticks,
+                })
+                .collect(),
         };
         normalized.validate()?;
         Ok(normalized)
@@ -51,7 +55,10 @@ impl ViaDefinition {
 
     /// Data-only normalization of actual PADS 9.4 conductive and plane-void
     /// shapes. R/S are copper; RA/SA are anti-pads (never copper).
-    pub fn normalize_shapes(&self, copper_layers: u32) -> Result<NormalizedViaShapes, &'static str> {
+    pub fn normalize_shapes(
+        &self,
+        copper_layers: u32,
+    ) -> Result<NormalizedViaShapes, &'static str> {
         if !(2..=64).contains(&copper_layers) {
             return Err("D056_INVALID_VIA_STACKUP");
         }
@@ -87,11 +94,14 @@ impl ViaDefinition {
             kind,
             drill_ticks: self.drill_ticks,
             plated: true,
-            pads: layer_map.into_iter().map(|(layer, pad)| ViaLayerFootprint {
-                layer,
-                size_ticks: pad.size_ticks,
-                shape: pad.shape,
-            }).collect(),
+            pads: layer_map
+                .into_iter()
+                .map(|(layer, pad)| ViaLayerFootprint {
+                    layer,
+                    size_ticks: pad.size_ticks,
+                    shape: pad.shape,
+                })
+                .collect(),
         };
         normalized.validate()?;
         Ok(normalized)
@@ -208,7 +218,10 @@ fn parse_rows(
             .parse::<i64>()
             .map_err(|_| "D056_INVALID_VIA_PAD_LAYER")?;
         let width = parse_fixed(parts[1])?;
-        let pad = SourcePad { size_ticks: width, shape };
+        let pad = SourcePad {
+            size_ticks: width,
+            shape,
+        };
         if !seen.insert(level) {
             return Err("D056_DUPLICATE_VIA_PAD_LAYER");
         }
@@ -304,13 +317,18 @@ mod tests {
 
     #[test]
     fn square_and_plane_antipad_rows_keep_roles_on_a_buried_stack() {
-        let defs = scan_definitions(
-            "*VIA*\nV_TEST 15 3 2 4\n-2 35 S\n-1 60 RA\n0 40 R\n*END*\n",
-        );
-        let shapes = defs["V_TEST"].as_ref().unwrap().normalize_shapes(6).unwrap();
+        let defs = scan_definitions("*VIA*\nV_TEST 15 3 2 4\n-2 35 S\n-1 60 RA\n0 40 R\n*END*\n");
+        let shapes = defs["V_TEST"]
+            .as_ref()
+            .unwrap()
+            .normalize_shapes(6)
+            .unwrap();
         assert_eq!(shapes.pads.len(), 3);
         assert_eq!(shapes.layer_pad(2).unwrap().shape, ViaLayerShape::Square);
-        assert_eq!(shapes.layer_pad(3).unwrap().shape, ViaLayerShape::RoundAntiPad);
+        assert_eq!(
+            shapes.layer_pad(3).unwrap().shape,
+            ViaLayerShape::RoundAntiPad
+        );
         assert_eq!(shapes.conductive_pad(3), None);
         assert_eq!(shapes.layer_pad(4).unwrap().shape, ViaLayerShape::Round);
         assert_eq!(
