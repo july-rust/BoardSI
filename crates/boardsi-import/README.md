@@ -4,7 +4,7 @@
 
 [← Documentation hub](../../docs/README.md) · [Developer Quickstart](../../docs/developer-quickstart.md) · [Canonical checklist](../../docs/development-checklist.md) · [Detailed D_054–D_055 evidence](../../docs/validation/d054-d055-general-trace-contact-qualification.md)
 
-> **2026-11-07 current scope.** This crate contains **two different tools**: (1) a signature-only PADS probe and (2) a **restricted** V9.4 MILS PADS geometry importer feeding a partial Canonical/Qt Artwork protocol. The original P2-A straight-only introduction below is a **dated baseline**, not the total current capability. Neither tool is a complete vendor-export compatible CAD converter or a validated PCB SI solver.
+> **2026-11-08 current scope.** This crate contains (1) a signature-only PADS probe, (2) a **restricted** V9.4 MILS PADS geometry importer feeding the partial Canonical/Qt V1–V14 Artwork protocol, and (3) a separate opt-in source-backed circular partial-via diagnostic. The original P2-A straight-only introduction below is a **dated baseline**, not the total current capability. Neither tool is a complete vendor-export compatible CAD converter or a validated PCB SI solver.
 
 ## Current command matrix
 
@@ -41,7 +41,7 @@ cargo run --locked -p boardsi-import --bin boardsi-import-via-topology -- \
 
 The new command is a separate versioned **SOURCE geometry-only** diagnostic. Legacy `boardsi-import-artwork` remains compatible with the original Qt V1–V14 source subset; a real L2–L4 via is **not** rendered as a valid through-via by that old Qt contract. The new local contact candidates do not prove plating continuity or global board connectivity. The old endpoint-based barrel graph deliberately does not promote generalized source via objects.
 
-Implementation: [source-layer-aware via design and outstanding gates](../../docs/architecture/input-normalization.md) · [D_056 Issue #520](https://github.com/july-rust/BoardSI/issues/520) · [code PR #523](https://github.com/july-rust/BoardSI/pull/523). PR #523 must pass its own exact-head CI before merge; the README is not evidence of acceptance.
+Implementation: [source-layer-aware via design and outstanding gates](../../docs/architecture/input-normalization.md) · [D_056 Issue #520](https://github.com/july-rust/BoardSI/issues/520) · [code PR #523](https://github.com/july-rust/BoardSI/pull/523) (final HEAD `b113e8a`, 30/30 PR checks SUCCESS, 10/10 workflows SUCCESS; independent duplicate-VIA-name review fixed) → signed protected squash [main `63183cb`](https://github.com/july-rust/BoardSI/commit/63183cbcf94e30134c08aee795b51ae9057bdc08). This is limited source geometry support, not full vendor format or product SI acceptance.
 
 For D_054/D_055 the result is bounded, SOURCE-SHA-bound *geometry-candidate diagnostic output*. **Different-Net overlaps are only flagged as conflict candidates; missing Pad-Net ownership stays unverified; near-boundary uncertainty and unsupported records are not silently certified.** Via drill-only overlap is not assumed conductive. The normal Qt artwork stdout protocol is unchanged by those two opt-in modes.
 
