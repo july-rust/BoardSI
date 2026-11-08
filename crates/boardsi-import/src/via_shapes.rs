@@ -195,10 +195,17 @@ mod tests {
 
     #[test]
     fn arbitrary_stack_counts_and_buried_spans_are_not_cases() {
-        for copper_layers in [4, 6, 8, 64] {
+        for copper_layers in [6, 8, 64] {
             let mut via = sample();
             via.copper_layers = copper_layers;
             via.validate().unwrap();
         }
+        // On four-layer boards L2-L4 is blind; L2-L3 is buried.
+        let mut four = sample();
+        four.copper_layers = 4;
+        four.last_layer = 3;
+        four.pads.remove(1);
+        four.pads[1].layer = 3;
+        four.validate().unwrap();
     }
 }
