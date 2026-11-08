@@ -85,8 +85,12 @@ fn run() -> Result<Vec<u8>, &'static str> {
             }
         }
     }
-    writeln!(out, "END|{}|SOURCE_PROVENANCE_ONLY|GLOBAL_CONNECTIVITY_NOT_VERIFIED", parsed.vias.len())
-        .map_err(|_| "D056_WIRE_ERROR")?;
+    writeln!(
+        out,
+        "END|{}|SOURCE_PROVENANCE_ONLY|GLOBAL_CONNECTIVITY_NOT_VERIFIED",
+        parsed.vias.len()
+    )
+    .map_err(|_| "D056_WIRE_ERROR")?;
     if out.len() > 1_000_000 {
         return Err("D056_OUTPUT_LIMIT");
     }
