@@ -16,9 +16,17 @@
 
 The integration tests have hand-enumerated expected nodes/components, net-conflict paths, bridge edges, articulation points and Open dispositions, rather than comparing an algorithm with itself. Test categories include 2/4/6/8/64 physical layers, arbitrary partial spans including L2–L4 and L17–L41, no phantom middle pads, missing plating witness, stale SHA, wrong span, missing endpoint, duplicate identity, forged preverified edge and changed net declaration, redundant cycle and a 12,000-node iterative chain.
 
+## D_056_03 follow-up: source-owned CopperArea contact candidates (#540, 2026-11-08 KST)
+
+[PR #540](https://github.com/july-rust/BoardSI/pull/540) extends the restricted PADS V9.4 SOURCE graph through `layered_area_contacts.rs`. SOURCE-owned filled `COPCLS` polygons and `COPCIR` circles become physical-layer-tagged `CopperArea` graph vertices, retaining declared Net (which may be unknown), source line, exact SHA, and cutout count. Only strictly SOURCE-valid *positive* interior witness points can add `TraceCopperArea`, `ViaPadCopperArea`, `SmdPadCopperArea` or `CopperAreaCopperArea` candidate edges. A circle's own source-owned holes must exclude any sample before it can be used as a positive area-to-area overlap witness. Source-ambiguous analytical curved area contacts are rejected. Anti-pad, via drill centre and cross-layer XY coincidence cannot generate copper contacts.
+
+**Soundness is one-way:** a present witness supports a candidate of positive local copper overlap *within the supported geometry subset*; failure to discover a witness does **not** prove separation. The interior sample search is **not exhaustive** (including many off-centre finite-width intersections). As a consequence `qualify()` emits `COPPER_AREA_CONTACT_COVERAGE_PARTIAL` and may **never** upgrade an area-bearing graph disconnection to `OpenDisposition::QualifiedSourceScope`, even if an independent caller claims source-inventory completeness. Unknown process/barrel continuity continues to fail closed.
+
+The independently authored public source-fixture oracles `d056_03_source_area_graph.rs` cover source polygon/straight trace, circle/layer/unknown Net, explicit COPCUT-hole negative, same-layer identical polygon cross-Net candidate, different-layer identical polygon negative, concentric circular void with isolated island false-short negative, an incomplete-area-contact Open gate, and an immediate 100,000-contact allocation limit. **8/8 PASS** at exact PR HEAD `e81e4fdfb58157a468d8cfab17b5a6a43ca1d179` under [Numerical Core #42475396805](https://github.com/july-rust/BoardSI/actions/runs/42475396805), with **9/9 PR workflow groups SUCCESS** and **0 unresolved review threads**. Protected signed one-parent code squash [main `1afbf1626d1adc93f6bb4ebedb028d65c0f86b39`](https://github.com/july-rust/BoardSI/commit/1afbf1626d1adc93f6bb4ebedb028d65c0f86b39) has GitHub `verified=true`, `reason=valid`. The code-main independent Push is a **separate** check.
+
 ## Explicit gaps — not the acceptance of #529
 
-The D_056_02 input is still **a partial conductive inventory**: polygon fills / thermal spokes / slots, Copper-to-Copper and Via-to-Via area contacts, native manufacturing proof and full-board netlist coverage cannot be certified by this module. Unsupported/source-unknown conductive records must remain fail-closed. D_056_04/05 owns Canonical padstack transport and Qt integration; D_056_06/07 owns vendor-confirmed special manufacturing grammar.
+The D_056_02 source input and #540 area extension are still **a partial conductive inventory and non-exhaustive contact inventory**: only certain explicit COPCLS/COPCIR filled shapes and owned cutouts have candidate graph nodes/positive samples. Full polygon/arc/flood/thermal-spoke/slot coverage, exhaustive Copper-to-Copper or Via-to-Via positive and negative contact proof, independent manufactured process evidence and full-board netlist coverage remain unverified. Unsupported/source-unknown conductive records must remain fail-closed. D_056_04/05 owns Canonical padstack transport and Qt integration; D_056_06/07 owns vendor-confirmed special manufacturing grammar.
 
 **Therefore the graph algorithm and synthetic source-scope tests are a constrained implementation step, NOT full-board Open/Short/SI acceptance.** Keep #529 and parent #520 OPEN until the outstanding full input/positive-and-negative source coverage criteria are independently fulfilled. Do not set the D_056_03 checklist item to [x] before exact-head PR checks, protected signed Squash and independent post-main Push validation, and do not claim that synthetic tests meet unsupported native-grammar criteria.
 
@@ -29,6 +37,7 @@ cargo fmt --all -- --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
 cargo test --locked -p boardsi-import --test d056_03_graph_qualification
+cargo test --locked -p boardsi-import --test d056_03_source_area_graph
 ```
 
 Record the actual PR HEAD, required CI, review/thread status and protected post-main commit SHA in the single `docs/development-checklist.md`, with KST evidence date and unverified scope explicitly retained. Do not rewrite historical D_056_02 results.
