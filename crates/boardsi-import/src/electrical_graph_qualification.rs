@@ -5,7 +5,7 @@
 //! and accepts cross-layer edges ONLY with separately supplied process evidence.
 //! Neither a nominal drill span nor parser `plated=true` nor a matching Net
 //! constitutes such evidence. No result proves manufactured PCB continuity or SI.
-use crate::layered_source_graph::{CopperFootprint, DeclaredNetCheck, LayeredSourceGraph};
+use crate::layered_source_graph::{ContactKind, CopperFootprint, DeclaredNetCheck, LayeredSourceGraph};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 /// Source coverage is not inferred from the parser's successful return. A
@@ -169,6 +169,18 @@ pub fn qualify(
         if hit.declared_net_check != expected_relation {
             return Err("D05603_LOCAL_NET_EVIDENCE_CONFLICT");
         }
+        // Never relabel a ViaPad/ViaPad or SMD/SMD pair as a trace contact.
+        let type_matches = matches!(
+            (hit.kind, &a.footprint, &b.footprint),
+            (ContactKind::TraceTrace, CopperFootprint::Stroke { .. }, CopperFootprint::Stroke { .. })
+                | (ContactKind::TraceViaPad, CopperFootprint::Stroke { .. }, CopperFootprint::ViaPad { .. })
+                | (ContactKind::TraceViaPad, CopperFootprint::ViaPad { .. }, CopperFootprint::Stroke { .. })
+                | (ContactKind::TraceSmdPad, CopperFootprint::Stroke { .. }, CopperFootprint::SmdPad { .. })
+                | (ContactKind::TraceSmdPad, CopperFootprint::SmdPad { .. }, CopperFootprint::Stroke { .. })
+        );
+        if !type_matches {
+            return Err("D05603_CONTACT_KIND_MISMATCH");
+        }
         let (first, second) = ordered(hit.first_node, hit.second_node);
         if seen.insert((first, second)) {
             edges.push(QualifiedDesignEdge {
@@ -219,7 +231,7 @@ pub fn qualify(
             if layer < proof.first_layer
                 || layer > proof.last_layer
                 || node.source_key != format!("{}:L{layer}", proof.via_key)
-                || !matches!(node.footprint, CopperFootprint::ViaPad { .. })
+                || !matches!(&node.footprint, CopperFootprint::ViaPad { .. })
                 || layer_pads.insert(layer, index).is_some()
             {
                 return Err("D05603_INVALID_BARREL_LANDING");
@@ -278,6 +290,7 @@ pub fn qualify(
     }
 
     let mut net_conflicts = Vec::new();
+    let mut conflict_path_nodes = 0usize;
     for (component_id, members) in components.iter().enumerate() {
         let mut nets = BTreeMap::<&str, usize>::new();
         for &index in members {
@@ -288,15 +301,25 @@ pub fn qualify(
         if nets.len() > 1 {
             let mut it = nets.into_iter();
             let (first_net, first_node) = it.next().ok_or("D05603_EMPTY_NET_SET")?;
+            // One BFS per component; never allocate unbounded conflict paths.
+            let parents = bfs_parents(&adjacency, first_node);
             for (second_net, second_node) in it {
+                if net_conflicts.len() >= 4096 {
+                    return Err("D05603_CONFLICT_WITNESS_BOUNDS");
+                }
+                let path_nodes = path_from_parents(&parents, first_node, second_node)
+                    .ok_or("D05603_MISSING_CONFLICT_WITNESS")?;
+                if conflict_path_nodes + path_nodes.len() > 100_000 {
+                    return Err("D05603_CONFLICT_WITNESS_BOUNDS");
+                }
+                conflict_path_nodes += path_nodes.len();
                 net_conflicts.push(SourceNetConflict {
                     component_id,
                     first_node,
                     second_node,
                     first_net: first_net.to_owned(),
                     second_net: second_net.to_owned(),
-                    path_nodes: bfs_path(&adjacency, first_node, second_node)
-                        .ok_or("D05603_MISSING_CONFLICT_WITNESS")?,
+                    path_nodes,
                 });
             }
         }
@@ -381,14 +404,11 @@ fn components(adjacency: &[Vec<(usize, usize)>]) -> (Vec<Vec<usize>>, Vec<usize>
     }
     (components, component_ids)
 }
-fn bfs_path(adjacency: &[Vec<(usize, usize)>], first: usize, last: usize) -> Option<Vec<usize>> {
+fn bfs_parents(adjacency: &[Vec<(usize, usize)>], first: usize) -> Vec<usize> {
     let mut parent = vec![usize::MAX; adjacency.len()];
     let mut queue = VecDeque::from([first]);
     parent[first] = first;
     while let Some(v) = queue.pop_front() {
-        if v == last {
-            break;
-        }
         for &(u, _) in &adjacency[v] {
             if parent[u] == usize::MAX {
                 parent[u] = v;
@@ -396,6 +416,9 @@ fn bfs_path(adjacency: &[Vec<(usize, usize)>], first: usize, last: usize) -> Opt
             }
         }
     }
+    parent
+}
+fn path_from_parents(parent: &[usize], first: usize, last: usize) -> Option<Vec<usize>> {
     if parent[last] == usize::MAX {
         return None;
     }
