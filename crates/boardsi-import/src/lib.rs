@@ -215,6 +215,8 @@ pub mod electrical_graph_qualification;
 pub mod layered_source_graph;
 // D_056_03 opt-in SOURCE-filled COPPER area-positive-contact candidates.
 pub mod layered_area_contacts;
+// D_056_03 source layer via/SMD pad direct contact candidates.
+pub mod layered_pad_contacts;
 pub mod material_contract;
 pub mod outline_arc;
 pub mod outline_preview;
