@@ -423,6 +423,35 @@ mod tests {
         }
     }
     #[test]
+    fn d056_native_partial_source_candidates_are_layer_qualified() {
+        let bytes = b"!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n\
+*PCB*\nMAXLAYER 6\n*VIA*\n\
+V_TEST 15 2 2 4\n-2 35 R\n0 40 R\n\
+*ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n\
+100 200 2 10 0\n300 200 4 10 0 V_TEST\n500 200 4 10 0\n\
+U3.1 U4.2\n100 100 3 10 0\n300 200 3 10 0\n*END*\n";
+        let candidates = source_candidates_generalized(bytes).unwrap();
+        assert_eq!(candidates.len(), 2);
+        assert!(candidates.iter().all(|candidate| {
+            candidate.target == Target::Via(0)
+                && candidate.net_relation == DeclaredNetRelation::Same
+        }));
+        // The third trace reaches the same XY, but Layer 3 has no
+        // explicitly declared via conductive pad.
+        assert_eq!(
+            candidates.iter().filter(|c| c.trace_index == 2).count(),
+            0
+        );
+        let wrong_span = String::from_utf8(bytes.to_vec())
+            .unwrap()
+            .replace("V_TEST 15 2 2 4", "V_TEST 15 2 2 3");
+        assert_eq!(
+            source_candidates_generalized(wrong_span.as_bytes()).unwrap_err(),
+            "D056_ROUTE_OUTSIDE_VIA_SPAN"
+        );
+    }
+
+    #[test]
     fn d056_arbitrary_buried_span_and_unequal_layer_pads_share_annulus_kernel() {
         use crate::via_topology::CircularLayerPad;
         let mut via = NormalizedVia {
