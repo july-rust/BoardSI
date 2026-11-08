@@ -28,9 +28,16 @@ fn run() -> Result<Vec<u8>, &'static str> {
         return Err("D056_CANONICAL_VIA_MISMATCH");
     }
     let mut out = String::new();
+    let has_shaped_pads = parsed.vias.iter().any(|via| via.shaped.is_some());
+    let magic = if has_shaped_pads {
+        "BOARDSI_SOURCE_VIA_TOPOLOGY_V2"
+    } else {
+        "BOARDSI_SOURCE_VIA_TOPOLOGY_V1"
+    };
     writeln!(
         out,
-        "BOARDSI_SOURCE_VIA_TOPOLOGY_V1|V9.4-MILS|{}|{}|GEOMETRY_ONLY|SI_NOT_RUN",
+        "{}|V9.4-MILS|{}|{}|GEOMETRY_ONLY|SI_NOT_RUN",
+        magic,
         parsed.max_layer,
         parsed.vias.len()
     )
