@@ -210,7 +210,9 @@ fn parse_rows(
             "S" if parts.len() == 3 => ViaLayerShape::Square,
             "RA" if parts.len() == 3 => ViaLayerShape::RoundAntiPad,
             "SA" if parts.len() == 3 => ViaLayerShape::SquareAntiPad,
-            "A" if parts.len() == 4 => return Err("D056_ANNULAR_INNER_HOLE_UNSUPPORTED"),
+            "A" if parts.len() == 4 => ViaLayerShape::Annular {
+                inner_diameter_ticks: parse_fixed(parts[3])?,
+            },
             "RT" | "ST" => return Err("D056_THERMAL_CONTACT_UNSUPPORTED"),
             _ => return Err("D056_UNSUPPORTED_VIA_PAD_SHAPE"),
         };
@@ -292,7 +294,7 @@ mod tests {
     fn unsupported_shape_duplicate_source_and_bad_spans_fail_closed() {
         for (row, reason) in [
             ("-2 35 O", "D056_UNSUPPORTED_VIA_PAD_SHAPE"),
-            ("-2 35 A 20", "D056_ANNULAR_INNER_HOLE_UNSUPPORTED"),
+            ("-2 35 A", "D056_UNSUPPORTED_VIA_PAD_SHAPE"),
             ("-2 35 R\n-2 36 R", "D056_DUPLICATE_VIA_PAD_LAYER"),
         ] {
             let count = if row.contains('\n') { 3 } else { 2 };
@@ -334,6 +336,29 @@ mod tests {
         assert_eq!(
             defs["V_TEST"].as_ref().unwrap().normalize(6).unwrap_err(),
             "D056_NONCIRCULAR_VIA_REQUIRES_SHAPED_PATH"
+        );
+    }
+
+    #[test]
+    fn annular_a_inner_diameter_is_source_owned_and_not_drill_only() {
+        let defs = scan_definitions("*VIA*\nV_TEST 15 3 2 4\n-2 35 S\n-1 65 A 50\n0 40 R\n*END*");
+        let shapes = defs["V_TEST"]
+            .as_ref()
+            .unwrap()
+            .normalize_shapes(6)
+            .unwrap();
+        assert_eq!(
+            shapes.layer_pad(3).unwrap().shape,
+            ViaLayerShape::Annular {
+                inner_diameter_ticks: 5000
+            }
+        );
+        assert_eq!(shapes.layer_pad(3).unwrap().size_ticks, 6500);
+        assert!(shapes.conductive_pad(3).is_some());
+        let bad = scan_definitions("*VIA*\nV_TEST 15 3 2 4\n-2 35 S\n-1 65 A 10\n0 40 R\n*END*");
+        assert_eq!(
+            bad["V_TEST"].as_ref().unwrap().normalize_shapes(6).unwrap_err(),
+            "D056_INVALID_ANNULAR_INNER_DIAMETER"
         );
     }
 
