@@ -63,15 +63,32 @@ fn run() -> Result<Vec<u8>, &'static str> {
             )
             .map_err(|_| "D056_WIRE_ERROR")?;
             for pad in &profile.pads {
-                writeln!(
-                    out,
-                    "P|{}|{}|{}|{}",
-                    index,
-                    pad.layer,
-                    pad.shape.wire_code(),
-                    pad.size_ticks
-                )
-                .map_err(|_| "D056_WIRE_ERROR")?;
+                match pad.shape {
+                    boardsi_import::via_shapes::ViaLayerShape::Annular {
+                        inner_diameter_ticks,
+                    } => {
+                        writeln!(
+                            out,
+                            "P|{}|{}|A|{}|{}",
+                            index,
+                            pad.layer,
+                            pad.size_ticks,
+                            inner_diameter_ticks
+                        )
+                        .map_err(|_| "D056_WIRE_ERROR")?;
+                    }
+                    _ => {
+                        writeln!(
+                            out,
+                            "P|{}|{}|{}|{}",
+                            index,
+                            pad.layer,
+                            pad.shape.wire_code(),
+                            pad.size_ticks
+                        )
+                        .map_err(|_| "D056_WIRE_ERROR")?;
+                    }
+                }
             }
             continue;
         }
