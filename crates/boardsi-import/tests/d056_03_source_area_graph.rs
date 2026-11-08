@@ -1,0 +1,105 @@
+//! D_056_03 independent SOURCE fixture acceptance for filled COPPER objects.
+//! Only positive local overlap candidates are established here; missing
+//! witness does not mean a verified electrical open.
+use boardsi_import::electrical_graph_qualification::{qualify, SourceCoverage};
+use boardsi_import::layered_source_graph::{
+    from_pads_v94_source, ContactKind, CopperFootprint, DeclaredNetCheck,
+};
+
+fn import_with_route(original: &str, replacement: &str) -> boardsi_import::layered_source_graph::LayeredSourceGraph {
+    let input = String::from_utf8(include_bytes!("fixtures/pads_copper_filled_v94.asc").to_vec())
+        .expect("ASCII fixture");
+    let modified = input.replace(original, replacement);
+    assert_ne!(modified, input, "fixture mutation must be applied");
+    from_pads_v94_source(modified.as_bytes()).expect("parsed source areas and route")
+}
+fn area_contact_count(graph: &boardsi_import::layered_source_graph::LayeredSourceGraph, kind: ContactKind) -> usize {
+    graph.geometry_contacts.iter().filter(|e| e.kind == kind).count()
+}
+
+#[test]
+fn source_polygon_contains_finite_width_trace_and_reports_cross_net_candidate() {
+    // COP_A: L1 explicit filled notched polygon 40..140 / 40..120.
+    // SIGNAL0: route endpoint 100,60 strictly in COP_A copper (not a hole).
+    let graph = import_with_route(
+        "10 20 1 10 0\n100 20 1 10 0",
+        "10 60 1 10 0\n100 60 1 10 0",
+    );
+    let areas: Vec<_> = graph.nodes.iter().filter(|node|
+        matches!(node.footprint, CopperFootprint::CopperArea { .. })
+    ).collect();
+    assert_eq!(areas.len(), 2); // Polygon L1 and distinct Circle L4.
+    assert_eq!(area_contact_count(&graph, ContactKind::TraceCopperArea), 1);
+    let edge = graph.geometry_contacts.iter().find(|e|
+        e.kind == ContactKind::TraceCopperArea
+    ).expect("positive area-contact witness");
+    assert_eq!(edge.layer, 1);
+    assert_eq!(edge.declared_net_check, DeclaredNetCheck::Different);
+    assert!(graph.verified_electrical_edges.is_empty());
+    let report = qualify(&graph, graph.source_sha256, &SourceCoverage::Partial, &[], &[]).unwrap();
+    assert_eq!(report.net_conflicts.len(), 1);
+    assert!(!report.source_scope_qualified);
+}
+
+#[test]
+fn trace_wholly_inside_copcut_hole_has_no_positive_area_contact() {
+    let source = String::from_utf8(include_bytes!("fixtures/pads_copper_cutout_v94.asc").to_vec())
+        .expect("ASCII source");
+    // First hole: X 60..80/Y 60..80; this short, narrow trace has no
+    // copper footprint outside its source-owned hole.
+    let bytes = source.replace(
+        "10 20 1 10 0\n100 20 1 10 0",
+        "68 70 1 2 0\n72 70 1 2 0",
+    );
+    assert_ne!(source, bytes);
+    let graph = from_pads_v94_source(bytes.as_bytes()).unwrap();
+    assert_eq!(graph.nodes.iter().filter(|n|
+        matches!(n.footprint, CopperFootprint::CopperArea { cutout_count: 2 })
+    ).count(), 1);
+    assert_eq!(area_contact_count(&graph, ContactKind::TraceCopperArea), 0);
+    assert!(qualify(&graph, graph.source_sha256, &SourceCoverage::Partial, &[], &[])
+        .unwrap().net_conflicts.is_empty());
+}
+
+#[test]
+fn copper_circle_is_layer_specific_and_unknown_net_stays_unknown() {
+    // Native COP_B is a L4 circle centred at (240, 130), radius 20.
+    let graph = import_with_route(
+        "10 20 1 10 0\n100 20 1 10 0",
+        "230 130 4 10 0\n250 130 4 10 0",
+    );
+    assert_eq!(area_contact_count(&graph, ContactKind::TraceCopperArea), 1);
+    let edge = graph.geometry_contacts.iter().find(|e| e.kind == ContactKind::TraceCopperArea).unwrap();
+    assert_eq!(edge.layer, 4);
+    assert_eq!(edge.declared_net_check, DeclaredNetCheck::Unknown);
+    assert!(graph.nodes.iter().any(|n| n.physical_copper_layer == 4
+        && n.declared_net.is_none()
+        && matches!(n.footprint, CopperFootprint::CopperArea { .. })));
+}
+
+#[test]
+fn identical_source_polygons_on_same_layer_form_area_to_area_short_candidate() {
+    let source = String::from_utf8(include_bytes!("fixtures/pads_copper_filled_v94.asc").to_vec()).unwrap();
+    let first = "COP_A COPPER 40 40 1 1 0 GND\nCOPCLS 7 0.01 0 1\n0 0\n100 0\n100 40\n60 40\n60 80\n0 80\n0 0";
+    assert!(source.contains(first));
+    let duplicate = first.replace("COP_A COPPER", "COP_X COPPER")
+        .replace("0 GND\nCOPCLS", "0 NET_X\nCOPCLS");
+    let combined = source.replace("COP_B COPPER", &format!("{duplicate}\nCOP_B COPPER"));
+    let graph = from_pads_v94_source(combined.as_bytes()).unwrap();
+    assert_eq!(area_contact_count(&graph, ContactKind::CopperAreaCopperArea), 1);
+    let report = qualify(&graph, graph.source_sha256, &SourceCoverage::Partial, &[], &[]).unwrap();
+    assert_eq!(report.net_conflicts.len(), 1);
+    assert!(!report.source_scope_qualified);
+}
+
+#[test]
+fn coincident_shapes_on_different_layers_are_not_merged() {
+    let source = String::from_utf8(include_bytes!("fixtures/pads_copper_filled_v94.asc").to_vec()).unwrap();
+    let first = "COP_A COPPER 40 40 1 1 0 GND\nCOPCLS 7 0.01 0 1\n0 0\n100 0\n100 40\n60 40\n60 80\n0 80\n0 0";
+    let duplicate = first.replace("COP_A COPPER", "COP_X COPPER")
+        .replace("0 GND\nCOPCLS", "0 NET_X\nCOPCLS")
+        .replace("COPCLS 7 0.01 0 1", "COPCLS 7 0.01 0 4");
+    let combined = source.replace("COP_B COPPER", &format!("{duplicate}\nCOP_B COPPER"));
+    let graph = from_pads_v94_source(combined.as_bytes()).unwrap();
+    assert_eq!(area_contact_count(&graph, ContactKind::CopperAreaCopperArea), 0);
+}
