@@ -223,3 +223,40 @@ fn partly_overlapping_ring_and_circular_smd_positive_without_centre_coincidence(
     augment_pad_contacts(&mut absent).unwrap();
     assert!(absent.geometry_contacts.is_empty());
 }
+
+
+#[test]
+fn pads_v94_original_source_via_instances_contact_per_layer_without_barrel_promotion() {
+    use boardsi_import::layered_source_graph::from_pads_v94_source;
+    let source = b"!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0
+*PCB*
+MAXLAYER 4
+*VIA*
+V_TEST 15 2 1 4
+-2 35 R
+0 40 R
+*ROUTE*
+*SIGNAL* NET_A
+U1.1 U2.2
+100 200 1 10 0
+300 200 1 10 0 V_TEST
+500 200 1 10 0
+*SIGNAL* NET_B
+U3.1 U4.2
+100 225 1 10 0
+325 225 1 10 0 V_TEST
+500 225 1 10 0
+*END*
+";
+    let graph=from_pads_v94_source(source).expect("PADS source must be parsed with actual Via layer pads");
+    assert_eq!(graph.unverified_barrels.len(),2);
+    assert_eq!(count(&graph,ContactKind::ViaPadViaPad),2);
+    let layers:std::collections::BTreeSet<_>=graph.geometry_contacts.iter()
+        .filter(|e|e.kind==ContactKind::ViaPadViaPad).map(|e|e.layer).collect();
+    assert_eq!(layers,[1,4].into_iter().collect());
+    assert!(graph.verified_electrical_edges.is_empty());
+    let report=qualify(&graph,graph.source_sha256,&SourceCoverage::Partial,&[],&[])
+        .expect("source-positive Net conflict must be reportable, not fabrication proof");
+    assert!(!report.source_scope_qualified);
+    assert!(!report.net_conflicts.is_empty());
+}
