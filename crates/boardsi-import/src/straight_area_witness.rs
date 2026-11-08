@@ -48,7 +48,11 @@ fn region(shape: &CopperGeometry, p: [f64; 2]) -> Position {
                     inside = !inside;
                 }
             }
-            if inside { Position::Inside } else { Position::Outside }
+            if inside {
+                Position::Inside
+            } else {
+                Position::Outside
+            }
         }
         CopperGeometry::Circle { centre, radius } => {
             let dx = p[0] - centre[0] as f64;
@@ -68,7 +72,10 @@ fn region(shape: &CopperGeometry, p: [f64; 2]) -> Position {
 
 fn copper_interior(area: &CopperArea, p: [f64; 2]) -> bool {
     region(&area.geometry, p) == Position::Inside
-        && area.cutouts.iter().all(|hole| region(hole, p) == Position::Outside)
+        && area
+            .cutouts
+            .iter()
+            .all(|hole| region(hole, p) == Position::Outside)
 }
 
 fn add_event(events: &mut Vec<f64>, t: f64) -> Result<(), &'static str> {
