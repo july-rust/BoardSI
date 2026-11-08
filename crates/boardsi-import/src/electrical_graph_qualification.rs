@@ -210,6 +210,22 @@ pub fn qualify(
                 ContactKind::CopperAreaCopperArea,
                 CopperFootprint::CopperArea { .. },
                 CopperFootprint::CopperArea { .. }
+            ) | (
+                ContactKind::ViaPadViaPad,
+                CopperFootprint::ViaPad { .. },
+                CopperFootprint::ViaPad { .. }
+            ) | (
+                ContactKind::ViaPadSmdPad,
+                CopperFootprint::ViaPad { .. },
+                CopperFootprint::SmdPad { .. }
+            ) | (
+                ContactKind::ViaPadSmdPad,
+                CopperFootprint::SmdPad { .. },
+                CopperFootprint::ViaPad { .. }
+            ) | (
+                ContactKind::SmdPadSmdPad,
+                CopperFootprint::SmdPad { .. },
+                CopperFootprint::SmdPad { .. }
             )
         );
         if !type_matches {
