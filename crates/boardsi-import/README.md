@@ -35,8 +35,8 @@ To test a **local, publicly safe** V9.4 synthetic fixture:
 
 ```sh
 cargo test --locked -p boardsi-import
-cargo run --locked -p boardsi-import --bin boardsi-import-via-topology -- \\
-  LOCAL_PUBLIC_SYNTHETIC_V9_4.asc --candidate-contacts
+cargo run --locked -p boardsi-import --bin boardsi-import-via-topology -- \
+  crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc --candidate-contacts
 ```
 
 The new command is a separate versioned **SOURCE geometry-only** diagnostic. Legacy `boardsi-import-artwork` remains compatible with the original Qt V1–V14 source subset; a real L2–L4 via is **not** rendered as a valid through-via by that old Qt contract. The new local contact candidates do not prove plating continuity or global board connectivity. The old endpoint-based barrel graph deliberately does not promote generalized source via objects.
