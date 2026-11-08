@@ -206,9 +206,9 @@ fn sampled_area_graph_cannot_promote_disconnection_to_verified_open() {
 
 #[test]
 fn circular_cutout_with_independent_island_has_no_false_short() {
-    let raw = String::from_utf8(
-        include_bytes!("fixtures/pads_copper_circular_void_v94.asc").to_vec(),
-    ).unwrap();
+    let raw =
+        String::from_utf8(include_bytes!("fixtures/pads_copper_circular_void_v94.asc").to_vec())
+            .unwrap();
     // COP_CIRC: outer source polygon from (50,50) to (170,170);
     // first circular cutout is centred at (90,80), radius 10.
     // COP_INNER lies entirely within that source-owned empty cutout.
@@ -227,6 +227,13 @@ fn circular_cutout_with_independent_island_has_no_false_short() {
         0,
         "a circle inside an owned void must never contact its enclosing copper",
     );
-    let report = qualify(&graph, graph.source_sha256, &SourceCoverage::Partial, &[], &[]).unwrap();
+    let report = qualify(
+        &graph,
+        graph.source_sha256,
+        &SourceCoverage::Partial,
+        &[],
+        &[],
+    )
+    .unwrap();
     assert!(report.net_conflicts.is_empty());
 }
