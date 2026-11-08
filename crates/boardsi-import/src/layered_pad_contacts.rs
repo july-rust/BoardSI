@@ -58,7 +58,7 @@ impl LocalShape {
         match self {
             Self::Round { outer, hole, .. } => {
                 squared < i128::from(outer)*i128::from(outer)
-                    && squared > i128::from(hole)*i128::from(hole)
+                    && (hole == 0 || squared > i128::from(hole)*i128::from(hole))
             }
             Self::SquareWithRoundHole { width, height, hole, .. } => {
                 x.abs() < i128::from(width) && y.abs() < i128::from(height)
