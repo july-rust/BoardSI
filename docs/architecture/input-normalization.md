@@ -1,6 +1,6 @@
 # D_056 — Generalized Input Normalization and Via Topology Contract
 
-**First checked:** 2026-11-08 KST. **State:** FIRST CORE CODE SLICE MERGED; second source-backed PADS round-pad partial-via implementation under [PR #523](https://github.com/july-rust/BoardSI/pull/523) (verification/merge tracked separately); D_056 OVERALL OPEN. Original foundation: [PR #521](https://github.com/july-rust/BoardSI/pull/521), protected main [288b16e](https://github.com/july-rust/BoardSI/commit/288b16e19054102e752d433ab60088e669ea235a) (verified single-parent squash).
+**First checked:** 2026-11-08 KST. **State:** TWO CODE SLICES MERGED AND SCOPED CI VERIFIED; D_056 OVERALL OPEN. Core foundation [PR #521](https://github.com/july-rust/BoardSI/pull/521) → [main `288b16e`](https://github.com/july-rust/BoardSI/commit/288b16e19054102e752d433ab60088e669ea235a); PADS source-backed partial circular via [PR #523](https://github.com/july-rust/BoardSI/pull/523) exact HEAD `b113e8a41b96d8d87e17f8d7cb6a91f9eddb8918` → verified single-parent squash [main `63183cb`](https://github.com/july-rust/BoardSI/commit/63183cbcf94e30134c08aee795b51ae9057bdc08). This does NOT certify vendor-wide imports, electrical connectivity, full Qt GUI or SI.
 
 ## Why
 
@@ -35,7 +35,7 @@ The official [PADS Layout ASCII Format Specification 9.4, Via Definition pp. 39�
 - The distinct `boardsi-import-via-topology FILE.asc [--candidate-contacts]` diagnostic is **not** the Qt V1–V14 artwork protocol and does not assert global electrical connectivity. Original legacy Qt preview uses `route_preview::parse` unchanged.
 - Synthetic actual-source-format and independent core tests cover 2/4/6/8-layer through vias, L2–L4/L2–L3 buried, L1–L3/L3–L6 blind spans, unequal layer pad diameters, missing middle pads, wrong route-layer transitions, and invalid source rows.
 
-**Current code PR #523 status:** check its exact PR head and GitHub Actions before asserting verification or release. This document is not CI evidence by itself.
+**Verified #523 HEAD:** 30/30 GitHub Checks SUCCESS, 10/10 pull-request workflow groups SUCCESS (Rustfmt/Clippy, Debug/Release workspace, Windows x64/ARM64 and macOS ARM64 native Rust, Linux/Windows/macOS Native Qt, docs, A032, independent M2 groups). A P2 independent review identified an ambiguous duplicate-name bypass; fixed in final HEAD and source regression added, review thread resolved, no remaining unresolved review threads. Protected squash main `63183cb` is verified=true/reason=valid with one parent. The code-main push event CI is separately tracked and must not be inferred from PR head CI.
 
 ## Still NOT IMPLEMENTED / NOT VERIFIED
 
@@ -56,4 +56,4 @@ The official [PADS Layout ASCII Format Specification 9.4, Via Definition pp. 39�
 - [Generic D_054/D_055 contact geometry](trace-copper-contact.md)
 - [D_054/D_055 SOURCE qualification](../validation/d054-d055-general-trace-contact-qualification.md)
 
-The protected code PR-head reported 30/30 GitHub Checks SUCCESS and all 10 workflow groups SUCCESS (Rust `fmt`/Clippy, Debug/Release workspace regression, Windows x64/ARM64/macOS ARM64 native Rust, Linux/Windows/macOS native Qt regressions, docs, A032, M2). These are repository-reported CI results, not a claim of local or measured hardware validation. Code-main push CI is separate and is not inferred from the PR-head results.
+Both protected code PR heads (#521 and #523) reported **30/30 GitHub Checks SUCCESS** and **10/10 pull-request workflow groups SUCCESS** each. These are repository-reported scoped CI results, not a claim of local real-PCB, measured hardware, or SI solver validation. The independent code-main push CI and documentation-only PR/push must be reviewed at their own exact SHA.
