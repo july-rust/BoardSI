@@ -53,7 +53,11 @@ pub fn trace_to_via(trace: &Stroke, via: &ViaInstance) -> Result<Contact, &'stat
         if via.first_layer != profile.first_layer
             || via.last_layer != profile.last_layer
             || via.drill_ticks != profile.drill_ticks
-            || via.diameter_ticks != profile.layer_pad(profile.first_layer).map(|p| p.size_ticks).unwrap_or(0)
+            || via.diameter_ticks
+                != profile
+                    .layer_pad(profile.first_layer)
+                    .map(|p| p.size_ticks)
+                    .unwrap_or(0)
         {
             return Err("D056_VIA_SOURCE_TOPOLOGY_MISMATCH");
         }
@@ -154,12 +158,8 @@ pub fn trace_to_layered_via(
     }
     // A square external boundary with an explicitly circular drilled hole.
     // Both outer and bore distances must prove positive copper area.
-    let distance = trace_contact::centreline_rectangle_distance(
-        trace,
-        point,
-        pad.size_ticks,
-        pad.size_ticks,
-    )?;
+    let distance =
+        trace_contact::centreline_rectangle_distance(trace, point, pad.size_ticks, pad.size_ticks)?;
     let dmax = trace_contact::centreline_point_farthest(trace, point)?;
     let trace_radius = trace.width_ticks as f64 / 2.0;
     let outer_clearance = distance - trace_radius;
