@@ -1710,10 +1710,10 @@ mod d056_native_via_source_regressions {
             parse_generalized(invalid_route.as_bytes()).unwrap_err(),
             "D056_ROUTE_OUTSIDE_VIA_SPAN"
         );
-        let unsupported = source(6, 2, 4, "V_TEST 15 2 2 4\n-2 35 S\n0 40 R");
+        let unsupported = source(6, 2, 4, "V_TEST 15 2 2 4\n-2 35 A 20\n0 40 R");
         assert_eq!(
             parse_generalized(unsupported.as_bytes()).unwrap_err(),
-            "D056_UNSUPPORTED_VIA_PAD_SHAPE"
+            "D056_ANNULAR_INNER_HOLE_UNSUPPORTED"
         );
         let malformed = source(6, 2, 4, "V_TEST 15 2 4 2\n-2 35 R\n0 40 R");
         assert_eq!(
