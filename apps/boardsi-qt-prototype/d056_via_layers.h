@@ -14,6 +14,9 @@
 #include <QProcess>
 #include <QSet>
 #include <QTimer>
+#include <QVector>
+#include <QBrush>
+#include <QPen>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <algorithm>
@@ -56,7 +59,7 @@ inline bool decode(const QByteArray &bytes, Source &out) {
     // No partially accepted inventory and no lines silently skipped.
     out = {};
     if (bytes.isEmpty() || bytes.size() > 1'000'000 || !bytes.endsWith('\n') ||
-        !QString::fromUtf8(bytes).toUtf8().startsWith(bytes.left(16))) return false;
+        QString::fromUtf8(bytes).toUtf8() != bytes) return false;
     const QStringList lines = QString::fromUtf8(bytes).split('\n', Qt::KeepEmptyParts);
     if (lines.size() < 4 || lines.size() > 30000 || !lines.last().isEmpty()) return false;
     const auto h = lines.first().split('|', Qt::KeepEmptyParts);
@@ -199,7 +202,7 @@ class Panel final : public QWidget {
             if (!pad.conductive()) pen.setStyle(Qt::DashLine);
             item->setPen(pen);
             item->setBrush(pad.conductive() ? QBrush(QColor(110, 190, 225, 180))
-                                           : Qt::NoBrush);
+                                           : QBrush(Qt::NoBrush));
             item->setToolTip(QString("%1 | Net %2 | Layer %3 | %4 | %5 | "
                                      "source line %6 | GEOMETRY ONLY")
                                  .arg(via.name, via.net).arg(pad.layer)
