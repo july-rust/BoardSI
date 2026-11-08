@@ -154,15 +154,19 @@ inline bool decode(const QByteArray &bytes, Source &out) {
     return true;
 }
 
-inline QPainterPath footprint(const Pad &pad) {
+inline QPainterPath footprint(const Pad &pad, qint64 drillTicks) {
     const double d = double(pad.outer) * mmPerTick, r = d / 2.0;
     QPainterPath p;
     p.setFillRule(Qt::OddEvenFill);
     if (pad.shape == "S" || pad.shape == "SA") p.addRect(-r, -r, d, d);
     else p.addEllipse(QPointF(0, 0), r, r);
-    if (pad.shape == "A") {
-        const double inner = double(pad.inner) * mmPerTick / 2.0;
-        p.addEllipse(QPointF(0, 0), inner, inner);
+    // R/S copper has a drilled central hole. A has its own (possibly larger)
+    // source-declared inner aperture. Neither opening may be painted as copper.
+    // RA/SA depict nonconductive plane clearance and are not solid via pads.
+    if (pad.conductive()) {
+        const qint64 holeTicks = pad.shape == "A" ? pad.inner : drillTicks;
+        const double hole = double(holeTicks) * mmPerTick / 2.0;
+        p.addEllipse(QPointF(0, 0), hole, hole);
     }
     return p;
 }
@@ -196,7 +200,7 @@ class Panel final : public QWidget {
         const int wanted = layer_->currentData().toInt();
         for (const Via &via : source_.vias) for (const Pad &pad : via.pads) {
             if (wanted != 0 && pad.layer != wanted) continue;
-            auto *item = scene_->addPath(footprint(pad));
+            auto *item = scene_->addPath(footprint(pad, via.drill));
             item->setPos(double(via.x) * mmPerTick, -double(via.y) * mmPerTick);
             QPen pen(pad.conductive() ? QColor(36, 106, 175) : QColor(130, 130, 130));
             pen.setCosmetic(true);
