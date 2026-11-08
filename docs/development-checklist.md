@@ -1052,13 +1052,20 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 
 **D_056_02 CodeQL 별도 스캔 재검증 (2026-11-08 KST, 비집계 감사):** 초기 코드 PR #535 HEAD `c904fed9ea04142bdd298b17aff99346207d220b`의 [동적 CodeQL 실행 #42464801639](https://github.com/july-rust/BoardSI/actions/runs/42464801639)에서는 Rust·Python이 CodeQL CLI 번들 다운로드 **HTTP 504**로 실패했다. 이 **원래 실행의 상태는 FAIL로 유지**하며, 실패 Job 직접 재실행 및 전체 실패 Job 재실행은 GitHub가 **HTTP 403 ("cannot be re-run")**으로 거부했다. 그러나 **동일 구현 코드가 병합된 정확한 `main@2eddeacbb985c14313544c958e2c5a0707a89aa0`**에서 독립적으로 발생한 [CodeQL Push 실행 #42465987816](https://github.com/july-rust/BoardSI/actions/runs/42465987816)은 Rust·Python·C/C++·Actions **4/4 SUCCESS**를 확인했다. 후속 [문서 PR #536 HEAD `9c960772`의 CodeQL #42467019442](https://github.com/july-rust/BoardSI/actions/runs/42467019442) 역시 **4/4 SUCCESS**. 반면 더 최신 문서 병합 `main@5c9e3ee5be29d241666fa617eece37c7336e7194`의 [CodeQL Push 실행 #42467102254](https://github.com/july-rust/BoardSI/actions/runs/42467102254)는 Rust·Actions 번들 다운로드 **HTTP 504**로 **2/4 FAILED**. **검증된 해당 SHA의 정상 스캔 성공과 다른 SHA의 다운로드 실패는 구분하며, 과거 FAIL을 PASS로 재기록하지 않는다.** 보안 경고 0건/코드 취약점 부재 또는 최신 HEAD의 완전한 CodeQL PASS를 주장하지 않는다.
 
+<a id="d_056_03"></a>
+### D_056_03 — Source-Scoped Electrical Graph Qualification & Open/Short Witnesses (2026-11-08 KST)
+
+**진척 증거 (전체 인수 미완료 · 공식 체크 건수 비집계 · 근거일 2026-11-08 KST):** [Code PR #538](https://github.com/july-rust/BoardSI/pull/538)의 최종 HEAD `74cd67ccf9e6b3b5284a03f29391b21c681fc55a`에서 **9/9 PR Workflow SUCCESS**, 미해결 리뷰 Thread **0**, 신규 Rust 독립 Oracle **10/10 PASS** (2/4/6/8/64층, 선택된 Blind/Buried/Through Span, Source SHA/공정 증거, Negative 증거, Open 후보/Net 충돌 경로, Tarjan Cut-Set, 12,000 Node 체인, 증거 오류, 충돌 수 제한). Numerical Core의 Rust 포맷/경고/회귀 및 Windows x64/ARM64, macOS ARM64, Qt 4개 Native/Provisional Job이 PR-head에서 정상 완료했다. [Source-scope 설계·시험 계약](architecture/d056-03-electrical-graph-qualification.md), [개발 범위 및 코드](../crates/boardsi-import/src/electrical_graph_qualification.rs). 보호된 단일 부모·서명 **Verified Squash** [main `ca87a4d6b08bc75ccff9827bcfdf6d0ffed64cc4`](https://github.com/july-rust/BoardSI/commit/ca87a4d6b08bc75ccff9827bcfdf6d0ffed64cc4) (verification.verified=true/reason=valid, parent 1). **동일 정확 SHA의 독립 code-main Push 8/8 Workflow SUCCESS** ([Numerical Core #42470750025](https://github.com/july-rust/BoardSI/actions/runs/42470750025) 5/5 Job SUCCESS, [Qt runtime #42470750066](https://github.com/july-rust/BoardSI/actions/runs/42470750066) 5/5 Job SUCCESS, 기타 6개 Push Workflow SUCCESS). PR-head/Code-main Push를 별개 확인했다. 문서 전용 PR의 Markdown CI 및 병합 Push는 이와 별도 증거로 확인한다.
+
+**여전히 미완료:** 현재 `LayeredSourceGraph`는 제한 PADS V9.4 SOURCE-국소 Copper 후보 인벤토리다. Copper Polygon Pour/Island, Thermal, Slot, 일부 Pad/Area 조합, 전체 CAD Source Coverage와 실제 Plating/공정 적격성은 미확인이다. 이 모듈이 산출하는 충돌·분리 결과는 지원된 SOURCE 설계 그래프의 증거 또는 후보일 뿐 **실물 PCB Open/Short·SI Solver PASS·제조 도통 확정이 아니다**. [Issue #529](https://github.com/july-rust/BoardSI/issues/529)와 [부모 #520](https://github.com/july-rust/BoardSI/issues/520)는 **OPEN**, D_056_03 **최종 인수 미완료**를 유지한다. D_056_04~12 기능 역시 별도 관문을 적용한다. 이 진척 문단은 [x]를 추가하거나 기존 진행률을 변경하지 않는다.
+
 **D_056_01~12 후속 추적 (아래 표는 계획·상태 색인이며 별도 체크 항목/진행률 집계가 아님):**
 
 | 개발 단계 | 기능별 작업 | 이슈 및 완료 관문 |
 | :--- | :--- | :--- |
 | D_056_01 | 기존 Source/Canonical/Qt 감사 및 증거 계약 | #520; 문서 PR #533 Verified Squash 및 Push 인수 완료 |
 | D_056_02 | 제한 PADS Layer별 Copper 후보 Graph (#535) | 후보/Span 미검증 분리 및 2/4/6/8/64층 코드·Push 한정 완료; 전체 전기 Graph #529 잔여 |
-| D_056_03 | Electrical Open/Short / Graph 경계조건 | #529; 독립 Oracle 통과 후 종료 |
+| D_056_03 | Source-scope Open/Short 후보·Net 충돌·Connected Components·Cut-set | PR #538 코드 한정 병합·10개 Oracle PASS, 전체 Copper/제조 증거 및 #529 최종 인수 잔여 |
 | D_056_04 | Canonical Layer별 Padstack / Qt IPC | #531; 버전/손실/취소 확인 |
 | D_056_05 | Qt CPU/RHI / Legacy V1~V14 통합 | #531; Native 회귀 후 종료 |
 | D_056_06 | 공식 PADS RT/ST Thermal Spokes | #530; 제조 문법 증거 |
@@ -1069,4 +1076,4 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 | D_056_11 | Gerber + Drill Source Adapter | #532; Net/Stackup 불명은 UNKNOWN |
 | D_056_12 | Cross-format / D_001~D_055 회귀 / 최종 인수 | #532, #520; 모든 범위 검증 후 종료 |
 
-**주의:** D_056_01 감사 계약과 D_056_02 국소 후보 Graph **2개만** 별도의 공식 한정 인수로 집계한다. D_056_03~12의 최종 인수는 진행·검증 전이며 상위 D_056 `- [ ]`는 유지한다. 특히 D_056_02의 기하 후보는 실제 제조된 Via의 도통, 글로벌 Short/Open 또는 SI Solver PASS를 뜻하지 않는다. 역사적 PR·CI 근거는 변경하지 않는다.
+**주의:** D_056_01 감사 계약과 D_056_02 국소 후보 Graph **2개만** 별도의 공식 한정 인수로 집계한다. D_056_03의 코드 한정 구현·검증은 진행됐지만 **최종 인수는 미완료**이고 D_056_04~12의 최종 인수도 미완료이며 상위 D_056 `- [ ]`는 유지한다. 특히 D_056_02의 기하 후보는 실제 제조된 Via의 도통, 글로벌 Short/Open 또는 SI Solver PASS를 뜻하지 않는다. 역사적 PR·CI 근거는 변경하지 않는다.
