@@ -108,7 +108,7 @@ pub fn scan_definitions(
             i += 1;
             continue;
         }
-        let count = header[2].parse::<usize>();
+        let count = header[2].parse::<usize>().ok();
         let drill = parse_fixed(header[1]);
         let span = if header.len() == 5 {
             match (header[3].parse::<u32>(), header[4].parse::<u32>()) {
@@ -123,7 +123,7 @@ pub fn scan_definitions(
             None
         };
         let definition = match (drill, count) {
-            (Ok(drill_ticks), Ok(count)) if (2..=66).contains(&count) => {
+            (Ok(drill_ticks), Some(count)) if (2..=66).contains(&count) => {
                 if i + count >= lines.len() {
                     Err("D056_TRUNCATED_VIA_DEFINITION")
                 } else {
@@ -138,7 +138,7 @@ pub fn scan_definitions(
         // Never consume a subsequent section or *END* as via pad data.
         // In case of malformed rows, advance by one to preserve strict
         // recognition of the following definition rather than invent pads.
-        if let Ok(count) = count {
+        if let Some(count) = count {
             if (2..=66).contains(&count)
                 && i + count < lines.len()
                 && lines[i + 1..=i + count]
