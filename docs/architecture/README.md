@@ -25,7 +25,7 @@ flowchart LR
 
 ### D_056 — Generic input and stackup-aware Via topology (foundation, not full CAD import)
 
-[Input normalization / remaining gates](input-normalization.md) describes the **first protected-main code slice** (PR [#521](https://github.com/july-rust/BoardSI/pull/521)), including reusable normalized Via spans, individual copper-layer round pads and the shared annulus contact kernel. Its synthetic L2–L3 / L2–L4 and 2/4/6/8-layer tests do **not** establish native Blind/Buried/Microvia PADS import, all PCB formats, proof of manufacturing plating, global electrical connectivity or physical SI. [D_056 tracker](../development-checklist.md#d_056) remains OPEN.
+[D_056 input normalization / implementation history](input-normalization.md) covers merged #521/#523/#526 and separate layer-aware diagnostic Qt #528. The [D_056_01 inspected-source audit and universal evidence contract](d056-01-source-evidence-audit.md) maps the actual parser/model/graph/viewer limitations to D_056_02–12. Restricted PADS V9.4 source-declared Through/Blind/Buried R/S/A/RA/SA geometry exists in an **opt-in** path, but manufactured plating/microvia classification, native format completeness, main Qt V1–V14 integration, global electrical connectivity and physical SI remain unverified. [D_056 tracker](../development-checklist.md#d_056) remains OPEN.
 
 ### 범용 Trace 접촉의 공통 설계 근거
 
