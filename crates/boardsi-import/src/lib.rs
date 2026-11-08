@@ -237,6 +237,7 @@ pub mod route_preview;
 pub mod scenario_contract;
 pub mod via_copper_contact;
 pub mod via_topology;
+pub mod via_source;
 
 // A_032_2 opt-in local endpoint-evidence wire adapter.
 pub mod contact_wire;
