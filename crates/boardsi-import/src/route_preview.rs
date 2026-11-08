@@ -736,11 +736,9 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             logical_path: "local/source.asc".into(),
             sha256: sha,
         }],
-        importer_version: if parsed
-            .vias
-            .iter()
-            .any(|via| via.topology.is_some() || via.shaped.is_some())
-        {
+        importer_version: if parsed.vias.iter().any(|via| via.shaped.is_some()) {
+            "preview-d056-source-layered-padshapes-v2"
+        } else if parsed.vias.iter().any(|via| via.topology.is_some()) {
             "preview-d056-source-layered-via-v1"
         } else if !parsed.arcs.is_empty() {
             "preview-p2f-strict-route-arc-v1"
@@ -758,11 +756,12 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                     "strict-centre-cw-ccw-source-grid".into(),
                 ));
             }
-            if parsed
-                .vias
-                .iter()
-                .any(|via| via.topology.is_some() || via.shaped.is_some())
-            {
+            if parsed.vias.iter().any(|via| via.shaped.is_some()) {
+                conditions.push((
+                    "via_subset".into(),
+                    "source-explicit-round-square-and-antipad-no-electrical-proof".into(),
+                ));
+            } else if parsed.vias.iter().any(|via| via.topology.is_some()) {
                 conditions.push((
                     "via_subset".into(),
                     "source-explicit-round-layered-via-span-no-electrical-proof".into(),
@@ -800,9 +799,14 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                         "ROUTE strict exact-radius CW/CCW Arc geometry; electrical contact not verified".into(),
                     );
                 }
-                if !parsed.vias.is_empty() {
+                if parsed.vias.iter().any(|via| via.shaped.is_some()) {
                     coverage.push(
-                        "VIA explicit round through-hole padstack and drill geometry; contact not verified"
+                        "VIA source-declared round/square copper, plane antipad and drill geometry; global contact not verified"
+                            .into(),
+                    );
+                } else if !parsed.vias.is_empty() {
+                    coverage.push(
+                        "VIA explicit round layer padstack and drill geometry; contact not verified"
                             .into(),
                     );
                 }
