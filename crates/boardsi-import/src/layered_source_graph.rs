@@ -16,7 +16,9 @@ const MAX_CONTACTS: usize = 100_000;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CopperFootprint {
-    Stroke { width_ticks: i64 },
+    Stroke {
+        width_ticks: i64,
+    },
     ViaPad {
         centre: [i64; 2],
         outer_ticks: i64,
@@ -122,7 +124,11 @@ fn contact(
     if a.physical_copper_layer != b.physical_copper_layer {
         return Err("D05602_CROSS_LAYER_LOCAL_CONTACT");
     }
-    let (first_node, second_node) = if first < second { (first, second) } else { (second, first) };
+    let (first_node, second_node) = if first < second {
+        (first, second)
+    } else {
+        (second, first)
+    };
     Ok(GeometryContact {
         first_node,
         second_node,
@@ -153,20 +159,24 @@ pub fn from_pads_v94_source(bytes: &[u8]) -> Result<LayeredSourceGraph, &'static
     // These are the existing bounded broadphase + shared narrow-phase
     // operations. Never redo geometry by coincident centre/Net names.
     let trace_hits = trace_contact::contact_candidates(&art)?;
-    let attachment_hits = trace_attachment::contact_candidates(
-        &strokes, &art.vias, &pad_import.pads, &pin_nets
-    )?;
+    let attachment_hits =
+        trace_attachment::contact_candidates(&strokes, &art.vias, &pad_import.pads, &pin_nets)?;
 
     let mut nodes = Vec::new();
     let mut trace_nodes = Vec::with_capacity(strokes.len());
     for (index, stroke) in strokes.iter().enumerate() {
-        trace_nodes.push(add_node(&mut nodes, CopperNode {
-            source_key: format!("stroke:{index}:line:{}", stroke.source_line),
-            source_line: Some(stroke.source_line),
-            physical_copper_layer: stroke.layer,
-            declared_net: Some(stroke.net.clone()),
-            footprint: CopperFootprint::Stroke { width_ticks: stroke.width_ticks },
-        })?);
+        trace_nodes.push(add_node(
+            &mut nodes,
+            CopperNode {
+                source_key: format!("stroke:{index}:line:{}", stroke.source_line),
+                source_line: Some(stroke.source_line),
+                physical_copper_layer: stroke.layer,
+                declared_net: Some(stroke.net.clone()),
+                footprint: CopperFootprint::Stroke {
+                    width_ticks: stroke.width_ticks,
+                },
+            },
+        )?);
     }
 
     let mut via_pad_nodes = BTreeMap::new();
@@ -205,15 +215,24 @@ pub fn from_pads_v94_source(bytes: &[u8]) -> Result<LayeredSourceGraph, &'static
         }
         footprints.sort_by_key(|p| p.0);
         for (layer, outer_ticks, shape) in footprints {
-            let node = add_node(&mut nodes, CopperNode {
-                source_key: format!("via:{index}:{}:line:{}:L{layer}", via.name, via.source_line),
-                source_line: Some(via.source_line),
-                physical_copper_layer: layer,
-                declared_net: Some(via.net.clone()),
-                footprint: CopperFootprint::ViaPad {
-                    centre: via.point, outer_ticks, drill_ticks: via.drill_ticks, shape
+            let node = add_node(
+                &mut nodes,
+                CopperNode {
+                    source_key: format!(
+                        "via:{index}:{}:line:{}:L{layer}",
+                        via.name, via.source_line
+                    ),
+                    source_line: Some(via.source_line),
+                    physical_copper_layer: layer,
+                    declared_net: Some(via.net.clone()),
+                    footprint: CopperFootprint::ViaPad {
+                        centre: via.point,
+                        outer_ticks,
+                        drill_ticks: via.drill_ticks,
+                        shape,
+                    },
                 },
-            })?;
+            )?;
             if via_pad_nodes.insert((index, layer), node).is_some() {
                 return Err("D05602_DUPLICATE_VIA_LAYER");
             }
@@ -232,25 +251,32 @@ pub fn from_pads_v94_source(bytes: &[u8]) -> Result<LayeredSourceGraph, &'static
     let mut smd_nodes = Vec::with_capacity(pad_import.pads.len());
     for (index, pad) in pad_import.pads.iter().enumerate() {
         let key = format!("{}.{}", pad.reference, pad.pin);
-        smd_nodes.push(add_node(&mut nodes, CopperNode {
-            source_key: format!("smd:{index}:{key}:L{}", pad.layer),
-            source_line: None,
-            physical_copper_layer: pad.layer,
-            declared_net: pin_nets.get(&key).cloned(),
-            footprint: CopperFootprint::SmdPad {
-                centre: pad.point,
-                width_ticks: pad.width_ticks,
-                height_ticks: pad.height_ticks,
-                rectangular: pad.square || pad.rectangular,
+        smd_nodes.push(add_node(
+            &mut nodes,
+            CopperNode {
+                source_key: format!("smd:{index}:{key}:L{}", pad.layer),
+                source_line: None,
+                physical_copper_layer: pad.layer,
+                declared_net: pin_nets.get(&key).cloned(),
+                footprint: CopperFootprint::SmdPad {
+                    centre: pad.point,
+                    width_ticks: pad.width_ticks,
+                    height_ticks: pad.height_ticks,
+                    rectangular: pad.square || pad.rectangular,
+                },
             },
-        })?);
+        )?);
     }
 
     let mut geometry_contacts = Vec::new();
     let mut seen = BTreeSet::new();
     for hit in trace_hits {
-        let edge = contact(&nodes, trace_nodes[hit.first], trace_nodes[hit.second],
-            ContactKind::TraceTrace)?;
+        let edge = contact(
+            &nodes,
+            trace_nodes[hit.first],
+            trace_nodes[hit.second],
+            ContactKind::TraceTrace,
+        )?;
         // Fail closed on mismatched candidate metadata.
         let declared = if hit.net_relation == NetRelation::SameDeclaredNet {
             DeclaredNetCheck::Same
@@ -265,16 +291,19 @@ pub fn from_pads_v94_source(bytes: &[u8]) -> Result<LayeredSourceGraph, &'static
         }
     }
     for hit in attachment_hits {
-        let first = *trace_nodes.get(hit.trace_index).ok_or("D05602_MISSING_TRACE")?;
+        let first = *trace_nodes
+            .get(hit.trace_index)
+            .ok_or("D05602_MISSING_TRACE")?;
         let (second, kind) = match hit.target {
             Target::Via(index) => (
-                *via_pad_nodes.get(&(index, nodes[first].physical_copper_layer))
+                *via_pad_nodes
+                    .get(&(index, nodes[first].physical_copper_layer))
                     .ok_or("D05602_MISSING_CONDUCTIVE_LANDING")?,
-                ContactKind::TraceViaPad
+                ContactKind::TraceViaPad,
             ),
             Target::SmdPad(index) => (
                 *smd_nodes.get(index).ok_or("D05602_MISSING_SMD_PAD")?,
-                ContactKind::TraceSmdPad
+                ContactKind::TraceSmdPad,
             ),
         };
         let edge = contact(&nodes, first, second, kind)?;
@@ -318,24 +347,37 @@ mod tests {
              *ROUTE*\n*SIGNAL* NET_A\nU1.1 U2.2\n\
              100 200 {first} 10 0\n300 200 {last} 10 0 V_TEST\n\
              500 200 {last} 10 0\n*END*\n"
-        ).into_bytes()
+        )
+        .into_bytes()
     }
 
     #[test]
     fn same_algorithm_all_layer_counts_and_partial_spans() {
         for layers in [2, 4, 6, 8, 64] {
             for (first, last) in [(1, layers), (2, 3)] {
-                if last > layers { continue; }
+                if last > layers {
+                    continue;
+                }
                 let input = source(layers, first, last);
                 let graph = from_pads_v94_source(&input).unwrap();
                 assert_eq!(graph.declared_copper_layers, layers);
                 assert_eq!(graph.unverified_barrels.len(), 1);
                 assert_eq!(graph.unverified_barrels[0].conductive_pad_nodes.len(), 2);
-                assert_eq!(graph.geometry_contacts.iter()
-                    .filter(|e| e.kind == ContactKind::TraceViaPad).count(), 2);
-                assert!(graph.geometry_contacts.iter().all(|e|
-                    graph.nodes[e.first_node].physical_copper_layer == e.layer
-                        && graph.nodes[e.second_node].physical_copper_layer == e.layer));
+                assert_eq!(
+                    graph
+                        .geometry_contacts
+                        .iter()
+                        .filter(|e| e.kind == ContactKind::TraceViaPad)
+                        .count(),
+                    2
+                );
+                assert!(graph
+                    .geometry_contacts
+                    .iter()
+                    .all(
+                        |e| graph.nodes[e.first_node].physical_copper_layer == e.layer
+                            && graph.nodes[e.second_node].physical_copper_layer == e.layer
+                    ));
                 assert!(graph.verified_electrical_edges.is_empty());
                 assert!(!graph.unverified_barrels[0].process_qualified);
                 assert!(!graph.nodes.iter().any(|n| n.source_line.is_none()
@@ -348,16 +390,16 @@ mod tests {
     fn middle_layer_without_pad_is_not_a_contact_node() {
         let input = source(6, 2, 4);
         let graph = from_pads_v94_source(&input).unwrap();
-        assert!(!graph.nodes.iter().any(|n|
-            n.physical_copper_layer == 3
-                && matches!(n.footprint, CopperFootprint::ViaPad { .. })));
+        assert!(!graph.nodes.iter().any(|n| n.physical_copper_layer == 3
+            && matches!(n.footprint, CopperFootprint::ViaPad { .. })));
     }
 
     #[test]
     fn bad_span_and_changed_source_are_not_reused() {
         let input = source(6, 2, 4);
         let valid = from_pads_v94_source(&input).unwrap();
-        let wrong = String::from_utf8(input.clone()).unwrap()
+        let wrong = String::from_utf8(input.clone())
+            .unwrap()
             .replace("V_TEST 15 2 2 4", "V_TEST 15 2 2 3");
         assert!(from_pads_v94_source(wrong.as_bytes()).is_err());
         let mut changed = input;
@@ -374,7 +416,9 @@ mod tests {
             assert!(!barrel.process_qualified);
         }
         // Candidate classification does not silently constitute a short.
-        assert!(graph.geometry_contacts.iter()
+        assert!(graph
+            .geometry_contacts
+            .iter()
             .all(|e| e.declared_net_check == DeclaredNetCheck::Same));
     }
 }
