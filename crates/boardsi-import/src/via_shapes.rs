@@ -4,25 +4,27 @@
 use boardsi_model::{ObjectId, PadRole, PadShape, PadstackLayer, Rational, ViaKind};
 use std::collections::BTreeSet;
 
-/// PADS V9.4 R/S/RA/SA. Annular 'A' (inner-diameter) and thermal RT/ST
-/// are intentionally not represented as a filled circle/square.
+/// PADS V9.4 R/S/A/RA/SA. 'A' is a real annular ring with an inner
+/// aperture. Thermal RT/ST remain unsupported until spoke geometry is proven.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ViaLayerShape {
     Round,
     Square,
+    Annular { inner_diameter_ticks: i64 },
     RoundAntiPad,
     SquareAntiPad,
 }
 
 impl ViaLayerShape {
     pub fn conductive(self) -> bool {
-        matches!(self, Self::Round | Self::Square)
+        matches!(self, Self::Round | Self::Square | Self::Annular { .. })
     }
 
     pub fn wire_code(self) -> &'static str {
         match self {
             Self::Round => "R",
             Self::Square => "S",
+            Self::Annular { .. } => "A",
             Self::RoundAntiPad => "RA",
             Self::SquareAntiPad => "SA",
         }
@@ -81,6 +83,16 @@ impl NormalizedViaShapes {
             {
                 return Err("D056_INVALID_LAYER_PAD");
             }
+            if let ViaLayerShape::Annular {
+                inner_diameter_ticks,
+            } = pad.shape
+            {
+                if inner_diameter_ticks < self.drill_ticks
+                    || inner_diameter_ticks >= pad.size_ticks
+                {
+                    return Err("D056_INVALID_ANNULAR_INNER_DIAMETER");
+                }
+            }
         }
         if self.pads.iter().all(|p| !p.shape.conductive()) {
             // No electrical landing pad is proven. This isn't a valid
@@ -121,6 +133,17 @@ impl NormalizedViaShapes {
                     ViaLayerShape::Square | ViaLayerShape::SquareAntiPad => PadShape::Rectangle {
                         size_m: [size_m; 2],
                     },
+                    ViaLayerShape::Annular {
+                        inner_diameter_ticks,
+                    } => {
+                        let inner_m =
+                            Rational::new(i128::from(inner_diameter_ticks) * 127, 500_000_000)
+                                .map_err(|_| "D056_VIA_DIMENSION_OVERFLOW")?;
+                        PadShape::Annulus {
+                            outer_diameter_m: size_m,
+                            inner_diameter_m: inner_m,
+                        }
+                    }
                 };
                 Ok(PadstackLayer {
                     layer: layer_id(p.layer),
@@ -191,6 +214,32 @@ mod tests {
         via.pads[0].shape = ViaLayerShape::SquareAntiPad;
         via.pads[2].shape = ViaLayerShape::RoundAntiPad;
         assert_eq!(via.validate(), Err("D056_NO_CONDUCTIVE_VIA_PAD"));
+    }
+
+    #[test]
+    fn annular_void_is_not_the_smaller_drill_diameter() {
+        let mut via = sample();
+        via.pads[2].shape = ViaLayerShape::Annular {
+            inner_diameter_ticks: 2500,
+        };
+        via.validate().unwrap();
+        assert_eq!(via.conductive_pad(4).unwrap().size_ticks, 4000);
+        let mut invalid = via.clone();
+        invalid.pads[2].shape = ViaLayerShape::Annular {
+            inner_diameter_ticks: 900,
+        };
+        assert_eq!(
+            invalid.validate(),
+            Err("D056_INVALID_ANNULAR_INNER_DIAMETER")
+        );
+        let mut invalid = via;
+        invalid.pads[2].shape = ViaLayerShape::Annular {
+            inner_diameter_ticks: 4000,
+        };
+        assert_eq!(
+            invalid.validate(),
+            Err("D056_INVALID_ANNULAR_INNER_DIAMETER")
+        );
     }
 
     #[test]
