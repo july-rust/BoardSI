@@ -223,6 +223,32 @@ pub fn augment_source_areas(
             return Err("D05603_UNSUPPORTED_CURVED_AREA_CONTACT");
         }
     }
+    // Bound event interval work *before* geometry construction. Source
+    // areas can each contain up to hundreds of explicit vertices/holes.
+    let mut complexity = 0usize;
+    for area in &areas {
+        let count = |shape: &CopperGeometry| match shape {
+            CopperGeometry::Polygon(ring) => ring.len(),
+            CopperGeometry::Circle { .. } => 2,
+            CopperGeometry::Curved { .. } => 0,
+        };
+        let mut vertices = count(&area.geometry);
+        for hole in &area.cutouts {
+            vertices = vertices
+                .checked_add(count(hole))
+                .ok_or("D05603_AREA_EVENT_WORK_LIMIT")?;
+        }
+        complexity = complexity
+            .checked_add(vertices)
+            .ok_or("D05603_AREA_EVENT_WORK_LIMIT")?;
+    }
+    if complexity
+        .checked_mul(strokes.len())
+        .ok_or("D05603_AREA_EVENT_WORK_LIMIT")?
+        > 8_000_000
+    {
+        return Err("D05603_AREA_EVENT_WORK_LIMIT");
+    }
     let preexisting = graph.nodes.len();
     if preexisting + areas.len() > MAX_NODES {
         return Err("D05603_AREA_NODE_LIMIT");
@@ -271,10 +297,17 @@ pub fn augment_source_areas(
                 CopperFootprint::SmdPad { centre, .. } => vec![*centre],
                 CopperFootprint::CopperArea { .. } => unreachable!(),
             };
-            if samples
+            let proven_by_sample = samples
                 .iter()
-                .any(|&p| strictly_in_area(area, p).unwrap_or(false))
+                .any(|&p| strictly_in_area(area, p).unwrap_or(false));
+            let proven_by_boundary_events = if !proven_by_sample
+                && matches!(&candidate.footprint, CopperFootprint::Stroke { .. })
             {
+                crate::straight_area_witness::positive_straight_area_witness(&strokes[index], area)?
+            } else {
+                false
+            };
+            if proven_by_sample || proven_by_boundary_events {
                 // An inner-point witness *proves* nonzero overlap, but missing
                 // such a witness does NOT prove separation.
                 let relation =
