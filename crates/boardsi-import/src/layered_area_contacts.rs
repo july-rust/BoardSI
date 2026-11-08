@@ -285,6 +285,9 @@ pub fn augment_source_areas(
                     (new_index, index)
                 };
                 if seen.insert((a, b, kind)) {
+                    if graph.geometry_contacts.len() + new_edges.len() >= MAX_CONTACTS {
+                        return Err("D05603_AREA_EDGE_LIMIT");
+                    }
                     new_edges.push(GeometryContact {
                         first_node: a,
                         second_node: b,
@@ -312,6 +315,9 @@ pub fn augment_source_areas(
             if identical || mutual {
                 let (a, b) = (preexisting + old_index, new_index);
                 if seen.insert((a, b, ContactKind::CopperAreaCopperArea)) {
+                    if graph.geometry_contacts.len() + new_edges.len() >= MAX_CONTACTS {
+                        return Err("D05603_AREA_EDGE_LIMIT");
+                    }
                     new_edges.push(GeometryContact {
                         first_node: a,
                         second_node: b,
