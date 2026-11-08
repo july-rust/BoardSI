@@ -54,6 +54,26 @@ static bool selftest() {
     if (!d056::decode(empty, noVia) || noVia.vias.size() != 0 ||
         noVia.layers != 4 || !panel.loadWire(empty) ||
         panel.displayedItemCount() != 0) return false;
+    // 500 complete 64-layer via padstacks have 32,503 physical text
+    // records/lines, yet fit under the valid 1 MiB transport bound.
+    // Rejecting this source inventory based on an arbitrary 30k line cap
+    // would require different code for a large but supported stackup.
+    QByteArray many =
+        "BOARDSI_SOURCE_VIA_TOPOLOGY_V1|V9.4-MILS|64|500|GEOMETRY_ONLY|SI_NOT_RUN\n";
+    for (int index = 0; index < 500; ++index) {
+        many += "V|" + QByteArray::number(index) + "|VIA_" +
+                QByteArray::number(index) +
+                "|NET|10|0|0|1|64|Through|1000|true|64\n";
+        for (int layer = 1; layer <= 64; ++layer) {
+            many += "P|" + QByteArray::number(index) + "|" +
+                    QByteArray::number(layer) + "|R|4000\n";
+        }
+    }
+    many += "END|500|SOURCE_PROVENANCE_ONLY|GLOBAL_CONNECTIVITY_NOT_VERIFIED\n";
+    d056::Source wide;
+    if (many.size() >= 1000000 || !d056::decode(many, wide) ||
+        wide.layers != 64 || wide.vias.size() != 500 ||
+        wide.vias.last().pads.size() != 64) return false;
     const QByteArray v1 =
         "BOARDSI_SOURCE_VIA_TOPOLOGY_V1|V9.4-MILS|2|1|GEOMETRY_ONLY|SI_NOT_RUN\n"
         "V|0|V0|N0|4|0|0|1|2|Through|1000|true|2\n"
