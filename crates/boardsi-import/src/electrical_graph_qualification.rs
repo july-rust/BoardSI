@@ -5,9 +5,7 @@
 //! and accepts cross-layer edges ONLY with separately supplied process evidence.
 //! Neither a nominal drill span nor parser `plated=true` nor a matching Net
 //! constitutes such evidence. No result proves manufactured PCB continuity or SI.
-use crate::layered_source_graph::{
-    CopperFootprint, DeclaredNetCheck, LayeredSourceGraph,
-};
+use crate::layered_source_graph::{CopperFootprint, DeclaredNetCheck, LayeredSourceGraph};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 /// Source coverage is not inferred from the parser's successful return. A
@@ -149,8 +147,14 @@ pub fn qualify(
     let mut edges = Vec::new();
     let mut seen = BTreeSet::new();
     for hit in &graph.geometry_contacts {
-        let a = graph.nodes.get(hit.first_node).ok_or("D05603_MISSING_LOCAL_NODE")?;
-        let b = graph.nodes.get(hit.second_node).ok_or("D05603_MISSING_LOCAL_NODE")?;
+        let a = graph
+            .nodes
+            .get(hit.first_node)
+            .ok_or("D05603_MISSING_LOCAL_NODE")?;
+        let b = graph
+            .nodes
+            .get(hit.second_node)
+            .ok_or("D05603_MISSING_LOCAL_NODE")?;
         if hit.first_node == hit.second_node
             || a.physical_copper_layer != b.physical_copper_layer
             || a.physical_copper_layer != hit.layer
@@ -241,8 +245,7 @@ pub fn qualify(
                 kind: QualifiedEdgeKind::EvidenceQualifiedBarrel,
                 evidence_reference: format!(
                     "{}|{}",
-                    proof.documented_process_reference,
-                    proof.qualified_transition_reference
+                    proof.documented_process_reference, proof.qualified_transition_reference
                 ),
             });
         }
@@ -307,7 +310,9 @@ pub fn qualify(
         let mut endpoints = Vec::new();
         let mut unique = BTreeSet::new();
         for key in &req.endpoint_source_keys {
-            let &index = keys.get(key.as_str()).ok_or("D05603_MISSING_REQUIRED_ENDPOINT")?;
+            let &index = keys
+                .get(key.as_str())
+                .ok_or("D05603_MISSING_REQUIRED_ENDPOINT")?;
             if graph.nodes[index].declared_net.as_deref() != Some(req.net.as_str())
                 || !unique.insert(index)
             {
@@ -345,13 +350,19 @@ pub fn qualify(
     })
 }
 fn ordered(a: usize, b: usize) -> (usize, usize) {
-    if a < b { (a, b) } else { (b, a) }
+    if a < b {
+        (a, b)
+    } else {
+        (b, a)
+    }
 }
 fn components(adjacency: &[Vec<(usize, usize)>]) -> (Vec<Vec<usize>>, Vec<usize>) {
     let mut component_ids = vec![usize::MAX; adjacency.len()];
     let mut components = Vec::new();
     for root in 0..adjacency.len() {
-        if component_ids[root] != usize::MAX { continue; }
+        if component_ids[root] != usize::MAX {
+            continue;
+        }
         let cid = components.len();
         let mut members = Vec::new();
         let mut queue = VecDeque::from([root]);
@@ -375,7 +386,9 @@ fn bfs_path(adjacency: &[Vec<(usize, usize)>], first: usize, last: usize) -> Opt
     let mut queue = VecDeque::from([first]);
     parent[first] = first;
     while let Some(v) = queue.pop_front() {
-        if v == last { break; }
+        if v == last {
+            break;
+        }
         for &(u, _) in &adjacency[v] {
             if parent[u] == usize::MAX {
                 parent[u] = v;
@@ -383,7 +396,9 @@ fn bfs_path(adjacency: &[Vec<(usize, usize)>], first: usize, last: usize) -> Opt
             }
         }
     }
-    if parent[last] == usize::MAX { return None; }
+    if parent[last] == usize::MAX {
+        return None;
+    }
     let mut path = vec![last];
     while *path.last()? != first {
         path.push(parent[*path.last()?]);
@@ -397,7 +412,11 @@ fn cut_witnesses(
     edges: &[QualifiedDesignEdge],
 ) -> (Vec<(usize, usize)>, Vec<usize>) {
     #[derive(Clone, Copy)]
-    struct Frame { node: usize, parent_edge: Option<usize>, next: usize }
+    struct Frame {
+        node: usize,
+        parent_edge: Option<usize>,
+        next: usize,
+    }
     let n = adjacency.len();
     let mut time = 0usize;
     let mut discovery = vec![usize::MAX; n];
@@ -407,24 +426,36 @@ fn cut_witnesses(
     let mut bridges = Vec::new();
     let mut articulation = BTreeSet::new();
     for root in 0..n {
-        if discovery[root] != usize::MAX { continue; }
+        if discovery[root] != usize::MAX {
+            continue;
+        }
         discovery[root] = time;
         low[root] = time;
         time += 1;
-        let mut frames = vec![Frame { node: root, parent_edge: None, next: 0 }];
+        let mut frames = vec![Frame {
+            node: root,
+            parent_edge: None,
+            next: 0,
+        }];
         while let Some(top) = frames.last_mut() {
             let v = top.node;
             if top.next < adjacency[v].len() {
                 let (to, eid) = adjacency[v][top.next];
                 top.next += 1;
-                if top.parent_edge == Some(eid) { continue; }
+                if top.parent_edge == Some(eid) {
+                    continue;
+                }
                 if discovery[to] == usize::MAX {
                     parent[to] = Some(v);
                     children[v] += 1;
                     discovery[to] = time;
                     low[to] = time;
                     time += 1;
-                    frames.push(Frame { node: to, parent_edge: Some(eid), next: 0 });
+                    frames.push(Frame {
+                        node: to,
+                        parent_edge: Some(eid),
+                        next: 0,
+                    });
                 } else {
                     low[v] = low[v].min(discovery[to]);
                 }
