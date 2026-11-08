@@ -565,7 +565,8 @@ fn parse_with_via_mode(
                                 .ok_or("D056_MISSING_TOP_VIA_PAD")?
                                 .size_ticks,
                             profile.pads.iter().any(|p| {
-                                p.layer != profile.first_layer && p.layer != profile.last_layer
+                                p.layer != profile.first_layer
+                                    && p.layer != profile.last_layer
                                     && p.shape.conductive()
                             }),
                             profile.drill_ticks,
@@ -735,7 +736,11 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
             logical_path: "local/source.asc".into(),
             sha256: sha,
         }],
-        importer_version: if parsed.vias.iter().any(|via| via.topology.is_some() || via.shaped.is_some()) {
+        importer_version: if parsed
+            .vias
+            .iter()
+            .any(|via| via.topology.is_some() || via.shaped.is_some())
+        {
             "preview-d056-source-layered-via-v1"
         } else if !parsed.arcs.is_empty() {
             "preview-p2f-strict-route-arc-v1"
@@ -753,7 +758,11 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                     "strict-centre-cw-ccw-source-grid".into(),
                 ));
             }
-            if parsed.vias.iter().any(|via| via.topology.is_some() || via.shaped.is_some()) {
+            if parsed
+                .vias
+                .iter()
+                .any(|via| via.topology.is_some() || via.shaped.is_some())
+            {
                 conditions.push((
                     "via_subset".into(),
                     "source-explicit-round-layered-via-span-no-electrical-proof".into(),
@@ -961,12 +970,7 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
         if !board.padstacks.iter().any(|p| p.meta.id == padstack_id) {
             // Canonical padstacks consume exactly the source-backed layer
             // inventory; no guessed interior conductive entry.
-            let layer_id = |n| ObjectId::new(
-                &source,
-                ObjectKind::Layer,
-                &format!("layer-{n}"),
-                "",
-            );
+            let layer_id = |n| ObjectId::new(&source, ObjectKind::Layer, &format!("layer-{n}"), "");
             let entries = if let Some(profile) = &via.shaped {
                 profile.canonical_entries(layer_id)?
             } else {
@@ -1644,12 +1648,7 @@ mod d056_native_via_source_regressions {
 
     #[test]
     fn d056_square_and_antipad_records_keep_canonical_roles() {
-        let source = source(
-            6,
-            2,
-            4,
-            "V_TEST 15 3 2 4\n-2 35 S\n-1 65 RA\n0 40 R",
-        );
+        let source = source(6, 2, 4, "V_TEST 15 3 2 4\n-2 35 S\n-1 65 RA\n0 40 R");
         let artwork = parse_generalized(source.as_bytes()).unwrap();
         assert_eq!(artwork.vias.len(), 1);
         assert!(artwork.vias[0].topology.is_none());
@@ -1666,9 +1665,18 @@ mod d056_native_via_source_regressions {
         assert_eq!(board.vias[0].kind, ViaKind::Buried);
         assert_eq!(board.vias[0].connected_layers.len(), 0);
         assert_eq!(board.padstacks[0].entries.len(), 3);
-        assert_eq!(board.padstacks[0].entries[0].role, boardsi_model::PadRole::Conductive);
-        assert_eq!(board.padstacks[0].entries[1].role, boardsi_model::PadRole::AntiPad);
-        assert_eq!(board.padstacks[0].entries[2].role, boardsi_model::PadRole::Conductive);
+        assert_eq!(
+            board.padstacks[0].entries[0].role,
+            boardsi_model::PadRole::Conductive
+        );
+        assert_eq!(
+            board.padstacks[0].entries[1].role,
+            boardsi_model::PadRole::AntiPad
+        );
+        assert_eq!(
+            board.padstacks[0].entries[2].role,
+            boardsi_model::PadRole::Conductive
+        );
         assert!(matches!(
             board.padstacks[0].entries[0].shape,
             boardsi_model::PadShape::Rectangle { .. }
