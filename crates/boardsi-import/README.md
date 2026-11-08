@@ -4,7 +4,7 @@
 
 [← Documentation hub](../../docs/README.md) · [Developer Quickstart](../../docs/developer-quickstart.md) · [Canonical checklist](../../docs/development-checklist.md) · [Detailed D_054–D_055 evidence](../../docs/validation/d054-d055-general-trace-contact-qualification.md)
 
-> **2026-11-07 current scope.** This crate contains **two different tools**: (1) a signature-only PADS probe and (2) a **restricted** V9.4 MILS PADS geometry importer feeding a partial Canonical/Qt Artwork protocol. The original P2-A straight-only introduction below is a **dated baseline**, not the total current capability. Neither tool is a complete vendor-export compatible CAD converter or a validated PCB SI solver.
+> **2026-11-08 current scope.** This crate contains (1) a signature-only PADS probe, (2) a **restricted** V9.4 MILS PADS geometry importer feeding the partial Canonical/Qt V1–V14 Artwork protocol, and (3) a separate opt-in source-backed circular partial-via diagnostic. The original P2-A straight-only introduction below is a **dated baseline**, not the total current capability. Neither tool is a complete vendor-export compatible CAD converter or a validated PCB SI solver.
 
 ## Current command matrix
 
@@ -14,6 +14,7 @@
 | `boardsi-import-artwork FILE.asc` | Supported SOURCE straight/arc Trace, Via, SMD Pad and selected Copper/outline partial Geometry → versioned Qt Artwork transport | Not all PADS objects or electrical connectivity |
 | `boardsi-import-artwork FILE.asc --general-trace-contacts-v1` | D_054 generic angle straight/arc **Trace-to-Trace** local finite-width overlap candidates | Not global nets, actual copper continuity, solver |
 | `boardsi-import-artwork FILE.asc --trace-pad-via-contacts-v1` | D_055 generic non-centred Trace contact with **Via conductive annulus** and **round/square/rectangle SMD Pad** footprints | Not proof of electrical Open/Short, plating or all Padstacks |
+| `boardsi-import-via-topology FILE.asc [--candidate-contacts]` | **D_056 opt-in** PADS V9.4 source-declared round via pads and explicit Through/Blind/Buried start/end spans; optional local Trace-Via copper-overlap candidates | Not Qt artwork V1–V14, full PADS shapes, verified plating, global Open/Short or SI |
 
 Example from the **repository root** (public synthetic fixture only):
 
@@ -26,9 +27,25 @@ cargo run --locked -p boardsi-import --bin boardsi-import-artwork -- \
   --trace-pad-via-contacts-v1
 ```
 
+### D_056 — source-declared Via layers (opt-in, limited)
+
+The PADS 9.4 [Via Definition grammar, pp. 39–40](https://www.freecalypso.org/pub/CAD/PADS/pdfdocs/Ppcb_ASCII.pdf) permits optional `drill_start`/`drill_end`; these define the actual span and assign relative `-2/-1/0` pad selectors to its top/interior/bottom. The new opt-in parser uses the source's actual layer count, while preserving each explicit **R circular** pad diameter. It reports unsupported S/A/RA/SA/RT/ST and non-circular geometry as errors rather than silently replacing them with round copper.
+
+To test a **local, publicly safe** V9.4 synthetic fixture:
+
+```sh
+cargo test --locked -p boardsi-import
+cargo run --locked -p boardsi-import --bin boardsi-import-via-topology -- \
+  crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc --candidate-contacts
+```
+
+The new command is a separate versioned **SOURCE geometry-only** diagnostic. Legacy `boardsi-import-artwork` remains compatible with the original Qt V1–V14 source subset; a real L2–L4 via is **not** rendered as a valid through-via by that old Qt contract. The new local contact candidates do not prove plating continuity or global board connectivity. The old endpoint-based barrel graph deliberately does not promote generalized source via objects.
+
+Implementation: [source-layer-aware via design and outstanding gates](../../docs/architecture/input-normalization.md) · [D_056 Issue #520](https://github.com/july-rust/BoardSI/issues/520) · [code PR #523](https://github.com/july-rust/BoardSI/pull/523) (final HEAD `b113e8a`, 30/30 PR checks SUCCESS, 10/10 workflows SUCCESS; independent duplicate-VIA-name review fixed) → signed protected squash [main `63183cb`](https://github.com/july-rust/BoardSI/commit/63183cbcf94e30134c08aee795b51ae9057bdc08). This is limited source geometry support, not full vendor format or product SI acceptance.
+
 For D_054/D_055 the result is bounded, SOURCE-SHA-bound *geometry-candidate diagnostic output*. **Different-Net overlaps are only flagged as conflict candidates; missing Pad-Net ownership stays unverified; near-boundary uncertainty and unsupported records are not silently certified.** Via drill-only overlap is not assumed conductive. The normal Qt artwork stdout protocol is unchanged by those two opt-in modes.
 
-**Supported scope remains narrow:** only the current PADS V9.4 MILS subset; specific SOURCE-anchored part decals, SMD round/square/limited RF rectangle, declared Via copper layers, segmented straight/circular routes and selected explicit Copper/outline. Arbitrary custom/rotated-oval Padstack, blind/buried/microvias, thermal reconstruction, complete pours, full-board physical connectivity and real vendor-export cross-qualification are **NOT_VERIFIED**. A parse result, screenshot or source-local candidate must never be reported as measured PCB SI.
+**Supported scope remains narrow:** only the current PADS V9.4 MILS subset (plus a separate opt-in circular SOURCE Via span diagnostic); specific SOURCE-anchored part decals, SMD round/square/limited RF rectangle, declared Via copper layers, segmented straight/circular routes and selected explicit Copper/outline. Arbitrary custom/rotated-oval Padstack, complete blind/buried/microvia manufacturing semantics, thermal reconstruction, complete pours, full-board physical connectivity and real vendor-export cross-qualification are **NOT_VERIFIED**. A parse result, screenshot or source-local candidate must never be reported as measured PCB SI.
 
 ## Signature probe (standalone)
 
