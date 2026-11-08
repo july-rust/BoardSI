@@ -153,6 +153,12 @@ pub fn trace_to_layered_via(
     if pad.shape == ViaLayerShape::Round {
         return annular_contact(trace, point, pad.size_ticks, via.drill_ticks);
     }
+    if let ViaLayerShape::Annular {
+        inner_diameter_ticks,
+    } = pad.shape
+    {
+        return annular_contact(trace, point, pad.size_ticks, inner_diameter_ticks);
+    }
     if pad.shape != ViaLayerShape::Square {
         return Err("D056_UNEXPECTED_CONDUCTIVE_PAD_SHAPE");
     }
@@ -565,6 +571,46 @@ U3.1 U4.2\n100 100 3 10 0\n300 200 3 10 0\n*END*\n";
         assert_eq!(
             trace_to_layered_via(&line([-5, 0], [5, 0], 4, 2), [0, 0], &shaped),
             Ok(Contact::Separated)
+        );
+    }
+
+    #[test]
+    fn d056_annular_inner_void_excludes_copper_contacts_inside_clearance() {
+        use crate::via_shapes::ViaLayerFootprint;
+        let ring = NormalizedViaShapes {
+            copper_layers: 6,
+            first_layer: 2,
+            last_layer: 4,
+            kind: boardsi_model::ViaKind::Buried,
+            drill_ticks: 30,
+            plated: true,
+            pads: vec![
+                ViaLayerFootprint {
+                    layer: 2,
+                    size_ticks: 100,
+                    shape: ViaLayerShape::Square,
+                },
+                ViaLayerFootprint {
+                    layer: 3,
+                    size_ticks: 130,
+                    shape: ViaLayerShape::Annular {
+                        inner_diameter_ticks: 100,
+                    },
+                },
+                ViaLayerFootprint {
+                    layer: 4,
+                    size_ticks: 100,
+                    shape: ViaLayerShape::Round,
+                },
+            ],
+        };
+        assert_eq!(
+            trace_to_layered_via(&line([-4, 0], [4, 0], 4, 3), [0, 0], &ring),
+            Ok(Contact::Separated)
+        );
+        assert_eq!(
+            trace_to_layered_via(&line([-100, 57], [100, 57], 10, 3), [0, 0], &ring),
+            Ok(Contact::PositiveArea)
         );
     }
 
