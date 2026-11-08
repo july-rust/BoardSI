@@ -1,7 +1,9 @@
 //! D_056_03 independent SOURCE fixture acceptance for filled COPPER objects.
 //! Only positive local overlap candidates are established here; missing
 //! witness does not mean a verified electrical open.
-use boardsi_import::electrical_graph_qualification::{qualify, SourceCoverage};
+use boardsi_import::electrical_graph_qualification::{
+    qualify, OpenDisposition, RequiredNetPath, SourceCoverage,
+};
 use boardsi_import::layered_source_graph::{
     from_pads_v94_source, ContactKind, CopperFootprint, DeclaredNetCheck,
 };
@@ -102,4 +104,38 @@ fn coincident_shapes_on_different_layers_are_not_merged() {
     let combined = source.replace("COP_B COPPER", &format!("{duplicate}\nCOP_B COPPER"));
     let graph = from_pads_v94_source(combined.as_bytes()).unwrap();
     assert_eq!(area_contact_count(&graph, ContactKind::CopperAreaCopperArea), 0);
+}
+
+#[test]
+fn sampled_area_graph_cannot_promote_disconnection_to_verified_open() {
+    // Even an attested complete source inventory cannot turn the limited
+    // interior-sample contact search into a proof of no other positive contact.
+    let raw = String::from_utf8(include_bytes!("fixtures/pads_copper_filled_v94.asc").to_vec()).unwrap();
+    let bytes = raw.replace("0 GND\nCOPCLS", "0 SIGNAL0\nCOPCLS");
+    let graph = from_pads_v94_source(bytes.as_bytes()).unwrap();
+    let trace = graph.nodes.iter().find(|n|
+        n.declared_net.as_deref() == Some("SIGNAL0")
+            && matches!(&n.footprint, CopperFootprint::Stroke { .. })
+    ).unwrap();
+    let area = graph.nodes.iter().find(|n|
+        n.declared_net.as_deref() == Some("SIGNAL0")
+            && matches!(&n.footprint, CopperFootprint::CopperArea { .. })
+    ).unwrap();
+    let req = RequiredNetPath {
+        net: "SIGNAL0".into(),
+        endpoint_source_keys: vec![trace.source_key.clone(), area.source_key.clone()],
+    };
+    let r = qualify(
+        &graph,
+        graph.source_sha256,
+        &SourceCoverage::QualifiedSourceScope {
+            sha256: graph.source_sha256,
+            evidence_reference: "independent-complete-source-inventory".into(),
+        },
+        &[],
+        &[req],
+    ).unwrap();
+    assert_eq!(r.open_witnesses.len(), 1);
+    assert_eq!(r.open_witnesses[0].disposition, OpenDisposition::CandidateOnly);
+    assert!(r.diagnostics.contains(&"COPPER_AREA_CONTACT_COVERAGE_PARTIAL".to_owned()));
 }
