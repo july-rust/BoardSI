@@ -234,11 +234,19 @@ pub fn augment_source_areas(
         };
         let mut vertices = count(&area.geometry);
         for hole in &area.cutouts {
-            vertices = vertices.checked_add(count(hole)).ok_or("D05603_AREA_EVENT_WORK_LIMIT")?;
+            vertices = vertices
+                .checked_add(count(hole))
+                .ok_or("D05603_AREA_EVENT_WORK_LIMIT")?;
         }
-        complexity = complexity.checked_add(vertices).ok_or("D05603_AREA_EVENT_WORK_LIMIT")?;
+        complexity = complexity
+            .checked_add(vertices)
+            .ok_or("D05603_AREA_EVENT_WORK_LIMIT")?;
     }
-    if complexity.checked_mul(strokes.len()).ok_or("D05603_AREA_EVENT_WORK_LIMIT")? > 8_000_000 {
+    if complexity
+        .checked_mul(strokes.len())
+        .ok_or("D05603_AREA_EVENT_WORK_LIMIT")?
+        > 8_000_000
+    {
         return Err("D05603_AREA_EVENT_WORK_LIMIT");
     }
     let preexisting = graph.nodes.len();
@@ -295,10 +303,7 @@ pub fn augment_source_areas(
             let proven_by_boundary_events = if !proven_by_sample
                 && matches!(&candidate.footprint, CopperFootprint::Stroke { .. })
             {
-                crate::straight_area_witness::positive_straight_area_witness(
-                    &strokes[index],
-                    area,
-                )?
+                crate::straight_area_witness::positive_straight_area_witness(&strokes[index], area)?
             } else {
                 false
             };
