@@ -70,10 +70,7 @@ fn run() -> Result<Vec<u8>, &'static str> {
                         writeln!(
                             out,
                             "P|{}|{}|A|{}|{}",
-                            index,
-                            pad.layer,
-                            pad.size_ticks,
-                            inner_diameter_ticks
+                            index, pad.layer, pad.size_ticks, inner_diameter_ticks
                         )
                         .map_err(|_| "D056_WIRE_ERROR")?;
                     }

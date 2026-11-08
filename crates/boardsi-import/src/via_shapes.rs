@@ -87,8 +87,7 @@ impl NormalizedViaShapes {
                 inner_diameter_ticks,
             } = pad.shape
             {
-                if inner_diameter_ticks < self.drill_ticks
-                    || inner_diameter_ticks >= pad.size_ticks
+                if inner_diameter_ticks < self.drill_ticks || inner_diameter_ticks >= pad.size_ticks
                 {
                     return Err("D056_INVALID_ANNULAR_INNER_DIAMETER");
                 }

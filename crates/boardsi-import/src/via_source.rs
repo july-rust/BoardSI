@@ -357,7 +357,11 @@ mod tests {
         assert!(shapes.conductive_pad(3).is_some());
         let bad = scan_definitions("*VIA*\nV_TEST 15 3 2 4\n-2 35 S\n-1 65 A 10\n0 40 R\n*END*");
         assert_eq!(
-            bad["V_TEST"].as_ref().unwrap().normalize_shapes(6).unwrap_err(),
+            bad["V_TEST"]
+                .as_ref()
+                .unwrap()
+                .normalize_shapes(6)
+                .unwrap_err(),
             "D056_INVALID_ANNULAR_INNER_DIAMETER"
         );
     }

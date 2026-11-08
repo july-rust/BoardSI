@@ -372,15 +372,13 @@ impl BoardModel {
             PadShape::Annulus {
                 outer_diameter_m,
                 inner_diameter_m,
-            } => {
-                require(
-                    inner_diameter_m.positive()
-                        && outer_diameter_m.positive()
-                        && outer_diameter_m.checked_cmp(*inner_diameter_m)?
-                            == std::cmp::Ordering::Greater,
-                    ModelError::InvalidDimension,
-                )
-            }
+            } => require(
+                inner_diameter_m.positive()
+                    && outer_diameter_m.positive()
+                    && outer_diameter_m.checked_cmp(*inner_diameter_m)?
+                        == std::cmp::Ordering::Greater,
+                ModelError::InvalidDimension,
+            ),
             PadShape::Custom(boundary) => self.boundary(boundary),
         }
     }

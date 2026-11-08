@@ -1694,12 +1694,7 @@ mod d056_native_via_source_regressions {
 
     #[test]
     fn d056_annular_inner_void_reaches_canonical_without_copper_fill() {
-        let source = source(
-            6,
-            2,
-            4,
-            "V_TEST 15 3 2 4\n-2 35 S\n-1 65 A 50\n0 40 R",
-        );
+        let source = source(6, 2, 4, "V_TEST 15 3 2 4\n-2 35 S\n-1 65 A 50\n0 40 R");
         let artwork = parse_generalized(source.as_bytes()).unwrap();
         let profile = artwork.vias[0].shaped.as_ref().unwrap();
         assert_eq!(
@@ -1739,12 +1734,7 @@ mod d056_native_via_source_regressions {
             parse_generalized(invalid_route.as_bytes()).unwrap_err(),
             "D056_ROUTE_OUTSIDE_VIA_SPAN"
         );
-        let unsupported = source(
-            6,
-            2,
-            4,
-            "V_TEST 15 2 2 4\n-2 35 RT 45 84 15 4\n0 40 R",
-        );
+        let unsupported = source(6, 2, 4, "V_TEST 15 2 2 4\n-2 35 RT 45 84 15 4\n0 40 R");
         assert_eq!(
             parse_generalized(unsupported.as_bytes()).unwrap_err(),
             "D056_THERMAL_CONTACT_UNSUPPORTED"
