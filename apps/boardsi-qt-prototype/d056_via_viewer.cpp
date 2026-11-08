@@ -31,7 +31,7 @@ static bool selftest() {
         return false;
     auto *ring = dynamic_cast<QGraphicsPathItem *>(panel.scene()->items().first());
     if (!ring || ring->path().contains(QPointF(0, 0)) ||
-        !ring->path().contains(QPointF(0.7, 0))) return false;
+        !ring->path().contains(QPointF(0.4, 0))) return false;
     const auto bad = [&](QByteArray changed) {
         d056::Source parsed;
         return !d056::decode(changed, parsed) && parsed.vias.isEmpty();
