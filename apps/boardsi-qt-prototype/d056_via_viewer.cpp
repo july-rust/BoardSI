@@ -20,6 +20,9 @@ static bool selftest() {
         panel.source().vias.first().pads.size() != 3 ||
         !panel.selectLayer(2) || panel.displayedItemCount() != 1)
         return false;
+    auto *square = dynamic_cast<QGraphicsPathItem *>(panel.scene()->items().first());
+    if (!square || square->path().contains(QPointF(0, 0)) ||
+        !square->path().contains(QPointF(0.3, 0))) return false;
     if (!panel.selectLayer(1) || panel.displayedItemCount() != 0)
         return false; // Hole-only/nonexistent layers do not invent copper.
     if (!panel.selectLayer(3) || panel.displayedItemCount() != 1)
@@ -58,8 +61,12 @@ static bool selftest() {
         "END|1|SOURCE_PROVENANCE_ONLY|GLOBAL_CONNECTIVITY_NOT_VERIFIED\n";
     d056::Source legacy;
     if (!d056::decode(v1, legacy) || legacy.vias[0].pads.size() != 2 ||
-        !bad(QByteArray(v1).replace("P|0|2|R|4000", "P|0|2|SA|4000")))
-        return false;
+        !bad(QByteArray(v1).replace("P|0|2|R|4000", "P|0|2|SA|4000")) ||
+        !panel.loadWire(v1) || !panel.selectLayer(1) ||
+        panel.displayedItemCount() != 1) return false;
+    auto *round = dynamic_cast<QGraphicsPathItem *>(panel.scene()->items().first());
+    if (!round || round->path().contains(QPointF(0, 0)) ||
+        !round->path().contains(QPointF(0.3, 0))) return false;
     return true;
 }
 
