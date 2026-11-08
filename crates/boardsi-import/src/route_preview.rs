@@ -553,10 +553,10 @@ fn parse_with_via_mode(
                     };
                 // A route transition cannot pass through a layer that the
                 // declared source drill does not physically span.
-                if layer < i64::from(first_layer) || layer > i64::from(last_layer)
+                if layer < i64::from(first_layer)
+                    || layer > i64::from(last_layer)
                     || previous.is_some_and(|(_, old_layer, _)| {
-                        old_layer < i64::from(first_layer)
-                            || old_layer > i64::from(last_layer)
+                        old_layer < i64::from(first_layer) || old_layer > i64::from(last_layer)
                     })
                 {
                     return Err("D056_ROUTE_OUTSIDE_VIA_SPAN");
@@ -1535,7 +1535,11 @@ mod d056_native_via_source_regressions {
             assert_eq!(topology.diameter_on(last), Some(4000));
             assert_eq!(
                 topology.diameter_on(first + 1),
-                if last > first + 1 { Some(4500) } else { Some(4000) }
+                if last > first + 1 {
+                    Some(4500)
+                } else {
+                    Some(4000)
+                }
             );
             let board = into_canonical(source.as_bytes(), &artwork).unwrap();
             assert_eq!(board.vias[0].kind, expected);
@@ -1548,12 +1552,7 @@ mod d056_native_via_source_regressions {
     #[test]
     fn source_declared_nonuniform_through_pads_follow_board_layer_count() {
         for layers in [2, 4, 6, 8] {
-            let source = source(
-                layers,
-                1,
-                layers,
-                "V_TEST 15 3\n-2 35 R\n-1 45 R\n0 40 R",
-            );
+            let source = source(layers, 1, layers, "V_TEST 15 3\n-2 35 R\n-1 45 R\n0 40 R");
             let artwork = parse_generalized(source.as_bytes()).unwrap();
             let topology = artwork.vias[0].topology.as_ref().unwrap();
             assert_eq!(topology.pads.len(), layers as usize);
@@ -1582,32 +1581,17 @@ mod d056_native_via_source_regressions {
 
     #[test]
     fn wrong_route_span_and_unsupported_native_shape_fail_closed() {
-        let invalid_route = source(
-            6,
-            1,
-            3,
-            "V_TEST 15 2 2 3\n-2 35 R\n0 40 R",
-        );
+        let invalid_route = source(6, 1, 3, "V_TEST 15 2 2 3\n-2 35 R\n0 40 R");
         assert_eq!(
             parse_generalized(invalid_route.as_bytes()).unwrap_err(),
             "D056_ROUTE_OUTSIDE_VIA_SPAN"
         );
-        let unsupported = source(
-            6,
-            2,
-            4,
-            "V_TEST 15 2 2 4\n-2 35 S\n0 40 R",
-        );
+        let unsupported = source(6, 2, 4, "V_TEST 15 2 2 4\n-2 35 S\n0 40 R");
         assert_eq!(
             parse_generalized(unsupported.as_bytes()).unwrap_err(),
             "D056_UNSUPPORTED_VIA_PAD_SHAPE"
         );
-        let malformed = source(
-            6,
-            2,
-            4,
-            "V_TEST 15 2 4 2\n-2 35 R\n0 40 R",
-        );
+        let malformed = source(6, 2, 4, "V_TEST 15 2 4 2\n-2 35 R\n0 40 R");
         assert_eq!(
             parse_generalized(malformed.as_bytes()).unwrap_err(),
             "D056_INVALID_VIA_SPAN_OR_DRILL"
