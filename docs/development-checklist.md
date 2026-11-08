@@ -1063,6 +1063,8 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 
 [Code PR #543](https://github.com/july-rust/BoardSI/pull/543) 최종 HEAD `49a7b2fbd1e5ba17c37cf3f551adf1507e3c62a3`: **9/9 PR Workflow SUCCESS**, Numerical Core **5/5 Job SUCCESS**, Qt Runtime **5/5 Job SUCCESS**, 신규 [임의 각도 Straight–Copper 경계 교차 Oracle](../crates/boardsi-import/tests/d056_03_straight_area_witness.rs) **7/7 PASS**, 미해결 리뷰 0건. Fixed 1/4-point 탐색의 좁은 중간 구간 누락을 SOURCE COPCLS/COPCIR 경계 교차 이벤트로 보강하고 CUTOUT·접선·실제 Arc Chord가 아닌 도형을 거짓 연결하지 않도록 한다. 보호된 1-parent, 서명 **Verified** Squash [`main@d939409947e297cf334f8570087d9e1f5c3e231c`](https://github.com/july-rust/BoardSI/commit/d939409947e297cf334f8570087d9e1f5c3e231c) 병합 완료. **동일 SHA의 독립 code-main Push 8/8 Workflow SUCCESS** ([Numerical Core #42535600072](https://github.com/july-rust/BoardSI/actions/runs/42535600072) 5/5 Job SUCCESS, [Qt Runtime #42535600145](https://github.com/july-rust/BoardSI/actions/runs/42535600145) 5/5 Job SUCCESS, 기타 6개 Push Workflow SUCCESS), PR-head와 code-main Push 각각 독립 확인. 33개 신규 독립 Oracle(기본 10 + Area 8 + Pad Pair 8 + Straight/Area 7)의 PASS와 실제 사용자 보드 전체 Source Coverage는 서로 다르다. **물리 제조/Plating/전체 Open·Short/SI 인증을 주장하지 않는다.** [설계·시험 증거](architecture/d056-03-electrical-graph-qualification.md).
 
+**문서 반영 최종 확인 (2026-11-09 KST):** [Docs PR #544](https://github.com/july-rust/BoardSI/pull/544) 정확 HEAD `4fd18131022e3b75b2a385a4f15027879cb0ddef` 문서 전용 8/8 Workflow SUCCESS, 미해결 Review 0건, [보호 `main` 서명 Verified·단일 부모 Squash `40ed93c2db37558d2ef2e353675498461c767ff0`](https://github.com/july-rust/BoardSI/commit/40ed93c2db37558d2ef2e353675498461c767ff0) 및 [동일 SHA 문서 `main` Push #42536866564](https://github.com/july-rust/BoardSI/actions/runs/42536866564) 포함 **8/8 독립 Workflow SUCCESS** 확인. 서명 검증과 코드·문서 CI 감사는 각각 별도 기록했다. 이 완료는 **문서/코드 한정 증거의 마무리**이지 전체 D_056_03 전기적 인수 완료가 아니다.
+
 **여전히 미완료:** 현재 `LayeredSourceGraph`는 제한 PADS V9.4 SOURCE-국소 Copper 후보 인벤토리다. PR #540/#542/#543으로 **일부** 명시적 Polygon/Circle Copper·Cutout, ViaPad/SMD Pad 직접 접촉, 임의 각도 직선의 경계 교차 양성 접촉을 지원하지만 모든 면적 교차/접촉(특히 혼합 Round/Rectangle과 Copper Area, Trace Arc)에 대한 완전 탐색, 특수 Flood/Pour/Island, Thermal/Slot, 일부 Pad/Area 조합, 전체 CAD Source/Netlist Coverage, Plating/제조 공정 적격성은 미확인이다. 이 모듈이 산출하는 충돌·분리 결과는 지원된 SOURCE 설계 그래프의 증거 또는 후보일 뿐 **실물 PCB Open/Short·SI Solver PASS·제조 도통 확정이 아니다**. [Issue #529](https://github.com/july-rust/BoardSI/issues/529)와 [부모 #520](https://github.com/july-rust/BoardSI/issues/520)는 **OPEN**, D_056_03 **최종 인수 미완료**를 유지한다. D_056_04~12 기능 역시 별도 관문을 적용한다. 이 진척 문단은 [x]를 추가하거나 기존 진행률을 변경하지 않는다.
 
 **D_056_01~12 후속 추적 (아래 표는 계획·상태 색인이며 별도 체크 항목/진행률 집계가 아님):**
@@ -1071,7 +1073,7 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 | :--- | :--- | :--- |
 | D_056_01 | 기존 Source/Canonical/Qt 감사 및 증거 계약 | #520; 문서 PR #533 Verified Squash 및 Push 인수 완료 |
 | D_056_02 | 제한 PADS Layer별 Copper 후보 Graph (#535) | 후보/Span 미검증 분리 및 2/4/6/8/64층 코드·Push 한정 완료; 전체 전기 Graph #529 잔여 |
-| D_056_03 | Source-scope Open/Short 후보·Net 충돌·Connected Components·Cut-set | PR #538/#540/#542/#543 코드 병합, **33개 독립 Oracle PASS**; 최종 Code-main Push 감사 및 전체 Copper/제조/Netlist 증거·#529 최종 인수 잔여 |
+| D_056_03 | Source-scope Open/Short 후보·Net 충돌·Connected Components·Cut-set | PR #538/#540/#542/#543 코드 병합, **33개 독립 Oracle PASS**, 모든 해당 code-main Push **8/8 SUCCESS 각각 감사 완료**; 전체 Copper/제조/Netlist 증거·#529 최종 인수 잔여 |
 | D_056_04 | Canonical Layer별 Padstack / Qt IPC | #531; 버전/손실/취소 확인 |
 | D_056_05 | Qt CPU/RHI / Legacy V1~V14 통합 | #531; Native 회귀 후 종료 |
 | D_056_06 | 공식 PADS RT/ST Thermal Spokes | #530; 제조 문법 증거 |
