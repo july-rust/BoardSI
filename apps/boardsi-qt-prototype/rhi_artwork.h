@@ -1248,6 +1248,10 @@ public:
         requestSceneUpdate();
         return requestedSceneRevision();
     }
+    QPointF canonicalScreenForTest(const QPointF &sourceMm) const {return pixel(sourceMm);}
+    int canonicalHitForTest(const QPointF &screenPx) const {
+        return canonicalIndexAt(screenPx);
+    }
     int primitiveCount() const {
         return static_cast<int>(canonical_.glyphs.size()+tracks_.size()+vias_.size()+pads_.size()+arcs_.size()+
                                 outlineEdges_.size()+circles_.size()+boundaries_.size()+pours_.size()+copper_.size());
