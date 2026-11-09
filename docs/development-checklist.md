@@ -1096,6 +1096,13 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 - [ ] **D_056_06 후속 독립 code-main `event=push` 및 문서-main Push 감사** — 코드 PR 결과와 별개이다. 현재 연결된 GitHub Actions 조회에서 exact code-main SHA의 `event=push` 결과가 발견되지 않아 **NOT_VERIFIED**. Push 성공을 추정해 기입하지 말며, 문서-only PR/Push와 혼동하지 않는다.
 - [ ] **제조·전체 PCB·SI 제품 인수** — D_056_06 대상 아님. 실제 CAM Thermal 생성·Plane Fill·Plating/Barrel 도통·전자적 전역 Open/Short·다중 포맷 CAD·RLGC/S 파라미터와 실물 측정은 **NOT_VERIFIED**. [#530](https://github.com/july-rust/BoardSI/issues/530)은 D_056_07의 Slot/NPTH/Backdrill/Microvia 때문에 **OPEN**, 상위 #520 역시 **OPEN**.
 
+<a id="d_056_07"></a>
+### D_056_07 — PADS 제조 Slot/NPTH/Backdrill/Microvia SOURCE 확인 (2026-11-09 KST)
+
+- [ ] **D_056_07 전체 인수 미완료:** [제조 Source Issue #530](https://github.com/july-rust/BoardSI/issues/530) 및 [부모 #520](https://github.com/july-rust/BoardSI/issues/520)은 **OPEN**. [코드 PR #555](https://github.com/july-rust/BoardSI/pull/555)와 [검증·미지원 범위 문서](architecture/d056-07-fabrication-source.md)는 **PADS V9.4 PARTDECAL 한정** 라운드 PTH/NPTH 및 슬롯 Source 선언 스캐너, Source SHA-256/행 추적, Exact Rational 단위 변환, 2/4/6/8/64 층수/부분 Span 검증과 Canonical 제조 의도 모델을 제공한다. 이것은 **범용 SOURCE·PCB 제조 기능의 최종 인수 아님**. 구현·검증 증거는 위 PR의 **정확한 최종 HEAD/Checks/Verified Squash 및 독립 main Push**로 따로 감사하고 확인 전 성공을 주장하지 않는다.
+- [ ] **필수 후속 구현/증거 미확보:** PADS 네이티브 VIA/ROUTE Slot/NPTH, Backdrill 및 Stacked/Staggered Microvia의 공개 검증된 Native Source 문법·실제 벤더 Export Fixture, 부품 위치에 결합된 Hole/Copper Boolean, 완전한 Versioned IPC, 메인 Qt CPU/RHI Picking/Geometry 통합, Backdrill 제거 Barrel에 따른 SOURCE Scope Graph 연결 결과, 전역 제조 Open/Short, Si Solver는 **UNSUPPORTED 또는 NOT_VERIFIED**. PARTDECAL 문법의 N/P·Slot 필드를 VIA 행으로 잘못 승격하지 않으며 제조 공정 미확인 자료에서 Barrel 연결 Edge를 생성하지 않는다. 기존 D_056_04~06의 V1/V2, Legacy Qt 경로 및 회귀 보존을 필수로 한다.
+- [ ] **검증 원장** · 최초 작성일/근거일: **2026-11-09 KST**. [원본 Mentor PADS V9.4 ASCII 명세](https://www.freecalypso.org/pub/CAD/PADS/pdfdocs/Ppcb_ASCII.pdf) Part Decal / Via Definition 절을 구분해 참고한다. 코드 PR #555의 Native 플랫폼 PASS·리뷰·main Push 상태는 최종 확인 후에만 갱신한다. 공식 진행률 집계에서 D_056_07은 **미완료**.
+
 **D_056_01~12 후속 추적 (아래 표는 계획·상태 색인이며 별도 체크 항목/진행률 집계가 아님):**
 
 | 개발 단계 | 기능별 작업 | 이슈 및 완료 관문 |
@@ -1106,7 +1113,7 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 | D_056_04 | Canonical Layer별 Padstack / Rust→Qt V1 IPC (SOURCE 한정) | 코드 PR #549 보호 Verified Squash; 36/36 PR Checks PASS; 층별 Pad/Drill/Source SHA / Fail-Closed 한정 인수. 메인 GUI/취소 검증은 D_056_05 #531 |
 | D_056_05 | Qt CPU/RHI / Legacy V1~V14 통합 | [코드 PR #551](https://github.com/july-rust/BoardSI/pull/551) 35/35 Checks · 11/11 PR Workflow, Qt Linux 81/81 CTest 및 4플랫폼 Native PASS; **정확한 code-main Push 8/8 SUCCESS**; docs-only PR #552 및 Push 검증 후 #531 종료 |
 | D_056_06 | 공식 PADS RT/ST Thermal Spokes + Canonical V2·Qt 메인 UI | [PR #553](https://github.com/july-rust/BoardSI/pull/553) 12/12 CI, 4플랫폼 Native PASS, 3개 리뷰 결함 수정, code-main `e034335b` Squash; 독립 code-main Push **NOT_VERIFIED**, 제조 도통·전역 Open/Short/SI 별도 |
-| D_056_07 | PADS Slot/NPTH/Backdrill/Microvia 제조 구조 | #530; 근거 없는 형식은 UNSUPPORTED |
+| D_056_07 | PARTDECAL 한정 PTH/NPTH/Slot SOURCE 스캐너·Canonical 제조 의도 모델; Backdrill/Microvia 제조 문법 미확인 | [PR #555](https://github.com/july-rust/BoardSI/pull/555), #530; **전체 미인수**, Native VIA/ROUTE 문법·Qt IPC/Graph 미지원 |
 | D_056_08 | ODB++ Source Adapter | #532; 네이티브 형식 검증 |
 | D_056_09 | IPC-2581 Source Adapter | #532; 네이티브 형식 검증 |
 | D_056_10 | KiCad PCB Source Adapter | #532; 네이티브 형식 검증 |
