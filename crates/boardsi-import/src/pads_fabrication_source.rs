@@ -474,10 +474,7 @@ mod tests {
     fn malformed_markers_cannot_hide_subsequent_holes() {
         let baseline = String::from_utf8(fixture("-2 40 R 20 N")).unwrap();
         for line in ["*REMARK*oops", "*BOGUS*", "*PARTTYPE*trailing"] {
-            let candidate = baseline.replace(
-                "*PARTDECAL*\n",
-                &format!("*PARTDECAL*\n{line}\n"),
-            );
+            let candidate = baseline.replace("*PARTDECAL*\n", &format!("*PARTDECAL*\n{line}\n"));
             assert!(
                 scan_pads_v94_part_decal_drills(candidate.as_bytes()).is_err(),
                 "{line}"
