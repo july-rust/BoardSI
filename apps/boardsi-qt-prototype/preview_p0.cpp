@@ -4422,6 +4422,65 @@ static int runC023CorridorSelftest(const QString &importer) {
 }
 
 
+// D_056_05 actual native RHI scene-model and source-shape picking acceptance.
+// A headless CI model test does not certify a physical GPU adapter or pixels.
+static int runD05605RhiModelSmoke() {
+#ifdef BOARDSI_RHI_ARTWORK
+    auto key=[](QByteArray bytes) {
+        bytes.append('\0');
+        return QString::fromLatin1(bytes.toHex());
+    };
+    const QString sha(64,QLatin1Char('a'));
+    const QString frame=key("frame"),stack=key("stack"),drill=key("drill");
+    d056ipc::Source src;src.sha=sha;
+    src.frames.push_back(d056ipc::Frame{frame,"PADS tick",
+        "127:500000000","0:1","0:1",0,false,false});
+    for(int i=1;i<=4;++i) {
+        src.layerIds.push_back(key("layer-"+QByteArray::number(i)));
+        src.layerOrders.push_back(i-1);
+    }
+    d056ipc::Stack pads;pads.id=stack;
+    pads.pads.push_back(d056ipc::Pad{1,"CONDUCTIVE","ANNULUS",
+        "127:85000","127:170000"});
+    pads.pads.push_back(d056ipc::Pad{2,"ANTIPAD","CIRCLE",
+        "127:50000","0:1"});
+    pads.pads.push_back(d056ipc::Pad{4,"CONDUCTIVE","RECT",
+        "127:100000","127:125000"});
+    src.stacks.push_back(pads);
+    src.drills.push_back(d056ipc::Drill{drill,"127:500000",1,4,true});
+    src.vias.push_back(d056ipc::Via{key("via"),stack,drill,"-",frame,
+        "THROUGH",1000,2000,1,4});
+    d05605::Model model;
+    if(!d05605::make(src,sha,model) || model.glyphs.size()!=3)
+        return 1;
+    BoardSiRhiItem item;
+    item.setWidth(800); item.setHeight(600);
+    item.loadCanonical(model);
+    if(item.primitiveCount()!=3 || item.sourceGeneration()==0)
+        return 1;
+    const QPointF centre(0.254,-0.508);
+    const QPointF hole=item.canonicalScreenForTest(centre);
+    const QPointF ring=item.canonicalScreenForTest(centre+QPointF(0.5,0.0));
+    if(item.canonicalHitForTest(hole)!=-1 ||
+       item.canonicalHitForTest(ring)!=2)
+        return 1; // Topmost visible conductive Rect, never an Antipad.
+    QVector<bool> layerMask(5,false);
+    layerMask[1]=true;
+    item.filter(layerMask,"All nets");
+    if(item.canonicalHitForTest(hole)!=-1 ||
+       item.canonicalHitForTest(ring)!=0)
+        return 1; // L1 annulus only; physical L2 AntiPad remains nonselectable.
+    layerMask.fill(false);
+    layerMask[2]=true;
+    item.filter(layerMask,"All nets");
+    if(item.canonicalHitForTest(ring)!=-1)return 1;
+    item.load(0,{}, {}, {});
+    if(item.primitiveCount()!=0)return 1; // Legacy scene reset discards stale Canonical.
+    qInfo("D05605_RHI_SOURCE_LAYER_MODEL_PASS; PHYSICAL_GPU_NOT_VERIFIED");
+#endif
+    return 0;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
@@ -4488,6 +4547,8 @@ int main(int argc, char **argv) {
         return runB001StackupSelftest();
     if (args.size() == 2 && args.at(1) == "--explorer-selftest")
         return runA020ExplorerSmoke();
+    if (args.size() == 2 && args.at(1) == "--d05605-rhi-model-selftest")
+        return runD05605RhiModelSmoke();
     if (args.size() == 2 && args.at(1) == "--rhi-geometry-selftest")
         return runRhiGeometrySmoke();
     if (args.size() == 2 && args.at(1) == "--rhi-scale-selftest")
