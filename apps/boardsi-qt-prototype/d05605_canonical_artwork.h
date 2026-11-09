@@ -5,6 +5,7 @@
 #include <QColor>
 #include <QHash>
 #include <QPainterPath>
+#include <QPolygonF>
 #include <QRectF>
 #include <QString>
 #include <QVector>
