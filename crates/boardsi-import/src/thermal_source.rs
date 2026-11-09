@@ -58,7 +58,7 @@ pub fn parse_thermal_row(row: &str) -> Result<Option<ThermalPad>, &'static str> 
     let layer = w[0]
         .parse::<i64>()
         .map_err(|_| "D05606_INVALID_THERMAL_LAYER")?;
-    if !matches!(layer, -2 | -1 | 0 | 1..=64) {
+    if !matches!(layer, -2..=64) {
         return Err("D05606_INVALID_THERMAL_LAYER");
     }
     // The V9.4 VIA grammar specifies integer-degree spoke orientation.
@@ -96,7 +96,7 @@ impl ThermalPad {
             || self.spoke_width_ticks > self.size_ticks
             || !(1..=MAX_SPOKES).contains(&self.spoke_count)
             || self.first_spoke_degrees >= 360
-            || !matches!(self.layer_selector, -2 | -1 | 0 | 1..=64)
+            || !matches!(self.layer_selector, -2..=64)
         {
             return Err("D05606_INVALID_THERMAL_DIMENSIONS");
         }
