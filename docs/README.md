@@ -39,7 +39,7 @@
 - **[D_056 범용 PCB 입력 및 Via Span 정규화 계약](architecture/input-normalization.md)** — 제한 PADS Source 기반 부분 비아·형상 구현과 메인 Qt·전체 Connectivity의 미완료 경계를 설명합니다.
 - **[D_056_01 구현 감사 및 공통 Source Evidence 계약](architecture/d056-01-source-evidence-audit.md)** — 실제 코드 경로, 하드코딩 분류, 전기적 증거 수준과 D_056_02–12 인수 Gate를 연결합니다.
 - **[D_056_02 Source 증거 기반 다층 Copper 후보 Graph](architecture/d056-02-source-layer-graph.md)** — 각 층의 실제 Via Pad·Trace 후보와 Source SHA를 기록하며 Barrel 도금·전체 Open/Short는 미검증으로 유지합니다.
-- **[D_056_03 Source-scope Electrical Graph Qualification](architecture/d056-03-electrical-graph-qualification.md)** — Open 후보·Net 충돌 경로·Connected Components·Cut-Set과 명시적 Barrel Process 증거를 검증합니다. PR #540으로 일부 원본 COPCLS/COPCIR Copper와 Cutout의 양성 접촉 후보를 추가하고, PR #542로 ViaPad–ViaPad·ViaPad–SMD·SMD–SMD 직접 접촉, PR #543으로 임의 각도 직선 Trace–Copper의 중간 경계 교차 탐색을 확장했습니다. **전체 Copper 접촉 포괄성·실물 제조 도통·SI는 미인수**입니다.
+- **[D_056_03 Source-scope Electrical Graph Qualification](architecture/d056-03-electrical-graph-qualification.md)** — Open 후보·Net 충돌 경로·Connected Components·Cut-Set과 명시적 Barrel Process 증거를 검증합니다. PR #540으로 일부 원본 COPCLS/COPCIR Copper와 Cutout의 양성 접촉 후보를 추가하고, PR #542로 ViaPad–ViaPad·ViaPad–SMD·SMD–SMD 직접 접촉, PR #543으로 임의 각도 직선 Trace–Copper의 중간 경계 교차 탐색을 확장했고, PR #547로 비중심·홀수 폭 SMD Pad–COPPER와 Polygon–Polygon 경계 교차, 원본 PADS SOURCE 재입력 검증을 추가했습니다. **지원 PADS SOURCE 범위의 전기 설계 Graph 소프트웨어 관문 45개 독립 Oracle PASS로 한정 인수**하며, **전체 Copper 접촉 포괄성·실물 제조 도통·SI는 미인수**입니다.
 - **[Trace–Via–SMD Pad의 범용 구리 접촉 설계 계약](architecture/trace-copper-contact.md)** — 비중심 Via·Pad 모서리·원호와 드릴 구멍의 판정 수학, Net/Layer·Fail-Closed 경계를 설명합니다.
 - **[문서 작성 및 검증 표준](documentation-standards.md)** — 증거 SHA, 검증 상태 용어, 역사적 기록 보호 및 문서 전용 CI 규칙입니다.
 
