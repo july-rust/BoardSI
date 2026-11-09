@@ -261,29 +261,30 @@ fn target_envelope(kind: Target, vias: &[ViaInstance], pads: &[ComponentPad]) ->
     let (c, rx, ry) = match kind {
         Target::Via(i) => {
             let v = &vias[i];
-            (
-                v.point,
-                v.shaped
-                    .as_ref()
-                    .and_then(|via| via.pads.iter().map(|pad| pad.size_ticks).max())
-                    .or_else(|| {
-                        v.topology
-                            .as_ref()
-                            .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
-                    })
-                    .unwrap_or(v.diameter_ticks) as f64
-                    / 2.0,
-                v.shaped
-                    .as_ref()
-                    .and_then(|via| via.pads.iter().map(|pad| pad.size_ticks).max())
-                    .or_else(|| {
-                        v.topology
-                            .as_ref()
-                            .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
-                    })
-                    .unwrap_or(v.diameter_ticks) as f64
-                    / 2.0,
-            )
+            // Broadphase must enclose the whole SOURCE copper, not only the
+            // central land of an RT/ST thermal. It may overapproximate but
+            // must never drop a real spoke-contact candidate.
+            let diameter = v
+                .shaped
+                .as_ref()
+                .and_then(|via| {
+                    via.pads
+                        .iter()
+                        .map(|pad| match pad.shape {
+                            ViaLayerShape::Thermal { outer_size_ticks, .. } => {
+                                outer_size_ticks
+                            }
+                            _ => pad.size_ticks,
+                        })
+                        .max()
+                })
+                .or_else(|| {
+                    v.topology
+                        .as_ref()
+                        .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
+                })
+                .unwrap_or(v.diameter_ticks);
+            (v.point, diameter as f64 / 2.0, diameter as f64 / 2.0)
         }
         Target::SmdPad(i) => {
             let p = &pads[i];
