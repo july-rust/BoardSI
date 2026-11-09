@@ -48,6 +48,7 @@ jobs:
           rustup toolchain install 1.75.0 --profile minimal
           cargo +1.75.0 build --locked -p boardsi-worker
           cargo +1.75.0 build --locked -p boardsi-import --bin boardsi-import-artwork
+          cargo +1.75.0 build --locked -p boardsi-import --bin boardsi-import-canonical-padstack
           cargo +1.75.0 build --locked -p boardsi-import --bin boardsi-d006-via-three-area
           cargo +1.75.0 build --locked -p boardsi-worker --bin boardsi-stackup-config
           mkdir -p build-qt
@@ -58,7 +59,7 @@ jobs:
           "$QT_PREFIX/bin/qmake" -query QT_VERSION
           cmake --version
           g++ --version
-          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DCMAKE_BUILD_TYPE=Release -DBOARDSI_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork"
+          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DCMAKE_BUILD_TYPE=Release -DBOARDSI_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork" -DBOARDSI_CANONICAL_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-canonical-padstack"
           cmake --build build-qt --parallel 2
       - name: Run real QApplication and independent Worker
         env:
@@ -134,6 +135,7 @@ jobs:
           rustc -vV
           cargo build --locked -p boardsi-worker
           cargo build --locked -p boardsi-import --bin boardsi-import-artwork
+          cargo build --locked -p boardsi-import --bin boardsi-import-canonical-padstack
           cargo build --locked -p boardsi-import --bin boardsi-d006-via-three-area
           cargo build --locked -p boardsi-worker --bin boardsi-stackup-config
           mkdir -p build-qt
@@ -153,7 +155,7 @@ jobs:
             'if errorlevel 1 exit /b 1',
             'where cl',
             'cmake --version',
-            "cmake -S apps/boardsi-qt-prototype -B build-qt -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=`"$env:QT_PREFIX`" $hostArg -DBOARDSI_WORKER=`"$env:GITHUB_WORKSPACE/target/debug/boardsi-worker.exe`" -DBOARDSI_IMPORTER=`"$env:GITHUB_WORKSPACE/target/debug/boardsi-import-artwork.exe`"",
+            "cmake -S apps/boardsi-qt-prototype -B build-qt -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=`"$env:QT_PREFIX`" $hostArg -DBOARDSI_WORKER=`"$env:GITHUB_WORKSPACE/target/debug/boardsi-worker.exe`" -DBOARDSI_IMPORTER=`"$env:GITHUB_WORKSPACE/target/debug/boardsi-import-artwork.exe`" -DBOARDSI_CANONICAL_IMPORTER=`"$env:GITHUB_WORKSPACE/target/debug/boardsi-import-canonical-padstack.exe`"",
             'if errorlevel 1 exit /b 1',
             'cmake --build build-qt --parallel 2',
             'if errorlevel 1 exit /b 1'
@@ -169,6 +171,14 @@ jobs:
           cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DBOARDSI_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork"
           cmake --build build-qt --parallel 2
           file build-qt/boardsi-qt-runtime-validation target/debug/boardsi-worker
+      - name: D_056_04 native Qt Canonical IPC source SHA roundtrip
+        shell: bash
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-d05604-canonical-ipc-test$suffix --selftest
+          ./boardsi-d05604-canonical-ipc-test$suffix --source "$GITHUB_WORKSPACE/target/debug/boardsi-import-canonical-padstack$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc"
       - name: D_019 native Qt source-bound oblique T qualification
         shell: bash
         run: |
