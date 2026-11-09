@@ -2,6 +2,8 @@
 #include "d056_canonical_ipc.h"
 #include <QCoreApplication>
 #include <QDebug>
+#include <QFile>
+#include <QProcess>
 #include <tuple>
 
 static QByteArray key(const QByteArray &s) {
@@ -82,8 +84,32 @@ static bool run() {
     }
     return true;
 }
+static bool sourceRoundtrip(const QString &binary, const QString &path) {
+    QFile source(path);
+    if (!source.open(QIODevice::ReadOnly)) return false;
+    const QByteArray sourceBytes = source.readAll();
+    const QString sha = QString::fromLatin1(
+        QCryptographicHash::hash(sourceBytes, QCryptographicHash::Sha256).toHex());
+    QProcess process;
+    process.setProcessChannelMode(QProcess::SeparateChannels);
+    process.start(binary, {path});
+    if (!process.waitForStarted(10000) || !process.waitForFinished(30000)
+        || process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0)
+        return false;
+    d056ipc::Source parsed;
+    const QByteArray wire = process.readAllStandardOutput();
+    if (!d056ipc::decode(wire, sha, parsed) || parsed.vias.isEmpty()
+        || parsed.format != "PADS_ASC" || parsed.version.isEmpty()
+        || parsed.stacks.isEmpty() || parsed.drills.isEmpty()) return false;
+    d056ipc::Source stale;
+    return !d056ipc::decode(wire, QString(64, QLatin1Char('b')), stale)
+        && stale.vias.isEmpty();
+}
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    if (app.arguments().size() == 4 && app.arguments().at(1) == "--source") {
+        return sourceRoundtrip(app.arguments().at(2), app.arguments().at(3)) ? 0 : 1;
+    }
     if (app.arguments().size() != 2 || app.arguments().at(1) != "--selftest")
         return 2;
     if (!run()) {
