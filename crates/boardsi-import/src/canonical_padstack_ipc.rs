@@ -329,6 +329,23 @@ pub fn encode_pads_source(bytes: &[u8]) -> Result<Vec<u8>, &'static str> {
     if bytes.len() > crate::route_preview::MAX_FILE_BYTES {
         return Err("D05604_SOURCE_LIMIT");
     }
+    // D_056_07: Canonical V1/V2 encodes via drill circles only. It cannot
+    // represent a PARTDECAL NPTH/PTH/slot without a physical placement and
+    // independent manufacturing depth. Never turn a source-positive drill
+    // into an apparently complete hole-free canonical board/Qt view.
+    // The scanner is strictly scoped to the independently documented round
+    // PARTDECAL subset. Other unsupported shapes retain the pre-existing
+    // importer fail-closed policy (do not blanket-reject legacy RF/SMD).
+    if bytes
+        .windows(b"*PARTDECAL*".len())
+        .any(|w| w == b"*PARTDECAL*")
+    {
+        if let Ok(drills) = crate::pads_fabrication_source::scan_pads_v94_part_decal_drills(bytes) {
+            if !drills.is_empty() {
+                return Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC");
+            }
+        }
+    }
     let parsed = crate::route_preview::parse_generalized(bytes)?;
     if parsed.skipped != 0 {
         return Err("D05604_SOURCE_COVERAGE_PARTIAL");
@@ -347,6 +364,35 @@ pub fn encode_pads_source(bytes: &[u8]) -> Result<Vec<u8>, &'static str> {
 mod tests {
     use super::*;
     const SAMPLE: &[u8] = include_bytes!("../tests/fixtures/pads_via_round_through_v94.asc");
+    #[test]
+    fn source_declared_part_decal_npth_or_slot_cannot_be_dropped_from_v1_v2() {
+        let template = "!PADS-POWERPCB-V9.4-MILS!\n*PCB*\nMAXLAYER 4\n*PARTDECAL*\nD7 I 1000 1000 0 1 1 0 0\nT0 0 0 0 1\nPAD 0 3\n-2 40 R 20 N\n-1 0 R 0\n0 0 R 0\n*END*\n";
+        assert_eq!(
+            encode_pads_source(template.as_bytes()),
+            Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC")
+        );
+        let slot = template.replace("-2 40 R 20 N", "-2 40 R 20 N 45 65 0");
+        assert_eq!(
+            encode_pads_source(slot.as_bytes()),
+            Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC")
+        );
+        let pth = template.replace("-2 40 R 20 N", "-2 40 R 20 P");
+        assert_eq!(
+            encode_pads_source(pth.as_bytes()),
+            Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC")
+        );
+        let pth_implicit = template.replace("-2 40 R 20 N", "-2 40 R 20");
+        assert_eq!(
+            encode_pads_source(pth_implicit.as_bytes()),
+            Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC")
+        );
+        let plated_slot_implicit = template.replace("-2 40 R 20 N", "-2 40 R 20 45 65 0");
+        assert_eq!(
+            encode_pads_source(plated_slot_implicit.as_bytes()),
+            Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC")
+        );
+    }
+
     #[test]
     fn source_rt_st_preserves_layer_evidence_on_v2_wire() {
         let source = include_bytes!("../tests/fixtures/pads_via_rt_st_thermal_v94.asc");
