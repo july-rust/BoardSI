@@ -59,6 +59,10 @@ The official [PADS Layout ASCII Format Specification 9.4, Via Definition pp. 39�
 - Final PR HEAD `2f65d08321d183f4a446163f7b05705d5b5fb7f9`: **38/38 GitHub Checks SUCCESS, 13/13 workflow groups SUCCESS**, automatic code review completed with no findings, no unresolved inline review threads. Verified one-parent protected squash main `7e10d7ba07d6c9e0f959eb3e2e4be570af6dd88b`. Post-merge `main` checks run separately and are not yet certified here.
 - The verified scope is a **synthetic, restricted PADS V9.4 source format subset only**; no manufacturer-file, thermal-spoke, actual metallization, whole-board connectivity, production GUI or physical SI certification is implied.
 
+## D_056_04 — accepted opt-in Canonical Padstack/Via IPC (2026-11-09 KST)
+
+[Design and test record](d056-04-canonical-padstack-ipc.md) · [Code PR #549](https://github.com/july-rust/BoardSI/pull/549) · protected one-parent Verified Squash [main 6eb35680](https://github.com/july-rust/BoardSI/commit/6eb35680a6e7775f62cd0fd763b559955810e7d6). New opt-in Rust source SHA-bound V1 encoder and strict Qt parser preserve exact Rational physical layer pad shapes/roles, Drill Span, typed Source/ID references and anti-pad/annulus geometry. Final HEAD `5170669e0e71c3722bc225a35b65a2c44f2fdc13` had 36/36 PR checks PASS. The D_056_04 contract is distinct from the original Qt Artwork V1–V14; **main Qt CPU/RHI integration, unsupported Custom and thermal/slot/other-CAD native grammars, manufactured barrel evidence, whole-board electrical SI remain outside acceptance**. The independent code-main Push and documentation CI are tracked in the sole checklist.
+
 ## Still NOT IMPLEMENTED / NOT VERIFIED
 
 - PADS **full** VIA grammar and actual vendor export acceptance: **RT/ST thermal spokes** and other unsupported shapes/constructs, backdrill, stacked/staggered physical geometry, source-proven microvia manufacturing class. PR #526 implements a restricted **R/S/A copper and RA/SA anti-pad source subset**, not the full format.
