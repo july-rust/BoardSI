@@ -743,6 +743,12 @@ public:
                 }
                 refresh();
             });
+            rhi_->onCanonicalHovered([this](int index) {
+                if(!canonicalMode_ || !detailsCallback_)return;
+                if(index>=0 && index<static_cast<int>(canonical_.size()))
+                    detailsCallback_(canonical_[static_cast<size_t>(index)].second.details);
+                else refresh(); // Restore main source summary when hover exits.
+            });
             rhi_->onPicked([this](int kind,int index) {
                 if (kind == 1) selectVia(index);
                 else if (kind == 2) selectPad(index);
