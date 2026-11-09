@@ -57,8 +57,7 @@ impl FabricationHoleShape {
                 if !width_m.positive()
                     || !declared_length_m.positive()
                     || *orientation_millidegrees >= 180_000
-                    || declared_length_m.checked_cmp(*width_m)?
-                        == std::cmp::Ordering::Less
+                    || declared_length_m.checked_cmp(*width_m)? == std::cmp::Ordering::Less
                 {
                     return Err(ModelError::InvalidGeometry);
                 }
@@ -234,7 +233,11 @@ mod tests {
             offset_along_axis_m: Rational::new(-1, 100_000).unwrap(),
         };
         h.validate(8).unwrap();
-        if let FabricationHoleShape::Slot { ref mut orientation_millidegrees, .. } = h.shape {
+        if let FabricationHoleShape::Slot {
+            ref mut orientation_millidegrees,
+            ..
+        } = h.shape
+        {
             *orientation_millidegrees = 180_000;
         }
         assert!(h.validate(8).is_err());
