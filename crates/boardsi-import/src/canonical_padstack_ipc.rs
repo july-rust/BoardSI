@@ -400,7 +400,10 @@ mod tests {
     #[test]
     fn legacy_ipc_fails_closed_on_unsupported_decal_geometry() {
         let template = "!PADS-POWERPCB-V9.4-MILS!\n*PCB*\nMAXLAYER 4\n*PARTDECAL*\nD7 I 1000 1000 0 1 1 0 0\nT0 0 0 0 1\nPAD 0 3\n-2 40 R 0\n-1 0 R 0\n0 0 R 0\n*END*\n";
-        assert_eq!(require_legacy_fabrication_coverage(template.as_bytes()), Ok(()));
+        assert_eq!(
+            require_legacy_fabrication_coverage(template.as_bytes()),
+            Ok(())
+        );
         for mutated in [
             template.replace("-2 40 R 0", "-2 40 S 20 N"),
             template.replace("-2 40 R 0", "-2 40 R 20 BAD"),
