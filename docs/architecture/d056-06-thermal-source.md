@@ -15,7 +15,8 @@ SOURCE VIA pad row: `level size RT|ST spokeori outsize spokewidth spokenum`.
 - `outsize` is the thermal envelope/plane-void width, **not** a conductive solid copper disk. `size` is central land diameter or square width, `spokewidth` is each conductive radial spoke width.
 - Vendor example: `-2 60 RT 45 84 15 4`. V9.4 PADS MILS parser preserves exact hundredth-mil source grid and SHA.
 - PADS relative `-2/-1/0` selectors map to actual physical drill span; no fixed 4L assumptions. RT/ST shapes on missing levels are not manufactured.
-- Actual metal plating, plane fill, CAM thermal generation and barrel contact depend on separate source/process evidence. The PADS ROUTE `THERMAL` flag alone does not prove thermal spokes exist in a manufactured pour.
+- Route Placement Format (same vendor specification, pp. 51–54): `x y layer segwidth FLAG [ARCDIR/vianame][THERMAL]`. A placed RT/ST via must contain an explicit `THERMAL` keyword in the currently accepted source subset; if omitted, CAM thermal generation is disabled and the importer fails closed instead of fabricating spokes. The documented plane-thermal flag 0x0100 is retained as a permitted route flag. Presence of THERMAL alone does **not** prove a real thermal was generated (plane/net/process may prevent it).
+- Actual metal plating, plane fill, CAM thermal generation and barrel contact depend on separate source/process evidence. Thus a model's Thermal spoke remains a **SOURCE geometry candidate**, not manufactured proof.
 
 ## Implemented interfaces (candidate)
 
