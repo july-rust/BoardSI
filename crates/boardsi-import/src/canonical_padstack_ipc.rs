@@ -317,6 +317,14 @@ mod tests {
     #[test]
     fn source_rt_st_preserves_layer_evidence_on_v2_wire() {
         let source = include_bytes!("../tests/fixtures/pads_via_rt_st_thermal_v94.asc");
+        // PADS p.54: without the explicit ROUTE THERMAL marker CAM
+        // thermal generation is disabled. Never invent conductive spokes.
+        let disabled = std::str::from_utf8(source).unwrap()
+            .replace("THERM_V THERMAL", "THERM_V");
+        assert_eq!(
+            crate::route_preview::parse_generalized(disabled.as_bytes()).unwrap_err(),
+            "D05606_THERMAL_ROUTE_FLAG_MISSING"
+        );
         let parsed = crate::route_preview::parse_generalized(source).unwrap();
         assert_eq!(parsed.skipped, 0);
         assert_eq!(parsed.vias.len(), 1);
