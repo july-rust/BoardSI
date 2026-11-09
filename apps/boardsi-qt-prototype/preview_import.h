@@ -846,6 +846,10 @@ public:
     QString importStatus() const { return status_; }
     int importedLayerCount() const { return importedLayerCount_; }
     QByteArray acceptedSourceSha256() const { return acceptedDigest_; }
+    QString canonicalAcceptedPath() const {
+        return imported_->canonicalMode() && acceptedDigest_.size()==64
+            ? canonicalPath_ : QString();
+    }
     QJsonArray importedCopperEvidence() const { return importedCopperEvidence_; }
     QJsonArray importedNetLabels() const { return importedNetLabels_; }
     bool importedNetInventoryComplete() const { return importedNetInventoryComplete_; }
