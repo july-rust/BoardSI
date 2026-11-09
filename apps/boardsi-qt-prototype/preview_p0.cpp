@@ -4502,7 +4502,7 @@ static int runD05605RhiModelSmoke() {
 // D_056_05: actual top-level Properties panel must acknowledge a Canonical
 // source import, never report NOTHING IMPORTED after a verified source load.
 static int runD05605PropertiesSmoke(const QString &binary,const QString &source) {
-    PreviewWindow window(QString());
+    PreviewWindow window{QString()};
     auto *panel=window.importPanel();
     panel->setCanonicalImporterBinaryForTest(binary);
     if(!panel->openCanonicalPath(source))return 1;
@@ -4514,7 +4514,7 @@ static int runD05605PropertiesSmoke(const QString &binary,const QString &source)
         timedOut=true;loop.quit();
     });
     QObject::connect(&poll,&QTimer::timeout,&loop,[&] {
-        if(!panel->busy())loop.quit();
+        if(!panel->busy() && !panel->importStatus().startsWith("RUNNING"))loop.quit();
     });
     poll.start(25);deadline.start(45000);loop.exec();
     if(timedOut ||
