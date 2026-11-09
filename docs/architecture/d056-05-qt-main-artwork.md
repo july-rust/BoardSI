@@ -1,6 +1,6 @@
 # D_056_05 — Main Qt CPU/RHI Canonical Multilayer Via Artwork
 
-**First implementation:** 2026-11-09 KST · **Code merge:** ACCEPTED (bounded SOURCE/Qt software scope) · **Code-main event=push:** pending independent final results · **Full D_056 and product SI:** OPEN / NOT_VERIFIED.  
+**First implementation:** 2026-11-09 KST · **Code merge & code-main Push:** ACCEPTED (bounded SOURCE/Qt software scope; independent exact SHA verified) · **Docs-only PR & docs-main Push:** pending · **Full D_056 and product SI:** OPEN / NOT_VERIFIED.  
 **Related:** parent [Issue #520](https://github.com/july-rust/BoardSI/issues/520), Qt artwork [Issue #531](https://github.com/july-rust/BoardSI/issues/531), code [PR #551](https://github.com/july-rust/BoardSI/pull/551), upstream [D_056_04 IPC contract](d056-04-canonical-padstack-ipc.md), [single official checklist](../development-checklist.md#d_056_05).
 
 ## Evidence ledger — code acceptance, not physical PCB certification
@@ -12,8 +12,8 @@
 | Independent GUI/IPC regression | Linux Qt **81/81 CTest PASS**, with `qt-d05605-main-canonical-artwork`, `qt-d05605-main-rust-canonical-roundtrip`, and `qt-d05605-main-properties-accepted-canonical` PASS. Native RHI source-layer hole/picking smoke also wired on Quick-enabled builds; real hardware pixel parity is not established by model/offscreen tests |
 | Security and other regressions | CodeQL and Rust/Qt/numerical/FEM/F6/F7 required PR workflows PASS. Exact code HEAD review identified **four P2 findings** in earlier heads (draw-order/picking, source Properties, CPU inner-hole pen, importer deployment), with code fixes and **0 unresolved review threads**; this is **not** a claim of a fresh completed Codex review on the final HEAD |
 | Protected code merge | [Verified single-parent Squash `6103a1b6d6f1068b548f4cbb13d7c9cfff6544dd`](https://github.com/july-rust/BoardSI/commit/6103a1b6d6f1068b548f4cbb13d7c9cfff6544dd), GitHub REST `verification.verified=true/reason=valid`, parent `31dd4f27b5bd5e6f3621d0560d7195bfcc83d940`, matched `main` immediately after merge |
-| Independent code-main Push | **PENDING:** record only once all 8 `event=push` workflows at exact code-main SHA complete SUCCESS (separate from code PR checks) |
-| Docs-only ledger merge/Push | **PENDING:** distinct docs PR, no unnecessary native platform runners; report actual results without treating docs as product proof |
+| Independent code-main Push | **8/8 workflows SUCCESS** for exact signed code-main SHA `6103a1b6d6f1068b548f4cbb13d7c9cfff6544dd`, `event=push`, including [Qt #42570405620](https://github.com/july-rust/BoardSI/actions/runs/42570405620) Linux/Windows x64/Windows ARM64/macOS ARM64 all SUCCESS, [Numerical #42570405681](https://github.com/july-rust/BoardSI/actions/runs/42570405681) Native Rust all SUCCESS; six other push workflows SUCCESS. PR-head evidence is NOT substituted for post-merge push |
+| Docs-only ledger merge/Push | **PENDING:** distinct [docs PR #552](https://github.com/july-rust/BoardSI/pull/552) and docs-main event=push CI; no unrelated native platform runners, report actual results without treating docs as product proof |
 
 ## Implemented in the actual main Qt Viewer
 
@@ -39,4 +39,4 @@
 
 ## Tracking rule
 
-Use **only** [`docs/development-checklist.md`](../development-checklist.md) for the official D_056_05 limited acceptance checkbox and exact PR/code-main/docs-main CI evidence. Earlier failures (notably Windows MSVC C4456 on a superseded HEAD) remain historical FAIL, and were fixed then rerun at the final HEAD; never retroactively turn the old run into PASS. The **parent Issue #520** remains OPEN for D_056_06–12 regardless of this limited Qt artwork gate. Only close #531 when the post-code-main Push and separate docs tracking are verifiably complete.
+Use **only** [`docs/development-checklist.md`](../development-checklist.md) for the official D_056_05 limited acceptance checkbox and exact PR/code-main/docs-main CI evidence. Earlier failures (notably Windows MSVC C4456 on a superseded HEAD) remain historical FAIL, and were fixed then rerun at the final HEAD; never retroactively turn the old run into PASS. The **parent Issue #520** remains OPEN for D_056_06–12 regardless of this limited Qt artwork gate. The separate post-code-main Push has now passed 8/8. Close #531 only after docs-only PR #552 and its independent docs-main Push are verified, while parent #520 remains OPEN.
