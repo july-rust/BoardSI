@@ -532,9 +532,7 @@ mod tests {
                 "{bad}"
             );
         }
-        assert!(
-            scan_pads_v94_part_decal_drills(&fixture("-2 40 R 20 N 0 65.25 32.62")).is_ok()
-        );
+        assert!(scan_pads_v94_part_decal_drills(&fixture("-2 40 R 20 N 0 65.25 32.62")).is_ok());
     }
 
     #[test]
