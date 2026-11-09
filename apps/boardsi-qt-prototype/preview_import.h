@@ -6,6 +6,7 @@
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QFile>
+#include <QFileDialog>
 #include <QJsonArray>
 #include <QStringList>
 #include <QFileInfo>
@@ -30,6 +31,12 @@ class PreviewImportPanel final : public QWidget {
     ImportedArtworkPanel *imported_;
     QProcess process_;
     QTimer deadline_;
+    // Separate source SHA-bound Canonical producer. Never reinterpret V1-V14.
+    QProcess canonicalProcess_;
+    QTimer canonicalDeadline_;
+    QByteArray canonicalData_, canonicalDigest_;
+    QString canonicalPath_, canonicalBinary_;
+    bool canonicalCancelled_ = false, canonicalExpired_ = false, canonicalOverflow_ = false;
     QByteArray data_;
     QByteArray errors_; // Small bounded diagnostic (fixed importer error codes only).
     QString binary_;
@@ -59,6 +66,15 @@ class PreviewImportPanel final : public QWidget {
         if (importLabel_) importLabel_->setText(message);
         if (cancelButton_) cancelButton_->setEnabled(message.startsWith("RUNNING"));
         if (callback_) callback_(status_);
+    }
+    void collectCanonical() {
+        while (canonicalProcess_.bytesAvailable()>0) {
+            const qint64 budget=4*1024*1024-canonicalData_.size();
+            if(budget<=0) {canonicalOverflow_=true;canonicalProcess_.kill();return;}
+            const QByteArray chunk=canonicalProcess_.read(qMin<qint64>(budget,65536));
+            if(chunk.isEmpty())break;
+            canonicalData_.append(chunk);
+        }
     }
     void collect() {
         // stdout may arrive in arbitrarily large batches. The cap is cumulative,
@@ -574,6 +590,11 @@ public:
           imported_(new ImportedArtworkPanel(tabs_)) {
         setObjectName("previewImportP2A");
         binary_ = importBinary;
+#ifdef Q_OS_WIN
+        canonicalBinary_ = QCoreApplication::applicationDirPath() + "/boardsi-import-canonical-padstack.exe";
+#else
+        canonicalBinary_ = QCoreApplication::applicationDirPath() + "/boardsi-import-canonical-padstack";
+#endif
         if (binary_.isEmpty()) {
 #ifdef Q_OS_WIN
             binary_ = QCoreApplication::applicationDirPath() + "/boardsi-import-artwork.exe";
@@ -588,9 +609,18 @@ public:
         importLabel_->setWordWrap(true);
         cancelButton_ = new QPushButton("Cancel Import", this);
         cancelButton_->setObjectName("importCancelButton");
+        auto *canonicalButton=new QPushButton("Canonical layer vias",this);
+        canonicalButton->setObjectName("importCanonicalVias");
         cancelButton_->setEnabled(false);
         controls->addWidget(importLabel_, 1);
+        controls->addWidget(canonicalButton);
         controls->addWidget(cancelButton_);
+        connect(canonicalButton,&QPushButton::clicked,this,[this] {
+            QString path=candidatePath_;
+            if(path.isEmpty())path=QFileDialog::getOpenFileName(
+                this,"Import source-verified Canonical vias",QString(),"PADS ASCII (*.asc *.ASC)");
+            if(!path.isEmpty())openCanonicalPath(path);
+        });
         layout->addLayout(controls);
         connect(cancelButton_, &QPushButton::clicked, this, [this] {
             if (process_.state() != QProcess::NotRunning) {
@@ -598,6 +628,13 @@ public:
                 deadline_.stop();
                 process_.kill();
                 status("CANCELLED / no new board imported / SI NOT_RUN");
+            }
+            if (canonicalProcess_.state() != QProcess::NotRunning) {
+                canonicalCancelled_=true;
+                canonicalDeadline_.stop();
+                canonicalProcess_.kill();
+                imported_->clearArtwork();
+                status("CANCELLED / Canonical source discarded / SI NOT_RUN");
             }
         });
         tabs_->addTab(synthetic_, "Synthetic Fixture");
@@ -753,6 +790,54 @@ public:
             expired_ = true;
             if (process_.state() != QProcess::NotRunning) process_.kill();
         });
+        canonicalProcess_.setProcessChannelMode(QProcess::SeparateChannels);
+        canonicalDeadline_.setSingleShot(true);
+        connect(&canonicalProcess_,&QProcess::readyReadStandardOutput,
+                this,[this] {collectCanonical();});
+        connect(&canonicalDeadline_,&QTimer::timeout,this,[this] {
+            canonicalExpired_=true;
+            canonicalProcess_.kill();
+        });
+        connect(&canonicalProcess_,&QProcess::finished,this,
+                [this](int code,QProcess::ExitStatus exitStatus) {
+            canonicalDeadline_.stop();
+            collectCanonical();
+            canonicalProcess_.readAllStandardError(); // Diagnostics are NOT wire records.
+            if(canonicalCancelled_)return;
+            if(canonicalExpired_ || canonicalOverflow_ || code!=0 ||
+               exitStatus!=QProcess::NormalExit) {
+                status("FAILED / CANONICAL_IMPORT_PROCESS / NOTHING IMPORTED / SI NOT_RUN");
+                return;
+            }
+            if(sourceDigest(canonicalPath_)!=canonicalDigest_) {
+                status("FAILED / CANONICAL_SOURCE_CHANGED / NOTHING IMPORTED");
+                return;
+            }
+            d056ipc::Source parsed;
+            if(!d056ipc::decode(canonicalData_,
+                QString::fromLatin1(canonicalDigest_),parsed) ||
+               !imported_->loadCanonical(parsed,QString::fromLatin1(canonicalDigest_))) {
+                status("FAILED / CANONICAL_GEOMETRY_UNSUPPORTED / NOTHING IMPORTED");
+                return;
+            }
+            importedLayerCount_=parsed.layerIds.size();
+            acceptedDigest_=canonicalDigest_;
+            tabs_->setTabText(1,"Imported Canonical vias (geometry only)");
+            tabs_->setCurrentWidget(imported_);
+            QTimer::singleShot(0,imported_,[this] {
+                if(tabs_->currentWidget()==imported_)imported_->fitArtwork();
+            });
+            status(QString("CANONICAL SOURCE GEOMETRY / %1 layers / %2 vias"
+                " / plating UNVERIFIED / global connectivity UNKNOWN / SI NOT_RUN")
+                .arg(parsed.layerIds.size()).arg(parsed.vias.size()));
+        });
+        connect(&canonicalProcess_,&QProcess::errorOccurred,this,
+                [this](QProcess::ProcessError code) {
+            if(code==QProcess::FailedToStart) {
+                canonicalDeadline_.stop();
+                status("FAILED / CANONICAL_IMPORTER_UNAVAILABLE / NOTHING IMPORTED");
+            }
+        });
     }
     SyntheticArtworkPanel *synthetic() const { return synthetic_; }
     ImportedArtworkPanel *imported() const { return imported_; }
@@ -765,8 +850,41 @@ public:
     QJsonArray importedNetLabels() const { return importedNetLabels_; }
     bool importedNetInventoryComplete() const { return importedNetInventoryComplete_; }
     void setStatusCallback(std::function<void(const QString &)> cb) { callback_ = std::move(cb); }
+    void setCanonicalImporterBinaryForTest(const QString &path) { canonicalBinary_=path; }
+    bool openCanonicalPath(const QString &path) {
+        if(process_.state()!=QProcess::NotRunning ||
+           canonicalProcess_.state()!=QProcess::NotRunning) return false;
+        imported_->clearArtwork();
+        importedLayerCount_=0;
+        acceptedDigest_.clear();
+        importedCopperEvidence_=QJsonArray();
+        importedNetLabels_=QJsonArray();
+        importedNetInventoryComplete_=false;
+        tabs_->setTabText(1,"Imported Canonical (none)");
+        if(!QFileInfo(canonicalBinary_).isAbsolute() ||
+           !QFileInfo(canonicalBinary_).isExecutable()) {
+            status("FAILED / CANONICAL_IMPORTER_UNAVAILABLE / NOTHING IMPORTED");
+            return false;
+        }
+        if(!QFileInfo(path).isFile()) {
+            status("FAILED / FILE_NOT_FOUND / NOTHING IMPORTED");return false;
+        }
+        canonicalPath_=path;
+        candidatePath_=path;
+        canonicalDigest_=sourceDigest(path);
+        if(canonicalDigest_.size()!=64) {
+            status("FAILED / SOURCE_HASH_UNAVAILABLE / NOTHING IMPORTED");return false;
+        }
+        canonicalData_.clear();
+        canonicalCancelled_=false;canonicalExpired_=false;canonicalOverflow_=false;
+        status("RUNNING / Canonical source padstack import / SI NOT_RUN");
+        canonicalDeadline_.start(20000);
+        canonicalProcess_.start(canonicalBinary_,{path});
+        return true;
+    }
     bool openPath(const QString &path) {
-        if (process_.state() != QProcess::NotRunning) return false;
+        if (process_.state() != QProcess::NotRunning ||
+            canonicalProcess_.state() != QProcess::NotRunning) return false;
         // An import attempt replaces the candidate, even when start/parse fails.
         // Never show previous geometry with the current "NOTHING IMPORTED" result.
         imported_->clearArtwork();
@@ -802,6 +920,13 @@ public:
     }
     void stop() {
         if (process_.state() != QProcess::NotRunning) process_.kill();
+        if (canonicalProcess_.state() != QProcess::NotRunning) {
+            canonicalCancelled_=true;
+            canonicalProcess_.kill();
+        }
     }
-    bool busy() const { return process_.state() != QProcess::NotRunning; }
+    bool busy() const {
+        return process_.state() != QProcess::NotRunning ||
+               canonicalProcess_.state() != QProcess::NotRunning;
+    }
 };
