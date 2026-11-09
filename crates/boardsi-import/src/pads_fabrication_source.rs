@@ -235,9 +235,20 @@ pub fn scan_pads_v94_part_decal_drills(
                 // Never allow malformed/unknown section markers to terminate
                 // this decal quietly and hide a later drilled-pad record.
                 const NEXT_SECTIONS: &[&str] = &[
-                    "*PARTTYPE*", "*PART*", "*VIA*", "*ROUTE*", "*LINES*",
-                    "*POUR*", "*COPPER*", "*COPCUT*", "*TEXT*", "*PCB*",
-                    "*NET*", "*SIGNAL*", "*PARTDECAL*", "*END*",
+                    "*PARTTYPE*",
+                    "*PART*",
+                    "*VIA*",
+                    "*ROUTE*",
+                    "*LINES*",
+                    "*POUR*",
+                    "*COPPER*",
+                    "*COPCUT*",
+                    "*TEXT*",
+                    "*PCB*",
+                    "*NET*",
+                    "*SIGNAL*",
+                    "*PARTDECAL*",
+                    "*END*",
                 ];
                 if row != token || !NEXT_SECTIONS.contains(&token) {
                     return Err(ScanError::UnsupportedDecal);
