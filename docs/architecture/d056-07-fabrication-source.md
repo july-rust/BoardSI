@@ -20,7 +20,7 @@ Parent [#520](https://github.com/july-rust/BoardSI/issues/520) · Manufacturing 
 
 - Explicit V9.4 MILS header gate; UTF-8 only; bounded 8 MiB source, 200k lines, 4096-byte line length and 100k records.
 - Strict zero-outline `I` part-decal, `T` terminals, `PAD` count, `-2` top row plus `-1/0` passive rows.
-- **Intentionally restricted round-pad subset**: a positive drill number followed by explicit `P` or `N`, plus either no slot or an entire angle/length/offset triplet. Zero drill has no hole witness.
+- **Intentionally restricted round-pad subset**: a positive drill number with optional `P` (omission declares plated) or explicit `N`, plus either no slot or an entire angle/length/offset triplet. Zero drill has no hole witness.
 - Exact 0.01 mil dimension ticks and 0.001-degree angles; checks unsupported extra precision, invalid slot tuple and malformed records.
 - Emits declaration, dimensions, decal/pin selector, physical SOURCE line and full source SHA-256; no footprint placement/board coordinates are inferred.
 - The scanner refuses unsupported shapes, copper graphics, ambiguous optional fields, malformed/truncated data and version mismatch. These are a limited support boundary, **not** a claim that all real V9.4 PARTDECAL exports are supported.
@@ -44,6 +44,8 @@ Parent [#520](https://github.com/july-rust/BoardSI/issues/520) · Manufacturing 
 | PADS V9.4 PARTDECAL limited R P/N slotted tuple | Implemented SOURCE scanner / geometry parameters |
 | Exact rational conversion and 2/4/6/8/64-layer span validation | Implemented / unit-test covered |
 | Full PADS PARTDECAL shapes / graphics / mirrored placement | UNSUPPORTED; hard fail rather than silent skip |
+| PARTDECAL positive implicit-plated round hole (`P` omitted) | Supported strict subset, **no manufactured barrel proof** |
+| Current legacy Canonical V1/V2 handoff for source-known PTH/NPTH/Slot | Explicit `D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC` refusal; cannot drop the hole |
 | PADS VIA/ROUTE native NPTH / slot declaration | UNSUPPORTED; grammar not independently established |
 | Native PADS Backdrill / stacked or staggered microvia parsing | UNSUPPORTED; grammar not independently established |
 | Actual CAM slot endcap construction and rendered copper boolean | NOT_VERIFIED |
