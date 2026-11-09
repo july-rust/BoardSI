@@ -16,7 +16,8 @@
 namespace d056ipc {
 struct Pad {
     int layer = 0;
-    QString role, shape, first, second, spokeWidth;
+    QString role, shape, first, second;
+    QString spokeWidth{};
     int spokeAngle=0, spokeCount=0;
     bool conductive() const { return role == "CONDUCTIVE"; }
 };
