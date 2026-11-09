@@ -3,6 +3,8 @@
 #include <QApplication>
 #include <QCryptographicHash>
 #include <QEventLoop>
+#include <QFileInfo>
+#include <QThread>
 #include <QFile>
 #include <QPushButton>
 #include <QTimer>
@@ -91,8 +93,30 @@ static bool verifyActualRust(const QString &binary,const QString &path) {
     const QByteArray sha=QCryptographicHash::hash(
         file.readAll(),QCryptographicHash::Sha256).toHex();
     PreviewImportPanel panel;
-    panel.setCanonicalImporterBinaryForTest(binary);
     bool complete=false,successful=false;
+    // A real child process with a guaranteed slow response allows the
+    // existing main GUI Cancel button to be exercised without sleep races.
+    panel.setCanonicalImporterBinaryForTest(QCoreApplication::applicationFilePath());
+    if(!panel.openCanonicalPath(path))return false;
+    auto *cancel=panel.findChild<QPushButton*>("importCancelButton");
+    if(!cancel || !cancel->isEnabled())return false;
+    cancel->click();
+    QEventLoop cancelLoop;
+    QTimer cancelPoll,cancelDeadline;
+    bool cancelTimedOut=false;
+    cancelDeadline.setSingleShot(true);
+    QObject::connect(&cancelDeadline,&QTimer::timeout,&cancelLoop,[&] {
+        cancelTimedOut=true;cancelLoop.quit();
+    });
+    QObject::connect(&cancelPoll,&QTimer::timeout,&cancelLoop,[&] {
+        if(!panel.busy())cancelLoop.quit();
+    });
+    cancelPoll.start(10);cancelDeadline.start(10000);cancelLoop.exec();
+    if(cancelTimedOut || panel.busy() || panel.imported()->canonicalMode() ||
+       !panel.acceptedSourceSha256().isEmpty() ||
+       !panel.importStatus().startsWith("CANCELLED"))return false;
+    // Same controller must safely recover after cancellation.
+    panel.setCanonicalImporterBinaryForTest(binary);
     QEventLoop loop;
     QTimer deadline;
     deadline.setSingleShot(true);
@@ -117,6 +141,10 @@ static bool verifyActualRust(const QString &binary,const QString &path) {
 int main(int argc,char **argv) {
     QApplication app(argc,argv);
     const auto args=app.arguments();
+    if(args.size()==2 && QFileInfo(args[1]).isFile()) {
+        QThread::msleep(3000); // Child process intentionally killed by UI Cancel.
+        return 1;
+    }
     if(args.size()==2 && args[1]=="--selftest")
         return verifySynthetic() ? 0 : 1;
     if(args.size()==4 && args[1]=="--source")
