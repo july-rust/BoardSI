@@ -1,8 +1,8 @@
 //! D_056: actual per-layer via copper versus plane-clearance geometry.
 //! These shapes are source-normalized. They are not evidence of plated barrel
 //! continuity, a whole-board electric graph, a microvia process, or SI readiness.
-use boardsi_model::{ObjectId, PadRole, PadShape, PadstackLayer, Rational, ViaKind};
 use crate::thermal_source::ThermalKind;
+use boardsi_model::{ObjectId, PadRole, PadShape, PadstackLayer, Rational, ViaKind};
 use std::collections::BTreeSet;
 
 /// PADS V9.4 R/S/A/RA/SA. 'A' is a real annular ring with an inner
@@ -11,7 +11,9 @@ use std::collections::BTreeSet;
 pub enum ViaLayerShape {
     Round,
     Square,
-    Annular { inner_diameter_ticks: i64 },
+    Annular {
+        inner_diameter_ticks: i64,
+    },
     RoundAntiPad,
     SquareAntiPad,
     Thermal {
@@ -25,7 +27,10 @@ pub enum ViaLayerShape {
 
 impl ViaLayerShape {
     pub fn conductive(self) -> bool {
-        matches!(self, Self::Round | Self::Square | Self::Annular { .. } | Self::Thermal { .. })
+        matches!(
+            self,
+            Self::Round | Self::Square | Self::Annular { .. } | Self::Thermal { .. }
+        )
     }
 
     pub fn wire_code(self) -> &'static str {
@@ -35,8 +40,14 @@ impl ViaLayerShape {
             Self::Annular { .. } => "A",
             Self::RoundAntiPad => "RA",
             Self::SquareAntiPad => "SA",
-            Self::Thermal { kind: ThermalKind::Round, .. } => "RT",
-            Self::Thermal { kind: ThermalKind::Square, .. } => "ST",
+            Self::Thermal {
+                kind: ThermalKind::Round,
+                ..
+            } => "RT",
+            Self::Thermal {
+                kind: ThermalKind::Square,
+                ..
+            } => "ST",
         }
     }
 }
@@ -93,10 +104,21 @@ impl NormalizedViaShapes {
             {
                 return Err("D056_INVALID_LAYER_PAD");
             }
-            if let ViaLayerShape::Thermal { first_spoke_degrees, outer_size_ticks, spoke_width_ticks, spoke_count, .. } = pad.shape {
-                if first_spoke_degrees >= 360 || outer_size_ticks <= pad.size_ticks
-                    || outer_size_ticks > 5_600_000 || spoke_width_ticks <= 0
-                    || spoke_width_ticks > pad.size_ticks || !(1..=64).contains(&spoke_count) {
+            if let ViaLayerShape::Thermal {
+                first_spoke_degrees,
+                outer_size_ticks,
+                spoke_width_ticks,
+                spoke_count,
+                ..
+            } = pad.shape
+            {
+                if first_spoke_degrees >= 360
+                    || outer_size_ticks <= pad.size_ticks
+                    || outer_size_ticks > 5_600_000
+                    || spoke_width_ticks <= 0
+                    || spoke_width_ticks > pad.size_ticks
+                    || !(1..=64).contains(&spoke_count)
+                {
                     return Err("D05606_INVALID_THERMAL_GEOMETRY");
                 }
             }
@@ -149,9 +171,17 @@ impl NormalizedViaShapes {
                     ViaLayerShape::Square | ViaLayerShape::SquareAntiPad => PadShape::Rectangle {
                         size_m: [size_m; 2],
                     },
-                    ViaLayerShape::Thermal { kind, first_spoke_degrees, outer_size_ticks, spoke_width_ticks, spoke_count } => {
-                        let to_m = |v: i64| Rational::new(i128::from(v) * 127, 500_000_000)
-                            .map_err(|_| "D05606_THERMAL_DIMENSION_OVERFLOW");
+                    ViaLayerShape::Thermal {
+                        kind,
+                        first_spoke_degrees,
+                        outer_size_ticks,
+                        spoke_width_ticks,
+                        spoke_count,
+                    } => {
+                        let to_m = |v: i64| {
+                            Rational::new(i128::from(v) * 127, 500_000_000)
+                                .map_err(|_| "D05606_THERMAL_DIMENSION_OVERFLOW")
+                        };
                         PadShape::Thermal {
                             round: kind == ThermalKind::Round,
                             centre_size_m: size_m,

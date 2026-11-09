@@ -160,14 +160,25 @@ pub fn trace_to_layered_via(
         return annular_contact(trace, point, pad.size_ticks, inner_diameter_ticks);
     }
     if let ViaLayerShape::Thermal {
-        kind, first_spoke_degrees, outer_size_ticks, spoke_width_ticks, spoke_count,
-    } = pad.shape {
+        kind,
+        first_spoke_degrees,
+        outer_size_ticks,
+        spoke_width_ticks,
+        spoke_count,
+    } = pad.shape
+    {
         return crate::thermal_contact::trace_thermal_candidate(
-            trace, point, via.drill_ticks,
+            trace,
+            point,
+            via.drill_ticks,
             &crate::thermal_source::ThermalPad {
-                layer_selector: i64::from(trace.layer), kind,
-                size_ticks: pad.size_ticks, first_spoke_degrees,
-                outer_size_ticks, spoke_width_ticks, spoke_count,
+                layer_selector: i64::from(trace.layer),
+                kind,
+                size_ticks: pad.size_ticks,
+                first_spoke_degrees,
+                outer_size_ticks,
+                spoke_width_ticks,
+                spoke_count,
             },
         );
     }

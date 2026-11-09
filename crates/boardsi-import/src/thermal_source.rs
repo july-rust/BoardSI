@@ -65,13 +65,15 @@ pub fn parse_thermal_row(row: &str) -> Result<Option<ThermalPad>, &'static str> 
     // Vendor prose uses integer-degree precision but may print 45.000.
     // Accept only an exact integral value with up to three zero decimals.
     let angle_token = if let Some((whole, fraction)) = w[3].split_once('.') {
-        if fraction.is_empty() || fraction.len() > 3 ||
-            !fraction.bytes().all(|b| b == b'0') {
+        if fraction.is_empty() || fraction.len() > 3 || !fraction.bytes().all(|b| b == b'0') {
             return Err("D05606_INVALID_THERMAL_ANGLE");
         }
         whole
-    } else { w[3] };
-    let angle = angle_token.parse::<u16>()
+    } else {
+        w[3]
+    };
+    let angle = angle_token
+        .parse::<u16>()
         .map_err(|_| "D05606_INVALID_THERMAL_ANGLE")?;
     if angle >= 360 {
         return Err("D05606_INVALID_THERMAL_ANGLE");
@@ -299,7 +301,13 @@ mod tests {
         ] {
             assert!(parse_thermal_row(bad).is_err(), "{bad}");
         }
-        assert_eq!(parse_thermal_row("-2 60 RT 45.000 84 15 4").unwrap().unwrap().first_spoke_degrees, 45);
+        assert_eq!(
+            parse_thermal_row("-2 60 RT 45.000 84 15 4")
+                .unwrap()
+                .unwrap()
+                .first_spoke_degrees,
+            45
+        );
         assert_eq!(parse_thermal_row("-2 60 R").unwrap(), None);
         let src = "!PADS-POWERPCB-V9.4-MILS!\n*VIA*\nA 15 2\n-2 60 RT 45 84 15 4\n0 50 R\n*END*\n";
         let entries = scan_via_thermals(src).unwrap();

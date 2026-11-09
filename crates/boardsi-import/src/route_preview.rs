@@ -517,10 +517,12 @@ fn parse_with_via_mode(
         // PADS 9.4 ROUTE: [vianame][THERMAL]. Without this optional keyword
         // CAM spokes are explicitly disabled; its presence is still only
         // intent, NOT proof that a fabricated plane thermal was generated.
-        let thermal_requested = allow_generalized_vias && fields.len() == 7
-            && fields[6] == "THERMAL";
+        let thermal_requested =
+            allow_generalized_vias && fields.len() == 7 && fields[6] == "THERMAL";
         if (fields.len() == 6 || thermal_requested)
-            && flag & !(SUPPORTED_STRAIGHT_FLAGS | if allow_generalized_vias { 0x0100 } else { 0 }) == 0 {
+            && flag & !(SUPPORTED_STRAIGHT_FLAGS | if allow_generalized_vias { 0x0100 } else { 0 })
+                == 0
+        {
             // Generalized mode always checks the strict source-definition
             // inventory, including conflicting duplicate names. A matching
             // legacy equal-round through definition must not bypass it.
@@ -536,9 +538,10 @@ fn parse_with_via_mode(
                     .as_ref()
                     .map_err(|error| *error)?;
                 let profile = definition.normalize_shapes(max_layer)?;
-                if profile.pads.iter().any(|pad|
+                if profile.pads.iter().any(|pad| {
                     matches!(pad.shape, crate::via_shapes::ViaLayerShape::Thermal { .. })
-                ) && !thermal_requested {
+                }) && !thermal_requested
+                {
                     return Err("D05606_THERMAL_ROUTE_FLAG_MISSING");
                 }
                 if profile.is_only_round_copper() {

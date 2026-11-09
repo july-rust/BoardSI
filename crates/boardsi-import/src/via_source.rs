@@ -223,7 +223,7 @@ fn parse_rows(
                     spoke_width_ticks: thermal.spoke_width_ticks,
                     spoke_count: thermal.spoke_count,
                 }
-            },
+            }
             _ => return Err("D056_UNSUPPORTED_VIA_PAD_SHAPE"),
         };
         let level = parts[0]
@@ -389,7 +389,11 @@ mod tests {
                 "*VIA*\nV_T 15 3 {first} {last}\n-2 60 RT 45 84 15 4\n-1 50 ST 0 75 10 4\n0 50 R\n*END*\n"
             );
             let def = scan_definitions(&src);
-            let shaped = def["V_T"].as_ref().unwrap().normalize_shapes(layers).unwrap();
+            let shaped = def["V_T"]
+                .as_ref()
+                .unwrap()
+                .normalize_shapes(layers)
+                .unwrap();
             assert_eq!(shaped.kind, kind);
             assert_eq!(shaped.first_layer, first);
             let pad = shaped.conductive_pad(first).unwrap();

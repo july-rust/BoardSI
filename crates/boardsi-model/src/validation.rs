@@ -380,8 +380,12 @@ impl BoardModel {
                 ModelError::InvalidDimension,
             ),
             PadShape::Thermal {
-                centre_size_m, outer_size_m, spoke_width_m,
-                first_spoke_degrees, spoke_count, ..
+                centre_size_m,
+                outer_size_m,
+                spoke_width_m,
+                first_spoke_degrees,
+                spoke_count,
+                ..
             } => require(
                 centre_size_m.positive()
                     && outer_size_m.checked_cmp(*centre_size_m)? == std::cmp::Ordering::Greater
