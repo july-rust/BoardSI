@@ -305,19 +305,26 @@ pub fn augment_source_areas(
                     CopperGeometry::Circle { .. } => 2,
                     CopperGeometry::Curved { .. } => 0,
                 };
-                n + a.cutouts.iter().map(|h| match h {
-                    CopperGeometry::Polygon(v) => v.len(),
-                    CopperGeometry::Circle { .. } => 2,
-                    CopperGeometry::Curved { .. } => 0,
-                }).sum::<usize>()
+                n + a
+                    .cutouts
+                    .iter()
+                    .map(|h| match h {
+                        CopperGeometry::Polygon(v) => v.len(),
+                        CopperGeometry::Circle { .. } => 2,
+                        CopperGeometry::Curved { .. } => 0,
+                    })
+                    .sum::<usize>()
             };
             let work = edge_count(area)
                 .checked_mul(shape_count(other))
-                .and_then(|a| edge_count(other)
-                    .checked_mul(shape_count(area))
-                    .and_then(|b| a.checked_add(b)))
+                .and_then(|a| {
+                    edge_count(other)
+                        .checked_mul(shape_count(area))
+                        .and_then(|b| a.checked_add(b))
+                })
                 .ok_or("D05603_AREA_PERIMETER_WORK_LIMIT")?;
-            perimeter_work = perimeter_work.checked_add(work)
+            perimeter_work = perimeter_work
+                .checked_add(work)
                 .ok_or("D05603_AREA_PERIMETER_WORK_LIMIT")?;
             if perimeter_work > 8_000_000 {
                 return Err("D05603_AREA_PERIMETER_WORK_LIMIT");
@@ -421,8 +428,7 @@ pub fn augment_source_areas(
                     && strictly_in_area(area, p).unwrap_or(false)
             });
             let crossed_perimeter = if !identical && !mutual {
-                polygon_perimeter_overlap(area, other)?
-                    || polygon_perimeter_overlap(other, area)?
+                polygon_perimeter_overlap(area, other)? || polygon_perimeter_overlap(other, area)?
             } else {
                 false
             };
