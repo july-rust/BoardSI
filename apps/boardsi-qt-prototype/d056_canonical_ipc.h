@@ -103,6 +103,7 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
     const auto h = QString::fromUtf8(rawHead).split('|', Qt::KeepEmptyParts);
     if (h.size() != 17 || h[0] != "BOARDSI_CANONICAL_PADSTACK_V1"
         || !hash64(h[1]) || h[1] != expectedSourceSha
+        || h[2].isEmpty() || h[3].isEmpty() || h[4].isEmpty() || h[5].isEmpty()
         || !hexToken(h[2], false) || !hexToken(h[3], false)
         || !hexToken(h[4], false) || !hexToken(h[5], false)
         || h[15] != "GEOMETRY_ONLY" || h[16] != "SI_NOT_RUN") return false;
@@ -133,6 +134,7 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
     parsed.drills.reserve(drills);
     parsed.vias.reserve(vias);
     QSet<QString> frameIds, stackIds, drillIds, viaIds, layerIds;
+    QMap<QString, int> stackPositions, drillPositions;
     QMap<QString, QSet<int>> padLayers;
     int stage = 0, pending = 0;
     bool ended = false;
@@ -161,7 +163,7 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
             int turn = 0;
             if (r.size() != 9 || parsed.frames.size() >= frames
                 || !hexToken(r[1], true) || frameIds.contains(r[1])
-                || !hexToken(r[2], false) || !rational(r[3], true)
+                || r[2].isEmpty() || !hexToken(r[2], false) || !rational(r[3], true)
                 || !rational(r[4], false) || !rational(r[5], false)
                 || !inRange(r[6], 0, 3, &turn)
                 || (r[7] != "true" && r[7] != "false")
@@ -186,6 +188,7 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
                 || !hexToken(r[1], true) || stackIds.contains(r[1])
                 || !inRange(r[2], 0, 64, &pending)) return false;
             stackIds.insert(r[1]);
+            stackPositions.insert(r[1], parsed.stacks.size());
             parsed.stacks.push_back(Stack{r[1], {}});
         } else if (tag == "P") {
             int layer = 0;
@@ -217,6 +220,7 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
                 || (r[5] != "true" && r[5] != "false")
                 || r[6] != "PLATING_UNVERIFIED") return false;
             drillIds.insert(r[1]);
+            drillPositions.insert(r[1], parsed.drills.size());
             parsed.drills.push_back(Drill{r[1], r[2], first, last, r[5] == "true"});
         } else if (tag == "V") {
             int first = 0, last = 0;
@@ -238,15 +242,16 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
                 || (r[10] == "BURIED" && (top || bottom))
                 || (r[10] == "MICROVIA_DECLARED" && last != first + 1))
                 return false;
-            const auto di = std::find_if(parsed.drills.cbegin(), parsed.drills.cend(),
-                [&](const Drill &d) { return d.id == r[3]; });
-            const auto si = std::find_if(parsed.stacks.cbegin(), parsed.stacks.cend(),
-                [&](const Stack &s) { return s.id == r[2]; });
-            if (di == parsed.drills.cend() || si == parsed.stacks.cend()
-                || di->first != first || di->last != last) return false;
-            if (!std::any_of(si->pads.cbegin(), si->pads.cend(),
+            const auto drillIt = drillPositions.constFind(r[3]);
+            const auto stackIt = stackPositions.constFind(r[2]);
+            if (drillIt == drillPositions.cend() || stackIt == stackPositions.cend())
+                return false;
+            const Drill &d = parsed.drills.at(drillIt.value());
+            const Stack &stack = parsed.stacks.at(stackIt.value());
+            if (d.first != first || d.last != last) return false;
+            if (!std::any_of(stack.pads.cbegin(), stack.pads.cend(),
                     [](const Pad &p) { return p.conductive(); })) return false;
-            for (const auto &p : si->pads)
+            for (const auto &p : stack.pads)
                 if (p.layer < first || p.layer > last) return false;
             viaIds.insert(r[1]);
             parsed.vias.push_back(Via{r[1], r[2], r[3], r[4], r[5], r[10],
