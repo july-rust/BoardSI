@@ -324,10 +324,10 @@ mod tests {
         let board = crate::route_preview::into_canonical(source, &parsed).unwrap();
         let entries = &board.padstacks[0].entries;
         assert_eq!(entries.len(), 3);
-        assert!(matches!(entries[0].shape, PadShape::Thermal {
+        assert!(matches!(&entries[0].shape, PadShape::Thermal {
             round:true, first_spoke_degrees:45, spoke_count:4, ..
         }));
-        assert!(matches!(entries[1].shape, PadShape::Thermal {
+        assert!(matches!(&entries[1].shape, PadShape::Thermal {
             round:false, first_spoke_degrees:0, spoke_count:4, ..
         }));
         let wire = encode_pads_source(source).unwrap();
