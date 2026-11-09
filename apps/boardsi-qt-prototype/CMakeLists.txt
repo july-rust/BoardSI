@@ -137,6 +137,10 @@ if(BUILD_TESTING)
   set_tests_properties(qt-preview-gpu-first-cpu-fallback PROPERTIES TIMEOUT 20
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   if(TARGET Qt6::Quick)
+    add_test(NAME qt-d05605-rhi-holes-layer-picking
+      COMMAND boardsi-preview-p0 --d05605-rhi-model-selftest)
+    set_tests_properties(qt-d05605-rhi-holes-layer-picking PROPERTIES
+      TIMEOUT 35 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # A_019 is a model-only capacity and source-precision check, not GPU FPS.
     add_test(NAME qt-preview-a019-rhi-model-scale
       COMMAND boardsi-preview-p0 --rhi-scale-selftest)
