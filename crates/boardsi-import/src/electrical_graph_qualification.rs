@@ -97,6 +97,30 @@ pub struct QualificationReport {
     pub diagnostics: Vec<String>,
 }
 
+/// Audit a PADS V9.4 SOURCE directly, rebuilding all SOURCE-owned local
+/// positive-contact candidates from the exact supplied bytes *on every call*.
+/// This is the safe opt-in entry point when the caller has native SOURCE, as
+/// opposed to trusting an externally mutable/forged `LayeredSourceGraph`.
+///
+/// A successful import does NOT certify whole-board coverage or plating:
+/// unsupported source records fail closed and even an external SourceCoverage
+/// attestation cannot override partial pad/area contact coverage.
+pub fn qualify_pads_source(
+    original_source_bytes: &[u8],
+    coverage: &SourceCoverage,
+    barrel_proofs: &[BarrelProcessWitness],
+    expected_paths: &[RequiredNetPath],
+) -> Result<QualificationReport, &'static str> {
+    let graph = crate::layered_source_graph::from_pads_v94_source(original_source_bytes)?;
+    qualify(
+        &graph,
+        crate::digest::sha256(original_source_bytes),
+        coverage,
+        barrel_proofs,
+        expected_paths,
+    )
+}
+
 /// Perform source-scoped design graph analysis. The caller supplies the SHA
 /// of the exact source bytes it is currently inspecting (e.g. re-import).
 /// Do not feed any of these edges into manufactured/SI acceptance.
