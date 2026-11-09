@@ -720,7 +720,7 @@ protected:
                 canonicalGroups.emplace_back(color.rgba(),Vertices{});
             auto &dst=canonicalGroups.back().second;
             constexpr qreal twoPi=6.28318530717958647692;
-            constexpr qreal pi=3.14159265358979323846;
+            // Reuse the enclosing pi constant (MSVC /W4 /WX forbids shadowing).
             const int steps=std::clamp(static_cast<int>(
                 std::ceil(pi*std::sqrt(std::max<qreal>(1.0,std::max(halfW,halfH))))),32,128);
             std::vector<qreal> angles;
