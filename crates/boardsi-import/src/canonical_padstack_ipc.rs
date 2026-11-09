@@ -73,7 +73,7 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
     if !(2..=64).contains(&physical.len()) { return Err("D05604_LAYER_LIMIT"); }
     let mut layer_map = BTreeMap::new();
     for (index, l) in physical.iter().enumerate() {
-        if !layer_map.insert(l.meta.id.clone(), index + 1).is_none() {
+        if layer_map.insert(l.meta.id.clone(), index + 1).is_some() {
             return Err("D05604_DUPLICATE_LAYER");
         }
     }
