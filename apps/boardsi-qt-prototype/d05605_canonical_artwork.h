@@ -151,7 +151,8 @@ inline bool make(const d056ipc::Source &source, const QString &expectedSha,
                     }
                     dy=-dy; // ImportedArtwork scene flips source Y only once.
                     const QPointF along(dx,dy),across(-dy,dx);
-                    const QPointF start=centre+along*(major/2);
+                    // Overlap the central land by positive area, not just a tangent point.
+                    const QPointF start=centre;
                     const QPointF end=centre+along*(minor*2);
                     QPolygonF quad;
                     quad << start+across*(spokeWidth/2)
