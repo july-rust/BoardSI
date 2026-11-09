@@ -1,6 +1,6 @@
 # BoardSI 문서 허브 | Documentation hub
 
-> **프로젝트 상태 기준: 2026-11-07 KST.** BoardSI는 **제한된 Native Qt/Rust Developer Preview**입니다. 공개 합성 PADS V9.4 MILS 일부 객체를 표시·검증할 수 있지만, 범용 CAD Import·전역 전기적 연결성·실제 PCB의 RLGC/S-Parameter 분석이 완료된 제품은 아닙니다. 최신 상태는 아래 **단일 체크리스트**를 우선합니다.
+> **프로젝트 상태 기준: 2026-11-09 KST.** BoardSI는 **제한된 Native Qt/Rust Developer Preview**입니다. 공개 합성 PADS V9.4 MILS 일부 객체를 표시·검증할 수 있지만, 범용 CAD Import·전역 전기적 연결성·실제 PCB의 RLGC/S-Parameter 분석이 완료된 제품은 아닙니다. 최신 상태는 아래 **단일 체크리스트**를 우선합니다.
 
 [← 프로젝트 README](../README.md) · [처음 실행하기](developer-quickstart.md) · [현재 구현 범위](development-checklist.md) · [개발 참여](../CONTRIBUTING.md)
 
@@ -36,11 +36,12 @@
 ## 세부 자료 빠른 링크
 
 - **[전체 검증 보고서 158개 색인](validation/INDEX.md)** — Stage A/B/C/D, M0/M2/PH-08과 보안 증거를 구분해 원문으로 이동합니다.
-- **[D_056 범용 PCB 입력 및 Via Span 정규화 계약](architecture/input-normalization.md)** — 제한 PADS Source 기반 부분 비아·형상 구현과 메인 Qt·전체 Connectivity의 미완료 경계를 설명합니다.
+- **[D_056 범용 PCB 입력 및 Via Span 정규화 계약](architecture/input-normalization.md)** — 제한 PADS Source 기반 부분 비아·형상 구현과 **추가된 메인 Qt Canonical 경로**, 전체 Connectivity·타 CAD 인수의 미완료 경계를 설명합니다.
 - **[D_056_01 구현 감사 및 공통 Source Evidence 계약](architecture/d056-01-source-evidence-audit.md)** — 실제 코드 경로, 하드코딩 분류, 전기적 증거 수준과 D_056_02–12 인수 Gate를 연결합니다.
 - **[D_056_02 Source 증거 기반 다층 Copper 후보 Graph](architecture/d056-02-source-layer-graph.md)** — 각 층의 실제 Via Pad·Trace 후보와 Source SHA를 기록하며 Barrel 도금·전체 Open/Short는 미검증으로 유지합니다.
 - **[D_056_03 Source-scope Electrical Graph Qualification](architecture/d056-03-electrical-graph-qualification.md)** — Open 후보·Net 충돌 경로·Connected Components·Cut-Set과 명시적 Barrel Process 증거를 검증합니다. PR #540으로 일부 원본 COPCLS/COPCIR Copper와 Cutout의 양성 접촉 후보를 추가하고, PR #542로 ViaPad–ViaPad·ViaPad–SMD·SMD–SMD 직접 접촉, PR #543으로 임의 각도 직선 Trace–Copper의 중간 경계 교차 탐색을 확장했고, PR #547로 비중심·홀수 폭 SMD Pad–COPPER와 Polygon–Polygon 경계 교차, 원본 PADS SOURCE 재입력 검증을 추가했습니다. **지원 PADS SOURCE 범위의 전기 설계 Graph 소프트웨어 관문 45개 독립 Oracle PASS로 한정 인수**하며, **전체 Copper 접촉 포괄성·실물 제조 도통·SI는 미인수**입니다.
-- **[D_056_04 Canonical Padstack / Rust→Qt Versioned IPC](architecture/d056-04-canonical-padstack-ipc.md)** — SOURCE SHA·실제 Layer별 Pad Role/Shape·정확한 Rational Geometry·Drill Span을 보존하는 독립 V1 전송을 PR #549에서 병합했습니다. **Main Qt Artwork/RHI 연결은 D_056_05로 미완료**이며, 실제 제조 도통·SI 인수는 아닙니다.
+- **[D_056_04 Canonical Padstack / Rust→Qt Versioned IPC](architecture/d056-04-canonical-padstack-ipc.md)** — SOURCE SHA·실제 Layer별 Pad Role/Shape·정확한 Rational Geometry·Drill Span을 보존하는 독립 V1 전송을 PR #549에서 병합했습니다. 메인 Qt Viewer 연결은 별도 D_056_05에서 수행하며, IPC 자체의 인수 범위는 SOURCE V1 한정입니다.
+- **[D_056_05 메인 Qt CPU/RHI 다층 Via Artwork](architecture/d056-05-qt-main-artwork.md)** — [코드 PR #551](https://github.com/july-rust/BoardSI/pull/551) 병합으로 독립 Canonical IPC를 실제 `ImportedArtworkPanel`/`PreviewImportPanel`에 추가했습니다. Layer별 Pad/Drill/AntiPad 렌더링·선택·호버·Import Cancel/Reimport, Native 4플랫폼과 기존 Artwork V1~V14 호환성은 **지원 SOURCE에 한정**됩니다. 실제 제조 도통, 전체 PCB Open/Short, SI 및 별도 `main` Push CI/문서 인수 상태는 [단일 체크리스트](development-checklist.md#d_056_05)에서 확인합니다.
 - **[Trace–Via–SMD Pad의 범용 구리 접촉 설계 계약](architecture/trace-copper-contact.md)** — 비중심 Via·Pad 모서리·원호와 드릴 구멍의 판정 수학, Net/Layer·Fail-Closed 경계를 설명합니다.
 - **[문서 작성 및 검증 표준](documentation-standards.md)** — 증거 SHA, 검증 상태 용어, 역사적 기록 보호 및 문서 전용 CI 규칙입니다.
 
