@@ -186,18 +186,30 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
                 PadRole::AntiPad => "ANTIPAD",
                 PadRole::Clearance => "CLEARANCE",
             };
-            let (code, a, b) = shape(&pad.shape)?;
-            writeln!(
-                &mut body,
-                "P|{}|{}|{}|{}|{}|{}",
-                sid,
-                layer,
-                role,
-                code,
-                rat(a),
-                rat(b)
-            )
-            .map_err(|_| "D05604_WIRE_FORMAT")?;
+            match &pad.shape {
+                PadShape::Thermal {
+                    round, centre_size_m, outer_size_m, spoke_width_m,
+                    first_spoke_degrees, spoke_count,
+                } => {
+                    if pad.role != PadRole::Conductive {
+                        return Err("D05606_THERMAL_MUST_BE_CONDUCTIVE");
+                    }
+                    writeln!(
+                        &mut body, "P|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+                        sid, layer, role,
+                        if *round { "THERMAL_RT" } else { "THERMAL_ST" },
+                        rat(*centre_size_m), rat(*outer_size_m), rat(*spoke_width_m),
+                        first_spoke_degrees, spoke_count,
+                    ).map_err(|_| "D05606_WIRE_FORMAT")?;
+                }
+                _ => {
+                    let (code, a, b) = shape(&pad.shape)?;
+                    writeln!(
+                        &mut body, "P|{}|{}|{}|{}|{}|{}",
+                        sid, layer, role, code, rat(a), rat(b)
+                    ).map_err(|_| "D05604_WIRE_FORMAT")?;
+                }
+            }
         }
     }
     seen.clear();
@@ -258,10 +270,15 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         board.vias.len()
     )
     .map_err(|_| "D05604_WIRE_FORMAT")?;
+    let has_thermal = board.padstacks.iter().any(|s| s.entries.iter().any(
+        |p| matches!(p.shape, PadShape::Thermal { .. })
+    ));
+    let version = if has_thermal { "BOARDSI_CANONICAL_PADSTACK_V2" }
+        else { "BOARDSI_CANONICAL_PADSTACK_V1" };
     let body_sha = hex(&crate::digest::sha256(body.as_bytes()));
     let mut header = format!(
-        "BOARDSI_CANONICAL_PADSTACK_V1|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|GEOMETRY_ONLY|SI_NOT_RUN\n",
-        hex(&file.sha256), hex(fmt_source(&source.format).as_bytes()),
+        "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|GEOMETRY_ONLY|SI_NOT_RUN\n",
+        version, hex(&file.sha256), hex(fmt_source(&source.format).as_bytes()),
         hex(source.format_version.as_bytes()), hex(source.importer_version.as_bytes()),
         hex(file.logical_path.as_bytes()), frames.len(), physical.len(),
         board.padstacks.len(), board.drills.len(), board.vias.len(),
