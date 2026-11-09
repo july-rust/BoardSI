@@ -324,28 +324,32 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
     Ok(header.into_bytes())
 }
 
+/// The legacy Canonical transport represents source Via circles, not Part
+/// Decal fabrication holes. Any unsupported or malformed decal might contain
+/// drilled copper that the V1/V2 wire cannot express. Fail the *entire* source
+/// transaction rather than skipping the unknown declaration.
+fn require_legacy_fabrication_coverage(bytes: &[u8]) -> Result<(), &'static str> {
+    if !bytes
+        .windows(b"*PARTDECAL*".len())
+        .any(|w| w == b"*PARTDECAL*")
+    {
+        return Ok(());
+    }
+    let drills = crate::pads_fabrication_source::scan_pads_v94_part_decal_drills(bytes)
+        .map_err(|_| "D05607_PARTDECAL_SOURCE_UNSUPPORTED_FOR_LEGACY_IPC")?;
+    if !drills.is_empty() {
+        return Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC");
+    }
+    Ok(())
+}
+
 /// Accept exact PADS source bytes only, reimport and verify the resulting canonical SHA.
 pub fn encode_pads_source(bytes: &[u8]) -> Result<Vec<u8>, &'static str> {
     if bytes.len() > crate::route_preview::MAX_FILE_BYTES {
         return Err("D05604_SOURCE_LIMIT");
     }
-    // D_056_07: Canonical V1/V2 encodes via drill circles only. It cannot
-    // represent a PARTDECAL NPTH/PTH/slot without a physical placement and
-    // independent manufacturing depth. Never turn a source-positive drill
-    // into an apparently complete hole-free canonical board/Qt view.
-    // The scanner is strictly scoped to the independently documented round
-    // PARTDECAL subset. Other unsupported shapes retain the pre-existing
-    // importer fail-closed policy (do not blanket-reject legacy RF/SMD).
-    if bytes
-        .windows(b"*PARTDECAL*".len())
-        .any(|w| w == b"*PARTDECAL*")
-    {
-        if let Ok(drills) = crate::pads_fabrication_source::scan_pads_v94_part_decal_drills(bytes) {
-            if !drills.is_empty() {
-                return Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC");
-            }
-        }
-    }
+    // V1/V2 must never omit unknown or known fabrication declarations.
+    require_legacy_fabrication_coverage(bytes)?;
     let parsed = crate::route_preview::parse_generalized(bytes)?;
     if parsed.skipped != 0 {
         return Err("D05604_SOURCE_COVERAGE_PARTIAL");
@@ -391,6 +395,28 @@ mod tests {
             encode_pads_source(plated_slot_implicit.as_bytes()),
             Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC")
         );
+    }
+
+    #[test]
+    fn legacy_ipc_fails_closed_on_unsupported_decal_geometry() {
+        let template = "!PADS-POWERPCB-V9.4-MILS!\n*PCB*\nMAXLAYER 4\n*PARTDECAL*\nD7 I 1000 1000 0 1 1 0 0\nT0 0 0 0 1\nPAD 0 3\n-2 40 R 0\n-1 0 R 0\n0 0 R 0\n*END*\n";
+        assert_eq!(require_legacy_fabrication_coverage(template.as_bytes()), Ok(()));
+        for mutated in [
+            template.replace("-2 40 R 0", "-2 40 S 20 N"),
+            template.replace("-2 40 R 0", "-2 40 R 20 BAD"),
+            template.replace("-1 0 R 0", "-1 20 R 0"),
+            template.replace("PAD 0 3", "PAD 0 4"),
+            template.replace("*END*\n", "*BOGUS*\n*END*\n"),
+        ] {
+            assert_eq!(
+                require_legacy_fabrication_coverage(mutated.as_bytes()),
+                Err("D05607_PARTDECAL_SOURCE_UNSUPPORTED_FOR_LEGACY_IPC")
+            );
+            assert_eq!(
+                encode_pads_source(mutated.as_bytes()),
+                Err("D05607_PARTDECAL_SOURCE_UNSUPPORTED_FOR_LEGACY_IPC")
+            );
+        }
     }
 
     #[test]
