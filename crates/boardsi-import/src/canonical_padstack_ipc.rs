@@ -315,6 +315,34 @@ mod tests {
     use super::*;
     const SAMPLE: &[u8] = include_bytes!("../tests/fixtures/pads_via_round_through_v94.asc");
     #[test]
+    fn source_rt_st_preserves_layer_evidence_on_v2_wire() {
+        let source = include_bytes!("../tests/fixtures/pads_via_rt_st_thermal_v94.asc");
+        let parsed = crate::route_preview::parse_generalized(source).unwrap();
+        assert_eq!(parsed.skipped, 0);
+        assert_eq!(parsed.vias.len(), 1);
+        assert_eq!((parsed.vias[0].first_layer, parsed.vias[0].last_layer), (2, 4));
+        let board = crate::route_preview::into_canonical(source, &parsed).unwrap();
+        let entries = &board.padstacks[0].entries;
+        assert_eq!(entries.len(), 3);
+        assert!(matches!(entries[0].shape, PadShape::Thermal {
+            round:true, first_spoke_degrees:45, spoke_count:4, ..
+        }));
+        assert!(matches!(entries[1].shape, PadShape::Thermal {
+            round:false, first_spoke_degrees:0, spoke_count:4, ..
+        }));
+        let wire = encode_pads_source(source).unwrap();
+        let text = std::str::from_utf8(&wire).unwrap();
+        assert!(text.starts_with("BOARDSI_CANONICAL_PADSTACK_V2|"));
+        assert!(text.contains("|THERMAL_RT|"));
+        assert!(text.contains("|THERMAL_ST|"));
+        assert!(text.contains("|CONNECTIVITY_UNKNOWN\n"));
+        assert!(!text.contains("|VERIFIED_ELECTRICAL|"));
+        assert_eq!(wire, encode_pads_source(source).unwrap());
+        let bad=std::str::from_utf8(source).unwrap().replace("RT 45", "RT 46");
+        assert_ne!(encode_pads_source(bad.as_bytes()).unwrap(),wire);
+    }
+
+    #[test]
     fn source_canonical_wire_reimport_and_hash() {
         let wire = encode_pads_source(SAMPLE).unwrap();
         let text = std::str::from_utf8(&wire).unwrap();
