@@ -103,6 +103,27 @@ static bool sourceRoundtrip(const QString &binary, const QString &path) {
         || parsed.format != "PADS_ASC" || parsed.frames.size() != 1
         || parsed.frames[0].unit != "PADS 9.4 MILS" || parsed.version.isEmpty()
         || parsed.stacks.isEmpty() || parsed.drills.isEmpty()) return false;
+    if (wire.startsWith("BOARDSI_CANONICAL_PADSTACK_V2|")) {
+        if (parsed.stacks.isEmpty() || parsed.stacks[0].pads.isEmpty()
+            || parsed.stacks[0].pads[0].shape!="THERMAL_RT"
+            || parsed.stacks[0].pads[0].spokeAngle!=45
+            || parsed.stacks[0].pads[0].spokeCount!=4)
+            return false;
+        const int split=wire.indexOf('\n');
+        if(split<0) return false;
+        auto head=QString::fromUtf8(wire.left(split)).split('|',Qt::KeepEmptyParts);
+        auto badBody=wire.mid(split+1);
+        if(!badBody.contains("|45|4\n"))return false;
+        badBody.replace("|45|4\n","|45|0\n");
+        head[12]=QString::number(badBody.size());
+        head[13]=QString::number(badBody.count('\n'));
+        head[14]=QString::fromLatin1(
+            QCryptographicHash::hash(badBody,QCryptographicHash::Sha256).toHex());
+        const QByteArray tampered=head.join('|').toUtf8()+'\n'+badBody;
+        d056ipc::Source rejected;
+        if(d056ipc::decode(tampered,sha,rejected) || !rejected.vias.isEmpty()
+            || !rejected.sha.isEmpty()) return false;
+    }
     d056ipc::Source stale;
     return !d056ipc::decode(wire, QString(64, QLatin1Char('b')), stale)
         && stale.vias.isEmpty();
