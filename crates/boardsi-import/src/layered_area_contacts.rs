@@ -214,6 +214,93 @@ fn polygon_perimeter_overlap(
     Ok(false)
 }
 
+fn twice(value: i64) -> Result<i64, &'static str> {
+    value.checked_mul(2).ok_or("D05603_PAD_SCALE_OVERFLOW")
+}
+
+fn doubled_shape(shape: &CopperGeometry) -> Result<CopperGeometry, &'static str> {
+    match shape {
+        CopperGeometry::Polygon(points) => {
+            let mut vertices = Vec::with_capacity(points.len());
+            for p in points {
+                vertices.push([twice(p[0])?, twice(p[1])?]);
+            }
+            Ok(CopperGeometry::Polygon(vertices))
+        }
+        CopperGeometry::Circle { centre, radius } => Ok(CopperGeometry::Circle {
+            centre: [twice(centre[0])?, twice(centre[1])?],
+            radius: twice(*radius)?,
+        }),
+        CopperGeometry::Curved { .. } => Err("D05603_UNSUPPORTED_CURVED_AREA_CONTACT"),
+    }
+}
+
+/// A proof of SOURCE-filled polygon/circle touching a rectangular SMD land
+/// even when the pad centre is outside the copper. Source coordinates are
+/// doubled to preserve exact half-tick pad boundaries (odd widths/heights).
+/// All witnesses are strict interior, never unqualified edge tangency or
+/// a SOURCE-owned COPCUT void. A missing witness means UNKNOWN.
+pub fn positive_rectangular_smd_area_witness(
+    area: &CopperArea,
+    centre: [i64; 2],
+    width_ticks: i64,
+    height_ticks: i64,
+) -> Result<bool, &'static str> {
+    if width_ticks <= 0 || height_ticks <= 0 {
+        return Err("D05603_INVALID_SMD_GEOMETRY");
+    }
+    let cx = twice(centre[0])?;
+    let cy = twice(centre[1])?;
+    let (x0, x1) = (
+        cx.checked_sub(width_ticks).ok_or("D05603_PAD_SCALE_OVERFLOW")?,
+        cx.checked_add(width_ticks).ok_or("D05603_PAD_SCALE_OVERFLOW")?,
+    );
+    let (y0, y1) = (
+        cy.checked_sub(height_ticks).ok_or("D05603_PAD_SCALE_OVERFLOW")?,
+        cy.checked_add(height_ticks).ok_or("D05603_PAD_SCALE_OVERFLOW")?,
+    );
+    let rect = CopperArea {
+        name: "D05603_SMD_WITNESS".into(),
+        net_label: None,
+        layer: area.layer,
+        source_line: area.source_line,
+        geometry: CopperGeometry::Polygon(vec![
+            [x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0],
+        ]),
+        cutouts: Vec::new(),
+    };
+    let mut holes = Vec::with_capacity(area.cutouts.len());
+    for cutout in &area.cutouts {
+        holes.push(doubled_shape(cutout)?);
+    }
+    let source = CopperArea {
+        name: area.name.clone(),
+        net_label: area.net_label.clone(),
+        layer: area.layer,
+        source_line: area.source_line,
+        geometry: doubled_shape(&area.geometry)?,
+        cutouts: holes,
+    };
+    if area_witness_samples(&source)
+        .into_iter()
+        .any(|p| valid_own_area_sample(&source, p).unwrap_or(false)
+            && strictly_in_area(&rect, p).unwrap_or(false))
+    {
+        return Ok(true);
+    }
+    if area_witness_samples(&rect)
+        .into_iter()
+        .any(|p| strictly_in_area(&source, p).unwrap_or(false))
+    {
+        return Ok(true);
+    }
+    if polygon_perimeter_overlap(&rect, &source)? {
+        Ok(true)
+    } else {
+        polygon_perimeter_overlap(&source, &rect)
+    }
+}
+
 fn kind_for(node: &CopperFootprint) -> Option<ContactKind> {
     match node {
         CopperFootprint::Stroke { .. } => Some(ContactKind::TraceCopperArea),
@@ -279,10 +366,13 @@ pub fn augment_source_areas(
             .checked_add(vertices)
             .ok_or("D05603_AREA_EVENT_WORK_LIMIT")?;
     }
-    if complexity
-        .checked_mul(strokes.len())
-        .ok_or("D05603_AREA_EVENT_WORK_LIMIT")?
-        > 8_000_000
+    let rectangular_pad_count = graph.nodes.iter().filter(|n| {
+        matches!(&n.footprint, CopperFootprint::SmdPad { rectangular: true, .. })
+    }).count();
+    let event_users = strokes.len().checked_add(rectangular_pad_count)
+        .ok_or("D05603_AREA_EVENT_WORK_LIMIT")?;
+    if complexity.checked_mul(event_users)
+        .ok_or("D05603_AREA_EVENT_WORK_LIMIT")? > 8_000_000
     {
         return Err("D05603_AREA_EVENT_WORK_LIMIT");
     }
@@ -389,7 +479,24 @@ pub fn augment_source_areas(
             } else {
                 false
             };
-            if proven_by_sample || proven_by_boundary_events {
+            let proven_by_rectangular_pad = if !proven_by_sample
+                && !proven_by_boundary_events
+            {
+                match &candidate.footprint {
+                    CopperFootprint::SmdPad {
+                        centre,
+                        width_ticks,
+                        height_ticks,
+                        rectangular: true,
+                    } => positive_rectangular_smd_area_witness(
+                        area, *centre, *width_ticks, *height_ticks,
+                    )?,
+                    _ => false,
+                }
+            } else {
+                false
+            };
+            if proven_by_sample || proven_by_boundary_events || proven_by_rectangular_pad {
                 // An inner-point witness *proves* nonzero overlap, but missing
                 // such a witness does NOT prove separation.
                 let relation =
