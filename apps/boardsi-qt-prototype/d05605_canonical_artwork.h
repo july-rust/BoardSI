@@ -3,6 +3,7 @@
 #pragma once
 #include "d056_canonical_ipc.h"
 #include <QColor>
+#include <QHash>
 #include <QPainterPath>
 #include <QRectF>
 #include <QString>
@@ -56,15 +57,26 @@ inline bool make(const d056ipc::Source &source, const QString &expectedSha,
     built.sourceSha = source.sha;
     built.layerCount = source.layerIds.size();
     bool hasBounds = false;
+    QHash<QString,const d056ipc::Stack *> stackById;
+    QHash<QString,const d056ipc::Drill *> drillById;
+    QHash<QString,const d056ipc::Frame *> frameById;
+    for (const auto &entry:source.stacks) {
+        if(stackById.contains(entry.id))return false;
+        stackById.insert(entry.id,&entry);
+    }
+    for (const auto &entry:source.drills) {
+        if(drillById.contains(entry.id))return false;
+        drillById.insert(entry.id,&entry);
+    }
+    for (const auto &entry:source.frames) {
+        if(frameById.contains(entry.id))return false;
+        frameById.insert(entry.id,&entry);
+    }
     for (const auto &via : source.vias) {
-        const auto stack = std::find_if(source.stacks.cbegin(), source.stacks.cend(),
-            [&via](const d056ipc::Stack &s) { return s.id == via.stack; });
-        const auto drill = std::find_if(source.drills.cbegin(), source.drills.cend(),
-            [&via](const d056ipc::Drill &d) { return d.id == via.drill; });
-        const auto frame = std::find_if(source.frames.cbegin(), source.frames.cend(),
-            [&via](const d056ipc::Frame &f) { return f.id == via.frame; });
-        if (stack == source.stacks.cend() || drill == source.drills.cend() ||
-            frame == source.frames.cend() || via.first < 1 ||
+        const auto *stack=stackById.value(via.stack,nullptr);
+        const auto *drill=drillById.value(via.drill,nullptr);
+        const auto *frame=frameById.value(via.frame,nullptr);
+        if (!stack || !drill || !frame || via.first < 1 ||
             via.last > built.layerCount || via.first >= via.last ||
             drill->first != via.first || drill->last != via.last ||
             frame->turn < 0 || frame->turn > 3)
