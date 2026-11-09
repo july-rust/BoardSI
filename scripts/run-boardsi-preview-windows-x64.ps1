@@ -16,6 +16,7 @@ if ($packed) {
     $preview = Join-Path $PSScriptRoot 'boardsi-preview-p0.exe'
     $worker = Join-Path $PSScriptRoot 'boardsi-worker.exe'
     $importer = Join-Path $PSScriptRoot 'boardsi-import-artwork.exe'
+    $canonicalImporter = Join-Path $PSScriptRoot 'boardsi-import-canonical-padstack.exe'
     $stackupValidator = Join-Path $PSScriptRoot 'boardsi-stackup-config.exe'
     $a = Join-Path $PSScriptRoot 'qt-model-a.frame'
     $b = Join-Path $PSScriptRoot 'qt-model-b.frame'
@@ -26,6 +27,7 @@ if ($packed) {
     $preview = Join-Path $root 'build-qt/boardsi-preview-p0.exe'
     $worker = Join-Path $root 'target/debug/boardsi-worker.exe'
     $importer = Join-Path $root 'target/debug/boardsi-import-artwork.exe'
+    $canonicalImporter = Join-Path $root 'target/debug/boardsi-import-canonical-padstack.exe'
     $stackupValidator = Join-Path $root 'target/debug/boardsi-stackup-config.exe'
     $a = Join-Path $root 'build-qt/qt-model-a.frame'
     $b = Join-Path $root 'build-qt/qt-model-b.frame'
@@ -93,7 +95,7 @@ if ($bundled) {
     }
     $kitLabel = 'Qt 6.8.3 MSVC 2022 x64 developer SDK'
 }
-foreach ($required in @($preview, $worker, $importer, $stackupValidator, $a, $b)) {
+foreach ($required in @($preview, $worker, $importer, $canonicalImporter, $stackupValidator, $a, $b)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw ('Missing BoardSI executable/model frame: ' + $required)
     }
@@ -121,7 +123,7 @@ function Assert-Amd64PeFile([string]$path) {
         $stream.Dispose()
     }
 }
-foreach ($native in @($preview, $worker, $importer, $stackupValidator,
+foreach ($native in @($preview, $worker, $importer, $canonicalImporter, $stackupValidator,
                        (Join-Path $qtBin 'Qt6Core.dll'),
                        (Join-Path $qtBin 'Qt6Gui.dll'),
                        (Join-Path $qtBin 'Qt6Network.dll'),
