@@ -707,6 +707,9 @@ protected:
         // contract as the CPU QPainterPath, without a full-disk hole overwrite.
         // Inner hole polygons are circumscribed (conservative Copper subset).
         for (const auto &g:canonical_.glyphs) {
+            // V2 radial Thermal contains relief voids. Never render as solid disk.
+            // Main view requests CPU fallback for bounded exact QPainterPath.
+            if (g.shape.startsWith("THERMAL_")) continue;
             if(!visible(g.layer))continue;
             const QString netName=g.netId=="-" ? QString("UNKNOWN") :
                 d05605::readableId(g.netId);
@@ -1762,6 +1765,9 @@ public:
         seenFrame_=false;
         status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
         artwork_->loadCanonical(model);
+        const bool complexThermal=std::any_of(model.glyphs.cbegin(), model.glyphs.cend(),
+            [](const d05605::Glyph &g) {return g.shape.startsWith("THERMAL_");});
+        if(complexThermal) enterCpuFallback("THERMAL_GEOMETRY_UNQUALIFIED_GPU");
         loadGeneration_=artwork_->sourceGeneration();
         requiredSceneRevision_=artwork_->requestedSceneRevision();
         deadlineGeneration_=std::numeric_limits<quint64>::max();
