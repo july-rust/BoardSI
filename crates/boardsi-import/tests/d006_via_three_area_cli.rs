@@ -24,7 +24,12 @@ fn run(source: &str, layer: &str) -> (bool, String) {
         ])
         .output()
         .unwrap();
-    std::fs::remove_file(&path).unwrap();
+    // The child CLI or runner may already remove its temporary input before
+    // the parent cleanup; missing is a successfully cleaned-up state.
+    // All other filesystem errors remain test failures.
+    if let Err(error) = std::fs::remove_file(&path) {
+        assert_eq!(error.kind(), std::io::ErrorKind::NotFound, "{error}");
+    }
     let bytes = if result.status.success() {
         &result.stdout
     } else {
