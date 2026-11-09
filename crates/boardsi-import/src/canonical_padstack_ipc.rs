@@ -365,18 +365,17 @@ mod tests {
     const SAMPLE: &[u8] = include_bytes!("../tests/fixtures/pads_via_round_through_v94.asc");
     #[test]
     fn source_declared_part_decal_npth_or_slot_cannot_be_dropped_from_v1_v2() {
-        let template = "!PADS-POWERPCB-V9.4-MILS!\\n*PCB*\\nMAXLAYER 4\\n*PARTDECAL*\\nD7 I 1000 1000 0 1 1 0 0\\nT0 0 0 0 1\\nPAD 0 3\\n-2 40 R 20 N\\n-1 0 R 0\\n0 0 R 0\\n*END*\\n";
-        let plain = template.replace("\\n", "\n");
+        let template = "!PADS-POWERPCB-V9.4-MILS!\n*PCB*\nMAXLAYER 4\n*PARTDECAL*\nD7 I 1000 1000 0 1 1 0 0\nT0 0 0 0 1\nPAD 0 3\n-2 40 R 20 N\n-1 0 R 0\n0 0 R 0\n*END*\n";
         assert_eq!(
-            encode_pads_source(plain.as_bytes()),
+            encode_pads_source(template.as_bytes()),
             Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC")
         );
-        let slot = plain.replace("-2 40 R 20 N", "-2 40 R 20 N 45 65 0");
+        let slot = template.replace("-2 40 R 20 N", "-2 40 R 20 N 45 65 0");
         assert_eq!(
             encode_pads_source(slot.as_bytes()),
             Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC")
         );
-        let pth = plain.replace("-2 40 R 20 N", "-2 40 R 20 P");
+        let pth = template.replace("-2 40 R 20 N", "-2 40 R 20 P");
         assert_eq!(
             encode_pads_source(pth.as_bytes()),
             Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC")
