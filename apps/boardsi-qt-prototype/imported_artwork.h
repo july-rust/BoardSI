@@ -1105,6 +1105,16 @@ public:
         const auto &g=canonical_[static_cast<size_t>(index)].second;
         return g.conductive && g.footprint.contains(point);
     }
+    bool selectCanonicalGlyph(int index) {
+        if(index<0 || index>=static_cast<int>(canonical_.size()) ||
+           !canonical_[static_cast<size_t>(index)].second.conductive ||
+           !canonical_[static_cast<size_t>(index)].first->isVisible())
+            return false;
+        scene_->clearSelection();
+        canonical_[static_cast<size_t>(index)].first->setSelected(true);
+        refresh();
+        return true;
+    }
     int canonicalVisibleGlyphCount() const {
         int count=0;
         for(const auto &g:canonical_)if(g.first->isVisible())++count;
