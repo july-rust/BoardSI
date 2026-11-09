@@ -21,10 +21,10 @@ fn rectangle(x0:i64,y0:i64,x1:i64,y1:i64)->CopperGeometry {
 #[test]
 fn s_m_d_rectangle_and_source_polygon_cross_without_centre_or_corner_inside() {
     // Long thin source vertical bar x40..60; wide SMD horizontal bar
-    // x0..100, y40..60. Both centres' perimeters/vertices are outside the
-    // other except the crossing area, unlike the old SMD-centre-only path.
+    // x-40..60, y40..60. SMD centre x10 is outside source copper;
+    // only the actual finite-width pad intersects the source-filled region.
     let area = region(rectangle(40, 0, 60, 100), vec![]);
-    assert!(positive_rectangular_smd_area_witness(&area,[50,50],100,20).unwrap());
+    assert!(positive_rectangular_smd_area_witness(&area,[10,50],100,20).unwrap());
 }
 #[test]
 fn odd_size_pad_half_tick_sliver_is_positive_source_contact() {
