@@ -95,6 +95,11 @@ static bool verifySynthetic() {
         const double r=36.0*0.0254;
         const QPointF overlap=centre+QPointF(r*std::cos(theta),-r*std::sin(theta));
         if(!panel.canonicalContains(0,overlap))return false;
+        // Thermal shapes cannot use RHI until a hole/spoke-aware mesh exists.
+        // The actual ImportedArtworkPanel canvas must remain on the CPU view.
+        auto *canvasStack=panel.findChild<QStackedWidget*>();
+        if(!canvasStack || !qobject_cast<QGraphicsView*>(canvasStack->currentWidget()))
+            return false;
         const QPointF outerVoid=centre+QPointF(0.0,-r);
         // 16 spokes at 22.5-degree increments; at 90 degrees it is copper.
         if(!panel.canonicalContains(0,outerVoid))return false;
