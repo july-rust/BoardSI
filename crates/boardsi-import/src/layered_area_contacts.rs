@@ -177,6 +177,43 @@ fn valid_own_area_sample(area: &CopperArea, p: [i64; 2]) -> Result<bool, &'stati
         CopperGeometry::Curved { .. } => Err("D05603_UNSUPPORTED_CURVED_AREA_CONTACT"),
     }
 }
+/// A polygon's exact SOURCE outer boundary belongs to a positive-area
+/// filled polygon on its inward side. If an open part of that boundary lies
+/// strictly INSIDE another SOURCE-filled area (and outside all owned holes),
+/// the two open copper interiors overlap with nonzero area. Merely crossing
+/// AABBs or sharing a tangent/edge remains UNKNOWN, never an electrical edge.
+///
+/// The independently validated COPCUT ownership invariant ensures that the
+/// perimeter cannot be swallowed by its *own* hole. Circle-owned perimeters
+/// are not approximated with chords; those unresolved cases stay UNKNOWN.
+fn polygon_perimeter_overlap(
+    origin: &CopperArea,
+    target: &CopperArea,
+) -> Result<bool, &'static str> {
+    let CopperGeometry::Polygon(vertices) = &origin.geometry else {
+        return Ok(false);
+    };
+    for edge in vertices.windows(2) {
+        if edge[0] == edge[1] {
+            return Err("D05603_DEGENERATE_AREA_PERIMETER");
+        }
+        let boundary = Stroke {
+            layer: origin.layer,
+            net: origin.net_label.clone().unwrap_or_else(|| "UNKNOWN".into()),
+            width_ticks: 1,
+            source_line: origin.source_line,
+            centreline: Centreline::Straight {
+                start: edge[0],
+                end: edge[1],
+            },
+        };
+        if crate::straight_area_witness::positive_straight_area_witness(&boundary, target)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 fn kind_for(node: &CopperFootprint) -> Option<ContactKind> {
     match node {
         CopperFootprint::Stroke { .. } => Some(ContactKind::TraceCopperArea),
@@ -248,6 +285,44 @@ pub fn augment_source_areas(
         > 8_000_000
     {
         return Err("D05603_AREA_EVENT_WORK_LIMIT");
+    }
+    // Boundary-event combinations can be quadratic in vertex counts.
+    // Preflight their worst-case work before allocating candidate edges.
+    // The geometry contact inventory remains opt-in and strictly bounded.
+    let mut perimeter_work = 0usize;
+    for (i, area) in areas.iter().enumerate() {
+        for other in areas.iter().take(i) {
+            if area.layer != other.layer {
+                continue;
+            }
+            let edge_count = |a: &CopperArea| match &a.geometry {
+                CopperGeometry::Polygon(v) => v.len().saturating_sub(1),
+                _ => 0,
+            };
+            let shape_count = |a: &CopperArea| {
+                let n = match &a.geometry {
+                    CopperGeometry::Polygon(v) => v.len(),
+                    CopperGeometry::Circle { .. } => 2,
+                    CopperGeometry::Curved { .. } => 0,
+                };
+                n + a.cutouts.iter().map(|h| match h {
+                    CopperGeometry::Polygon(v) => v.len(),
+                    CopperGeometry::Circle { .. } => 2,
+                    CopperGeometry::Curved { .. } => 0,
+                }).sum::<usize>()
+            };
+            let work = edge_count(area)
+                .checked_mul(shape_count(other))
+                .and_then(|a| edge_count(other)
+                    .checked_mul(shape_count(area))
+                    .and_then(|b| a.checked_add(b)))
+                .ok_or("D05603_AREA_PERIMETER_WORK_LIMIT")?;
+            perimeter_work = perimeter_work.checked_add(work)
+                .ok_or("D05603_AREA_PERIMETER_WORK_LIMIT")?;
+            if perimeter_work > 8_000_000 {
+                return Err("D05603_AREA_PERIMETER_WORK_LIMIT");
+            }
+        }
     }
     let preexisting = graph.nodes.len();
     if preexisting + areas.len() > MAX_NODES {
@@ -345,7 +420,13 @@ pub fn augment_source_areas(
                 valid_own_area_sample(other, p).unwrap_or(false)
                     && strictly_in_area(area, p).unwrap_or(false)
             });
-            if identical || mutual {
+            let crossed_perimeter = if !identical && !mutual {
+                polygon_perimeter_overlap(area, other)?
+                    || polygon_perimeter_overlap(other, area)?
+            } else {
+                false
+            };
+            if identical || mutual || crossed_perimeter {
                 let (a, b) = (preexisting + old_index, new_index);
                 if seen.insert((a, b, ContactKind::CopperAreaCopperArea)) {
                     if graph.geometry_contacts.len() + new_edges.len() >= MAX_CONTACTS {
