@@ -136,6 +136,9 @@ inline bool make(const d056ipc::Source &source, const QString &expectedSha,
                     centreCopper.addRect(QRectF(x-major/2,-y-major/2,major,major));
                 }
                 QPainterPath spokes;
+                // Winding union preserves copper where adjacent spokes overlap.
+                // Odd-even fill incorrectly turns overlaps into nonconductive holes.
+                spokes.setFillRule(Qt::WindingFill);
                 constexpr double pi=3.14159265358979323846;
                 for(int k=0;k<pad.spokeCount;++k) {
                     const double theta=(pad.spokeAngle+
