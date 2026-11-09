@@ -2,6 +2,7 @@
 // Native Qt geometry-only oracle, not electrical continuity or GPU pixel proof.
 #include "d05605_canonical_artwork.h"
 #include <QApplication>
+#include <array>
 #include <QCryptographicHash>
 #include <QDebug>
 #include <QPolygonF>
