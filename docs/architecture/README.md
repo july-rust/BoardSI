@@ -27,6 +27,8 @@ flowchart LR
 
 [D_056 input normalization / implementation history](input-normalization.md) covers merged #521/#523/#526 and separate layer-aware diagnostic Qt #528. The [D_056_01 inspected-source audit and universal evidence contract](d056-01-source-evidence-audit.md) maps the actual parser/model/graph/viewer limitations to D_056_02–12. The [D_056_02 source-layer copper candidate graph](d056-02-source-layer-graph.md), merged in [#535](https://github.com/july-rust/BoardSI/pull/535), reuses geometry kernels and records unverified barrel spans without creating certified electrical graph edges. Restricted PADS V9.4 source-declared Through/Blind/Buried R/S/A/RA/SA geometry exists in an **opt-in** path, but manufactured plating/microvia classification, native format completeness, main Qt V1–V14 integration, global electrical connectivity and physical SI remain unverified. [D_056 tracker](../development-checklist.md#d_056) remains OPEN.
 
+**D_056_04 source-bound Canonical IPC:** [versioned Padstack/Via transport design and native verification](d056-04-canonical-padstack-ipc.md) records accepted code PR #549, exact source/geometry IDs, bounded Qt decoder and independently tested multilayer Rust→Qt bridge. It is opt-in, separate from legacy Qt Artwork V1–V14; production CPU/RHI Viewer integration is D_056_05 / #531. Real manufactured electrical/SI acceptance stays OPEN.
+
 ### 범용 Trace 접촉의 공통 설계 근거
 
 [D_054/D_055 Copper 접촉 계약](trace-copper-contact.md)은 임의 방향 직선·원호 Trace의 유한 선폭과 비중심 Via 환형 패드, 원형·정사각형·직사각형 SMD Pad 전체 영역 사이의 SOURCE-local 접촉 후보를 정리합니다. 이는 **전체 PCB Open/Short, 글로벌 연결 그래프, 물리 SI 검증**의 완료가 아닙니다. 검증 보고서는 [D_054/D_055 기록](../validation/d054-d055-general-trace-contact-qualification.md)을 확인하십시오.
