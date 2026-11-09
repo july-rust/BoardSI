@@ -1,6 +1,6 @@
 # D_056_06 — PADS RT/ST Thermal Spoke SOURCE / Canonical / Qt Integration
 
-> **Candidate pending exact-head CI, protected Verified Squash and main-push audit.** No product/physical electrical or solver acceptance is claimed here.
+> **D_056_06 source-scope code implementation merged (2026-11-09 KST).** [PR #553](https://github.com/july-rust/BoardSI/pull/553) final HEAD `3eceac04b3131d0ebb83501f37aadea002a5aaf9`, **12/12 PR workflow SUCCESS**, Native Qt and Rust Linux x64 / Windows x64 / Windows ARM64 / macOS ARM64 PASS, three corrected review findings, zero unresolved review threads. Protected Squash [code-main `e034335b055f068edcd68a17676c1f8f3e161fd8`](https://github.com/july-rust/BoardSI/commit/e034335b055f068edcd68a17676c1f8f3e161fd8) merged. Independent main Push and docs-only acceptance are audited separately. No product/physical electrical or solver acceptance is claimed here.
 
 Parent [#520](https://github.com/july-rust/BoardSI/issues/520) · PADS Thermal/Manufacturing [#530](https://github.com/july-rust/BoardSI/issues/530) · [PR #553](https://github.com/july-rust/BoardSI/pull/553) · [D_056_05 main Qt baseline](d056-05-qt-main-artwork.md)
 
@@ -45,7 +45,7 @@ V2: `BOARDSI_CANONICAL_PADSTACK_V2`, with source-SHA, body-SHA, byte/record coun
 
 Rational metres are exact integer numerator/denominator, angles/count bounded and validated by both Rust and Qt, without converting thermal outer void to a single solid copper circle. V2 only applies when at least one Thermal record exists.
 
-## Regression and release gate
+## Regression, review corrections, and release gate
 
 - Public synthetic PADS V9.4 fixture: `crates/boardsi-import/tests/fixtures/pads_via_rt_st_thermal_v94.asc` (RT L2, ST L3, ordinary landing L4 on six-layer buried span).
 - Independent vendor-RT 45° 4-spoke oracle, ST 0° source, hole/clearance/tangency and invalid field/zero spokes, source mutation.
@@ -53,5 +53,7 @@ Rational metres are exact integer numerator/denominator, angles/count bounded an
 - V1 regression must remain unchanged; V2 zero-spoke forgery with independently recomputed body SHA must be rejected.
 - Native Qt Linux x64 / Windows x64, ARM64 / macOS ARM64 and original D_001–D_055 validations in required CI.
 - Merge code through protected Verified Squash **only** after exact final PR HEAD required checks pass, all reviews resolved; run independent main `event=push` validation. Reconcile sole `docs/development-checklist.md` only after accepted SHA evidence; docs-only jobs should skip unrelated native.
+
+**Corrected independent review findings (PR #553):** (1) Qt spoke geometry uses winding-fill union so neighboring overlapping copper spokes remain filled and pickable; (2) contact broadphase uses the actual SOURCE thermal outer envelope, preserving off-centre spoke-only hits while negatives remain fail-closed; (3) `ImportedArtworkPanel` keeps its CPU canvas selected for RT/ST and rechecks synchronous RHI fallback before switching canvases. Actual Rust/Qt regressions cover the accepted witnesses. The first Windows x64 Qt job had an unexplained exit `127` at native Qt execution; the *same-head* failed-job rerun passed, and all final PR workflow groups reported SUCCESS. The original failed attempt remains historical evidence and must not be erased.
 
 **Caveat:** Vendor grammar establishes RT/ST parameters, not source-complete CAM plane fill. An unresolved nonnegative geometry candidate remains UNKNOWN, not declared Open or Short. Parent #520 and Issue #530 must remain open for D_056_07 and downstream adapters. 
