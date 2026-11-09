@@ -590,11 +590,7 @@ public:
           imported_(new ImportedArtworkPanel(tabs_)) {
         setObjectName("previewImportP2A");
         binary_ = importBinary;
-#ifdef Q_OS_WIN
-        canonicalBinary_ = QCoreApplication::applicationDirPath() + "/boardsi-import-canonical-padstack.exe";
-#else
-        canonicalBinary_ = QCoreApplication::applicationDirPath() + "/boardsi-import-canonical-padstack";
-#endif
+
         if (binary_.isEmpty()) {
 #ifdef Q_OS_WIN
             binary_ = QCoreApplication::applicationDirPath() + "/boardsi-import-artwork.exe";
@@ -602,6 +598,16 @@ public:
             binary_ = QCoreApplication::applicationDirPath() + "/boardsi-import-artwork";
 #endif
         }
+        // Resolve the opt-in Canonical producer next to the actual legacy
+        // importer passed to the GUI (target/debug in source builds, beside
+        // the preview executable in the bundled test package).
+#ifdef Q_OS_WIN
+        canonicalBinary_ = QFileInfo(binary_).absolutePath() +
+            "/boardsi-import-canonical-padstack.exe";
+#else
+        canonicalBinary_ = QFileInfo(binary_).absolutePath() +
+            "/boardsi-import-canonical-padstack";
+#endif
         auto *layout = new QVBoxLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
         auto *controls = new QHBoxLayout();
