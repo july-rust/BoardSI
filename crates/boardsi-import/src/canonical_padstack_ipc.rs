@@ -386,6 +386,11 @@ mod tests {
             encode_pads_source(pth_implicit.as_bytes()),
             Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC")
         );
+        let plated_slot_implicit = template.replace("-2 40 R 20 N", "-2 40 R 20 45 65 0");
+        assert_eq!(
+            encode_pads_source(plated_slot_implicit.as_bytes()),
+            Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC")
+        );
     }
 
     #[test]
