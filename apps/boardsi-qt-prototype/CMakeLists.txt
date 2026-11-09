@@ -29,6 +29,14 @@ if(MSVC)
 else()
   target_compile_options(boardsi-d05604-canonical-ipc-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
+# D_056_05: real MAIN ImportedArtworkPanel geometry/selection and source roundtrip.
+add_executable(boardsi-d05605-main-artwork-test d05605_main_artwork_test.cpp)
+target_link_libraries(boardsi-d05605-main-artwork-test PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+if(MSVC)
+  target_compile_options(boardsi-d05605-main-artwork-test PRIVATE /W4 /WX)
+else()
+  target_compile_options(boardsi-d05605-main-artwork-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
 # GPU-first Artwork Viewer uses the stable Qt Graphics View OpenGL viewport.
 # Optional at build time so machines without OpenGLWidgets can compile CPU fallback.
 # This does NOT change the Rust Worker, Canonical data or SI capabilities.
@@ -67,6 +75,10 @@ else()
 endif()
 include(CTest)
 if(BUILD_TESTING)
+  add_test(NAME qt-d05605-main-canonical-artwork
+    COMMAND boardsi-d05605-main-artwork-test --selftest)
+  set_tests_properties(qt-d05605-main-canonical-artwork PROPERTIES
+    TIMEOUT 45 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   add_test(NAME qt-d05604-canonical-padstack-ipc
     COMMAND boardsi-d05604-canonical-ipc-test --selftest)
   set_tests_properties(qt-d05604-canonical-padstack-ipc PROPERTIES TIMEOUT 30)
@@ -77,6 +89,12 @@ if(BUILD_TESTING)
         "${BOARDSI_CANONICAL_IMPORTER}"
         "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
     set_tests_properties(qt-d05604-rust-canonical-roundtrip PROPERTIES TIMEOUT 45)
+    add_test(NAME qt-d05605-main-rust-canonical-roundtrip
+      COMMAND boardsi-d05605-main-artwork-test --source
+        "${BOARDSI_CANONICAL_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
+    set_tests_properties(qt-d05605-main-rust-canonical-roundtrip PROPERTIES
+      TIMEOUT 65 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
   add_test(NAME qt-preview-d056-source-shaped-via-layers
     COMMAND boardsi-d056-via-viewer --selftest)
