@@ -16,6 +16,7 @@ struct Glyph {
     QString viaId, padstackId, drillId, netId, sourceSha, role, shape, kind;
     int first = 0, last = 0;
     bool conductive = false;
+    double majorMm = 0.0, minorMm = 0.0, openingMm = 0.0;
     QPointF centre;
     QPainterPath footprint; // Filled area excludes exact annulus/drill void.
     QPainterPath outline;   // Nonconductive roles are outlines ONLY.
@@ -104,6 +105,7 @@ inline bool make(const d056ipc::Source &source, const QString &expectedSha,
             g.role=pad.role; g.shape=pad.shape; g.kind=via.kind;
             g.first=via.first; g.last=via.last; g.conductive=pad.conductive();
             g.centre=centre;
+            g.majorMm=major;g.minorMm=minor;
             QPainterPath shape;
             if (pad.shape == "RECT")
                 shape.addRect(QRectF(x-major/2, -y-minor/2, major, minor));
@@ -118,6 +120,7 @@ inline bool make(const d056ipc::Source &source, const QString &expectedSha,
                 // substituted with a solid copper circle.
                 if (opening >= major || (pad.shape=="RECT" && opening>=minor))
                     return false;
+                g.openingMm=opening;
                 QPainterPath hole;
                 hole.addEllipse(centre,opening/2,opening/2);
                 shape.setFillRule(Qt::OddEvenFill);
