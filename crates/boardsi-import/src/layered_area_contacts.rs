@@ -252,21 +252,23 @@ pub fn positive_rectangular_smd_area_witness(
     let cx = twice(centre[0])?;
     let cy = twice(centre[1])?;
     let (x0, x1) = (
-        cx.checked_sub(width_ticks).ok_or("D05603_PAD_SCALE_OVERFLOW")?,
-        cx.checked_add(width_ticks).ok_or("D05603_PAD_SCALE_OVERFLOW")?,
+        cx.checked_sub(width_ticks)
+            .ok_or("D05603_PAD_SCALE_OVERFLOW")?,
+        cx.checked_add(width_ticks)
+            .ok_or("D05603_PAD_SCALE_OVERFLOW")?,
     );
     let (y0, y1) = (
-        cy.checked_sub(height_ticks).ok_or("D05603_PAD_SCALE_OVERFLOW")?,
-        cy.checked_add(height_ticks).ok_or("D05603_PAD_SCALE_OVERFLOW")?,
+        cy.checked_sub(height_ticks)
+            .ok_or("D05603_PAD_SCALE_OVERFLOW")?,
+        cy.checked_add(height_ticks)
+            .ok_or("D05603_PAD_SCALE_OVERFLOW")?,
     );
     let rect = CopperArea {
         name: "D05603_SMD_WITNESS".into(),
         net_label: None,
         layer: area.layer,
         source_line: area.source_line,
-        geometry: CopperGeometry::Polygon(vec![
-            [x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0],
-        ]),
+        geometry: CopperGeometry::Polygon(vec![[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]),
         cutouts: Vec::new(),
     };
     let mut holes = Vec::with_capacity(area.cutouts.len());
@@ -281,11 +283,10 @@ pub fn positive_rectangular_smd_area_witness(
         geometry: doubled_shape(&area.geometry)?,
         cutouts: holes,
     };
-    if area_witness_samples(&source)
-        .into_iter()
-        .any(|p| valid_own_area_sample(&source, p).unwrap_or(false)
-            && strictly_in_area(&rect, p).unwrap_or(false))
-    {
+    if area_witness_samples(&source).into_iter().any(|p| {
+        valid_own_area_sample(&source, p).unwrap_or(false)
+            && strictly_in_area(&rect, p).unwrap_or(false)
+    }) {
         return Ok(true);
     }
     if area_witness_samples(&rect)
@@ -366,13 +367,27 @@ pub fn augment_source_areas(
             .checked_add(vertices)
             .ok_or("D05603_AREA_EVENT_WORK_LIMIT")?;
     }
-    let rectangular_pad_count = graph.nodes.iter().filter(|n| {
-        matches!(&n.footprint, CopperFootprint::SmdPad { rectangular: true, .. })
-    }).count();
-    let event_users = strokes.len().checked_add(rectangular_pad_count)
+    let rectangular_pad_count = graph
+        .nodes
+        .iter()
+        .filter(|n| {
+            matches!(
+                &n.footprint,
+                CopperFootprint::SmdPad {
+                    rectangular: true,
+                    ..
+                }
+            )
+        })
+        .count();
+    let event_users = strokes
+        .len()
+        .checked_add(rectangular_pad_count)
         .ok_or("D05603_AREA_EVENT_WORK_LIMIT")?;
-    if complexity.checked_mul(event_users)
-        .ok_or("D05603_AREA_EVENT_WORK_LIMIT")? > 8_000_000
+    if complexity
+        .checked_mul(event_users)
+        .ok_or("D05603_AREA_EVENT_WORK_LIMIT")?
+        > 8_000_000
     {
         return Err("D05603_AREA_EVENT_WORK_LIMIT");
     }
@@ -479,9 +494,7 @@ pub fn augment_source_areas(
             } else {
                 false
             };
-            let proven_by_rectangular_pad = if !proven_by_sample
-                && !proven_by_boundary_events
-            {
+            let proven_by_rectangular_pad = if !proven_by_sample && !proven_by_boundary_events {
                 match &candidate.footprint {
                     CopperFootprint::SmdPad {
                         centre,
@@ -489,7 +502,10 @@ pub fn augment_source_areas(
                         height_ticks,
                         rectangular: true,
                     } => positive_rectangular_smd_area_witness(
-                        area, *centre, *width_ticks, *height_ticks,
+                        area,
+                        *centre,
+                        *width_ticks,
+                        *height_ticks,
                     )?,
                     _ => false,
                 }
