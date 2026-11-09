@@ -271,9 +271,9 @@ fn target_envelope(kind: Target, vias: &[ViaInstance], pads: &[ComponentPad]) ->
                     via.pads
                         .iter()
                         .map(|pad| match pad.shape {
-                            ViaLayerShape::Thermal { outer_size_ticks, .. } => {
-                                outer_size_ticks
-                            }
+                            ViaLayerShape::Thermal {
+                                outer_size_ticks, ..
+                            } => outer_size_ticks,
                             _ => pad.size_ticks,
                         })
                         .max()
@@ -577,9 +577,11 @@ mod tests {
         // A strictly outside-envelope witness is provably separated.
         let off_spoke = line([3500, 3000], [4000, 3000], 100, 1);
         assert_eq!(trace_to_via(&off_spoke, &vias[0]), Ok(Contact::Separated));
-        assert!(contact_candidates(&[off_spoke], &vias, &[], &BTreeMap::new())
-            .unwrap()
-            .is_empty());
+        assert!(
+            contact_candidates(&[off_spoke], &vias, &[], &BTreeMap::new())
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]
