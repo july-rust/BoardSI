@@ -46,6 +46,7 @@ Parent [#520](https://github.com/july-rust/BoardSI/issues/520) · Manufacturing 
 | Full PADS PARTDECAL shapes / graphics / mirrored placement | UNSUPPORTED; hard fail rather than silent skip |
 | PARTDECAL positive implicit-plated round hole (`P` omitted) | Supported strict subset, **no manufactured barrel proof** |
 | Current legacy Canonical V1/V2 handoff for source-known PTH/NPTH/Slot | Explicit `D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC` refusal; cannot drop the hole |
+| Current legacy Canonical V1/V2 handoff for unrecognized or malformed PARTDECAL grammar | Explicit `D05607_PARTDECAL_SOURCE_UNSUPPORTED_FOR_LEGACY_IPC` refusal; no silent fallback into hole-free layout |
 | PADS VIA/ROUTE native NPTH / slot declaration | UNSUPPORTED; grammar not independently established |
 | Native PADS Backdrill / stacked or staggered microvia parsing | UNSUPPORTED; grammar not independently established |
 | Actual CAM slot endcap construction and rendered copper boolean | NOT_VERIFIED |
