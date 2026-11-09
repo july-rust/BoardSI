@@ -1098,8 +1098,8 @@ public:
             // loadCanonical may synchronously trigger CPU fallback via onChanged.
             // Recheck before activating the RHI canvas, or all thermal copper
             // would disappear while the failed GPU view is frontmost.
-            canvasStack_->setCurrentWidget(rhi_->failed() ? static_cast<QWidget*>(view_) :
-                                                       static_cast<QWidget*>(rhi_));
+            if (rhi_->failed()) canvasStack_->setCurrentWidget(view_);
+            else canvasStack_->setCurrentWidget(rhi_);
         } else canvasStack_->setCurrentWidget(view_);
 #else
         Q_UNUSED(useRhi);
