@@ -167,7 +167,7 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
                 || (r[7] != "true" && r[7] != "false")
                 || (r[8] != "true" && r[8] != "false")) return false;
             frameIds.insert(r[1]);
-            parsed.frames.push_back(Frame{r[1], r[2], r[3], r[4], r[5],
+            parsed.frames.push_back(Frame{r[1], QString::fromUtf8(QByteArray::fromHex(r[2].toLatin1())), r[3], r[4], r[5],
                 turn, r[7] == "true", r[8] == "true"});
         } else if (tag == "L") {
             int ordinal = 0, order = 0;
@@ -244,6 +244,8 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
                 [&](const Stack &s) { return s.id == r[2]; });
             if (di == parsed.drills.cend() || si == parsed.stacks.cend()
                 || di->first != first || di->last != last) return false;
+            if (!std::any_of(si->pads.cbegin(), si->pads.cend(),
+                    [](const Pad &p) { return p.conductive(); })) return false;
             for (const auto &p : si->pads)
                 if (p.layer < first || p.layer > last) return false;
             viaIds.insert(r[1]);
