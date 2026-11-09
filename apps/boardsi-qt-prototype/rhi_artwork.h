@@ -5,6 +5,7 @@
 #pragma once
 #include "d05605_canonical_artwork.h"
 #include <QColor>
+#include <QHoverEvent>
 #include <QMouseEvent>
 #include <QQuickItem>
 #include <QQuickWindow>
@@ -148,6 +149,8 @@ class BoardSiRhiItem final : public QQuickItem {
         update();
     }
     std::function<void(int,int)> picked_;
+    std::function<void(int)> canonicalHovered_;
+    int lastCanonicalHover_=-1;
     // Coarse source-nm bins, not rasterized polygons; long routes are indexed
     // separately so that an unusually long trace cannot explode the index.
     std::unordered_map<quint64,std::vector<int>> trackBins_;
@@ -978,6 +981,22 @@ protected:
         if (std::hypot(delta.x(),delta.y()) >= 1) dragging_ = true;
         pan_ += delta; pressed_ = event->position(); requestSceneUpdate(); event->accept();
     }
+    void hoverMoveEvent(QHoverEvent *event) override {
+        if(!canonical_.glyphs.isEmpty() && canonicalHovered_) {
+            const int hit=canonicalIndexAt(event->position());
+            if(hit!=lastCanonicalHover_) {
+                lastCanonicalHover_=hit;
+                canonicalHovered_(hit); // Source details only; never validates connectivity.
+            }
+        }
+        QQuickItem::hoverMoveEvent(event);
+    }
+    void hoverLeaveEvent(QHoverEvent *event) override {
+        if(lastCanonicalHover_!=-1 && canonicalHovered_) {
+            lastCanonicalHover_=-1;canonicalHovered_(-1);
+        }
+        QQuickItem::hoverLeaveEvent(event);
+    }
     void mouseReleaseEvent(QMouseEvent *event) override {
         if (!dragging_ && picked_) {
             if(!canonical_.glyphs.isEmpty()) {
@@ -1136,8 +1155,12 @@ public:
     explicit BoardSiRhiItem(QQuickItem *parent=nullptr) : QQuickItem(parent) {
         setFlag(ItemHasContents,true);
         setAcceptedMouseButtons(Qt::LeftButton);
+        setAcceptHoverEvents(true);
     }
     void onPicked(std::function<void(int,int)> callback) { picked_=std::move(callback); }
+    void onCanonicalHovered(std::function<void(int)> callback) {
+        canonicalHovered_=std::move(callback);
+    }
     void load(int layers,const std::vector<ImportedTrack> &tracks,
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads,
               const std::vector<ImportedArc> &arcs = {},
@@ -1148,7 +1171,7 @@ public:
                const std::vector<ImportedCopperArea> &copper = {}) {
         contactMarkers_.clear();
         referenceRisks_.clear();
-        canonical_={};
+        canonical_={};lastCanonicalHover_=-1;
         tracks_=tracks; vias_=vias; pads_=pads; arcs_=arcs;
         outlineEdges_=outlines; circles_=circles; boundaries_=boundary; pours_=pours; copper_=copper; layers_=layers;
         adapterProof_->store(0,std::memory_order_release);
@@ -1714,6 +1737,9 @@ public:
     }
     void onChanged(std::function<void()> callback) {changed_=std::move(callback);}
     void onPicked(std::function<void(int,int)> callback) {artwork_->onPicked(std::move(callback));}
+    void onCanonicalHovered(std::function<void(int)> callback) {
+        artwork_->onCanonicalHovered(std::move(callback));
+    }
     void load(int layers,const std::vector<ImportedTrack> &tracks,
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads,
               const std::vector<ImportedArc> &arcs = {},
