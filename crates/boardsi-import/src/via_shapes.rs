@@ -2,6 +2,7 @@
 //! These shapes are source-normalized. They are not evidence of plated barrel
 //! continuity, a whole-board electric graph, a microvia process, or SI readiness.
 use boardsi_model::{ObjectId, PadRole, PadShape, PadstackLayer, Rational, ViaKind};
+use crate::thermal_source::ThermalKind;
 use std::collections::BTreeSet;
 
 /// PADS V9.4 R/S/A/RA/SA. 'A' is a real annular ring with an inner
@@ -13,11 +14,18 @@ pub enum ViaLayerShape {
     Annular { inner_diameter_ticks: i64 },
     RoundAntiPad,
     SquareAntiPad,
+    Thermal {
+        kind: ThermalKind,
+        first_spoke_degrees: u16,
+        outer_size_ticks: i64,
+        spoke_width_ticks: i64,
+        spoke_count: u32,
+    },
 }
 
 impl ViaLayerShape {
     pub fn conductive(self) -> bool {
-        matches!(self, Self::Round | Self::Square | Self::Annular { .. })
+        matches!(self, Self::Round | Self::Square | Self::Annular { .. } | Self::Thermal { .. })
     }
 
     pub fn wire_code(self) -> &'static str {
@@ -27,6 +35,8 @@ impl ViaLayerShape {
             Self::Annular { .. } => "A",
             Self::RoundAntiPad => "RA",
             Self::SquareAntiPad => "SA",
+            Self::Thermal { kind: ThermalKind::Round, .. } => "RT",
+            Self::Thermal { kind: ThermalKind::Square, .. } => "ST",
         }
     }
 }
@@ -83,6 +93,13 @@ impl NormalizedViaShapes {
             {
                 return Err("D056_INVALID_LAYER_PAD");
             }
+            if let ViaLayerShape::Thermal { first_spoke_degrees, outer_size_ticks, spoke_width_ticks, spoke_count, .. } = pad.shape {
+                if first_spoke_degrees >= 360 || outer_size_ticks <= pad.size_ticks
+                    || outer_size_ticks > 5_600_000 || spoke_width_ticks <= 0
+                    || spoke_width_ticks > pad.size_ticks || !(1..=64).contains(&spoke_count) {
+                    return Err("D05606_INVALID_THERMAL_GEOMETRY");
+                }
+            }
             if let ViaLayerShape::Annular {
                 inner_diameter_ticks,
             } = pad.shape
@@ -132,6 +149,18 @@ impl NormalizedViaShapes {
                     ViaLayerShape::Square | ViaLayerShape::SquareAntiPad => PadShape::Rectangle {
                         size_m: [size_m; 2],
                     },
+                    ViaLayerShape::Thermal { kind, first_spoke_degrees, outer_size_ticks, spoke_width_ticks, spoke_count } => {
+                        let to_m = |v: i64| Rational::new(i128::from(v) * 127, 500_000_000)
+                            .map_err(|_| "D05606_THERMAL_DIMENSION_OVERFLOW");
+                        PadShape::Thermal {
+                            round: kind == ThermalKind::Round,
+                            centre_size_m: size_m,
+                            outer_size_m: to_m(outer_size_ticks)?,
+                            spoke_width_m: to_m(spoke_width_ticks)?,
+                            first_spoke_degrees,
+                            spoke_count,
+                        }
+                    }
                     ViaLayerShape::Annular {
                         inner_diameter_ticks,
                     } => {
