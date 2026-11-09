@@ -36,6 +36,7 @@ pub enum ThermalZone {
 pub struct SourceThermal {
     pub via_name: String,
     pub source_line: usize,
+    pub source_sha256: [u8; 32],
     pub pad: ThermalPad,
 }
 
@@ -166,7 +167,13 @@ impl ThermalPad {
 
 /// SOURCE-only diagnostic inventory. The existing production importer keeps
 /// RT/ST fail-closed until geometric contact, versioned IPC and Qt are proved.
+pub fn scan_via_thermals_bytes(bytes: &[u8]) -> Result<Vec<SourceThermal>, &'static str> {
+    let source = std::str::from_utf8(bytes).map_err(|_| "D05606_NON_UTF8_SOURCE")?;
+    scan_via_thermals(source)
+}
+
 pub fn scan_via_thermals(source: &str) -> Result<Vec<SourceThermal>, &'static str> {
+    let source_sha256 = crate::digest::sha256(source.as_bytes());
     if source.len() > 4 * 1024 * 1024
         || !source
             .lines()
@@ -231,6 +238,7 @@ pub fn scan_via_thermals(source: &str) -> Result<Vec<SourceThermal>, &'static st
                 result.push(SourceThermal {
                     via_name: h[0].to_owned(),
                     source_line: i + j + 1,
+                    source_sha256,
                     pad,
                 });
             }
@@ -287,6 +295,10 @@ mod tests {
         let src = "!PADS-POWERPCB-V9.4-MILS!\n*VIA*\nA 15 2\n-2 60 RT 45 84 15 4\n0 50 R\n*END*\n";
         let entries = scan_via_thermals(src).unwrap();
         assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].source_sha256, crate::digest::sha256(src.as_bytes()));
+        let changed = src.replace("RT 45", "RT 46");
+        assert_ne!(scan_via_thermals_bytes(changed.as_bytes()).unwrap()[0].source_sha256, entries[0].source_sha256);
+        assert!(scan_via_thermals_bytes(&[0xff, 0x00]).is_err());
         assert_eq!(
             (entries[0].via_name.as_str(), entries[0].source_line),
             ("A", 4)
