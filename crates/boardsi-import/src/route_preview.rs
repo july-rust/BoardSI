@@ -514,7 +514,15 @@ fn parse_with_via_mode(
         }
         // A named via is a separate placement at this exact route vertex,
         // NOT proof of electrical contact with other copper layers.
-        if fields.len() == 6 && flag & !SUPPORTED_STRAIGHT_FLAGS == 0 {
+        // PADS 9.4 ROUTE: [vianame][THERMAL]. Without this optional keyword
+        // CAM spokes are explicitly disabled; its presence is still only
+        // intent, NOT proof that a fabricated plane thermal was generated.
+        let thermal_requested =
+            allow_generalized_vias && fields.len() == 7 && fields[6] == "THERMAL";
+        if (fields.len() == 6 || thermal_requested)
+            && flag & !(SUPPORTED_STRAIGHT_FLAGS | if allow_generalized_vias { 0x0100 } else { 0 })
+                == 0
+        {
             // Generalized mode always checks the strict source-definition
             // inventory, including conflicting duplicate names. A matching
             // legacy equal-round through definition must not bypass it.
@@ -530,6 +538,12 @@ fn parse_with_via_mode(
                     .as_ref()
                     .map_err(|error| *error)?;
                 let profile = definition.normalize_shapes(max_layer)?;
+                if profile.pads.iter().any(|pad| {
+                    matches!(pad.shape, crate::via_shapes::ViaLayerShape::Thermal { .. })
+                }) && !thermal_requested
+                {
+                    return Err("D05606_THERMAL_ROUTE_FLAG_MISSING");
+                }
                 if profile.is_only_round_copper() {
                     (Some(definition.normalize(max_layer)?), None)
                 } else {
@@ -1737,7 +1751,7 @@ mod d056_native_via_source_regressions {
         let unsupported = source(6, 2, 4, "V_TEST 15 2 2 4\n-2 35 RT 45 84 15 4\n0 40 R");
         assert_eq!(
             parse_generalized(unsupported.as_bytes()).unwrap_err(),
-            "D056_THERMAL_CONTACT_UNSUPPORTED"
+            "D05606_THERMAL_ROUTE_FLAG_MISSING"
         );
         let malformed = source(6, 2, 4, "V_TEST 15 2 4 2\n-2 35 R\n0 40 R");
         assert_eq!(

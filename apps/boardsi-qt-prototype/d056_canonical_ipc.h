@@ -17,6 +17,8 @@ namespace d056ipc {
 struct Pad {
     int layer = 0;
     QString role, shape, first, second;
+    QString spokeWidth{};
+    int spokeAngle=0, spokeCount=0;
     bool conductive() const { return role == "CONDUCTIVE"; }
 };
 struct Stack { QString id; QVector<Pad> pads; };
@@ -101,7 +103,8 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
     const QByteArray rawHead = wire.left(split);
     if (QString::fromUtf8(rawHead).toUtf8() != rawHead) return false;
     const auto h = QString::fromUtf8(rawHead).split('|', Qt::KeepEmptyParts);
-    if (h.size() != 17 || h[0] != "BOARDSI_CANONICAL_PADSTACK_V1"
+    const bool wireV2 = h[0] == "BOARDSI_CANONICAL_PADSTACK_V2";
+    if (h.size() != 17 || (!wireV2 && h[0] != "BOARDSI_CANONICAL_PADSTACK_V1")
         || !hash64(h[1]) || h[1] != expectedSourceSha
         || h[2].isEmpty() || h[3].isEmpty() || h[4].isEmpty() || h[5].isEmpty()
         || !hexToken(h[2], false) || !hexToken(h[3], false)
@@ -138,6 +141,7 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
     QMap<QString, QSet<int>> padLayers;
     int stage = 0, pending = 0;
     bool ended = false;
+    bool sawThermal = false;
     for (int i = 0; i < records; ++i) {
         const auto r = lines[i].split('|', Qt::KeepEmptyParts);
         if (r.isEmpty() || ended) return false;
@@ -192,23 +196,47 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
             parsed.stacks.push_back(Stack{r[1], {}});
         } else if (tag == "P") {
             int layer = 0;
-            if (r.size() != 7 || pending <= 0 || parsed.stacks.isEmpty()
-                || r[1] != parsed.stacks.last().id
+            if (pending <= 0 || parsed.stacks.isEmpty()
+                || r.size() < 7 || r[1] != parsed.stacks.last().id
                 || !inRange(r[2], 1, layers, &layer)
                 || padLayers[r[1]].contains(layer)
-                || (r[3] != "CONDUCTIVE" && r[3] != "ANTIPAD" && r[3] != "CLEARANCE")
-                || (r[4] != "CIRCLE" && r[4] != "RECT" && r[4] != "ANNULUS")
-                || !rational(r[5], true)
-                || !rational(r[6], r[4] != "CIRCLE")) return false;
-            if (r[4] == "CIRCLE" && r[6] != "0:1") return false;
-            if (r[4] == "ANNULUS") {
-                const double outer = dimension(r[5]), inner = dimension(r[6]);
-                if (!std::isfinite(outer) || !std::isfinite(inner) || inner <= 0
-                    || outer <= inner || (outer - inner) <= outer * 1e-14)
-                    return false; // precision-ambiguous boundaries fail closed
+                || (r[3] != "CONDUCTIVE" && r[3] != "ANTIPAD" && r[3] != "CLEARANCE"))
+                return false;
+            const bool thermal = r[4] == "THERMAL_RT" || r[4] == "THERMAL_ST";
+            Pad pad;
+            pad.layer=layer; pad.role=r[3]; pad.shape=r[4];
+            pad.first=r[5];pad.second=r[6];
+            if (thermal) {
+                int angle=0, count=0;
+                if (!wireV2 || r.size()!=10 || r[3]!="CONDUCTIVE"
+                    || !rational(r[5],true) || !rational(r[6],true)
+                    || !rational(r[7],true)
+                    || !inRange(r[8],0,359,&angle)
+                    || !inRange(r[9],1,64,&count))
+                    return false;
+                const double middle=dimension(r[5]),outer=dimension(r[6]);
+                const double width=dimension(r[7]);
+                if (!std::isfinite(middle)||!std::isfinite(outer)||!std::isfinite(width)
+                    || middle<=0 || outer<=middle || width<=0 || width>middle
+                    || outer-middle <= outer*1e-14) return false;
+                pad.spokeWidth=r[7];pad.spokeAngle=angle;pad.spokeCount=count;
+                sawThermal = true;
+            } else {
+                if (r.size()!=7
+                    || (r[4]!="CIRCLE" && r[4]!="RECT" && r[4]!="ANNULUS")
+                    || !rational(r[5],true)
+                    || !rational(r[6],r[4]!="CIRCLE"))
+                    return false;
+                if (r[4]=="CIRCLE" && r[6]!="0:1") return false;
+                if (r[4]=="ANNULUS") {
+                    const double outer=dimension(r[5]),inner=dimension(r[6]);
+                    if (!std::isfinite(outer)||!std::isfinite(inner)
+                        || inner<=0 || outer<=inner
+                        || outer-inner <= outer*1e-14) return false;
+                }
             }
             padLayers[r[1]].insert(layer);
-            parsed.stacks.last().pads.push_back(Pad{layer, r[3], r[4], r[5], r[6]});
+            parsed.stacks.last().pads.push_back(std::move(pad));
             --pending;
         } else if (tag == "D") {
             int first = 0, last = 0;
@@ -264,7 +292,8 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
             ended = true;
         }
     }
-    if (!ended || pending || parsed.conditions.size() != conditions
+    if (!ended || pending || (wireV2 != sawThermal)
+        || parsed.conditions.size() != conditions
         || parsed.frames.size() != frames || parsed.layerIds.size() != layers
         || parsed.stacks.size() != stacks || parsed.drills.size() != drills
         || parsed.vias.size() != vias) return false;

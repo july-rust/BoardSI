@@ -78,6 +78,33 @@ static bool verifySynthetic() {
            !panel.canonicalMode() || panel.canonicalSourceSha()!=sha)
             return false; // Transactional rejection preserves accepted model.
     }
+    // D_056_06 regression: overlapping spoke polygons are a UNION.
+    // Odd-even fill wrongly creates holes for 16 spokes around radius 36 mil.
+    {
+        auto thermal=synthetic(4,1,4);
+        auto &pad=thermal.stacks[0].pads[0];
+        pad.shape="THERMAL_RT";
+        pad.first="381:250000";    // central land 60 mil
+        pad.second="2667:1250000"; // relief outer diameter 84 mil
+        pad.spokeWidth="381:1000000"; // spoke width 15 mil
+        pad.spokeAngle=0;pad.spokeCount=16;
+        if(!panel.loadCanonical(thermal,sha) || !panel.canonicalMode())
+            return false;
+        const QPointF centre(0.254,-0.508);
+        const double theta=11.25*3.14159265358979323846/180.0;
+        const double r=36.0*0.0254;
+        const QPointF overlap=centre+QPointF(r*std::cos(theta),-r*std::sin(theta));
+        if(!panel.canonicalContains(0,overlap))return false;
+        // Thermal shapes cannot use RHI until a hole/spoke-aware mesh exists.
+        // The actual ImportedArtworkPanel canvas must remain on the CPU view.
+        auto *canvasStack=panel.findChild<QStackedWidget*>();
+        if(!canvasStack || !qobject_cast<QGraphicsView*>(canvasStack->currentWidget()))
+            return false;
+        const QPointF outerVoid=centre+QPointF(0.0,-r);
+        // 16 spokes at 22.5-degree increments; at 90 degrees it is copper.
+        if(!panel.canonicalContains(0,outerVoid))return false;
+    }
+
     // Existing V1-V14 importer routes must still load using unchanged models.
     const ImportedTrack legacy{1,"legacy",0,0,254000,0,25400};
     if(!panel.load(2,0,{legacy}) || panel.canonicalMode() ||

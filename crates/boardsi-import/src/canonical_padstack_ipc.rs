@@ -186,18 +186,48 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
                 PadRole::AntiPad => "ANTIPAD",
                 PadRole::Clearance => "CLEARANCE",
             };
-            let (code, a, b) = shape(&pad.shape)?;
-            writeln!(
-                &mut body,
-                "P|{}|{}|{}|{}|{}|{}",
-                sid,
-                layer,
-                role,
-                code,
-                rat(a),
-                rat(b)
-            )
-            .map_err(|_| "D05604_WIRE_FORMAT")?;
+            match &pad.shape {
+                PadShape::Thermal {
+                    round,
+                    centre_size_m,
+                    outer_size_m,
+                    spoke_width_m,
+                    first_spoke_degrees,
+                    spoke_count,
+                } => {
+                    if pad.role != PadRole::Conductive {
+                        return Err("D05606_THERMAL_MUST_BE_CONDUCTIVE");
+                    }
+                    writeln!(
+                        &mut body,
+                        "P|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+                        sid,
+                        layer,
+                        role,
+                        if *round { "THERMAL_RT" } else { "THERMAL_ST" },
+                        rat(*centre_size_m),
+                        rat(*outer_size_m),
+                        rat(*spoke_width_m),
+                        first_spoke_degrees,
+                        spoke_count,
+                    )
+                    .map_err(|_| "D05606_WIRE_FORMAT")?;
+                }
+                _ => {
+                    let (code, a, b) = shape(&pad.shape)?;
+                    writeln!(
+                        &mut body,
+                        "P|{}|{}|{}|{}|{}|{}",
+                        sid,
+                        layer,
+                        role,
+                        code,
+                        rat(a),
+                        rat(b)
+                    )
+                    .map_err(|_| "D05604_WIRE_FORMAT")?;
+                }
+            }
         }
     }
     seen.clear();
@@ -258,14 +288,34 @@ pub fn encode(board: &BoardModel) -> Result<Vec<u8>, &'static str> {
         board.vias.len()
     )
     .map_err(|_| "D05604_WIRE_FORMAT")?;
+    let has_thermal = board.padstacks.iter().any(|s| {
+        s.entries
+            .iter()
+            .any(|p| matches!(p.shape, PadShape::Thermal { .. }))
+    });
+    let version = if has_thermal {
+        "BOARDSI_CANONICAL_PADSTACK_V2"
+    } else {
+        "BOARDSI_CANONICAL_PADSTACK_V1"
+    };
     let body_sha = hex(&crate::digest::sha256(body.as_bytes()));
     let mut header = format!(
-        "BOARDSI_CANONICAL_PADSTACK_V1|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|GEOMETRY_ONLY|SI_NOT_RUN\n",
-        hex(&file.sha256), hex(fmt_source(&source.format).as_bytes()),
-        hex(source.format_version.as_bytes()), hex(source.importer_version.as_bytes()),
-        hex(file.logical_path.as_bytes()), frames.len(), physical.len(),
-        board.padstacks.len(), board.drills.len(), board.vias.len(),
-        source.conditions.len(), body.len(), body.lines().count(), body_sha
+        "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|GEOMETRY_ONLY|SI_NOT_RUN\n",
+        version,
+        hex(&file.sha256),
+        hex(fmt_source(&source.format).as_bytes()),
+        hex(source.format_version.as_bytes()),
+        hex(source.importer_version.as_bytes()),
+        hex(file.logical_path.as_bytes()),
+        frames.len(),
+        physical.len(),
+        board.padstacks.len(),
+        board.drills.len(),
+        board.vias.len(),
+        source.conditions.len(),
+        body.len(),
+        body.lines().count(),
+        body_sha
     );
     header.push_str(&body);
     if header.len() > MAX_WIRE_BYTES {
@@ -297,6 +347,60 @@ pub fn encode_pads_source(bytes: &[u8]) -> Result<Vec<u8>, &'static str> {
 mod tests {
     use super::*;
     const SAMPLE: &[u8] = include_bytes!("../tests/fixtures/pads_via_round_through_v94.asc");
+    #[test]
+    fn source_rt_st_preserves_layer_evidence_on_v2_wire() {
+        let source = include_bytes!("../tests/fixtures/pads_via_rt_st_thermal_v94.asc");
+        // PADS p.54: without the explicit ROUTE THERMAL marker CAM
+        // thermal generation is disabled. Never invent conductive spokes.
+        let disabled = std::str::from_utf8(source)
+            .unwrap()
+            .replace("THERM_V THERMAL", "THERM_V");
+        assert_eq!(
+            crate::route_preview::parse_generalized(disabled.as_bytes()).unwrap_err(),
+            "D05606_THERMAL_ROUTE_FLAG_MISSING"
+        );
+        let parsed = crate::route_preview::parse_generalized(source).unwrap();
+        assert_eq!(parsed.skipped, 0);
+        assert_eq!(parsed.vias.len(), 1);
+        assert_eq!(
+            (parsed.vias[0].first_layer, parsed.vias[0].last_layer),
+            (2, 4)
+        );
+        let board = crate::route_preview::into_canonical(source, &parsed).unwrap();
+        let entries = &board.padstacks[0].entries;
+        assert_eq!(entries.len(), 3);
+        assert!(matches!(
+            &entries[0].shape,
+            PadShape::Thermal {
+                round: true,
+                first_spoke_degrees: 45,
+                spoke_count: 4,
+                ..
+            }
+        ));
+        assert!(matches!(
+            &entries[1].shape,
+            PadShape::Thermal {
+                round: false,
+                first_spoke_degrees: 0,
+                spoke_count: 4,
+                ..
+            }
+        ));
+        let wire = encode_pads_source(source).unwrap();
+        let text = std::str::from_utf8(&wire).unwrap();
+        assert!(text.starts_with("BOARDSI_CANONICAL_PADSTACK_V2|"));
+        assert!(text.contains("|THERMAL_RT|"));
+        assert!(text.contains("|THERMAL_ST|"));
+        assert!(text.contains("|CONNECTIVITY_UNKNOWN\n"));
+        assert!(!text.contains("|VERIFIED_ELECTRICAL|"));
+        assert_eq!(wire, encode_pads_source(source).unwrap());
+        let bad = std::str::from_utf8(source)
+            .unwrap()
+            .replace("RT 45", "RT 46");
+        assert_ne!(encode_pads_source(bad.as_bytes()).unwrap(), wire);
+    }
+
     #[test]
     fn source_canonical_wire_reimport_and_hash() {
         let wire = encode_pads_source(SAMPLE).unwrap();

@@ -96,6 +96,9 @@ fn footprint(footprint: &CopperFootprint) -> Result<Option<LocalShape>, &'static
                 ViaLayerShape::Annular {
                     inner_diameter_ticks,
                 } => (true, inner_diameter_ticks),
+                // Thermal shape is NOT a filled disk: absent a separate verified
+                // spoke/plane overlap witness, local pad-pair stays UNKNOWN.
+                ViaLayerShape::Thermal { .. } => return Ok(None),
                 ViaLayerShape::RoundAntiPad | ViaLayerShape::SquareAntiPad => {
                     return Err("D05603_ANTIPAD_AS_COPPER")
                 }

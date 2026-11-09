@@ -204,6 +204,17 @@ pub enum PadShape {
         outer_diameter_m: Rational,
         inner_diameter_m: Rational,
     },
+    /// Source-defined thermal pad: central round/square copper plus radial spokes.
+    /// Outer size is the relief/plane-void envelope, not a solid copper pad.
+    /// Angles are measured CCW from +X; derived from verified native grammar.
+    Thermal {
+        round: bool,
+        centre_size_m: Rational,
+        outer_size_m: Rational,
+        spoke_width_m: Rational,
+        first_spoke_degrees: u16,
+        spoke_count: u32,
+    },
     /// Reusable pad-local geometry; its frame maps source ticks to local metres.
     /// Apply Pad position/orientation once when instantiating it in board space.
     Custom(Boundary),

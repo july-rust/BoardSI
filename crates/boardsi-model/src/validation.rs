@@ -379,6 +379,22 @@ impl BoardModel {
                         == std::cmp::Ordering::Greater,
                 ModelError::InvalidDimension,
             ),
+            PadShape::Thermal {
+                centre_size_m,
+                outer_size_m,
+                spoke_width_m,
+                first_spoke_degrees,
+                spoke_count,
+                ..
+            } => require(
+                centre_size_m.positive()
+                    && outer_size_m.checked_cmp(*centre_size_m)? == std::cmp::Ordering::Greater
+                    && spoke_width_m.positive()
+                    && centre_size_m.checked_cmp(*spoke_width_m)? != std::cmp::Ordering::Less
+                    && *first_spoke_degrees < 360
+                    && (1..=64).contains(spoke_count),
+                ModelError::InvalidDimension,
+            ),
             PadShape::Custom(boundary) => self.boundary(boundary),
         }
     }

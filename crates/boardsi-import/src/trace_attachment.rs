@@ -159,6 +159,29 @@ pub fn trace_to_layered_via(
     {
         return annular_contact(trace, point, pad.size_ticks, inner_diameter_ticks);
     }
+    if let ViaLayerShape::Thermal {
+        kind,
+        first_spoke_degrees,
+        outer_size_ticks,
+        spoke_width_ticks,
+        spoke_count,
+    } = pad.shape
+    {
+        return crate::thermal_contact::trace_thermal_candidate(
+            trace,
+            point,
+            via.drill_ticks,
+            &crate::thermal_source::ThermalPad {
+                layer_selector: i64::from(trace.layer),
+                kind,
+                size_ticks: pad.size_ticks,
+                first_spoke_degrees,
+                outer_size_ticks,
+                spoke_width_ticks,
+                spoke_count,
+            },
+        );
+    }
     if pad.shape != ViaLayerShape::Square {
         return Err("D056_UNEXPECTED_CONDUCTIVE_PAD_SHAPE");
     }
@@ -238,29 +261,30 @@ fn target_envelope(kind: Target, vias: &[ViaInstance], pads: &[ComponentPad]) ->
     let (c, rx, ry) = match kind {
         Target::Via(i) => {
             let v = &vias[i];
-            (
-                v.point,
-                v.shaped
-                    .as_ref()
-                    .and_then(|via| via.pads.iter().map(|pad| pad.size_ticks).max())
-                    .or_else(|| {
-                        v.topology
-                            .as_ref()
-                            .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
-                    })
-                    .unwrap_or(v.diameter_ticks) as f64
-                    / 2.0,
-                v.shaped
-                    .as_ref()
-                    .and_then(|via| via.pads.iter().map(|pad| pad.size_ticks).max())
-                    .or_else(|| {
-                        v.topology
-                            .as_ref()
-                            .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
-                    })
-                    .unwrap_or(v.diameter_ticks) as f64
-                    / 2.0,
-            )
+            // Broadphase must enclose the whole SOURCE copper, not only the
+            // central land of an RT/ST thermal. It may overapproximate but
+            // must never drop a real spoke-contact candidate.
+            let diameter = v
+                .shaped
+                .as_ref()
+                .and_then(|via| {
+                    via.pads
+                        .iter()
+                        .map(|pad| match pad.shape {
+                            ViaLayerShape::Thermal {
+                                outer_size_ticks, ..
+                            } => outer_size_ticks,
+                            _ => pad.size_ticks,
+                        })
+                        .max()
+                })
+                .or_else(|| {
+                    v.topology
+                        .as_ref()
+                        .and_then(|via| via.pads.iter().map(|pad| pad.diameter_ticks).max())
+                })
+                .unwrap_or(v.diameter_ticks);
+            (v.point, diameter as f64 / 2.0, diameter as f64 / 2.0)
         }
         Target::SmdPad(i) => {
             let p = &pads[i];
@@ -502,6 +526,64 @@ mod tests {
             height_ticks: if rectangular { 60 } else { 100 },
         }
     }
+    #[test]
+    fn d05606_spoke_outer_broadphase_matches_narrowphase() {
+        use crate::thermal_source::ThermalKind;
+        use crate::via_shapes::ViaLayerFootprint;
+        let mut thermal = via();
+        thermal.diameter_ticks = 6000;
+        thermal.drill_ticks = 1500;
+        thermal.shaped = Some(NormalizedViaShapes {
+            copper_layers: 4,
+            first_layer: 1,
+            last_layer: 4,
+            kind: boardsi_model::ViaKind::Through,
+            drill_ticks: 1500,
+            plated: true,
+            pads: vec![
+                ViaLayerFootprint {
+                    layer: 1,
+                    size_ticks: 6000,
+                    shape: ViaLayerShape::Thermal {
+                        kind: ThermalKind::Round,
+                        first_spoke_degrees: 0,
+                        outer_size_ticks: 8400,
+                        spoke_width_ticks: 1500,
+                        spoke_count: 4,
+                    },
+                },
+                ViaLayerFootprint {
+                    layer: 4,
+                    size_ticks: 6000,
+                    shape: ViaLayerShape::Round,
+                },
+            ],
+        });
+        let on_spoke = line([3500, 0], [4000, 0], 100, 1);
+        assert_eq!(trace_to_via(&on_spoke, &thermal), Ok(Contact::PositiveArea));
+        let vias = [thermal];
+        let results = contact_candidates(&[on_spoke], &vias, &[], &BTreeMap::new())
+            .expect("same broadphase and narrowphase must retain a positive spoke witness");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].target, Target::Via(0));
+
+        // Near-relief clearance can conservatively be BoundaryUncertain;
+        // it must never be promoted to a verified positive contact.
+        let in_clearance = line([3500, 1500], [4000, 1500], 100, 1);
+        assert_ne!(
+            trace_to_via(&in_clearance, &vias[0]),
+            Ok(Contact::PositiveArea)
+        );
+        // A strictly outside-envelope witness is provably separated.
+        let off_spoke = line([3500, 3000], [4000, 3000], 100, 1);
+        assert_eq!(trace_to_via(&off_spoke, &vias[0]), Ok(Contact::Separated));
+        assert!(
+            contact_candidates(&[off_spoke], &vias, &[], &BTreeMap::new())
+                .unwrap()
+                .is_empty()
+        );
+    }
+
     #[test]
     fn d056_native_partial_source_candidates_are_layer_qualified() {
         let bytes = b"!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n\
