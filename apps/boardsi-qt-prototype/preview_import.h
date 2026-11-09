@@ -34,9 +34,10 @@ class PreviewImportPanel final : public QWidget {
     // Separate source SHA-bound Canonical producer. Never reinterpret V1-V14.
     QProcess canonicalProcess_;
     QTimer canonicalDeadline_;
-    QByteArray canonicalData_, canonicalDigest_;
+    QByteArray canonicalData_, canonicalDigest_, canonicalErrors_;
     QString canonicalPath_, canonicalBinary_;
     bool canonicalCancelled_ = false, canonicalExpired_ = false, canonicalOverflow_ = false;
+    bool canonicalStderrOverflow_ = false;
     QByteArray data_;
     QByteArray errors_; // Small bounded diagnostic (fixed importer error codes only).
     QString binary_;
@@ -66,6 +67,12 @@ class PreviewImportPanel final : public QWidget {
         if (importLabel_) importLabel_->setText(message);
         if (cancelButton_) cancelButton_->setEnabled(message.startsWith("RUNNING"));
         if (callback_) callback_(status_);
+    }
+    void collectCanonicalStderr() {
+        appendBoundedStderr(canonicalErrors_,canonicalStderrOverflow_,
+            canonicalProcess_.readAllStandardError());
+        if(canonicalStderrOverflow_ && canonicalProcess_.state()!=QProcess::NotRunning)
+            canonicalProcess_.kill();
     }
     void collectCanonical() {
         while (canonicalProcess_.bytesAvailable()>0) {
@@ -800,6 +807,8 @@ public:
         canonicalDeadline_.setSingleShot(true);
         connect(&canonicalProcess_,&QProcess::readyReadStandardOutput,
                 this,[this] {collectCanonical();});
+        connect(&canonicalProcess_,&QProcess::readyReadStandardError,
+                this,[this] {collectCanonicalStderr();});
         connect(&canonicalDeadline_,&QTimer::timeout,this,[this] {
             canonicalExpired_=true;
             canonicalProcess_.kill();
@@ -808,9 +817,9 @@ public:
                 [this](int code,QProcess::ExitStatus exitStatus) {
             canonicalDeadline_.stop();
             collectCanonical();
-            canonicalProcess_.readAllStandardError(); // Diagnostics are NOT wire records.
+            collectCanonicalStderr(); // Diagnostics are bounded, NOT wire records.
             if(canonicalCancelled_)return;
-            if(canonicalExpired_ || canonicalOverflow_ || code!=0 ||
+            if(canonicalExpired_ || canonicalOverflow_ || canonicalStderrOverflow_ || code!=0 ||
                exitStatus!=QProcess::NormalExit) {
                 status("FAILED / CANONICAL_IMPORT_PROCESS / NOTHING IMPORTED / SI NOT_RUN");
                 return;
@@ -885,8 +894,9 @@ public:
         if(canonicalDigest_.size()!=64) {
             status("FAILED / SOURCE_HASH_UNAVAILABLE / NOTHING IMPORTED");return false;
         }
-        canonicalData_.clear();
+        canonicalData_.clear();canonicalErrors_.clear();
         canonicalCancelled_=false;canonicalExpired_=false;canonicalOverflow_=false;
+        canonicalStderrOverflow_=false;
         status("RUNNING / Canonical source padstack import / SI NOT_RUN");
         canonicalDeadline_.start(20000);
         canonicalProcess_.start(canonicalBinary_,{path});
