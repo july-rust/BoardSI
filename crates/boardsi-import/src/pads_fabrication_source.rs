@@ -165,6 +165,7 @@ fn drill_row(
         if !(100..=MAX_TICKS).contains(&length)
             || length < diameter
             || offset.unsigned_abs() > 50_000
+            || offset.unsigned_abs() * 2 > length as u64
         {
             return Err(ScanError::Malformed);
         }
@@ -358,6 +359,15 @@ pub fn scan_pads_v94_part_decal_drills(
                     return Err(ScanError::UnsupportedPadstack);
                 }
             }
+            // PADS PARTDECAL: PAD 0 is the default; otherwise each declared
+            // terminal must have its own explicit matching selector.
+            if !seen_stack_selectors.contains("0")
+                && seen_terminals
+                    .iter()
+                    .any(|terminal| !seen_stack_selectors.contains(*terminal))
+            {
+                return Err(ScanError::UnsupportedPadstack);
+            }
         }
     }
     if !saw_decal || !saw_end {
@@ -491,6 +501,35 @@ mod tests {
                 "{line}"
             );
         }
+    }
+
+    #[test]
+    fn source_padstack_selectors_cover_all_declared_terminals() {
+        let baseline = String::from_utf8(fixture("-2 40 R 20 N")).unwrap();
+        let unmatched = baseline.replace("PAD 0 3", "PAD 2 3");
+        assert_eq!(
+            scan_pads_v94_part_decal_drills(unmatched.as_bytes()),
+            Err(ScanError::UnsupportedPadstack)
+        );
+        let matched = baseline.replace("PAD 0 3", "PAD 1 3");
+        assert_eq!(
+            scan_pads_v94_part_decal_drills(matched.as_bytes())
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn slot_offset_must_fit_within_declared_drill_extent() {
+        for bad in [
+            "-2 40 R 20 N 0 20 500",
+            "-2 40 R 20 N 0 65.25 32.63",
+            "-2 40 R 20 N 90 40 -20.01",
+        ] {
+            assert!(scan_pads_v94_part_decal_drills(&fixture(bad)).is_err(), "{bad}");
+        }
+        assert!(scan_pads_v94_part_decal_drills(&fixture("-2 40 R 20 N 0 65.25 32.62")).is_ok());
     }
 
     #[test]
