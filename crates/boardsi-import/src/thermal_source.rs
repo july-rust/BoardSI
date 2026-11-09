@@ -176,12 +176,14 @@ pub fn scan_via_thermals(source: &str) -> Result<Vec<SourceThermal>, &'static st
         return Err("D05606_UNSUPPORTED_SOURCE_OR_SIZE");
     }
     let lines: Vec<_> = source.lines().collect();
-    let (mut in_via, mut i) = (false, 1usize);
+    let (mut in_via, mut i, mut saw_end) = (false, 1usize, false);
     let (mut result, mut seen) = (Vec::new(), BTreeSet::new());
+    let mut seen_definitions = BTreeSet::new();
     while i < lines.len() {
         let line = lines[i].trim();
         let key = line.split_ascii_whitespace().next();
         if key == Some("*END*") {
+            saw_end = true;
             break;
         }
         if line.starts_with('*') {
@@ -231,6 +233,9 @@ pub fn scan_via_thermals(source: &str) -> Result<Vec<SourceThermal>, &'static st
             }
         }
         i += count + 1;
+    }
+    if !saw_end {
+        return Err("D05606_MISSING_SOURCE_END");
     }
     Ok(result)
 }
@@ -295,5 +300,7 @@ mod tests {
             .len(),
             1
         );
+        assert!(scan_via_thermals(&src.replace("*END*\n", "")).is_err());
+        assert!(scan_via_thermals(&src.replace("*END*", "A 15 2\n-2 60 RT 45 84 15 4\n0 50 R\n*END*")).is_err());
     }
 }
