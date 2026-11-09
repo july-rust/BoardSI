@@ -70,6 +70,14 @@ if(BUILD_TESTING)
   add_test(NAME qt-d05604-canonical-padstack-ipc
     COMMAND boardsi-d05604-canonical-ipc-test --selftest)
   set_tests_properties(qt-d05604-canonical-padstack-ipc PROPERTIES TIMEOUT 30)
+  set(BOARDSI_CANONICAL_IMPORTER "" CACHE FILEPATH "Optional D_056_04 Rust Canonical IPC CLI")
+  if(BOARDSI_CANONICAL_IMPORTER)
+    add_test(NAME qt-d05604-rust-canonical-roundtrip
+      COMMAND boardsi-d05604-canonical-ipc-test --source
+        "${BOARDSI_CANONICAL_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
+    set_tests_properties(qt-d05604-rust-canonical-roundtrip PROPERTIES TIMEOUT 45)
+  endif()
   add_test(NAME qt-preview-d056-source-shaped-via-layers
     COMMAND boardsi-d056-via-viewer --selftest)
   set_tests_properties(qt-preview-d056-source-shaped-via-layers PROPERTIES
