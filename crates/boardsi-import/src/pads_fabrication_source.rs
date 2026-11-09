@@ -326,6 +326,59 @@ pub fn scan_pads_v94_part_decal_drills(
     Ok(output)
 }
 
+
+impl PartDecalDrillEvidence {
+    /// Convert SOURCE units to metres exactly. The caller must provide an
+    /// independently validated physical drill span; a component-decal
+    /// footprint alone is insufficient to infer its manufacturing depth.
+    pub fn to_canonical_hole(
+        &self,
+        span: boardsi_model::PhysicalLayerSpan,
+        copper_layers: u32,
+    ) -> Result<boardsi_model::FabricationHole, boardsi_model::ModelError> {
+        use boardsi_model::{
+            FabricationHole, FabricationHoleShape, FabricationOperation,
+            FabricationPlating, FabricationSourceEvidence, Rational,
+        };
+        fn metres(ticks: i64) -> Result<Rational, boardsi_model::ModelError> {
+            Rational::new(i128::from(ticks) * 127, 500_000_000)
+        }
+        let shape = match self.shape {
+            DrillShape::Round { diameter_ticks } => FabricationHoleShape::Round {
+                diameter_m: metres(diameter_ticks)?,
+            },
+            DrillShape::Slot {
+                width_ticks,
+                source_length_ticks,
+                orientation_millidegrees,
+                offset_ticks,
+            } => FabricationHoleShape::Slot {
+                width_m: metres(width_ticks)?,
+                declared_length_m: metres(source_length_ticks)?,
+                orientation_millidegrees,
+                offset_along_axis_m: metres(offset_ticks)?,
+            },
+        };
+        let hole = FabricationHole {
+            shape,
+            plating: match self.plating {
+                PlatingDeclaration::Plated => FabricationPlating::SourceDeclaredPlated,
+                PlatingDeclaration::NonPlated => FabricationPlating::NonPlated,
+            },
+            span,
+            operation: FabricationOperation::Drilled,
+            evidence: FabricationSourceEvidence {
+                format: "PADS-POWERPCB-V9.4-MILS-PARTDECAL".into(),
+                source_sha256: self.source_sha256,
+                source_line: self.source_line,
+                qualified_native_grammar: true,
+            },
+        };
+        hole.validate(copper_layers)?;
+        Ok(hole)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -401,6 +454,36 @@ mod tests {
             scan_pads_v94_part_decal_drills(&changed),
             Err(ScanError::UnsupportedSource)
         );
+    }
+
+    #[test]
+    fn exact_canonical_hole_preserves_npth_and_slot_across_stackups() {
+        let record = scan_pads_v94_part_decal_drills(
+            &fixture("-2 40 R 20 N 45.125 65.25 0"),
+        )
+        .unwrap()
+        .remove(0);
+        for layers in [2, 4, 6, 8, 64] {
+            let span = boardsi_model::PhysicalLayerSpan {
+                first: 1,
+                last: layers,
+            };
+            let hole = record.to_canonical_hole(span, layers).unwrap();
+            assert_eq!(hole.plating, boardsi_model::FabricationPlating::NonPlated);
+            assert!(!hole.has_verified_manufactured_barrel());
+            if let boardsi_model::FabricationHoleShape::Slot {
+                width_m,
+                declared_length_m,
+                orientation_millidegrees,
+                ..
+            } = hole.shape {
+                assert_eq!(width_m, boardsi_model::Rational::new(127 * 2000, 500_000_000).unwrap());
+                assert_eq!(declared_length_m, boardsi_model::Rational::new(127 * 6525, 500_000_000).unwrap());
+                assert_eq!(orientation_millidegrees, 45_125);
+            } else {
+                panic!("slot was not preserved");
+            }
+        }
     }
 
     #[test]
