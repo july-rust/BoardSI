@@ -197,7 +197,7 @@ inline bool make(const d056ipc::Source &source, const QString &expectedSha,
                 .arg(major,0,'g',12).arg(minor,0,'g',12)
                 .arg(drillMm,0,'g',12).arg(source.sha)
                 .arg(via.net=="-" ? QString("UNKNOWN") : readableId(via.net));
-            if (thermal) g.details+=QString(" / RT/ST spokes %1, origin %2 deg / width %3 mm / relief outer %4 mm / PLANE FILL UNKNOWN")
+            if (thermal) g.details+=QString(" / RT/ST spokes %1, origin %2 deg / spoke width SOURCE rational metres %3 / relief outer %4 mm / PLANE FILL UNKNOWN")
                 .arg(pad.spokeCount).arg(pad.spokeAngle)
                 .arg(pad.spokeWidth).arg(minor,0,'g',12);
             const QRectF area=g.outline.boundingRect();
