@@ -290,9 +290,7 @@ pub fn scan_pads_v94_part_decal_drills(
                             return Err(ScanError::Malformed);
                         }
                         seen_top = true;
-                        if let Some(drill) =
-                            drill_row(raw, decal, p[1], lines[i].0 + 1, digest)?
-                        {
+                        if let Some(drill) = drill_row(raw, decal, p[1], lines[i].0 + 1, digest)? {
                             output.push(drill);
                             if output.len() > MAX_RECORDS {
                                 return Err(ScanError::TooLarge);
@@ -326,7 +324,6 @@ pub fn scan_pads_v94_part_decal_drills(
     Ok(output)
 }
 
-
 impl PartDecalDrillEvidence {
     /// Convert SOURCE units to metres exactly. The caller must provide an
     /// independently validated physical drill span; a component-decal
@@ -337,8 +334,8 @@ impl PartDecalDrillEvidence {
         copper_layers: u32,
     ) -> Result<boardsi_model::FabricationHole, boardsi_model::ModelError> {
         use boardsi_model::{
-            FabricationHole, FabricationHoleShape, FabricationOperation,
-            FabricationPlating, FabricationSourceEvidence, Rational,
+            FabricationHole, FabricationHoleShape, FabricationOperation, FabricationPlating,
+            FabricationSourceEvidence, Rational,
         };
         fn metres(ticks: i64) -> Result<Rational, boardsi_model::ModelError> {
             Rational::new(i128::from(ticks) * 127, 500_000_000)
@@ -398,7 +395,12 @@ mod tests {
         assert_eq!(rows[0].source_line, 6);
         assert_eq!(rows[0].source_sha256, sha256(&npth));
         assert_eq!(rows[0].plating, PlatingDeclaration::NonPlated);
-        assert_eq!(rows[0].shape, DrillShape::Round { diameter_ticks: 2000 });
+        assert_eq!(
+            rows[0].shape,
+            DrillShape::Round {
+                diameter_ticks: 2000
+            }
+        );
         let pth = fixture("-2 40 R 20 P");
         assert_eq!(
             scan_pads_v94_part_decal_drills(&pth).unwrap()[0].plating,
@@ -411,16 +413,17 @@ mod tests {
 
     #[test]
     fn slot_source_dimensions_not_fabricated_copper() {
-        let rows = scan_pads_v94_part_decal_drills(&fixture(
-            "-2 40 R 20 N 179.999 65.25 -5",
-        ))
-        .unwrap();
-        assert_eq!(rows[0].shape, DrillShape::Slot {
-            width_ticks: 2000,
-            source_length_ticks: 6525,
-            orientation_millidegrees: 179_999,
-            offset_ticks: -500,
-        });
+        let rows =
+            scan_pads_v94_part_decal_drills(&fixture("-2 40 R 20 N 179.999 65.25 -5")).unwrap();
+        assert_eq!(
+            rows[0].shape,
+            DrillShape::Slot {
+                width_ticks: 2000,
+                source_length_ticks: 6525,
+                orientation_millidegrees: 179_999,
+                offset_ticks: -500,
+            }
+        );
     }
 
     #[test]
@@ -458,11 +461,9 @@ mod tests {
 
     #[test]
     fn exact_canonical_hole_preserves_npth_and_slot_across_stackups() {
-        let record = scan_pads_v94_part_decal_drills(
-            &fixture("-2 40 R 20 N 45.125 65.25 0"),
-        )
-        .unwrap()
-        .remove(0);
+        let record = scan_pads_v94_part_decal_drills(&fixture("-2 40 R 20 N 45.125 65.25 0"))
+            .unwrap()
+            .remove(0);
         for layers in [2, 4, 6, 8, 64] {
             let span = boardsi_model::PhysicalLayerSpan {
                 first: 1,
@@ -476,9 +477,16 @@ mod tests {
                 declared_length_m,
                 orientation_millidegrees,
                 ..
-            } = hole.shape {
-                assert_eq!(width_m, boardsi_model::Rational::new(127 * 2000, 500_000_000).unwrap());
-                assert_eq!(declared_length_m, boardsi_model::Rational::new(127 * 6525, 500_000_000).unwrap());
+            } = hole.shape
+            {
+                assert_eq!(
+                    width_m,
+                    boardsi_model::Rational::new(127 * 2000, 500_000_000).unwrap()
+                );
+                assert_eq!(
+                    declared_length_m,
+                    boardsi_model::Rational::new(127 * 6525, 500_000_000).unwrap()
+                );
                 assert_eq!(orientation_millidegrees, 45_125);
             } else {
                 panic!("slot was not preserved");
