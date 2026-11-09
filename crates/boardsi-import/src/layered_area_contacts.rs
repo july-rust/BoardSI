@@ -118,6 +118,9 @@ fn via_samples(
         ViaLayerShape::Annular {
             inner_diameter_ticks,
         } => inner_diameter_ticks,
+        // A thermal's outsize is mostly a PLANE VOID, never a filled via disk.
+        // No broad radial sample can qualify its spoke-to-plane boundary.
+        ViaLayerShape::Thermal { .. } => return Vec::new(),
         ViaLayerShape::RoundAntiPad | ViaLayerShape::SquareAntiPad => return Vec::new(),
     };
     // A radial sample strictly *inside* actual conductive annulus/square
