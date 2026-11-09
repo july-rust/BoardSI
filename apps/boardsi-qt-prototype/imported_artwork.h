@@ -1056,9 +1056,11 @@ public:
         for (const auto &g:prepared.glyphs) {
             if (g.conductive && nets_->findText(canonicalNet(g.netId))<0)
                 nets_->addItem(canonicalNet(g.netId));
+            // No cosmetic pen on conductive paths: it would bleed into the
+            // actual drilled void even though the fill correctly excludes it.
             auto *item=scene_->addPath(g.conductive ? g.footprint : g.outline,
-                QPen(QColor(g.conductive ? "#d8b26c" : "#82929d"),0,
-                     g.conductive ? Qt::SolidLine : Qt::DashLine),
+                g.conductive ? QPen(Qt::NoPen) :
+                    QPen(QColor("#82929d"),0,Qt::DashLine),
                 g.conductive ? QBrush(QColor(g.layer==1 ? "#d0a55a" :
                     g.layer==prepared.layerCount ? "#55b4e9" : "#a9d48e"))
                     : QBrush(Qt::NoBrush));
@@ -1073,7 +1075,7 @@ public:
         scene_->setSceneRect(prepared.bounds.adjusted(-1,-1,1,1));
         // GPU-first only where the conservative hole mesh is representable
         // under a bounded per-frame primitive budget. Otherwise exact CPU path.
-        bool useRhi=prepared.glyphs.size()<=4096;
+        bool useRhi=prepared.glyphs.size()<=1024;
         for(const auto &g:prepared.glyphs) {
             const double narrow=g.shape=="RECT" ? std::min(g.majorMm,g.minorMm) :
                 g.majorMm;
