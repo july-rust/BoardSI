@@ -567,7 +567,15 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].target, Target::Via(0));
 
-        let off_spoke = line([3500, 1500], [4000, 1500], 100, 1);
+        // Near-relief clearance can conservatively be BoundaryUncertain;
+        // it must never be promoted to a verified positive contact.
+        let in_clearance = line([3500, 1500], [4000, 1500], 100, 1);
+        assert_ne!(
+            trace_to_via(&in_clearance, &vias[0]),
+            Ok(Contact::PositiveArea)
+        );
+        // A strictly outside-envelope witness is provably separated.
+        let off_spoke = line([3500, 3000], [4000, 3000], 100, 1);
         assert_eq!(trace_to_via(&off_spoke, &vias[0]), Ok(Contact::Separated));
         assert!(contact_candidates(&[off_spoke], &vias, &[], &BTreeMap::new())
             .unwrap()
