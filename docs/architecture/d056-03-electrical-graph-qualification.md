@@ -32,11 +32,22 @@ The independently authored public source-fixture oracles `d056_03_source_area_gr
 
 **Test inventory:** Source graph qualification 10 + explicit filled-area 8 + source pad-pair 8 + arbitrary-angle event witness 7 = **33 independently stated integration tests** (excluding older D_001–D_055 regressions). These tests validate a software **SOURCE-scoped design graph**, not a guarantee that full PCB CAD Source, manufacturing process, plating or SI has been proven. Positive contact *presence* is source-evidenced; failure to find a candidate when the geometry inventory/algorithm is partial is **UNKNOWN**, never an authorized global Open. A source-net conflict is an electrical-design graph witness and not measured manufactured Short.
 
-## Explicit gaps — not the acceptance of #529
+## D_056_03 scoped software gate sign-off — 2026-11-09 KST
+
+**Acceptance verdict: PASS for the implemented source-scoped electrical design-graph engine, NOT for a complete manufactured board or all CAD formats.** Issue #529 evaluates evidence-preserving graph construction and analysis, not the independent format/vendor grammar, Canonical/Qt transport or global BoardSI solver acceptance gates.
+
+1. **Physical source identity and invariants:** nodes retain SOURCE SHA, explicit layer, source line and declared Net; mandatory stable per-source identity; stale re-import, forged preverified barrel flags, off-source and conflicting identity fail closed. New opt-in `qualify_pads_source(bytes, ...)` reconstructs supported PADS V9.4 geometry from *the exact supplied bytes* before any design graph classification.
+2. **Per-layer SOURCE-positive copper contacts:** same-layer Trace/Pad/Via contacts and COPCLS/COPCIR source-owned filled candidates include direct Pad/Pad contacts, thin arbitrary-angle Trace/COPPER midspan crossings and otherwise missed Polygon/Polygon midspan crossbars. A rectangle SMD boundary is represented in **doubled SOURCE ticks**, preserving actual 0.5-tick physical width. Own COPCUT/owned void, drilled centre, Anti-Pad, pure tangency and wrong physical layers never produce a fabricated positive contact. Contact search work, graph storage and path witnesses are explicitly bounded; a positive edge has a local SOURCE witness.
+3. **Electrical graph and unproved manufacturing:** components, cross-Net design conflict paths, Net-specific Open candidates and Cut-Sets are deterministic and tested up to 64 layers/12k chain. A nominal Via span is not a plated barrel, and missing manufacturing evidence is `UNKNOWN`. Incomplete native shape/Pad/Area contact inventory explicitly yields `CandidateOnly` rather than a global Open claim.
+4. **Independent tests:** original graph qualification 10 + Copper Area 8 + direct Pad pair 8 + arbitrary-angle Trace–Area 7 + [#547 Polygon-crossing reimport and off-centre SMD 12](https://github.com/july-rust/BoardSI/pull/547) = **45 separate SOURCE design-graph oracles PASS**, in Rust Debug/Release and CI. #547 PR exact HEAD `11122c7a9988ed17fcb102fe29a94296e93c3806` **9/9 Workflow groups SUCCESS**, Numerics and Qt each 5/5 Jobs; Windows ARM64 existing D_006 CLI test initially failed and passed an exact-head Job re-run, preserving the first failure evidence. Protected one-parent signed [`main@f31052a8f7189b56037bf100905a74f84076a22e`](https://github.com/july-rust/BoardSI/commit/f31052a8f7189b56037bf100905a74f84076a22e) was verified valid. Its exact-SHA independent Push CI is additionally audited before checklist finalization.
+
+**Accepted behavior for unsupported native evidence:** explicit `UNKNOWN` or fail-closed reject, **not** invented electrical continuity. No measurements of fabricated barrel plating, exhaustive Area/Arc geometry, whole-board Netlist source certification, P009 Return Path, Port, RLGC or SI pass are implied. These are independent follow-on source/grammar, Qt transport or cross-CAD gates [#530](https://github.com/july-rust/BoardSI/issues/530) / [#531](https://github.com/july-rust/BoardSI/issues/531) / [#532](https://github.com/july-rust/BoardSI/issues/532); parent [#520](https://github.com/july-rust/BoardSI/issues/520) remains OPEN. No specification or full-board acceptance was narrowed or falsely certified.
+
+## Unsupported native and whole-board scope — subsequent gates
 
 The D_056_02 source input and #540 area extension are still **a partial conductive inventory and non-exhaustive contact inventory**: only certain explicit COPCLS/COPCIR filled shapes and owned cutouts have candidate graph nodes/positive samples. Full polygon/arc/flood/thermal-spoke/slot coverage, exhaustive Copper-to-Copper or Via-to-Via positive and negative contact proof, independent manufactured process evidence and full-board netlist coverage remain unverified. Unsupported/source-unknown conductive records must remain fail-closed. D_056_04/05 owns Canonical padstack transport and Qt integration; D_056_06/07 owns vendor-confirmed special manufacturing grammar.
 
-**Therefore the graph algorithm and synthetic source-scope tests are a constrained implementation step, NOT full-board Open/Short/SI acceptance.** Keep #529 and parent #520 OPEN until the outstanding full input/positive-and-negative source coverage criteria are independently fulfilled. Do not set the D_056_03 checklist item to [x] before exact-head PR checks, protected signed Squash and independent post-main Push validation, and do not claim that synthetic tests meet unsupported native-grammar criteria.
+**Therefore D_056_03 is a verified SOURCE-scoped software graph gate and NOT full-board Open/Short/SI acceptance.** The remaining source-format/vendor process/whole-board evidence is explicitly delegated to #530/#531/#532 and parent #520. Unknown surfaces do not create verified electrical edges, and independent full-board certification remains outside this gate. Earlier date-stamped partial status is historical, not the final source-scoped software gate decision.
 
 ## Commands and evidence to record
 
@@ -48,6 +59,8 @@ cargo test --locked -p boardsi-import --test d056_03_graph_qualification
 cargo test --locked -p boardsi-import --test d056_03_source_area_graph
 cargo test --locked -p boardsi-import --test d056_03_source_pad_pair_graph
 cargo test --locked -p boardsi-import --test d056_03_straight_area_witness
+cargo test --locked -p boardsi-import --test d056_03_polygon_crossing_source
+cargo test --locked -p boardsi-import --test d056_03_offcentre_smd_area
 ```
 
 Record the actual PR HEAD, required CI, review/thread status and protected post-main commit SHA in the single `docs/development-checklist.md`, with KST evidence date and unverified scope explicitly retained. Do not rewrite historical D_056_02 results.
