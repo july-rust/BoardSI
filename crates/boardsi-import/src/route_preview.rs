@@ -1748,7 +1748,7 @@ mod d056_native_via_source_regressions {
         let unsupported = source(6, 2, 4, "V_TEST 15 2 2 4\n-2 35 RT 45 84 15 4\n0 40 R");
         assert_eq!(
             parse_generalized(unsupported.as_bytes()).unwrap_err(),
-            "D056_THERMAL_CONTACT_UNSUPPORTED"
+            "D05606_THERMAL_ROUTE_FLAG_MISSING"
         );
         let malformed = source(6, 2, 4, "V_TEST 15 2 4 2\n-2 35 R\n0 40 R");
         assert_eq!(
