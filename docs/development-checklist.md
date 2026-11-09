@@ -1040,6 +1040,8 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 
 **세 번째 코드 단계 한정 인수 — 2026-11-08 KST:** [PR #526](https://github.com/july-rust/BoardSI/pull/526) 정확한 최종 HEAD `2f65d08321d183f4a446163f7b05705d5b5fb7f9`에서 **38/38 Checks · 13/13 PR Workflows SUCCESS**, 자동 코드 리뷰 `completed/findings=false/unresolved=false`, 미해결 리뷰 Thread 0. PADS V9.4 R 원형/S 사각형/A 외경+별도 내경 환형은 `NormalizedViaShapes`와 Canonical `PadShape::{Circle,Rectangle,Annulus}`로, RA/SA는 전도성 Copper가 아닌 `PadRole::AntiPad`로 정규화. Shared SOURCE-local 후보 엔진은 Square 드릴 구멍과 Annular 별도 Inner Void를 제외하며 RT/ST Thermal Spoke를 Fail-Closed한다. CLI 단독 Via 진단 V2는 Source 형상별 Layer 정보를 출력하며 기존 Qt V1–V14는 변경하지 않는다. 검증된 보호된 단일 부모 **Verified Squash** `main` [`7e10d7b`](https://github.com/july-rust/BoardSI/commit/7e10d7ba07d6c9e0f959eb3e2e4be570af6dd88b) 반영(verification.verified=true/reason=valid). **PR-head CI와 코드-main Push CI는 별도 증거이며 Push CI 종료 전 PASS로 기재하지 않는다.**
 
+**2026-11-09 D_056_06 후속 정정:** 위 최초 Stage 1/2에서 기술한 RT/ST 미구현·Qt 미통합은 해당 Stage의 날짜 고정 이력이다. 현재 Source-scope RT/ST Thermal/Qt 코드 구현은 [PR #553](https://github.com/july-rust/BoardSI/pull/553)으로 추가되었으며, 보호 Squash SHA·정확한 PR CI·독립 Push 감사 현황은 [D_056_06](#d_056_06)에 별도로 기록한다. D_056 전체·타 CAD·제조 도통의 인수는 여전히 OPEN이다.
+
 **D_056 부모 상태:** [Issue #520](https://github.com/july-rust/BoardSI/issues/520) OPEN, 통합 원장 이 항목 **[ ] 유지**. Native RT/ST 형상, Qt Layer별 Via UI/IPC, 글로벌 Source 기반 전체 전기 Connected Layers/Short/Open, 다중 포맷 입력 어댑터 및 Vendor Export 독립 실물 검증은 제품 인수 요건으로 남음. 부분 SOURCE Geometry 처리 완료를 전체 PCB 입력/실물 SI 완료로 승격하지 않는다.
 
 
@@ -1087,6 +1089,13 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 
 **D_056_05 코드-main Push 별도 최종 감사 (2026-11-09 KST):** 코드 PR #551의 HEAD 35/35 PASS 및 서명 Verified Squash와 별개로, **정확한 코드-main `6103a1b6d6f1068b548f4cbb13d7c9cfff6544dd`의 독립 `event=push` 8/8 Workflow 모두 SUCCESS** 확인. [Qt Runtime Push #42570405620](https://github.com/july-rust/BoardSI/actions/runs/42570405620) **Linux x64·Windows x64/ARM64·macOS ARM64 Native Qt 4개 SUCCESS** 및 [Numerical Core Push #42570405681](https://github.com/july-rust/BoardSI/actions/runs/42570405681) **Linux numerics 및 Windows x64/ARM64·macOS ARM64 Native Rust 4개 SUCCESS**. 나머지 6개 `event=push` 문서/합성 FEM/PH-06/PH-07/Native FEM 워크플로도 모두 SUCCESS. 코드 PR·코드-main Push의 결과는 서로 다른 SHA와 이벤트로 구분하며, **문서 전용 후속 PR #552/문서-main Push 결과는 또 별도 인수**한다. 검증 성공은 지원 PADS SOURCE 형상의 Qt 소프트웨어 한정 인수이지 실물 PCB 전기 연결성이나 SI 제품 인수가 아니다.
 
+<a id="d_056_06"></a>
+### D_056_06 — PADS RT/ST Thermal Spoke SOURCE / Canonical V2 / Main Qt (2026-11-09 KST)
+
+- [x] **D_056_06 공식 PADS RT/ST Thermal Spoke의 SOURCE 한정 소프트웨어 구현·코드 PR 검증·보호 Squash 반영 완료** · **최초 체크일: 2026-11-09 KST** · **체크일: 2026-11-09 KST** · **근거일: 2026-11-09 KST**. [상위 #520](https://github.com/july-rust/BoardSI/issues/520) / [PADS 제조 #530](https://github.com/july-rust/BoardSI/issues/530) · [구현·원본 문법·독립 검증 원장](architecture/d056-06-thermal-source.md) · [코드 PR #553](https://github.com/july-rust/BoardSI/pull/553) 정확한 최종 HEAD `3eceac04b3131d0ebb83501f37aadea002a5aaf9` 기준 **12/12 Workflow SUCCESS**, Rust/Qt Linux x64·Windows x64/ARM64·macOS ARM64 Native PASS, 리뷰 지적 3건 수정, 미해결 Review Thread 0. 원본 PADS V9.4 RT/ST Spoke/Relief 문법·SOURCE SHA와 Via Layer Span·중앙 Pad/Spoke Copper·Drill/Plane Void를 보존하고, Canonical `PadShape::Thermal` 및 **V1 Byte-compatible V2 IPC**, 실제 `ImportedArtworkPanel` CPU Geometry·Picking 및 안전 CPU Fallback, 좁은 의미의 양성 Source-local Trace/Area 접촉 후보를 구현했다. 오류 Source/부족한 제조·Plane 증거는 **UNKNOWN/UNSUPPORTED로 Fail-Closed**한다. 특히 (1) 겹치는 Spoke의 winding-fill union, (2) Spoke 외곽 크기를 포함하는 contact broadphase, (3) RHI 실패 뒤 GPU 빈 캔버스로 잘못 되돌아가는 문제를 수정하고 테스트로 검증했다. 보호 Squash 병합 [code-main `e034335b055f068edcd68a17676c1f8f3e161fd8`](https://github.com/july-rust/BoardSI/commit/e034335b055f068edcd68a17676c1f8f3e161fd8) 및 현재 main ref 일치를 확인했다. 초기 Windows x64 Qt Native 시도는 오류 코드 127로 실패했으나 **같은 HEAD의 실패 Job 재실행 성공**으로 최종 12/12 Workflow 성공을 확인했으며 실패 이력을 지우지 않았다.
+- [ ] **D_056_06 후속 독립 code-main `event=push` 및 문서-main Push 감사** — 코드 PR 결과와 별개이다. 현재 연결된 GitHub Actions 조회에서 exact code-main SHA의 `event=push` 결과가 발견되지 않아 **NOT_VERIFIED**. Push 성공을 추정해 기입하지 말며, 문서-only PR/Push와 혼동하지 않는다.
+- [ ] **제조·전체 PCB·SI 제품 인수** — D_056_06 대상 아님. 실제 CAM Thermal 생성·Plane Fill·Plating/Barrel 도통·전자적 전역 Open/Short·다중 포맷 CAD·RLGC/S 파라미터와 실물 측정은 **NOT_VERIFIED**. [#530](https://github.com/july-rust/BoardSI/issues/530)은 D_056_07의 Slot/NPTH/Backdrill/Microvia 때문에 **OPEN**, 상위 #520 역시 **OPEN**.
+
 **D_056_01~12 후속 추적 (아래 표는 계획·상태 색인이며 별도 체크 항목/진행률 집계가 아님):**
 
 | 개발 단계 | 기능별 작업 | 이슈 및 완료 관문 |
@@ -1096,7 +1105,7 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 | D_056_03 | SOURCE 기반 다층 전기 그래프·Net 충돌·Open 후보·Cut-set (한정 인수) | PR #538/#540/#542/#543/#547 코드 병합, **45개 독립 Oracle PASS**; 지원 Source의 양성 Copper 접촉·불확실 구간의 Fail-Closed, 코드/Qt CI 및 보호 Squash 인수. #529 SOURCE-범위 소프트웨어 인수 완료, 보드 전역·제조·타 CAD는 후속 #530/#531/#532/#520 |
 | D_056_04 | Canonical Layer별 Padstack / Rust→Qt V1 IPC (SOURCE 한정) | 코드 PR #549 보호 Verified Squash; 36/36 PR Checks PASS; 층별 Pad/Drill/Source SHA / Fail-Closed 한정 인수. 메인 GUI/취소 검증은 D_056_05 #531 |
 | D_056_05 | Qt CPU/RHI / Legacy V1~V14 통합 | [코드 PR #551](https://github.com/july-rust/BoardSI/pull/551) 35/35 Checks · 11/11 PR Workflow, Qt Linux 81/81 CTest 및 4플랫폼 Native PASS; **정확한 code-main Push 8/8 SUCCESS**; docs-only PR #552 및 Push 검증 후 #531 종료 |
-| D_056_06 | 공식 PADS RT/ST Thermal Spokes | #530; 제조 문법 증거 |
+| D_056_06 | 공식 PADS RT/ST Thermal Spokes + Canonical V2·Qt 메인 UI | [PR #553](https://github.com/july-rust/BoardSI/pull/553) 12/12 CI, 4플랫폼 Native PASS, 3개 리뷰 결함 수정, code-main `e034335b` Squash; 독립 code-main Push **NOT_VERIFIED**, 제조 도통·전역 Open/Short/SI 별도 |
 | D_056_07 | PADS Slot/NPTH/Backdrill/Microvia 제조 구조 | #530; 근거 없는 형식은 UNSUPPORTED |
 | D_056_08 | ODB++ Source Adapter | #532; 네이티브 형식 검증 |
 | D_056_09 | IPC-2581 Source Adapter | #532; 네이티브 형식 검증 |
@@ -1104,4 +1113,4 @@ CodeQL `py/bad-tag-filter` Alert #1의 **Fixed 한정 증거 1건**이 있으며
 | D_056_11 | Gerber + Drill Source Adapter | #532; Net/Stackup 불명은 UNKNOWN |
 | D_056_12 | Cross-format / D_001~D_055 회귀 / 최종 인수 | #532, #520; 모든 범위 검증 후 종료 |
 
-**주의:** D_056_01 감사 계약·D_056_02 Copper 후보 Graph·D_056_03 SOURCE 범위 전기 설계 Graph·D_056_04 Canonical IPC·D_056_05 메인 Qt Artwork **5개만** 각각의 명시적 SOURCE/소프트웨어 한정 인수로 집계한다. D_056_06~12는 별도 미인수이며 상위 D_056 `- [ ]`는 유지한다. 특히 D_056_02의 기하 후보는 실제 제조된 Via의 도통, 글로벌 Short/Open 또는 SI Solver PASS를 뜻하지 않는다. 역사적 PR·CI 근거는 변경하지 않는다.
+**주의:** D_056_01 감사 계약·D_056_02 Copper 후보 Graph·D_056_03 SOURCE 범위 전기 설계 Graph·D_056_04 Canonical IPC·D_056_05 메인 Qt Artwork **5개 단계의 별도 인수**와, D_056_06 **SOURCE 한정 코드 구현·보호 병합 1개**를 구분한다. D_056_06의 독립 main Push 감사는 미확인 상태이므로 전체 인수 집계에 혼합하지 않는다. D_056_07~12도 미인수이며 상위 D_056 `- [ ]`는 유지한다. 특히 D_056_02의 기하 후보는 실제 제조된 Via의 도통, 글로벌 Short/Open 또는 SI Solver PASS를 뜻하지 않는다. 역사적 PR·CI 근거는 변경하지 않는다.
