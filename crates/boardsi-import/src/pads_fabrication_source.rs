@@ -434,8 +434,8 @@ mod tests {
     fn remarks_do_not_hide_source_declared_drills() {
         let baseline = String::from_utf8(fixture("-2 40 R 20 N")).unwrap();
         let with_remark = baseline.replace(
-            "*PARTDECAL*\\n",
-            "*PARTDECAL*\\n*REMARK* This is a legal PADS remark\\n",
+            "*PARTDECAL*\n",
+            "*PARTDECAL*\n*REMARK* This is a legal PADS remark\n",
         );
         let rows = scan_pads_v94_part_decal_drills(with_remark.as_bytes()).unwrap();
         assert_eq!(rows.len(), 1);
