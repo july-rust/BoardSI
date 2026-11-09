@@ -11,6 +11,7 @@
 //! R source pad, top-side explicitly declared nonzero drill and P/N, optional
 //! complete slotted tuple. Unmodeled optional fields fail closed.
 use crate::digest::sha256;
+use std::collections::BTreeSet;
 
 const MAX_INPUT_BYTES: usize = 8 * 1024 * 1024;
 const MAX_SOURCE_LINES: usize = 200_000;
@@ -211,6 +212,7 @@ pub fn scan_pads_v94_part_decal_drills(
     let mut i = 1;
     let mut saw_decal = false;
     let mut saw_end = false;
+    let mut seen_decal_names = BTreeSet::new();
     while i < lines.len() {
         let row = lines[i].1.trim();
         let token = row.split_ascii_whitespace().next().unwrap_or("");
@@ -278,10 +280,14 @@ pub fn scan_pads_v94_part_decal_drills(
                 return Err(ScanError::UnsupportedDecal);
             }
             let decal = header[0];
+            if !seen_decal_names.insert(decal.to_owned()) {
+                return Err(ScanError::Malformed);
+            }
             i += 1;
             if i + terminal_count > lines.len() {
                 return Err(ScanError::Truncated);
             }
+            let mut seen_terminals = BTreeSet::new();
             for _ in 0..terminal_count {
                 let t: Vec<_> = lines[i].1.split_ascii_whitespace().collect();
                 if t.len() != 5
@@ -291,36 +297,38 @@ pub fn scan_pads_v94_part_decal_drills(
                     || ticks(t[2]).is_none()
                     || ticks(t[3]).is_none()
                     || !simple_id(t[4], 7)
+                    || !seen_terminals.insert(t[4])
                 {
                     return Err(ScanError::UnsupportedDecal);
                 }
                 i += 1;
             }
+            let mut seen_stack_selectors = BTreeSet::new();
             for _ in 0..stack_count {
                 if i >= lines.len() {
                     return Err(ScanError::Truncated);
                 }
                 let p: Vec<_> = lines[i].1.split_ascii_whitespace().collect();
-                if p.len() != 3 || p[0] != "PAD" || !simple_id(p[1], 7) {
+                if p.len() != 3
+                    || p[0] != "PAD"
+                    || !simple_id(p[1], 7)
+                    || !seen_stack_selectors.insert(p[1])
+                {
                     return Err(ScanError::UnsupportedPadstack);
                 }
                 let count = p[2].parse::<usize>().map_err(|_| ScanError::Malformed)?;
-                if !(3..=252).contains(&count) || i + count >= lines.len() {
+                if count != 3 || i + count >= lines.len() {
                     return Err(ScanError::Truncated);
                 }
                 i += 1;
-                let mut seen_top = false;
+                let mut seen_layers = BTreeSet::new();
                 for _ in 0..count {
                     let raw = lines[i].1.trim();
                     let fields: Vec<_> = raw.split_ascii_whitespace().collect();
-                    if fields.is_empty() {
+                    if fields.is_empty() || !seen_layers.insert(fields[0]) {
                         return Err(ScanError::Malformed);
                     }
                     if fields[0] == "-2" {
-                        if seen_top {
-                            return Err(ScanError::Malformed);
-                        }
-                        seen_top = true;
                         if let Some(drill) = drill_row(raw, decal, p[1], lines[i].0 + 1, digest)? {
                             output.push(drill);
                             if output.len() > MAX_RECORDS {
@@ -336,14 +344,17 @@ pub fn scan_pads_v94_part_decal_drills(
                         if !matches!(fields[0], "-1" | "0")
                             || fields[2] != "R"
                             || (fields.len() == 4 && fields[3] != "0")
-                            || ticks(fields[1]).is_none()
+                            || ticks(fields[1]) != Some(0)
                         {
                             return Err(ScanError::UnsupportedPadstack);
                         }
                     }
                     i += 1;
                 }
-                if !seen_top {
+                if !seen_layers.contains("-2")
+                    || !seen_layers.contains("-1")
+                    || !seen_layers.contains("0")
+                {
                     return Err(ScanError::UnsupportedPadstack);
                 }
             }
@@ -479,6 +490,19 @@ mod tests {
                 scan_pads_v94_part_decal_drills(candidate.as_bytes()).is_err(),
                 "{line}"
             );
+        }
+    }
+
+    #[test]
+    fn incomplete_or_duplicated_padstack_rows_are_rejected() {
+        let baseline = String::from_utf8(fixture("-2 40 R 20 N")).unwrap();
+        for broken in [
+            baseline.replace("0 0 R 0", "-1 0 R 0"),
+            baseline.replace("-1 0 R 0", "0 0 R 0"),
+            baseline.replace("-1 0 R 0", "-1 20 R 0"),
+            baseline.replace("PAD 0 3", "PAD 0 4"),
+        ] {
+            assert!(scan_pads_v94_part_decal_drills(broken.as_bytes()).is_err());
         }
     }
 
