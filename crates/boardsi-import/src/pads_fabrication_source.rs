@@ -227,6 +227,10 @@ pub fn scan_pads_v94_part_decal_drills(
         while i < lines.len() {
             let row = lines[i].1.trim();
             let token = row.split_ascii_whitespace().next().unwrap_or("");
+            if token == "*REMARK*" || row.is_empty() || token == "REMARK" {
+                i += 1;
+                continue;
+            }
             if token.starts_with('*') {
                 break;
             }
@@ -424,6 +428,19 @@ mod tests {
                 offset_ticks: -500,
             }
         );
+    }
+
+    #[test]
+    fn remarks_do_not_hide_source_declared_drills() {
+        let baseline = String::from_utf8(fixture("-2 40 R 20 N")).unwrap();
+        let with_remark = baseline.replace(
+            "*PARTDECAL*\\n",
+            "*PARTDECAL*\\n*REMARK* This is a legal PADS remark\\n",
+        );
+        let rows = scan_pads_v94_part_decal_drills(with_remark.as_bytes()).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].source_line, 7);
+        assert_eq!(rows[0].plating, PlatingDeclaration::NonPlated);
     }
 
     #[test]
