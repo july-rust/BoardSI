@@ -204,6 +204,9 @@ pub fn scan_via_thermals(source: &str) -> Result<Vec<SourceThermal>, &'static st
         {
             return Err("D05606_INVALID_VIA_HEADER");
         }
+        if !seen_definitions.insert(h[0].to_owned()) {
+            return Err("D05606_DUPLICATE_VIA_DEFINITION");
+        }
         if h.len() == 5 && (h[3].parse::<u32>().is_err() || h[4].parse::<u32>().is_err()) {
             return Err("D05606_INVALID_VIA_SPAN");
         }
@@ -301,6 +304,9 @@ mod tests {
             1
         );
         assert!(scan_via_thermals(&src.replace("*END*\n", "")).is_err());
-        assert!(scan_via_thermals(&src.replace("*END*", "A 15 2\n-2 60 RT 45 84 15 4\n0 50 R\n*END*")).is_err());
+        assert!(scan_via_thermals(
+            &src.replace("*END*", "A 15 2\n-2 60 RT 45 84 15 4\n0 50 R\n*END*")
+        )
+        .is_err());
     }
 }
