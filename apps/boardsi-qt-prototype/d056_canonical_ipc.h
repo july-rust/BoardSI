@@ -68,7 +68,7 @@ inline bool hexToken(const QString &s, bool objectId) {
     static const QRegularExpression re(QStringLiteral("^[0-9a-f]*$"));
     if (!re.match(s).hasMatch()) return false;
     const QByteArray bytes = QByteArray::fromHex(s.toLatin1());
-    if (bytes.size() * 2 != s.size() || bytes.isEmpty() && objectId) return false;
+    if (bytes.size() * 2 != s.size() || (bytes.isEmpty() && objectId)) return false;
     if (QString::fromUtf8(bytes).toUtf8() != bytes) return false;
     if (objectId && bytes.count('\0') != 1) return false;
     return true;
