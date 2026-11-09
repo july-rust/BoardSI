@@ -379,6 +379,10 @@ class ImportedArtworkPanel final : public QWidget {
     }
     void refresh() {
         if (canonicalMode_) {
+#ifdef BOARDSI_RHI_ARTWORK
+            if(rhi_)rhi_->filter(layerVisible_,nets_->currentText(),
+                netOnly_ && netOnly_->isChecked());
+#endif
             const QString selected = nets_->currentText();
             const bool netOnly = netOnly_ && netOnly_->isChecked() && selected != "All nets";
             int shown=0;
@@ -394,9 +398,10 @@ class ImportedArtworkPanel final : public QWidget {
                 " / SI NOT_RUN\nSource SHA256: %1\nPhysical layers: %2"
                 " / layer glyphs: %3 / visible: %4\n"
                 "Plating UNVERIFIED / connected layers UNKNOWN / Global Open/Short NOT_VERIFIED\n"
-                "Renderer: CPU fallback for Canonical padstack; GPU/RHI fidelity NOT_YET_VERIFIED")
+                "Renderer: %5 / rendering is display-only, not electrical evidence")
                 .arg(canonicalSha_).arg(layerVisible_.size()-1)
-                .arg(static_cast<qlonglong>(canonical_.size())).arg(shown);
+                .arg(static_cast<qlonglong>(canonical_.size())).arg(shown)
+                .arg(rendererStatus());
             const auto selectedItems=scene_->selectedItems();
             if (!selectedItems.isEmpty())
                 message += "\nSelected: " + selectedItems.first()->data(2).toString();
@@ -748,6 +753,13 @@ public:
                 else if (kind == 7) selectOutline(index);
                 else if (kind == 8) selectPour(index);
                 else if (kind == 9) selectCopper(index);
+                else if(kind==12 && index>=0 &&
+                    index<static_cast<int>(canonical_.size())) {
+                    scene_->clearSelection();
+                    canonical_[static_cast<size_t>(index)].first->setSelected(true);
+                    if(detailsCallback_)detailsCallback_(
+                        canonical_[static_cast<size_t>(index)].second.details);
+                }
                 else if (kind == 11 && index>=0 && index<static_cast<int>(risks_.size())) {
                     if(detailsCallback_) detailsCallback_(risks_[static_cast<size_t>(index)].first->data(2).toString());
                 }
@@ -1053,14 +1065,30 @@ public:
             item->setData(0,canonicalNet(g.netId));
             item->setData(2,g.details);
             item->setData(3,"D05605Canonical");
+            item->setToolTip(g.details);
             if (g.conductive) item->setFlag(QGraphicsItem::ItemIsSelectable);
             else item->setAcceptedMouseButtons(Qt::NoButton);
             canonical_.push_back({item,g});
         }
         scene_->setSceneRect(prepared.bounds.adjusted(-1,-1,1,1));
-        // The existing RHI renderer does not yet accept annulus-hole topology.
-        // A visible, explicit CPU fallback prevents a false copper display.
+        // GPU-first only where the conservative hole mesh is representable
+        // under a bounded per-frame primitive budget. Otherwise exact CPU path.
+        bool useRhi=prepared.glyphs.size()<=4096;
+        for(const auto &g:prepared.glyphs) {
+            const double narrow=g.shape=="RECT" ? std::min(g.majorMm,g.minorMm) :
+                g.majorMm;
+            if(g.conductive && g.openingMm/std::cos(3.14159265358979323846/32.0)>=narrow)
+                useRhi=false;
+        }
+#ifdef BOARDSI_RHI_ARTWORK
+        if(rhi_ && !rhi_->failed() && useRhi) {
+            rhi_->loadCanonical(prepared);
+            canvasStack_->setCurrentWidget(rhi_);
+        } else canvasStack_->setCurrentWidget(view_);
+#else
+        Q_UNUSED(useRhi);
         canvasStack_->setCurrentWidget(view_);
+#endif
         refresh();
         fitArtwork();
         return true;
@@ -1530,7 +1558,10 @@ public:
         }
         skipped_ = skipped;
 #ifdef BOARDSI_RHI_ARTWORK
-        if (rhi_) rhi_->load(layerCount,input,viaInput,padInput,arcInput,outlineInput,circleInput,boundaryInput,pourInput,copperChecked);
+        if (rhi_) {
+            rhi_->load(layerCount,input,viaInput,padInput,arcInput,outlineInput,circleInput,boundaryInput,pourInput,copperChecked);
+            if(!rhi_->failed())canvasStack_->setCurrentWidget(rhi_);
+        }
 #endif
         scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-1, -1, 1, 1));
         refresh();
