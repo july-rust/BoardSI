@@ -561,14 +561,15 @@ mod tests {
         });
         let on_spoke = line([3500, 0], [4000, 0], 100, 1);
         assert_eq!(trace_to_via(&on_spoke, &thermal), Ok(Contact::PositiveArea));
-        let results = contact_candidates(&[on_spoke], &[thermal.clone()], &[], &BTreeMap::new())
+        let vias = [thermal];
+        let results = contact_candidates(&[on_spoke], &vias, &[], &BTreeMap::new())
             .expect("same broadphase and narrowphase must retain a positive spoke witness");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].target, Target::Via(0));
 
         let off_spoke = line([3500, 1500], [4000, 1500], 100, 1);
-        assert_eq!(trace_to_via(&off_spoke, &thermal), Ok(Contact::Separated));
-        assert!(contact_candidates(&[off_spoke], &[thermal], &[], &BTreeMap::new())
+        assert_eq!(trace_to_via(&off_spoke, &vias[0]), Ok(Contact::Separated));
+        assert!(contact_candidates(&[off_spoke], &vias, &[], &BTreeMap::new())
             .unwrap()
             .is_empty());
     }
