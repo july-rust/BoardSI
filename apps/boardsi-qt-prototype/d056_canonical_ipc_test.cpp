@@ -59,7 +59,8 @@ static bool run() {
         const int layers = std::get<0>(t), first = std::get<1>(t), last = std::get<2>(t);
         const QByteArray wire = makeWire(layers, first, last, std::get<3>(t));
         d056ipc::Source result;
-        if (!d056ipc::decode(wire, sha, result) || result.layerIds.size() != layers
+        if (!d056ipc::decode(wire, sha, result) || result.frames.size() != 1
+            || result.frames[0].unit != "PADS tick" || result.layerIds.size() != layers
             || result.vias.size() != 1 || result.vias[0].first != first
             || result.vias[0].last != last || result.stacks[0].pads.size() != (last > first + 1 ? 3 : 2)
             || result.drills[0].sourcePlated != true || result.vias[0].net != "-")
@@ -99,7 +100,8 @@ static bool sourceRoundtrip(const QString &binary, const QString &path) {
     d056ipc::Source parsed;
     const QByteArray wire = process.readAllStandardOutput();
     if (!d056ipc::decode(wire, sha, parsed) || parsed.vias.isEmpty()
-        || parsed.format != "PADS_ASC" || parsed.version.isEmpty()
+        || parsed.format != "PADS_ASC" || parsed.frames.size() != 1
+        || parsed.frames[0].unit != "PADS 9.4 MILS" || parsed.version.isEmpty()
         || parsed.stacks.isEmpty() || parsed.drills.isEmpty()) return false;
     d056ipc::Source stale;
     return !d056ipc::decode(wire, QString(64, QLatin1Char('b')), stale)
