@@ -3,6 +3,7 @@
 // in the imported Canonical preview data; GPU floats are strictly viewport-local.
 // GPU backend or frame events are not proof of a hardware adapter.
 #pragma once
+#include "d05605_canonical_artwork.h"
 #include <QColor>
 #include <QMouseEvent>
 #include <QQuickItem>
@@ -114,6 +115,7 @@ public:
 };
 
 class BoardSiRhiItem final : public QQuickItem {
+    d05605::Model canonical_;
     std::vector<ImportedTrack> tracks_;
     std::vector<ImportedVia> vias_;
     std::vector<ImportedContactMarker> contactMarkers_;
@@ -449,6 +451,21 @@ class BoardSiRhiItem final : public QQuickItem {
             disk(v,a,halfWidth,12); disk(v,b,halfWidth,12);
         }
     }
+    int canonicalIndexAt(const QPointF &point) const {
+        const qreal scale=scaleFactor();
+        if(!(scale>0) || !std::isfinite(scale))return -1;
+        const QPointF source(
+            (point.x()-width()/2-pan_.x())/scale + bounds_.center().x(),
+            (point.y()-height()/2-pan_.y())/scale + bounds_.center().y());
+        for(int i=canonical_.glyphs.size()-1;i>=0;--i) {
+            const auto &g=canonical_.glyphs.at(i);
+            const QString netName=g.netId=="-" ? QString("UNKNOWN") :
+                d05605::readableId(g.netId);
+            if(g.conductive && visible(g.layer) && includedNet(netName) &&
+               g.footprint.contains(source))return i;
+        }
+        return -1;
+    }
     bool visible(int layer) const {
         return layer > 0 && layer < visibility_.size() && visibility_[layer];
     }
@@ -680,6 +697,62 @@ protected:
             disk(v,pixel(world(a.x0_nm,a.y0_nm)),std::max<qreal>(0.1,halfWidth),12);
             disk(v,pixel(world(a.x1_nm,a.y1_nm)),std::max<qreal>(0.1,halfWidth),12);
         }
+        // D_056_05: source-layer meshes are generated from the same Pad/Drill
+        // contract as the CPU QPainterPath, without a full-disk hole overwrite.
+        // Inner hole polygons are circumscribed (conservative Copper subset).
+        for (const auto &g:canonical_.glyphs) {
+            if(!visible(g.layer))continue;
+            const QString netName=g.netId=="-" ? QString("UNKNOWN") :
+                d05605::readableId(g.netId);
+            if(!includedNet(netName))continue;
+            const QPointF c=pixel(g.centre);
+            const qreal halfW=g.majorMm*px/2;
+            const qreal halfH=(g.shape=="RECT" ? g.minorMm : g.majorMm)*px/2;
+            if(!inView(c,std::max(halfW,halfH),width(),height()))continue;
+            QColor color(g.conductive ? (g.layer==1 ? "#d0a55a" :
+                g.layer==layers_ ? "#55b4e9" : "#a9d48e") : "#82929d");
+            if(net_!="All nets" && net_!=netName)color.setAlpha(40);
+            auto &dst=groups[color.rgba()];
+            constexpr qreal twoPi=6.28318530717958647692;
+            constexpr qreal pi=3.14159265358979323846;
+            const int steps=std::clamp(static_cast<int>(
+                std::ceil(pi*std::sqrt(std::max<qreal>(1.0,std::max(halfW,halfH))))),32,128);
+            std::vector<qreal> angles;
+            angles.reserve(static_cast<size_t>(steps+4));
+            for(int j=0;j<steps;++j)angles.push_back(twoPi*j/steps);
+            if(g.shape=="RECT")for(int sx:{-1,1})for(int sy:{-1,1}) {
+                qreal angle=std::atan2(sy*halfH,sx*halfW);
+                if(angle<0)angle+=twoPi;
+                angles.push_back(angle);
+            }
+            std::sort(angles.begin(),angles.end());
+            angles.erase(std::unique(angles.begin(),angles.end(),
+                [](qreal a,qreal b){return std::abs(a-b)<1e-10;}),angles.end());
+            const auto outer=[&](qreal angle) {
+                if(g.shape!="RECT")return halfW;
+                const qreal dx=std::abs(std::cos(angle));
+                const qreal dy=std::abs(std::sin(angle));
+                return std::min(dx>1e-12 ? halfW/dx :
+                    std::numeric_limits<qreal>::max(),
+                    dy>1e-12 ? halfH/dy : std::numeric_limits<qreal>::max());
+            };
+            const auto point=[&](qreal angle,qreal radius) {
+                return c+QPointF(radius*std::cos(angle),radius*std::sin(angle));
+            };
+            const qreal inner=g.openingMm/2*px/std::cos(pi/steps);
+            for(size_t j=0;j<angles.size();++j) {
+                const qreal a=angles[j],b= j+1==angles.size() ?
+                    angles[0]+twoPi : angles[j+1];
+                const QPointF o0=point(a,outer(a)),o1=point(b,outer(b));
+                if(g.conductive) {
+                    const QPointF i0=point(a,inner),i1=point(b,inner);
+                    triangle(dst,o0,o1,i0);triangle(dst,i0,o1,i1);
+                } else {
+                    // Non-conductive plane AntiPad is an OUTLINE, never filled.
+                    thickLine(dst,o0,o1,0.55,deviceRatio);
+                }
+            }
+        }
         for (const auto &pad : pads_) {
             if (!visible(pad.layer) || (netOnly_ && net_ != "All nets")) continue;
             const QPointF c = pixel(world(pad.x_nm,pad.y_nm));
@@ -881,6 +954,12 @@ protected:
     }
     void mouseReleaseEvent(QMouseEvent *event) override {
         if (!dragging_ && picked_) {
+            if(!canonical_.glyphs.isEmpty()) {
+                const int index=canonicalIndexAt(event->position());
+                if(index>=0)picked_(12,index);
+                event->accept();
+                return;
+            }
             // Render stack is same-layer, then ViaBarrel, then conflict
             // overlays. Hit-test in REVERSE visual order so a barrel marker
             // is not hidden behind its coincident same-layer contact.
@@ -1043,6 +1122,7 @@ public:
                const std::vector<ImportedCopperArea> &copper = {}) {
         contactMarkers_.clear();
         referenceRisks_.clear();
+        canonical_={};
         tracks_=tracks; vias_=vias; pads_=pads; arcs_=arcs;
         outlineEdges_=outlines; circles_=circles; boundaries_=boundary; pours_=pours; copper_=copper; layers_=layers;
         adapterProof_->store(0,std::memory_order_release);
@@ -1130,6 +1210,17 @@ public:
         modelGeneration_.fetch_add(1,std::memory_order_release);
         requestSceneUpdate();
     }
+    // Separate Canonical scene mode in the SAME native Qt RHI renderer.
+    void loadCanonical(const d05605::Model &model) {
+        load(0,{}, {}, {});
+        canonical_=model;
+        layers_=model.layerCount;
+        visibility_=QVector<bool>(layers_+1,true);
+        bounds_=model.bounds.adjusted(-1,-1,1,1);
+        pan_=QPointF();zoom_=1.0;
+        modelGeneration_.fetch_add(1,std::memory_order_release);
+        requestSceneUpdate();
+    }
     void setReferenceRisks(const std::vector<ImportedReferenceRiskMarker> &markers) {
         referenceRisks_=markers;requestSceneUpdate();
     }
@@ -1158,7 +1249,7 @@ public:
         return requestedSceneRevision();
     }
     int primitiveCount() const {
-        return static_cast<int>(tracks_.size()+vias_.size()+pads_.size()+arcs_.size()+
+        return static_cast<int>(canonical_.glyphs.size()+tracks_.size()+vias_.size()+pads_.size()+arcs_.size()+
                                 outlineEdges_.size()+circles_.size()+boundaries_.size()+pours_.size()+copper_.size());
     }
     int copperCountForTest() const {return static_cast<int>(copper_.size());}
@@ -1610,6 +1701,17 @@ public:
         ++deadlineEpoch_;
         armFrameDeadline();
         if (changed_) changed_();
+    }
+    void loadCanonical(const d05605::Model &model) {
+        seenFrame_=false;
+        status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
+        artwork_->loadCanonical(model);
+        loadGeneration_=artwork_->sourceGeneration();
+        requiredSceneRevision_=artwork_->requestedSceneRevision();
+        deadlineGeneration_=std::numeric_limits<quint64>::max();
+        ++deadlineEpoch_;
+        armFrameDeadline();
+        if(changed_)changed_();
     }
     void setLocalContacts(const std::vector<ImportedContactMarker> &markers) {artwork_->setLocalContacts(markers);}
     void setReferenceRisks(const std::vector<ImportedReferenceRiskMarker> &markers) {artwork_->setReferenceRisks(markers);}
