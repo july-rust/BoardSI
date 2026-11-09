@@ -3,7 +3,9 @@
 // in the imported Canonical preview data; GPU floats are strictly viewport-local.
 // GPU backend or frame events are not proof of a hardware adapter.
 #pragma once
+#include "d05605_canonical_artwork.h"
 #include <QColor>
+#include <QHoverEvent>
 #include <QMouseEvent>
 #include <QQuickItem>
 #include <QQuickWindow>
@@ -114,6 +116,7 @@ public:
 };
 
 class BoardSiRhiItem final : public QQuickItem {
+    d05605::Model canonical_;
     std::vector<ImportedTrack> tracks_;
     std::vector<ImportedVia> vias_;
     std::vector<ImportedContactMarker> contactMarkers_;
@@ -146,6 +149,8 @@ class BoardSiRhiItem final : public QQuickItem {
         update();
     }
     std::function<void(int,int)> picked_;
+    std::function<void(int)> canonicalHovered_;
+    int lastCanonicalHover_=-1;
     // Coarse source-nm bins, not rasterized polygons; long routes are indexed
     // separately so that an unusually long trace cannot explode the index.
     std::unordered_map<quint64,std::vector<int>> trackBins_;
@@ -449,6 +454,21 @@ class BoardSiRhiItem final : public QQuickItem {
             disk(v,a,halfWidth,12); disk(v,b,halfWidth,12);
         }
     }
+    int canonicalIndexAt(const QPointF &point) const {
+        const qreal scale=scaleFactor();
+        if(!(scale>0) || !std::isfinite(scale))return -1;
+        const QPointF source(
+            (point.x()-width()/2-pan_.x())/scale + bounds_.center().x(),
+            (point.y()-height()/2-pan_.y())/scale + bounds_.center().y());
+        for(int i=canonical_.glyphs.size()-1;i>=0;--i) {
+            const auto &g=canonical_.glyphs.at(i);
+            const QString netName=g.netId=="-" ? QString("UNKNOWN") :
+                d05605::readableId(g.netId);
+            if(g.conductive && visible(g.layer) && includedNet(netName) &&
+               g.footprint.contains(source))return i;
+        }
+        return -1;
+    }
     bool visible(int layer) const {
         return layer > 0 && layer < visibility_.size() && visibility_[layer];
     }
@@ -481,6 +501,9 @@ protected:
         // Merge adjacent same-color areas only; never reorder by RGB key.
         // Bounded by at most 64 explicit source copper areas.
         std::vector<std::pair<QRgb,Vertices>> copperGroups;
+        // Canonical pads must retain painter order across different colors:
+        // RGB-sorted groups otherwise disagree with reverse-order Picking.
+        std::vector<std::pair<QRgb,Vertices>> canonicalGroups;
         Vertices holes;
         const qreal px = scaleFactor();
         // Scene Graph sync is on the render thread. The window DPR is used
@@ -680,6 +703,65 @@ protected:
             disk(v,pixel(world(a.x0_nm,a.y0_nm)),std::max<qreal>(0.1,halfWidth),12);
             disk(v,pixel(world(a.x1_nm,a.y1_nm)),std::max<qreal>(0.1,halfWidth),12);
         }
+        // D_056_05: source-layer meshes are generated from the same Pad/Drill
+        // contract as the CPU QPainterPath, without a full-disk hole overwrite.
+        // Inner hole polygons are circumscribed (conservative Copper subset).
+        for (const auto &g:canonical_.glyphs) {
+            if(!visible(g.layer))continue;
+            const QString netName=g.netId=="-" ? QString("UNKNOWN") :
+                d05605::readableId(g.netId);
+            if(!includedNet(netName))continue;
+            const QPointF c=pixel(g.centre);
+            const qreal halfW=g.majorMm*px/2;
+            const qreal halfH=(g.shape=="RECT" ? g.minorMm : g.majorMm)*px/2;
+            if(!inView(c,std::max(halfW,halfH),width(),height()))continue;
+            QColor color(g.conductive ? (g.layer==1 ? "#d0a55a" :
+                g.layer==layers_ ? "#55b4e9" : "#a9d48e") : "#82929d");
+            if(net_!="All nets" && net_!=netName)color.setAlpha(40);
+            // Merge only adjacent same-color shapes; do not sort by RGB.
+            if(canonicalGroups.empty() || canonicalGroups.back().first!=color.rgba())
+                canonicalGroups.emplace_back(color.rgba(),Vertices{});
+            auto &dst=canonicalGroups.back().second;
+            constexpr qreal twoPi=6.28318530717958647692;
+            // Reuse the enclosing pi constant (MSVC /W4 /WX forbids shadowing).
+            const int steps=std::clamp(static_cast<int>(
+                std::ceil(pi*std::sqrt(std::max<qreal>(1.0,std::max(halfW,halfH))))),32,128);
+            std::vector<qreal> angles;
+            angles.reserve(static_cast<size_t>(steps+4));
+            for(int j=0;j<steps;++j)angles.push_back(twoPi*j/steps);
+            if(g.shape=="RECT")for(int sx:{-1,1})for(int sy:{-1,1}) {
+                qreal angle=std::atan2(sy*halfH,sx*halfW);
+                if(angle<0)angle+=twoPi;
+                angles.push_back(angle);
+            }
+            std::sort(angles.begin(),angles.end());
+            angles.erase(std::unique(angles.begin(),angles.end(),
+                [](qreal a,qreal b){return std::abs(a-b)<1e-10;}),angles.end());
+            const auto outer=[&](qreal angle) {
+                if(g.shape!="RECT")return halfW;
+                const qreal dx=std::abs(std::cos(angle));
+                const qreal dy=std::abs(std::sin(angle));
+                return std::min(dx>1e-12 ? halfW/dx :
+                    std::numeric_limits<qreal>::max(),
+                    dy>1e-12 ? halfH/dy : std::numeric_limits<qreal>::max());
+            };
+            const auto point=[&](qreal angle,qreal radius) {
+                return c+QPointF(radius*std::cos(angle),radius*std::sin(angle));
+            };
+            const qreal inner=g.openingMm/2*px/std::cos(pi/steps);
+            for(size_t j=0;j<angles.size();++j) {
+                const qreal a=angles[j],b= j+1==angles.size() ?
+                    angles[0]+twoPi : angles[j+1];
+                const QPointF o0=point(a,outer(a)),o1=point(b,outer(b));
+                if(g.conductive) {
+                    const QPointF i0=point(a,inner),i1=point(b,inner);
+                    triangle(dst,o0,o1,i0);triangle(dst,i0,o1,i1);
+                } else {
+                    // Non-conductive plane AntiPad is an OUTLINE, never filled.
+                    thickLine(dst,o0,o1,0.55,deviceRatio);
+                }
+            }
+        }
         for (const auto &pad : pads_) {
             if (!visible(pad.layer) || (netOnly_ && net_ != "All nets")) continue;
             const QPointF c = pixel(world(pad.x_nm,pad.y_nm));
@@ -715,6 +797,26 @@ protected:
             auto *node=new QSGGeometryNode();
             auto *geometry=new QSGGeometry(QSGGeometry::defaultAttributes_Point2D(),
                                           static_cast<int>(entry.second.size()));
+            geometry->setDrawingMode(QSGGeometry::DrawTriangles);
+            auto *dst=geometry->vertexDataAsPoint2D();
+            for(size_t i=0;i<entry.second.size();++i)
+                dst[i].set(static_cast<float>(entry.second[i].x()),
+                           static_cast<float>(entry.second[i].y()));
+            auto *material=new QSGFlatColorMaterial();
+            material->setColor(QColor::fromRgba(entry.first));
+            node->setGeometry(geometry);node->setMaterial(material);
+            node->setFlag(QSGNode::OwnsGeometry);
+            node->setFlag(QSGNode::OwnsMaterial);
+            root->appendChildNode(node);
+        }
+        // After lower source copper and before unrelated overlays, draw
+        // canonical pads in EXACT original glyph order (CPU same order).
+        for(auto &entry:canonicalGroups) {
+            if(entry.second.empty() ||
+               entry.second.size()>static_cast<size_t>(std::numeric_limits<int>::max()))continue;
+            auto *node=new QSGGeometryNode();
+            auto *geometry=new QSGGeometry(QSGGeometry::defaultAttributes_Point2D(),
+                static_cast<int>(entry.second.size()));
             geometry->setDrawingMode(QSGGeometry::DrawTriangles);
             auto *dst=geometry->vertexDataAsPoint2D();
             for(size_t i=0;i<entry.second.size();++i)
@@ -879,8 +981,30 @@ protected:
         if (std::hypot(delta.x(),delta.y()) >= 1) dragging_ = true;
         pan_ += delta; pressed_ = event->position(); requestSceneUpdate(); event->accept();
     }
+    void hoverMoveEvent(QHoverEvent *event) override {
+        if(!canonical_.glyphs.isEmpty() && canonicalHovered_) {
+            const int hit=canonicalIndexAt(event->position());
+            if(hit!=lastCanonicalHover_) {
+                lastCanonicalHover_=hit;
+                canonicalHovered_(hit); // Source details only; never validates connectivity.
+            }
+        }
+        QQuickItem::hoverMoveEvent(event);
+    }
+    void hoverLeaveEvent(QHoverEvent *event) override {
+        if(lastCanonicalHover_!=-1 && canonicalHovered_) {
+            lastCanonicalHover_=-1;canonicalHovered_(-1);
+        }
+        QQuickItem::hoverLeaveEvent(event);
+    }
     void mouseReleaseEvent(QMouseEvent *event) override {
         if (!dragging_ && picked_) {
+            if(!canonical_.glyphs.isEmpty()) {
+                const int index=canonicalIndexAt(event->position());
+                if(index>=0)picked_(12,index);
+                event->accept();
+                return;
+            }
             // Render stack is same-layer, then ViaBarrel, then conflict
             // overlays. Hit-test in REVERSE visual order so a barrel marker
             // is not hidden behind its coincident same-layer contact.
@@ -1031,8 +1155,12 @@ public:
     explicit BoardSiRhiItem(QQuickItem *parent=nullptr) : QQuickItem(parent) {
         setFlag(ItemHasContents,true);
         setAcceptedMouseButtons(Qt::LeftButton);
+        setAcceptHoverEvents(true);
     }
     void onPicked(std::function<void(int,int)> callback) { picked_=std::move(callback); }
+    void onCanonicalHovered(std::function<void(int)> callback) {
+        canonicalHovered_=std::move(callback);
+    }
     void load(int layers,const std::vector<ImportedTrack> &tracks,
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads,
               const std::vector<ImportedArc> &arcs = {},
@@ -1043,6 +1171,7 @@ public:
                const std::vector<ImportedCopperArea> &copper = {}) {
         contactMarkers_.clear();
         referenceRisks_.clear();
+        canonical_={};lastCanonicalHover_=-1;
         tracks_=tracks; vias_=vias; pads_=pads; arcs_=arcs;
         outlineEdges_=outlines; circles_=circles; boundaries_=boundary; pours_=pours; copper_=copper; layers_=layers;
         adapterProof_->store(0,std::memory_order_release);
@@ -1130,6 +1259,17 @@ public:
         modelGeneration_.fetch_add(1,std::memory_order_release);
         requestSceneUpdate();
     }
+    // Separate Canonical scene mode in the SAME native Qt RHI renderer.
+    void loadCanonical(const d05605::Model &model) {
+        load(0,{}, {}, {});
+        canonical_=model;
+        layers_=model.layerCount;
+        visibility_=QVector<bool>(layers_+1,true);
+        bounds_=model.bounds.adjusted(-1,-1,1,1);
+        pan_=QPointF();zoom_=1.0;
+        modelGeneration_.fetch_add(1,std::memory_order_release);
+        requestSceneUpdate();
+    }
     void setReferenceRisks(const std::vector<ImportedReferenceRiskMarker> &markers) {
         referenceRisks_=markers;requestSceneUpdate();
     }
@@ -1157,8 +1297,12 @@ public:
         requestSceneUpdate();
         return requestedSceneRevision();
     }
+    QPointF canonicalScreenForTest(const QPointF &sourceMm) const {return pixel(sourceMm);}
+    int canonicalHitForTest(const QPointF &screenPx) const {
+        return canonicalIndexAt(screenPx);
+    }
     int primitiveCount() const {
-        return static_cast<int>(tracks_.size()+vias_.size()+pads_.size()+arcs_.size()+
+        return static_cast<int>(canonical_.glyphs.size()+tracks_.size()+vias_.size()+pads_.size()+arcs_.size()+
                                 outlineEdges_.size()+circles_.size()+boundaries_.size()+pours_.size()+copper_.size());
     }
     int copperCountForTest() const {return static_cast<int>(copper_.size());}
@@ -1593,6 +1737,9 @@ public:
     }
     void onChanged(std::function<void()> callback) {changed_=std::move(callback);}
     void onPicked(std::function<void(int,int)> callback) {artwork_->onPicked(std::move(callback));}
+    void onCanonicalHovered(std::function<void(int)> callback) {
+        artwork_->onCanonicalHovered(std::move(callback));
+    }
     void load(int layers,const std::vector<ImportedTrack> &tracks,
               const std::vector<ImportedVia> &vias,const std::vector<ImportedPad> &pads,
               const std::vector<ImportedArc> &arcs = {},
@@ -1610,6 +1757,17 @@ public:
         ++deadlineEpoch_;
         armFrameDeadline();
         if (changed_) changed_();
+    }
+    void loadCanonical(const d05605::Model &model) {
+        seenFrame_=false;
+        status_="RHI_PENDING_FRAME_HW_NOT_VERIFIED";
+        artwork_->loadCanonical(model);
+        loadGeneration_=artwork_->sourceGeneration();
+        requiredSceneRevision_=artwork_->requestedSceneRevision();
+        deadlineGeneration_=std::numeric_limits<quint64>::max();
+        ++deadlineEpoch_;
+        armFrameDeadline();
+        if(changed_)changed_();
     }
     void setLocalContacts(const std::vector<ImportedContactMarker> &markers) {artwork_->setLocalContacts(markers);}
     void setReferenceRisks(const std::vector<ImportedReferenceRiskMarker> &markers) {artwork_->setReferenceRisks(markers);}

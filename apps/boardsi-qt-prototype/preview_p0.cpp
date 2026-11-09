@@ -98,9 +98,17 @@ class PreviewWindow : public QMainWindow {
                 "\nPhysical SI: NOT_RUN");
             return;
         }
-        const QString candidate = chosenFile.isEmpty() ? QString("No PCB candidate selected") :
-                                  QString("PCB candidate: ") + chosenFile;
-        const bool loaded = importResultStatus.startsWith("PARTIAL") &&
+        const bool canonicalLoaded =
+            importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") &&
+            importUI->imported()->canonicalMode() &&
+            importUI->imported()->canonicalGlyphCount()>0 &&
+            importUI->acceptedSourceSha256().size()==64;
+        const QString sourcePath=canonicalLoaded ? importUI->canonicalAcceptedPath() : QString();
+        const QString displayName=sourcePath.isEmpty() ? chosenFile :
+                                  QFileInfo(sourcePath).fileName();
+        const QString candidate = displayName.isEmpty() ? QString("No PCB candidate selected") :
+                                  QString("PCB candidate: ") + displayName;
+        const bool legacyLoaded = importResultStatus.startsWith("PARTIAL") &&
                             ((importUI->imported()->segmentCount() + importUI->imported()->viaCount() +
                               importUI->imported()->padCount() + importUI->imported()->arcCount() +
                               importUI->imported()->outlineCount() +
@@ -108,15 +116,19 @@ class PreviewWindow : public QMainWindow {
                               importUI->imported()->boundaryCount() +
                               importUI->imported()->pourEdgeCount()+
                               importUI->imported()->copperCount()) > 0);
+        const bool loaded=canonicalLoaded || legacyLoaded;
         if (!loaded) {
             properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
                                 candidate + "\nImport status: " + importResultStatus +
                                 "\nStackup, connectivity and SI: NOT_RUN");
             return;
         }
-        properties->setText("Source: IMPORTED PARTIAL / PADS V9.4 MILS\n" +
-                            candidate + "\n" + importedDetails +
-                            "\nStackup, connectivity and SI: NOT_RUN");
+        properties->setText(
+            (canonicalLoaded ?
+                QString("Source: CANONICAL PADSTACK / V1 / GEOMETRY_ONLY\n") :
+                QString("Source: IMPORTED PARTIAL / PADS V9.4 MILS\n")) +
+            candidate + "\n" + importedDetails +
+            "\nPlating UNVERIFIED / electrical connectivity UNKNOWN / SI NOT_RUN");
     }
 
     void refresh() {
@@ -127,11 +139,15 @@ class PreviewWindow : public QMainWindow {
         const QString status = ipc->statusLabel()->text();
         const QString error = ipc->errorLabel()->text();
         stateSummary->setText("Worker: " + status + " | PCB: " + importResultStatus + " | SI NOT_RUN");
+        const QString currentFile=importUI->canonicalAcceptedPath().isEmpty() ?
+            chosenFile : QFileInfo(importUI->canonicalAcceptedPath()).fileName();
         validation->setText(
-            (chosenFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
-                "PCB candidate: " + chosenFile +
+            (currentFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
+                "PCB candidate: " + currentFile +
                 (importResultStatus.startsWith("PARTIAL") ?
-                    " (PARTIAL ARTWORK IMPORT)" : " (NOT IMPORTED)")) +
+                    " (PARTIAL ARTWORK IMPORT)" :
+                 importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") ?
+                    " (CANONICAL SOURCE GEOMETRY ONLY)" : " (NOT IMPORTED)")) +
             "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
@@ -142,6 +158,8 @@ class PreviewWindow : public QMainWindow {
             "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n" +
             (importResultStatus.startsWith("PARTIAL") ?
                 "Imported PCB: PARTIAL accepted straight/arc routes, through vias, restricted SMD pads and restricted straight/arc/circular board artwork; other geometry/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
+             importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") ?
+                "Imported Canonical Padstack: SOURCE geometry only, physical Layer/Via/Pad/Drill proven by accepted source subset. Actual manufactured plating, connectivity and SI NOT_VERIFIED." :
                 "Synthetic fixture only; no real PCB imported or physical SI analysis performed."));
         if (status != previousStatus) {
             log->appendPlainText("Worker: " + status);
@@ -4422,6 +4440,101 @@ static int runC023CorridorSelftest(const QString &importer) {
 }
 
 
+// D_056_05 actual native RHI scene-model and source-shape picking acceptance.
+// A headless CI model test does not certify a physical GPU adapter or pixels.
+static int runD05605RhiModelSmoke() {
+#ifdef BOARDSI_RHI_ARTWORK
+    auto key=[](QByteArray bytes) {
+        bytes.append('\0');
+        return QString::fromLatin1(bytes.toHex());
+    };
+    const QString sha(64,QLatin1Char('a'));
+    const QString frame=key("frame"),stack=key("stack"),drill=key("drill");
+    d056ipc::Source src;src.sha=sha;
+    src.frames.push_back(d056ipc::Frame{frame,"PADS tick",
+        "127:500000000","0:1","0:1",0,false,false});
+    for(int i=1;i<=4;++i) {
+        src.layerIds.push_back(key("layer-"+QByteArray::number(i)));
+        src.layerOrders.push_back(i-1);
+    }
+    d056ipc::Stack pads;pads.id=stack;
+    pads.pads.push_back(d056ipc::Pad{1,"CONDUCTIVE","ANNULUS",
+        "127:85000","127:170000"});
+    pads.pads.push_back(d056ipc::Pad{2,"ANTIPAD","CIRCLE",
+        "127:50000","0:1"});
+    pads.pads.push_back(d056ipc::Pad{4,"CONDUCTIVE","RECT",
+        "127:100000","127:125000"});
+    src.stacks.push_back(pads);
+    src.drills.push_back(d056ipc::Drill{drill,"127:500000",1,4,true});
+    src.vias.push_back(d056ipc::Via{key("via"),stack,drill,"-",frame,
+        "THROUGH",1000,2000,1,4});
+    d05605::Model model;
+    if(!d05605::make(src,sha,model) || model.glyphs.size()!=3)
+        return 1;
+    BoardSiRhiItem item;
+    item.setWidth(800); item.setHeight(600);
+    item.loadCanonical(model);
+    if(item.primitiveCount()!=3 || item.sourceGeneration()==0)
+        return 1;
+    const QPointF centre(0.254,-0.508);
+    const QPointF hole=item.canonicalScreenForTest(centre);
+    const QPointF ring=item.canonicalScreenForTest(centre+QPointF(0.5,0.0));
+    if(item.canonicalHitForTest(hole)!=-1 ||
+       item.canonicalHitForTest(ring)!=2)
+        return 1; // Topmost visible conductive Rect, never an Antipad.
+    QVector<bool> layerMask(5,false);
+    layerMask[1]=true;
+    item.filter(layerMask,"All nets");
+    if(item.canonicalHitForTest(hole)!=-1 ||
+       item.canonicalHitForTest(ring)!=0)
+        return 1; // L1 annulus only; physical L2 AntiPad remains nonselectable.
+    layerMask.fill(false);
+    layerMask[2]=true;
+    item.filter(layerMask,"All nets");
+    if(item.canonicalHitForTest(ring)!=-1)return 1;
+    item.load(0,{}, {}, {});
+    if(item.primitiveCount()!=0)return 1; // Legacy scene reset discards stale Canonical.
+    qInfo("D05605_RHI_SOURCE_LAYER_MODEL_PASS; PHYSICAL_GPU_NOT_VERIFIED");
+#endif
+    return 0;
+}
+
+// D_056_05: actual top-level Properties panel must acknowledge a Canonical
+// source import, never report NOTHING IMPORTED after a verified source load.
+static int runD05605PropertiesSmoke(const QString &binary,const QString &source) {
+    PreviewWindow window{QString()};
+    auto *panel=window.importPanel();
+    panel->setCanonicalImporterBinaryForTest(binary);
+    if(!panel->openCanonicalPath(source))return 1;
+    QEventLoop loop;
+    QTimer poll,deadline;
+    deadline.setSingleShot(true);
+    bool timedOut=false;
+    QObject::connect(&deadline,&QTimer::timeout,&loop,[&] {
+        timedOut=true;loop.quit();
+    });
+    QObject::connect(&poll,&QTimer::timeout,&loop,[&] {
+        if(!panel->busy() && !panel->importStatus().startsWith("RUNNING"))loop.quit();
+    });
+    poll.start(25);deadline.start(45000);loop.exec();
+    if(timedOut ||
+       !panel->importStatus().startsWith("CANONICAL SOURCE GEOMETRY") ||
+       !panel->imported()->canonicalMode() ||
+       !panel->imported()->canonicalGlyphCount())
+        return 1;
+    panel->artworkTabs()->setCurrentWidget(panel->imported());
+    if(!panel->imported()->selectCanonicalGlyph(0))return 1;
+    QCoreApplication::processEvents(QEventLoop::AllEvents,20);
+    const QString properties=window.displayedProperties();
+    const bool ok=properties.contains("CANONICAL PADSTACK") &&
+        properties.contains("Canonical Via") &&
+        properties.contains("SOURCE SHA256") &&
+        properties.contains("Drill") &&
+        !properties.contains("NOTHING IMPORTED");
+    qInfo()<<"D05605_MAIN_PROPERTIES"<<(ok?"PASS":"FAIL")<<properties.left(220);
+    return ok?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
@@ -4488,6 +4601,10 @@ int main(int argc, char **argv) {
         return runB001StackupSelftest();
     if (args.size() == 2 && args.at(1) == "--explorer-selftest")
         return runA020ExplorerSmoke();
+    if (args.size() == 4 && args.at(1) == "--d05605-properties-selftest")
+        return runD05605PropertiesSmoke(args.at(2),args.at(3));
+    if (args.size() == 2 && args.at(1) == "--d05605-rhi-model-selftest")
+        return runD05605RhiModelSmoke();
     if (args.size() == 2 && args.at(1) == "--rhi-geometry-selftest")
         return runRhiGeometrySmoke();
     if (args.size() == 2 && args.at(1) == "--rhi-scale-selftest")

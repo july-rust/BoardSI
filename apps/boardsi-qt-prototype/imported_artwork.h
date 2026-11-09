@@ -1,6 +1,7 @@
 // BoardSI P2-A partial imported artwork. No physical SI or inferred pads/vias/connectivity.
 #pragma once
 #include "synthetic_artwork.h"
+#include "d05605_canonical_artwork.h"
 #include <QComboBox>
 #include <QGraphicsLineItem>
 #include <QGraphicsEllipseItem>
@@ -368,7 +369,49 @@ class ImportedArtworkPanel final : public QWidget {
     std::vector<std::pair<QGraphicsEllipseItem*,ImportedContactMarker>> contacts_;
     std::vector<std::pair<QGraphicsItem*,ImportedReferenceRiskMarker>> risks_;
     QString localContactAudit_ = "Local endpoint contact evidence: NOT_EXPOSED; full-board connectivity NOT_VERIFIED";
+    // D_056_05 uses the MAIN ImportedArtworkPanel controls/scene and preserves
+    // legacy V1-V14. Canonical geometry is never forced into ImportedVia.
+    std::vector<std::pair<QGraphicsPathItem *, d05605::Glyph>> canonical_;
+    bool canonicalMode_ = false;
+    QString canonicalSha_;
+    static QString canonicalNet(const QString &id) {
+        return id == "-" ? QString("UNKNOWN") : d05605::readableId(id);
+    }
     void refresh() {
+        if (canonicalMode_) {
+#ifdef BOARDSI_RHI_ARTWORK
+            if(rhi_)rhi_->filter(layerVisible_,nets_->currentText(),
+                netOnly_ && netOnly_->isChecked());
+#endif
+            const QString selected = nets_->currentText();
+            const bool netOnly = netOnly_ && netOnly_->isChecked() && selected != "All nets";
+            int shown=0;
+            for (auto &entry:canonical_) {
+                const auto &g=entry.second;
+                const bool on=g.layer>0 && g.layer<layerVisible_.size() && layerVisible_[g.layer] &&
+                    (!netOnly || canonicalNet(g.netId)==selected);
+                entry.first->setVisible(on);
+                entry.first->setOpacity(selected=="All nets" || canonicalNet(g.netId)==selected ? 1.0 : 0.15);
+                if (on) ++shown;
+            }
+            QString message=QString("D_056_05 MAIN ARTWORK / CANONICAL SOURCE GEOMETRY ONLY"
+                " / SI NOT_RUN\nSource SHA256: %1\nPhysical layers: %2"
+                " / layer glyphs: %3 / visible: %4\n"
+                "Plating UNVERIFIED / connected layers UNKNOWN / Global Open/Short NOT_VERIFIED\n"
+                "Renderer: %5 / rendering is display-only, not electrical evidence")
+                .arg(canonicalSha_).arg(layerVisible_.size()-1)
+                .arg(static_cast<qlonglong>(canonical_.size())).arg(shown)
+                .arg(rendererStatus());
+            const auto selectedItems=scene_->selectedItems();
+            if (!selectedItems.isEmpty())
+                message += "\nSelected: " + selectedItems.first()->data(2).toString();
+            summary_->setText(message);
+            if(explorerStatus_) explorerStatus_->setText(
+                QString("Canonical source physical layer %1 / no electrical connectivity asserted")
+                    .arg(layers_->currentData().toInt()));
+            if(detailsCallback_) detailsCallback_(message);
+            return;
+        }
 #ifdef BOARDSI_RHI_ARTWORK
         if (rhi_) rhi_->filter(layerVisible_, nets_->currentText(), netOnly_ && netOnly_->isChecked());
 #endif
@@ -700,6 +743,12 @@ public:
                 }
                 refresh();
             });
+            rhi_->onCanonicalHovered([this](int index) {
+                if(!canonicalMode_ || !detailsCallback_)return;
+                if(index>=0 && index<static_cast<int>(canonical_.size()))
+                    detailsCallback_(canonical_[static_cast<size_t>(index)].second.details);
+                else refresh(); // Restore main source summary when hover exits.
+            });
             rhi_->onPicked([this](int kind,int index) {
                 if (kind == 1) selectVia(index);
                 else if (kind == 2) selectPad(index);
@@ -710,6 +759,13 @@ public:
                 else if (kind == 7) selectOutline(index);
                 else if (kind == 8) selectPour(index);
                 else if (kind == 9) selectCopper(index);
+                else if(kind==12 && index>=0 &&
+                    index<static_cast<int>(canonical_.size())) {
+                    scene_->clearSelection();
+                    canonical_[static_cast<size_t>(index)].first->setSelected(true);
+                    if(detailsCallback_)detailsCallback_(
+                        canonical_[static_cast<size_t>(index)].second.details);
+                }
                 else if (kind == 11 && index>=0 && index<static_cast<int>(risks_.size())) {
                     if(detailsCallback_) detailsCallback_(risks_[static_cast<size_t>(index)].first->data(2).toString());
                 }
@@ -971,6 +1027,7 @@ public:
         pours_.clear();
         copper_.clear();
         scene_->clear();
+        canonical_.clear(); canonicalMode_=false; canonicalSha_.clear();
         layerVisible_.clear();
         layers_->clear();
         nets_->clear();
@@ -989,6 +1046,88 @@ public:
                           "Artwork renderer: " + rendererStatus());
         if (detailsCallback_) detailsCallback_(summary_->text());
     }
+    // D_056_05: actual main Artwork panel, not the separate diagnostic viewer.
+    // Decode and source SHA validation must complete before calling this method.
+    // A failed geometry candidate leaves the previous scene intact.
+    bool loadCanonical(const d056ipc::Source &source, const QString &expectedSha) {
+        d05605::Model prepared;
+        if (!d05605::make(source,expectedSha,prepared)) return false;
+        clearArtwork();
+        canonicalMode_=true; canonicalSha_=prepared.sourceSha;
+        layerVisible_=QVector<bool>(prepared.layerCount+1,true);
+        const QSignalBlocker muteLayers(layers_);
+        const QSignalBlocker muteNets(nets_);
+        for (int n=1;n<=prepared.layerCount;++n)
+            layers_->addItem(d05605::readableId(source.layerIds[n-1]),n);
+        for (const auto &g:prepared.glyphs) {
+            if (g.conductive && nets_->findText(canonicalNet(g.netId))<0)
+                nets_->addItem(canonicalNet(g.netId));
+            // No cosmetic pen on conductive paths: it would bleed into the
+            // actual drilled void even though the fill correctly excludes it.
+            auto *item=scene_->addPath(g.conductive ? g.footprint : g.outline,
+                g.conductive ? QPen(Qt::NoPen) :
+                    QPen(QColor("#82929d"),0,Qt::DashLine),
+                g.conductive ? QBrush(QColor(g.layer==1 ? "#d0a55a" :
+                    g.layer==prepared.layerCount ? "#55b4e9" : "#a9d48e"))
+                    : QBrush(Qt::NoBrush));
+            item->setData(0,canonicalNet(g.netId));
+            item->setData(2,g.details);
+            item->setData(3,"D05605Canonical");
+            item->setToolTip(g.details);
+            if (g.conductive) item->setFlag(QGraphicsItem::ItemIsSelectable);
+            else item->setAcceptedMouseButtons(Qt::NoButton);
+            canonical_.push_back({item,g});
+        }
+        scene_->setSceneRect(prepared.bounds.adjusted(-1,-1,1,1));
+        // GPU-first only where the conservative hole mesh is representable
+        // under a bounded per-frame primitive budget. Otherwise exact CPU path.
+        bool useRhi=prepared.glyphs.size()<=1024;
+        for(const auto &g:prepared.glyphs) {
+            const double narrow=g.shape=="RECT" ? std::min(g.majorMm,g.minorMm) :
+                g.majorMm;
+            if(g.conductive && g.openingMm/std::cos(3.14159265358979323846/32.0)>=narrow)
+                useRhi=false;
+        }
+#ifdef BOARDSI_RHI_ARTWORK
+        if(rhi_ && !rhi_->failed() && useRhi) {
+            rhi_->loadCanonical(prepared);
+            canvasStack_->setCurrentWidget(rhi_);
+        } else canvasStack_->setCurrentWidget(view_);
+#else
+        Q_UNUSED(useRhi);
+        canvasStack_->setCurrentWidget(view_);
+#endif
+        refresh();
+        fitArtwork();
+        return true;
+    }
+    int canonicalGlyphCount() const {return static_cast<int>(canonical_.size());}
+    int canonicalLayerGlyphCount(int layer) const {
+        int count=0; for(const auto &g:canonical_) if(g.second.layer==layer) ++count;
+        return count;
+    }
+    bool canonicalContains(int index,const QPointF &point) const {
+        if(index<0 || index>=static_cast<int>(canonical_.size()))return false;
+        const auto &g=canonical_[static_cast<size_t>(index)].second;
+        return g.conductive && g.footprint.contains(point);
+    }
+    bool selectCanonicalGlyph(int index) {
+        if(index<0 || index>=static_cast<int>(canonical_.size()) ||
+           !canonical_[static_cast<size_t>(index)].second.conductive ||
+           !canonical_[static_cast<size_t>(index)].first->isVisible())
+            return false;
+        scene_->clearSelection();
+        canonical_[static_cast<size_t>(index)].first->setSelected(true);
+        refresh();
+        return true;
+    }
+    int canonicalVisibleGlyphCount() const {
+        int count=0;
+        for(const auto &g:canonical_)if(g.first->isVisible())++count;
+        return count;
+    }
+    QString canonicalSourceSha() const {return canonicalSha_;}
+    bool canonicalMode() const {return canonicalMode_;}
     bool load(int layerCount, int skipped, const std::vector<ImportedTrack> &input,
               const std::vector<ImportedVia> &viaInput = {},
               const std::vector<ImportedPad> &padInput = {},
@@ -1185,6 +1324,7 @@ public:
             boundaries_.clear();
             pours_.clear();
             copper_.clear();
+            canonical_.clear(); canonicalMode_=false; canonicalSha_.clear();
             scene_->clear();
         }
         layerVisible_ = QVector<bool>(layerCount + 1, true);
@@ -1436,7 +1576,10 @@ public:
         }
         skipped_ = skipped;
 #ifdef BOARDSI_RHI_ARTWORK
-        if (rhi_) rhi_->load(layerCount,input,viaInput,padInput,arcInput,outlineInput,circleInput,boundaryInput,pourInput,copperChecked);
+        if (rhi_) {
+            rhi_->load(layerCount,input,viaInput,padInput,arcInput,outlineInput,circleInput,boundaryInput,pourInput,copperChecked);
+            if(!rhi_->failed())canvasStack_->setCurrentWidget(rhi_);
+        }
 #endif
         scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-1, -1, 1, 1));
         refresh();
@@ -1444,7 +1587,7 @@ public:
         return true;
     }
     void fitArtwork() {
-        if (!tracks_.empty() || !arcs_.empty() || !vias_.empty() ||
+        if (canonicalMode_ || !tracks_.empty() || !arcs_.empty() || !vias_.empty() ||
             !pads_.empty() || !outlineEdges_.empty() || !circles_.empty() || !boundaries_.empty() || !pours_.empty() || !copper_.empty()) {
             // Qt's Fit is cumulative with the existing view transform. Reset
             // first so a Fit after Zoom is repeatable and does not drift.

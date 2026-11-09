@@ -20,6 +20,7 @@ $items=@{
  'build-qt/boardsi-preview-p0.exe'='boardsi-preview-p0.exe'
  'target/debug/boardsi-worker.exe'='boardsi-worker.exe'
  'target/debug/boardsi-import-artwork.exe'='boardsi-import-artwork.exe'
+ 'target/debug/boardsi-import-canonical-padstack.exe'='boardsi-import-canonical-padstack.exe'
  'target/debug/boardsi-stackup-config.exe'='boardsi-stackup-config.exe'
  'build-qt/qt-model-a.frame'='qt-model-a.frame'
  'build-qt/qt-model-b.frame'='qt-model-b.frame'
@@ -111,6 +112,7 @@ BoardSI P2-A Windows x64 QT-BUNDLED TEST PACKAGE (NOT A RELEASE)
 3. Optional: PowerShell .\run-preview.ps1 -ValidateOnly
    then .\run-preview.ps1 -SelfTest or .\run-preview.ps1
 4. Open PCB: restricted PADS V9.4 MILS straight-route and explicit round\n   through-via subset only.
+   Canonical layer vias: separate opt-in source-backed per-layer pads,\n   drill and antipad viewer. Supported PADS subset only; actual plating,\n   board electrical connectivity, global Open/Short and SI NOT_VERIFIED.
    Stackup / Reference: enter explicit material source, revision, method,
    frequency and valid-band data; use the bundled native Rust Canonical
    audit executable. Audit success means ASSUMED material-only data,
