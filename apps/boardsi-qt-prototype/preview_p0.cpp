@@ -139,9 +139,11 @@ class PreviewWindow : public QMainWindow {
         const QString status = ipc->statusLabel()->text();
         const QString error = ipc->errorLabel()->text();
         stateSummary->setText("Worker: " + status + " | PCB: " + importResultStatus + " | SI NOT_RUN");
+        const QString currentFile=importUI->canonicalAcceptedPath().isEmpty() ?
+            chosenFile : QFileInfo(importUI->canonicalAcceptedPath()).fileName();
         validation->setText(
-            (chosenFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
-                "PCB candidate: " + chosenFile +
+            (currentFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
+                "PCB candidate: " + currentFile +
                 (importResultStatus.startsWith("PARTIAL") ?
                     " (PARTIAL ARTWORK IMPORT)" :
                  importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") ?
@@ -4497,6 +4499,42 @@ static int runD05605RhiModelSmoke() {
     return 0;
 }
 
+// D_056_05: actual top-level Properties panel must acknowledge a Canonical
+// source import, never report NOTHING IMPORTED after a verified source load.
+static int runD05605PropertiesSmoke(const QString &binary,const QString &source) {
+    PreviewWindow window(QString());
+    auto *panel=window.importPanel();
+    panel->setCanonicalImporterBinaryForTest(binary);
+    if(!panel->openCanonicalPath(source))return 1;
+    QEventLoop loop;
+    QTimer poll,deadline;
+    deadline.setSingleShot(true);
+    bool timedOut=false;
+    QObject::connect(&deadline,&QTimer::timeout,&loop,[&] {
+        timedOut=true;loop.quit();
+    });
+    QObject::connect(&poll,&QTimer::timeout,&loop,[&] {
+        if(!panel->busy())loop.quit();
+    });
+    poll.start(25);deadline.start(45000);loop.exec();
+    if(timedOut ||
+       !panel->importStatus().startsWith("CANONICAL SOURCE GEOMETRY") ||
+       !panel->imported()->canonicalMode() ||
+       !panel->imported()->canonicalGlyphCount())
+        return 1;
+    panel->artworkTabs()->setCurrentWidget(panel->imported());
+    if(!panel->imported()->selectCanonicalGlyph(0))return 1;
+    QCoreApplication::processEvents(QEventLoop::AllEvents,20);
+    const QString properties=window.displayedProperties();
+    const bool ok=properties.contains("CANONICAL PADSTACK") &&
+        properties.contains("Canonical Via") &&
+        properties.contains("SOURCE SHA256") &&
+        properties.contains("Drill") &&
+        !properties.contains("NOTHING IMPORTED");
+    qInfo()<<"D05605_MAIN_PROPERTIES"<<(ok?"PASS":"FAIL")<<properties.left(220);
+    return ok?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
@@ -4563,6 +4601,8 @@ int main(int argc, char **argv) {
         return runB001StackupSelftest();
     if (args.size() == 2 && args.at(1) == "--explorer-selftest")
         return runA020ExplorerSmoke();
+    if (args.size() == 4 && args.at(1) == "--d05605-properties-selftest")
+        return runD05605PropertiesSmoke(args.at(2),args.at(3));
     if (args.size() == 2 && args.at(1) == "--d05605-rhi-model-selftest")
         return runD05605RhiModelSmoke();
     if (args.size() == 2 && args.at(1) == "--rhi-geometry-selftest")
