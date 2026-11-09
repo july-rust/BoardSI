@@ -120,7 +120,44 @@ fn via_samples(
         } => inner_diameter_ticks,
         // A thermal's outsize is mostly a PLANE VOID, never a filled via disk.
         // No broad radial sample can qualify its spoke-to-plane boundary.
-        ViaLayerShape::Thermal { .. } => return Vec::new(),
+        ViaLayerShape::Thermal {
+            kind, first_spoke_degrees, outer_size_ticks,
+            spoke_width_ticks, spoke_count,
+        } => {
+            let thermal = crate::thermal_source::ThermalPad {
+                layer_selector: 1, kind, size_ticks: outer_ticks,
+                first_spoke_degrees, outer_size_ticks,
+                spoke_width_ticks, spoke_count,
+            };
+            if thermal.validate().is_err() { return Vec::new(); }
+            let mut witnesses = Vec::new();
+            // Central copper annulus: strictly between declared hole and pad.
+            let core = (i128::from(drill_ticks) + i128::from(outer_ticks)) / 4;
+            if let Ok(r) = i64::try_from(core) {
+                for (x,y) in [(r,0),(-r,0),(0,r),(0,-r)] {
+                    if let (Some(px),Some(py)) = (centre[0].checked_add(x),
+                        centre[1].checked_add(y)) {
+                        if thermal.zone(x as f64,y as f64,drill_ticks)
+                            == crate::thermal_source::ThermalZone::Copper {
+                            witnesses.push([px,py]);
+                        }
+                    }
+                }
+            }
+            // One SOURCE-oriented strictly interior spoke witness per spoke.
+            // An absent witness is UNKNOWN, never evidence of no contact.
+            let between = (outer_ticks + outer_size_ticks) as f64 / 4.0;
+            for angle in thermal.angles_degrees() {
+                let radians=angle.to_radians();
+                let x=(between*radians.cos()).round() as i64;
+                let y=(between*radians.sin()).round() as i64;
+                if thermal.zone(x as f64,y as f64,drill_ticks)
+                    != crate::thermal_source::ThermalZone::Copper { continue; }
+                if let (Some(px),Some(py))=(centre[0].checked_add(x),
+                    centre[1].checked_add(y)) { witnesses.push([px,py]); }
+            }
+            return witnesses;
+        },
         ViaLayerShape::RoundAntiPad | ViaLayerShape::SquareAntiPad => return Vec::new(),
     };
     // A radial sample strictly *inside* actual conductive annulus/square
