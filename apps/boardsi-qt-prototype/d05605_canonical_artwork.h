@@ -119,12 +119,56 @@ inline bool make(const d056ipc::Source &source, const QString &expectedSha,
             g.centre=centre;
             g.majorMm=major;g.minorMm=minor;
             QPainterPath shape;
-            if (pad.shape == "RECT")
-                shape.addRect(QRectF(x-major/2, -y-minor/2, major, minor));
-            else if (pad.shape == "CIRCLE" || pad.shape == "ANNULUS")
-                shape.addEllipse(centre, major/2, major/2);
-            else return false;
-            g.outline=shape;
+            const bool thermal=pad.shape=="THERMAL_RT" || pad.shape=="THERMAL_ST";
+            if (thermal) {
+                double spokeWidth=0.0;
+                if (!pad.conductive() || !millimetres(pad.spokeWidth,spokeWidth,true)
+                    || !(minor>major) || spokeWidth>major
+                    || pad.spokeCount<1 || pad.spokeCount>64
+                    || pad.spokeAngle<0 || pad.spokeAngle>=360) return false;
+                QPainterPath outer, centreCopper;
+                if (pad.shape=="THERMAL_RT") {
+                    outer.addEllipse(centre,minor/2,minor/2);
+                    centreCopper.addEllipse(centre,major/2,major/2);
+                } else {
+                    outer.addRect(QRectF(x-minor/2,-y-minor/2,minor,minor));
+                    centreCopper.addRect(QRectF(x-major/2,-y-major/2,major,major));
+                }
+                QPainterPath spokes;
+                constexpr double pi=3.14159265358979323846;
+                for(int k=0;k<pad.spokeCount;++k) {
+                    const double theta=(pad.spokeAngle+
+                        360.0*k/pad.spokeCount)*pi/180.0;
+                    double dx=std::cos(theta),dy=std::sin(theta);
+                    if (frame->mirror) dx=-dx;
+                    const double oldDx=dx,oldDy=dy;
+                    switch(frame->turn) {
+                    case 1: dx=-oldDy; dy=oldDx;break;
+                    case 2: dx=-oldDx; dy=-oldDy;break;
+                    case 3: dx=oldDy;dy=-oldDx;break;
+                    default: break;
+                    }
+                    dy=-dy; // ImportedArtwork scene flips source Y only once.
+                    const QPointF along(dx,dy),across(-dy,dx);
+                    const QPointF start=centre+along*(major/2);
+                    const QPointF end=centre+along*(minor*2);
+                    QPolygonF quad;
+                    quad << start+across*(spokeWidth/2)
+                         << end+across*(spokeWidth/2)
+                         << end-across*(spokeWidth/2)
+                         << start-across*(spokeWidth/2);
+                    spokes.addPolygon(quad);
+                }
+                shape=centreCopper.united(spokes.intersected(outer));
+                g.outline=outer; // Clearance envelope is never filled Copper.
+            } else {
+                if (pad.shape == "RECT")
+                    shape.addRect(QRectF(x-major/2, -y-minor/2, major, minor));
+                else if (pad.shape == "CIRCLE" || pad.shape == "ANNULUS")
+                    shape.addEllipse(centre, major/2, major/2);
+                else return false;
+                g.outline=shape;
+            }
             if (g.conductive) {
                 const double opening=(pad.shape=="ANNULUS")
                     ? std::max(minor,drillMm) : drillMm;
@@ -135,9 +179,12 @@ inline bool make(const d056ipc::Source &source, const QString &expectedSha,
                 g.openingMm=opening;
                 QPainterPath hole;
                 hole.addEllipse(centre,opening/2,opening/2);
-                shape.setFillRule(Qt::OddEvenFill);
-                shape.addPath(hole);
-                g.footprint=shape;
+                if (thermal) g.footprint=shape.subtracted(hole);
+                else {
+                    shape.setFillRule(Qt::OddEvenFill);
+                    shape.addPath(hole);
+                    g.footprint=shape;
+                }
             }
             g.details=QString("Canonical Via %1 / Padstack %2 / Drill %3 / physical L%4 / %5 %6"
                 " / Via %7 L%8-L%9 / pad %10 x %11 mm / drilled hole %12 mm"
@@ -149,6 +196,9 @@ inline bool make(const d056ipc::Source &source, const QString &expectedSha,
                 .arg(major,0,'g',12).arg(minor,0,'g',12)
                 .arg(drillMm,0,'g',12).arg(source.sha)
                 .arg(via.net=="-" ? QString("UNKNOWN") : readableId(via.net));
+            if (thermal) g.details+=QString(" / RT/ST spokes %1, origin %2 deg / width %3 mm / relief outer %4 mm / PLANE FILL UNKNOWN")
+                .arg(pad.spokeCount).arg(pad.spokeAngle)
+                .arg(pad.spokeWidth).arg(minor,0,'g',12);
             const QRectF area=g.outline.boundingRect();
             if (!hasBounds) { built.bounds=area; hasBounds=true; }
             else built.bounds=built.bounds.united(area);
