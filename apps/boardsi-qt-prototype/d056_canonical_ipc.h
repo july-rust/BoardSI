@@ -140,6 +140,7 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
     QMap<QString, QSet<int>> padLayers;
     int stage = 0, pending = 0;
     bool ended = false;
+    bool sawThermal = false;
     for (int i = 0; i < records; ++i) {
         const auto r = lines[i].split('|', Qt::KeepEmptyParts);
         if (r.isEmpty() || ended) return false;
@@ -218,6 +219,7 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
                     || middle<=0 || outer<=middle || width<=0 || width>middle
                     || outer-middle <= outer*1e-14) return false;
                 pad.spokeWidth=r[7];pad.spokeAngle=angle;pad.spokeCount=count;
+                sawThermal = true;
             } else {
                 if (r.size()!=7
                     || (r[4]!="CIRCLE" && r[4]!="RECT" && r[4]!="ANNULUS")
@@ -289,7 +291,8 @@ inline bool decode(const QByteArray &wire, const QString &expectedSourceSha, Sou
             ended = true;
         }
     }
-    if (!ended || pending || parsed.conditions.size() != conditions
+    if (!ended || pending || (wireV2 != sawThermal)
+        || parsed.conditions.size() != conditions
         || parsed.frames.size() != frames || parsed.layerIds.size() != layers
         || parsed.stacks.size() != stacks || parsed.drills.size() != drills
         || parsed.vias.size() != vias) return false;
