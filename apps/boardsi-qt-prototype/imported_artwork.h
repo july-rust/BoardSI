@@ -1083,6 +1083,10 @@ public:
         // under a bounded per-frame primitive budget. Otherwise exact CPU path.
         bool useRhi=prepared.glyphs.size()<=1024;
         for(const auto &g:prepared.glyphs) {
+            // Current RHI mesh explicitly skips thermal glyphs. Never present
+            // a GPU canvas that would hide source-evidenced spoke copper.
+            if(g.shape=="THERMAL_RT" || g.shape=="THERMAL_ST")
+                useRhi=false;
             const double narrow=g.shape=="RECT" ? std::min(g.majorMm,g.minorMm) :
                 g.majorMm;
             if(g.conductive && g.openingMm/std::cos(3.14159265358979323846/32.0)>=narrow)
@@ -1091,7 +1095,11 @@ public:
 #ifdef BOARDSI_RHI_ARTWORK
         if(rhi_ && !rhi_->failed() && useRhi) {
             rhi_->loadCanonical(prepared);
-            canvasStack_->setCurrentWidget(rhi_);
+            // loadCanonical may synchronously trigger CPU fallback via onChanged.
+            // Recheck before activating the RHI canvas, or all thermal copper
+            // would disappear while the failed GPU view is frontmost.
+            canvasStack_->setCurrentWidget(rhi_->failed() ? static_cast<QWidget*>(view_) :
+                                                       static_cast<QWidget*>(rhi_));
         } else canvasStack_->setCurrentWidget(view_);
 #else
         Q_UNUSED(useRhi);
