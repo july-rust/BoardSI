@@ -142,8 +142,7 @@ fn drill_row(
     if p.len() == 3 || (p.len() == 4 && p[3] == "0") {
         return Ok(None);
     }
-    if !matches!(p.len(), 4 | 5 | 7 | 8)
-        || (matches!(p.len(), 5 | 8) && !matches!(p[4], "P" | "N"))
+    if !matches!(p.len(), 4 | 5 | 7 | 8) || (matches!(p.len(), 5 | 8) && !matches!(p[4], "P" | "N"))
     {
         return Err(ScanError::UnsupportedPadstack);
     }
@@ -527,10 +526,7 @@ mod tests {
     #[test]
     fn exact_section_tags_allow_pads_descriptive_suffix() {
         let baseline = String::from_utf8(fixture("-2 40 R 20 N")).unwrap();
-        let annotated = baseline.replace(
-            "*END*\n",
-            "*PARTTYPE* PART TYPE DEFINITIONS\n*END*\n",
-        );
+        let annotated = baseline.replace("*END*\n", "*PARTTYPE* PART TYPE DEFINITIONS\n*END*\n");
         let rows = scan_pads_v94_part_decal_drills(annotated.as_bytes()).unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].source_line, 6);
