@@ -2,11 +2,13 @@
 mod area_contact;
 mod area_contact_circle;
 mod coordinates;
+mod fabrication;
 mod identity;
 mod stackup_configuration;
 mod validation;
 pub use area_contact::*;
 pub use coordinates::*;
+pub use fabrication::*;
 pub use identity::*;
 pub use stackup_configuration::*;
 pub use validation::*;

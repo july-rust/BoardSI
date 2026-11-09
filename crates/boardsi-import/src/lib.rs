@@ -226,6 +226,8 @@ pub mod outline_arc;
 pub mod outline_preview;
 pub mod outline_topology;
 pub mod part_preview;
+// D_056_07 SOURCE-only PARTDECAL PTH/NPTH/slotted hole evidence.
+pub mod pads_fabrication_source;
 pub mod polygon_topology;
 pub mod pour_preview;
 pub mod reference_area_v13;
