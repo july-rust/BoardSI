@@ -232,16 +232,25 @@ pub fn scan_pads_v94_part_decal_drills(
                 continue;
             }
             if token.starts_with('*') {
+                // Never allow malformed/unknown section markers to terminate
+                // this decal quietly and hide a later drilled-pad record.
+                const NEXT_SECTIONS: &[&str] = &[
+                    "*PARTTYPE*", "*PART*", "*VIA*", "*ROUTE*", "*LINES*",
+                    "*POUR*", "*COPPER*", "*COPCUT*", "*TEXT*", "*PCB*",
+                    "*NET*", "*SIGNAL*", "*PARTDECAL*", "*END*",
+                ];
+                if row != token || !NEXT_SECTIONS.contains(&token) {
+                    return Err(ScanError::UnsupportedDecal);
+                }
                 break;
-            }
-            if row.is_empty() || token == "REMARK" {
-                i += 1;
-                continue;
             }
             let header: Vec<_> = row.split_ascii_whitespace().collect();
             if !(7..=9).contains(&header.len())
                 || header[1] != "I"
                 || header[4] != "0"
+                || ticks(header[2]).is_none()
+                || ticks(header[3]).is_none()
+                || ticks(header[4]).is_none()
                 || !simple_id(header[0], 40)
                 || header.get(7).is_some_and(|x| *x != "0")
                 || header.get(8).is_some_and(|x| *x != "0")
@@ -264,7 +273,14 @@ pub fn scan_pads_v94_part_decal_drills(
             }
             for _ in 0..terminal_count {
                 let t: Vec<_> = lines[i].1.split_ascii_whitespace().collect();
-                if t.len() != 5 || !t[0].starts_with('T') || !simple_id(t[4], 7) {
+                if t.len() != 5
+                    || !t[0].starts_with('T')
+                    || ticks(&t[0][1..]).is_none()
+                    || ticks(t[1]).is_none()
+                    || ticks(t[2]).is_none()
+                    || ticks(t[3]).is_none()
+                    || !simple_id(t[4], 7)
+                {
                     return Err(ScanError::UnsupportedDecal);
                 }
                 i += 1;
@@ -441,6 +457,41 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].source_line, 7);
         assert_eq!(rows[0].plating, PlatingDeclaration::NonPlated);
+    }
+
+    #[test]
+    fn malformed_markers_cannot_hide_subsequent_holes() {
+        let baseline = String::from_utf8(fixture("-2 40 R 20 N")).unwrap();
+        for line in ["*REMARK*oops", "*BOGUS*", "*PARTTYPE*trailing"] {
+            let candidate = baseline.replace(
+                "*PARTDECAL*\n",
+                &format!("*PARTDECAL*\n{line}\n"),
+            );
+            assert!(
+                scan_pads_v94_part_decal_drills(candidate.as_bytes()).is_err(),
+                "{line}"
+            );
+        }
+    }
+
+    #[test]
+    fn terminal_coordinates_must_be_source_numeric() {
+        let baseline = String::from_utf8(fixture("-2 40 R 20 N")).unwrap();
+        for terminal in [
+            "TotallyInvalid bad bad bad 1",
+            "T0 bad 0 0 1",
+            "T0 0 bad 0 1",
+            "T0 0 0 bad 1",
+            "T1.234 0 0 0 1",
+        ] {
+            let candidate = baseline.replace("T0 0 0 0 1", terminal);
+            assert!(
+                scan_pads_v94_part_decal_drills(candidate.as_bytes()).is_err(),
+                "{terminal}"
+            );
+        }
+        let invalid_header = baseline.replace("D7 I 1000 1000 0", "D7 I bad 1000 0");
+        assert!(scan_pads_v94_part_decal_drills(invalid_header.as_bytes()).is_err());
     }
 
     #[test]
