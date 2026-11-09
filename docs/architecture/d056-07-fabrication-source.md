@@ -20,7 +20,7 @@ Parent [#520](https://github.com/july-rust/BoardSI/issues/520) · Manufacturing 
 
 - Explicit V9.4 MILS header gate; UTF-8 only; bounded 8 MiB source, 200k lines, 4096-byte line length and 100k records.
 - Strict zero-outline `I` part-decal, `T` terminals, `PAD` count, `-2` top row plus `-1/0` passive rows.
-- **Intentionally restricted round-pad subset**: a positive drill number with optional `P` (omission declares plated) or explicit `N`, plus either no slot or an entire angle/length/offset triplet. Zero drill has no hole witness.
+- **Intentionally restricted round-pad subset**: a positive drill number with optional `P` (omission declares plated) or explicit `N`, plus either no slot or an entire angle/length/offset triplet; when the plating token is omitted, a complete slot triplet remains accepted as a source-declared plated hole. Zero drill has no hole witness.
 - Exact 0.01 mil dimension ticks and 0.001-degree angles; checks unsupported extra precision, invalid slot tuple and malformed records.
 - Emits declaration, dimensions, decal/pin selector, physical SOURCE line and full source SHA-256; no footprint placement/board coordinates are inferred.
 - The scanner refuses unsupported shapes, copper graphics, ambiguous optional fields, malformed/truncated data and version mismatch. These are a limited support boundary, **not** a claim that all real V9.4 PARTDECAL exports are supported.
