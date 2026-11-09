@@ -98,9 +98,17 @@ class PreviewWindow : public QMainWindow {
                 "\nPhysical SI: NOT_RUN");
             return;
         }
-        const QString candidate = chosenFile.isEmpty() ? QString("No PCB candidate selected") :
-                                  QString("PCB candidate: ") + chosenFile;
-        const bool loaded = importResultStatus.startsWith("PARTIAL") &&
+        const bool canonicalLoaded =
+            importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") &&
+            importUI->imported()->canonicalMode() &&
+            importUI->imported()->canonicalGlyphCount()>0 &&
+            importUI->acceptedSourceSha256().size()==64;
+        const QString sourcePath=canonicalLoaded ? importUI->canonicalAcceptedPath() : QString();
+        const QString displayName=sourcePath.isEmpty() ? chosenFile :
+                                  QFileInfo(sourcePath).fileName();
+        const QString candidate = displayName.isEmpty() ? QString("No PCB candidate selected") :
+                                  QString("PCB candidate: ") + displayName;
+        const bool legacyLoaded = importResultStatus.startsWith("PARTIAL") &&
                             ((importUI->imported()->segmentCount() + importUI->imported()->viaCount() +
                               importUI->imported()->padCount() + importUI->imported()->arcCount() +
                               importUI->imported()->outlineCount() +
@@ -108,15 +116,19 @@ class PreviewWindow : public QMainWindow {
                               importUI->imported()->boundaryCount() +
                               importUI->imported()->pourEdgeCount()+
                               importUI->imported()->copperCount()) > 0);
+        const bool loaded=canonicalLoaded || legacyLoaded;
         if (!loaded) {
             properties->setText("Source: IMPORTED VIEW / NOTHING IMPORTED\n" +
                                 candidate + "\nImport status: " + importResultStatus +
                                 "\nStackup, connectivity and SI: NOT_RUN");
             return;
         }
-        properties->setText("Source: IMPORTED PARTIAL / PADS V9.4 MILS\n" +
-                            candidate + "\n" + importedDetails +
-                            "\nStackup, connectivity and SI: NOT_RUN");
+        properties->setText(
+            (canonicalLoaded ?
+                QString("Source: CANONICAL PADSTACK / V1 / GEOMETRY_ONLY\n") :
+                QString("Source: IMPORTED PARTIAL / PADS V9.4 MILS\n")) +
+            candidate + "\n" + importedDetails +
+            "\nPlating UNVERIFIED / electrical connectivity UNKNOWN / SI NOT_RUN");
     }
 
     void refresh() {
@@ -131,7 +143,9 @@ class PreviewWindow : public QMainWindow {
             (chosenFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
                 "PCB candidate: " + chosenFile +
                 (importResultStatus.startsWith("PARTIAL") ?
-                    " (PARTIAL ARTWORK IMPORT)" : " (NOT IMPORTED)")) +
+                    " (PARTIAL ARTWORK IMPORT)" :
+                 importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") ?
+                    " (CANONICAL SOURCE GEOMETRY ONLY)" : " (NOT IMPORTED)")) +
             "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
@@ -142,6 +156,8 @@ class PreviewWindow : public QMainWindow {
             "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n" +
             (importResultStatus.startsWith("PARTIAL") ?
                 "Imported PCB: PARTIAL accepted straight/arc routes, through vias, restricted SMD pads and restricted straight/arc/circular board artwork; other geometry/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
+             importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") ?
+                "Imported Canonical Padstack: SOURCE geometry only, physical Layer/Via/Pad/Drill proven by accepted source subset. Actual manufactured plating, connectivity and SI NOT_VERIFIED." :
                 "Synthetic fixture only; no real PCB imported or physical SI analysis performed."));
         if (status != previousStatus) {
             log->appendPlainText("Worker: " + status);
