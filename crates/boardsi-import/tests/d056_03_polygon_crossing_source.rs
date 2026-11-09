@@ -1,19 +1,16 @@
 //! D_056_03: independently hand-constructed source Polygon cross witnesses.
 //! This specifically catches a real electrical graph blind spot: two long,
 //! thin COPCLS bars cross at midspan but NO vertex lies inside the other.
-use boardsi_import::electrical_graph_qualification::{
-    qualify_pads_source, SourceCoverage,
-};
-use boardsi_import::layered_source_graph::{ContactKind, from_pads_v94_source};
+use boardsi_import::electrical_graph_qualification::{qualify_pads_source, SourceCoverage};
+use boardsi_import::layered_source_graph::{from_pads_v94_source, ContactKind};
 
 fn source_with_vertical(x0: i64, x1: i64) -> Vec<u8> {
-    let fixture = String::from_utf8(
-        include_bytes!("fixtures/pads_copper_filled_v94.asc").to_vec(),
-    )
-    .unwrap()
-    .replace("\r\n", "\n");
+    let fixture = String::from_utf8(include_bytes!("fixtures/pads_copper_filled_v94.asc").to_vec())
+        .unwrap()
+        .replace("\r\n", "\n");
     assert!(fixture.contains("COP_B COPPER"));
-    let a = "CROSS_A COPPER 1000 1000 1 1 0 NET_A\nCOPCLS 5 0.01 0 1\n0 40\n100 40\n100 60\n0 60\n0 40";
+    let a =
+        "CROSS_A COPPER 1000 1000 1 1 0 NET_A\nCOPCLS 5 0.01 0 1\n0 40\n100 40\n100 60\n0 60\n0 40";
     let b = format!(
         "CROSS_B COPPER 1000 1000 1 1 0 NET_B\nCOPCLS 5 0.01 0 1\n{x0} 0\n{x1} 0\n{x1} 100\n{x0} 100\n{x0} 0"
     );
@@ -44,9 +41,11 @@ fn crossed_midspan_polygon_bars_connect_despite_no_vertex_containment() {
     assert_eq!(candidates[0].layer, 1);
     assert!(graph.verified_electrical_edges.is_empty());
     let report = qualify_pads_source(&bytes, &SourceCoverage::Partial, &[], &[]).unwrap();
-    assert!(report.net_conflicts.iter().any(|c|
-        (c.first_net == "NET_A" && c.second_net == "NET_B")
-        || (c.first_net == "NET_B" && c.second_net == "NET_A")));
+    assert!(report
+        .net_conflicts
+        .iter()
+        .any(|c| (c.first_net == "NET_A" && c.second_net == "NET_B")
+            || (c.first_net == "NET_B" && c.second_net == "NET_A")));
     assert!(!report.source_scope_qualified);
 }
 
