@@ -378,17 +378,41 @@ mod tests {
 
     #[test]
     fn thermal_rt_st_source_fields_survive_through_and_buried_stack() {
-        for (layers, first, last, kind) in [(2,1,2,ViaKind::Through), (4,1,4,ViaKind::Through), (6,2,4,ViaKind::Buried), (8,2,3,ViaKind::Buried), (64,2,4,ViaKind::Buried)] {
-            let src = format!("*VIA*\\nV_T 15 3 {first} {last}\\n-2 60 RT 45 84 15 4\\n-1 50 ST 0 75 10 4\\n0 50 R\\n*END*\\n");
+        for (layers, first, last, kind) in [
+            (2, 1, 2, ViaKind::Through),
+            (4, 1, 4, ViaKind::Through),
+            (6, 2, 4, ViaKind::Buried),
+            (8, 2, 3, ViaKind::Buried),
+            (64, 2, 4, ViaKind::Buried),
+        ] {
+            let src = format!(
+                "*VIA*\nV_T 15 3 {first} {last}\n-2 60 RT 45 84 15 4\n-1 50 ST 0 75 10 4\n0 50 R\n*END*\n"
+            );
             let def = scan_definitions(&src);
             let shaped = def["V_T"].as_ref().unwrap().normalize_shapes(layers).unwrap();
             assert_eq!(shaped.kind, kind);
             assert_eq!(shaped.first_layer, first);
-            let first_pad = shaped.conductive_pad(first).unwrap();
-            assert!(matches!(first_pad.shape, ViaLayerShape::Thermal { kind: crate::thermal_source::ThermalKind::Round, first_spoke_degrees:45, outer_size_ticks:8400, spoke_width_ticks:1500, spoke_count:4 }));
+            let pad = shaped.conductive_pad(first).unwrap();
+            assert!(matches!(
+                pad.shape,
+                ViaLayerShape::Thermal {
+                    kind: crate::thermal_source::ThermalKind::Round,
+                    first_spoke_degrees: 45,
+                    outer_size_ticks: 8400,
+                    spoke_width_ticks: 1500,
+                    spoke_count: 4,
+                }
+            ));
             assert!(def["V_T"].as_ref().unwrap().normalize(layers).is_err());
-            let entries = shaped.canonical_entries(|n| boardsi_model::ObjectId { source: std::sync::Arc::new(boardsi_model::SourceIdentity { format: boardsi_model::SourceFormat::PadsAsc, format_version: "V9.4".into(), files:vec![], importer_version:"test".into(), conditions:vec![] }), kind: boardsi_model::ObjectKind::Layer, source_object: format!("layer-{n}"), part:String::new() });
-            assert!(entries.is_ok());
+            if last > first + 1 {
+                assert!(matches!(
+                    shaped.conductive_pad(first + 1).unwrap().shape,
+                    ViaLayerShape::Thermal {
+                        kind: crate::thermal_source::ThermalKind::Square,
+                        ..
+                    }
+                ));
+            }
         }
     }
 
