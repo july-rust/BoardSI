@@ -2,6 +2,7 @@
 #include "d056_canonical_ipc.h"
 #include <QCoreApplication>
 #include <QDebug>
+#include <tuple>
 
 static QByteArray key(const QByteArray &s) {
     QByteArray data = s;
@@ -63,7 +64,7 @@ static bool run() {
             return false;
         if (last > first + 1 && (result.stacks[0].pads[1].conductive()
             || result.stacks[0].pads[1].role != "ANTIPAD")) return false;
-        const auto bad = [&](QByteArray modified, const QString &sourceSha = sha) {
+        const auto bad = [&](QByteArray modified, const QString &sourceSha = QString(64, QLatin1Char('a'))) {
             d056ipc::Source rejected;
             rejected.sha = "old-result";
             return !d056ipc::decode(modified, sourceSha, rejected)
