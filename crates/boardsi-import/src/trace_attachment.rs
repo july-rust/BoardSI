@@ -527,6 +527,53 @@ mod tests {
         }
     }
     #[test]
+    fn d05606_spoke_outer_broadphase_matches_narrowphase() {
+        use crate::thermal_source::ThermalKind;
+        use crate::via_shapes::ViaLayerFootprint;
+        let mut thermal = via();
+        thermal.diameter_ticks = 6000;
+        thermal.drill_ticks = 1500;
+        thermal.shaped = Some(NormalizedViaShapes {
+            copper_layers: 4,
+            first_layer: 1,
+            last_layer: 4,
+            kind: boardsi_model::ViaKind::Through,
+            drill_ticks: 1500,
+            plated: true,
+            pads: vec![
+                ViaLayerFootprint {
+                    layer: 1,
+                    size_ticks: 6000,
+                    shape: ViaLayerShape::Thermal {
+                        kind: ThermalKind::Round,
+                        first_spoke_degrees: 0,
+                        outer_size_ticks: 8400,
+                        spoke_width_ticks: 1500,
+                        spoke_count: 4,
+                    },
+                },
+                ViaLayerFootprint {
+                    layer: 4,
+                    size_ticks: 6000,
+                    shape: ViaLayerShape::Round,
+                },
+            ],
+        });
+        let on_spoke = line([3500, 0], [4000, 0], 100, 1);
+        assert_eq!(trace_to_via(&on_spoke, &thermal), Ok(Contact::PositiveArea));
+        let results = contact_candidates(&[on_spoke], &[thermal.clone()], &[], &BTreeMap::new())
+            .expect("same broadphase and narrowphase must retain a positive spoke witness");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].target, Target::Via(0));
+
+        let off_spoke = line([3500, 1500], [4000, 1500], 100, 1);
+        assert_eq!(trace_to_via(&off_spoke, &thermal), Ok(Contact::Separated));
+        assert!(contact_candidates(&[off_spoke], &[thermal], &[], &BTreeMap::new())
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
     fn d056_native_partial_source_candidates_are_layer_qualified() {
         let bytes = b"!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n\
 *PCB*\nMAXLAYER 6\n*VIA*\n\
