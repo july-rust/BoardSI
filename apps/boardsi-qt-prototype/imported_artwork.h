@@ -1075,6 +1075,11 @@ public:
         const auto &g=canonical_[static_cast<size_t>(index)].second;
         return g.conductive && g.footprint.contains(point);
     }
+    int canonicalVisibleGlyphCount() const {
+        int count=0;
+        for(const auto &g:canonical_)if(g.first->isVisible())++count;
+        return count;
+    }
     QString canonicalSourceSha() const {return canonicalSha_;}
     bool canonicalMode() const {return canonicalMode_;}
     bool load(int layerCount, int skipped, const std::vector<ImportedTrack> &input,
