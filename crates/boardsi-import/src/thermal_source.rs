@@ -295,9 +295,15 @@ mod tests {
         let src = "!PADS-POWERPCB-V9.4-MILS!\n*VIA*\nA 15 2\n-2 60 RT 45 84 15 4\n0 50 R\n*END*\n";
         let entries = scan_via_thermals(src).unwrap();
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].source_sha256, crate::digest::sha256(src.as_bytes()));
+        assert_eq!(
+            entries[0].source_sha256,
+            crate::digest::sha256(src.as_bytes())
+        );
         let changed = src.replace("RT 45", "RT 46");
-        assert_ne!(scan_via_thermals_bytes(changed.as_bytes()).unwrap()[0].source_sha256, entries[0].source_sha256);
+        assert_ne!(
+            scan_via_thermals_bytes(changed.as_bytes()).unwrap()[0].source_sha256,
+            entries[0].source_sha256
+        );
         assert!(scan_via_thermals_bytes(&[0xff, 0x00]).is_err());
         assert_eq!(
             (entries[0].via_name.as_str(), entries[0].source_line),
