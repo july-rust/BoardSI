@@ -142,8 +142,8 @@ fn drill_row(
     if p.len() == 3 || (p.len() == 4 && p[3] == "0") {
         return Ok(None);
     }
-    if !matches!(p.len(), 4 | 5 | 8)
-        || (p.len() != 4 && !matches!(p[4], "P" | "N"))
+    if !matches!(p.len(), 4 | 5 | 7 | 8)
+        || (matches!(p.len(), 5 | 8) && !matches!(p[4], "P" | "N"))
     {
         return Err(ScanError::UnsupportedPadstack);
     }
@@ -153,7 +153,7 @@ fn drill_row(
     }
     // PADS V9.4 PARTDECAL: absent plating token denotes declared plated,
     // but never establishes manufactured barrel electrical continuity.
-    let plating = if p.len() == 4 || p[4] == "P" {
+    let plating = if matches!(p.len(), 4 | 7) || p[4] == "P" {
         PlatingDeclaration::Plated
     } else {
         PlatingDeclaration::NonPlated
@@ -163,9 +163,10 @@ fn drill_row(
             diameter_ticks: diameter,
         }
     } else {
-        let angle = milli_degrees(p[5]).ok_or(ScanError::Malformed)?;
-        let length = ticks(p[6]).ok_or(ScanError::Malformed)?;
-        let offset = ticks(p[7]).ok_or(ScanError::Malformed)?;
+        let slot_fields = if p.len() == 7 { 4 } else { 5 };
+        let angle = milli_degrees(p[slot_fields]).ok_or(ScanError::Malformed)?;
+        let length = ticks(p[slot_fields + 1]).ok_or(ScanError::Malformed)?;
+        let offset = ticks(p[slot_fields + 2]).ok_or(ScanError::Malformed)?;
         if !(100..=MAX_TICKS).contains(&length)
             || length < diameter
             || offset.unsigned_abs() > 50_000
@@ -476,6 +477,23 @@ mod tests {
         assert!(scan_pads_v94_part_decal_drills(&fixture("-2 40 R 0"))
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn optional_plating_on_slotted_drill_is_source_declared_plated() {
+        let bytes = fixture("-2 40 R 20 45.125 65.25 -5");
+        let rows = scan_pads_v94_part_decal_drills(&bytes).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].plating, PlatingDeclaration::Plated);
+        assert_eq!(
+            rows[0].shape,
+            DrillShape::Slot {
+                width_ticks: 2000,
+                source_length_ticks: 6525,
+                orientation_millidegrees: 45_125,
+                offset_ticks: -500,
+            }
+        );
     }
 
     #[test]
