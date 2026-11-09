@@ -95,6 +95,12 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
     set_tests_properties(qt-d05605-main-rust-canonical-roundtrip PROPERTIES
       TIMEOUT 65 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    add_test(NAME qt-d05605-main-properties-accepted-canonical
+      COMMAND boardsi-preview-p0 --d05605-properties-selftest
+        "${BOARDSI_CANONICAL_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
+    set_tests_properties(qt-d05605-main-properties-accepted-canonical PROPERTIES
+      TIMEOUT 75 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
   add_test(NAME qt-preview-d056-source-shaped-via-layers
     COMMAND boardsi-d056-via-viewer --selftest)
