@@ -142,19 +142,23 @@ fn drill_row(
     if p.len() == 3 || (p.len() == 4 && p[3] == "0") {
         return Ok(None);
     }
-    if !matches!(p.len(), 5 | 8) || !matches!(p[4], "P" | "N") {
+    if !matches!(p.len(), 4 | 5 | 8)
+        || (p.len() != 4 && !matches!(p[4], "P" | "N"))
+    {
         return Err(ScanError::UnsupportedPadstack);
     }
     let diameter = ticks(p[3]).ok_or(ScanError::Malformed)?;
     if !(1..=MAX_TICKS).contains(&diameter) {
         return Err(ScanError::Malformed);
     }
-    let plating = match p[4] {
-        "P" => PlatingDeclaration::Plated,
-        "N" => PlatingDeclaration::NonPlated,
-        _ => return Err(ScanError::UnsupportedPadstack),
+    // PADS V9.4 PARTDECAL: absent plating token denotes declared plated,
+    // but never establishes manufactured barrel electrical continuity.
+    let plating = if p.len() == 4 || p[4] == "P" {
+        PlatingDeclaration::Plated
+    } else {
+        PlatingDeclaration::NonPlated
     };
-    let shape = if p.len() == 5 {
+    let shape = if p.len() == 4 || p.len() == 5 {
         DrillShape::Round {
             diameter_ticks: diameter,
         }
@@ -458,6 +462,17 @@ mod tests {
             scan_pads_v94_part_decal_drills(&pth).unwrap()[0].plating,
             PlatingDeclaration::Plated
         );
+        let pth_implicit = fixture("-2 40 R 20");
+        let implicit = scan_pads_v94_part_decal_drills(&pth_implicit).unwrap();
+        assert_eq!(implicit.len(), 1);
+        assert_eq!(implicit[0].plating, PlatingDeclaration::Plated);
+        assert_eq!(
+            implicit[0].shape,
+            DrillShape::Round {
+                diameter_ticks: 2000
+            }
+        );
+
         assert!(scan_pads_v94_part_decal_drills(&fixture("-2 40 R 0"))
             .unwrap()
             .is_empty());
