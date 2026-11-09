@@ -250,6 +250,8 @@ pub mod scenario_contract;
 pub mod via_copper_contact;
 pub mod via_shapes;
 pub mod via_source;
+// D_056_06: source-authenticated RT/ST thermal geometry diagnostic (no graph/Qt promotion).
+pub mod thermal_source;
 pub mod via_topology;
 
 // A_032_2 opt-in local endpoint-evidence wire adapter.
