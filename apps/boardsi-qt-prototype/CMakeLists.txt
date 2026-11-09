@@ -21,6 +21,14 @@ endif()
 if(WIN32)
   target_link_libraries(boardsi-preview-p0 PRIVATE psapi)
 endif()
+# D_056_04 opt-in strict Canonical via IPC decoder; main Artwork V1–V14 unchanged.
+add_executable(boardsi-d05604-canonical-ipc-test d056_canonical_ipc_test.cpp)
+target_link_libraries(boardsi-d05604-canonical-ipc-test PRIVATE Qt6::Core)
+if(MSVC)
+  target_compile_options(boardsi-d05604-canonical-ipc-test PRIVATE /W4 /WX)
+else()
+  target_compile_options(boardsi-d05604-canonical-ipc-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
 # GPU-first Artwork Viewer uses the stable Qt Graphics View OpenGL viewport.
 # Optional at build time so machines without OpenGLWidgets can compile CPU fallback.
 # This does NOT change the Rust Worker, Canonical data or SI capabilities.
@@ -59,6 +67,17 @@ else()
 endif()
 include(CTest)
 if(BUILD_TESTING)
+  add_test(NAME qt-d05604-canonical-padstack-ipc
+    COMMAND boardsi-d05604-canonical-ipc-test --selftest)
+  set_tests_properties(qt-d05604-canonical-padstack-ipc PROPERTIES TIMEOUT 30)
+  set(BOARDSI_CANONICAL_IMPORTER "" CACHE FILEPATH "Optional D_056_04 Rust Canonical IPC CLI")
+  if(BOARDSI_CANONICAL_IMPORTER)
+    add_test(NAME qt-d05604-rust-canonical-roundtrip
+      COMMAND boardsi-d05604-canonical-ipc-test --source
+        "${BOARDSI_CANONICAL_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
+    set_tests_properties(qt-d05604-rust-canonical-roundtrip PROPERTIES TIMEOUT 45)
+  endif()
   add_test(NAME qt-preview-d056-source-shaped-via-layers
     COMMAND boardsi-d056-via-viewer --selftest)
   set_tests_properties(qt-preview-d056-source-shaped-via-layers PROPERTIES

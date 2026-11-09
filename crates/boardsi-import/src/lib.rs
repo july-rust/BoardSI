@@ -182,6 +182,8 @@ mod tests {
     }
 }
 
+// D_056_04 opt-in versioned Canonical Padstack/Via IPC; not electrical SI proof.
+pub mod canonical_padstack_ipc;
 pub mod circle_cutout_topology;
 pub mod connectivity_preview;
 pub mod copper_arc_preflight;
