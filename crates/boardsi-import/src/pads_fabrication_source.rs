@@ -258,7 +258,7 @@ pub fn scan_pads_v94_part_decal_drills(
                     "*PARTDECAL*",
                     "*END*",
                 ];
-                if row != token || !NEXT_SECTIONS.contains(&token) {
+                if !NEXT_SECTIONS.contains(&token) {
                     return Err(ScanError::UnsupportedDecal);
                 }
                 break;
@@ -522,6 +522,18 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].source_line, 7);
         assert_eq!(rows[0].plating, PlatingDeclaration::NonPlated);
+    }
+
+    #[test]
+    fn exact_section_tags_allow_pads_descriptive_suffix() {
+        let baseline = String::from_utf8(fixture("-2 40 R 20 N")).unwrap();
+        let annotated = baseline.replace(
+            "*END*\n",
+            "*PARTTYPE* PART TYPE DEFINITIONS\n*END*\n",
+        );
+        let rows = scan_pads_v94_part_decal_drills(annotated.as_bytes()).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].source_line, 6);
     }
 
     #[test]
