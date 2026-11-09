@@ -498,6 +498,9 @@ protected:
         // Merge adjacent same-color areas only; never reorder by RGB key.
         // Bounded by at most 64 explicit source copper areas.
         std::vector<std::pair<QRgb,Vertices>> copperGroups;
+        // Canonical pads must retain painter order across different colors:
+        // RGB-sorted groups otherwise disagree with reverse-order Picking.
+        std::vector<std::pair<QRgb,Vertices>> canonicalGroups;
         Vertices holes;
         const qreal px = scaleFactor();
         // Scene Graph sync is on the render thread. The window DPR is used
@@ -712,7 +715,10 @@ protected:
             QColor color(g.conductive ? (g.layer==1 ? "#d0a55a" :
                 g.layer==layers_ ? "#55b4e9" : "#a9d48e") : "#82929d");
             if(net_!="All nets" && net_!=netName)color.setAlpha(40);
-            auto &dst=groups[color.rgba()];
+            // Merge only adjacent same-color shapes; do not sort by RGB.
+            if(canonicalGroups.empty() || canonicalGroups.back().first!=color.rgba())
+                canonicalGroups.emplace_back(color.rgba(),Vertices{});
+            auto &dst=canonicalGroups.back().second;
             constexpr qreal twoPi=6.28318530717958647692;
             constexpr qreal pi=3.14159265358979323846;
             const int steps=std::clamp(static_cast<int>(
@@ -788,6 +794,26 @@ protected:
             auto *node=new QSGGeometryNode();
             auto *geometry=new QSGGeometry(QSGGeometry::defaultAttributes_Point2D(),
                                           static_cast<int>(entry.second.size()));
+            geometry->setDrawingMode(QSGGeometry::DrawTriangles);
+            auto *dst=geometry->vertexDataAsPoint2D();
+            for(size_t i=0;i<entry.second.size();++i)
+                dst[i].set(static_cast<float>(entry.second[i].x()),
+                           static_cast<float>(entry.second[i].y()));
+            auto *material=new QSGFlatColorMaterial();
+            material->setColor(QColor::fromRgba(entry.first));
+            node->setGeometry(geometry);node->setMaterial(material);
+            node->setFlag(QSGNode::OwnsGeometry);
+            node->setFlag(QSGNode::OwnsMaterial);
+            root->appendChildNode(node);
+        }
+        // After lower source copper and before unrelated overlays, draw
+        // canonical pads in EXACT original glyph order (CPU same order).
+        for(auto &entry:canonicalGroups) {
+            if(entry.second.empty() ||
+               entry.second.size()>static_cast<size_t>(std::numeric_limits<int>::max()))continue;
+            auto *node=new QSGGeometryNode();
+            auto *geometry=new QSGGeometry(QSGGeometry::defaultAttributes_Point2D(),
+                static_cast<int>(entry.second.size()));
             geometry->setDrawingMode(QSGGeometry::DrawTriangles);
             auto *dst=geometry->vertexDataAsPoint2D();
             for(size_t i=0;i<entry.second.size();++i)
