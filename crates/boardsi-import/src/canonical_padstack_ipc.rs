@@ -336,10 +336,11 @@ pub fn encode_pads_source(bytes: &[u8]) -> Result<Vec<u8>, &'static str> {
     // The scanner is strictly scoped to the independently documented round
     // PARTDECAL subset. Other unsupported shapes retain the pre-existing
     // importer fail-closed policy (do not blanket-reject legacy RF/SMD).
-    if bytes.windows(b"*PARTDECAL*".len()).any(|w| w == b"*PARTDECAL*") {
-        if let Ok(drills) =
-            crate::pads_fabrication_source::scan_pads_v94_part_decal_drills(bytes)
-        {
+    if bytes
+        .windows(b"*PARTDECAL*".len())
+        .any(|w| w == b"*PARTDECAL*")
+    {
+        if let Ok(drills) = crate::pads_fabrication_source::scan_pads_v94_part_decal_drills(bytes) {
             if !drills.is_empty() {
                 return Err("D05607_SOURCE_PARTDECAL_DRILL_REQUIRES_FABRICATION_IPC");
             }
