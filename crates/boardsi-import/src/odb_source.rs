@@ -67,6 +67,7 @@ fn meta(source: &SourceId, kind: ObjectKind, id: &str, path: &str, line: usize) 
 #[derive(Clone, Debug)]
 struct MatrixLayer {
     row: u32,
+    source_line: usize,
     name: String,
     layer_type: String,
     context: String,
@@ -135,6 +136,7 @@ fn parse_matrix(text: &str) -> Result<Matrix, OdbError> {
                 }
                 layers.push(MatrixLayer {
                     row,
+                    source_line: start_line,
                     name: name.into(),
                     layer_type: get("TYPE").into(),
                     context: get("CONTEXT").into(),
@@ -799,6 +801,9 @@ pub fn audit_unpacked_drill_tools(
         .filter(|l| l.context == "BOARD" && copper_type(&l.layer_type))
         .map(|l| l.name.clone())
         .collect();
+    let matrix_sha256 = crate::digest::sha256(
+        files.get("matrix/matrix").ok_or_else(|| error("matrix/matrix", 0, "ODB_MISSING_FILE"))?,
+    );
     if !(2..=64).contains(&copper.len()) {
         return Err(error(
             "matrix/matrix",
@@ -843,6 +848,8 @@ pub fn audit_unpacked_drill_tools(
         records.push(SourceDrillLayer {
             name: layer.name.clone(),
             matrix_row: layer.row,
+            matrix_source_line: layer.source_line,
+            matrix_sha256,
             unit,
             subtype: layer.add_type.clone(),
             explicit_start_layer: start,
@@ -1313,6 +1320,8 @@ mod tests {
         assert_eq!(layers[0].explicit_start_layer.as_deref(), Some("sig1"));
         assert_eq!(layers[0].explicit_end_layer.as_deref(), Some("sig6"));
         assert_eq!(layers[0].tools[0].intent, DrillIntent::Plated);
+        assert_ne!(layers[0].matrix_source_line, 0);
+        assert_eq!(layers[0].matrix_sha256, crate::digest::sha256(&f["matrix/matrix"]));
         assert_eq!(layers[1].subtype, "BACKDRILL");
         assert_eq!(layers[1].tools[0].intent, DrillIntent::Via);
         assert_eq!(layers[0].source_sha256, crate::digest::sha256(&f[path]));
