@@ -26,14 +26,14 @@ Rust source: crates/boardsi-import/src/odb_source.rs. Public library functions a
 - Matrix BOARD Copper Layer order accepts SIGNAL, POWER_GROUND and MIXED for 2–64 layers.
 - No fabricated net, material, connected-layer evidence, manufacture connectivity or S-parameter is produced.
 
-ImportCapability: geometry PARTIAL, net MISSING, pin-pad MISSING, stackup PARTIAL (layer order only; no z/thickness), reference MISSING, model MISSING. All Graph nodes/edges remain empty.
+ImportCapability: geometry PARTIAL, net MISSING **by default** or PARTIAL with opt-in `--eda-nets` (design ownership only), pin-pad MISSING, stackup PARTIAL (layer order only; no z/thickness), reference MISSING, model MISSING. All Graph nodes/edges remain empty.
 
 ## 3. Explicitly unqualified / unsupported
 
 - Archive .tgz/.tar.gz/ZIP, compressed features.Z or compressed native ODB++ data.
 - Nested Step Repeat / flip/mirror beyond the supported pad-local orthogonal transform, custom symbols, arbitrary-angle/scaled pads.
 - Subtractive negative copper; ODB S feature with negative polarity; circular/arc OC contour; multiple islands; unclosed/degenerate/crossing outer or hole contour, boundary contact or nested/outside hole; copper text/barcodes and unsupported Copper features: source import **fails closed**. A bounded subset of positive S/OB/OS/OE/SE straight-edge copper is now supported as documented below.
-- EDA/Net mapping, Feature-to-Net mapping, Component/Pin, PTH/NPTH drill, blind/buried/microvia manufacturing information and plated barrels.
+- Full EDA/Net and Feature-to-Net mapping (only the explicitly opt-in NET/SNT/FID subset below is supported), Component/Pin, PTH/NPTH drill, blind/buried/microvia manufacturing information and plated barrels.
 - Actual layer z/material/Dk/Df/thickness, whole-board electronic connectivity, verified open/short and SI.
 - Main Qt Artwork IPC / CPU / RHI / picking and vendor-export qualification.
 - Concurrent filesystem mutations are NOT atomically snapshotted; TOCTOU race and adversarial mount changes remain NOT_VERIFIED.
@@ -62,7 +62,7 @@ This is a strict importer for **selected supported Copper records**, not a compl
 
 **Tests:** 4-copper-layer NET to Trace/Arc/Pad mapping, correctly indexed Surface Area ownership and hole, `$NONE$` repeated groups, wrong FID/layer/type, duplicate Net/FID, absent EDA, duplicate/missing/unknown UNITS, SOURCE mutation changing Net/Copper IDs, preserved independent geometry-only behavior and all existing project CI tests. Synthetic source fixtures, **not independently qualified commercial CAD files**.
 
-**Verification:** [PR #566](https://github.com/july-rust/BoardSI/pull/566) final head `518eefc9aa9e5f5ae66d40b3c3d4228e3971290e` with **30/30 PR Checks success**, automated review P1 mandatory Units and P2 repeated `$NONE$` findings corrected, 0 unresolved. Protected [single-parent GitHub-verified Squash `ffdad981aa96a2a89eee9c8f569b3d7b74916f58`](https://github.com/july-rust/BoardSI/commit/ffdad981aa96a2a89eee9c8f569b3d7b74916f58). The separate main-Push CI is recorded in the checklist when finished.
+**Verification:** [PR #566](https://github.com/july-rust/BoardSI/pull/566) final head `518eefc9aa9e5f5ae66d40b3c3d4228e3971290e` with **30/30 PR Checks success**, automated review P1 mandatory Units and P2 repeated `$NONE$` findings corrected, 0 unresolved. Protected [single-parent GitHub-verified Squash `ffdad981aa96a2a89eee9c8f569b3d7b74916f58`](https://github.com/july-rust/BoardSI/commit/ffdad981aa96a2a89eee9c8f569b3d7b74916f58). The distinct **post-squash main Push** on `ffdad981aa96a2a89eee9c8f569b3d7b74916f58` has **8/8 workflow SUCCESS, 0 failure**: [Docs](https://github.com/july-rust/BoardSI/actions/runs/42749304686), [G0](https://github.com/july-rust/BoardSI/actions/runs/42749304770), [Lossless FEM](https://github.com/july-rust/BoardSI/actions/runs/42749304631), [PH-06](https://github.com/july-rust/BoardSI/actions/runs/42749304964), [Native FEM](https://github.com/july-rust/BoardSI/actions/runs/42749304703), [PH-07](https://github.com/july-rust/BoardSI/actions/runs/42749304989), [Numerical](https://github.com/july-rust/BoardSI/actions/runs/42749304963), [Qt](https://github.com/july-rust/BoardSI/actions/runs/42749304706). PR checks and Push checks are separate proof, not whole ODB++ acceptance.
 
 **Still missing:** complete ODB EDA packages, component placements/pins, all subnet/FID forms, explicit plated Drill and Via, actual stackup materials, full contours/Step Repeat, compressed product import, independently qualified vendor oracle, and a real Main Qt Import/IPC/Artwork route. Do **not** mark D_056_08 as fully done based on these three limited slices.
 
