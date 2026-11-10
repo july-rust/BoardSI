@@ -55,6 +55,7 @@ pub(super) fn parse(
     let mut names = BTreeSet::new();
     let mut seen_features = BTreeMap::<(String, usize), String>::new();
     let mut saw_hdr = false;
+    let mut units: Option<&str> = None;
     for (i, raw) in text.lines().enumerate() {
         let no = i + 1;
         let line = raw.trim();
@@ -73,7 +74,20 @@ pub(super) fn parse(
                 }
                 saw_hdr = true;
             }
+            _ if kind.starts_with("UNITS=") => {
+                if !saw_hdr || units.is_some() || layer_names.is_some() || net_name.is_some() {
+                    return Err(err(no, "ODB_EDA_BAD_UNITS_ORDER"));
+                }
+                let value = line.strip_prefix("UNITS=").expect("prefix checked");
+                if !matches!(value, "MM" | "INCH") {
+                    return Err(err(no, "ODB_EDA_UNSUPPORTED_UNITS"));
+                }
+                units = Some(value);
+            }
             "LYR" => {
+                if units.is_none() {
+                    return Err(err(no, "ODB_EDA_MISSING_UNITS"));
+                }
                 if layer_names.is_some() || net_name.is_some() || parts.len() < 2 {
                     return Err(err(no, "ODB_EDA_BAD_LYR"));
                 }
@@ -198,7 +212,7 @@ pub(super) fn parse(
             _ => return Err(err(no, "ODB_EDA_UNSUPPORTED_RECORD")),
         }
     }
-    if !saw_hdr || layer_names.is_none() || nets.is_empty() {
+    if !saw_hdr || units.is_none() || layer_names.is_none() || nets.is_empty() {
         return Err(err(0, "ODB_EDA_INCOMPLETE"));
     }
     Ok(EdaOwnership { nets, assignments })
@@ -217,7 +231,7 @@ mod tests {
     }
     #[test]
     fn official_zero_based_layer_feature_and_subnet_semantics() {
-        let data = "HDR Mentor PADS\nLYR top bottom\nNET CLK;ID=1030\nSNT TRC\nFID C 0 0\nFID C 1 0\nNET GND;ID=5\nSNT VIA\nFID C 0 1\nSNT PLN S E 0\nFID C 0 2\n";
+        let data = "HDR Mentor PADS\nUNITS=MM\nLYR top bottom\nNET CLK;ID=1030\nSNT TRC\nFID C 0 0\nFID C 1 0\nNET GND;ID=5\nSNT VIA\nFID C 0 1\nSNT PLN S E 0\nFID C 0 2\n";
         let d = parse(data, &features()).unwrap();
         assert_eq!(d.nets.len(), 2);
         assert_eq!(d.assignments.len(), 4);
@@ -227,7 +241,7 @@ mod tests {
     }
     #[test]
     fn missing_or_conflicting_evidence_fails_closed() {
-        let valid = "HDR x\nLYR top bottom\nNET CLK\nSNT TRC\nFID C 0 0\n";
+        let valid = "HDR x\nUNITS=MM\nLYR top bottom\nNET CLK\nSNT TRC\nFID C 0 0\n";
         for (from, to, code) in [
             ("FID C 0 0", "FID C 2 0", "ODB_EDA_BAD_LAYER_INDEX"),
             ("FID C 0 0", "FID C 0 12", "ODB_EDA_UNRESOLVED_FID"),
@@ -243,9 +257,23 @@ mod tests {
         }
     }
     #[test]
+    fn required_eda_units_order_and_duplicates_fail_closed() {
+        let good = "HDR Mentor\nUNITS=MM\nLYR top bottom\nNET CLK\nSNT TRC\nFID C 0 0\n";
+        assert_eq!(parse(good, &features()).unwrap().assignments.len(), 1);
+        assert!(parse(&good.replace("UNITS=MM", "UNITS=INCH"), &features()).is_ok());
+        for (mutation, code) in [
+            (good.replace("UNITS=MM\n", ""), "ODB_EDA_MISSING_UNITS"),
+            (good.replace("UNITS=MM", "UNITS=MILS"), "ODB_EDA_UNSUPPORTED_UNITS"),
+            (good.replace("UNITS=MM", "UNITS=MM\nUNITS=MM"), "ODB_EDA_BAD_UNITS_ORDER"),
+            (good.replace("HDR Mentor\nUNITS=MM", "UNITS=MM\nHDR Mentor"), "ODB_EDA_BAD_UNITS_ORDER"),
+        ] {
+            assert_eq!(parse(&mutation, &features()).unwrap_err().code, code);
+        }
+    }
+    #[test]
     fn none_is_unassigned_and_not_an_electrical_short() {
         let d = parse(
-            "HDR x\nLYR top\nNET $NONE$\nSNT TRC\nFID C 0 0\n",
+            "HDR x\nUNITS=MM\nLYR top\nNET $NONE$\nSNT TRC\nFID C 0 0\n",
             &features(),
         )
         .unwrap();
