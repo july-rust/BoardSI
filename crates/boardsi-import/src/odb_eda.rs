@@ -174,12 +174,12 @@ pub(super) fn parse(
                 // VIA is a design subnet *not* proof that a drill was plated.
                 // In this geometry-only subset a VIA FID can only attach to
                 // a Pad. TOP/PKG/PIN physical attachment is not imported.
-                let valid_kind = match (sn, loc) {
-                    ("TRC", FeatureLocation::Trace(_) | FeatureLocation::Arc(_)) => true,
-                    ("VIA", FeatureLocation::Pad(_)) => true,
-                    ("PLN", FeatureLocation::Area(_)) => true,
-                    _ => false,
-                };
+                let valid_kind = matches!(
+                    (sn, loc),
+                    ("TRC", FeatureLocation::Trace(_) | FeatureLocation::Arc(_))
+                        | ("VIA", FeatureLocation::Pad(_))
+                        | ("PLN", FeatureLocation::Area(_))
+                );
                 if !valid_kind {
                     return Err(err(no, "ODB_EDA_FID_SUBNET_KIND_CONFLICT"));
                 }
