@@ -228,8 +228,7 @@ fn length_symbol(value: &str, mode: &str, path: &str, line: usize) -> Result<Rat
         ),
         _ => return Err(error(path, line, "ODB_SYMBOL_UNIT")),
     };
-    Rational::new(numerator, denominator)
-        .map_err(|_| error(path, line, "ODB_SYMBOL_RATIONAL"))
+    Rational::new(numerator, denominator).map_err(|_| error(path, line, "ODB_SYMBOL_RATIONAL"))
 }
 
 #[derive(Clone)]
@@ -758,7 +757,10 @@ mod tests {
             .replace("$1 rect200x100 M", "$1 rect200.5x100.25 M");
         metric.insert(path.into(), fractional.into_bytes());
         let board = import_unpacked(&metric, "pcb").unwrap();
-        assert_eq!(board.traces[0].width_m, Rational::new(8255, 100_000_000).unwrap());
+        assert_eq!(
+            board.traces[0].width_m,
+            Rational::new(8255, 100_000_000).unwrap()
+        );
         assert_eq!(
             board.padstacks[0].entries[0].shape,
             PadShape::Rectangle {
@@ -772,14 +774,18 @@ mod tests {
         let mut imperial = source(2);
         for layer in ["sig1", "sig2"] {
             let path = format!("steps/pcb/layers/{layer}/features");
-            let contents = String::from_utf8(imperial[&path].clone()).unwrap()
+            let contents = String::from_utf8(imperial[&path].clone())
+                .unwrap()
                 .replace("UNITS=MM", "UNITS=INCH")
                 .replace("$1 rect200x100 M", "$1 rect200x100 I");
             imperial.insert(path, contents.into_bytes());
         }
         let inch_board = import_unpacked(&imperial, "pcb").unwrap();
         // Unqualified $0 r100 inherits INCH and means 100 mil, not 100 micrometres.
-        assert_eq!(inch_board.traces[0].width_m, Rational::new(254, 100_000).unwrap());
+        assert_eq!(
+            inch_board.traces[0].width_m,
+            Rational::new(254, 100_000).unwrap()
+        );
         assert_eq!(
             inch_board.frames[0].metres_per_tick,
             Rational::new(254, 10_000_000_000_000).unwrap()
