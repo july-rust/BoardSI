@@ -225,7 +225,12 @@ pub(crate) fn decimal_ticks(value: &str, path: &str, line: usize) -> Result<i64,
         Ok(value)
     }
 }
-pub(crate) fn length_symbol(value: &str, mode: &str, path: &str, line: usize) -> Result<Rational, OdbError> {
+pub(crate) fn length_symbol(
+    value: &str,
+    mode: &str,
+    path: &str,
+    line: usize,
+) -> Result<Rational, OdbError> {
     // Standard symbol parameters are decimal reals (ODB++Design 8.1 U4 p.36).
     // A tick is 1e-9 source symbol units, so even fractional-mil sizes remain exact.
     let amount = decimal_ticks(value, path, line)?;
@@ -989,9 +994,7 @@ pub fn audit_tar_drill_source(
 }
 
 /// Unpack into one validated immutable source snapshot before import/audit.
-pub(crate) fn read_source_path_file_map(
-    path: &std::path::Path,
-) -> Result<OdbFileMap, OdbError> {
+pub(crate) fn read_source_path_file_map(path: &std::path::Path) -> Result<OdbFileMap, OdbError> {
     if path.is_file() {
         read_tar_file_map(path)
     } else {
