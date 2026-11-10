@@ -12,18 +12,37 @@ fn main() {
         Ok(layers) => {
             println!("status=SOURCE_DRILL_TOOL_INTENT_ONLY");
             println!("drill_layers={}", layers.len());
-            println!("tools={}", layers.iter().map(|l| l.tools.len()).sum::<usize>());
+            println!(
+                "tools={}",
+                layers.iter().map(|l| l.tools.len()).sum::<usize>()
+            );
             for (index, layer) in layers.iter().enumerate() {
                 println!("layer_{index}.name={}", layer.name);
                 println!("layer_{index}.type={}", layer.subtype);
                 println!("layer_{index}.units={}", layer.unit);
-                println!("layer_{index}.span_start={}", layer.explicit_start_layer.as_deref().unwrap_or("NOT_VERIFIED"));
-                println!("layer_{index}.span_end={}", layer.explicit_end_layer.as_deref().unwrap_or("NOT_VERIFIED"));
+                println!(
+                    "layer_{index}.span_start={}",
+                    layer
+                        .explicit_start_layer
+                        .as_deref()
+                        .unwrap_or("NOT_VERIFIED")
+                );
+                println!(
+                    "layer_{index}.span_end={}",
+                    layer
+                        .explicit_end_layer
+                        .as_deref()
+                        .unwrap_or("NOT_VERIFIED")
+                );
                 println!("layer_{index}.tool_count={}", layer.tools.len());
                 println!("layer_{index}.source_file={}", layer.source_file);
                 println!(
                     "layer_{index}.source_sha256={}",
-                    layer.source_sha256.iter().map(|b| format!("{b:02x}")).collect::<String>()
+                    layer
+                        .source_sha256
+                        .iter()
+                        .map(|b| format!("{b:02x}"))
+                        .collect::<String>()
                 );
             }
             println!("finished_hole_positions=NOT_IMPORTED");
