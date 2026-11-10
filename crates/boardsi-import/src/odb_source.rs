@@ -189,10 +189,10 @@ fn point(frame: &ObjectId, x: &str, y: &str, path: &str, line: usize) -> Result<
 }
 fn orientation(value: &str, path: &str, line: usize) -> Result<Orientation, OdbError> {
     let (turn, mirror) = match value {
-        "0" => (QuarterTurn::Zero, false), "1" => (QuarterTurn::One, false),
-        "2" => (QuarterTurn::Two, false), "3" => (QuarterTurn::Three, false),
-        "4" => (QuarterTurn::Zero, true), "5" => (QuarterTurn::One, true),
-        "6" => (QuarterTurn::Two, true), "7" => (QuarterTurn::Three, true),
+        "0" => (QuarterTurn::Zero, false), "1" => (QuarterTurn::Three, false),
+        "2" => (QuarterTurn::Two, false), "3" => (QuarterTurn::One, false),
+        "4" => (QuarterTurn::Zero, true), "5" => (QuarterTurn::Three, true),
+        "6" => (QuarterTurn::Two, true), "7" => (QuarterTurn::One, true),
         _ => return Err(error(path, line, "ODB_UNSUPPORTED_PAD_ORIENTATION")),
     };
     Ok(Orientation::Orthogonal { turn, mirror_x: mirror })
@@ -202,15 +202,6 @@ fn token<'a>(parts: &'a [&str], i: usize, path: &str, line: usize) -> Result<&'a
 }
 fn copper_type(value: &str) -> bool {
     matches!(value, "SIGNAL" | "POWER_GROUND" | "MIXED")
-}
-
-fn parse_features(
-    board: &mut BoardModel, source: &SourceId, step: &str, layer: &MatrixLayer,
-) -> Result<(), OdbError> {
-    let path = format!("steps/{step}/layers/{}/features", layer.name);
-    // This function is called via parse_features_content, whose text is passed explicitly.
-    let _ = (board, source, path);
-    unreachable!("parse_features_content is the supported entry point")
 }
 
 fn parse_features_content(
