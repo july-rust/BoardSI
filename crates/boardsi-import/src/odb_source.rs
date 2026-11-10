@@ -749,21 +749,57 @@ pub fn import_directory_with_eda(
     import_unpacked_with_eda(&read_directory(root)?, step)
 }
 
+fn verified_source_files(files: &OdbFileMap) -> Result<Vec<SourceFile>, OdbError> {
+    if files.len() > MAX_FILES {
+            return Err(error("", 0, "ODB_TOO_MANY_FILES"));
+        }
+        let mut total = 0usize;
+        let mut source_files = Vec::with_capacity(files.len());
+        for (path, bytes) in files {
+            if !safe_path(path) {
+                return Err(error(path, 0, "ODB_UNSAFE_LOGICAL_PATH"));
+            }
+            if bytes.len() > MAX_FILE_BYTES {
+                return Err(error(path, 0, "ODB_FILE_TOO_LARGE"));
+            }
+            total = total
+                .checked_add(bytes.len())
+                .ok_or_else(|| error(path, 0, "ODB_SIZE_OVERFLOW"))?;
+            if total > MAX_TOTAL_BYTES {
+                return Err(error(path, 0, "ODB_TOTAL_TOO_LARGE"));
+            }
+            source_files.push(SourceFile {
+                logical_path: path.clone(),
+                sha256: crate::digest::sha256(bytes),
+            });
+        }
+    Ok(source_files)
+}
+
 /// Independent, source-only Drill Tool / Matrix span audit. No hole positions,
 /// Canonical Via/Drill objects or manufactured/electrical edges are synthesized.
 pub fn audit_unpacked_drill_tools(
     files: &OdbFileMap,
     step: &str,
 ) -> Result<Vec<SourceDrillLayer>, OdbError> {
-    // Reuse the existing bounded, SHA-qualified full Source file-map checks.
-    let model = import_unpacked(files, step)?;
+    if !safe_entity(step) {
+        return Err(error("steps", 0, "ODB_BAD_SELECTED_STEP"));
+    }
+    // Independently validate bounded source file paths, sizes, and SHA
+    // without requiring the incomplete Copper geometry parser to accept a
+    // valid but not-yet-supported ODB++ artwork symbol or contour.
+    let _source_files = verified_source_files(files)?;
     let matrix = parse_matrix(ascii_file(files, "matrix/matrix")?)?;
-    let copper: Vec<String> = model
-        .stackup
-        .layers
-        .iter()
+    if !matrix.steps.iter().any(|s| s == step) {
+        return Err(error("matrix/matrix", 0, "ODB_UNDECLARED_STEP"));
+    }
+    let copper: Vec<String> = matrix.layers.iter()
+        .filter(|l| l.context == "BOARD" && copper_type(&l.layer_type))
         .map(|l| l.name.clone())
         .collect();
+    if !(2..=64).contains(&copper.len()) {
+        return Err(error("matrix/matrix", 0, "ODB_UNSUPPORTED_COPPER_LAYER_COUNT"));
+    }
     let mut records = Vec::new();
     for layer in &matrix.layers {
         if layer.context != "BOARD" || layer.layer_type != "DRILL" {
@@ -843,29 +879,7 @@ fn import_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardM
     if !safe_entity(step) {
         return Err(error("steps", 0, "ODB_BAD_SELECTED_STEP"));
     }
-    if files.len() > MAX_FILES {
-        return Err(error("", 0, "ODB_TOO_MANY_FILES"));
-    }
-    let mut total = 0usize;
-    let mut source_files = Vec::with_capacity(files.len());
-    for (path, bytes) in files {
-        if !safe_path(path) {
-            return Err(error(path, 0, "ODB_UNSAFE_LOGICAL_PATH"));
-        }
-        if bytes.len() > MAX_FILE_BYTES {
-            return Err(error(path, 0, "ODB_FILE_TOO_LARGE"));
-        }
-        total = total
-            .checked_add(bytes.len())
-            .ok_or_else(|| error(path, 0, "ODB_SIZE_OVERFLOW"))?;
-        if total > MAX_TOTAL_BYTES {
-            return Err(error(path, 0, "ODB_TOTAL_TOO_LARGE"));
-        }
-        source_files.push(SourceFile {
-            logical_path: path.clone(),
-            sha256: crate::digest::sha256(bytes),
-        });
-    }
+    let source_files = verified_source_files(files)?;
     let matrix = parse_matrix(ascii_file(files, "matrix/matrix")?)?;
     if !matrix.steps.iter().any(|s| s == step) {
         return Err(error("matrix/matrix", 0, "ODB_UNDECLARED_STEP"));
@@ -1301,6 +1315,26 @@ mod tests {
         assert!(board.vias.is_empty());
         assert!(board.connectivity.edges.is_empty());
         assert!(!board.validate().has_errors());
+    }
+
+    #[test]
+    fn drill_tools_audit_accepts_valid_but_geometry_unsupported_copper() {
+        let mut f = source(2);
+        let layer = "LAYER {\nROW=3\nCONTEXT=BOARD\nTYPE=DRILL\nNAME=drill\nPOLARITY=POSITIVE\nSTART_NAME=sig1\nEND_NAME=sig2\n}\n";
+        let matrix = String::from_utf8(f["matrix/matrix"].clone()).unwrap() + layer;
+        f.insert("matrix/matrix".into(), matrix.into_bytes());
+        f.insert("steps/pcb/layers/drill/tools".into(),
+            b"UNITS=MM\nTOOLS {\nNUM=1\nTYPE=NON_PLATED\nFINISH_SIZE=100\n}\n".to_vec());
+        // A real valid exporter may use Copper syntax outside this adapter's
+        // restricted L/P/A/S model; tooling proof is independent of artwork.
+        f.get_mut("steps/pcb/layers/sig1/features").unwrap()
+            .extend_from_slice(b"T unsupported-user-symbol\n");
+        assert_eq!(import_unpacked(&f, "pcb").unwrap_err().code,
+            "ODB_UNSUPPORTED_CONDUCTIVE_FEATURE");
+        let report = audit_unpacked_drill_tools(&f,"pcb").unwrap();
+        assert_eq!(report.len(),1);
+        assert_eq!(report[0].tools[0].intent,DrillIntent::NonPlated);
+        assert_eq!(report[0].explicit_start_layer.as_deref(),Some("sig1"));
     }
 
     #[test]
