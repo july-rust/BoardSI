@@ -189,7 +189,7 @@ pub fn read_tar(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
         .next()
         .ok_or_else(|| bad("ODB_TAR_BAD_ROOT"))?;
     let prefix = format!("{root}/");
-    if root == "matrix" || root == "steps" || !raw.keys().all(|path| path.starts_with(&prefix)) {
+    if !raw.keys().all(|path| path.starts_with(&prefix)) {
         return Err(bad("ODB_TAR_MULTIPLE_ROOTS"));
     }
     let mut flat = OdbFileMap::new();
@@ -250,7 +250,7 @@ mod tests {
     }
     #[test]
     fn tar_to_real_canonical_subset_and_root_normalization() {
-        for prefix in ["", "pcb_product/"] {
+        for prefix in ["", "pcb_product/", "matrix/", "steps/"] {
             let bytes = archive(prefix);
             let files = read_tar(&bytes).unwrap();
             assert!(files.contains_key("matrix/matrix"));
