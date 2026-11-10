@@ -31,6 +31,8 @@ flowchart LR
 
 **D_056_06 PADS RT/ST SOURCE Thermal:** [근거·Canonical V2 IPC·Qt CPU/RHI 안전 전환 및 회귀 검증](d056-06-thermal-source.md) · [코드 PR #553](https://github.com/july-rust/BoardSI/pull/553) · [main 코드 Squash `e034335b`](https://github.com/july-rust/BoardSI/commit/e034335b055f068edcd68a17676c1f8f3e161fd8). 실제 Thermal Spoke Copper와 Relief Void를 구별하고 Qt 메인 Artwork에서 CPU 형상을 보존합니다. Native Rust/Qt 4개 플랫폼과 12/12 PR 워크플로 PASS. Source-scope local contact *후보*만 검증했으며 실제 제조 Plane/CAM, Barrel/Plating 도통, 전역 Open/Short와 SI는 **NOT_VERIFIED**입니다. 상위 #530은 D_056_07 제조 구조 작업으로 계속 OPEN입니다.
 
+**D_056_08 ODB++ SOURCE 제한 구현:** [Source Adapter 검증 범위·미지원 및 CI 증거](d056-08-odb-source-adapter.md) · [코드 PR #562](https://github.com/july-rust/BoardSI/pull/562) (30/30 Checks) → [Verified Squash `1f33e75`](https://github.com/july-rust/BoardSI/commit/1f33e75beced7115cb65453aca4c6e9fc1d6df36), 독립 main Push 8/8 성공. 제한된 ODB++Design unpacked Matrix/Step 및 긍정 L/P/A Copper 데이터를 SOURCE SHA·File/Line과 함께 Canonical Trace/Pad/Arc로 변환하는 Rust Reader와 진단 CLI가 추가되었다. **전체 ODB++ 패키지, Vendor Export 정식 검증, EDA/Net/Via/Drill/Surface, Qt 메인 입력 및 전기 Graph/제조/SI는 여전히 NOT_VERIFIED**. D_056_08의 전체 인수는 아직 완료되지 않았다.
+
 ### 범용 Trace 접촉의 공통 설계 근거
 
 [D_054/D_055 Copper 접촉 계약](trace-copper-contact.md)은 임의 방향 직선·원호 Trace의 유한 선폭과 비중심 Via 환형 패드, 원형·정사각형·직사각형 SMD Pad 전체 영역 사이의 SOURCE-local 접촉 후보를 정리합니다. 이는 **전체 PCB Open/Short, 글로벌 연결 그래프, 물리 SI 검증**의 완료가 아닙니다. 검증 보고서는 [D_054/D_055 기록](../validation/d054-d055-general-trace-contact-qualification.md)을 확인하십시오.
