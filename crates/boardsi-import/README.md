@@ -30,7 +30,7 @@ cargo run --locked -p boardsi-import --bin boardsi-import-artwork -- \
 
 ### D_056_08 — ODB++Design source-only diagnostic (opt-in, bounded)
 
-The independent `boardsi-odb-import` CLI reads an **already-unpacked ODB++Design product root** (must contain `matrix/matrix` and `steps/<step>/layers/<layer>/features`) and a selected Step name. It checks the full selected Copper-layer record inventory against its **explicitly narrow accepted syntax** and produces a Canonical BoardModel subset. Exact-coordinate and source SHA evidence are retained, but no manufactured copper or electrical connectivity is inferred. The main Qt Import menu does **not** invoke this diagnostic.
+The independent `boardsi-odb-import` CLI reads either an **already-unpacked ODB++Design product root** (must contain `matrix/matrix` and `steps/<step>/layers/<layer>/features`) or a **strictly bounded, uncompressed USTAR product archive** (code [PR #571](https://github.com/july-rust/BoardSI/pull/571)), with an explicit Step name. The archive reader never extracts to disk or runs a shell; it normalizes at most one product-root prefix and rejects unsupported/ambiguous archives rather than selecting a board silently. It checks the full selected Copper-layer record inventory against its **explicitly narrow accepted syntax** and produces a Canonical BoardModel subset. Exact-coordinate and source SHA evidence are retained, but no manufactured copper or electrical connectivity is inferred. The main Qt Import menu does **not** invoke this diagnostic.
 
 ```sh
 cargo test --locked -p boardsi-import
@@ -38,11 +38,15 @@ cargo run --locked -p boardsi-import --bin boardsi-odb-import -- \
   /path/to/your-local-unpacked-odb-product pcb
 cargo run --locked -p boardsi-import --bin boardsi-odb-import -- \
   /path/to/your-local-unpacked-odb-product pcb --eda-nets
+cargo run --locked -p boardsi-import --bin boardsi-odb-import -- \
+  /path/to/your-local-uncompressed-odb-product.tar pcb
 cargo run --locked -p boardsi-import --bin boardsi-odb-drill-audit -- \
   /path/to/your-local-unpacked-odb-product pcb
 cargo run --locked -p boardsi-import --bin boardsi-odb-drill-audit -- \
   /path/to/your-local-unpacked-odb-product pcb --hits
 ```
+
+Native TAR support is deliberately limited to uncompressed USTAR with strict 256 MiB archive size, 16 MiB/member, 128 MiB cumulative payload, 8192 entries, checksum/path/end-of-archive validation and no multiple product roots, links, PAX extensions or external extraction. **`.tgz`/`.tar.gz`, ZIP and compressed `features.Z` remain unsupported**, as do some valid exporter-specific extensions; this is a supported-source *subset*, not full native ODB++ qualification.
 
 By default the diagnostic outputs `status=SOURCE_GEOMETRY_PARTIAL`, Layer/Trace/Arc/Pad/CopperArea/Cutout counts, and explicit `NOT_VERIFIED` for Via, manufactured connectivity and SI. With explicit `--eda-nets`, it additionally requires `steps/<step>/eda/data` with valid `HDR`, `UNITS`, `LYR`, `NET`, `SNT`, `FID C`, and prints **design-Net ownership** counts with `status=SOURCE_GEOMETRY_AND_DESIGN_NET_PARTIAL`. Unsupported EDA syntax fails closed; `SNT VIA` identifies a design subnet **not plated Via connectivity**. Multiple `$NONE$` groups are unassigned. Main Qt Import remains unconnected. Source-limited import may reject an otherwise **valid** ODB++ exporter file if it contains unsupported net/geometry features; that is deliberate Fail-Closed behavior, **not** evidence that the exported PCB is invalid. Tests use synthetic grammar fixtures and cross-platform CI; commercial-vendor export qualification and actual Qt main integration are outstanding.
 
