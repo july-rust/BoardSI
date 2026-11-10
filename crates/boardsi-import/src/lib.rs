@@ -227,6 +227,7 @@ mod odb_drill_hits;
 mod odb_eda;
 pub mod odb_source;
 mod odb_surface;
+mod odb_tar;
 pub mod outline_arc;
 pub mod outline_preview;
 pub mod outline_topology;

@@ -4,14 +4,19 @@ use std::{env, path::Path, process};
 fn main() {
     let args: Vec<String> = env::args().collect();
     if !matches!(args.len(), 3 | 4) || (args.len() == 4 && args[3] != "--eda-nets") {
-        eprintln!("Usage: boardsi-odb-import <unpacked-odb-product-root> <step> [--eda-nets]");
+        eprintln!("Usage: boardsi-odb-import <unpacked-odb-product-root-or-uncompressed.tar> <step> [--eda-nets]");
         process::exit(2);
     }
     let with_eda = args.len() == 4;
-    let parsed = if with_eda {
-        boardsi_import::odb_source::import_directory_with_eda(Path::new(&args[1]), &args[2])
+    let path = Path::new(&args[1]);
+    // A regular archive is decoded in-process. No executable shell, tar, gzip
+    // or filesystem extraction is invoked; unsupported archives fail closed.
+    let parsed = if path.is_file() {
+        boardsi_import::odb_source::import_tar_file(path, &args[2], with_eda)
+    } else if with_eda {
+        boardsi_import::odb_source::import_directory_with_eda(path, &args[2])
     } else {
-        boardsi_import::odb_source::import_directory(Path::new(&args[1]), &args[2])
+        boardsi_import::odb_source::import_directory(path, &args[2])
     };
     match parsed {
         Ok(board) => {
