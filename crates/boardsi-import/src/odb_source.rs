@@ -998,7 +998,7 @@ mod tests {
             ),
             (
                 "L 0 0 1.5 0 0 P 0",
-                "S P 0",
+                "T unsupported",
                 "ODB_UNSUPPORTED_CONDUCTIVE_FEATURE",
             ),
         ] {
