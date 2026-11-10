@@ -917,14 +917,38 @@ fn import_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardM
                 .get(&assignment.net_name)
                 .ok_or_else(|| error(&path, assignment.source_line, "ODB_EDA_UNKNOWN_NET"))?
                 .clone();
+            // Keep the exact FID source-line witness on each owned object.
+            // Geometry truth and design-Net ownership are distinct evidence;
+            // neither constitutes a plated contact or an electrical edge.
+            let witness = ConversionStep {
+                operation: "odb-eda-fid-design-net-ownership".into(),
+                quality: ConversionQuality::Exact,
+                max_error_m: Some(Rational::integer(0)),
+                note: format!(
+                    "{path}:line:{}; net={}; design ownership only; NOT manufactured continuity",
+                    assignment.source_line, assignment.net_name
+                ),
+            };
             match registry
                 .get(&(assignment.layer, assignment.feature_index))
                 .ok_or_else(|| error(&path, assignment.source_line, "ODB_EDA_UNRESOLVED_FID"))?
             {
-                FeatureLocation::Trace(n) => board.traces[*n].net = Some(id),
-                FeatureLocation::Pad(n) => board.pads[*n].net = Some(id),
-                FeatureLocation::Arc(n) => board.arcs[*n].net = Some(id),
-                FeatureLocation::Area(n) => board.areas[*n].net = Some(id),
+                FeatureLocation::Trace(n) => {
+                    board.traces[*n].net = Some(id);
+                    board.traces[*n].meta.provenance.history.push(witness);
+                }
+                FeatureLocation::Pad(n) => {
+                    board.pads[*n].net = Some(id);
+                    board.pads[*n].meta.provenance.history.push(witness);
+                }
+                FeatureLocation::Arc(n) => {
+                    board.arcs[*n].net = Some(id);
+                    board.arcs[*n].meta.provenance.history.push(witness);
+                }
+                FeatureLocation::Area(n) => {
+                    board.areas[*n].net = Some(id);
+                    board.areas[*n].meta.provenance.history.push(witness);
+                }
             }
         }
         board.sources[0].capability.net = CapabilityState::Partial;
@@ -1080,6 +1104,11 @@ mod tests {
         assert_eq!(board.nets[0].name, "DATA_P");
         assert_eq!(board.nets[1].name, "DATA_N");
         assert_eq!(board.traces[0].net, Some(board.nets[0].meta.id.clone()));
+        assert!(board.traces[0].meta.provenance.history.iter().any(|v|
+            v.operation == "odb-eda-fid-design-net-ownership"
+                && v.note.contains("eda/data:line:5")
+                && v.note.contains("design ownership only")
+        ));
         assert_eq!(board.pads[0].net, Some(board.nets[1].meta.id.clone()));
         assert_eq!(board.arcs[0].net, Some(board.nets[0].meta.id.clone()));
         assert!(board.traces[1].net.is_none());
