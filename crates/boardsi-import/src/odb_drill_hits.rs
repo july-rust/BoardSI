@@ -9,6 +9,11 @@ pub struct SourceDrillHit {
     pub layer_name: String,
     pub source_file: String,
     pub source_sha256: [u8; 32],
+    /// Independently hashed declaration of the Excellon tool and layer span.
+    pub tool_source_file: String,
+    pub tool_source_sha256: [u8; 32],
+    pub matrix_source_sha256: [u8; 32],
+    pub matrix_source_line: usize,
     pub source_line: usize,
     /// 0-based actual P feature ordinal, distinct from source line.
     pub feature_index: usize,
@@ -199,6 +204,10 @@ pub(super) fn parse_drill_hits(
             layer_name: layer.name.clone(),
             source_file: feature_path.into(),
             source_sha256,
+            tool_source_file: layer.source_file.clone(),
+            tool_source_sha256: layer.source_sha256,
+            matrix_source_sha256: layer.matrix_sha256,
+            matrix_source_line: layer.matrix_source_line,
             source_line: no,
             feature_index: count,
             symbol_name,
@@ -265,6 +274,9 @@ mod tests {
         assert_eq!(v[0].feature_index, 0);
         assert_eq!(v[1].feature_index, 1);
         assert_eq!(v[0].source_sha256, [7; 32]);
+        assert_eq!(v[0].tool_source_sha256, [3; 32]);
+        assert_eq!(v[0].matrix_source_sha256, [2; 32]);
+        assert_eq!(v[0].matrix_source_line, 11);
     }
     #[test]
     fn rejects_unknown_tool_units_bad_shapes_and_unsupported_drill_geometry() {
