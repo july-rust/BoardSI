@@ -828,14 +828,20 @@ fn import_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardM
         conditions: if with_eda {
             vec![
                 ("selected_step".into(), step.into()),
-                ("supported_geometry".into(), "positive-LPA-round-line-and-round-rect-pad".into()),
+                (
+                    "supported_geometry".into(),
+                    "positive-LPA-round-line-and-round-rect-pad".into(),
+                ),
                 ("with_eda_fid_ownership".into(), "true".into()),
             ]
         } else {
             // Bit-for-bit preserve the geometry-only SourceIdentity contract.
             vec![
                 ("selected_step".into(), step.into()),
-                ("supported_geometry".into(), "positive-LPA-round-line-and-round-rect-pad".into()),
+                (
+                    "supported_geometry".into(),
+                    "positive-LPA-round-line-and-round-rect-pad".into(),
+                ),
             ]
         },
     });
@@ -1104,11 +1110,14 @@ mod tests {
         assert_eq!(board.nets[0].name, "DATA_P");
         assert_eq!(board.nets[1].name, "DATA_N");
         assert_eq!(board.traces[0].net, Some(board.nets[0].meta.id.clone()));
-        assert!(board.traces[0].meta.provenance.history.iter().any(|v|
-            v.operation == "odb-eda-fid-design-net-ownership"
+        assert!(board.traces[0]
+            .meta
+            .provenance
+            .history
+            .iter()
+            .any(|v| v.operation == "odb-eda-fid-design-net-ownership"
                 && v.note.contains("eda/data:line:5")
-                && v.note.contains("design ownership only")
-        ));
+                && v.note.contains("design ownership only")));
         assert_eq!(board.pads[0].net, Some(board.nets[1].meta.id.clone()));
         assert_eq!(board.arcs[0].net, Some(board.nets[0].meta.id.clone()));
         assert!(board.traces[1].net.is_none());
