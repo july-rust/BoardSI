@@ -758,7 +758,12 @@ pub fn audit_unpacked_drill_tools(
     // Reuse the existing bounded, SHA-qualified full Source file-map checks.
     let model = import_unpacked(files, step)?;
     let matrix = parse_matrix(ascii_file(files, "matrix/matrix")?)?;
-    let copper: Vec<String> = model.stackup.layers.iter().map(|l| l.name.clone()).collect();
+    let copper: Vec<String> = model
+        .stackup
+        .layers
+        .iter()
+        .map(|l| l.name.clone())
+        .collect();
     let mut records = Vec::new();
     for layer in &matrix.layers {
         if layer.context != "BOARD" || layer.layer_type != "DRILL" {
@@ -770,32 +775,41 @@ pub fn audit_unpacked_drill_tools(
         if !matches!(layer.add_type.as_str(), "" | "BACKDRILL" | "DUAL_DIAMETER") {
             return Err(error("matrix/matrix", 0, "ODB_DRILL_SUBTYPE_UNSUPPORTED"));
         }
-        let (start,end) = match (layer.start_name.as_str(),layer.end_name.as_str()) {
-            ("","") => (None,None), // Source defaults are NOT copper-span evidence.
-            ("",_) | (_,"") => return Err(error("matrix/matrix", 0, "ODB_DRILL_INCOMPLETE_SPAN")),
-            (a,z) => {
-                let first = copper.iter().position(|x| x == a)
+        let (start, end) = match (layer.start_name.as_str(), layer.end_name.as_str()) {
+            ("", "") => (None, None), // Source defaults are NOT copper-span evidence.
+            ("", _) | (_, "") => {
+                return Err(error("matrix/matrix", 0, "ODB_DRILL_INCOMPLETE_SPAN"))
+            }
+            (a, z) => {
+                let first = copper
+                    .iter()
+                    .position(|x| x == a)
                     .ok_or_else(|| error("matrix/matrix", 0, "ODB_DRILL_SPAN_NOT_COPPER"))?;
-                let last = copper.iter().position(|x| x == z)
+                let last = copper
+                    .iter()
+                    .position(|x| x == z)
                     .ok_or_else(|| error("matrix/matrix", 0, "ODB_DRILL_SPAN_NOT_COPPER"))?;
                 if first >= last {
                     return Err(error("matrix/matrix", 0, "ODB_DRILL_REVERSED_OR_ZERO_SPAN"));
                 }
-                (Some(a.to_owned()),Some(z.to_owned()))
+                (Some(a.to_owned()), Some(z.to_owned()))
             }
         };
         let path = format!("steps/{step}/layers/{}/tools", layer.name);
-        let content = ascii_file(files,&path)?;
-        let (unit,tools) = parse_tools(content)
-            .map_err(|e| error(&path, e.line, e.code))?;
+        let content = ascii_file(files, &path)?;
+        let (unit, tools) = parse_tools(content).map_err(|e| error(&path, e.line, e.code))?;
         records.push(SourceDrillLayer {
-            name: layer.name.clone(), matrix_row: layer.row,
-            unit, subtype: layer.add_type.clone(),
+            name: layer.name.clone(),
+            matrix_row: layer.row,
+            unit,
+            subtype: layer.add_type.clone(),
             explicit_start_layer: start,
             explicit_end_layer: end,
             source_file: path.clone(),
             source_sha256: crate::digest::sha256(
-                files.get(&path).ok_or_else(||error(&path,0,"ODB_MISSING_FILE"))?
+                files
+                    .get(&path)
+                    .ok_or_else(|| error(&path, 0, "ODB_MISSING_FILE"))?,
             ),
             tools,
             geometry_hits: None,
@@ -1266,21 +1280,23 @@ mod tests {
         let matrix = String::from_utf8(f["matrix/matrix"].clone()).unwrap()
             + "LAYER {\nROW=7\nCONTEXT=BOARD\nTYPE=DRILL\nNAME=through_drill\nPOLARITY=POSITIVE\nSTART_NAME=sig1\nEND_NAME=sig6\n}\n"
             + "LAYER {\nROW=8\nCONTEXT=BOARD\nTYPE=DRILL\nNAME=bd6\nPOLARITY=POSITIVE\nADD_TYPE=BACKDRILL\nSTART_NAME=sig4\nEND_NAME=sig6\n}\n";
-        f.insert("matrix/matrix".into(),matrix.into_bytes());
+        f.insert("matrix/matrix".into(), matrix.into_bytes());
         let path = "steps/pcb/layers/through_drill/tools";
         f.insert(path.into(),b"UNITS=MM\nTOOLS {\nNUM=1\nTYPE=PLATED\nTYPE2=STANDARD\nFINISH_SIZE=200\nDRILL_SIZE=220\n}\n".to_vec());
-        f.insert("steps/pcb/layers/bd6/tools".into(),
-            b"UNITS=MM\nTOOLS {\nNUM=2\nTYPE=VIA\nTYPE2=STANDARD\nFINISH_SIZE=300\n}\n".to_vec());
-        let layers = audit_unpacked_drill_tools(&f,"pcb").unwrap();
-        assert_eq!(layers.len(),2);
-        assert_eq!(layers[0].name,"through_drill");
-        assert_eq!(layers[0].explicit_start_layer.as_deref(),Some("sig1"));
-        assert_eq!(layers[0].explicit_end_layer.as_deref(),Some("sig6"));
-        assert_eq!(layers[0].tools[0].intent,DrillIntent::Plated);
-        assert_eq!(layers[1].subtype,"BACKDRILL");
-        assert_eq!(layers[1].tools[0].intent,DrillIntent::Via);
-        assert_eq!(layers[0].source_sha256,crate::digest::sha256(&f[path]));
-        let board = import_unpacked(&f,"pcb").unwrap();
+        f.insert(
+            "steps/pcb/layers/bd6/tools".into(),
+            b"UNITS=MM\nTOOLS {\nNUM=2\nTYPE=VIA\nTYPE2=STANDARD\nFINISH_SIZE=300\n}\n".to_vec(),
+        );
+        let layers = audit_unpacked_drill_tools(&f, "pcb").unwrap();
+        assert_eq!(layers.len(), 2);
+        assert_eq!(layers[0].name, "through_drill");
+        assert_eq!(layers[0].explicit_start_layer.as_deref(), Some("sig1"));
+        assert_eq!(layers[0].explicit_end_layer.as_deref(), Some("sig6"));
+        assert_eq!(layers[0].tools[0].intent, DrillIntent::Plated);
+        assert_eq!(layers[1].subtype, "BACKDRILL");
+        assert_eq!(layers[1].tools[0].intent, DrillIntent::Via);
+        assert_eq!(layers[0].source_sha256, crate::digest::sha256(&f[path]));
+        let board = import_unpacked(&f, "pcb").unwrap();
         assert!(board.drills.is_empty());
         assert!(board.vias.is_empty());
         assert!(board.connectivity.edges.is_empty());
@@ -1292,29 +1308,67 @@ mod tests {
         let mut f = source(4);
         let layer = "LAYER {\nROW=5\nCONTEXT=BOARD\nTYPE=DRILL\nNAME=bd\nPOLARITY=POSITIVE\nADD_TYPE=BACKDRILL\n}\n";
         let matrix = String::from_utf8(f["matrix/matrix"].clone()).unwrap() + layer;
-        f.insert("matrix/matrix".into(),matrix.into_bytes());
+        f.insert("matrix/matrix".into(), matrix.into_bytes());
         let path = "steps/pcb/layers/bd/tools";
-        f.insert(path.into(),b"UNITS=INCH\nTOOLS {\nNUM=1\nTYPE=VIA\nTYPE2=LASER\nFINISH_SIZE=11.5\n}\n".to_vec());
-        let accepted = audit_unpacked_drill_tools(&f,"pcb").unwrap();
-        assert_eq!(accepted[0].explicit_start_layer,None);
-        assert_eq!(accepted[0].explicit_end_layer,None);
-        for (mutation,expected) in [
-            (layer.replace("ADD_TYPE=BACKDRILL","ADD_TYPE=UNKNOWN"),"ODB_DRILL_SUBTYPE_UNSUPPORTED"),
-            (layer.replace("ADD_TYPE=BACKDRILL","ADD_TYPE=BACKDRILL\nSTART_NAME=sig1"),"ODB_DRILL_INCOMPLETE_SPAN"),
-            (layer.replace("ADD_TYPE=BACKDRILL","ADD_TYPE=BACKDRILL\nSTART_NAME=sig2\nEND_NAME=sig1"),"ODB_DRILL_REVERSED_OR_ZERO_SPAN"),
-            (layer.replace("ADD_TYPE=BACKDRILL","ADD_TYPE=BACKDRILL\nSTART_NAME=bogus\nEND_NAME=sig4"),"ODB_DRILL_SPAN_NOT_COPPER"),
+        f.insert(
+            path.into(),
+            b"UNITS=INCH\nTOOLS {\nNUM=1\nTYPE=VIA\nTYPE2=LASER\nFINISH_SIZE=11.5\n}\n".to_vec(),
+        );
+        let accepted = audit_unpacked_drill_tools(&f, "pcb").unwrap();
+        assert_eq!(accepted[0].explicit_start_layer, None);
+        assert_eq!(accepted[0].explicit_end_layer, None);
+        for (mutation, expected) in [
+            (
+                layer.replace("ADD_TYPE=BACKDRILL", "ADD_TYPE=UNKNOWN"),
+                "ODB_DRILL_SUBTYPE_UNSUPPORTED",
+            ),
+            (
+                layer.replace("ADD_TYPE=BACKDRILL", "ADD_TYPE=BACKDRILL\nSTART_NAME=sig1"),
+                "ODB_DRILL_INCOMPLETE_SPAN",
+            ),
+            (
+                layer.replace(
+                    "ADD_TYPE=BACKDRILL",
+                    "ADD_TYPE=BACKDRILL\nSTART_NAME=sig2\nEND_NAME=sig1",
+                ),
+                "ODB_DRILL_REVERSED_OR_ZERO_SPAN",
+            ),
+            (
+                layer.replace(
+                    "ADD_TYPE=BACKDRILL",
+                    "ADD_TYPE=BACKDRILL\nSTART_NAME=bogus\nEND_NAME=sig4",
+                ),
+                "ODB_DRILL_SPAN_NOT_COPPER",
+            ),
         ] {
-            let mut x=f.clone();
-            x.insert("matrix/matrix".into(),
-                (String::from_utf8(source(4)["matrix/matrix"].clone()).unwrap()+&mutation).into_bytes());
-            assert_eq!(audit_unpacked_drill_tools(&x,"pcb").unwrap_err().code,expected);
+            let mut x = f.clone();
+            x.insert(
+                "matrix/matrix".into(),
+                (String::from_utf8(source(4)["matrix/matrix"].clone()).unwrap() + &mutation)
+                    .into_bytes(),
+            );
+            assert_eq!(
+                audit_unpacked_drill_tools(&x, "pcb").unwrap_err().code,
+                expected
+            );
         }
-        let mut missing=f.clone();
+        let mut missing = f.clone();
         missing.remove(path);
-        assert_eq!(audit_unpacked_drill_tools(&missing,"pcb").unwrap_err().code,"ODB_MISSING_FILE");
-        let mut bad=f.clone();
-        bad.insert(path.into(),b"UNITS=CM\nTOOLS {\nNUM=1\nTYPE=VIA\nFINISH_SIZE=11\n}\n".to_vec());
-        assert_eq!(audit_unpacked_drill_tools(&bad,"pcb").unwrap_err().code,"ODB_TOOL_UNSUPPORTED_UNITS");
+        assert_eq!(
+            audit_unpacked_drill_tools(&missing, "pcb")
+                .unwrap_err()
+                .code,
+            "ODB_MISSING_FILE"
+        );
+        let mut bad = f.clone();
+        bad.insert(
+            path.into(),
+            b"UNITS=CM\nTOOLS {\nNUM=1\nTYPE=VIA\nFINISH_SIZE=11\n}\n".to_vec(),
+        );
+        assert_eq!(
+            audit_unpacked_drill_tools(&bad, "pcb").unwrap_err().code,
+            "ODB_TOOL_UNSUPPORTED_UNITS"
+        );
     }
 
     #[test]
