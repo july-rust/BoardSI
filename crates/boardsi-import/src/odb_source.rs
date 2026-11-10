@@ -5,7 +5,7 @@
 //! Source geometry is not manufactured connectivity, stackup z, or SI proof.
 use boardsi_model::*;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
+use std::sync::Arc as Shared;
 
 const MAX_FILES: usize = 8192;
 const MAX_FILE_BYTES: usize = 16 * 1024 * 1024;
@@ -349,7 +349,16 @@ fn parse_features_content(
             }
             let serial = positive_symbol_name(p[0], &path, line_no)?;
             // The default for standard symbols is microns; per-symbol I/M overrides.
-            let parsed = parse_symbol(p[1], p.get(2).copied().unwrap_or("M"), &path, line_no)?;
+            let mode = if let Some(explicit) = p.get(2).copied() {
+                explicit
+            } else {
+                match unit {
+                    Some("MM") => "M",
+                    Some("INCH") => "I",
+                    _ => return Err(error(&path, line_no, "ODB_SYMBOL_BEFORE_UNITS")),
+                }
+            };
+            let parsed = parse_symbol(p[1], mode, &path, line_no)?;
             if symbols.insert(serial, parsed).is_some() {
                 return Err(error(&path, line_no, "ODB_DUPLICATE_SYMBOL"));
             }
@@ -582,7 +591,7 @@ pub fn import_unpacked(files: &OdbFileMap, step: &str) -> Result<BoardModel, Odb
     if copper.iter().any(|l| l.polarity != "POSITIVE") {
         return Err(error("matrix/matrix", 0, "ODB_UNSUPPORTED_LAYER_POLARITY"));
     }
-    let source: SourceId = Arc::new(SourceIdentity {
+    let source: SourceId = Shared::new(SourceIdentity {
         format: SourceFormat::Odb,
         format_version: "8.1-U4-grammar-subset;export-revision-unverified".into(),
         files: source_files,
