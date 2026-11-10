@@ -31,6 +31,9 @@ pub struct SourceDrillTool {
 pub struct SourceDrillLayer {
     pub name: String,
     pub matrix_row: u32,
+    /// Exact MATRIX source record and SHA witness for declared span/subtype.
+    pub matrix_source_line: usize,
+    pub matrix_sha256: [u8; 32],
     pub unit: String,
     pub subtype: String,
     /// Only explicit, validated copper-layer start/end names are qualified.
