@@ -286,12 +286,6 @@ fn orientation(value: &str, path: &str, line: usize) -> Result<Orientation, OdbE
         mirror_x: mirror,
     })
 }
-fn token<'a>(parts: &'a [&str], i: usize, path: &str, line: usize) -> Result<&'a str, OdbError> {
-    parts
-        .get(i)
-        .copied()
-        .ok_or_else(|| error(path, line, "ODB_SHORT_FEATURE"))
-}
 fn copper_type(value: &str) -> bool {
     matches!(value, "SIGNAL" | "POWER_GROUND" | "MIXED")
 }
