@@ -802,7 +802,9 @@ pub fn audit_unpacked_drill_tools(
         .map(|l| l.name.clone())
         .collect();
     let matrix_sha256 = crate::digest::sha256(
-        files.get("matrix/matrix").ok_or_else(|| error("matrix/matrix", 0, "ODB_MISSING_FILE"))?,
+        files
+            .get("matrix/matrix")
+            .ok_or_else(|| error("matrix/matrix", 0, "ODB_MISSING_FILE"))?,
     );
     if !(2..=64).contains(&copper.len()) {
         return Err(error(
@@ -1321,7 +1323,10 @@ mod tests {
         assert_eq!(layers[0].explicit_end_layer.as_deref(), Some("sig6"));
         assert_eq!(layers[0].tools[0].intent, DrillIntent::Plated);
         assert_ne!(layers[0].matrix_source_line, 0);
-        assert_eq!(layers[0].matrix_sha256, crate::digest::sha256(&f["matrix/matrix"]));
+        assert_eq!(
+            layers[0].matrix_sha256,
+            crate::digest::sha256(&f["matrix/matrix"])
+        );
         assert_eq!(layers[1].subtype, "BACKDRILL");
         assert_eq!(layers[1].tools[0].intent, DrillIntent::Via);
         assert_eq!(layers[0].source_sha256, crate::digest::sha256(&f[path]));
