@@ -1,13 +1,14 @@
 //! D_056_08 strict SOURCE-only drill tool and MATRIX span audit.
-//! No hit positions, physical barrels, Canonical via geometry, or SI verdict.
+//! Optional --hits enumerates source P hit/tool references, NOT physical barrels or SI.
 use std::{env, path::Path, process};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 3 {
-        eprintln!("Usage: boardsi-odb-drill-audit <unpacked-odb-product-root> <step>");
+    if !(args.len() == 3 || (args.len() == 4 && args[3] == "--hits")) {
+        eprintln!("Usage: boardsi-odb-drill-audit <unpacked-odb-product-root> <step> [--hits]");
         process::exit(2);
     }
+    let with_hits = args.len() == 4;
     match boardsi_import::odb_source::audit_directory_drill_tools(Path::new(&args[1]), &args[2]) {
         Ok(layers) => {
             println!("status=SOURCE_DRILL_TOOL_INTENT_ONLY");
@@ -53,7 +54,30 @@ fn main() {
                 }
                 println!("layer_{index}.source_sha256={hex}");
             }
-            println!("finished_hole_positions=NOT_IMPORTED");
+            if with_hits {
+                match boardsi_import::odb_source::audit_directory_drill_hits(Path::new(&args[1]), &args[2]) {
+                    Ok(hits) => {
+                        println!("status=SOURCE_DRILL_TOOL_AND_HIT_EVIDENCE");
+                        println!("source_hit_count={}", hits.len());
+                        for (index, hit) in hits.iter().take(20).enumerate() {
+                            println!(
+                                "hit_{index}=layer:{};dcode:{};xy:{},{};units:{};source_line:{}",
+                                hit.layer_name, hit.tool_number, hit.x, hit.y, hit.units, hit.source_line
+                            );
+                        }
+                        println!("hit_preview_truncated={}", hits.len() > 20);
+                    }
+                    Err(err) => {
+                        eprintln!(
+                            "status=UNSUPPORTED code={} relative_source={} line={}",
+                            err.code, err.path, err.line
+                        );
+                        process::exit(1);
+                    }
+                }
+            } else {
+                println!("finished_hole_positions=NOT_IMPORTED");
+            }
             println!("plated_barrel_physical_continuity=NOT_VERIFIED");
             println!("backdrill_remaining_copper=NOT_VERIFIED");
             println!("global_open_short=NOT_VERIFIED");
