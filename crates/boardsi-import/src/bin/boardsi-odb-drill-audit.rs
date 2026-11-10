@@ -55,14 +55,22 @@ fn main() {
                 println!("layer_{index}.source_sha256={hex}");
             }
             if with_hits {
-                match boardsi_import::odb_source::audit_directory_drill_hits(Path::new(&args[1]), &args[2]) {
+                match boardsi_import::odb_source::audit_directory_drill_hits(
+                    Path::new(&args[1]),
+                    &args[2],
+                ) {
                     Ok(hits) => {
                         println!("status=SOURCE_DRILL_TOOL_AND_HIT_EVIDENCE");
                         println!("source_hit_count={}", hits.len());
                         for (index, hit) in hits.iter().take(20).enumerate() {
                             println!(
                                 "hit_{index}=layer:{};dcode:{};xy:{},{};units:{};source_line:{}",
-                                hit.layer_name, hit.tool_number, hit.x, hit.y, hit.units, hit.source_line
+                                hit.layer_name,
+                                hit.tool_number,
+                                hit.x,
+                                hit.y,
+                                hit.units,
+                                hit.source_line
                             );
                         }
                         println!("hit_preview_truncated={}", hits.len() > 20);
