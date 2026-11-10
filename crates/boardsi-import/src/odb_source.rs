@@ -3,8 +3,8 @@
 //! matrix/matrix pp.62-66; features pp.164-172; standard symbols pp.187-189.
 //! This is NOT a whole-package, step-repeat, drill, EDA/net, surface or Qt importer.
 //! Source geometry is not manufactured connectivity, stackup z, or SI proof.
-use boardsi_model::*;
 use crate::odb_surface::SurfaceBuilder;
+use boardsi_model::*;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc as Shared;
 
