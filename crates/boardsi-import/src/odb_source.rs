@@ -4,9 +4,9 @@
 //! This is NOT a whole-package, step-repeat, drill, full EDA/Net, or Qt importer.
 //! Source geometry is not manufactured connectivity, stackup z, or SI proof.
 use crate::odb_drill::parse_tools;
+pub use crate::odb_drill::{DrillIntent, SourceDrillLayer, SourceDrillTool};
 use crate::odb_drill_hits::parse_drill_hits;
 pub use crate::odb_drill_hits::SourceDrillHit;
-pub use crate::odb_drill::{DrillIntent, SourceDrillLayer, SourceDrillTool};
 use crate::odb_eda::{self, FeatureLocation};
 use crate::odb_surface::SurfaceBuilder;
 use boardsi_model::*;
@@ -894,11 +894,14 @@ pub fn audit_unpacked_drill_hits(
         let bytes = files
             .get(&path)
             .ok_or_else(|| error(&path, 0, "ODB_MISSING_FILE"))?;
-        let text = std::str::from_utf8(bytes)
-            .map_err(|_| error(&path, 0, "ODB_INVALID_TEXT"))?;
+        let text = std::str::from_utf8(bytes).map_err(|_| error(&path, 0, "ODB_INVALID_TEXT"))?;
         let hits = parse_drill_hits(text, &layer, &path, crate::digest::sha256(bytes))
             .map_err(|e| error(&path, e.line, e.code))?;
-        if out.len().checked_add(hits.len()).map_or(true, |n| n > MAX_FEATURES) {
+        if out
+            .len()
+            .checked_add(hits.len())
+            .map_or(true, |n| n > MAX_FEATURES)
+        {
             return Err(error(&path, 0, "ODB_DRILL_HIT_TOTAL_LIMIT"));
         }
         out.extend(hits);
@@ -1474,37 +1477,61 @@ mod tests {
         f.insert("matrix/matrix".into(), matrix.into_bytes());
         let tool = "steps/pcb/layers/drill_a/tools";
         let feat = "steps/pcb/layers/drill_a/features";
-        f.insert(tool.into(),
-            b"UNITS=MM\nTOOLS {\nNUM=7\nTYPE=VIA\nTYPE2=STANDARD\nFINISH_SIZE=110\n}\n".to_vec());
-        f.insert(feat.into(),
-            b"UNITS=MM\nF 2\n$0 r110\nP 1.25 -0.25 0 P 7 0;ID=a\nP 0 2.5 0 P 7 0;ID=b\n".to_vec());
-        let hits = audit_unpacked_drill_hits(&f,"pcb").unwrap();
-        assert_eq!(hits.len(),2);
-        assert_eq!(hits[0].layer_name,"drill_a");
-        assert_eq!(hits[0].tool_number,7);
-        assert_eq!(hits[0].tool_intent,DrillIntent::Via);
-        assert_eq!(hits[0].x,"1.25");
-        assert_eq!(hits[0].y,"-0.25");
-        assert_eq!(hits[0].source_line,4);
+        f.insert(
+            tool.into(),
+            b"UNITS=MM\nTOOLS {\nNUM=7\nTYPE=VIA\nTYPE2=STANDARD\nFINISH_SIZE=110\n}\n".to_vec(),
+        );
+        f.insert(
+            feat.into(),
+            b"UNITS=MM\nF 2\n$0 r110\nP 1.25 -0.25 0 P 7 0;ID=a\nP 0 2.5 0 P 7 0;ID=b\n".to_vec(),
+        );
+        let hits = audit_unpacked_drill_hits(&f, "pcb").unwrap();
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0].layer_name, "drill_a");
+        assert_eq!(hits[0].tool_number, 7);
+        assert_eq!(hits[0].tool_intent, DrillIntent::Via);
+        assert_eq!(hits[0].x, "1.25");
+        assert_eq!(hits[0].y, "-0.25");
+        assert_eq!(hits[0].source_line, 4);
         assert_eq!(hits[0].source_sha256, crate::digest::sha256(&f[feat]));
-        assert_eq!(hits[1].feature_index,1);
+        assert_eq!(hits[1].feature_index, 1);
         // Unsupported Copper artwork is not a blocker for a tool/hit audit.
         f.get_mut("steps/pcb/layers/sig1/features")
-            .unwrap().extend_from_slice(b"T unsupported\n");
-        assert_eq!(audit_unpacked_drill_hits(&f,"pcb").unwrap().len(),2);
-        assert!(import_unpacked(&f,"pcb").is_err());
-        for (from,to,code) in [
-            ("P 1.25 -0.25 0 P 7 0","P 1.25 -0.25 0 P 4 0","ODB_DRILL_HIT_UNKNOWN_TOOL"),
-            ("F 2","F 3","ODB_DRILL_HIT_COUNT_MISMATCH"),
-            ("$0 r110","$0 rect110x110","ODB_DRILL_HIT_NONCIRCULAR_SYMBOL"),
+            .unwrap()
+            .extend_from_slice(b"T unsupported\n");
+        assert_eq!(audit_unpacked_drill_hits(&f, "pcb").unwrap().len(), 2);
+        assert!(import_unpacked(&f, "pcb").is_err());
+        for (from, to, code) in [
+            (
+                "P 1.25 -0.25 0 P 7 0",
+                "P 1.25 -0.25 0 P 4 0",
+                "ODB_DRILL_HIT_UNKNOWN_TOOL",
+            ),
+            ("F 2", "F 3", "ODB_DRILL_HIT_COUNT_MISMATCH"),
+            (
+                "$0 r110",
+                "$0 rect110x110",
+                "ODB_DRILL_HIT_NONCIRCULAR_SYMBOL",
+            ),
         ] {
             let mut mutated = f.clone();
-            mutated.insert(feat.into(),
-                String::from_utf8(f[feat].clone()).unwrap().replace(from,to).into_bytes());
-            assert_eq!(audit_unpacked_drill_hits(&mutated,"pcb").unwrap_err().code,code);
+            mutated.insert(
+                feat.into(),
+                String::from_utf8(f[feat].clone())
+                    .unwrap()
+                    .replace(from, to)
+                    .into_bytes(),
+            );
+            assert_eq!(
+                audit_unpacked_drill_hits(&mutated, "pcb").unwrap_err().code,
+                code
+            );
         }
         f.remove(feat);
-        assert_eq!(audit_unpacked_drill_hits(&f,"pcb").unwrap_err().code,"ODB_MISSING_FILE");
+        assert_eq!(
+            audit_unpacked_drill_hits(&f, "pcb").unwrap_err().code,
+            "ODB_MISSING_FILE"
+        );
     }
 
     #[test]
