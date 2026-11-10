@@ -15,7 +15,7 @@
 | `boardsi-import-artwork FILE.asc --general-trace-contacts-v1` | D_054 generic angle straight/arc **Trace-to-Trace** local finite-width overlap candidates | Not global nets, actual copper continuity, solver |
 | `boardsi-import-artwork FILE.asc --trace-pad-via-contacts-v1` | D_055 generic non-centred Trace contact with **Via conductive annulus** and **round/square/rectangle SMD Pad** footprints | Not proof of electrical Open/Short, plating or all Padstacks |
 | `boardsi-import-via-topology FILE.asc [--candidate-contacts]` | **D_056 opt-in** PADS V9.4 source-declared R round, S square, A annular copper and RA/SA plane anti-pad, plus explicit Through/Blind/Buried start/end spans; local Trace-Via candidates | Not Qt artwork V1–V14, RT/ST thermal spokes, full vendor PADS compatibility, verified plating, global Open/Short or SI |
-| `boardsi-odb-import UNPACKED_PRODUCT_ROOT STEP` | **D_056_08 opt-in** ODB++Design source MATRIX/Layer + positive L/P/A + bounded positive straight S/OB/OS/OE/SE Copper Area/Hole → Canonical; printed counts | Not compressed archive import, vendor interoperability oracle, full EDA/Net/Via/Drill/Component, Main Qt IPC/Artwork, manufactured connectivity or SI |
+| `boardsi-odb-import UNPACKED_PRODUCT_ROOT STEP [--eda-nets]` | **D_056_08 opt-in** ODB++Design MATRIX/Layer + positive L/P/A and bounded S/Cutout → Canonical; optional exact `eda/data` NET/SNT/FID design ownership and source-line diagnostics | Not compressed archive, full EDA/PIN/PKG/Via/Drill, Main Qt IPC/Artwork, fabricated connectivity or SI |
 
 Example from the **repository root** (public synthetic fixture only):
 
@@ -36,11 +36,13 @@ The independent `boardsi-odb-import` CLI reads an **already-unpacked ODB++Design
 cargo test --locked -p boardsi-import
 cargo run --locked -p boardsi-import --bin boardsi-odb-import -- \
   /path/to/your-local-unpacked-odb-product pcb
+cargo run --locked -p boardsi-import --bin boardsi-odb-import -- \
+  /path/to/your-local-unpacked-odb-product pcb --eda-nets
 ```
 
-The diagnostic outputs `status=SOURCE_GEOMETRY_PARTIAL`, Layer/Trace/Arc/Pad/CopperArea/Cutout counts, and explicit `NOT_VERIFIED` for Net, Via, manufactured connectivity and SI. Source-limited import may reject an otherwise **valid** ODB++ exporter file if it contains unsupported net/geometry features; that is deliberate Fail-Closed behavior, **not** evidence that the exported PCB is invalid. Tests use synthetic grammar fixtures and cross-platform CI; commercial-vendor export qualification and actual Qt main integration are outstanding.
+By default the diagnostic outputs `status=SOURCE_GEOMETRY_PARTIAL`, Layer/Trace/Arc/Pad/CopperArea/Cutout counts, and explicit `NOT_VERIFIED` for Via, manufactured connectivity and SI. With explicit `--eda-nets`, it additionally requires `steps/<step>/eda/data` with valid `HDR`, `UNITS`, `LYR`, `NET`, `SNT`, `FID C`, and prints **design-Net ownership** counts with `status=SOURCE_GEOMETRY_AND_DESIGN_NET_PARTIAL`. Unsupported EDA syntax fails closed; `SNT VIA` identifies a design subnet **not plated Via connectivity**. Multiple `$NONE$` groups are unassigned. Main Qt Import remains unconnected. Source-limited import may reject an otherwise **valid** ODB++ exporter file if it contains unsupported net/geometry features; that is deliberate Fail-Closed behavior, **not** evidence that the exported PCB is invalid. Tests use synthetic grammar fixtures and cross-platform CI; commercial-vendor export qualification and actual Qt main integration are outstanding.
 
-Documentation: [D_056_08 Source Adapter & Surface contract](../../docs/architecture/d056-08-odb-source-adapter.md). Code: [PR #562](https://github.com/july-rust/BoardSI/pull/562) and [PR #564](https://github.com/july-rust/BoardSI/pull/564), both verified protected Squash with PR-head 30/30 checks. **No confidential PCB files should be committed to public CI.**
+Documentation: [D_056_08 Source Adapter & Surface contract](../../docs/architecture/d056-08-odb-source-adapter.md). Code: [PR #562](https://github.com/july-rust/BoardSI/pull/562) and [PR #564](https://github.com/july-rust/BoardSI/pull/564), both verified protected Squash with PR-head 30/30 checks. An additional opt-in EDA NET/FID import is [PR #566](https://github.com/july-rust/BoardSI/pull/566) (30/30 checks, verified squash `ffdad981`, independent main Push 8/8 SUCCESS), but this is only partial design ownership and cannot make an Open/Short or SI claim. **No confidential PCB files should be committed to public CI.**
 
 ### D_056 — source-declared Via layers (opt-in, limited)
 
