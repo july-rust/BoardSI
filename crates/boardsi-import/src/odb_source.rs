@@ -527,6 +527,77 @@ fn parse_features_content(
     Ok(())
 }
 
+/// Read an already-unpacked ODB++ product-model directory without following links.
+/// Archive decompression and external process execution are intentionally not supported.
+/// Paths stay relative; this is a bounded import, not an archive extraction facility.
+pub fn import_directory(root: &std::path::Path, step: &str) -> Result<BoardModel, OdbError> {
+    fn walk(
+        root: &std::path::Path,
+        dir: &std::path::Path,
+        depth: usize,
+        total: &mut usize,
+        files: &mut OdbFileMap,
+    ) -> Result<(), OdbError> {
+        if depth > 16 {
+            return Err(error("directory", 0, "ODB_DIRECTORY_DEPTH"));
+        }
+        let entries = std::fs::read_dir(dir)
+            .map_err(|_| error("directory", 0, "ODB_DIRECTORY_IO"))?;
+        for entry in entries {
+            let entry = entry.map_err(|_| error("directory", 0, "ODB_DIRECTORY_IO"))?;
+            let full = entry.path();
+            let relative = full.strip_prefix(root)
+                .map_err(|_| error("directory", 0, "ODB_UNSAFE_ROOT"))?;
+            let relative = relative
+                .to_str()
+                .ok_or_else(|| error("directory", 0, "ODB_UNSUPPORTED_PATH_ENCODING"))?
+                .replace(std::path::MAIN_SEPARATOR, "/");
+            if !safe_path(&relative) {
+                return Err(error(&relative, 0, "ODB_UNSAFE_LOGICAL_PATH"));
+            }
+            let info = std::fs::symlink_metadata(&full)
+                .map_err(|_| error(&relative, 0, "ODB_ENTRY_IO"))?;
+            if info.file_type().is_symlink() {
+                return Err(error(&relative, 0, "ODB_SYMLINK_UNSUPPORTED"));
+            }
+            if info.is_dir() {
+                walk(root, &full, depth + 1, total, files)?;
+            } else if info.is_file() {
+                let len: usize = info.len().try_into()
+                    .map_err(|_| error(&relative, 0, "ODB_FILE_TOO_LARGE"))?;
+                if len > MAX_FILE_BYTES {
+                    return Err(error(&relative, 0, "ODB_FILE_TOO_LARGE"));
+                }
+                *total = total.checked_add(len)
+                    .ok_or_else(|| error(&relative, 0, "ODB_SIZE_OVERFLOW"))?;
+                if *total > MAX_TOTAL_BYTES || files.len() >= MAX_FILES {
+                    return Err(error(&relative, 0, "ODB_IMPORT_LIMIT"));
+                }
+                let bytes = std::fs::read(&full)
+                    .map_err(|_| error(&relative, 0, "ODB_ENTRY_IO"))?;
+                if bytes.len() != len || bytes.len() > MAX_FILE_BYTES {
+                    return Err(error(&relative, 0, "ODB_FILE_RACE_OR_TOO_LARGE"));
+                }
+                if files.insert(relative.clone(), bytes).is_some() {
+                    return Err(error(&relative, 0, "ODB_DUPLICATE_PATH"));
+                }
+            } else {
+                return Err(error(&relative, 0, "ODB_NON_REGULAR_FILE"));
+            }
+        }
+        Ok(())
+    }
+    let root_info = std::fs::symlink_metadata(root)
+        .map_err(|_| error("directory", 0, "ODB_DIRECTORY_IO"))?;
+    if !root_info.is_dir() || root_info.file_type().is_symlink() {
+        return Err(error("directory", 0, "ODB_UNSAFE_ROOT"));
+    }
+    let mut files = OdbFileMap::new();
+    let mut total = 0;
+    walk(root, root, 0, &mut total, &mut files)?;
+    import_unpacked(&files, step)
+}
+
 /// Source-limited canonical import. All conductive records in the selected step's
 /// copper layers must use the accepted syntax or the entire import fails.
 pub fn import_unpacked(files: &OdbFileMap, step: &str) -> Result<BoardModel, OdbError> {
@@ -725,6 +796,39 @@ mod tests {
             import_unpacked(&f, "pcb").unwrap_err().code,
             "ODB_MISSING_FILE"
         );
+    }
+    #[test]
+    fn real_unpacked_directory_roundtrip_and_link_rejection() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir()
+            .join(format!("boardsi-odb-d05608-{}-{unique}", std::process::id()));
+        struct Cleanup(std::path::PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let _cleanup = Cleanup(root.clone());
+        for (name, bytes) in source(2) {
+            let full = root.join(name);
+            std::fs::create_dir_all(full.parent().unwrap()).unwrap();
+            std::fs::write(full, bytes).unwrap();
+        }
+        let board = import_directory(&root, "pcb").unwrap();
+        assert_eq!(board.traces.len(), 2);
+        assert_eq!(board.pads.len(), 2);
+        assert_eq!(board.sources[0].id.files.len(), 3);
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(root.join("matrix/matrix"), root.join("evil")).unwrap();
+            assert_eq!(
+                import_directory(&root, "pcb").unwrap_err().code,
+                "ODB_SYMLINK_UNSUPPORTED"
+            );
+        }
     }
     #[test]
     fn unit_overflow_path_and_step_fail_closed() {
