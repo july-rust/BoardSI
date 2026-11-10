@@ -76,6 +76,21 @@ fn decimal(raw: &str, allow_minus_one: bool) -> bool {
     };
     value > 0 || frac.bytes().any(|x| x != b'0')
 }
+fn nonnegative_decimal(raw: &str) -> bool {
+    if raw.is_empty() || raw.starts_with('-') || raw.starts_with('+') {
+        return false;
+    }
+    let (whole, frac) = raw.split_once('.').unwrap_or((raw, ""));
+    !whole.is_empty()
+        && frac.len() <= 9
+        && whole.bytes().all(|b| b.is_ascii_digit())
+        && frac.bytes().all(|b| b.is_ascii_digit())
+        && whole
+            .parse::<i64>()
+            .ok()
+            .map(|n| n <= 1_000_000_000)
+            .unwrap_or(false)
+}
 fn complete(
     fields: &BTreeMap<String, String>,
     line: usize,
@@ -115,7 +130,7 @@ fn complete(
     }
     for k in ["MIN_TOL", "MAX_TOL"] {
         if let Some(v) = get(k) {
-            if !decimal(v, true) && v != "0" {
+            if !nonnegative_decimal(v) {
                 return Err(err(line, "ODB_TOOL_BAD_TOLERANCE"));
             }
         }
@@ -285,6 +300,19 @@ mod tests {
             let err = parse_tools(&input).unwrap_err();
             assert_eq!(err.code, code, "Unexpected error for input={input}");
         }
+    }
+    #[test]
+    fn accepts_zero_tolerances_in_fixed_decimal_exporter_format() {
+        let doc = "UNITS=MM\nTOOLS {\nNUM=1\nTYPE=PLATED\nMIN_TOL=0.000000\nMAX_TOL=0.0\nFINISH_SIZE=100\n}\n";
+        let (_, tools) = parse_tools(doc).unwrap();
+        assert_eq!(tools[0].min_tolerance.as_deref(), Some("0.000000"));
+        assert_eq!(tools[0].max_tolerance.as_deref(), Some("0.0"));
+        assert_eq!(
+            parse_tools(&doc.replace("MAX_TOL=0.0", "MAX_TOL=-0.1"))
+                .unwrap_err()
+                .code,
+            "ODB_TOOL_BAD_TOLERANCE"
+        );
     }
     #[test]
     fn declared_plated_intent_is_not_fabricated_connectivity() {
