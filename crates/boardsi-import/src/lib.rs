@@ -223,6 +223,7 @@ pub mod straight_area_witness;
 pub mod layered_pad_contacts;
 pub mod material_contract;
 pub mod odb_source;
+mod odb_surface;
 pub mod outline_arc;
 pub mod outline_preview;
 pub mod outline_topology;
