@@ -4,6 +4,7 @@
 //! This is NOT a whole-package, step-repeat, drill, EDA/net, surface or Qt importer.
 //! Source geometry is not manufactured connectivity, stackup z, or SI proof.
 use boardsi_model::*;
+use crate::odb_surface::SurfaceBuilder;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc as Shared;
 
@@ -289,6 +290,24 @@ fn copper_type(value: &str) -> bool {
     matches!(value, "SIGNAL" | "POWER_GROUND" | "MIXED")
 }
 
+fn surface_boundary(frame: &ObjectId, ring: &[[i64; 2]]) -> Boundary {
+    Boundary {
+        segments: ring
+            .windows(2)
+            .map(|edge| BoundarySegment::Line {
+                start: Point {
+                    frame: frame.clone(),
+                    ticks: edge[0],
+                },
+                end: Point {
+                    frame: frame.clone(),
+                    ticks: edge[1],
+                },
+            })
+            .collect(),
+    }
+}
+
 fn parse_features_content(
     board: &mut BoardModel,
     source: &SourceId,
@@ -308,11 +327,83 @@ fn parse_features_content(
     let mut advertised_count: Option<usize> = None;
     let mut unit: Option<&'static str> = None;
     let mut ids: BTreeSet<String> = BTreeSet::new();
+    let mut surface: Option<(String, usize, SurfaceBuilder)> = None;
     let frame_id = ObjectId::new(source, ObjectKind::Frame, &path, "");
     for (index, source_line) in text.lines().enumerate() {
         let line_no = index + 1;
         let line = source_line.trim();
         if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if surface.is_some() {
+            // Surface records are multi-line; all geometry must be consumed or
+            // the whole layer is unsupported. ODB features count S once, not
+            // once per OS/OB/OE/SE. No implicit closing or arc tessellation.
+            let fields: Vec<&str> = line.split_whitespace().collect();
+            let kind = fields[0];
+            let close_surface = kind == "SE";
+            if !close_surface {
+                let builder = &mut surface.as_mut().expect("surface checked").2;
+                match kind {
+                    "OB" if fields.len() == 4 => {
+                        let start = [
+                            coordinate(fields[1], &path, line_no)?,
+                            coordinate(fields[2], &path, line_no)?,
+                        ];
+                        let hole = match fields[3] {
+                            "I" => false,
+                            "H" => true,
+                            _ => return Err(error(&path, line_no, "ODB_SURFACE_BAD_POLYGON_ROLE")),
+                        };
+                        builder
+                            .begin(start, hole)
+                            .map_err(|code| error(&path, line_no, code))?;
+                    }
+                    "OS" if fields.len() == 3 => {
+                        let p = [
+                            coordinate(fields[1], &path, line_no)?,
+                            coordinate(fields[2], &path, line_no)?,
+                        ];
+                        builder
+                            .line(p)
+                            .map_err(|code| error(&path, line_no, code))?;
+                    }
+                    "OE" if fields.len() == 1 => builder
+                        .close()
+                        .map_err(|code| error(&path, line_no, code))?,
+                    "OC" => return Err(error(&path, line_no, "ODB_SURFACE_ARC_UNSUPPORTED")),
+                    _ => return Err(error(&path, line_no, "ODB_SURFACE_BAD_RECORD")),
+                }
+            } else {
+                if fields.len() != 1 {
+                    return Err(error(&path, line_no, "ODB_SURFACE_BAD_SE"));
+                }
+                let (id, start_line, builder) = surface.take().expect("surface checked");
+                let (outer, holes) = builder
+                    .finish()
+                    .map_err(|code| error(&path, line_no, code))?;
+                let cutouts = holes
+                    .iter()
+                    .enumerate()
+                    .map(|(n, hole)| Cutout {
+                        meta: meta(
+                            source,
+                            ObjectKind::Cutout,
+                            &format!("{id}/hole-{n}"),
+                            &path,
+                            start_line,
+                        ),
+                        boundary: surface_boundary(&frame_id, hole),
+                    })
+                    .collect();
+                board.areas.push(CopperArea {
+                    meta: meta(source, ObjectKind::Area, &id, &path, start_line),
+                    layer: layer_id.clone(),
+                    net: None,
+                    outer: surface_boundary(&frame_id, &outer),
+                    cutouts,
+                });
+            }
             continue;
         }
         if let Some(u) = line.strip_prefix("UNITS=") {
@@ -370,8 +461,8 @@ fn parse_features_content(
             continue;
         }
         let kind = fields[0];
-        if !matches!(kind, "L" | "P" | "A") {
-            // S/OB/OS/OE/SE, custom symbols, text, drill and other copper forms
+        if !matches!(kind, "L" | "P" | "A" | "S") {
+            // Custom symbols, text, drill and other copper forms
             // cannot be silently skipped as if the layer's copper were complete.
             return Err(error(&path, line_no, "ODB_UNSUPPORTED_CONDUCTIVE_FEATURE"));
         }
@@ -392,7 +483,18 @@ fn parse_features_content(
             }
         }
         let feature_id = format!("{path}:{line_no}");
-        if kind == "L" {
+        if kind == "S" {
+            if fields.len() != 3 {
+                return Err(error(&path, line_no, "ODB_SURFACE_BAD_ARITY"));
+            }
+            if fields[1] != "P" {
+                return Err(error(&path, line_no, "ODB_SURFACE_NEGATIVE_UNSUPPORTED"));
+            }
+            let _dcode = fields[2]
+                .parse::<u32>()
+                .map_err(|_| error(&path, line_no, "ODB_BAD_DCODE"))?;
+            surface = Some((feature_id, line_no, SurfaceBuilder::default()));
+        } else if kind == "L" {
             if fields.len() != 8 {
                 return Err(error(&path, line_no, "ODB_BAD_LINE_ARITY"));
             }
@@ -506,6 +608,9 @@ fn parse_features_content(
                 width_m,
             });
         }
+    }
+    if surface.is_some() {
+        return Err(error(&path, text.lines().count(), "ODB_SURFACE_MISSING_SE"));
     }
     let unit = unit.ok_or_else(|| error(&path, 0, "ODB_MISSING_UNITS"))?;
     if let Some(expected) = advertised_count {
@@ -694,7 +799,7 @@ pub fn import_unpacked(files: &OdbFileMap, step: &str) -> Result<BoardModel, Odb
             pin_pad: CapabilityState::Missing, stackup: CapabilityState::Partial,
             reference: CapabilityState::Missing, model: CapabilityState::Missing,
             object_coverage: vec![
-                "matrix BOARD copper ordering, selected STEP, source-valid L/P/A only".into(),
+                "matrix BOARD copper ordering, selected STEP, source-valid positive L/P/A and bounded simple S island/hole".into(),
                 "No EDA Net/Feature mapping, manufacturing drills, plated barrel, surfaces, step repeat, or SI".into(),
             ],
         },
@@ -807,6 +912,44 @@ mod tests {
             inch_board.frames[0].metres_per_tick,
             Rational::new(254, 10_000_000_000_000).unwrap()
         );
+    }
+    #[test]
+    fn single_odb_surface_with_source_hole_becomes_canonical_area() {
+        let mut f = source(2);
+        let path = "steps/pcb/layers/sig1/features";
+        let data = String::from_utf8(f[path].clone())
+            .unwrap()
+            .replace("F 3", "F 4")
+            + "S P 0;ID=8401\nOB 0 0 I\nOS 4 0\nOS 4 4\nOS 0 4\nOS 0 0\nOE\nOB 1 1 H\nOS 1 2\nOS 2 2\nOS 2 1\nOS 1 1\nOE\nSE\n";
+        f.insert(path.into(), data.into_bytes());
+        let board = import_unpacked(&f, "pcb").unwrap();
+        assert_eq!(board.areas.len(), 1);
+        assert_eq!(board.areas[0].outer.segments.len(), 4);
+        assert_eq!(board.areas[0].cutouts.len(), 1);
+        assert_eq!(board.areas[0].cutouts[0].boundary.segments.len(), 4);
+        assert_eq!(board.areas[0].layer, board.traces[0].layer);
+        assert!(!board.validate().has_errors());
+        assert!(board.connectivity.edges.is_empty());
+    }
+    #[test]
+    fn malformed_and_unknown_odb_surfaces_fail_closed() {
+        let base = "S P 0\nOB 0 0 I\nOS 4 0\nOS 4 4\nOS 0 4\nOS 0 0\nOE\nSE\n";
+        for (replacement, expected) in [
+            ("S N 0", "ODB_SURFACE_NEGATIVE_UNSUPPORTED"),
+            ("S P 0\nOB 0 0 I\nOS 4 0\nOS 4 4\nOS 0 4\nOS 0 0\nOE\n", "ODB_SURFACE_MISSING_SE"),
+            ("S P 0\nOB 0 0 I\nOC 4 0 2 0 Y\nOE\nSE\n", "ODB_SURFACE_ARC_UNSUPPORTED"),
+            ("S P 0\nOB 0 0 I\nOS 4 4\nOS 0 4\nOS 4 0\nOS 0 0\nOE\nSE\n", "ODB_SURFACE_SELF_INTERSECTION"),
+            ("S P 0\nOB 0 0 H\nOS 4 0\nOS 4 4\nOS 0 4\nOS 0 0\nOE\nSE\n", "ODB_SURFACE_HOLE_BEFORE_ISLAND"),
+            ("S P 0\nOB 0 0 I\nOS 4 0\nOS 4 4\nOS 0 4\nOS 0 0\nOE\nOB 10 10 H\nOS 11 10\nOS 11 11\nOS 10 11\nOS 10 10\nOE\nSE\n", "ODB_SURFACE_HOLE_OUTSIDE_OR_TOUCHING"),
+        ] {
+            let mut f = source(2);
+            let path = "steps/pcb/layers/sig1/features";
+            let data = String::from_utf8(f[path].clone())
+                .unwrap()
+                .replace("F 3", "F 4") + &base.replace("S P 0", replacement);
+            f.insert(path.into(), data.into_bytes());
+            assert_eq!(import_unpacked(&f, "pcb").unwrap_err().code, expected);
+        }
     }
     #[test]
     fn source_sha_mutation_changes_identity() {
