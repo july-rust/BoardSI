@@ -3,8 +3,8 @@
 use std::{collections::BTreeMap, path::Path};
 
 use boardsi_model::{
-    BoardModel, FabricationHole, FabricationHoleShape, FabricationOperation,
-    FabricationPlating, FabricationSourceEvidence, PhysicalLayerSpan, Rational,
+    BoardModel, FabricationHole, FabricationHoleShape, FabricationOperation, FabricationPlating,
+    FabricationSourceEvidence, PhysicalLayerSpan, Rational,
 };
 
 use crate::odb_drill::{DrillIntent, SourceDrillLayer};
@@ -34,7 +34,11 @@ pub struct OdbSourceImport {
 }
 
 fn error(hit: &SourceDrillHit, code: &'static str) -> OdbError {
-    OdbError { path: hit.source_file.clone(), line: hit.source_line, code }
+    OdbError {
+        path: hit.source_file.clone(),
+        line: hit.source_line,
+        code,
+    }
 }
 
 fn xy_m(hit: &SourceDrillHit) -> Result<[Rational; 2], OdbError> {
@@ -44,9 +48,7 @@ fn xy_m(hit: &SourceDrillHit) -> Result<[Rational; 2], OdbError> {
         _ => return Err(error(hit, "ODB_HOLE_BAD_UNITS")),
     };
     let convert = |value: &str| {
-        let ticks = crate::odb_source::decimal_ticks(
-            value, &hit.source_file, hit.source_line
-        )?;
+        let ticks = crate::odb_source::decimal_ticks(value, &hit.source_file, hit.source_line)?;
         Rational::new(i128::from(ticks) * mul, denom)
             .map_err(|_| error(hit, "ODB_HOLE_COORDINATE_OVERFLOW"))
     };
@@ -62,28 +64,35 @@ fn source_holes(
     for layer in layers {
         if by_layer.insert(layer.name.as_str(), layer).is_some() {
             return Err(OdbError {
-                path: "matrix/matrix".into(), line: layer.matrix_source_line,
+                path: "matrix/matrix".into(),
+                line: layer.matrix_source_line,
                 code: "ODB_HOLE_DUPLICATE_DRILL_LAYER",
             });
         }
     }
-    let copper: BTreeMap<&str, u32> = board.stackup.layers.iter().enumerate()
+    let copper: BTreeMap<&str, u32> = board
+        .stackup
+        .layers
+        .iter()
+        .enumerate()
         .map(|(index, layer)| (layer.name.as_str(), (index + 1) as u32))
         .collect();
     let copper_count = board.stackup.layers.len() as u32;
     let mut out = Vec::with_capacity(hits.len());
     for hit in hits {
-        let layer = by_layer.get(hit.layer_name.as_str())
+        let layer = by_layer
+            .get(hit.layer_name.as_str())
             .ok_or_else(|| error(&hit, "ODB_HOLE_UNDECLARED_LAYER"))?;
         // Drill-layer span absence must not be interpreted as through.
-        let (Some(start), Some(end)) =
-            (&layer.explicit_start_layer, &layer.explicit_end_layer)
+        let (Some(start), Some(end)) = (&layer.explicit_start_layer, &layer.explicit_end_layer)
         else {
             return Err(error(&hit, "ODB_HOLE_UNQUALIFIED_SPAN"));
         };
-        let first = *copper.get(start.as_str())
+        let first = *copper
+            .get(start.as_str())
             .ok_or_else(|| error(&hit, "ODB_HOLE_UNQUALIFIED_SPAN"))?;
-        let last = *copper.get(end.as_str())
+        let last = *copper
+            .get(end.as_str())
             .ok_or_else(|| error(&hit, "ODB_HOLE_UNQUALIFIED_SPAN"))?;
         let span = PhysicalLayerSpan { first, last };
         span.validate(copper_count)
@@ -93,20 +102,25 @@ fn source_holes(
         if !layer.subtype.is_empty() {
             return Err(error(&hit, "ODB_HOLE_SPECIAL_OPERATION_UNSUPPORTED"));
         }
-        let tool = layer.tools.iter().find(|t| t.number == hit.tool_number)
+        let tool = layer
+            .tools
+            .iter()
+            .find(|t| t.number == hit.tool_number)
             .ok_or_else(|| error(&hit, "ODB_HOLE_UNKNOWN_TOOL"))?;
-        let stated_diameter = tool.drill_size.as_deref()
-            .unwrap_or(&tool.finish_size);
+        let stated_diameter = tool.drill_size.as_deref().unwrap_or(&tool.finish_size);
         if stated_diameter == "-1" {
             return Err(error(&hit, "ODB_HOLE_MISSING_DIAMETER"));
         }
         let mode = match layer.unit.as_str() {
-            "MM" => "M", // ODB tools use micrometres for MM
+            "MM" => "M",   // ODB tools use micrometres for MM
             "INCH" => "I", // ODB tools use mils for INCH
             _ => return Err(error(&hit, "ODB_HOLE_BAD_UNITS")),
         };
         let diameter_m = crate::odb_source::length_symbol(
-            stated_diameter, mode, &layer.source_file, tool.source_line
+            stated_diameter,
+            mode,
+            &layer.source_file,
+            tool.source_line,
         )?;
         let plating = match hit.tool_intent {
             DrillIntent::Plated => FabricationPlating::SourceDeclaredPlated,
@@ -125,10 +139,15 @@ fn source_holes(
                 qualified_native_grammar: true,
             },
         };
-        fabrication.validate(copper_count)
+        fabrication
+            .validate(copper_count)
             .map_err(|_| error(&hit, "ODB_HOLE_INVALID_FABRICATION"))?;
         debug_assert!(!fabrication.is_electrical_conductor());
-        out.push(OdbSourceHole { xy_m: xy_m(&hit)?, fabrication, hit });
+        out.push(OdbSourceHole {
+            xy_m: xy_m(&hit)?,
+            fabrication,
+            hit,
+        });
     }
     Ok(out)
 }
@@ -136,7 +155,9 @@ fn source_holes(
 /// Derive qualified source-hole observations and Canonical copper from ONE
 /// immutable source file map. Full unsupported inputs fail transactionally.
 pub fn import_unpacked_with_holes(
-    files: &OdbFileMap, step: &str, with_eda: bool,
+    files: &OdbFileMap,
+    step: &str,
+    with_eda: bool,
 ) -> Result<OdbSourceImport, OdbError> {
     let board = if with_eda {
         import_unpacked_with_eda(files, step)?
@@ -150,13 +171,18 @@ pub fn import_unpacked_with_holes(
     // evidence: neither source position nor net implies plated continuity.
     debug_assert!(board.drills.is_empty() && board.vias.is_empty());
     debug_assert!(board.connectivity.edges.is_empty());
-    Ok(OdbSourceImport { board, source_holes: holes })
+    Ok(OdbSourceImport {
+        board,
+        source_holes: holes,
+    })
 }
 
 /// Directory or USTAR path, safely snapped once through the same audited
 /// directory and archive readers as the existing D_056_08 import paths.
 pub fn import_path_with_holes(
-    path: &Path, step: &str, with_eda: bool,
+    path: &Path,
+    step: &str,
+    with_eda: bool,
 ) -> Result<OdbSourceImport, OdbError> {
     let files = crate::odb_source::read_source_path_file_map(path)?;
     import_unpacked_with_holes(&files, step, with_eda)
@@ -164,7 +190,9 @@ pub fn import_path_with_holes(
 
 /// In-memory uncompressed USTAR input, without extraction or shell execution.
 pub fn import_tar_with_holes(
-    archive: &[u8], step: &str, with_eda: bool,
+    archive: &[u8],
+    step: &str,
+    with_eda: bool,
 ) -> Result<OdbSourceImport, OdbError> {
     let files = crate::odb_tar::read_tar(archive)?;
     import_unpacked_with_holes(&files, step, with_eda)
