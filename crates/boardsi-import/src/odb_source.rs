@@ -1100,7 +1100,7 @@ mod tests {
         let mut f = source(4);
         f.insert(
             "steps/pcb/eda/data".into(),
-            b"HDR Mentor PADS\nLYR sig1 sig2 sig3 sig4\nNET DATA_P;ID=31\nSNT TRC\nFID C 0 0\nFID C 0 2\nNET DATA_N;ID=32\nSNT VIA\nFID C 0 1\nNET $NONE$\nSNT TRC\nFID C 1 0\n".to_vec(),
+            b"HDR Mentor PADS\nUNITS=MM\nLYR sig1 sig2 sig3 sig4\nNET DATA_P;ID=31\nSNT TRC\nFID C 0 0\nFID C 0 2\nNET DATA_N;ID=32\nSNT VIA\nFID C 0 1\nNET $NONE$\nSNT TRC\nFID C 1 0\n".to_vec(),
         );
         let untouched = import_unpacked(&f, "pcb").unwrap();
         assert!(untouched.nets.is_empty());
@@ -1137,7 +1137,7 @@ mod tests {
             "ODB_MISSING_FILE"
         );
         let path = "steps/pcb/eda/data";
-        let valid = "HDR test\nLYR sig1 sig2\nNET DATA\nSNT TRC\nFID C 0 0\n";
+        let valid = "HDR test\nUNITS=MM\nLYR sig1 sig2\nNET DATA\nSNT TRC\nFID C 0 0\n";
         f.insert(path.into(), valid.as_bytes().to_vec());
         assert!(!import_unpacked_with_eda(&f, "pcb")
             .unwrap()
@@ -1171,7 +1171,7 @@ mod tests {
         f.insert(path.into(), copper.into_bytes());
         f.insert(
             "steps/pcb/eda/data".into(),
-            b"HDR x\nLYR sig1 sig2\nNET POWER\nSNT PLN S E 0\nFID C 0 3\n".to_vec(),
+            b"HDR x\nUNITS=MM\nLYR sig1 sig2\nNET POWER\nSNT PLN S E 0\nFID C 0 3\n".to_vec(),
         );
         let a = import_unpacked_with_eda(&f, "pcb").unwrap();
         assert_eq!(a.areas.len(), 1);
