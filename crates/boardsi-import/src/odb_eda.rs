@@ -120,10 +120,11 @@ pub(super) fn parse(
                 subnet = match parts.as_slice() {
                     ["SNT", "TRC"] => Some("TRC"),
                     ["SNT", "VIA"] => Some("VIA"),
-                    ["SNT", "PLN", fill, cutout, brush]
-                        if matches!(*fill, "S" | "O")
-                            && matches!(*cutout, "C" | "R" | "O" | "E")
-                            && brush
+                    ["SNT", "PLN", ..]
+                        if parts.len() == 5
+                            && matches!(parts[2], "S" | "O")
+                            && matches!(parts[3], "C" | "R" | "O" | "E")
+                            && parts[4]
                                 .parse::<f64>()
                                 .ok()
                                 .map(|x| x.is_finite() && x >= 0.0)
