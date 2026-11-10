@@ -66,9 +66,10 @@ fn validate_product_files(files: &OdbFileMap) -> Result<(), OdbError> {
     // The nested matrix signature is anchored to complete path components.
     if files.keys().any(|path| {
         let components: Vec<_> = path.split('/').collect();
-        components.windows(2).enumerate().any(|(index, pair)| {
-            index > 0 && pair == ["matrix", "matrix"]
-        })
+        components
+            .windows(2)
+            .enumerate()
+            .any(|(index, pair)| index > 0 && pair == ["matrix", "matrix"])
     }) {
         return Err(bad("ODB_TAR_MULTIPLE_ROOTS"));
     }
@@ -284,7 +285,10 @@ mod tests {
                 b'0',
             ));
             contaminated.extend([0u8; BLOCK * 2]);
-            assert_eq!(read_tar(&contaminated).unwrap_err().code, "ODB_TAR_MULTIPLE_ROOTS");
+            assert_eq!(
+                read_tar(&contaminated).unwrap_err().code,
+                "ODB_TAR_MULTIPLE_ROOTS"
+            );
         }
     }
     #[test]
