@@ -1,8 +1,9 @@
 //! D_056_08: fail-closed ODB++Design *unpacked-file-map* source subset.
 //! Siemens ODB++Design Format Specification 8.1 Update 4:
 //! matrix/matrix pp.62-66; features pp.164-172; standard symbols pp.187-189.
-//! This is NOT a whole-package, step-repeat, drill, EDA/net, surface or Qt importer.
+//! This is NOT a whole-package, step-repeat, drill, full EDA/Net, or Qt importer.
 //! Source geometry is not manufactured connectivity, stackup z, or SI proof.
+use crate::odb_eda::{self, FeatureLocation};
 use crate::odb_surface::SurfaceBuilder;
 use boardsi_model::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -314,6 +315,7 @@ fn parse_features_content(
     step: &str,
     layer: &MatrixLayer,
     text: &str,
+    registry: &mut BTreeMap<(String, usize), FeatureLocation>,
 ) -> Result<(), OdbError> {
     let path = format!("steps/{step}/layers/{}/features", layer.name);
     let layer_id = ObjectId::new(
@@ -483,6 +485,21 @@ fn parse_features_content(
             }
         }
         let feature_id = format!("{path}:{line_no}");
+        let loc = match kind {
+            "L" => FeatureLocation::Trace(board.traces.len()),
+            "P" => FeatureLocation::Pad(board.pads.len()),
+            "A" => FeatureLocation::Arc(board.arcs.len()),
+            "S" => FeatureLocation::Area(board.areas.len()),
+            _ => return Err(error(&path, line_no, "ODB_UNSUPPORTED_CONDUCTIVE_FEATURE")),
+        };
+        // FID feature numbers are record ordinals (zero-based), not file
+        // source-line numbers, and S/OB/OS/OE/SE counts as *one* feature.
+        if registry
+            .insert((layer.name.clone(), feature_count - 1), loc)
+            .is_some()
+        {
+            return Err(error(&path, line_no, "ODB_EDA_DUPLICATE_FEATURE_ORDINAL"));
+        }
         if kind == "S" {
             if fields.len() != 3 {
                 return Err(error(&path, line_no, "ODB_SURFACE_BAD_ARITY"));
@@ -638,10 +655,8 @@ fn parse_features_content(
     Ok(())
 }
 
-/// Read an already-unpacked ODB++ product-model directory without following links.
-/// Archive decompression and external process execution are intentionally not supported.
-/// Paths stay relative; this is a bounded import, not an archive extraction facility.
-pub fn import_directory(root: &std::path::Path, step: &str) -> Result<BoardModel, OdbError> {
+/// Read an already-unpacked product-model directory without following links.
+fn read_directory(root: &std::path::Path) -> Result<OdbFileMap, OdbError> {
     fn walk(
         root: &std::path::Path,
         dir: &std::path::Path,
@@ -710,12 +725,35 @@ pub fn import_directory(root: &std::path::Path, step: &str) -> Result<BoardModel
     let mut files = OdbFileMap::new();
     let mut total = 0;
     walk(root, root, 0, &mut total, &mut files)?;
-    import_unpacked(&files, step)
+    Ok(files)
+}
+
+/// Geometry-only import from an already-unpacked ODB++ product root.
+pub fn import_directory(root: &std::path::Path, step: &str) -> Result<BoardModel, OdbError> {
+    import_unpacked(&read_directory(root)?, step)
+}
+
+/// Opt-in EDA NET/SNT/FID Source assignment import (no electrical graph).
+pub fn import_directory_with_eda(
+    root: &std::path::Path,
+    step: &str,
+) -> Result<BoardModel, OdbError> {
+    import_unpacked_with_eda(&read_directory(root)?, step)
 }
 
 /// Source-limited canonical import. All conductive records in the selected step's
 /// copper layers must use the accepted syntax or the entire import fails.
 pub fn import_unpacked(files: &OdbFileMap, step: &str) -> Result<BoardModel, OdbError> {
+    import_inner(files, step, false)
+}
+
+/// Strict opt-in import of design Net identities and EDA FID ownership.
+/// Unsupported EDA syntax returns an error for the *entire* import.
+pub fn import_unpacked_with_eda(files: &OdbFileMap, step: &str) -> Result<BoardModel, OdbError> {
+    import_inner(files, step, true)
+}
+
+fn import_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardModel, OdbError> {
     if !safe_entity(step) {
         return Err(error("steps", 0, "ODB_BAD_SELECTED_STEP"));
     }
@@ -781,14 +819,31 @@ pub fn import_unpacked(files: &OdbFileMap, step: &str) -> Result<BoardModel, Odb
         format: SourceFormat::Odb,
         format_version: "8.1-U4-grammar-subset;export-revision-unverified".into(),
         files: source_files,
-        importer_version: "d056-08-odb-source-subset-v1".into(),
-        conditions: vec![
-            ("selected_step".into(), step.into()),
-            (
-                "supported_geometry".into(),
-                "positive-LPA-round-line-and-round-rect-pad".into(),
-            ),
-        ],
+        importer_version: if with_eda {
+            "d056-08-odb-source-subset-v2-eda-fid"
+        } else {
+            "d056-08-odb-source-subset-v1"
+        }
+        .into(),
+        conditions: if with_eda {
+            vec![
+                ("selected_step".into(), step.into()),
+                (
+                    "supported_geometry".into(),
+                    "positive-LPA-round-line-and-round-rect-pad".into(),
+                ),
+                ("with_eda_fid_ownership".into(), "true".into()),
+            ]
+        } else {
+            // Bit-for-bit preserve the geometry-only SourceIdentity contract.
+            vec![
+                ("selected_step".into(), step.into()),
+                (
+                    "supported_geometry".into(),
+                    "positive-LPA-round-line-and-round-rect-pad".into(),
+                ),
+            ]
+        },
     });
     let mut board = BoardModel::empty(BoardKind::Pcb);
     board.sources.push(ImportSource {
@@ -800,7 +855,7 @@ pub fn import_unpacked(files: &OdbFileMap, step: &str) -> Result<BoardModel, Odb
             reference: CapabilityState::Missing, model: CapabilityState::Missing,
             object_coverage: vec![
                 "matrix BOARD copper ordering, selected STEP, source-valid positive L/P/A and bounded simple S island/hole".into(),
-                "No EDA Net/Feature mapping, manufacturing drills, plated barrel, surfaces, step repeat, or SI".into(),
+                "No production EDA packages, manufacture drills, plated barrel, complete surfaces, step repeat, or SI".into(),
             ],
         },
     });
@@ -821,9 +876,92 @@ pub fn import_unpacked(files: &OdbFileMap, step: &str) -> Result<BoardModel, Odb
             material: None,
         });
     }
+    let mut registry: BTreeMap<(String, usize), FeatureLocation> = BTreeMap::new();
     for layer in copper {
         let path = format!("steps/{step}/layers/{}/features", layer.name);
-        parse_features_content(&mut board, &source, step, layer, ascii_file(files, &path)?)?;
+        parse_features_content(
+            &mut board,
+            &source,
+            step,
+            layer,
+            ascii_file(files, &path)?,
+            &mut registry,
+        )?;
+    }
+    if with_eda {
+        let path = format!("steps/{step}/eda/data");
+        let mapping = odb_eda::parse(ascii_file(files, &path)?, &registry)
+            .map_err(|e| error(&path, e.line, e.code))?;
+        // Complete parsing and duplicate/reference checks precede all model
+        // mutations; an invalid input is never returned as a partial success.
+        let mut net_ids = BTreeMap::new();
+        for entry in mapping.nets {
+            if entry.name == "$NONE$" {
+                continue; // ODB explicitly designates this as unassigned.
+            }
+            let id = ObjectId::new(
+                &source,
+                ObjectKind::Net,
+                &format!("eda/data:{}:{}", entry.source_line, entry.name),
+                "",
+            );
+            board.nets.push(Net {
+                meta: meta(
+                    &source,
+                    ObjectKind::Net,
+                    &format!("eda/data:{}:{}", entry.source_line, entry.name),
+                    &path,
+                    entry.source_line,
+                ),
+                name: entry.name.clone(),
+                role: NetRole::Unknown,
+            });
+            net_ids.insert(entry.name, id);
+        }
+        for assignment in mapping.assignments {
+            let id = net_ids
+                .get(&assignment.net_name)
+                .ok_or_else(|| error(&path, assignment.source_line, "ODB_EDA_UNKNOWN_NET"))?
+                .clone();
+            // Keep the exact FID source-line witness on each owned object.
+            // Geometry truth and design-Net ownership are distinct evidence;
+            // neither constitutes a plated contact or an electrical edge.
+            let witness = ConversionStep {
+                operation: "odb-eda-fid-design-net-ownership".into(),
+                quality: ConversionQuality::Exact,
+                max_error_m: Some(Rational::integer(0)),
+                note: format!(
+                    "{path}:line:{}; net={}; design ownership only; NOT manufactured continuity",
+                    assignment.source_line, assignment.net_name
+                ),
+            };
+            match registry
+                .get(&(assignment.layer, assignment.feature_index))
+                .ok_or_else(|| error(&path, assignment.source_line, "ODB_EDA_UNRESOLVED_FID"))?
+            {
+                FeatureLocation::Trace(n) => {
+                    board.traces[*n].net = Some(id);
+                    board.traces[*n].meta.provenance.history.push(witness);
+                }
+                FeatureLocation::Pad(n) => {
+                    board.pads[*n].net = Some(id);
+                    board.pads[*n].meta.provenance.history.push(witness);
+                }
+                FeatureLocation::Arc(n) => {
+                    board.arcs[*n].net = Some(id);
+                    board.arcs[*n].meta.provenance.history.push(witness);
+                }
+                FeatureLocation::Area(n) => {
+                    board.areas[*n].net = Some(id);
+                    board.areas[*n].meta.provenance.history.push(witness);
+                }
+            }
+        }
+        board.sources[0].capability.net = CapabilityState::Partial;
+        board.sources[0].capability.object_coverage.push(
+            "opt-in EDA NET/SNT/FID design Net ownership only; no plating or interconnect proof"
+                .into(),
+        );
     }
     // No global connectivity Graph or manufactured SI result.
     debug_assert!(board.connectivity.nodes.is_empty() && board.connectivity.edges.is_empty());
@@ -957,6 +1095,99 @@ mod tests {
             assert_eq!(import_unpacked(&f, "pcb").unwrap_err().code, expected);
         }
     }
+    #[test]
+    fn opt_in_eda_net_fid_assigns_exact_design_ownership_only() {
+        let mut f = source(4);
+        f.insert(
+            "steps/pcb/eda/data".into(),
+            b"HDR Mentor PADS\nUNITS=MM\nLYR sig1 sig2 sig3 sig4\nNET DATA_P;ID=31\nSNT TRC\nFID C 0 0\nFID C 0 2\nNET DATA_N;ID=32\nSNT VIA\nFID C 0 1\nNET $NONE$\nSNT TRC\nFID C 1 0\n".to_vec(),
+        );
+        let untouched = import_unpacked(&f, "pcb").unwrap();
+        assert!(untouched.nets.is_empty());
+        assert!(untouched.traces.iter().all(|t| t.net.is_none()));
+        let board = import_unpacked_with_eda(&f, "pcb").unwrap();
+        assert_eq!(board.nets.len(), 2);
+        assert_eq!(board.nets[0].name, "DATA_P");
+        assert_eq!(board.nets[1].name, "DATA_N");
+        assert_eq!(board.traces[0].net, Some(board.nets[0].meta.id.clone()));
+        assert!(board.traces[0]
+            .meta
+            .provenance
+            .history
+            .iter()
+            .any(|v| v.operation == "odb-eda-fid-design-net-ownership"
+                && v.note.contains("eda/data:line:6")
+                && v.note.contains("design ownership only")));
+        assert_eq!(board.pads[0].net, Some(board.nets[1].meta.id.clone()));
+        assert_eq!(board.arcs[0].net, Some(board.nets[0].meta.id.clone()));
+        assert!(board.traces[1].net.is_none());
+        assert_eq!(board.sources[0].capability.net, CapabilityState::Partial);
+        assert!(board.connectivity.nodes.is_empty());
+        assert!(board.connectivity.edges.is_empty());
+        assert!(board.vias.is_empty());
+        assert!(!board.validate().has_errors());
+        assert_ne!(board.sources[0].id, untouched.sources[0].id);
+    }
+
+    #[test]
+    fn eda_fid_source_mutations_and_missing_eda_are_fail_closed() {
+        let mut f = source(2);
+        assert_eq!(
+            import_unpacked_with_eda(&f, "pcb").unwrap_err().code,
+            "ODB_MISSING_FILE"
+        );
+        let path = "steps/pcb/eda/data";
+        let valid = "HDR test\nUNITS=MM\nLYR sig1 sig2\nNET DATA\nSNT TRC\nFID C 0 0\n";
+        f.insert(path.into(), valid.as_bytes().to_vec());
+        assert!(!import_unpacked_with_eda(&f, "pcb")
+            .unwrap()
+            .validate()
+            .has_errors());
+        for (from, to, expected) in [
+            ("FID C 0 0", "FID C 2 0", "ODB_EDA_BAD_LAYER_INDEX"),
+            ("FID C 0 0", "FID C 0 99", "ODB_EDA_UNRESOLVED_FID"),
+            ("FID C 0 0", "FID H 0 0", "ODB_EDA_UNSUPPORTED_FID"),
+            ("SNT TRC", "SNT VIA", "ODB_EDA_FID_SUBNET_KIND_CONFLICT"),
+            ("FID C 0 0", "FID C 0 0\nFID C 0 0", "ODB_EDA_DUPLICATE_FID"),
+            ("SNT TRC", "SNT TOP T 0 0", "ODB_EDA_UNSUPPORTED_SUBNET"),
+        ] {
+            let mut altered = f.clone();
+            altered.insert(path.into(), valid.replace(from, to).into_bytes());
+            assert_eq!(
+                import_unpacked_with_eda(&altered, "pcb").unwrap_err().code,
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn eda_source_hash_changes_net_object_identity_and_surface_fid_index() {
+        let mut f = source(2);
+        let path = "steps/pcb/layers/sig1/features";
+        let copper = String::from_utf8(f[path].clone())
+            .unwrap()
+            .replace("F 3", "F 4")
+            + "S P 0\nOB 0 0 I\nOS 3 0\nOS 3 3\nOS 0 3\nOS 0 0\nOE\nSE\n";
+        f.insert(path.into(), copper.into_bytes());
+        f.insert(
+            "steps/pcb/eda/data".into(),
+            b"HDR x\nUNITS=MM\nLYR sig1 sig2\nNET POWER\nSNT PLN S E 0\nFID C 0 3\n".to_vec(),
+        );
+        let a = import_unpacked_with_eda(&f, "pcb").unwrap();
+        assert_eq!(a.areas.len(), 1);
+        assert_eq!(a.areas[0].net, Some(a.nets[0].meta.id.clone()));
+        assert!(!a.validate().has_errors());
+        let mut changed = f.clone();
+        changed
+            .get_mut("steps/pcb/eda/data")
+            .unwrap()
+            .extend_from_slice(b"# source update\n");
+        let b = import_unpacked_with_eda(&changed, "pcb").unwrap();
+        assert_ne!(a.nets[0].meta.id, b.nets[0].meta.id);
+        assert_ne!(a.areas[0].meta.id, b.areas[0].meta.id);
+        assert!(b.connectivity.edges.is_empty());
+    }
+
     #[test]
     fn source_sha_mutation_changes_identity() {
         let f = source(2);

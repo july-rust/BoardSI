@@ -3,14 +3,27 @@ use std::{env, path::Path, process};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 3 {
-        eprintln!("Usage: boardsi-odb-import <unpacked-odb-product-root> <step>");
+    if !matches!(args.len(), 3 | 4) || (args.len() == 4 && args[3] != "--eda-nets") {
+        eprintln!("Usage: boardsi-odb-import <unpacked-odb-product-root> <step> [--eda-nets]");
         process::exit(2);
     }
-    match boardsi_import::odb_source::import_directory(Path::new(&args[1]), &args[2]) {
+    let with_eda = args.len() == 4;
+    let parsed = if with_eda {
+        boardsi_import::odb_source::import_directory_with_eda(Path::new(&args[1]), &args[2])
+    } else {
+        boardsi_import::odb_source::import_directory(Path::new(&args[1]), &args[2])
+    };
+    match parsed {
         Ok(board) => {
             let source = &board.sources[0];
-            println!("status=SOURCE_GEOMETRY_PARTIAL");
+            println!(
+                "status={}",
+                if with_eda {
+                    "SOURCE_GEOMETRY_AND_DESIGN_NET_PARTIAL"
+                } else {
+                    "SOURCE_GEOMETRY_PARTIAL"
+                }
+            );
             println!("format=ODB++Design");
             println!("step={}", args[2]);
             println!("source_files={}", source.id.files.len());
@@ -24,7 +37,31 @@ fn main() {
                 board.areas.iter().map(|a| a.cutouts.len()).sum::<usize>()
             );
             println!("vias=0  # UNSUPPORTED");
-            println!("nets=0  # NOT_IMPORTED");
+            println!("nets={}", board.nets.len());
+            println!(
+                "net_source_status={}",
+                if with_eda {
+                    "DESIGN_NET_OWNERSHIP_PARTIAL"
+                } else {
+                    "NOT_IMPORTED"
+                }
+            );
+            println!(
+                "owned_traces={}",
+                board.traces.iter().filter(|t| t.net.is_some()).count()
+            );
+            println!(
+                "owned_arcs={}",
+                board.arcs.iter().filter(|t| t.net.is_some()).count()
+            );
+            println!(
+                "owned_pads={}",
+                board.pads.iter().filter(|t| t.net.is_some()).count()
+            );
+            println!(
+                "owned_areas={}",
+                board.areas.iter().filter(|t| t.net.is_some()).count()
+            );
             println!("manufactured_connectivity=NOT_VERIFIED");
             println!("global_open_short=NOT_VERIFIED");
             println!("si_result=NOT_VERIFIED");
