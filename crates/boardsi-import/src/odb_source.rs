@@ -537,12 +537,13 @@ pub fn import_directory(root: &std::path::Path, step: &str) -> Result<BoardModel
         if depth > 16 {
             return Err(error("directory", 0, "ODB_DIRECTORY_DEPTH"));
         }
-        let entries = std::fs::read_dir(dir)
-            .map_err(|_| error("directory", 0, "ODB_DIRECTORY_IO"))?;
+        let entries =
+            std::fs::read_dir(dir).map_err(|_| error("directory", 0, "ODB_DIRECTORY_IO"))?;
         for entry in entries {
             let entry = entry.map_err(|_| error("directory", 0, "ODB_DIRECTORY_IO"))?;
             let full = entry.path();
-            let relative = full.strip_prefix(root)
+            let relative = full
+                .strip_prefix(root)
                 .map_err(|_| error("directory", 0, "ODB_UNSAFE_ROOT"))?;
             let relative = relative
                 .to_str()
@@ -559,18 +560,21 @@ pub fn import_directory(root: &std::path::Path, step: &str) -> Result<BoardModel
             if info.is_dir() {
                 walk(root, &full, depth + 1, total, files)?;
             } else if info.is_file() {
-                let len: usize = info.len().try_into()
+                let len: usize = info
+                    .len()
+                    .try_into()
                     .map_err(|_| error(&relative, 0, "ODB_FILE_TOO_LARGE"))?;
                 if len > MAX_FILE_BYTES {
                     return Err(error(&relative, 0, "ODB_FILE_TOO_LARGE"));
                 }
-                *total = total.checked_add(len)
+                *total = total
+                    .checked_add(len)
                     .ok_or_else(|| error(&relative, 0, "ODB_SIZE_OVERFLOW"))?;
                 if *total > MAX_TOTAL_BYTES || files.len() >= MAX_FILES {
                     return Err(error(&relative, 0, "ODB_IMPORT_LIMIT"));
                 }
-                let bytes = std::fs::read(&full)
-                    .map_err(|_| error(&relative, 0, "ODB_ENTRY_IO"))?;
+                let bytes =
+                    std::fs::read(&full).map_err(|_| error(&relative, 0, "ODB_ENTRY_IO"))?;
                 if bytes.len() != len || bytes.len() > MAX_FILE_BYTES {
                     return Err(error(&relative, 0, "ODB_FILE_RACE_OR_TOO_LARGE"));
                 }
@@ -583,8 +587,8 @@ pub fn import_directory(root: &std::path::Path, step: &str) -> Result<BoardModel
         }
         Ok(())
     }
-    let root_info = std::fs::symlink_metadata(root)
-        .map_err(|_| error("directory", 0, "ODB_DIRECTORY_IO"))?;
+    let root_info =
+        std::fs::symlink_metadata(root).map_err(|_| error("directory", 0, "ODB_DIRECTORY_IO"))?;
     if !root_info.is_dir() || root_info.file_type().is_symlink() {
         return Err(error("directory", 0, "ODB_UNSAFE_ROOT"));
     }
@@ -836,8 +840,10 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir()
-            .join(format!("boardsi-odb-d05608-{}-{unique}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "boardsi-odb-d05608-{}-{unique}",
+            std::process::id()
+        ));
         struct Cleanup(std::path::PathBuf);
         impl Drop for Cleanup {
             fn drop(&mut self) {
