@@ -212,24 +212,26 @@ fn decimal_ticks(value: &str, path: &str, line: usize) -> Result<i64, OdbError> 
     }
 }
 fn length_symbol(value: &str, mode: &str, path: &str, line: usize) -> Result<Rational, OdbError> {
-    let amount = value
-        .parse::<i128>()
-        .map_err(|_| error(path, line, "ODB_BAD_SYMBOL_SIZE"))?;
-    if amount <= 0 || amount > 10_000_000 {
+    // Standard symbol parameters are decimal reals (ODB++Design 8.1 U4 p.36).
+    // A tick is 1e-9 source symbol units, so even fractional-mil sizes remain exact.
+    let amount = decimal_ticks(value, path, line)?;
+    if amount <= 0 || amount > 10_000_000_000_000_000 {
         return Err(error(path, line, "ODB_SYMBOL_SIZE_RANGE"));
     }
     let (numerator, denominator) = match mode {
-        "M" => (amount, 1_000_000_i128), // symbol microns
+        "M" => (i128::from(amount), 1_000_000_000_000_000_i128),
         "I" => (
-            amount
+            i128::from(amount)
                 .checked_mul(254)
                 .ok_or_else(|| error(path, line, "ODB_SYMBOL_OVERFLOW"))?,
-            10_000_000_i128,
-        ), // mils
+            10_000_000_000_000_000_i128,
+        ),
         _ => return Err(error(path, line, "ODB_SYMBOL_UNIT")),
     };
-    Rational::new(numerator, denominator).map_err(|_| error(path, line, "ODB_SYMBOL_RATIONAL"))
+    Rational::new(numerator, denominator)
+        .map_err(|_| error(path, line, "ODB_SYMBOL_RATIONAL"))
 }
+
 #[derive(Clone)]
 enum Symbol {
     Round(Rational),
@@ -747,6 +749,43 @@ mod tests {
             assert!(board.traces[0].net.is_none());
             assert_eq!(board.traces[0].centreline[1].ticks[0], 1_500_000_000);
         }
+    }
+    #[test]
+    fn source_units_and_fractional_standard_symbols_are_exact() {
+        let path = "steps/pcb/layers/sig1/features";
+        let mut metric = source(2);
+        let source_text = String::from_utf8(metric[path].clone()).unwrap();
+        let fractional = source_text
+            .replace("$0 r100", "$0 r3.25 I")
+            .replace("$1 rect200x100 M", "$1 rect200.5x100.25 M");
+        metric.insert(path.into(), fractional.into_bytes());
+        let board = import_unpacked(&metric, "pcb").unwrap();
+        assert_eq!(board.traces[0].width_m, Rational::new(8255, 100_000_000).unwrap());
+        assert_eq!(
+            board.padstacks[0].entries[0].shape,
+            PadShape::Rectangle {
+                size_m: [
+                    Rational::new(2005, 10_000_000).unwrap(),
+                    Rational::new(10025, 100_000_000).unwrap(),
+                ]
+            }
+        );
+
+        let mut imperial = source(2);
+        for layer in ["sig1", "sig2"] {
+            let path = format!("steps/pcb/layers/{layer}/features");
+            let contents = String::from_utf8(imperial[&path].clone()).unwrap()
+                .replace("UNITS=MM", "UNITS=INCH")
+                .replace("$1 rect200x100 M", "$1 rect200x100 I");
+            imperial.insert(path, contents.into_bytes());
+        }
+        let inch_board = import_unpacked(&imperial, "pcb").unwrap();
+        // Unqualified $0 r100 inherits INCH and means 100 mil, not 100 micrometres.
+        assert_eq!(inch_board.traces[0].width_m, Rational::new(254, 100_000).unwrap());
+        assert_eq!(
+            inch_board.frames[0].metres_per_tick,
+            Rational::new(254, 10_000_000_000_000).unwrap()
+        );
     }
     #[test]
     fn source_sha_mutation_changes_identity() {
