@@ -279,10 +279,7 @@ mod tests {
         let mut mixed = valid[..valid.len() - 2 * BLOCK].to_vec();
         mixed.extend(member("second_product/matrix/matrix", b"other", b'0'));
         mixed.extend([0u8; BLOCK * 2]);
-        assert_eq!(
-            read_tar(&mixed).unwrap_err().code,
-            "ODB_TAR_MULTIPLE_ROOTS"
-        );
+        assert_eq!(read_tar(&mixed).unwrap_err().code, "ODB_TAR_MULTIPLE_ROOTS");
         assert_eq!(
             read_tar(&[0x1f, 0x8b, 8, 0]).unwrap_err().code,
             "ODB_TAR_COMPRESSION_UNSUPPORTED"
