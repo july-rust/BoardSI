@@ -54,6 +54,21 @@ fn safe_name(path: &str) -> bool {
             .all(|part| !part.is_empty() && part != "." && part != "..")
 }
 
+fn validate_product_files(files: &OdbFileMap) -> Result<(), OdbError> {
+    if !files.contains_key("matrix/matrix") {
+        return Err(bad("ODB_TAR_MISSING_MATRIX"));
+    }
+    // Both direct-root and prefix-normalized packages must reject a nested
+    // second product instead of silently importing only the first board.
+    if files
+        .keys()
+        .any(|path| path.ends_with("/matrix/matrix") || path.contains("/steps/"))
+    {
+        return Err(bad("ODB_TAR_MULTIPLE_ROOTS"));
+    }
+    Ok(())
+}
+
 /// Inspect a full TAR before publishing any source-file map. The end-of-archive
 /// marker is mandatory and ignored data cannot hide extra nonzero members.
 pub fn read_tar(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
@@ -158,14 +173,7 @@ pub fn read_tar(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
     // Archives may use one product-root directory, but never silently merge
     // unrelated roots or allow a member outside the product.
     if raw.contains_key("matrix/matrix") {
-        // Reject nested second products instead of silently importing only
-        // the first PCB's copper. Product ownership must be unambiguous.
-        if raw
-            .keys()
-            .any(|path| path.ends_with("/matrix/matrix") || path.contains("/steps/"))
-        {
-            return Err(bad("ODB_TAR_MULTIPLE_ROOTS"));
-        }
+        validate_product_files(&raw)?;
         return Ok(raw);
     }
     let first = raw.keys().next().ok_or_else(|| bad("ODB_TAR_EMPTY"))?;
@@ -186,9 +194,7 @@ pub fn read_tar(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
             return Err(bad("ODB_TAR_UNSAFE_PATH"));
         }
     }
-    if !flat.contains_key("matrix/matrix") {
-        return Err(bad("ODB_TAR_MISSING_MATRIX"));
-    }
+    validate_product_files(&flat)?;
     Ok(flat)
 }
 
@@ -280,6 +286,15 @@ mod tests {
         mixed.extend(member("second_product/matrix/matrix", b"other", b'0'));
         mixed.extend([0u8; BLOCK * 2]);
         assert_eq!(read_tar(&mixed).unwrap_err().code, "ODB_TAR_MULTIPLE_ROOTS");
+        let prefixed = archive("product/");
+        let mut nested = prefixed[..prefixed.len() - 2 * BLOCK].to_vec();
+        nested.extend(member(
+            "product/second_product/matrix/matrix",
+            b"other",
+            b'0',
+        ));
+        nested.extend([0u8; BLOCK * 2]);
+        assert_eq!(read_tar(&nested).unwrap_err().code, "ODB_TAR_MULTIPLE_ROOTS");
         assert_eq!(
             read_tar(&[0x1f, 0x8b, 8, 0]).unwrap_err().code,
             "ODB_TAR_COMPRESSION_UNSUPPORTED"
