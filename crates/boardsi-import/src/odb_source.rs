@@ -407,14 +407,19 @@ fn parse_features_content(
             let _dcode = fields[7]
                 .parse::<u32>()
                 .map_err(|_| error(&path, line_no, "ODB_BAD_DCODE"))?;
+            let first = point(&frame_id, fields[1], fields[2], &path, line_no)?;
+            let last = point(&frame_id, fields[3], fields[4], &path, line_no)?;
+            // ODB++ permits zero-length copper lines, but Canonical Trace
+            // forbids coincident consecutive points. Do not output an
+            // unvalidatable model; point-copper conversion is not accepted yet.
+            if first == last {
+                return Err(error(&path, line_no, "ODB_ZERO_LENGTH_LINE_UNSUPPORTED"));
+            }
             board.traces.push(Trace {
                 meta: meta(source, ObjectKind::Trace, &feature_id, &path, line_no),
                 layer: layer_id.clone(),
                 net: None,
-                centreline: vec![
-                    point(&frame_id, fields[1], fields[2], &path, line_no)?,
-                    point(&frame_id, fields[3], fields[4], &path, line_no)?,
-                ],
+                centreline: vec![first, last],
                 width_m,
             });
         } else if kind == "P" {
@@ -830,6 +835,11 @@ mod tests {
                 "A 1 0 0 1 0 0 0 P 0 Y",
                 "A 1 0 1 0 0 0 0 P 0 Y",
                 "ODB_FULL_CIRCLE_UNSUPPORTED",
+            ),
+            (
+                "L 0 0 1.5 0 0 P 0",
+                "L 0 0 0 0 0 P 0",
+                "ODB_ZERO_LENGTH_LINE_UNSUPPORTED",
             ),
             (
                 "L 0 0 1.5 0 0 P 0",
