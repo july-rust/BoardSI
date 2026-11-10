@@ -763,22 +763,32 @@ pub fn import_tar_with_eda(bytes: &[u8], step: &str) -> Result<BoardModel, OdbEr
     import_unpacked_with_eda(&crate::odb_tar::read_tar(bytes)?, step)
 }
 
-/// Local TAR file import; no external extractor, shell, symlink or decompression.
-pub fn import_tar_file(
-    path: &std::path::Path,
-    step: &str,
-    with_eda: bool,
-) -> Result<BoardModel, OdbError> {
+/// Load a bounded USTAR without extraction and reject symlinks and special files.
+/// All input formats use the same read_tar validation and logical file-map bytes.
+fn read_tar_file_map(path: &std::path::Path) -> Result<OdbFileMap, OdbError> {
     let info =
         std::fs::symlink_metadata(path).map_err(|_| error("product.tar", 0, "ODB_TAR_FILE_IO"))?;
     if !info.is_file() || info.file_type().is_symlink() || info.len() > 256 * 1024 * 1024 {
         return Err(error("product.tar", 0, "ODB_TAR_UNSAFE_FILE"));
     }
     let bytes = std::fs::read(path).map_err(|_| error("product.tar", 0, "ODB_TAR_FILE_IO"))?;
+    if bytes.len() as u64 != info.len() {
+        return Err(error("product.tar", 0, "ODB_TAR_CHANGED_DURING_READ"));
+    }
+    crate::odb_tar::read_tar(&bytes)
+}
+
+/// Local TAR file import; no external extractor, shell, symlink or decompression.
+pub fn import_tar_file(
+    path: &std::path::Path,
+    step: &str,
+    with_eda: bool,
+) -> Result<BoardModel, OdbError> {
+    let files = read_tar_file_map(path)?;
     if with_eda {
-        import_tar_with_eda(&bytes, step)
+        import_unpacked_with_eda(&files, step)
     } else {
-        import_tar(&bytes, step)
+        import_unpacked(&files, step)
     }
 }
 
@@ -944,6 +954,54 @@ pub fn audit_directory_drill_hits(
     step: &str,
 ) -> Result<Vec<SourceDrillHit>, OdbError> {
     audit_unpacked_drill_hits(&read_directory(root)?, step)
+}
+
+/// A single read-only source snapshot for both drill tooling and optional hits.
+/// This does not create Canonical Drill/Via or manufactured/electrical edges.
+#[derive(Debug)]
+pub struct SourceDrillAudit {
+    pub layers: Vec<SourceDrillLayer>,
+    /// None means no hit audit was requested; Some(empty) means audited, zero hits.
+    pub hits: Option<Vec<SourceDrillHit>>,
+}
+
+fn audit_source_drill_map(
+    files: &OdbFileMap,
+    step: &str,
+    with_hits: bool,
+) -> Result<SourceDrillAudit, OdbError> {
+    let layers = audit_unpacked_drill_tools(files, step)?;
+    let hits = if with_hits {
+        Some(audit_unpacked_drill_hits(files, step)?)
+    } else {
+        None
+    };
+    Ok(SourceDrillAudit { layers, hits })
+}
+
+/// Audit bounded uncompressed native USTAR bytes, independent of Copper artwork.
+pub fn audit_tar_drill_source(
+    bytes: &[u8],
+    step: &str,
+    with_hits: bool,
+) -> Result<SourceDrillAudit, OdbError> {
+    audit_source_drill_map(&crate::odb_tar::read_tar(bytes)?, step, with_hits)
+}
+
+/// Unified directory / USTAR Drill SOURCE audit. Read the source files once,
+/// then verify tool declarations and P hits against that same file-map snapshot.
+/// Neither variant licenses plated barrel, global Open/Short or SI conclusions.
+pub fn audit_path_drill_source(
+    path: &std::path::Path,
+    step: &str,
+    with_hits: bool,
+) -> Result<SourceDrillAudit, OdbError> {
+    let files = if path.is_file() {
+        read_tar_file_map(path)?
+    } else {
+        read_directory(path)?
+    };
+    audit_source_drill_map(&files, step, with_hits)
 }
 
 /// Source-limited canonical import. All conductive records in the selected step's
