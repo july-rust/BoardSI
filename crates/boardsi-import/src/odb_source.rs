@@ -944,9 +944,15 @@ mod tests {
         ] {
             let mut f = source(2);
             let path = "steps/pcb/layers/sig1/features";
+            let record = if replacement == "S N 0" {
+                base.replace("S P 0", replacement)
+            } else {
+                replacement.to_owned()
+            };
             let data = String::from_utf8(f[path].clone())
                 .unwrap()
-                .replace("F 3", "F 4") + &base.replace("S P 0", replacement);
+                .replace("F 3", "F 4")
+                + &record;
             f.insert(path.into(), data.into_bytes());
             assert_eq!(import_unpacked(&f, "pcb").unwrap_err().code, expected);
         }
