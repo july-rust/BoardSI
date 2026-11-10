@@ -743,6 +743,12 @@ mod tests {
     fn flexible_layers_and_canonical_shapes() {
         for n in [2, 4, 6, 8, 64] {
             let board = import_unpacked(&source(n), "pcb").unwrap();
+            let report = board.validate();
+            assert!(
+                !report.has_errors(),
+                "source-supported ODB should produce structurally valid Canonical model: {:?}",
+                report.issues
+            );
             assert_eq!(board.stackup.layers.len(), n);
             assert_eq!(board.traces.len(), n);
             assert_eq!(board.pads.len(), n);
