@@ -36,14 +36,12 @@ fn main() {
                 );
                 println!("layer_{index}.tool_count={}", layer.tools.len());
                 println!("layer_{index}.source_file={}", layer.source_file);
-                println!(
-                    "layer_{index}.source_sha256={}",
-                    layer
-                        .source_sha256
-                        .iter()
-                        .map(|b| format!("{b:02x}"))
-                        .collect::<String>()
-                );
+                let mut hex = String::with_capacity(64);
+                for byte in &layer.source_sha256 {
+                    use std::fmt::Write;
+                    write!(&mut hex, "{byte:02x}").expect("writing to String cannot fail");
+                }
+                println!("layer_{index}.source_sha256={hex}");
             }
             println!("finished_hole_positions=NOT_IMPORTED");
             println!("plated_barrel_physical_continuity=NOT_VERIFIED");
