@@ -16,7 +16,14 @@ fn main() {
     match parsed {
         Ok(board) => {
             let source = &board.sources[0];
-            println!("status={}", if with_eda { "SOURCE_GEOMETRY_AND_DESIGN_NET_PARTIAL" } else { "SOURCE_GEOMETRY_PARTIAL" });
+            println!(
+                "status={}",
+                if with_eda {
+                    "SOURCE_GEOMETRY_AND_DESIGN_NET_PARTIAL"
+                } else {
+                    "SOURCE_GEOMETRY_PARTIAL"
+                }
+            );
             println!("format=ODB++Design");
             println!("step={}", args[2]);
             println!("source_files={}", source.id.files.len());
@@ -31,11 +38,30 @@ fn main() {
             );
             println!("vias=0  # UNSUPPORTED");
             println!("nets={}", board.nets.len());
-            println!("net_source_status={}", if with_eda { "DESIGN_NET_OWNERSHIP_PARTIAL" } else { "NOT_IMPORTED" });
-            println!("owned_traces={}", board.traces.iter().filter(|t| t.net.is_some()).count());
-            println!("owned_arcs={}", board.arcs.iter().filter(|t| t.net.is_some()).count());
-            println!("owned_pads={}", board.pads.iter().filter(|t| t.net.is_some()).count());
-            println!("owned_areas={}", board.areas.iter().filter(|t| t.net.is_some()).count());
+            println!(
+                "net_source_status={}",
+                if with_eda {
+                    "DESIGN_NET_OWNERSHIP_PARTIAL"
+                } else {
+                    "NOT_IMPORTED"
+                }
+            );
+            println!(
+                "owned_traces={}",
+                board.traces.iter().filter(|t| t.net.is_some()).count()
+            );
+            println!(
+                "owned_arcs={}",
+                board.arcs.iter().filter(|t| t.net.is_some()).count()
+            );
+            println!(
+                "owned_pads={}",
+                board.pads.iter().filter(|t| t.net.is_some()).count()
+            );
+            println!(
+                "owned_areas={}",
+                board.areas.iter().filter(|t| t.net.is_some()).count()
+            );
             println!("manufactured_connectivity=NOT_VERIFIED");
             println!("global_open_short=NOT_VERIFIED");
             println!("si_result=NOT_VERIFIED");
