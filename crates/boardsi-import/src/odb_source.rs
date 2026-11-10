@@ -825,14 +825,19 @@ fn import_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardM
             "d056-08-odb-source-subset-v1"
         }
         .into(),
-        conditions: vec![
-            ("selected_step".into(), step.into()),
-            (
-                "supported_geometry".into(),
-                "positive-LPA-simple-S-with-hole".into(),
-            ),
-            ("with_eda_fid_ownership".into(), with_eda.to_string()),
-        ],
+        conditions: if with_eda {
+            vec![
+                ("selected_step".into(), step.into()),
+                ("supported_geometry".into(), "positive-LPA-round-line-and-round-rect-pad".into()),
+                ("with_eda_fid_ownership".into(), "true".into()),
+            ]
+        } else {
+            // Bit-for-bit preserve the geometry-only SourceIdentity contract.
+            vec![
+                ("selected_step".into(), step.into()),
+                ("supported_geometry".into(), "positive-LPA-round-line-and-round-rect-pad".into()),
+            ]
+        },
     });
     let mut board = BoardModel::empty(BoardKind::Pcb);
     board.sources.push(ImportSource {
