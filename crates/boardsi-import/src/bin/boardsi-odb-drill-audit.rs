@@ -65,12 +65,7 @@ fn main() {
                 for (index, hit) in hits.iter().take(20).enumerate() {
                     println!(
                         "hit_{index}=layer:{};dcode:{};xy:{},{};units:{};source_line:{}",
-                        hit.layer_name,
-                        hit.tool_number,
-                        hit.x,
-                        hit.y,
-                        hit.units,
-                        hit.source_line
+                        hit.layer_name, hit.tool_number, hit.x, hit.y, hit.units, hit.source_line
                     );
                 }
                 println!("hit_preview_truncated={}", hits.len() > 20);
