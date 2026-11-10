@@ -823,7 +823,8 @@ fn import_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardM
             "d056-08-odb-source-subset-v2-eda-fid"
         } else {
             "d056-08-odb-source-subset-v1"
-        }.into(),
+        }
+        .into(),
         conditions: vec![
             ("selected_step".into(), step.into()),
             (
@@ -888,15 +889,21 @@ fn import_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardM
                 continue; // ODB explicitly designates this as unassigned.
             }
             let id = ObjectId::new(
-                &source, ObjectKind::Net, &format!("eda/data:{}:{}", entry.source_line, entry.name), "",
+                &source,
+                ObjectKind::Net,
+                &format!("eda/data:{}:{}", entry.source_line, entry.name),
+                "",
             );
             board.nets.push(Net {
                 meta: meta(
-                    &source, ObjectKind::Net,
+                    &source,
+                    ObjectKind::Net,
                     &format!("eda/data:{}:{}", entry.source_line, entry.name),
-                    &path, entry.source_line,
+                    &path,
+                    entry.source_line,
                 ),
-                name: entry.name.clone(), role: NetRole::Unknown,
+                name: entry.name.clone(),
+                role: NetRole::Unknown,
             });
             net_ids.insert(entry.name, id);
         }
@@ -1089,7 +1096,10 @@ mod tests {
         let path = "steps/pcb/eda/data";
         let valid = "HDR test\nLYR sig1 sig2\nNET DATA\nSNT TRC\nFID C 0 0\n";
         f.insert(path.into(), valid.as_bytes().to_vec());
-        assert!(!import_unpacked_with_eda(&f, "pcb").unwrap().validate().has_errors());
+        assert!(!import_unpacked_with_eda(&f, "pcb")
+            .unwrap()
+            .validate()
+            .has_errors());
         for (from, to, expected) in [
             ("FID C 0 0", "FID C 2 0", "ODB_EDA_BAD_LAYER_INDEX"),
             ("FID C 0 0", "FID C 0 99", "ODB_EDA_UNRESOLVED_FID"),
@@ -1100,7 +1110,10 @@ mod tests {
         ] {
             let mut altered = f.clone();
             altered.insert(path.into(), valid.replace(from, to).into_bytes());
-            assert_eq!(import_unpacked_with_eda(&altered, "pcb").unwrap_err().code, expected);
+            assert_eq!(
+                import_unpacked_with_eda(&altered, "pcb").unwrap_err().code,
+                expected
+            );
         }
     }
 
@@ -1108,18 +1121,25 @@ mod tests {
     fn eda_source_hash_changes_net_object_identity_and_surface_fid_index() {
         let mut f = source(2);
         let path = "steps/pcb/layers/sig1/features";
-        let copper = String::from_utf8(f[path].clone()).unwrap().replace("F 3", "F 4")
+        let copper = String::from_utf8(f[path].clone())
+            .unwrap()
+            .replace("F 3", "F 4")
             + "S P 0\nOB 0 0 I\nOS 3 0\nOS 3 3\nOS 0 3\nOS 0 0\nOE\nSE\n";
         f.insert(path.into(), copper.into_bytes());
-        f.insert("steps/pcb/eda/data".into(),
-            b"HDR x\nLYR sig1 sig2\nNET POWER\nSNT PLN S E 0\nFID C 0 3\n".to_vec());
-        let a = import_unpacked_with_eda(&f,"pcb").unwrap();
+        f.insert(
+            "steps/pcb/eda/data".into(),
+            b"HDR x\nLYR sig1 sig2\nNET POWER\nSNT PLN S E 0\nFID C 0 3\n".to_vec(),
+        );
+        let a = import_unpacked_with_eda(&f, "pcb").unwrap();
         assert_eq!(a.areas.len(), 1);
         assert_eq!(a.areas[0].net, Some(a.nets[0].meta.id.clone()));
         assert!(!a.validate().has_errors());
         let mut changed = f.clone();
-        changed.get_mut("steps/pcb/eda/data").unwrap().extend_from_slice(b"# source update\n");
-        let b = import_unpacked_with_eda(&changed,"pcb").unwrap();
+        changed
+            .get_mut("steps/pcb/eda/data")
+            .unwrap()
+            .extend_from_slice(b"# source update\n");
+        let b = import_unpacked_with_eda(&changed, "pcb").unwrap();
         assert_ne!(a.nets[0].meta.id, b.nets[0].meta.id);
         assert_ne!(a.areas[0].meta.id, b.areas[0].meta.id);
         assert!(b.connectivity.edges.is_empty());
