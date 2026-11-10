@@ -38,9 +38,15 @@ cargo run --locked -p boardsi-import --bin boardsi-odb-import -- \
   /path/to/your-local-unpacked-odb-product pcb
 cargo run --locked -p boardsi-import --bin boardsi-odb-import -- \
   /path/to/your-local-unpacked-odb-product pcb --eda-nets
+cargo run --locked -p boardsi-import --bin boardsi-odb-drill-audit -- \
+  /path/to/your-local-unpacked-odb-product pcb
+cargo run --locked -p boardsi-import --bin boardsi-odb-drill-audit -- \
+  /path/to/your-local-unpacked-odb-product pcb --hits
 ```
 
 By default the diagnostic outputs `status=SOURCE_GEOMETRY_PARTIAL`, Layer/Trace/Arc/Pad/CopperArea/Cutout counts, and explicit `NOT_VERIFIED` for Via, manufactured connectivity and SI. With explicit `--eda-nets`, it additionally requires `steps/<step>/eda/data` with valid `HDR`, `UNITS`, `LYR`, `NET`, `SNT`, `FID C`, and prints **design-Net ownership** counts with `status=SOURCE_GEOMETRY_AND_DESIGN_NET_PARTIAL`. Unsupported EDA syntax fails closed; `SNT VIA` identifies a design subnet **not plated Via connectivity**. Multiple `$NONE$` groups are unassigned. Main Qt Import remains unconnected. Source-limited import may reject an otherwise **valid** ODB++ exporter file if it contains unsupported net/geometry features; that is deliberate Fail-Closed behavior, **not** evidence that the exported PCB is invalid. Tests use synthetic grammar fixtures and cross-platform CI; commercial-vendor export qualification and actual Qt main integration are outstanding.
+
+The independent `boardsi-odb-drill-audit` entrypoint (merged [#568](https://github.com/july-rust/BoardSI/pull/568)) strictly validates source `matrix` drill layer start/end, `layer/tools` tool numbers, unit, type and process intent. Without `--hits` it reports **declared tooling only**. With explicit `--hits` ([merged code PR #569](https://github.com/july-rust/BoardSI/pull/569), 30/30 PR Checks, signed Squash `f07442a1`, independently audited code-main Push 8/8 SUCCESS) it additionally verifies drill-layer P hit positions with exact nonzero tool dcode cross-references and SHA/file/line evidence; the CLI prints the count and first 20 records. Neither mode produces Canonical Drill/Via, an actual plated barrel or a verified Open/Short. The source-only drill audit is independent of Copper artwork parsing; real vendor exports, canonical Qt IPC and physical CAM verification are still outstanding.
 
 Documentation: [D_056_08 Source Adapter & Surface contract](../../docs/architecture/d056-08-odb-source-adapter.md). Code: [PR #562](https://github.com/july-rust/BoardSI/pull/562) and [PR #564](https://github.com/july-rust/BoardSI/pull/564), both verified protected Squash with PR-head 30/30 checks. An additional opt-in EDA NET/FID import is [PR #566](https://github.com/july-rust/BoardSI/pull/566) (30/30 checks, verified squash `ffdad981`, independent main Push 8/8 SUCCESS), but this is only partial design ownership and cannot make an Open/Short or SI claim. **No confidential PCB files should be committed to public CI.**
 
