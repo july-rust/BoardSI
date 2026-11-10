@@ -6,7 +6,9 @@ fn main() {
     let options = if args.len() >= 3 { &args[3..] } else { &[] };
     if args.len() < 3
         || options.len() > 2
-        || options.iter().any(|o| !matches!(o.as_str(), "--eda-nets" | "--source-holes"))
+        || options
+            .iter()
+            .any(|o| !matches!(o.as_str(), "--eda-nets" | "--source-holes"))
         || options.iter().filter(|s| *s == "--eda-nets").count() > 1
         || options.iter().filter(|s| *s == "--source-holes").count() > 1
     {
@@ -28,8 +30,7 @@ fn main() {
         boardsi_import::odb_source::import_directory_with_eda(path, &args[2])
             .map(|board| (board, None))
     } else {
-        boardsi_import::odb_source::import_directory(path, &args[2])
-            .map(|board| (board, None))
+        boardsi_import::odb_source::import_directory(path, &args[2]).map(|board| (board, None))
     };
     match parsed {
         Ok((board, source_holes)) => {
