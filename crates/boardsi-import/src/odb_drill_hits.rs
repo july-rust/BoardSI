@@ -124,6 +124,7 @@ pub(super) fn parse_drill_hits(
             }
             let diameter = parts[1]
                 .strip_prefix('r')
+                .filter(|rest| rest.as_bytes().first().is_some_and(|b| b.is_ascii_digit() || *b == b'.'))
                 .ok_or_else(|| err(no, "ODB_DRILL_HIT_NONCIRCULAR_SYMBOL"))?;
             if !decimal(diameter, false) || diameter.bytes().all(|x| x == b'0' || x == b'.') {
                 return Err(err(no, "ODB_DRILL_HIT_BAD_DIAMETER"));
