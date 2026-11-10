@@ -1,0 +1,70 @@
+//! D_056_08 strict SOURCE-only drill tool and MATRIX span audit.
+//! No hit positions, physical barrels, Canonical via geometry, or SI verdict.
+use std::{env, path::Path, process};
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 3 {
+        eprintln!("Usage: boardsi-odb-drill-audit <unpacked-odb-product-root> <step>");
+        process::exit(2);
+    }
+    match boardsi_import::odb_source::audit_directory_drill_tools(Path::new(&args[1]), &args[2]) {
+        Ok(layers) => {
+            println!("status=SOURCE_DRILL_TOOL_INTENT_ONLY");
+            println!("drill_layers={}", layers.len());
+            println!(
+                "tools={}",
+                layers.iter().map(|l| l.tools.len()).sum::<usize>()
+            );
+            for (index, layer) in layers.iter().enumerate() {
+                println!("layer_{index}.name={}", layer.name);
+                println!("layer_{index}.type={}", layer.subtype);
+                println!("layer_{index}.units={}", layer.unit);
+                println!(
+                    "layer_{index}.span_start={}",
+                    layer
+                        .explicit_start_layer
+                        .as_deref()
+                        .unwrap_or("NOT_VERIFIED")
+                );
+                println!(
+                    "layer_{index}.span_end={}",
+                    layer
+                        .explicit_end_layer
+                        .as_deref()
+                        .unwrap_or("NOT_VERIFIED")
+                );
+                println!("layer_{index}.tool_count={}", layer.tools.len());
+                println!(
+                    "layer_{index}.matrix_source_line={}",
+                    layer.matrix_source_line
+                );
+                let mut matrix_hex = String::with_capacity(64);
+                for byte in &layer.matrix_sha256 {
+                    use std::fmt::Write;
+                    write!(&mut matrix_hex, "{byte:02x}").expect("writing to String cannot fail");
+                }
+                println!("layer_{index}.matrix_sha256={matrix_hex}");
+                println!("layer_{index}.source_file={}", layer.source_file);
+                let mut hex = String::with_capacity(64);
+                for byte in &layer.source_sha256 {
+                    use std::fmt::Write;
+                    write!(&mut hex, "{byte:02x}").expect("writing to String cannot fail");
+                }
+                println!("layer_{index}.source_sha256={hex}");
+            }
+            println!("finished_hole_positions=NOT_IMPORTED");
+            println!("plated_barrel_physical_continuity=NOT_VERIFIED");
+            println!("backdrill_remaining_copper=NOT_VERIFIED");
+            println!("global_open_short=NOT_VERIFIED");
+            println!("si_result=NOT_VERIFIED");
+        }
+        Err(err) => {
+            eprintln!(
+                "status=UNSUPPORTED code={} relative_source={} line={}",
+                err.code, err.path, err.line
+            );
+            process::exit(1);
+        }
+    }
+}
