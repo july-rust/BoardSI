@@ -59,8 +59,7 @@ fn validate_ring(ring: &[Tick]) -> Result<i128, &'static str> {
         if a == b || orient(ring[(i + edges - 1) % edges], a, b) == 0 {
             return Err("ODB_SURFACE_DEGENERATE_EDGE");
         }
-        area2 += i128::from(a[0]) * i128::from(b[1])
-            - i128::from(b[0]) * i128::from(a[1]);
+        area2 += i128::from(a[0]) * i128::from(b[1]) - i128::from(b[0]) * i128::from(a[1]);
         for j in (i + 1)..edges {
             if j == i + 1 || (i == 0 && j == edges - 1) {
                 continue;
@@ -177,12 +176,12 @@ mod tests {
         let mut s = SurfaceBuilder::default();
         let m = 1_000_000_000;
         s.begin([0, 0], false).unwrap();
-        for p in [[4*m, 0], [4*m, 4*m], [0, 4*m], [0, 0]] {
+        for p in [[4 * m, 0], [4 * m, 4 * m], [0, 4 * m], [0, 0]] {
             s.line(p).unwrap();
         }
         s.close().unwrap();
         s.begin([m, m], true).unwrap();
-        for p in [[m, 2*m], [2*m, 2*m], [2*m, m], [m, m]] {
+        for p in [[m, 2 * m], [2 * m, 2 * m], [2 * m, m], [m, m]] {
             s.line(p).unwrap();
         }
         s.close().unwrap();
@@ -193,19 +192,28 @@ mod tests {
     #[test]
     fn rejects_bowtie_hole_outside_multi_island_and_missing_oe() {
         let mut bow = SurfaceBuilder::default();
-        bow.begin([0,0], false).unwrap();
-        for p in [[3,3], [0,3], [3,0], [0,0]] { bow.line(p).unwrap(); }
+        bow.begin([0, 0], false).unwrap();
+        for p in [[3, 3], [0, 3], [3, 0], [0, 0]] {
+            bow.line(p).unwrap();
+        }
         assert_eq!(bow.close(), Err("ODB_SURFACE_SELF_INTERSECTION"));
         let mut incomplete = SurfaceBuilder::default();
-        incomplete.begin([0,0], false).unwrap();
+        incomplete.begin([0, 0], false).unwrap();
         assert_eq!(incomplete.finish(), Err("ODB_SURFACE_MISSING_OE"));
         let mut multi = SurfaceBuilder::default();
-        multi.begin([0,0], false).unwrap();
-        for p in [[3,0], [3,3], [0,3], [0,0]] { multi.line(p).unwrap(); }
+        multi.begin([0, 0], false).unwrap();
+        for p in [[3, 0], [3, 3], [0, 3], [0, 0]] {
+            multi.line(p).unwrap();
+        }
         multi.close().unwrap();
-        assert_eq!(multi.begin([10,10], false), Err("ODB_SURFACE_MULTI_ISLAND_UNSUPPORTED"));
-        multi.begin([10,10], true).unwrap();
-        for p in [[11,10], [11,11], [10,11], [10,10]] { multi.line(p).unwrap(); }
+        assert_eq!(
+            multi.begin([10, 10], false),
+            Err("ODB_SURFACE_MULTI_ISLAND_UNSUPPORTED")
+        );
+        multi.begin([10, 10], true).unwrap();
+        for p in [[11, 10], [11, 11], [10, 11], [10, 10]] {
+            multi.line(p).unwrap();
+        }
         multi.close().unwrap();
         assert_eq!(multi.finish(), Err("ODB_SURFACE_HOLE_OUTSIDE_OR_TOUCHING"));
     }
