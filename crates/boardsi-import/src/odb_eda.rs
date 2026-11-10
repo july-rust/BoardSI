@@ -91,7 +91,11 @@ pub(super) fn parse(
                 }
                 let name = line
                     .strip_prefix("NET ")
-                    .and_then(|s| s.trim_start().split(|c: char| c == ';' || c.is_whitespace()).next())
+                    .and_then(|s| {
+                        s.trim_start()
+                            .split(|c: char| c == ';' || c.is_whitespace())
+                            .next()
+                    })
                     .ok_or_else(|| err(no, "ODB_EDA_BAD_NET"))?;
                 if name.is_empty()
                     || name.len() > 256
@@ -118,13 +122,22 @@ pub(super) fn parse(
                     ["SNT", "VIA"] => Some("VIA"),
                     ["SNT", "PLN", fill, cutout, brush]
                         if matches!(*fill, "S" | "O")
-                        && matches!(*cutout, "C" | "R" | "O" | "E")
-                        && brush.parse::<f64>().ok().map(|x| x.is_finite() && x >= 0.0).unwrap_or(false) => Some("PLN"),
+                            && matches!(*cutout, "C" | "R" | "O" | "E")
+                            && brush
+                                .parse::<f64>()
+                                .ok()
+                                .map(|x| x.is_finite() && x >= 0.0)
+                                .unwrap_or(false) =>
+                    {
+                        Some("PLN")
+                    }
                     _ => return Err(err(no, "ODB_EDA_UNSUPPORTED_SUBNET")),
                 };
             }
             "FID" => {
-                let name = net_name.as_ref().ok_or_else(|| err(no, "ODB_EDA_FID_WITHOUT_NET"))?;
+                let name = net_name
+                    .as_ref()
+                    .ok_or_else(|| err(no, "ODB_EDA_FID_WITHOUT_NET"))?;
                 let sn = subnet.ok_or_else(|| err(no, "ODB_EDA_FID_WITHOUT_SUBNET"))?;
                 if parts.len() != 4 || parts[1] != "C" {
                     return Err(err(no, "ODB_EDA_UNSUPPORTED_FID"));
@@ -140,7 +153,8 @@ pub(super) fn parse(
                     .and_then(|layers| layers.get(layer_num))
                     .ok_or_else(|| err(no, "ODB_EDA_BAD_LAYER_INDEX"))?
                     .clone();
-                let loc = features.get(&(layer.clone(), feature_num))
+                let loc = features
+                    .get(&(layer.clone(), feature_num))
                     .ok_or_else(|| err(no, "ODB_EDA_UNRESOLVED_FID"))?;
                 // VIA is a design subnet *not* proof that a drill was plated.
                 // In this geometry-only subset a VIA FID can only attach to
@@ -232,7 +246,8 @@ mod tests {
         let d = parse(
             "HDR x\nLYR top\nNET $NONE$\nSNT TRC\nFID C 0 0\n",
             &features(),
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(d.nets[0].name, "$NONE$");
         assert!(d.assignments.is_empty());
     }
