@@ -60,10 +60,16 @@ fn validate_product_files(files: &OdbFileMap) -> Result<(), OdbError> {
     }
     // Both direct-root and prefix-normalized packages must reject a nested
     // second product instead of silently importing only the first board.
-    if files
-        .keys()
-        .any(|path| path.ends_with("/matrix/matrix") || path.contains("/steps/"))
-    {
+    // A genuine nested ODB product has another `matrix/matrix` relative
+    // to a non-root prefix. A valid step may itself be named "steps", so a
+    // substring check for "/steps/" wrongly rejects legitimate artwork.
+    // The nested matrix signature is anchored to complete path components.
+    if files.keys().any(|path| {
+        let components: Vec<_> = path.split('/').collect();
+        components.windows(2).enumerate().any(|(index, pair)| {
+            index > 0 && pair == ["matrix", "matrix"]
+        })
+    }) {
         return Err(bad("ODB_TAR_MULTIPLE_ROOTS"));
     }
     Ok(())
@@ -251,6 +257,34 @@ mod tests {
             assert_eq!(board.stackup.layers.len(), 2);
             assert_eq!(board.traces.len(), 2);
             assert!(!board.validate().has_errors());
+        }
+    }
+    #[test]
+    fn accepts_step_named_steps_but_rejects_nested_product_matrix() {
+        // Legal artwork step name "steps" must not look like a nested root.
+        let matrix = b"STEP {\nCOL=1\nNAME=steps\n}\nLAYER {\nROW=1\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=top\nPOLARITY=POSITIVE\n}\nLAYER {\nROW=2\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=bottom\nPOLARITY=POSITIVE\n}\n";
+        let feature = b"UNITS=MM\nF 1\n$0 r100\nL 0 0 1 0 0 P 0\n";
+        for root in ["", "product/"] {
+            let mut tar = member(&format!("{root}matrix/matrix"), matrix, b'0');
+            for layer in ["top", "bottom"] {
+                tar.extend(member(
+                    &format!("{root}steps/steps/layers/{layer}/features"),
+                    feature,
+                    b'0',
+                ));
+            }
+            tar.extend([0u8; BLOCK * 2]);
+            let decoded = read_tar(&tar).unwrap();
+            let board = crate::odb_source::import_unpacked(&decoded, "steps").unwrap();
+            assert_eq!(board.traces.len(), 2);
+            let mut contaminated = tar[..tar.len() - BLOCK * 2].to_vec();
+            contaminated.extend(member(
+                &format!("{root}other/matrix/matrix"),
+                b"foreign product",
+                b'0',
+            ));
+            contaminated.extend([0u8; BLOCK * 2]);
+            assert_eq!(read_tar(&contaminated).unwrap_err().code, "ODB_TAR_MULTIPLE_ROOTS");
         }
     }
     #[test]
