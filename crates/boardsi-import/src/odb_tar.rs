@@ -294,7 +294,10 @@ mod tests {
             b'0',
         ));
         nested.extend([0u8; BLOCK * 2]);
-        assert_eq!(read_tar(&nested).unwrap_err().code, "ODB_TAR_MULTIPLE_ROOTS");
+        assert_eq!(
+            read_tar(&nested).unwrap_err().code,
+            "ODB_TAR_MULTIPLE_ROOTS"
+        );
         assert_eq!(
             read_tar(&[0x1f, 0x8b, 8, 0]).unwrap_err().code,
             "ODB_TAR_COMPRESSION_UNSUPPORTED"
