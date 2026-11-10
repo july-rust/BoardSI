@@ -1116,7 +1116,7 @@ mod tests {
             .history
             .iter()
             .any(|v| v.operation == "odb-eda-fid-design-net-ownership"
-                && v.note.contains("eda/data:line:5")
+                && v.note.contains("eda/data:line:6")
                 && v.note.contains("design ownership only")));
         assert_eq!(board.pads[0].net, Some(board.nets[1].meta.id.clone()));
         assert_eq!(board.arcs[0].net, Some(board.nets[0].meta.id.clone()));
