@@ -10,7 +10,11 @@ const MAX_TOTAL: usize = 128 * 1024 * 1024;
 const MAX_ENTRIES: usize = 8192;
 
 fn bad(code: &'static str) -> OdbError {
-    OdbError { path: "product.tar".into(), line: 0, code }
+    OdbError {
+        path: "product.tar".into(),
+        line: 0,
+        code,
+    }
 }
 
 fn field(bytes: &[u8]) -> Result<String, OdbError> {
@@ -45,7 +49,9 @@ fn safe_name(path: &str) -> bool {
         && !path.contains('\\')
         && !path.contains(':')
         && !path.contains('\0')
-        && path.split('/').all(|part| !part.is_empty() && part != "." && part != "..")
+        && path
+            .split('/')
+            .all(|part| !part.is_empty() && part != "." && part != "..")
 }
 
 /// Inspect a full TAR before publishing any source-file map. The end-of-archive
@@ -65,8 +71,7 @@ pub fn read_tar(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
     while offset < bytes.len() {
         let h = &bytes[offset..offset + BLOCK];
         if h.iter().all(|b| *b == 0) {
-            if bytes.len() < offset + 2 * BLOCK
-                || bytes[offset..].iter().any(|&b| b != 0) {
+            if bytes.len() < offset + 2 * BLOCK || bytes[offset..].iter().any(|&b| b != 0) {
                 return Err(bad("ODB_TAR_MISSING_END"));
             }
             terminated = true;
@@ -80,44 +85,67 @@ pub fn read_tar(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
             return Err(bad("ODB_TAR_UNSUPPORTED_HEADER"));
         }
         let checksum = octal(&h[148..156])?;
-        let sum: u64 = h.iter().enumerate().map(|(i, b)|
-            if (148..156).contains(&i) { 32u64 } else { u64::from(*b) }
-        ).sum();
+        let sum: u64 = h
+            .iter()
+            .enumerate()
+            .map(|(i, b)| {
+                if (148..156).contains(&i) {
+                    32u64
+                } else {
+                    u64::from(*b)
+                }
+            })
+            .sum();
         if sum != checksum {
             return Err(bad("ODB_TAR_CHECKSUM"));
         }
         let filename = field(&h[..100])?;
         let prefix = field(&h[345..500])?;
-        let name = if prefix.is_empty() { filename } else { format!("{prefix}/{filename}") };
+        let name = if prefix.is_empty() {
+            filename
+        } else {
+            format!("{prefix}/{filename}")
+        };
         let directory = h[156] == b'5';
         let regular = h[156] == 0 || h[156] == b'0';
         if !regular && !directory {
             return Err(bad("ODB_TAR_UNSUPPORTED_MEMBER"));
         }
-        let name = if directory { name.trim_end_matches('/') } else { &name }.to_owned();
+        let name = if directory {
+            name.trim_end_matches('/')
+        } else {
+            &name
+        }
+        .to_owned();
         if !safe_name(&name) {
             return Err(bad("ODB_TAR_UNSAFE_PATH"));
         }
-        let n = usize::try_from(octal(&h[124..136])?)
-            .map_err(|_| bad("ODB_TAR_FILE_LIMIT"))?;
+        let n = usize::try_from(octal(&h[124..136])?).map_err(|_| bad("ODB_TAR_FILE_LIMIT"))?;
         if n > MAX_FILE || (directory && n != 0) {
             return Err(bad("ODB_TAR_FILE_LIMIT"));
         }
-        let padded = n.checked_add(BLOCK - 1)
+        let padded = n
+            .checked_add(BLOCK - 1)
             .and_then(|v| v.checked_div(BLOCK))
             .and_then(|v| v.checked_mul(BLOCK))
             .ok_or_else(|| bad("ODB_TAR_SIZE"))?;
-        let start = offset.checked_add(BLOCK).ok_or_else(|| bad("ODB_TAR_SIZE"))?;
-        let end = start.checked_add(padded).ok_or_else(|| bad("ODB_TAR_SIZE"))?;
+        let start = offset
+            .checked_add(BLOCK)
+            .ok_or_else(|| bad("ODB_TAR_SIZE"))?;
+        let end = start
+            .checked_add(padded)
+            .ok_or_else(|| bad("ODB_TAR_SIZE"))?;
         if end > bytes.len() {
             return Err(bad("ODB_TAR_TRUNCATED"));
         }
         if regular {
-            cumulative = cumulative.checked_add(n).ok_or_else(|| bad("ODB_TAR_TOTAL_LIMIT"))?;
+            cumulative = cumulative
+                .checked_add(n)
+                .ok_or_else(|| bad("ODB_TAR_TOTAL_LIMIT"))?;
             if cumulative > MAX_TOTAL || raw.len() >= MAX_ENTRIES {
                 return Err(bad("ODB_TAR_TOTAL_LIMIT"));
             }
-            if raw.insert(name, bytes[start..start+n].to_vec()).is_some() {
+            if raw.insert(name, bytes[start..start + n].to_vec()).is_some() {
                 return Err(bad("ODB_TAR_DUPLICATE_FILE"));
             }
         }
@@ -133,15 +161,19 @@ pub fn read_tar(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
         return Ok(raw);
     }
     let first = raw.keys().next().ok_or_else(|| bad("ODB_TAR_EMPTY"))?;
-    let root = first.split('/').next().ok_or_else(|| bad("ODB_TAR_BAD_ROOT"))?;
+    let root = first
+        .split('/')
+        .next()
+        .ok_or_else(|| bad("ODB_TAR_BAD_ROOT"))?;
     let prefix = format!("{root}/");
-    if root == "matrix" || root == "steps" ||
-       !raw.keys().all(|path| path.starts_with(&prefix)) {
+    if root == "matrix" || root == "steps" || !raw.keys().all(|path| path.starts_with(&prefix)) {
         return Err(bad("ODB_TAR_MULTIPLE_ROOTS"));
     }
     let mut flat = OdbFileMap::new();
     for (path, data) in raw {
-        let relative = path.strip_prefix(&prefix).ok_or_else(|| bad("ODB_TAR_MULTIPLE_ROOTS"))?;
+        let relative = path
+            .strip_prefix(&prefix)
+            .ok_or_else(|| bad("ODB_TAR_MULTIPLE_ROOTS"))?;
         if !safe_name(relative) || flat.insert(relative.to_owned(), data).is_some() {
             return Err(bad("ODB_TAR_UNSAFE_PATH"));
         }
@@ -169,7 +201,9 @@ mod tests {
         h[156] = member_type;
         h[257..263].copy_from_slice(b"ustar\0");
         h[263..265].copy_from_slice(b"00");
-        for b in &mut h[148..156] { *b = b' '; }
+        for b in &mut h[148..156] {
+            *b = b' ';
+        }
         let sum: u64 = h.iter().map(|&b| u64::from(b)).sum();
         let check = format!("{:06o}\0 ", sum);
         h[148..156].copy_from_slice(check.as_bytes());
@@ -184,7 +218,11 @@ mod tests {
         let feature = b"UNITS=MM\nF 1\n$0 r100\nL 0 0 1 0 0 P 0\n";
         let mut out = member(&format!("{root}matrix/matrix"), matrix, b'0');
         for layer in ["top", "bottom"] {
-            out.extend(member(&format!("{root}steps/pcb/layers/{layer}/features"), feature, b'0'));
+            out.extend(member(
+                &format!("{root}steps/pcb/layers/{layer}/features"),
+                feature,
+                b'0',
+            ));
         }
         out.extend([0u8; BLOCK * 2]);
         out
@@ -207,18 +245,32 @@ mod tests {
         let mut changed = valid.clone();
         changed[0] = b'X';
         assert_eq!(read_tar(&changed).unwrap_err().code, "ODB_TAR_CHECKSUM");
-        assert_eq!(read_tar(&valid[..valid.len() - BLOCK]).unwrap_err().code, "ODB_TAR_MISSING_END");
+        assert_eq!(
+            read_tar(&valid[..valid.len() - BLOCK]).unwrap_err().code,
+            "ODB_TAR_MISSING_END"
+        );
         let mut link = member("matrix/matrix", b"abc", b'2');
         link.extend([0u8; BLOCK * 2]);
-        assert_eq!(read_tar(&link).unwrap_err().code, "ODB_TAR_UNSUPPORTED_MEMBER");
+        assert_eq!(
+            read_tar(&link).unwrap_err().code,
+            "ODB_TAR_UNSUPPORTED_MEMBER"
+        );
         let mut traversal = member("../matrix/matrix", b"abc", b'0');
         traversal.extend([0u8; BLOCK * 2]);
-        assert_eq!(read_tar(&traversal).unwrap_err().code, "ODB_TAR_UNSAFE_PATH");
+        assert_eq!(
+            read_tar(&traversal).unwrap_err().code,
+            "ODB_TAR_UNSAFE_PATH"
+        );
         let mut duplicate = member("matrix/matrix", b"one", b'0');
         duplicate.extend(member("matrix/matrix", b"two", b'0'));
         duplicate.extend([0u8; BLOCK * 2]);
-        assert_eq!(read_tar(&duplicate).unwrap_err().code, "ODB_TAR_DUPLICATE_FILE");
-        assert_eq!(read_tar(&[0x1f, 0x8b, 8, 0]).unwrap_err().code,
-            "ODB_TAR_COMPRESSION_UNSUPPORTED");
+        assert_eq!(
+            read_tar(&duplicate).unwrap_err().code,
+            "ODB_TAR_DUPLICATE_FILE"
+        );
+        assert_eq!(
+            read_tar(&[0x1f, 0x8b, 8, 0]).unwrap_err().code,
+            "ODB_TAR_COMPRESSION_UNSUPPORTED"
+        );
     }
 }
