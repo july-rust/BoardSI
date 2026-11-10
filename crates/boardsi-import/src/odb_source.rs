@@ -753,6 +753,31 @@ pub fn import_directory_with_eda(
     import_unpacked_with_eda(&read_directory(root)?, step)
 }
 
+/// Import a source-only uncompressed USTAR ODB++Design product.
+pub fn import_tar(bytes: &[u8], step: &str) -> Result<BoardModel, OdbError> {
+    import_unpacked(&crate::odb_tar::read_tar(bytes)?, step)
+}
+
+/// Opt-in EDA design ownership from the same strictly bounded USTAR input.
+pub fn import_tar_with_eda(bytes: &[u8], step: &str) -> Result<BoardModel, OdbError> {
+    import_unpacked_with_eda(&crate::odb_tar::read_tar(bytes)?, step)
+}
+
+/// Local TAR file import; no external extractor, shell, symlink or decompression.
+pub fn import_tar_file(path: &std::path::Path, step: &str, with_eda: bool)
+    -> Result<BoardModel, OdbError>
+{
+    let info = std::fs::symlink_metadata(path)
+        .map_err(|_| error("product.tar", 0, "ODB_TAR_FILE_IO"))?;
+    if !info.is_file() || info.file_type().is_symlink() || info.len() > 256 * 1024 * 1024 {
+        return Err(error("product.tar", 0, "ODB_TAR_UNSAFE_FILE"));
+    }
+    let bytes = std::fs::read(path)
+        .map_err(|_| error("product.tar", 0, "ODB_TAR_FILE_IO"))?;
+    if with_eda { import_tar_with_eda(&bytes, step) }
+    else { import_tar(&bytes, step) }
+}
+
 fn verified_source_files(files: &OdbFileMap) -> Result<Vec<SourceFile>, OdbError> {
     if files.len() > MAX_FILES {
         return Err(error("", 0, "ODB_TOO_MANY_FILES"));
