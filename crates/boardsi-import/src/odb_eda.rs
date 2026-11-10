@@ -117,7 +117,10 @@ pub(super) fn parse(
                 {
                     return Err(err(no, "ODB_EDA_BAD_NET"));
                 }
-                if !names.insert(name.to_owned()) {
+                // ODB permits multiple $NONE$ records (distinct groups of
+                // unassigned features). Named nets remain unique; duplicate
+                // FID assignments are rejected independently for every subnet.
+                if name != "$NONE$" && !names.insert(name.to_owned()) {
                     return Err(err(no, "ODB_EDA_AMBIGUOUS_NET_NAME"));
                 }
                 nets.push(EdaNet {
@@ -256,6 +259,22 @@ mod tests {
             assert_eq!(parse(&input, &features()).unwrap_err().code, code);
         }
     }
+    #[test]
+    fn repeated_none_net_groups_are_valid_but_have_no_design_ownership() {
+        let d = parse(
+            "HDR x\nUNITS=MM\nLYR top bottom\nNET $NONE$\nSNT TRC\nFID C 0 0\nNET $NONE$\nSNT TRC\nFID C 1 0\n",
+            &features(),
+        )
+        .unwrap();
+        assert_eq!(d.nets.len(), 2);
+        assert!(d.assignments.is_empty());
+        let duplicate_fid = "HDR x\nUNITS=MM\nLYR top bottom\nNET $NONE$\nSNT TRC\nFID C 0 0\nNET $NONE$\nSNT TRC\nFID C 0 0\n";
+        assert_eq!(
+            parse(duplicate_fid, &features()).unwrap_err().code,
+            "ODB_EDA_DUPLICATE_FID"
+        );
+    }
+
     #[test]
     fn required_eda_units_order_and_duplicates_fail_closed() {
         let good = "HDR Mentor\nUNITS=MM\nLYR top bottom\nNET CLK\nSNT TRC\nFID C 0 0\n";
