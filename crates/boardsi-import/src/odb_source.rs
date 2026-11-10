@@ -473,6 +473,12 @@ fn parse_features_content(
             let start = point(&frame_id, fields[1], fields[2], &path, line_no)?;
             let end = point(&frame_id, fields[3], fields[4], &path, line_no)?;
             let centre = point(&frame_id, fields[5], fields[6], &path, line_no)?;
+            // ODB permits 360-degree arcs with matching start/end. The Canonical
+            // Arc contract currently rejects start==end, so never emit an invalid
+            // BoardModel or degrade the circle into a zero-sweep arc.
+            if start == end {
+                return Err(error(&path, line_no, "ODB_FULL_CIRCLE_UNSUPPORTED"));
+            }
             // Check the source-grid circle radius exactly, without floating point.
             let r2 = |p: &Point| -> Option<i128> {
                 let dx = i128::from(p.ticks[0]) - i128::from(centre.ticks[0]);
@@ -819,6 +825,11 @@ mod tests {
                 "A 1 0 0 1 0 0 0 P 0 Y",
                 "A 1 0 0 2 0 0 0 P 0 Y",
                 "ODB_ARC_RADIUS_CONFLICT",
+            ),
+            (
+                "A 1 0 0 1 0 0 0 P 0 Y",
+                "A 1 0 1 0 0 0 0 P 0 Y",
+                "ODB_FULL_CIRCLE_UNSUPPORTED",
             ),
             (
                 "L 0 0 1.5 0 0 P 0",
