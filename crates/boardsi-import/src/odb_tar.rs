@@ -158,6 +158,14 @@ pub fn read_tar(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
     // Archives may use one product-root directory, but never silently merge
     // unrelated roots or allow a member outside the product.
     if raw.contains_key("matrix/matrix") {
+        // Reject nested second products instead of silently importing only
+        // the first PCB's copper. Product ownership must be unambiguous.
+        if raw
+            .keys()
+            .any(|path| path.ends_with("/matrix/matrix") || path.contains("/steps/"))
+        {
+            return Err(bad("ODB_TAR_MULTIPLE_ROOTS"));
+        }
         return Ok(raw);
     }
     let first = raw.keys().next().ok_or_else(|| bad("ODB_TAR_EMPTY"))?;
@@ -267,6 +275,13 @@ mod tests {
         assert_eq!(
             read_tar(&duplicate).unwrap_err().code,
             "ODB_TAR_DUPLICATE_FILE"
+        );
+        let mut mixed = valid[..valid.len() - 2 * BLOCK].to_vec();
+        mixed.extend(member("second_product/matrix/matrix", b"other", b'0'));
+        mixed.extend([0u8; BLOCK * 2]);
+        assert_eq!(
+            read_tar(&mixed).unwrap_err().code,
+            "ODB_TAR_MULTIPLE_ROOTS"
         );
         assert_eq!(
             read_tar(&[0x1f, 0x8b, 8, 0]).unwrap_err().code,
