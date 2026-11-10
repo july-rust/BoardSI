@@ -51,9 +51,7 @@ fn decimal(raw: &str, allow_negative: bool) -> bool {
     if (whole.is_empty() && fract.is_empty()) || fract.len() > 9 {
         return false;
     }
-    if !whole.bytes().all(|x| x.is_ascii_digit())
-        || !fract.bytes().all(|x| x.is_ascii_digit())
-    {
+    if !whole.bytes().all(|x| x.is_ascii_digit()) || !fract.bytes().all(|x| x.is_ascii_digit()) {
         return false;
     }
     // Bound physical coordinates to 1e9 source units and prevent huge strings.
@@ -103,7 +101,9 @@ pub(super) fn parse_drill_hits(
                 return Err(err(no, "ODB_DRILL_HIT_FEATURE_COUNT"));
             }
             advertised_count = Some(
-                value.trim().parse::<usize>()
+                value
+                    .trim()
+                    .parse::<usize>()
                     .map_err(|_| err(no, "ODB_DRILL_HIT_BAD_COUNT"))?,
             );
             continue;
@@ -116,7 +116,8 @@ pub(super) fn parse_drill_hits(
             if !(2..=3).contains(&parts.len()) {
                 return Err(err(no, "ODB_DRILL_HIT_BAD_SYMBOL"));
             }
-            let number = parts[0].parse::<u32>()
+            let number = parts[0]
+                .parse::<u32>()
                 .map_err(|_| err(no, "ODB_DRILL_HIT_BAD_SYMBOL"))?;
             if parts.len() == 3 && !matches!(parts[2], "I" | "M") {
                 return Err(err(no, "ODB_DRILL_HIT_SYMBOL_UNIT"));
@@ -161,7 +162,8 @@ pub(super) fn parse_drill_hits(
         let symbol_id = tokens[3]
             .parse::<u32>()
             .map_err(|_| err(no, "ODB_DRILL_HIT_BAD_SYMBOL_REF"))?;
-        let symbol_name = symbols.get(&symbol_id)
+        let symbol_name = symbols
+            .get(&symbol_id)
             .ok_or_else(|| err(no, "ODB_DRILL_HIT_MISSING_SYMBOL"))?
             .clone();
         let dcode = tokens[5]
@@ -170,7 +172,8 @@ pub(super) fn parse_drill_hits(
         if dcode == 0 {
             return Err(err(no, "ODB_DRILL_HIT_UNASSIGNED_TOOL"));
         }
-        let tool = tools.get(&dcode)
+        let tool = tools
+            .get(&dcode)
             .ok_or_else(|| err(no, "ODB_DRILL_HIT_UNKNOWN_TOOL"))?;
         if !matches!(tokens[6], "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7") {
             return Err(err(no, "ODB_DRILL_HIT_NONORTHOGONAL_ORIENTATION"));
@@ -218,47 +221,80 @@ pub(super) fn parse_drill_hits(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::odb_drill::{SourceDrillTool, DrillIntent};
+    use crate::odb_drill::{DrillIntent, SourceDrillTool};
     fn layer() -> SourceDrillLayer {
         SourceDrillLayer {
-            name: "drill_top_bottom".into(), matrix_row: 7, matrix_source_line: 11,
-            matrix_sha256: [2; 32], unit: "MM".into(), subtype: "".into(),
-            explicit_start_layer: Some("top".into()), explicit_end_layer: Some("bottom".into()),
+            name: "drill_top_bottom".into(),
+            matrix_row: 7,
+            matrix_source_line: 11,
+            matrix_sha256: [2; 32],
+            unit: "MM".into(),
+            subtype: "".into(),
+            explicit_start_layer: Some("top".into()),
+            explicit_end_layer: Some("bottom".into()),
             source_file: "steps/pcb/layers/drill_top_bottom/tools".into(),
             source_sha256: [3; 32],
             tools: vec![SourceDrillTool {
-                number: 9, intent: DrillIntent::Via, subtype: "LASER".into(),
-                finish_size: "100".into(), drill_size: Some("120".into()),
-                min_tolerance: None,max_tolerance:None,bit:None,source_line:4,
-            }],geometry_hits:None,
+                number: 9,
+                intent: DrillIntent::Via,
+                subtype: "LASER".into(),
+                finish_size: "100".into(),
+                drill_size: Some("120".into()),
+                min_tolerance: None,
+                max_tolerance: None,
+                bit: None,
+                source_line: 4,
+            }],
+            geometry_hits: None,
         }
     }
-    const VALID:&str = "UNITS=MM\nF 2\n$0 r100\nP 1.25 -0.25 0 P 9 0;ID=hole1\nP 2 0.125 0 P 9 0;ID=hole2\n";
+    const VALID: &str =
+        "UNITS=MM\nF 2\n$0 r100\nP 1.25 -0.25 0 P 9 0;ID=hole1\nP 2 0.125 0 P 9 0;ID=hole2\n";
     #[test]
     fn exact_source_pad_hits_and_tool_crossreference() {
-        let v = parse_drill_hits(VALID,&layer(),"features",[7;32]).unwrap();
-        assert_eq!(v.len(),2);
-        assert_eq!(v[0].x,"1.25");
-        assert_eq!(v[0].y,"-0.25");
-        assert_eq!(v[0].tool_source_line,4);
-        assert_eq!(v[0].feature_index,0);
-        assert_eq!(v[1].feature_index,1);
-        assert_eq!(v[0].source_sha256,[7;32]);
+        let v = parse_drill_hits(VALID, &layer(), "features", [7; 32]).unwrap();
+        assert_eq!(v.len(), 2);
+        assert_eq!(v[0].x, "1.25");
+        assert_eq!(v[0].y, "-0.25");
+        assert_eq!(v[0].tool_source_line, 4);
+        assert_eq!(v[0].feature_index, 0);
+        assert_eq!(v[1].feature_index, 1);
+        assert_eq!(v[0].source_sha256, [7; 32]);
     }
     #[test]
     fn rejects_unknown_tool_units_bad_shapes_and_unsupported_drill_geometry() {
-        for (input,expected) in [
-            (VALID.replace("P 9 0","P 0 0"),"ODB_DRILL_HIT_UNASSIGNED_TOOL"),
-            (VALID.replace("P 9 0","P 3 0"),"ODB_DRILL_HIT_UNKNOWN_TOOL"),
-            (VALID.replace("UNITS=MM","UNITS=INCH"),"ODB_DRILL_HIT_TOOL_UNIT_CONFLICT"),
-            (VALID.replace("$0 r100","$0 rect100x100"),"ODB_DRILL_HIT_NONCIRCULAR_SYMBOL"),
-            (VALID.replace("F 2","F 3"),"ODB_DRILL_HIT_COUNT_MISMATCH"),
-            (VALID.replace("P 1.25","L 1.25"),"ODB_DRILL_HIT_UNSUPPORTED_RECORD"),
-            (VALID.replace("ID=hole2","ID=hole1"),"ODB_DRILL_HIT_DUPLICATE_ID"),
-            (VALID.replace("1.25","1e2"),"ODB_DRILL_HIT_BAD_COORDINATE"),
+        for (input, expected) in [
+            (
+                VALID.replace("P 9 0", "P 0 0"),
+                "ODB_DRILL_HIT_UNASSIGNED_TOOL",
+            ),
+            (
+                VALID.replace("P 9 0", "P 3 0"),
+                "ODB_DRILL_HIT_UNKNOWN_TOOL",
+            ),
+            (
+                VALID.replace("UNITS=MM", "UNITS=INCH"),
+                "ODB_DRILL_HIT_TOOL_UNIT_CONFLICT",
+            ),
+            (
+                VALID.replace("$0 r100", "$0 rect100x100"),
+                "ODB_DRILL_HIT_NONCIRCULAR_SYMBOL",
+            ),
+            (VALID.replace("F 2", "F 3"), "ODB_DRILL_HIT_COUNT_MISMATCH"),
+            (
+                VALID.replace("P 1.25", "L 1.25"),
+                "ODB_DRILL_HIT_UNSUPPORTED_RECORD",
+            ),
+            (
+                VALID.replace("ID=hole2", "ID=hole1"),
+                "ODB_DRILL_HIT_DUPLICATE_ID",
+            ),
+            (VALID.replace("1.25", "1e2"), "ODB_DRILL_HIT_BAD_COORDINATE"),
         ] {
-            let code=parse_drill_hits(&input,&layer(),"features",[8;32]).unwrap_err().code;
-            assert_eq!(code,expected,"input={input}");
+            let code = parse_drill_hits(&input, &layer(), "features", [8; 32])
+                .unwrap_err()
+                .code;
+            assert_eq!(code, expected, "input={input}");
         }
     }
 }
