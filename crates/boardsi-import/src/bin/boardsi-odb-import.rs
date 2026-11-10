@@ -19,7 +19,10 @@ fn main() {
             println!("arcs={}", board.arcs.len());
             println!("pads={}", board.pads.len());
             println!("copper_areas={}", board.areas.len());
-            println!("copper_cutouts={}", board.areas.iter().map(|a| a.cutouts.len()).sum::<usize>());
+            println!(
+                "copper_cutouts={}",
+                board.areas.iter().map(|a| a.cutouts.len()).sum::<usize>()
+            );
             println!("vias=0  # UNSUPPORTED");
             println!("nets=0  # NOT_IMPORTED");
             println!("manufactured_connectivity=NOT_VERIFIED");
