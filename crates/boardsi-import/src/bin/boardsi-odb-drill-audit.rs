@@ -35,7 +35,10 @@ fn main() {
                         .unwrap_or("NOT_VERIFIED")
                 );
                 println!("layer_{index}.tool_count={}", layer.tools.len());
-                println!("layer_{index}.matrix_source_line={}", layer.matrix_source_line);
+                println!(
+                    "layer_{index}.matrix_source_line={}",
+                    layer.matrix_source_line
+                );
                 let mut matrix_hex = String::with_capacity(64);
                 for byte in &layer.matrix_sha256 {
                     use std::fmt::Write;
