@@ -263,9 +263,18 @@ mod tests {
         assert!(parse(&good.replace("UNITS=MM", "UNITS=INCH"), &features()).is_ok());
         for (mutation, code) in [
             (good.replace("UNITS=MM\n", ""), "ODB_EDA_MISSING_UNITS"),
-            (good.replace("UNITS=MM", "UNITS=MILS"), "ODB_EDA_UNSUPPORTED_UNITS"),
-            (good.replace("UNITS=MM", "UNITS=MM\nUNITS=MM"), "ODB_EDA_BAD_UNITS_ORDER"),
-            (good.replace("HDR Mentor\nUNITS=MM", "UNITS=MM\nHDR Mentor"), "ODB_EDA_BAD_UNITS_ORDER"),
+            (
+                good.replace("UNITS=MM", "UNITS=MILS"),
+                "ODB_EDA_UNSUPPORTED_UNITS",
+            ),
+            (
+                good.replace("UNITS=MM", "UNITS=MM\nUNITS=MM"),
+                "ODB_EDA_BAD_UNITS_ORDER",
+            ),
+            (
+                good.replace("HDR Mentor\nUNITS=MM", "UNITS=MM\nHDR Mentor"),
+                "ODB_EDA_BAD_UNITS_ORDER",
+            ),
         ] {
             assert_eq!(parse(&mutation, &features()).unwrap_err().code, code);
         }
