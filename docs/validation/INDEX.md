@@ -11,7 +11,7 @@
 | **전체 개발 상태 / 정식 U/T** | [개발 체크리스트](../development-checklist.md) |
 | **범용 Trace·Via·Pad 비중심 접촉** | [D_054–D_055 통합 검증](d054-d055-general-trace-contact-qualification.md) · [기하 알고리즘](../architecture/trace-copper-contact.md) |
 | **제한 개발 Preview 완료 범위** | [A_035 P2-Z 감사](a035-p2z-final-preview-acceptance.md) |
-| **M0 미완 근거** | [M0 완료 게이트](m0-completion-gate.md) · [E_002 U/T 상태 정합화](e002-m0-f1-traceability-status-reconciliation.md) |
+| **M0 미완 근거** | [M0 완료 게이트](m0-completion-gate.md) · [E_002 U/T 상태 정합화](e002-m0-f1-traceability-status-reconciliation.md) · [E_003 Rust/Qt/IPC v1 호환성](e003-rust-qt-ipc-compatibility-qualification.md) |
 | **M2 수치 쿠폰 기준과 실제 관측** | [PH-07 FEM](m2-g2-ph07-fem-evidence.md) · [M2 전체 한정 감사](m2-validation-audit-hardening.md) · [E_001 사후 감사 종결](e001-ph07-post-audit-closure.md) |
 | **PH-08 원본 Gate Q FAIL** | [원본 Stage 4 재현](m2-g2-ph08-stage4-original-gateq-reexecution.md) · [Stage 5B 재실행](m2-g2-ph08-stage5b-original-replay-evidence.md) |
 
