@@ -5,8 +5,8 @@
 //! `Drill.plated` value, an electrical graph edge, or solver readiness.
 //! The narrower SOURCE contract deliberately does not change legacy importers.
 use crate::{
-    BoardModel, FabricationHole, FabricationPlating, LayerKind, ModelError, ObjectId,
-    Property, SourceId,
+    BoardModel, FabricationHole, FabricationPlating, LayerKind, ModelError, ObjectId, Property,
+    SourceId,
 };
 
 /// This describes SOURCE grammar and declarations, not verified conductivity.
@@ -112,9 +112,7 @@ impl BoardModel {
                 FabricationPlating::SourceDeclaredPlated => {
                     SourceViaEvidenceState::SourceDeclaredPlated
                 }
-                FabricationPlating::NonPlated => {
-                    SourceViaEvidenceState::SourceDeclaredNonPlated
-                }
+                FabricationPlating::NonPlated => SourceViaEvidenceState::SourceDeclaredNonPlated,
             }
         };
         Ok(SourceViaHoleObservation {
@@ -122,10 +120,7 @@ impl BoardModel {
             source_line: hole.evidence.source_line,
             first_layer: envelope[0].meta.id.clone(),
             last_layer: envelope[envelope.len() - 1].meta.id.clone(),
-            physical_envelope_layers: envelope
-                .iter()
-                .map(|layer| layer.meta.id.clone())
-                .collect(),
+            physical_envelope_layers: envelope.iter().map(|layer| layer.meta.id.clone()).collect(),
             via_evidence,
             stackup_evidence,
         })
@@ -137,9 +132,9 @@ mod tests {
     use super::*;
     use crate::{
         BoardKind, CapabilityState, FabricationHoleShape, FabricationOperation,
-        FabricationSourceEvidence, GeometryProvenance, ImportCapability,
-        ImportSource, Layer, ObjectKind, ObjectMeta, PhysicalLayerSpan, Rational,
-        SourceFile, SourceFormat, SourceIdentity, Stackup,
+        FabricationSourceEvidence, GeometryProvenance, ImportCapability, ImportSource, Layer,
+        ObjectKind, ObjectMeta, PhysicalLayerSpan, Rational, SourceFile, SourceFormat,
+        SourceIdentity, Stackup,
     };
     use std::sync::Arc;
 
@@ -243,18 +238,27 @@ mod tests {
         assert_eq!(before.via_evidence, SourceViaEvidenceState::UnknownPlating);
         h.plating = FabricationPlating::SourceDeclaredPlated;
         let declared = board.observe_source_via_hole(&source, &h).unwrap();
-        assert_eq!(declared.via_evidence, SourceViaEvidenceState::SourceDeclaredPlated);
+        assert_eq!(
+            declared.via_evidence,
+            SourceViaEvidenceState::SourceDeclaredPlated
+        );
         assert!(!h.has_verified_manufactured_barrel());
         assert!(!h.is_electrical_conductor());
         h.evidence.qualified_native_grammar = false;
         assert_eq!(
-            board.observe_source_via_hole(&source, &h).unwrap().via_evidence,
+            board
+                .observe_source_via_hole(&source, &h)
+                .unwrap()
+                .via_evidence,
             SourceViaEvidenceState::UnsupportedGrammar
         );
         h.evidence.qualified_native_grammar = true;
         h.plating = FabricationPlating::NonPlated;
         assert_eq!(
-            board.observe_source_via_hole(&source, &h).unwrap().via_evidence,
+            board
+                .observe_source_via_hole(&source, &h)
+                .unwrap()
+                .via_evidence,
             SourceViaEvidenceState::SourceDeclaredNonPlated
         );
         assert!(board.vias.is_empty());
@@ -273,8 +277,14 @@ mod tests {
         h = hole(1, 8);
         board.sources[0].id = Arc::new(SourceIdentity {
             files: vec![
-                SourceFile { logical_path: "a".into(), sha256: [7; 32] },
-                SourceFile { logical_path: "b".into(), sha256: [7; 32] },
+                SourceFile {
+                    logical_path: "a".into(),
+                    sha256: [7; 32],
+                },
+                SourceFile {
+                    logical_path: "b".into(),
+                    sha256: [7; 32],
+                },
             ],
             ..(*source).clone()
         });
@@ -299,7 +309,9 @@ mod tests {
                 .is_err());
         }
         board.stackup.layers[2].order = 2;
-        assert!(board.observe_source_via_hole(&source, &hole(1, 64)).is_err());
+        assert!(board
+            .observe_source_via_hole(&source, &hole(1, 64))
+            .is_err());
     }
 
     #[test]
