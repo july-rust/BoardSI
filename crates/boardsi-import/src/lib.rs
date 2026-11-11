@@ -229,6 +229,7 @@ pub mod odb_fabrication;
 pub mod odb_source;
 mod odb_surface;
 mod odb_tar;
+mod odb_zip;
 pub mod outline_arc;
 pub mod outline_preview;
 pub mod outline_topology;
