@@ -26,6 +26,12 @@
 - **증거 경계:** 기존 PH-07 정적 문서·과거 시험 결과는 기록으로 확인했으나 E_001에서 FEM/FVM을 신규 실행했다고 주장하지 않는다. 과거 원본 FAIL, PH-08 Gate Q FAIL, 정식 제품 U/T 미인수는 그대로 유지한다.
 - **운영 완료 관문:** PR #583의 최종 HEAD, 리뷰 스레드, Verified Squash, main Push CI 증거는 [#41 종결 댓글](https://github.com/july-rust/BoardSI/issues/41)에 확정 기록한다.
 
+## E_003 실행 증거 경계 — 2026-11-11 KST
+
+- **단위 목적:** 기존에 C_025_08에서 확정한 Rust/Qt/IPC 프로토타입 선택을 재설계하지 않고, 추가 Fail-Closed Wire 회귀를 Rust/Qt 양쪽에서 실행합니다. [검증 보고서](validation/e003-rust-qt-ipc-compatibility-qualification.md)와 [PR #585](https://github.com/july-rust/BoardSI/pull/585)를 사용합니다.
+- **상위 이슈 분리:** [Issue #3](https://github.com/july-rust/BoardSI/issues/3)은 제품 정식 T13/T39/T46, 라이선스, 배포 등 본래의 수락 기준을 충족하지 않았으므로 별도 OPEN입니다. [#6](https://github.com/july-rust/BoardSI/issues/6)과 [#7](https://github.com/july-rust/BoardSI/issues/7)은 E_006/E_007에서 각각 처리합니다.
+- **작업 완료 관문:** PR 최종 HEAD의 관련 Rust·Qt native 실행, 필수 CI, 독립 리뷰와 미해결 Threads 0, 보호 Verified Squash 및 정확한 main Push 확인 시에만 E_003 제한 완료가 유효하며 상세 운영 증거는 #3의 최종 댓글을 참조합니다.
+
 ## 작은 단위 실행 순서 — E_001 ~ E_030
 
 **각 행은 단일 작업에서 닫을 수 있도록 설계한 범위**다. 실제 실행 시 더 큰 수정이 필요하면 그 번호의 작은 수락 계약만 끝내고, 나머지를 새 번호로 분리한다. 독립 E_001–E_012는 실행 가능성이 높은 항목 우선 선택 가능하다.
