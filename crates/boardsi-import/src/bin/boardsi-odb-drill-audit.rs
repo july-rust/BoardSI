@@ -5,7 +5,7 @@ use std::{env, path::Path, process};
 fn main() {
     let args: Vec<String> = env::args().collect();
     if !(args.len() == 3 || (args.len() == 4 && args[3] == "--hits")) {
-        eprintln!("Usage: boardsi-odb-drill-audit <unpacked-odb-product-root-or-uncompressed.tar> <step> [--hits]");
+        eprintln!("Usage: boardsi-odb-drill-audit <unpacked-odb-product-root-or-USTAR-or-STORED-ZIP> <step> [--hits]");
         process::exit(2);
     }
     let with_hits = args.len() == 4;
