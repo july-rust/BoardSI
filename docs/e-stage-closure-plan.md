@@ -59,6 +59,13 @@
 - **정식 인수 경계:** [Issue #8](https://github.com/july-rust/BoardSI/issues/8)은 U38–U40/U48, 실제 Vendor·형식 전반·Qt 실패 경로 및 정식 T17/T20/T22에 대한 근거가 없으므로 OPEN. E_009, E_013–E_015의 후속 원래 범위 유지.
 - **운영 종료:** E_008 PR의 정확한 최종 HEAD 필수 Checks, 독립 리뷰, 0 unresolved threads, Verified Squash 및 정확한 main Push 결과가 확인되어야 **E_008 한정 COMPLETE**로 기록. 증거 URL·SHA는 [#8 종료 댓글](https://github.com/july-rust/BoardSI/issues/8)에 기재한다.
 
+## E_009 PADS ROUTE glued-via grammar one-slice execution — 2026-11-12 KST
+
+- **Selected actual parser gap:** Authoritative PADS V9.4 ROUTE FLAG bit `0x0800` marks a glued named via; the restricted importer previously rejected/skipped this variant even when the via was already declared and normalized.
+- **Implementation boundary:** Accept a documented glued-via SOURCE annotation only on a validated named-via vertex. Preserve geometry plus explicit `ViaInstance.glued`, Canonical source provenance and source conditions, but do not claim placement lock, manufactured connectivity, real exporter coverage or SI.
+- **Fail-closed:** Unsupported 0x0800 extensions, missing names/definitions and malformed records cannot be silently converted to copper. Both legacy and generalized parser modes plus 2/4/6/8 layers receive focused synthetic regressions.
+- **Execution closeout:** [E_009 qualification report](validation/e009-pads-glued-via-grammar-qualification.md) contains tests and limitation boundaries. Await exact final HEAD checks, independent review, zero unresolved threads, Verified Squash and independent exact merged-main Push before marking COMPLETE. Parent #9 and its original U/T acceptance remain OPEN.
+
 ## 작은 단위 실행 순서 — E_001 ~ E_030
 
 **각 행은 단일 작업에서 닫을 수 있도록 설계한 범위**다. 실제 실행 시 더 큰 수정이 필요하면 그 번호의 작은 수락 계약만 끝내고, 나머지를 새 번호로 분리한다. 독립 E_001–E_012는 실행 가능성이 높은 항목 우선 선택 가능하다.
@@ -73,7 +80,7 @@
 | **E_006** | 세 Native OS Toolchain·실행 근거 최신성 감사 | [#6](https://github.com/july-rust/BoardSI/issues/6) | Windows x64/ARM64, macOS ARM64 실제 실행 SHA별 증거 |
 | **E_007** | 공개 Fixture 출처·해시·재배포 권한 한 묶음 정합화 | [#7](https://github.com/july-rust/BoardSI/issues/7) · [E_007 보고서](validation/e007-public-fixture-provenance-rights-qualification.md) | 고정 KiCad 소스 2종 원본/해시·부정 회귀·라이선스 원문을 재조정; 제3자 권리/실기기 미승인은 별도 BLOCKED, E_007 기술 범위와 #7 전체 인수 분리 |
 | **E_008** | 입력 판별 및 readiness 한 Source 종류 보강 | [#8](https://github.com/july-rust/BoardSI/issues/8) | 미지원/누락/악성 소스 반례와 UNKNOWN 보존 |
-| **E_009** | PADS 소스 문법 1가지 지원 공백 수정 | [#9](https://github.com/july-rust/BoardSI/issues/9) | 공개 출처·공식 문법·변이 반례·A–D 회귀 |
+| **E_009** | PADS V9.4 ROUTE Glued Via 0x0800 Source 플래그 한정 지원 | [#9](https://github.com/july-rust/BoardSI/issues/9) · [E_009 보고서](validation/e009-pads-glued-via-grammar-qualification.md) | 공개 공식 V9.4 pp.51–55 · 2/4/6/8층·malformed/UNKNOWN 회귀 · final CI/리뷰/Squash/main Push 후 한정 COMPLETE. 전체 #9 OPEN |
 | **E_010** | Qt 메인 Import→IPC→Picking 한 종류 회귀 | [#11](https://github.com/july-rust/BoardSI/issues/11) | 실제 메인 Qt CPU/RHI·재Import·Source ID 무결성 |
 | **E_011** | Stackup 편집/저장/재Import 무효화 한 경로 검증 | [#12](https://github.com/july-rust/BoardSI/issues/12) | Dk/Df/두께가 Source 미기재면 Unknown, FR4 암묵 대체 금지 |
 | **E_012** | 실제 GPU 백엔드 1개 플랫폼 계측 | [#165](https://github.com/july-rust/BoardSI/issues/165) | 실기기 없으면 미착수·별도 차단; RHI synthetic은 대체 불가 |
