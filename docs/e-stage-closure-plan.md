@@ -49,7 +49,7 @@
 
 - **기술 범위 완료:** [독립 E_006 검증 보고서](validation/e006-native-platform-toolchain-qualification.md)는 Windows x64/ARM64 및 macOS ARM64의 실제 Rust·Qt Widgets/QProcess synthetic native 실행을 각각의 SHA·Workflow·Job까지 검증했습니다. 새로운 기능/검사 프레임워크는 추가하지 않았습니다.
 - **소스 동일성 검증:** 최신 감사 당시 `main@400fe8e`은 Native가 실제 실행된 `main@c229eccd`보다 문서 5개만 변경했습니다. [Qt 정확한 code-main Push](https://github.com/july-rust/BoardSI/actions/runs/42982428188)와 [Rust 정확한 code-main Push](https://github.com/july-rust/BoardSI/actions/runs/42982428141)의 3+3개 Native Job 성공이 직접 증거이고, 최신 docs-only Push의 SKIPPED Job은 새 Native PASS가 아닙니다.
-- **F7 근거 별도:** [PR-head Relocation](https://github.com/july-rust/BoardSI/actions/runs/42980487868) 세 Native Job의 SDK 분리 후 synthetic selftest 성공은 clean-host 설치, 법적 라이선스 및 제품 배포 승인을 의미하지 않습니다.
+- **F7 근거 별도:** [PR F7 Relocation](https://github.com/july-rust/BoardSI/actions/runs/42980487868) 세 Native Job은 PR 자동 Merge Checkout `3ddd02b5`에서 실행되었고 Git Tree SHA가 PR HEAD `a4c935ed` 및 코드-main `c229eccd`와 동일함을 재검증했습니다([E_006 상세 근거](validation/e006-native-platform-toolchain-qualification.md)). SDK 분리 후 synthetic selftest 성공은 clean-host 설치, 법적 라이선스 및 제품 배포 승인을 의미하지 않습니다.
 - **운영 완료 경계:** E_006 문서 PR의 최종 필수 CI·리뷰·보호 Verified Squash 및 새 정확한 main Push 결과가 모두 확인되어야 E_006 COMPLETE로 종결합니다. [Issue #6](https://github.com/july-rust/BoardSI/issues/6) 전체는 F7/정식 T13/T39 및 설치 검증 누락으로 계속 OPEN; E_007 라이선스/Fixture 별도. 제품 전체 인수로 승격 금지.
 
 ## 작은 단위 실행 순서 — E_001 ~ E_030
