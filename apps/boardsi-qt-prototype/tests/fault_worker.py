@@ -71,6 +71,20 @@ elif mode == 'frame':
 elif mode == 'json':
     sys.stdout.buffer.write(struct.pack('>I', 1) + b'{')
     sys.stdout.buffer.flush()
+elif mode == 'utf8':
+    sys.stdout.buffer.write(struct.pack('>I', 1) + b'\xff')
+    sys.stdout.buffer.flush()
+elif mode == 'header-short':
+    sys.stdout.buffer.write(b'\x00\x01')
+    sys.stdout.buffer.flush()
+    sys.exit(0)
+elif mode == 'zero-frame':
+    sys.stdout.buffer.write(struct.pack('>I', 0))
+    sys.stdout.buffer.flush()
+elif mode == 'kind':
+    emit(dict(type='Heartbeat'), kind='request')
+elif mode == 'unknown-field':
+    emit(dict(type='Heartbeat'), unexpected=True)
 elif mode == 'truncated':
     sys.stdout.buffer.write(struct.pack('>I', 20) + b'{}')
     sys.stdout.buffer.flush()
