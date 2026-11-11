@@ -180,7 +180,6 @@ pub fn read_tar(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
     normalize_product_files(raw)
 }
 
-
 /// Common product-root normalization for validated USTAR and stored-ZIP maps.
 /// A second nested matrix/matrix is never silently imported as part of one PCB.
 pub(crate) fn normalize_product_files(raw: OdbFileMap) -> Result<OdbFileMap, OdbError> {
