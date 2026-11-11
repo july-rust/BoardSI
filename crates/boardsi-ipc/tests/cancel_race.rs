@@ -22,28 +22,30 @@ fn completion_wins_only_with_all_results_before_cancel_ack() {
                 .unwrap();
             seq += 1;
         }
-        guard
-            .accept(
-                message(
-                    seq,
-                    Body::Result {
-                        point: 0,
-                        frequency_hz: 0.0,
-                        s11: [0.0, 0.0],
-                        s21: [1.0, 0.0],
-                        synthetic: true,
-                    },
-                ),
-                now,
-            )
-            .unwrap();
-        seq += 1;
+        let next_result = message(
+            seq,
+            Body::Result {
+                point: 0,
+                frequency_hz: 0.0,
+                s11: [0.0, 0.0],
+                s21: [1.0, 0.0],
+                synthetic: true,
+            },
+        );
         if acknowledged {
+            // After the ACK no calculation output may be accepted, and
+            // the rejected message must not consume the Cancelled sequence.
+            assert_eq!(
+                guard.accept(next_result, now),
+                Err("InvalidStateOrPayload")
+            );
             assert!(guard.accept(message(seq, Body::Completed), now).is_err());
             guard.accept(message(seq, Body::Cancelled), now).unwrap();
             assert_eq!(guard.state, State::Cancelled);
             assert!(guard.results.is_empty());
         } else {
+            guard.accept(next_result, now).unwrap();
+            seq += 1;
             guard.accept(message(seq, Body::Completed), now).unwrap();
             assert_eq!(guard.state, State::Completed);
             assert_eq!(guard.results.len(), 1);
