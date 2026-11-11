@@ -285,6 +285,34 @@ private:
             record(QString::fromLatin1(mode),invalid);
         }
     }
+    void latePostAckAndRestart() {
+        for (const auto *mode : {"late-after-ack-result", "late-after-ack-progress"}) {
+            Window w(python, {fixture, QString::fromLatin1(mode)});
+            start(w); running(w); cancel(w); exited(w);
+            check(w.state == Window::Failed && w.resultCount == 0 && w.progress->value() == 0,
+                  "Post-ACK calculation data was accepted or retained");
+            check(w.error->text().contains("IPC invalid frame, scope, sequence or state"),
+                  "Post-ACK protocol failure was not visible");
+            bool sawAck = false, acceptedLateData = false;
+            for (const auto &value : w.observations) {
+                const auto type = value.toObject().value("type").toString();
+                if (type == "CancelAcknowledged") sawAck = true;
+                if (sawAck && (type == "Result" || type == "Progress")) acceptedLateData = true;
+            }
+            check(sawAck && !acceptedLateData, "Post-ACK data passed into the accepted event log");
+            const QString oldRun = w.run;
+            // Reuse the same QProcess/Window, not a fresh widget: failure-state,
+            // stream buffers and queued callbacks must not poison the next run.
+            w.path = rust; w.arguments.clear();
+            start(w); running(w);
+            check(w.run != oldRun, "Restart reused the failed run identity");
+            cancel(w); exited(w);
+            check(w.state == Window::Cancelled && w.resultCount == 0 &&
+                  w.results->text() == "Synthetic results: 0" && w.error->text().isEmpty(),
+                  "Late failed run contaminated the subsequent normal cancellation");
+            record(QString::fromLatin1(mode) + "-rejected-clean-restart", w);
+        }
+    }
     void cpuStress() {
         // Long synthetic calculation ensures CPU-contended CI cannot finish the
         // worker before the cancel-under-load assertion is exercised.
@@ -434,6 +462,7 @@ public:
             inPhase("partial", [&] { fault("partial",false); });
             inPhase("burst", [&] { burst(); });
             inPhase("completion-race", [&] { completionRace(); });
+            inPhase("e005-late-after-ack", [&] { latePostAckAndRestart(); });
             inPhase("closed-cancel", [&] { closedCancel(); });
             inPhase("cpu-stress", [&] { cpuStress(); });
             inPhase("unresponsive", [&] { hang("unresponsive",true); });

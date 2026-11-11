@@ -39,6 +39,12 @@
 - **보호 병합:** Verified 단일 부모 Squash [`de87983a6af2f55423a49881eaacae690fe3b50f`](https://github.com/july-rust/BoardSI/commit/de87983a6af2f55423a49881eaacae690fe3b50f). **정확한 code-main SHA 독립 Push CI 8/8 Workflow SUCCESS**, 실패 0.
 - **상위 인수 분리:** [#4](https://github.com/july-rust/BoardSI/issues/4)와 [#520](https://github.com/july-rust/BoardSI/issues/520)은 전체 CAD/제조 도금/전기 Graph/실물·제품 T21/T51이 별도이므로 **계속 OPEN**. E_019/E_022 및 형식별 후속 단계의 조건을 앞당겨 PASS 표시하지 않는다. E_004 자체에 미완 PR은 없다.
 
+## E_005 실행 중 증거 경계 — 2026-11-11 KST
+
+- **한정 기능 목표:** 취소 승인 이후 늦게 도착한 합성 `Result`/`Progress`를 Rust `RunGuard`와 Qt `Window` 모두에서 거부하고, 동일한 Qt QProcess 객체에서 새로운 Rust Worker 실행이 정상 재개되는지 실제 Native CI로 검증. 이는 모든 Worker 기능 완료가 아님.
+- **테스트:** [Rust E_005 부정 회귀](../crates/boardsi-ipc/tests/e005_cancel_late_response.rs), [Qt 실제 QApplication 회귀](../apps/boardsi-qt-prototype/tests/runtime.cpp), [오류 주입 Worker](../apps/boardsi-qt-prototype/tests/fault_worker.py), [전용 검증 계약](validation/e005-worker-cancellation-stale-timeout-qualification.md).
+- **종결 Gate:** E_005 실행 코드는 현재 **IN_PROGRESS**. 최종 HEAD Rust/Qt Native CI, 독립 리뷰·미해결 Thread 0, Verified Squash, 정확한 main Push CI까지 완료되고 Issue #5에 증거를 남기기 전에는 체크리스트에 COMPLETE 표시 금지. 상위 #5의 실제 PCB Solver/Production Run Snapshot 전체 인수는 독립 OPEN.
+
 ## 작은 단위 실행 순서 — E_001 ~ E_030
 
 **각 행은 단일 작업에서 닫을 수 있도록 설계한 범위**다. 실제 실행 시 더 큰 수정이 필요하면 그 번호의 작은 수락 계약만 끝내고, 나머지를 새 번호로 분리한다. 독립 E_001–E_012는 실행 가능성이 높은 항목 우선 선택 가능하다.

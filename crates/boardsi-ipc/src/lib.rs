@@ -275,14 +275,14 @@ impl RunGuard {
             Body::Cancelled if self.state == State::CancelAcknowledged => {}
             Body::Failed { .. } => {}
             Body::Progress { done, total }
-                if self.state != State::Awaiting
+                if matches!(self.state, State::Running | State::CancelRequested)
                     && *total == self.points
                     && *done as usize == self.results.len() => {}
             Body::Result {
                 point,
                 frequency_hz,
                 ..
-            } if self.state != State::Awaiting
+            } if matches!(self.state, State::Running | State::CancelRequested)
                 && *point as usize == self.results.len()
                 && *point < self.points
                 && *frequency_hz == f64::from(*point) * 1e6 => {}
