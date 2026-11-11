@@ -119,5 +119,53 @@ class TestPublicBoardInventory(unittest.TestCase):
                 verify(entry)
 
 
+class TestE007PinnedFixtureFailClosed(unittest.TestCase):
+    """E_007 regression: a public URL/license header never overrides raw byte proof."""
+
+    @staticmethod
+    def pinned_entry():
+        raw = SYNTH
+        return {
+            "name": "RoyalBlue54L-Feather",
+            "path": "synthetic.kicad_pcb",
+            "license": "synthetic-LICENSE",
+            "bytes": len(raw),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "git_blob_sha1": hashlib.sha1(
+                b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw
+            ).hexdigest(),
+            "license_marker": "CERN",
+        }
+
+    def test_same_length_source_mutation_rejected(self):
+        entry = self.pinned_entry()
+        corrupted = SYNTH.replace(b"DATA", b"DATE")
+        self.assertEqual(len(corrupted), len(SYNTH))
+        with mock.patch("m0_f6_board_integrity.download", return_value=corrupted) as dl:
+            with self.assertRaisesRegex(ValueError, "exact upstream bytes/hash mismatch"):
+                verify(entry)
+        dl.assert_called_once()
+
+    def test_truncated_source_rejected(self):
+        entry = self.pinned_entry()
+        with mock.patch("m0_f6_board_integrity.download", return_value=SYNTH[:-1]):
+            with self.assertRaisesRegex(ValueError, "exact upstream bytes/hash mismatch"):
+                verify(entry)
+
+    def test_wrong_git_blob_identity_rejected_despite_matching_sha256(self):
+        entry = self.pinned_entry()
+        entry["git_blob_sha1"] = "0" * 40
+        with mock.patch("m0_f6_board_integrity.download", return_value=SYNTH):
+            with self.assertRaisesRegex(ValueError, "exact upstream bytes/hash mismatch"):
+                verify(entry)
+
+    def test_missing_license_document_rejected(self):
+        entry = self.pinned_entry()
+        with mock.patch("m0_f6_board_integrity.download", side_effect=[
+            SYNTH, b""
+        ]):
+            with self.assertRaisesRegex(ValueError, "missing expected license marker"):
+                verify(entry)
+
 if __name__ == "__main__":
     unittest.main()
