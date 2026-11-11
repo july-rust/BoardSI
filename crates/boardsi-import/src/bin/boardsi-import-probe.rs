@@ -1,8 +1,8 @@
 //! Offline, read-only M1 detection smoke. Does not accept a PCB for SI analysis.
 //! The legacy one-argument probe output and exit codes remain unchanged.
-use boardsi_import::{probe_pads_reader, Signature};
 use boardsi_import::import_readiness::inspect_pads_readiness;
 use boardsi_import::route_preview::MAX_FILE_BYTES;
+use boardsi_import::{probe_pads_reader, Signature};
 use std::{env, fs::File, io::Read, process::ExitCode};
 
 fn main() -> ExitCode {
@@ -22,7 +22,7 @@ fn main() -> ExitCode {
     };
 
     if readiness {
-        let mut file = match File::open(&path) {
+        let file = match File::open(&path) {
             Ok(f) => f,
             Err(_) => {
                 eprintln!("cannot read source for readiness");
@@ -42,7 +42,11 @@ fn main() -> ExitCode {
         }
         // Bound actual bytes even if the file changes size after metadata().
         let mut source = Vec::new();
-        if file.take((MAX_FILE_BYTES + 1) as u64).read_to_end(&mut source).is_err() {
+        if file
+            .take((MAX_FILE_BYTES + 1) as u64)
+            .read_to_end(&mut source)
+            .is_err()
+        {
             eprintln!("cannot read bounded source for readiness");
             return ExitCode::from(2);
         }
