@@ -32,6 +32,13 @@
 - **상위 이슈 분리:** [Issue #3](https://github.com/july-rust/BoardSI/issues/3)은 제품 정식 T13/T39/T46, 라이선스, 배포 등 본래의 수락 기준을 충족하지 않았으므로 별도 OPEN입니다. [#6](https://github.com/july-rust/BoardSI/issues/6)과 [#7](https://github.com/july-rust/BoardSI/issues/7)은 E_006/E_007에서 각각 처리합니다.
 - **작업 완료 관문:** PR 최종 HEAD의 관련 Rust·Qt native 실행, 필수 CI, 독립 리뷰와 미해결 Threads 0, 보호 Verified Squash 및 정확한 main Push 확인 시에만 E_003 제한 완료가 유효하며 상세 운영 증거는 #3의 최종 댓글을 참조합니다.
 
+## E_004 실행 종결 기록 — 2026-11-11 KST
+
+- **한정 수락 완료:** 원본 Source SHA 및 Layer ID 바인딩, 임의 2/4/6/8/64층 Copper envelope(전기 연결 아님), Via Span 오류 차단, Plating Unknown/SourceDeclared 보존, Copper 사이 Dielectric의 z/두께/Material 누락·가정 상태를 확인하는 **비승격 Source 관측 계약**. [검증 보고서](validation/e004-canonical-layer-via-source-qualification.md).
+- **코드·리뷰:** [PR #586](https://github.com/july-rust/BoardSI/pull/586) 최종 HEAD `85996aabb603fa2b63af098a9284e9a0a9e4eee9`, **38/38 Checks SUCCESS**, 독립 리뷰 지적 0·미해결 Thread 0. 신규 합성 회귀 6개 Debug/Release PASS; 리뷰에서 발견된 중간 Dielectric 누락 결함을 수정하고 음성 반례로 보호.
+- **보호 병합:** Verified 단일 부모 Squash [`de87983a6af2f55423a49881eaacae690fe3b50f`](https://github.com/july-rust/BoardSI/commit/de87983a6af2f55423a49881eaacae690fe3b50f). **정확한 code-main SHA 독립 Push CI 8/8 Workflow SUCCESS**, 실패 0.
+- **상위 인수 분리:** [#4](https://github.com/july-rust/BoardSI/issues/4)와 [#520](https://github.com/july-rust/BoardSI/issues/520)은 전체 CAD/제조 도금/전기 Graph/실물·제품 T21/T51이 별도이므로 **계속 OPEN**. E_019/E_022 및 형식별 후속 단계의 조건을 앞당겨 PASS 표시하지 않는다. E_004 자체에 미완 PR은 없다.
+
 ## 작은 단위 실행 순서 — E_001 ~ E_030
 
 **각 행은 단일 작업에서 닫을 수 있도록 설계한 범위**다. 실제 실행 시 더 큰 수정이 필요하면 그 번호의 작은 수락 계약만 끝내고, 나머지를 새 번호로 분리한다. 독립 E_001–E_012는 실행 가능성이 높은 항목 우선 선택 가능하다.
