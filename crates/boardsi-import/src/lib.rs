@@ -182,6 +182,9 @@ mod tests {
     }
 }
 
+// E_008 source/version/readiness diagnostic; deliberately not an SI acceptance gate.
+pub mod import_readiness;
+
 // D_056_04 opt-in versioned Canonical Padstack/Via IPC; not electrical SI proof.
 pub mod canonical_padstack_ipc;
 pub mod circle_cutout_topology;

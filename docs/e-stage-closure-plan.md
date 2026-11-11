@@ -52,6 +52,13 @@
 - **F7 근거 별도:** [PR F7 Relocation](https://github.com/july-rust/BoardSI/actions/runs/42980487868) 세 Native Job은 PR 자동 Merge Checkout `3ddd02b5`에서 실행되었고 Git Tree SHA가 PR HEAD `a4c935ed` 및 코드-main `c229eccd`와 동일함을 재검증했습니다([E_006 상세 근거](validation/e006-native-platform-toolchain-qualification.md)). SDK 분리 후 synthetic selftest 성공은 clean-host 설치, 법적 라이선스 및 제품 배포 승인을 의미하지 않습니다.
 - **운영 완료 경계:** E_006 문서 PR의 최종 필수 CI·리뷰·보호 Verified Squash 및 새 정확한 main Push 결과가 모두 확인되어야 E_006 COMPLETE로 종결합니다. [Issue #6](https://github.com/july-rust/BoardSI/issues/6) 전체는 F7/정식 T13/T39 및 설치 검증 누락으로 계속 OPEN; E_007 라이선스/Fixture 별도. 제품 전체 인수로 승격 금지.
 
+## E_008 PADS 입력 판별·Source Readiness 실행 기록 — 2026-11-12 KST
+
+- **작은 단위 범위:** PADS V9.4 MILS 정확한 Header/지원 버전 판별, 8 MiB 상한의 opt-in ROUTE→Canonical 제한 파서 검증, G/N/P/S/R/M Source 근거/UNKNOWN 보존, 악성·누락·미지원 입력 회귀. [기술 보고서](validation/e008-pads-readiness-qualification.md).
+- **기존 기능 호환:** `boardsi-import-probe FILE`의 514-byte Signature Probe 동작을 유지. 신규 `--readiness`는 Source-only PARTIAL 판정이며 물리 Solver·Global Connectivity·새 포맷 문법·Qt UI 기능을 추가하지 않는다.
+- **정식 인수 경계:** [Issue #8](https://github.com/july-rust/BoardSI/issues/8)은 U38–U40/U48, 실제 Vendor·형식 전반·Qt 실패 경로 및 정식 T17/T20/T22에 대한 근거가 없으므로 OPEN. E_009, E_013–E_015의 후속 원래 범위 유지.
+- **운영 종료:** E_008 PR의 정확한 최종 HEAD 필수 Checks, 독립 리뷰, 0 unresolved threads, Verified Squash 및 정확한 main Push 결과가 확인되어야 **E_008 한정 COMPLETE**로 기록. 증거 URL·SHA는 [#8 종료 댓글](https://github.com/july-rust/BoardSI/issues/8)에 기재한다.
+
 ## 작은 단위 실행 순서 — E_001 ~ E_030
 
 **각 행은 단일 작업에서 닫을 수 있도록 설계한 범위**다. 실제 실행 시 더 큰 수정이 필요하면 그 번호의 작은 수락 계약만 끝내고, 나머지를 새 번호로 분리한다. 독립 E_001–E_012는 실행 가능성이 높은 항목 우선 선택 가능하다.
