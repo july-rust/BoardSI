@@ -13,16 +13,16 @@
 
 **Intentionally unchanged:** IPC v1 framing and message kinds, pre-ACK completion-race behavior, correct asynchronous Cancel/Cancelled versus OS exit, watchdog warning at 5 seconds and Force Stop availability after 10 seconds. Actual Rust Worker already suppresses calculation outputs after acknowledging Cancel (see `apps/boardsi-worker/src/main.rs`); the test-only peer intentionally violates that contract.
 
-## Native/CI acceptance — fill from exact final PR HEAD
+## Native/CI acceptance — final code PR #588
 
-- PR number / final HEAD: **NOT_VERIFIED until created and CI completes**
-- Native Rust test results (target OS + Debug/Release): **NOT_RUN in this report yet**
-- Native Qt QApplication/QProcess test results (target OS, backend, SHA): **NOT_RUN in this report yet**
-- Required PR checks, independent review, unresolved threads: **NOT_VERIFIED**
-- Verified Squash SHA and exact new-main Push CI: **NOT_VERIFIED**
-- Final E_005 scoped closure status: **PENDING**, never inferred from source changes alone.
+- **Code PR:** [#588](https://github.com/july-rust/BoardSI/pull/588), final HEAD [`a4c935ed74e4ce60fe1f4678a4dbbdb4a6f0175b`](https://github.com/july-rust/BoardSI/commit/a4c935ed74e4ce60fe1f4678a4dbbdb4a6f0175b).
+- **Final exact HEAD checks:** **37/37 SUCCESS**; 0 failed/pending. Required Rust numerical/format checks, Qt QApplication and independent Worker (Linux offscreen + xcb, Windows x64/ARM64, macOS ARM64), applicable native Rust/Qt/field-workflow regressions actually completed. This confirms synthetic Qt/Worker states, not actual PCB physics or clean-host redistribution.
+- **Independent PR review:** Codex review completed for the exact HEAD with **0 findings**, **0 unresolved findings**. An initial finding about the Qt failure diagnostic being overwritten was corrected before acceptance; final unresolved review threads **0**. Historical failed intermediate CI (Rust formatter and pre-existing cancel-race expectation) was corrected and is not relabeled PASS.
+- **Protected merge:** Verified GitHub Squash [`c229eccdbbba41af5f4c4d622c7a1bb6421bdf02`](https://github.com/july-rust/BoardSI/commit/c229eccdbbba41af5f4c4d622c7a1bb6421bdf02), **single parent** `1ceaef92791f1fb4875b782c01ac0a6c1c976511`; verified GitHub signature, exact current code main ref confirmed.
+- **Independent main Push CI:** **PENDING** until all 8 workflows for `c229eccd...` report actual SUCCESS; do not treat PR success as main Push success.
+- **Scoped E_005 closure:** **PENDING until main Push confirmation and final single-checklist reconciliation**.
 
-The operator must place actual URLs, SHAs, per-platform PASS/FAIL/NOT_RUN, review disposition, and merge/main Push checks in Issue #5 before changing the sole checklist's E_005 status to COMPLETE. Do not claim an independent review from a self-comment or an unexecuted offscreen test.
+**Evidence boundary:** Real native CI executes regression harnesses, not a complete physical BoardSI Solver. The 37 PR checks and main Push workflows are distinct. Specific code and scope failures preserve their historical FAIL statuses, and `#5` stays OPEN for product-level acceptance.
 
 ## Exclusions and issue disposition
 
