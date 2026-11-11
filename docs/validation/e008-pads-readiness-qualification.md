@@ -8,6 +8,7 @@
 - E_008 adds `import_readiness::inspect_pads_readiness` and `boardsi-import-probe FILE --readiness`. The opt-in path bounds the actual file read to **8 MiB + 1 byte**, including after the file metadata check, and passes bytes to the established V9.4 MILS `route_preview::parse` and `into_canonical`. Source bytes are never edited.
 - Only four exact supported importer header tokens are recognized as candidates: `!PADS-POWERPCB-V9.4-MILS!`, `!PADS-POWERPCB-V9.4-MILS-CP1252!`, `!PADS-POWERPCB-V9.4-MILS-250L!`, `!PADS-POWERPCB-V9.4-MILS-250L-CP1252!`. Other family/revision/unit or BOM/star variants are classified **FAMILY_ONLY**, not promoted to parser-qualified input.
 - Source-only `G/N/P/S/R/M` values are copied from the **actual restricted Canonical adapter's** `ImportCapability` after a successful parser run. Before that, each is **UNKNOWN**; no header-only readiness inference. Once accepted, partial/missing applies only to the existing importer subset, not source-complete PCB.
+- A parser-successful pad/outline-only source must also show at least one actual converted Canonical trace/arc/via; otherwise `NO_CANONICAL_ROUTE_GEOMETRY` is REJECTED and all six capabilities remain UNKNOWN. Public synthetic `pads_rf_rectangle_v94.asc` is the negative regression.
 - Parser rejection and `skipped` unsupported source route records are exposed by static code, not by echoing private input. Skips cannot become a clean preview qualification. `solver_ready=false` and `physical_si=NOT_RUN` are invariant.
 
 ## 2. Verification matrix
