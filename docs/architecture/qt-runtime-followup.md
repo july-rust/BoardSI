@@ -1,6 +1,6 @@
 # ADR update: cancel/completion race and native Qt runtime matrix
 
-Date: 2026-10-14 KST. PR #30 remains unmerged; Issues #3/#5/#6 remain partial.
+Date: 2026-10-14 KST. **Historical at drafting:** PR #30 was then unmerged and Issues #3/#5/#6 were partial. PR #30 subsequently merged; see the [C_025_08 bounded architecture audit](../validation/c02508-m0-architecture-issue3-acceptance.md) and [E_003 wire qualification](../validation/e003-rust-qt-ipc-compatibility-qualification.md). The runtime results below remain historical.
 This supersedes the strict-race/current-CI statements of the initial
 [Qt runtime ADR](qt-native-runtime.md). Specification v1.0 unchanged.
 
