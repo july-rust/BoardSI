@@ -39,11 +39,11 @@
 - **보호 병합:** Verified 단일 부모 Squash [`de87983a6af2f55423a49881eaacae690fe3b50f`](https://github.com/july-rust/BoardSI/commit/de87983a6af2f55423a49881eaacae690fe3b50f). **정확한 code-main SHA 독립 Push CI 8/8 Workflow SUCCESS**, 실패 0.
 - **상위 인수 분리:** [#4](https://github.com/july-rust/BoardSI/issues/4)와 [#520](https://github.com/july-rust/BoardSI/issues/520)은 전체 CAD/제조 도금/전기 Graph/실물·제품 T21/T51이 별도이므로 **계속 OPEN**. E_019/E_022 및 형식별 후속 단계의 조건을 앞당겨 PASS 표시하지 않는다. E_004 자체에 미완 PR은 없다.
 
-## E_005 실행 중 증거 경계 — 2026-11-11 KST
+## E_005 한정 종결 기록 — 2026-11-11 KST
 
-- **한정 기능 목표:** 취소 승인 이후 늦게 도착한 합성 `Result`/`Progress`를 Rust `RunGuard`와 Qt `Window` 모두에서 거부하고, 동일한 Qt QProcess 객체에서 새로운 Rust Worker 실행이 정상 재개되는지 실제 Native CI로 검증. 이는 모든 Worker 기능 완료가 아님.
-- **테스트:** [Rust E_005 부정 회귀](../crates/boardsi-ipc/tests/e005_cancel_late_response.rs), [Qt 실제 QApplication 회귀](../apps/boardsi-qt-prototype/tests/runtime.cpp), [오류 주입 Worker](../apps/boardsi-qt-prototype/tests/fault_worker.py), [전용 검증 계약](validation/e005-worker-cancellation-stale-timeout-qualification.md).
-- **종결 Gate:** E_005 실행 코드는 현재 **IN_PROGRESS**. 최종 HEAD Rust/Qt Native CI, 독립 리뷰·미해결 Thread 0, Verified Squash, 정확한 main Push CI까지 완료되고 Issue #5에 증거를 남기기 전에는 체크리스트에 COMPLETE 표시 금지. 상위 #5의 실제 PCB Solver/Production Run Snapshot 전체 인수는 독립 OPEN.
+- **단위 목표 완료:** Rust `RunGuard`와 실제 Qt `Window/QProcess`에서 `CancelAcknowledged` 이후 늦은 합성 `Result`/`Progress`를 Fail-Closed 처리하고 이전 세션 응답·재실행 오염을 방지. 첫 원인 오류 메시지를 OS 종료 과정에서도 보존하며 ACK 전 비행 중 결과, Heartbeat, Cancelled, 실제 OS 종료의 기존 의미를 유지.
+- **최종 코드/검증:** [PR #588](https://github.com/july-rust/BoardSI/pull/588), 최종 HEAD `a4c935ed74e4ce60fe1f4678a4dbbdb4a6f0175b`, Native 포함 **37/37 Checks SUCCESS**, 독립 코드 리뷰 지적/미해결 0, Verified Squash [`c229eccd`](https://github.com/july-rust/BoardSI/commit/c229eccdbbba41af5f4c4d622c7a1bb6421bdf02), 정확한 코드 `main` Push **8/8 Workflow SUCCESS**. [상세 검증 기록](validation/e005-worker-cancellation-stale-timeout-qualification.md).
+- **종결 경계:** **E_005만 한정 COMPLETE**. [상위 Issue #5](https://github.com/july-rust/BoardSI/issues/5)의 제품 Run Snapshot, 실제 PCB 고부하 Scheduler, T10/T34/T46/T50 전체 및 실제 SI Physics는 별도 OPEN. 코드 PR은 병합되어 미완 상태가 아니며 정식 제품 검증을 앞당겨 PASS하지 않는다.
 
 ## 작은 단위 실행 순서 — E_001 ~ E_030
 
