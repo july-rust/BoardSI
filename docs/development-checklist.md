@@ -20,25 +20,25 @@
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
 | [**D**](#stage-d) | PADS Source 접촉 후보 · 국소 Copper · 다층·CAD Source Adapter | 95 | 8 |
-| [**E**](#stage-e) | E_001~E_030 계획 (미실행) | — | — |
+| [**E**](#stage-e) | 미완 감사·기능 30개 소형 종결 단위 (제품 인수 외) | 1 | 29 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
 **전체 체크 상태: 166건 확인 · 128건 미확인.**
 
-> E_001~E_030은 계획만 등록한 상태로, 기존 확인/미확인 집계에 포함하지 않습니다. 이 수치는 단계별 한정 증거의 *기록 건수*이며 제품 완료율을 뜻하지 않습니다.
+> E_001은 제한된 사후 감사 종결로 확인하며, E_002~E_030은 미착수 29건입니다. E 수치는 기존 **166건 확인 · 128건 미확인**의 A/B/C/D/SEC/U/T 통계에 포함하지 않습니다. 제한 범위의 완료 기록은 제품 완료율을 뜻하지 않습니다.
 
 <a id="stage-e"></a>
-### Stage E — 미완 작업 종결 계획 (아직 실행 전)
+### Stage E — 미완 작업 종결 실행 현황
 
-> **D 작업은 D_056_09에서 종료**하며 과거 D_056_10~13은 역사적 계획 번호만 보존합니다. **E_001은 아직 시작하지 않았습니다.** 아래 모든 E 행의 초기 상태는 **NOT_STARTED**입니다. 기존 A/B/C/D/SEC/U/T의 166건 확인·128건 미확인 통계에는 아직 집계하지 않습니다.
+> **D 작업은 D_056_09에서 종료**하며 과거 D_056_10~13은 역사적 계획 번호만 보존합니다. **E_001은 2026-11-11 KST 제한 범위의 PH-07 사후 감사를 마무리하고 [PR #583](https://github.com/july-rust/BoardSI/pull/583)으로 기록했습니다.** E_002~E_030은 **NOT_STARTED**입니다. 기존 A/B/C/D/SEC/U/T의 166건 확인·128건 미확인 통계에는 아직 집계하지 않습니다.
 >
-> [**E_001~E_030 실행 계획·완료 관문**](e-stage-closure-plan.md) · [**실행 불가·외부 의존성 별도 관리**](e-stage-blocked-register.md) · [현재 GitHub 열린 이슈](https://github.com/july-rust/BoardSI/issues?q=is%3Aissue+is%3Aopen). **기준 2026-11-11 KST: Open Issue 30건 · Open PR 0건.**
+> [**E_001~E_030 실행 계획·완료 관문**](e-stage-closure-plan.md) · [**실행 불가·외부 의존성 별도 관리**](e-stage-blocked-register.md) · [현재 GitHub 열린 이슈](https://github.com/july-rust/BoardSI/issues?q=is%3Aissue+is%3Aopen). **E 계획 수립 당시(2026-11-11 KST) 스냅샷: Open Issue 30건 · Open PR 0건.** 이후 변경은 최신 GitHub 상태를 우선합니다.
 
 | 단위 | 끝낼 작업 한 가지 | 관련 이슈 | 단계 상태 |
 | :--- | :--- | :--- | :--- |
-| **E_001** | PH-07 사후 감사 #41 종결 판단 | [#41](https://github.com/july-rust/BoardSI/issues/41) | NOT_STARTED |
+| **E_001** | PH-07 사후 감사 #41 독립 종결 판단 | [#41](https://github.com/july-rust/BoardSI/issues/41), [#46 → E_029](https://github.com/july-rust/BoardSI/issues/46) | **COMPLETE (2026-11-11 KST · [PR #583](https://github.com/july-rust/BoardSI/pull/583))** |
 | **E_002** | M0 U/T 추적성 정합화 | [#2](https://github.com/july-rust/BoardSI/issues/2) | NOT_STARTED |
 | **E_003** | Rust/Qt/IPC 결정 확인 | [#3](https://github.com/july-rust/BoardSI/issues/3) | NOT_STARTED |
 | **E_004** | Canonical Source/Via 근거 | [#4](https://github.com/july-rust/BoardSI/issues/4) [#520](https://github.com/july-rust/BoardSI/issues/520) | NOT_STARTED |
@@ -68,6 +68,8 @@
 | **E_028** | 교차 형식 Canonical 한 케이스 | [#532](https://github.com/july-rust/BoardSI/issues/532) [#520](https://github.com/july-rust/BoardSI/issues/520) | NOT_STARTED |
 | **E_029** | macOS Qt 타이머 원인 실험 | [#46](https://github.com/july-rust/BoardSI/issues/46) | NOT_STARTED |
 | **E_030** | E 최종 전수 감사 | 전체 30개 | NOT_STARTED |
+
+**E_001 종결 근거:** 2026-11-11 KST, [PH-07 감사 근거·범위](validation/e001-ph07-post-audit-closure.md), [#41](https://github.com/july-rust/BoardSI/issues/41), [#43](https://github.com/july-rust/BoardSI/issues/43), [#46](https://github.com/july-rust/BoardSI/issues/46), [PR #583](https://github.com/july-rust/BoardSI/pull/583). **신규 물리 FEM/FVM 재실행이 아닌** 이전 감사 증거와 현행 GitHub Ruleset의 독립 상태 재확인입니다. #46 타이머 원인은 미규명이며 [EB-02](e-stage-blocked-register.md)에 보존하여 E_029로 인계합니다. 과거 PH-08 Gate Q FAIL과 정식 U/T 미인수는 그대로 유지합니다.
 
 **E 종결 규칙:** 각 번호의 코드/문서·부정 테스트·PR 최종 HEAD CI·Verified Squash·정확한 main Push 근거를 같은 작업에서 끝냅니다. 상위 이슈가 여전히 미완이면 거짓 Closed 대신 [차단/이관 원장](e-stage-blocked-register.md)에 재개 조건을 남깁니다. 작업이 분할되더라도 이미 시작한 E 번호의 수락
   범위를 무기한 Open으로 남기지 않습니다.
