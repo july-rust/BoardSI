@@ -134,6 +134,14 @@ pub fn inspect_pads_readiness(source: &[u8]) -> ReadinessReport {
             return report;
         }
     };
+    // A source can be accepted because an auxiliary pad/outline parser sees
+    // geometry, while this ROUTE-only Canonical conversion produces no objects.
+    // Do not describe that empty conversion as a verified preview subset.
+    if board.traces.is_empty() && board.arcs.is_empty() && board.vias.is_empty() {
+        report.parser_status = "REJECTED";
+        report.failure_code = "NO_CANONICAL_ROUTE_GEOMETRY";
+        return report;
+    }
     let Some(src) = board.sources.first() else {
         report.parser_status = "REJECTED";
         report.failure_code = "NO_CANONICAL_SOURCE";
@@ -227,6 +235,21 @@ mod tests {
         assert_eq!(r.failure_code, "MISSING_END_MARKER");
         assert_eq!(r.geometry, "UNKNOWN");
         assert!(!r.preview_subset_verified);
+    }
+
+    #[test]
+    fn pad_only_source_cannot_qualify_empty_route_canonical_conversion() {
+        // Existing public synthetic fixture is valid partial PAD source, but the
+        // restricted ROUTE->Canonical adapter creates NO pad/route geometry.
+        let pad_only = include_bytes!("../tests/fixtures/pads_rf_rectangle_v94.asc");
+        let r = inspect_pads_readiness(pad_only);
+        assert_eq!(r.source_format, "PADS_PCB_ASCII");
+        assert_eq!(r.parser_status, "REJECTED");
+        assert_eq!(r.failure_code, "NO_CANONICAL_ROUTE_GEOMETRY");
+        assert_eq!(r.geometry, "UNKNOWN");
+        assert_eq!(r.net, "UNKNOWN");
+        assert!(!r.preview_subset_verified);
+        assert!(r.diagnostic().contains("solver_ready=false"));
     }
 
     #[test]
