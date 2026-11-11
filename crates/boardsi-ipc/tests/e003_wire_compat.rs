@@ -23,6 +23,7 @@ fn malformed_wire_frames_fail_closed_without_implicit_fallback() {
     let invalid = [
         frame(json.replace("\"version\":1", "\"version\":2").as_bytes()),
         frame(json.replacen('{', "{\"unexpected\":true,", 1).as_bytes()),
+        frame(json.replacen("\"seq\":1", "\"seq\":1,\"seq\":1", 1).as_bytes()),
         frame(
             json.replace(
                 "\"type\":\"Started\"",
