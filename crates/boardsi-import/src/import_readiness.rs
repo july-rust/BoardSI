@@ -96,13 +96,13 @@ pub fn inspect_pads_readiness(source: &[u8]) -> ReadinessReport {
     // cannot silently bypass the parser's exact source grammar.
     let first = source.split(|&byte| byte == b'\n').next().unwrap_or_default();
     let tag = first.split(|b| b.is_ascii_whitespace()).next().unwrap_or_default();
-    let supported = matches!(
-        tag,
-        b"!PADS-POWERPCB-V9.4-MILS!"
-            | b"!PADS-POWERPCB-V9.4-MILS-CP1252!"
-            | b"!PADS-POWERPCB-V9.4-MILS-250L!"
-            | b"!PADS-POWERPCB-V9.4-MILS-250L-CP1252!"
-    );
+    const SUPPORTED_HEADERS: &[&[u8]] = &[
+        b"!PADS-POWERPCB-V9.4-MILS!",
+        b"!PADS-POWERPCB-V9.4-MILS-CP1252!",
+        b"!PADS-POWERPCB-V9.4-MILS-250L!",
+        b"!PADS-POWERPCB-V9.4-MILS-250L-CP1252!",
+    ];
+    let supported = SUPPORTED_HEADERS.contains(&tag);
     if !supported {
         report.version = "UNQUALIFIED";
         report.format_status = "FAMILY_ONLY";
