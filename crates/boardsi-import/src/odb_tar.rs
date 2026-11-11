@@ -42,7 +42,7 @@ fn octal(bytes: &[u8]) -> Result<u64, OdbError> {
     u64::from_str_radix(digits, 8).map_err(|_| bad("ODB_TAR_BAD_NUMBER"))
 }
 
-fn safe_name(path: &str) -> bool {
+pub(crate) fn safe_name(path: &str) -> bool {
     !path.is_empty()
         && path.len() <= 1024
         && !path.starts_with('/')
@@ -177,6 +177,13 @@ pub fn read_tar(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
         return Err(bad("ODB_TAR_MISSING_END"));
     }
 
+    normalize_product_files(raw)
+}
+
+
+/// Common product-root normalization for validated USTAR and stored-ZIP maps.
+/// A second nested matrix/matrix is never silently imported as part of one PCB.
+pub(crate) fn normalize_product_files(raw: OdbFileMap) -> Result<OdbFileMap, OdbError> {
     // Archives may use one product-root directory, but never silently merge
     // unrelated roots or allow a member outside the product.
     if raw.contains_key("matrix/matrix") {
@@ -204,7 +211,6 @@ pub fn read_tar(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
     validate_product_files(&flat)?;
     Ok(flat)
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
