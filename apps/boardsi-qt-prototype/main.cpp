@@ -106,8 +106,8 @@ class Window : public QWidget {
             error->setText(b.value("code").toString() + ": " + b.value("context").toString());
             status->setText("Worker reported failure; awaiting process exit");
         }
-        else if (type == "Progress" && state != Awaiting && integer(b.value("done"), resultCount) && integer(b.value("total"), points)) { progress->setValue(resultCount); }
-        else if (type == "Result" && state != Awaiting && resultCount < points && integer(b.value("point"), resultCount) &&
+        else if (type == "Progress" && (state == Running || state == CancelRequested) && integer(b.value("done"), resultCount) && integer(b.value("total"), points)) { progress->setValue(resultCount); }
+        else if (type == "Result" && (state == Running || state == CancelRequested) && resultCount < points && integer(b.value("point"), resultCount) &&
                  integer(b.value("frequency_hz"), resultCount * 1e6) && b.value("synthetic").isBool() && b.value("synthetic").toBool()) {
             for (const auto &key : {"s11", "s21"}) {
                 if (!b.value(key).isArray()) return false;
