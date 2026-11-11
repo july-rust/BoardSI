@@ -1789,7 +1789,6 @@ mod d056_native_via_source_regressions {
     }
 }
 
-
 #[cfg(test)]
 mod e009_glued_via_flag_tests {
     use super::*;
@@ -1831,16 +1830,32 @@ mod e009_glued_via_flag_tests {
                 let board = into_canonical(glued.as_bytes(), &artwork).unwrap();
                 assert_eq!(board.vias.len(), 1);
                 let baseline_board = into_canonical(plain.as_bytes(), &baseline).unwrap();
-                assert_eq!(board.vias[0].connected_layers.len(), baseline_board.vias[0].connected_layers.len());
-                assert!(board.vias[0].meta.provenance.source_object_type.contains("glued 0x0800"));
-                assert!(board.sources[0].id.conditions.iter().any(|(k, _)| k == "glued_via_source_flag"));
-                assert_eq!(board.sources[0].capability.geometry, CapabilityState::Partial);
+                assert_eq!(
+                    board.vias[0].connected_layers.len(),
+                    baseline_board.vias[0].connected_layers.len()
+                );
+                assert!(board.vias[0]
+                    .meta
+                    .provenance
+                    .source_object_type
+                    .contains("glued 0x0800"));
+                assert!(board.sources[0]
+                    .id
+                    .conditions
+                    .iter()
+                    .any(|(k, _)| k == "glued_via_source_flag"));
+                assert_eq!(
+                    board.sources[0].capability.geometry,
+                    CapabilityState::Partial
+                );
                 assert!(!board.validate().has_errors());
             }
             let report = crate::import_readiness::inspect_pads_readiness(glued.as_bytes());
             assert!(report.preview_subset_verified);
             assert_eq!(report.parser_status, "RESTRICTED_CANONICAL_PARTIAL");
-            assert!(report.diagnostic().contains("solver_ready=false;physical_si=NOT_RUN"));
+            assert!(report
+                .diagnostic()
+                .contains("solver_ready=false;physical_si=NOT_RUN"));
         }
     }
 
@@ -1860,7 +1875,10 @@ mod e009_glued_via_flag_tests {
                 // An arc-centre combination is a separate unsupported grammar
                 // and cannot be certified by this E_009 via-flag slice.
                 if invalid.contains("6144") {
-                    assert_eq!(parse_fn(file.as_bytes()).unwrap_err(), "NO_SUPPORTED_TRACES");
+                    assert_eq!(
+                        parse_fn(file.as_bytes()).unwrap_err(),
+                        "NO_SUPPORTED_TRACES"
+                    );
                 } else {
                     assert_eq!(
                         parse_fn(file.as_bytes()).unwrap_err(),
