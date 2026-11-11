@@ -181,7 +181,7 @@ fn safe_entity(name: &str) -> bool {
 
 /// Represent up to nine decimal places exactly in the source file's unit.
 /// No floating-point parsing, truncation, scientific notation or silent snapping.
-fn decimal_ticks(value: &str, path: &str, line: usize) -> Result<i64, OdbError> {
+pub(crate) fn decimal_ticks(value: &str, path: &str, line: usize) -> Result<i64, OdbError> {
     let digits = value.trim();
     let (neg, digits) = if let Some(x) = digits.strip_prefix('-') {
         (true, x)
@@ -225,7 +225,12 @@ fn decimal_ticks(value: &str, path: &str, line: usize) -> Result<i64, OdbError> 
         Ok(value)
     }
 }
-fn length_symbol(value: &str, mode: &str, path: &str, line: usize) -> Result<Rational, OdbError> {
+pub(crate) fn length_symbol(
+    value: &str,
+    mode: &str,
+    path: &str,
+    line: usize,
+) -> Result<Rational, OdbError> {
     // Standard symbol parameters are decimal reals (ODB++Design 8.1 U4 p.36).
     // A tick is 1e-9 source symbol units, so even fractional-mil sizes remain exact.
     let amount = decimal_ticks(value, path, line)?;
@@ -988,6 +993,15 @@ pub fn audit_tar_drill_source(
     audit_source_drill_map(&crate::odb_tar::read_tar(bytes)?, step, with_hits)
 }
 
+/// Unpack into one validated immutable source snapshot before import/audit.
+pub(crate) fn read_source_path_file_map(path: &std::path::Path) -> Result<OdbFileMap, OdbError> {
+    if path.is_file() {
+        read_tar_file_map(path)
+    } else {
+        read_directory(path)
+    }
+}
+
 /// Unified directory / USTAR Drill SOURCE audit. Read the source files once,
 /// then verify tool declarations and P hits against that same file-map snapshot.
 /// Neither variant licenses plated barrel, global Open/Short or SI conclusions.
@@ -996,11 +1010,7 @@ pub fn audit_path_drill_source(
     step: &str,
     with_hits: bool,
 ) -> Result<SourceDrillAudit, OdbError> {
-    let files = if path.is_file() {
-        read_tar_file_map(path)?
-    } else {
-        read_directory(path)?
-    };
+    let files = read_source_path_file_map(path)?;
     audit_source_drill_map(&files, step, with_hits)
 }
 

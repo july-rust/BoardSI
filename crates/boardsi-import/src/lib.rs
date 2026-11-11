@@ -225,6 +225,7 @@ pub mod material_contract;
 mod odb_drill;
 mod odb_drill_hits;
 mod odb_eda;
+pub mod odb_fabrication;
 pub mod odb_source;
 mod odb_surface;
 mod odb_tar;
