@@ -15,6 +15,9 @@ const MAX_COORD_TICKS: i64 = 5_600_000;
 // PADS 9.4 padstack/VIA drill limit is 1000 mil = 100,000 centimil ticks.
 const MAX_VIA_DRILL_TICKS: i64 = 100_000;
 const SUPPORTED_STRAIGHT_FLAGS: i64 = 0x0080 | 0x0200 | 0x0400;
+// PADS Layout 9.4 ROUTE definition p. 52: bit 0x0800 marks a glued VIA
+// placement, not a generic straight-copper route vertex.
+const GLUED_VIA_FLAG: i64 = 0x0800;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Segment {
@@ -40,6 +43,9 @@ pub struct RouteArc {
 pub struct ViaInstance {
     pub name: String,
     pub net: String,
+    /// SOURCE ROUTE flag 0x0800. Placement constraint only; not manufactured
+    /// connectivity, mechanical locking, or SI qualification.
+    pub glued: bool,
     pub point: [i64; 2],
     pub diameter_ticks: i64,
     pub drill_ticks: i64,
@@ -520,7 +526,10 @@ fn parse_with_via_mode(
         let thermal_requested =
             allow_generalized_vias && fields.len() == 7 && fields[6] == "THERMAL";
         if (fields.len() == 6 || thermal_requested)
-            && flag & !(SUPPORTED_STRAIGHT_FLAGS | if allow_generalized_vias { 0x0100 } else { 0 })
+            && flag
+                & !(SUPPORTED_STRAIGHT_FLAGS
+                    | GLUED_VIA_FLAG
+                    | if allow_generalized_vias { 0x0100 } else { 0 })
                 == 0
         {
             // Generalized mode always checks the strict source-definition
@@ -626,6 +635,7 @@ fn parse_with_via_mode(
                     }
                 }
                 vias.push(ViaInstance {
+                    glued: flag & GLUED_VIA_FLAG != 0,
                     name: fields[5].to_string(),
                     net: net.unwrap_or_default().to_string(),
                     point: p,
@@ -641,6 +651,11 @@ fn parse_with_via_mode(
                 previous = Some((p, layer, width));
                 continue;
             }
+        }
+        // A glued-via declaration cannot be downgraded to a straight chord or
+        // silently discarded when its via definition is absent/unsupported.
+        if flag & GLUED_VIA_FLAG != 0 {
+            return Err("E009_GLUED_FLAG_REQUIRES_SUPPORTED_NAMED_VIA");
         }
         // Arc/miter/via extensions never become fictitious straight chords.
         if fields.len() != 5 || flag & !SUPPORTED_STRAIGHT_FLAGS != 0 {
@@ -770,6 +785,12 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                     "strict-centre-cw-ccw-source-grid".into(),
                 ));
             }
+            if parsed.vias.iter().any(|via| via.glued) {
+                conditions.push((
+                    "glued_via_source_flag".into(),
+                    "0x0800-source-declared; no-manufacturing-or-locking-proof".into(),
+                ));
+            }
             if parsed.vias.iter().any(|via| via.shaped.is_some()) {
                 conditions.push((
                     "via_subset".into(),
@@ -811,6 +832,11 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                 if !parsed.arcs.is_empty() {
                     coverage.push(
                         "ROUTE strict exact-radius CW/CCW Arc geometry; electrical contact not verified".into(),
+                    );
+                }
+                if parsed.vias.iter().any(|via| via.glued) {
+                    coverage.push(
+                        "PADS 9.4 ROUTE 0x0800 glued-via SOURCE flag only; placement and electrical behavior not qualified".into(),
                     );
                 }
                 if parsed.vias.iter().any(|via| via.shaped.is_some()) {
@@ -1024,7 +1050,13 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                 &source,
                 ObjectKind::Via,
                 &format!("via-line-{}", via.source_line),
-                if via.shaped.is_some() {
+                if via.glued && via.shaped.is_some() {
+                    "PADS Layout ROUTE via placement (SOURCE-declared layer-shaped padstack; glued 0x0800 source flag)"
+                } else if via.glued && via.topology.is_some() {
+                    "PADS Layout ROUTE via placement (SOURCE-declared round layer span; glued 0x0800 source flag)"
+                } else if via.glued {
+                    "PADS Layout ROUTE via placement (restricted round through-via; glued 0x0800 source flag)"
+                } else if via.shaped.is_some() {
                     "PADS Layout ROUTE via placement (SOURCE-declared layer-shaped padstack)"
                 } else if via.topology.is_some() {
                     "PADS Layout ROUTE via placement (SOURCE-declared round layer span)"
@@ -1758,5 +1790,122 @@ mod d056_native_via_source_regressions {
             parse_generalized(malformed.as_bytes()).unwrap_err(),
             "D056_INVALID_VIA_SPAN_OR_DRILL"
         );
+    }
+}
+
+#[cfg(test)]
+mod e009_glued_via_flag_tests {
+    use super::*;
+
+    // Self-authored minimal V9.4 MILS grammar fixtures. The 0x0800 meaning is
+    // independently documented in PADS Layout ASCII 9.4, ROUTE p. 52.
+    fn source(layers: u32, route: &str) -> String {
+        format!(
+            "!PADS-POWERPCB-V9.4-MILS! DESIGN DATABASE ASCII FILE 1.0\n\
+             *PCB*\nMAXLAYER {layers}\n\
+             *VIA*\nGLUEDVIA 15 3\n-2 35 R\n-1 35 R\n0 35 R\n\
+             *ROUTE*\n*SIGNAL* SAFE_NET\nU1.1 U2.2\n\
+             100 200 1 10 0\n{route}\n500 200 2 10 0\n*END*\n"
+        )
+    }
+
+    #[test]
+    fn source_glued_via_bit_keeps_both_route_segments_and_canonical_provenance() {
+        for layers in [2u32, 4, 6, 8] {
+            let glued = source(layers, "300 200 2 10 2048 GLUEDVIA");
+            let plain = source(layers, "300 200 2 10 0 GLUEDVIA");
+            for parse_fn in [
+                parse as fn(&[u8]) -> Result<Artwork, &'static str>,
+                parse_generalized as fn(&[u8]) -> Result<Artwork, &'static str>,
+            ] {
+                let artwork = parse_fn(glued.as_bytes()).unwrap();
+                let baseline = parse_fn(plain.as_bytes()).unwrap();
+                assert_eq!(artwork.skipped, 0);
+                assert_eq!(artwork.vias.len(), 1);
+                assert!(artwork.vias[0].glued);
+                assert!(!baseline.vias[0].glued);
+                assert_eq!(artwork.vias[0].point, baseline.vias[0].point);
+                assert_eq!(artwork.vias[0].last_layer, layers);
+                assert_eq!(artwork.segments.len(), 2);
+                assert_eq!(artwork.segments[0].layer, 1);
+                assert_eq!(artwork.segments[1].layer, 2);
+                assert_eq!(artwork.segments[0].b, artwork.vias[0].point);
+                assert_eq!(artwork.segments[1].a, artwork.vias[0].point);
+                let board = into_canonical(glued.as_bytes(), &artwork).unwrap();
+                assert_eq!(board.vias.len(), 1);
+                let baseline_board = into_canonical(plain.as_bytes(), &baseline).unwrap();
+                assert_eq!(
+                    board.vias[0].connected_layers.len(),
+                    baseline_board.vias[0].connected_layers.len()
+                );
+                assert!(board.vias[0]
+                    .meta
+                    .provenance
+                    .source_object_type
+                    .contains("glued 0x0800"));
+                assert!(board.sources[0]
+                    .id
+                    .conditions
+                    .iter()
+                    .any(|(k, _)| k == "glued_via_source_flag"));
+                assert_eq!(
+                    board.sources[0].capability.geometry,
+                    CapabilityState::Partial
+                );
+                assert!(!board.validate().has_errors());
+            }
+            let report = crate::import_readiness::inspect_pads_readiness(glued.as_bytes());
+            assert!(report.preview_subset_verified);
+            assert_eq!(report.parser_status, "RESTRICTED_CANONICAL_PARTIAL");
+            assert!(report
+                .diagnostic()
+                .contains("solver_ready=false;physical_si=NOT_RUN"));
+        }
+    }
+
+    #[test]
+    fn glued_flag_requires_supported_named_source_via_not_fictitious_copper() {
+        for invalid in [
+            "300 200 2 10 2048",
+            "300 200 2 10 2048 MISSING_VIA",
+            "300 200 2 10 2048 GLUEDVIA EXTRA",
+            "300 200 2 10 6144 CW",
+        ] {
+            let file = source(4, invalid);
+            for parse_fn in [
+                parse as fn(&[u8]) -> Result<Artwork, &'static str>,
+                parse_generalized as fn(&[u8]) -> Result<Artwork, &'static str>,
+            ] {
+                // An arc-centre combination is a separate unsupported grammar
+                // and cannot be certified by this E_009 via-flag slice.
+                if invalid.contains("6144") {
+                    assert_eq!(
+                        parse_fn(file.as_bytes()).unwrap_err(),
+                        "NO_SUPPORTED_TRACES"
+                    );
+                } else {
+                    let error = parse_fn(file.as_bytes()).unwrap_err();
+                    assert!(
+                        matches!(
+                            error,
+                            "E009_GLUED_FLAG_REQUIRES_SUPPORTED_NAMED_VIA"
+                                | "D056_UNDECLARED_VIA_DEFINITION"
+                        ),
+                        "glued source must fail closed: {error}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn glued_named_via_allows_supported_route_metadata_bits_only() {
+        let file = source(6, "300 200 2 10 2688 GLUEDVIA"); // 0x0800 + 0x0080 + 0x0200
+        let parsed = parse(file.as_bytes()).unwrap();
+        assert_eq!(parsed.vias.len(), 1);
+        assert_eq!(parsed.skipped, 0);
+        assert!(parsed.vias[0].glued);
+        let no_glue = source(6, "300 200 2 10 640 GLUEDVIA");
+        assert!(!parse(no_glue.as_bytes()).unwrap().vias[0].glued);
     }
 }
