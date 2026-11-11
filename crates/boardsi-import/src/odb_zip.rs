@@ -313,10 +313,8 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "boardsi-d05609-{}-{stamp}.zip",
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("boardsi-d05609-{}-{stamp}.zip", std::process::id()));
         std::fs::write(&path, &archive).unwrap();
         let checked = (|| -> Result<(), crate::odb_source::OdbError> {
             let board = crate::odb_source::import_archive_file(&path, "pcb", false)?;
