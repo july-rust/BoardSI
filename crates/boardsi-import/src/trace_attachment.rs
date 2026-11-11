@@ -499,6 +499,7 @@ mod tests {
         ViaInstance {
             name: "PLATED".to_owned(),
             net: "NET_A".to_owned(),
+            glued: false,
             point: [0, 0],
             diameter_ticks: 100,
             drill_ticks: 40,
