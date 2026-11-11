@@ -56,6 +56,9 @@ class Window : public QWidget {
     }
     bool terminal() const { return state == Completed || state == Cancelled || state == Failed; }
     void fail(const QString &code) {
+        // A queued QProcess error or OS-exit callback must not erase the first
+        // actionable protocol failure after we already discarded its results.
+        if (state == Failed && !scopedFailure && !error->text().isEmpty()) return;
         state = Failed; resultCount = 0; progress->setValue(0);
         results->setText("Synthetic results: 0");
         error->setText(scopedFailure ? error->text() + " | " + code : code);
