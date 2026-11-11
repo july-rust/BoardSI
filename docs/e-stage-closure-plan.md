@@ -64,7 +64,7 @@
 | **E_004** | Canonical Layer/Via Source provenance 한 계약 검증 | [#4](https://github.com/july-rust/BoardSI/issues/4), [#520](https://github.com/july-rust/BoardSI/issues/520) | 층수 하드코딩 없이 Source 근거·Unknown 보존 회귀 |
 | **E_005** | 비차단 Worker의 취소 또는 late-response 한 경로 인수 | [#5](https://github.com/july-rust/BoardSI/issues/5) | 격리·stale 거부·Timeout 반례·적용 Native CI |
 | **E_006** | 세 Native OS Toolchain·실행 근거 최신성 감사 | [#6](https://github.com/july-rust/BoardSI/issues/6) | Windows x64/ARM64, macOS ARM64 실제 실행 SHA별 증거 |
-| **E_007** | 공개 Fixture 출처·해시·재배포 권한 한 묶음 정합화 | [#7](https://github.com/july-rust/BoardSI/issues/7) | 증명 없는 상용 데이터는 공개/승인으로 표기하지 않음 |
+| **E_007** | 공개 Fixture 출처·해시·재배포 권한 한 묶음 정합화 | [#7](https://github.com/july-rust/BoardSI/issues/7) · [E_007 보고서](validation/e007-public-fixture-provenance-rights-qualification.md) | 고정 KiCad 소스 2종 원본/해시·부정 회귀·라이선스 원문을 재조정; 제3자 권리/실기기 미승인은 별도 BLOCKED, E_007 기술 범위와 #7 전체 인수 분리 |
 | **E_008** | 입력 판별 및 readiness 한 Source 종류 보강 | [#8](https://github.com/july-rust/BoardSI/issues/8) | 미지원/누락/악성 소스 반례와 UNKNOWN 보존 |
 | **E_009** | PADS 소스 문법 1가지 지원 공백 수정 | [#9](https://github.com/july-rust/BoardSI/issues/9) | 공개 출처·공식 문법·변이 반례·A–D 회귀 |
 | **E_010** | Qt 메인 Import→IPC→Picking 한 종류 회귀 | [#11](https://github.com/july-rust/BoardSI/issues/11) | 실제 메인 Qt CPU/RHI·재Import·Source ID 무결성 |
