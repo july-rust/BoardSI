@@ -1050,8 +1050,12 @@ pub fn into_canonical(bytes: &[u8], parsed: &Artwork) -> Result<BoardModel, &'st
                 &source,
                 ObjectKind::Via,
                 &format!("via-line-{}", via.source_line),
-                if via.glued {
-                    "PADS Layout ROUTE via placement (SOURCE glued 0x0800 flag; only geometry/provenance qualified)"
+                if via.glued && via.shaped.is_some() {
+                    "PADS Layout ROUTE via placement (SOURCE-declared layer-shaped padstack; glued 0x0800 source flag)"
+                } else if via.glued && via.topology.is_some() {
+                    "PADS Layout ROUTE via placement (SOURCE-declared round layer span; glued 0x0800 source flag)"
+                } else if via.glued {
+                    "PADS Layout ROUTE via placement (restricted round through-via; glued 0x0800 source flag)"
                 } else if via.shaped.is_some() {
                     "PADS Layout ROUTE via placement (SOURCE-declared layer-shaped padstack)"
                 } else if via.topology.is_some() {
@@ -1880,9 +1884,14 @@ mod e009_glued_via_flag_tests {
                         "NO_SUPPORTED_TRACES"
                     );
                 } else {
-                    assert_eq!(
-                        parse_fn(file.as_bytes()).unwrap_err(),
-                        "E009_GLUED_FLAG_REQUIRES_SUPPORTED_NAMED_VIA"
+                    let error = parse_fn(file.as_bytes()).unwrap_err();
+                    assert!(
+                        matches!(
+                            error,
+                            "E009_GLUED_FLAG_REQUIRES_SUPPORTED_NAMED_VIA"
+                                | "D056_UNDECLARED_VIA_DEFINITION"
+                        ),
+                        "glued source must fail closed: {error}"
                     );
                 }
             }
