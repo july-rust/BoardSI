@@ -42,7 +42,10 @@ fn malformed_wire_frames_fail_closed_without_implicit_fallback() {
     ];
     for (case, bytes) in invalid.into_iter().enumerate() {
         let result = read_message(&mut Cursor::new(bytes));
-        let err = result.expect_err("invalid wire input must never decode");
+        let err = match result {
+            Err(err) => err,
+            Ok(decoded) => panic!("case {case}: invalid wire input accepted: {decoded:?}"),
+        };
         assert!(
             matches!(
                 err.kind(),
