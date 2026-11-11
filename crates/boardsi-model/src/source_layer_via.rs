@@ -143,10 +143,10 @@ impl BoardModel {
 mod tests {
     use super::*;
     use crate::{
-        BoardKind, CapabilityState, DielectricKind, FabricationHoleShape,
-        FabricationOperation, FabricationSourceEvidence, GeometryProvenance, ImportCapability,
-        ImportSource, Layer, Material, ObjectKind, ObjectMeta, PhysicalLayerSpan, PropertySource,
-        Rational, SourceFile, SourceFormat, SourceIdentity, Stackup,
+        BoardKind, CapabilityState, DielectricKind, FabricationHoleShape, FabricationOperation,
+        FabricationSourceEvidence, GeometryProvenance, ImportCapability, ImportSource, Layer,
+        Material, ObjectKind, ObjectMeta, PhysicalLayerSpan, PropertySource, Rational, SourceFile,
+        SourceFormat, SourceIdentity, Stackup,
     };
     use std::sync::Arc;
 
@@ -326,7 +326,6 @@ mod tests {
             .is_err());
     }
 
-
     fn source_property(value: Rational, assumed: bool) -> Property<Rational> {
         let src = PropertySource {
             document: "synthetic-stackup".into(),
@@ -363,16 +362,16 @@ mod tests {
         board.stackup.layers[0].order = 1;
         board.stackup.layers[1].order = 3;
         for (index, layer) in board.stackup.layers.iter_mut().enumerate() {
-            layer.z_m = source_property(
-                Rational::new(index as i128, 1_000_000).unwrap(),
-                false,
-            );
+            layer.z_m = source_property(Rational::new(index as i128, 1_000_000).unwrap(), false);
             layer.thickness_m = source_property(Rational::new(1, 1_000_000).unwrap(), false);
             layer.material = Some(material_id.clone());
         }
         let h = hole(1, 2);
         assert_eq!(
-            board.observe_source_via_hole(&source, &h).unwrap().stackup_evidence,
+            board
+                .observe_source_via_hole(&source, &h)
+                .unwrap()
+                .stackup_evidence,
             SourceStackupEvidence::Explicit
         );
         board.stackup.layers.push(Layer {
@@ -390,18 +389,19 @@ mod tests {
             thickness_m: Property::Missing,
             material: None,
         });
-        board.stackup.layers[1].z_m =
-            source_property(Rational::new(2, 1_000_000).unwrap(), false);
+        board.stackup.layers[1].z_m = source_property(Rational::new(2, 1_000_000).unwrap(), false);
         let missing = board.observe_source_via_hole(&source, &h).unwrap();
         assert_eq!(missing.physical_envelope_layers.len(), 2);
         assert_eq!(missing.stackup_evidence, SourceStackupEvidence::Missing);
         let dielectric = board.stackup.layers.last_mut().unwrap();
         dielectric.z_m = source_property(Rational::new(1, 1_000_000).unwrap(), true);
-        dielectric.thickness_m =
-            source_property(Rational::new(1, 1_000_000).unwrap(), true);
+        dielectric.thickness_m = source_property(Rational::new(1, 1_000_000).unwrap(), true);
         dielectric.material = Some(material_id);
         assert_eq!(
-            board.observe_source_via_hole(&source, &h).unwrap().stackup_evidence,
+            board
+                .observe_source_via_hole(&source, &h)
+                .unwrap()
+                .stackup_evidence,
             SourceStackupEvidence::Assumed
         );
         assert!(board.vias.is_empty());
