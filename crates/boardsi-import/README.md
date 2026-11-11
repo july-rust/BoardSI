@@ -6,6 +6,14 @@
 
 > **2026-11-11 current scope.** This crate contains (1) a signature-only PADS probe, (2) a **restricted** V9.4 MILS PADS geometry importer feeding the partial Canonical/Qt V1–V14 Artwork protocol, (3) a separate opt-in source-backed partially layered VIA geometry diagnostic (R/S/A conductive copper and RA/SA anti-pad), and (4) a **standalone limited ODB++Design unpacked-directory or strict uncompressed USTAR source import diagnostic**, not yet connected to the main Qt Import path. The original P2-A straight-only introduction below is a **dated baseline**, not the total current capability. Neither tool is a complete vendor-export compatible CAD converter or a validated PCB SI solver.
 
+### E_008 bounded PADS V9.4 MILS readiness (opt-in)
+
+The default one-argument `boardsi-import-probe FILE` remains a **signature-only** smoke with unchanged stdout/exit codes. With `boardsi-import-probe FILE --readiness`, the detector additionally checks exactly the four currently supported V9.4 MILS header tokens and the established bounded ROUTE→Canonical source-only subset. The file is limited to 8 MiB by metadata and actual bounded read. Supported form variants include `-CP1252`, `-250L` and both together.
+
+`--readiness` prints machine-checkable static, semicolon-separated `format`, `version`, `format_status`, `parser_status`, `reason`, `G/N/P/S/R/M`, `skipped` and `preview_subset_verified` fields; it never emits untrusted source names or geometry. A header-only match, an unsupported variant, or a rejected parse leaves all six capabilities **UNKNOWN**. A parsed limited SOURCE subset may report **PARTIAL/MISSING** from the real Canonical adapter; it is **never complete board readiness**. Skipped route records disable the clean-preview flag. `solver_ready=false;physical_si=NOT_RUN` always. Only a clean restricted preview can exit 0; errors/unqualified source exit 3.
+
+`G = geometry, N = net, P = pin/pad, S = stackup, R = reference, M = model` follows the Canonical `ImportCapability` naming, not inferred physics. The full source inventory, real exporter/version support, actual electrical Graph, compression security, and UI path are not qualified. See [E_008 evidence](../../docs/validation/e008-pads-readiness-qualification.md) and [Issue #8](https://github.com/july-rust/BoardSI/issues/8). Formal T17/T20/T22 remain NOT_RUN.
+
 ## Current command matrix
 
 | Executable / mode | What it does | What it does **not** prove |
