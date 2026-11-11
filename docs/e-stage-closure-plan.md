@@ -45,6 +45,13 @@
 - **최종 코드/검증:** [PR #588](https://github.com/july-rust/BoardSI/pull/588), 최종 HEAD `a4c935ed74e4ce60fe1f4678a4dbbdb4a6f0175b`, Native 포함 **37/37 Checks SUCCESS**, 독립 코드 리뷰 지적/미해결 0, Verified Squash [`c229eccd`](https://github.com/july-rust/BoardSI/commit/c229eccdbbba41af5f4c4d622c7a1bb6421bdf02), 정확한 코드 `main` Push **8/8 Workflow SUCCESS**. [상세 검증 기록](validation/e005-worker-cancellation-stale-timeout-qualification.md).
 - **종결 경계:** **E_005만 한정 COMPLETE**. [상위 Issue #5](https://github.com/july-rust/BoardSI/issues/5)의 제품 Run Snapshot, 실제 PCB 고부하 Scheduler, T10/T34/T46/T50 전체 및 실제 SI Physics는 별도 OPEN. 코드 PR은 병합되어 미완 상태가 아니며 정식 제품 검증을 앞당겨 PASS하지 않는다.
 
+## E_006 Native Toolchain 근거 감사 — 2026-11-11 KST
+
+- **기술 범위 완료:** [독립 E_006 검증 보고서](validation/e006-native-platform-toolchain-qualification.md)는 Windows x64/ARM64 및 macOS ARM64의 실제 Rust·Qt Widgets/QProcess synthetic native 실행을 각각의 SHA·Workflow·Job까지 검증했습니다. 새로운 기능/검사 프레임워크는 추가하지 않았습니다.
+- **소스 동일성 검증:** 최신 감사 당시 `main@400fe8e`은 Native가 실제 실행된 `main@c229eccd`보다 문서 5개만 변경했습니다. [Qt 정확한 code-main Push](https://github.com/july-rust/BoardSI/actions/runs/42982428188)와 [Rust 정확한 code-main Push](https://github.com/july-rust/BoardSI/actions/runs/42982428141)의 3+3개 Native Job 성공이 직접 증거이고, 최신 docs-only Push의 SKIPPED Job은 새 Native PASS가 아닙니다.
+- **F7 근거 별도:** [PR F7 Relocation](https://github.com/july-rust/BoardSI/actions/runs/42980487868) 세 Native Job은 PR 자동 Merge Checkout `3ddd02b5`에서 실행되었고 Git Tree SHA가 PR HEAD `a4c935ed` 및 코드-main `c229eccd`와 동일함을 재검증했습니다([E_006 상세 근거](validation/e006-native-platform-toolchain-qualification.md)). SDK 분리 후 synthetic selftest 성공은 clean-host 설치, 법적 라이선스 및 제품 배포 승인을 의미하지 않습니다.
+- **운영 완료 경계:** E_006 문서 PR의 최종 필수 CI·리뷰·보호 Verified Squash 및 새 정확한 main Push 결과가 모두 확인되어야 E_006 COMPLETE로 종결합니다. [Issue #6](https://github.com/july-rust/BoardSI/issues/6) 전체는 F7/정식 T13/T39 및 설치 검증 누락으로 계속 OPEN; E_007 라이선스/Fixture 별도. 제품 전체 인수로 승격 금지.
+
 ## 작은 단위 실행 순서 — E_001 ~ E_030
 
 **각 행은 단일 작업에서 닫을 수 있도록 설계한 범위**다. 실제 실행 시 더 큰 수정이 필요하면 그 번호의 작은 수락 계약만 끝내고, 나머지를 새 번호로 분리한다. 독립 E_001–E_012는 실행 가능성이 높은 항목 우선 선택 가능하다.

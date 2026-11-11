@@ -171,13 +171,14 @@
 </details>
 
 <details>
-<summary><strong>Stage E — Bounded closeout evidence</strong> — 5개 · 검증된 한정 인수와 제품 단계 미완 조건을 분리</summary>
+<summary><strong>Stage E — Bounded closeout evidence</strong> — 6개 · 검증된 한정 인수와 제품 단계 미완 조건을 분리</summary>
 
 - [E_001 · PH-07 post-audit closure and independent disposition](e001-ph07-post-audit-closure.md)
 - [E_002 · M0 F1 traceability and status reconciliation](e002-m0-f1-traceability-status-reconciliation.md)
 - [E_003 · Rust/Qt IPC compatibility qualification](e003-rust-qt-ipc-compatibility-qualification.md)
 - [E_004 · Canonical Layer/Via source qualification](e004-canonical-layer-via-source-qualification.md)
 - [E_005 · Worker post-cancel acknowledgement late-response qualification](e005-worker-cancellation-stale-timeout-qualification.md)
+- [E_006 · Three native platform toolchain and runtime evidence audit](e006-native-platform-toolchain-qualification.md)
 
 </details>
 
@@ -239,4 +240,4 @@
 
 ---
 
-**목록 집계:** 158개 그룹 분류 + 0개 미분류 = **158개** 기존 Markdown 근거 파일. 개별 기록을 일괄 수정하거나 과거 `FAIL`을 변경하지 않았습니다. 신규 보고서는 이 색인에 등록하고, 정식 완료 판정은 [단일 체크리스트](../development-checklist.md)에만 반영합니다. 검증 방법은 [Validation 설명](README.md), 문서 정책은 [문서 표준](../documentation-standards.md)을 참조하십시오.
+**목록 집계:** 159개 그룹 분류 + 0개 미분류 = **159개** 기존 Markdown 근거 파일. 개별 기록을 일괄 수정하거나 과거 `FAIL`을 변경하지 않았습니다. 신규 보고서는 이 색인에 등록하고, 정식 완료 판정은 [단일 체크리스트](../development-checklist.md)에만 반영합니다. 검증 방법은 [Validation 설명](README.md), 문서 정책은 [문서 표준](../documentation-standards.md)을 참조하십시오.
