@@ -171,9 +171,13 @@
 </details>
 
 <details>
-<summary><strong>Stage E — Audit closeout</strong> — 1개 · PH-07 사후 감사 한정 종결, 미해결 #46 별도 이관</summary>
+<summary><strong>Stage E — Bounded closeout evidence</strong> — 5개 · 검증된 한정 인수와 제품 단계 미완 조건을 분리</summary>
 
 - [E_001 · PH-07 post-audit closure and independent disposition](e001-ph07-post-audit-closure.md)
+- [E_002 · M0 F1 traceability and status reconciliation](e002-m0-f1-traceability-status-reconciliation.md)
+- [E_003 · Rust/Qt IPC compatibility qualification](e003-rust-qt-ipc-compatibility-qualification.md)
+- [E_004 · Canonical Layer/Via source qualification](e004-canonical-layer-via-source-qualification.md)
+- [E_005 · Worker post-cancel acknowledgement late-response qualification](e005-worker-cancellation-stale-timeout-qualification.md)
 
 </details>
 

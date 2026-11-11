@@ -7,7 +7,7 @@
 **문서 현황 검증(2026-11-08 KST):** Markdown **191개** 중 검증 원장 158개는 [전체 색인](validation/INDEX.md)에 있고, 나머지 안내·설계·운영 파일은 이 허브와 분야별 README에서 관리합니다. 최근 [문서 정리 PR #512/#515 및 CI 최적화 PR #516/#517의 정식 근거](development-checklist.md#documentation-ci-evidence)는 **단일 체크리스트에 별도로 기록**했습니다. 문서 개수는 제품 개발 완료율이 아닙니다.
 
 
-**2026-11-11 E 준비:** D 실행 번호는 D_056_09에서 종료합니다. E_001 시작 전, [E_001–E_030의 소형 작업·종료 관문](e-stage-closure-plan.md)과 [진행 불가/외부 의존성 분리 원장](e-stage-blocked-register.md)을 읽어주세요. A_001–A_036 전번호 증거 색인은 [기존 단일 체크리스트](development-checklist.md#a-history-ledger)에 복원했습니다. 이 단계는 계획·정리에 한하며 E 개발 작업은 시작하지 않았습니다.
+**2026-11-11 E 준비:** D 실행 번호는 D_056_09에서 종료합니다. E_001 시작 전, [E_001–E_030의 소형 작업·종료 관문](e-stage-closure-plan.md)과 [진행 불가/외부 의존성 분리 원장](e-stage-blocked-register.md)을 읽어주세요. A_001–A_036 전번호 증거 색인은 [기존 단일 체크리스트](development-checklist.md#a-history-ledger)에 복원했습니다. 이 문단의 E_001 시작 전 계획 기준은 **역사적 스냅샷**입니다. 이후 실행 결과와 실제 완료/미완 상태는 [Stage E 단일 체크리스트](development-checklist.md#stage-e) 및 각 [검증 보고서 색인](validation/INDEX.md)을 우선합니다.
 
 ## 처음 방문했다면 — 읽기 순서
 
