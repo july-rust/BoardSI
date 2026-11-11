@@ -35,10 +35,7 @@ fn completion_wins_only_with_all_results_before_cancel_ack() {
         if acknowledged {
             // After the ACK no calculation output may be accepted, and
             // the rejected message must not consume the Cancelled sequence.
-            assert_eq!(
-                guard.accept(next_result, now),
-                Err("InvalidStateOrPayload")
-            );
+            assert_eq!(guard.accept(next_result, now), Err("InvalidStateOrPayload"));
             assert!(guard.accept(message(seq, Body::Completed), now).is_err());
             guard.accept(message(seq, Body::Cancelled), now).unwrap();
             assert_eq!(guard.state, State::Cancelled);
