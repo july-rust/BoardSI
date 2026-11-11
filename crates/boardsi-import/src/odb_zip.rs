@@ -307,6 +307,34 @@ mod tests {
     }
 
     #[test]
+    fn stored_zip_path_reuses_canonical_and_source_drill_snapshot() {
+        let archive = example();
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "boardsi-d05609-{}-{stamp}.zip",
+            std::process::id()
+        ));
+        std::fs::write(&path, &archive).unwrap();
+        let checked = (|| -> Result<(), crate::odb_source::OdbError> {
+            let board = crate::odb_source::import_archive_file(&path, "pcb", false)?;
+            let source = crate::odb_fabrication::import_path_with_holes(&path, "pcb", false)?;
+            let audit = crate::odb_source::audit_path_drill_source(&path, "pcb", true)?;
+            assert_eq!(board.traces.len(), 2);
+            assert_eq!(board.stackup.layers.len(), 2);
+            assert_eq!(board.sources[0].id.files, source.board.sources[0].id.files);
+            assert!(source.source_holes.is_empty());
+            assert!(audit.layers.is_empty());
+            assert!(audit.hits.unwrap().is_empty());
+            Ok(())
+        })();
+        std::fs::remove_file(&path).unwrap();
+        checked.unwrap();
+    }
+
+    #[test]
     fn stored_zip_rejects_invalid_crc_and_unsafe_inputs() {
         let valid = example();
         let mut corrupt = valid.clone();
