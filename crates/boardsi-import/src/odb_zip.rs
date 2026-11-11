@@ -11,12 +11,16 @@ const MAX_ARCHIVE: usize = 256 * 1024 * 1024;
 const MAX_FILE: usize = 16 * 1024 * 1024;
 const MAX_TOTAL: usize = 128 * 1024 * 1024;
 const MAX_ENTRIES: usize = 8192;
-const LOCAL: u32 = 0x0403_4b50;
-const CENTRAL: u32 = 0x0201_4b50;
-const END: u32 = 0x0605_4b50;
+const LOCAL: usize = 0x0403_4b50;
+const CENTRAL: usize = 0x0201_4b50;
+const END: usize = 0x0605_4b50;
 
 fn bad(code: &'static str) -> OdbError {
-    OdbError { path: "product.zip".into(), line: 0, code }
+    OdbError {
+        path: "product.zip".into(),
+        line: 0,
+        code,
+    }
 }
 
 fn u16_at(bytes: &[u8], offset: usize) -> usize {
@@ -25,13 +29,20 @@ fn u16_at(bytes: &[u8], offset: usize) -> usize {
 
 fn u32_at(bytes: &[u8], offset: usize) -> usize {
     u32::from_le_bytes([
-        bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3],
+        bytes[offset],
+        bytes[offset + 1],
+        bytes[offset + 2],
+        bytes[offset + 3],
     ]) as usize
 }
 
 fn checked_end(start: usize, n: usize, maximum: usize) -> Result<usize, OdbError> {
-    let end = start.checked_add(n).ok_or_else(|| bad("ODB_ZIP_SIZE_OVERFLOW"))?;
-    if end > maximum { return Err(bad("ODB_ZIP_TRUNCATED")); }
+    let end = start
+        .checked_add(n)
+        .ok_or_else(|| bad("ODB_ZIP_SIZE_OVERFLOW"))?;
+    if end > maximum {
+        return Err(bad("ODB_ZIP_TRUNCATED"));
+    }
     Ok(end)
 }
 
@@ -59,13 +70,13 @@ pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
     if u32_at(bytes, eocd) != END {
         return Err(bad("ODB_ZIP_END_MISSING"));
     }
-    if u16_at(bytes, eocd + 4) != 0 || u16_at(bytes, eocd + 6) != 0
-        || u16_at(bytes, eocd + 20) != 0
+    if u16_at(bytes, eocd + 4) != 0 || u16_at(bytes, eocd + 6) != 0 || u16_at(bytes, eocd + 20) != 0
     {
         return Err(bad("ODB_ZIP_MULTIDISK_OR_COMMENT_UNSUPPORTED"));
     }
     let entries = u16_at(bytes, eocd + 10);
-    if entries == 0 || entries > MAX_ENTRIES
+    if entries == 0
+        || entries > MAX_ENTRIES
         || u16_at(bytes, eocd + 8) != entries
         || entries == 0xffff
     {
@@ -73,7 +84,8 @@ pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
     }
     let central_size = u32_at(bytes, eocd + 12);
     let central_start = u32_at(bytes, eocd + 16);
-    if central_start == 0xffff_ffff || central_size == 0xffff_ffff
+    if central_start == 0xffff_ffff
+        || central_size == 0xffff_ffff
         || checked_end(central_start, central_size, eocd)? != eocd
     {
         return Err(bad("ODB_ZIP_BAD_CENTRAL_DIRECTORY"));
@@ -85,9 +97,7 @@ pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
     let mut occupied = Vec::with_capacity(entries);
     let mut directory_names = BTreeSet::new();
     for _ in 0..entries {
-        if checked_end(cursor, 46, eocd)? > eocd
-            || u32_at(bytes, cursor) != CENTRAL
-        {
+        if checked_end(cursor, 46, eocd)? > eocd || u32_at(bytes, cursor) != CENTRAL {
             return Err(bad("ODB_ZIP_BAD_CENTRAL_DIRECTORY"));
         }
         let creator = u16_at(bytes, cursor + 4);
@@ -104,12 +114,20 @@ pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
         let external = u32_at(bytes, cursor + 38) as u32;
         let local_offset = u32_at(bytes, cursor + 42);
         let central_end = checked_end(
-            cursor, 46usize.checked_add(name_len).and_then(|n| n.checked_add(extra_len))
+            cursor,
+            46usize
+                .checked_add(name_len)
+                .and_then(|n| n.checked_add(extra_len))
                 .and_then(|n| n.checked_add(comment_len))
-                .ok_or_else(|| bad("ODB_ZIP_SIZE_OVERFLOW"))?, eocd,
+                .ok_or_else(|| bad("ODB_ZIP_SIZE_OVERFLOW"))?,
+            eocd,
         )?;
-        if version > 20 || flags & !0x0800 != 0 || extra_len != 0
-            || comment_len != 0 || disk != 0 || local_offset == 0xffff_ffff
+        if version > 20
+            || flags & !0x0800 != 0
+            || extra_len != 0
+            || comment_len != 0
+            || disk != 0
+            || local_offset == 0xffff_ffff
         {
             return Err(bad("ODB_ZIP_UNSUPPORTED_EXTENSION"));
         }
@@ -120,10 +138,13 @@ pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
             return Err(bad("ODB_ZIP_FILE_LIMIT"));
         }
         let name_bytes = &bytes[cursor + 46..cursor + 46 + name_len];
-        let name = std::str::from_utf8(name_bytes)
-            .map_err(|_| bad("ODB_ZIP_NONUTF8_PATH"))?;
+        let name = std::str::from_utf8(name_bytes).map_err(|_| bad("ODB_ZIP_NONUTF8_PATH"))?;
         let is_directory = name.ends_with('/');
-        let clean = if is_directory { &name[..name.len() - 1] } else { name };
+        let clean = if is_directory {
+            &name[..name.len() - 1]
+        } else {
+            name
+        };
         if !crate::odb_tar::safe_name(clean) {
             return Err(bad("ODB_ZIP_UNSAFE_PATH"));
         }
@@ -145,7 +166,9 @@ pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
         let local_method = u16_at(bytes, local_offset + 8);
         let local_name_len = u16_at(bytes, local_offset + 26);
         let local_extra = u16_at(bytes, local_offset + 28);
-        if local_flags != flags || local_method != method || local_extra != 0
+        if local_flags != flags
+            || local_method != method
+            || local_extra != 0
             || local_name_len != name_len
             || u32_at(bytes, local_offset + 14) as u32 != expected_crc
             || u32_at(bytes, local_offset + 18) != compressed
@@ -167,7 +190,8 @@ pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
                 return Err(bad("ODB_ZIP_DUPLICATE_OR_NONEMPTY_DIRECTORY"));
             }
         } else {
-            total = total.checked_add(data.len())
+            total = total
+                .checked_add(data.len())
                 .ok_or_else(|| bad("ODB_ZIP_TOTAL_LIMIT"))?;
             if total > MAX_TOTAL || raw.insert(name.to_owned(), data.to_vec()).is_some() {
                 return Err(bad("ODB_ZIP_TOTAL_OR_DUPLICATE_FILE"));
@@ -184,10 +208,14 @@ pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
     occupied.sort_unstable();
     let mut next = 0usize;
     for (start, end) in occupied {
-        if start != next { return Err(bad("ODB_ZIP_LOCAL_LAYOUT")); }
+        if start != next {
+            return Err(bad("ODB_ZIP_LOCAL_LAYOUT"));
+        }
         next = end;
     }
-    if next != central_start { return Err(bad("ODB_ZIP_LOCAL_LAYOUT")); }
+    if next != central_start {
+        return Err(bad("ODB_ZIP_LOCAL_LAYOUT"));
+    }
 
     crate::odb_tar::normalize_product_files(raw)
 }
@@ -196,8 +224,12 @@ pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
 mod tests {
     use super::*;
 
-    fn push16(v: &mut Vec<u8>, x: u16) { v.extend_from_slice(&x.to_le_bytes()); }
-    fn push32(v: &mut Vec<u8>, x: u32) { v.extend_from_slice(&x.to_le_bytes()); }
+    fn push16(v: &mut Vec<u8>, x: u16) {
+        v.extend_from_slice(&x.to_le_bytes());
+    }
+    fn push32(v: &mut Vec<u8>, x: u32) {
+        v.extend_from_slice(&x.to_le_bytes());
+    }
 
     fn zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
         let mut out = Vec::new();
@@ -205,7 +237,7 @@ mod tests {
         for &(name, data) in entries {
             let crc = crc32(data);
             let offset = out.len() as u32;
-            push32(&mut out, LOCAL);
+            push32(&mut out, LOCAL as u32);
             push16(&mut out, 10);
             push16(&mut out, 0);
             push16(&mut out, 0);
@@ -219,7 +251,7 @@ mod tests {
             out.extend_from_slice(name.as_bytes());
             out.extend_from_slice(data);
 
-            push32(&mut central, CENTRAL);
+            push32(&mut central, CENTRAL as u32);
             push16(&mut central, 10);
             push16(&mut central, 10);
             push16(&mut central, 0);
@@ -240,7 +272,7 @@ mod tests {
         }
         let start = out.len() as u32;
         out.extend_from_slice(&central);
-        push32(&mut out, END);
+        push32(&mut out, END as u32);
         push16(&mut out, 0);
         push16(&mut out, 0);
         push16(&mut out, entries.len() as u16);
@@ -279,14 +311,26 @@ mod tests {
         let valid = example();
         let mut corrupt = valid.clone();
         // Flip one matrix data byte while keeping headers unchanged.
-        let start = corrupt.windows(b"STEP".len()).position(|w| w == b"STEP").unwrap();
+        let start = corrupt
+            .windows(b"STEP".len())
+            .position(|w| w == b"STEP")
+            .unwrap();
         corrupt[start] ^= 1;
-        assert_eq!(read_zip(&corrupt).unwrap_err().code, "ODB_ZIP_CRC32_MISMATCH");
+        assert_eq!(
+            read_zip(&corrupt).unwrap_err().code,
+            "ODB_ZIP_CRC32_MISMATCH"
+        );
 
         let duplicate = zip(&[("matrix/matrix", b"a"), ("matrix/matrix", b"b")]);
-        assert_eq!(read_zip(&duplicate).unwrap_err().code, "ODB_ZIP_TOTAL_OR_DUPLICATE_FILE");
+        assert_eq!(
+            read_zip(&duplicate).unwrap_err().code,
+            "ODB_ZIP_TOTAL_OR_DUPLICATE_FILE"
+        );
         let traversal = zip(&[("../matrix/matrix", b"a")]);
-        assert_eq!(read_zip(&traversal).unwrap_err().code, "ODB_ZIP_UNSAFE_PATH");
+        assert_eq!(
+            read_zip(&traversal).unwrap_err().code,
+            "ODB_ZIP_UNSAFE_PATH"
+        );
 
         let mut compressed = valid.clone();
         // First local compression method and its central-directory twin.
@@ -294,20 +338,29 @@ mod tests {
         let eocd = compressed.len() - 22;
         let cd = u32_at(&compressed, eocd + 16);
         compressed[cd + 10] = 8;
-        assert_eq!(read_zip(&compressed).unwrap_err().code, "ODB_ZIP_COMPRESSION_UNSUPPORTED");
+        assert_eq!(
+            read_zip(&compressed).unwrap_err().code,
+            "ODB_ZIP_COMPRESSION_UNSUPPORTED"
+        );
 
         let mut trailing = valid.clone();
         trailing.push(0);
         assert_eq!(read_zip(&trailing).unwrap_err().code, "ODB_ZIP_END_MISSING");
         let mut local_mismatch = valid.clone();
         local_mismatch[0] = b'X';
-        assert_eq!(read_zip(&local_mismatch).unwrap_err().code, "ODB_ZIP_BAD_LOCAL_HEADER");
+        assert_eq!(
+            read_zip(&local_mismatch).unwrap_err().code,
+            "ODB_ZIP_BAD_LOCAL_HEADER"
+        );
         let mut descriptor = valid.clone();
         descriptor[6] = 8;
         let eocd = descriptor.len() - 22;
         let cd = u32_at(&descriptor, eocd + 16);
         descriptor[cd + 8] = 8;
-        assert_eq!(read_zip(&descriptor).unwrap_err().code, "ODB_ZIP_UNSUPPORTED_EXTENSION");
+        assert_eq!(
+            read_zip(&descriptor).unwrap_err().code,
+            "ODB_ZIP_UNSUPPORTED_EXTENSION"
+        );
     }
 
     #[test]
@@ -323,6 +376,9 @@ mod tests {
         // Source platform Unix, symlink mode 0120000 in external attributes.
         link[cd + 5] = 3;
         link[cd + 40..cd + 42].copy_from_slice(&(0o120000u16).to_le_bytes());
-        assert_eq!(read_zip(&link).unwrap_err().code, "ODB_ZIP_UNSUPPORTED_MEMBER");
+        assert_eq!(
+            read_zip(&link).unwrap_err().code,
+            "ODB_ZIP_UNSUPPORTED_MEMBER"
+        );
     }
 }
