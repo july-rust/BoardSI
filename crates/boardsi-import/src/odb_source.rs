@@ -768,8 +768,9 @@ pub fn import_tar_with_eda(bytes: &[u8], step: &str) -> Result<BoardModel, OdbEr
     import_unpacked_with_eda(&crate::odb_tar::read_tar(bytes)?, step)
 }
 
-/// Load a bounded USTAR without extraction and reject symlinks and special files.
-/// All input formats use the same read_tar validation and logical file-map bytes.
+/// Load a bounded USTAR or ZIP with STORED members only, without extraction.
+/// Both transports yield identical source-relative file maps; symlinks, data
+/// descriptors, compressed ZIP members and unsafe paths fail closed.
 fn read_tar_file_map(path: &std::path::Path) -> Result<OdbFileMap, OdbError> {
     let info =
         std::fs::symlink_metadata(path).map_err(|_| error("product.tar", 0, "ODB_TAR_FILE_IO"))?;
@@ -780,10 +781,15 @@ fn read_tar_file_map(path: &std::path::Path) -> Result<OdbFileMap, OdbError> {
     if bytes.len() as u64 != info.len() {
         return Err(error("product.tar", 0, "ODB_TAR_CHANGED_DURING_READ"));
     }
-    crate::odb_tar::read_tar(&bytes)
+    if bytes.starts_with(b"PK\x03\x04") {
+        crate::odb_zip::read_zip(&bytes)
+    } else {
+        crate::odb_tar::read_tar(&bytes)
+    }
 }
 
-/// Local TAR file import; no external extractor, shell, symlink or decompression.
+/// Backward-compatible local archive import: USTAR or strictly STORED ZIP.
+/// No external extractor, shell, symlink or decompression.
 pub fn import_tar_file(
     path: &std::path::Path,
     step: &str,
@@ -795,6 +801,16 @@ pub fn import_tar_file(
     } else {
         import_unpacked(&files, step)
     }
+}
+
+/// Explicit archive entrypoint for ODB++ package paths. Compressed ZIP/GZIP,
+/// ZIP64 and compressed feature files remain UNSUPPORTED.
+pub fn import_archive_file(
+    path: &std::path::Path,
+    step: &str,
+    with_eda: bool,
+) -> Result<BoardModel, OdbError> {
+    import_tar_file(path, step, with_eda)
 }
 
 fn verified_source_files(files: &OdbFileMap) -> Result<Vec<SourceFile>, OdbError> {
