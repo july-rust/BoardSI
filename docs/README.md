@@ -7,13 +7,15 @@
 **문서 현황 검증(2026-11-08 KST):** Markdown **191개** 중 검증 원장 158개는 [전체 색인](validation/INDEX.md)에 있고, 나머지 안내·설계·운영 파일은 이 허브와 분야별 README에서 관리합니다. 최근 [문서 정리 PR #512/#515 및 CI 최적화 PR #516/#517의 정식 근거](development-checklist.md#documentation-ci-evidence)는 **단일 체크리스트에 별도로 기록**했습니다. 문서 개수는 제품 개발 완료율이 아닙니다.
 
 
+**2026-11-11 E 준비:** D 실행 번호는 D_056_09에서 종료합니다. E_001 시작 전, [E_001–E_030의 소형 작업·종료 관문](e-stage-closure-plan.md)과 [진행 불가/외부 의존성 분리 원장](e-stage-blocked-register.md)을 읽어주세요. A_001–A_036 전번호 증거 색인은 [기존 단일 체크리스트](development-checklist.md#a-history-ledger)에 복원했습니다. 이 단계는 계획·정리에 한하며 E 개발 작업은 시작하지 않았습니다.
+
 ## 처음 방문했다면 — 읽기 순서
 
 | 순서 | 문서 | 무엇을 확인하나 |
 | :--- | :--- | :--- |
 | 1 | **[프로젝트 개요](../README.md)** | 무엇을 만들며 무엇을 아직 못 하는가 |
 | 2 | **[개발자 Quickstart](developer-quickstart.md)** | 공개 합성 파일로 Rust·Importer·Qt Preview 빌드/실행 |
-| 3 | **[단일 개발 체크리스트](development-checklist.md)** | 기능 단위 최초 체크일, 증거, 미검증 범위; 제품 진행률과 다름 |
+| 3 | **[단일 개발 체크리스트 (A–E)](development-checklist.md)** | 기능 단위 최초 체크일, 증거, 미검증 범위; 제품 진행률과 다름 |
 | 4 | **[v1.0 개발 사양서](specification/BoardSI_Development_Spec_v1.0.md)** | **요구사항 기준선** U01–U48 / 인수시험 정의 T01–T54; 구현 결과 아님 |
 | 5 | **[아키텍처](architecture/README.md)** | Rust, Canonical Model, PADS Importer, Qt/Worker IPC, 연구용 FEM의 경계 |
 | 6 | **[검증 허브](validation/README.md)** | 각 단계의 테스트/승인 증거와 실패·미완 상태 |
