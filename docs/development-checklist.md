@@ -41,7 +41,7 @@
 | **E_001** | PH-07 사후 감사 #41 독립 종결 판단 | [#41](https://github.com/july-rust/BoardSI/issues/41), [#46 → E_029](https://github.com/july-rust/BoardSI/issues/46) | **COMPLETE (2026-11-11 KST · [PR #583](https://github.com/july-rust/BoardSI/pull/583))** |
 | **E_002** | M0 U/T 추적성 정합화 | [#2](https://github.com/july-rust/BoardSI/issues/2), [검증 기록](validation/e002-m0-f1-traceability-status-reconciliation.md) | **COMPLETE (한정 정합화 · 2026-11-11 KST; PR/CI는 #2 종료 댓글 참조)** |
 | **E_003** | Rust/Qt/IPC v1 호환성 근거·부정 회귀 | [#3](https://github.com/july-rust/BoardSI/issues/3), [검증](validation/e003-rust-qt-ipc-compatibility-qualification.md) | **COMPLETE (한정; PR #585 검증·보호 병합·main Push 통과 시; 전체 #3은 OPEN)** |
-| **E_004** | Canonical Source/Via 근거 | [#4](https://github.com/july-rust/BoardSI/issues/4) [#520](https://github.com/july-rust/BoardSI/issues/520) | NOT_STARTED |
+| **E_004** | Canonical Layer/Via SOURCE 근거·Unknown 보존 회귀 | [#4](https://github.com/july-rust/BoardSI/issues/4) [#520](https://github.com/july-rust/BoardSI/issues/520) · [검증 보고서](validation/e004-canonical-layer-via-source-qualification.md) | **IN_PROGRESS** (2026-11-11 KST; 최종 CI·검증 전 완료 아님) |
 | **E_005** | Worker 비차단 단일 회귀 | [#5](https://github.com/july-rust/BoardSI/issues/5) | NOT_STARTED |
 | **E_006** | 3 Native 플랫폼 근거 | [#6](https://github.com/july-rust/BoardSI/issues/6) | NOT_STARTED |
 | **E_007** | 공개 Fixture·라이선스 | [#7](https://github.com/july-rust/BoardSI/issues/7) | NOT_STARTED |
