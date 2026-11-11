@@ -20,26 +20,26 @@
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
 | [**D**](#stage-d) | PADS Source 접촉 후보 · 국소 Copper · 다층·CAD Source Adapter | 95 | 8 |
-| [**E**](#stage-e) | 미완 감사·기능 30개 소형 종결 단위 (제품 인수 외) | 1 | 29 |
+| [**E**](#stage-e) | 미완 감사·기능 30개 소형 종결 단위 (제품 인수 외) | 2 | 28 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
 **전체 체크 상태: 166건 확인 · 128건 미확인.**
 
-> E_001은 제한된 사후 감사 종결로 확인하며, E_002~E_030은 미착수 29건입니다. E 수치는 기존 **166건 확인 · 128건 미확인**의 A/B/C/D/SEC/U/T 통계에 포함하지 않습니다. 제한 범위의 완료 기록은 제품 완료율을 뜻하지 않습니다.
+> E_001은 제한된 사후 감사 종결, E_002는 M0 F1 인수상태 정합화 한정 완료로 기록하며, E_003~E_030은 미착수 28건입니다. E 수치는 기존 **166건 확인 · 128건 미확인**의 A/B/C/D/SEC/U/T 통계에 포함하지 않습니다. 제한 범위의 완료 기록은 제품 완료율을 뜻하지 않습니다.
 
 <a id="stage-e"></a>
 ### Stage E — 미완 작업 종결 실행 현황
 
-> **D 작업은 D_056_09에서 종료**하며 과거 D_056_10~13은 역사적 계획 번호만 보존합니다. **E_001은 2026-11-11 KST 제한 범위의 PH-07 사후 감사를 마무리하고 [PR #583](https://github.com/july-rust/BoardSI/pull/583)으로 기록했습니다.** E_002~E_030은 **NOT_STARTED**입니다. 기존 A/B/C/D/SEC/U/T의 166건 확인·128건 미확인 통계에는 아직 집계하지 않습니다.
+> **D 작업은 D_056_09에서 종료**하며 과거 D_056_10~13은 역사적 계획 번호만 보존합니다. **E_001은 2026-11-11 KST 제한 범위로 완료했습니다([PR #583](https://github.com/july-rust/BoardSI/pull/583)). E_002는 동일 날짜의 한정 추적성 정합화 결과이며 [검증 기록](validation/e002-m0-f1-traceability-status-reconciliation.md) 및 Issue #2 최종 작업 댓글에서 PR/CI 종료 근거를 확인합니다.** E_003~E_030은 **NOT_STARTED**입니다. 기존 A/B/C/D/SEC/U/T의 166건 확인·128건 미확인 통계에는 아직 집계하지 않습니다.
 >
 > [**E_001~E_030 실행 계획·완료 관문**](e-stage-closure-plan.md) · [**실행 불가·외부 의존성 별도 관리**](e-stage-blocked-register.md) · [현재 GitHub 열린 이슈](https://github.com/july-rust/BoardSI/issues?q=is%3Aissue+is%3Aopen). **E 계획 수립 당시(2026-11-11 KST) 스냅샷: Open Issue 30건 · Open PR 0건.** 이후 변경은 최신 GitHub 상태를 우선합니다.
 
 | 단위 | 끝낼 작업 한 가지 | 관련 이슈 | 단계 상태 |
 | :--- | :--- | :--- | :--- |
 | **E_001** | PH-07 사후 감사 #41 독립 종결 판단 | [#41](https://github.com/july-rust/BoardSI/issues/41), [#46 → E_029](https://github.com/july-rust/BoardSI/issues/46) | **COMPLETE (2026-11-11 KST · [PR #583](https://github.com/july-rust/BoardSI/pull/583))** |
-| **E_002** | M0 U/T 추적성 정합화 | [#2](https://github.com/july-rust/BoardSI/issues/2) | NOT_STARTED |
+| **E_002** | M0 U/T 추적성 정합화 | [#2](https://github.com/july-rust/BoardSI/issues/2), [검증 기록](validation/e002-m0-f1-traceability-status-reconciliation.md) | **COMPLETE (한정 정합화 · 2026-11-11 KST; PR/CI는 #2 종료 댓글 참조)** |
 | **E_003** | Rust/Qt/IPC 결정 확인 | [#3](https://github.com/july-rust/BoardSI/issues/3) | NOT_STARTED |
 | **E_004** | Canonical Source/Via 근거 | [#4](https://github.com/july-rust/BoardSI/issues/4) [#520](https://github.com/july-rust/BoardSI/issues/520) | NOT_STARTED |
 | **E_005** | Worker 비차단 단일 회귀 | [#5](https://github.com/july-rust/BoardSI/issues/5) | NOT_STARTED |

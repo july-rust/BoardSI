@@ -4,7 +4,7 @@
 
 ## Interpretation and source control
 
-- **DEFINED** is a documented requirement, not implementation. **PARTIAL** means only restricted M0 prototype evidence, not a passed full T acceptance. **NOT_RUN** means no complete ID-specific acceptance evidence is established in this ledger. All T01–T54 require case-by-case evidence before a PASS.
+- **DEFINED** is a documented requirement, not implementation. **PARTIAL** in U implementation or an evidence note denotes restricted M0 prototype evidence ONLY, never a passed full T acceptance. **NOT_RUN** in the `Complete acceptance result` column means no complete ID-specific acceptance evidence. All T01–T54 require case-by-case evidence before any full PASS. T13/T39/T46 preserve their bounded prototype observations in `Evidence` while the formal acceptance column stays `NOT_RUN`; their independent case reviews remain `NOT_PERFORMED` in the immutable 10-case JSON.
 - The section 18.2 grouped mapping is a **coarse, group-level association**, **not** proof that every test fully validates every requirement in that group. Precisely map individual T cases as implementation matures.
 - T44 was present in the specification's test definitions but absent from section 18.2; it is now linked under the S-parameter/export functionality U01, without changing any test criterion.
 - M1–M5 functionality and actual measured PCB validation remain NOT_RUN here. No complete release or original HMM Gate Q claim.
@@ -78,7 +78,7 @@
 | T10 | M0~M2b; 단계별 게이트 | U04,U13,U22,U23,U24,U47 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T11 | M0~M2b | U04,U13,U22,U23,U24 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T12 | M2b; 단계별 게이트 | U45,U47 | NOT_RUN | No complete case-specific T acceptance claimed |
-| T13 | M0; M0 및 릴리즈 | U02,U03,U14 | PARTIAL | M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified |
+| T13 | M0; M0 및 릴리즈 | U02,U03,U14 | NOT_RUN | M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified |
 | T14 | 전체 단계 | U05,U15 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T15 | 전체 단계 | U05,U15,U16 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T16 | I1은 M1, 확대 M3~M5 | U06,U07,U08,U31,U32,U33,U38,U39,U40,U48 | NOT_RUN | No complete case-specific T acceptance claimed |
@@ -104,14 +104,14 @@
 | T36 | 기하 M1a, 정량 M2c | U26,U27,U28,U29,U30 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T37 | 기하 M1a, 정량 M2c | U26,U27,U28,U29,U30 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T38 | 기하 M1a, 정량 M2c | U26,U27,U28,U29,U30 | NOT_RUN | No complete case-specific T acceptance claimed |
-| T39 | M0; M0 및 릴리즈 | U02,U03,U14 | PARTIAL | M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified |
+| T39 | M0; M0 및 릴리즈 | U02,U03,U14 | NOT_RUN | M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified |
 | T40 | 전체 단계 | U05,U15,U16 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T41 | M2~M2a; 단계별 게이트 | U12,U17,U18,U19,U20,U21,U25,U41,U46,U47 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T42 | 결합 모델 제공 시 M2 | U42 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T43 | M2 | U01 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T44 | M2 | U01 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T45 | M2a | U43 | NOT_RUN | No complete case-specific T acceptance claimed |
-| T46 | M0~M2b | U04,U13,U22,U23,U24,U44 | PARTIAL | M0 native Qt/Worker prototype only; see #5; see #46; full T unqualified |
+| T46 | M0~M2b | U04,U13,U22,U23,U24,U44 | NOT_RUN | M0 native Qt/Worker prototype only; see #5; see #46; full T unqualified |
 | T47 | M2b | U45 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T48 | M2~M2a | U12,U17,U18,U19,U20,U21,U25,U41,U46 | NOT_RUN | No complete case-specific T acceptance claimed |
 | T49 | 전체 단계 | U05,U15 | NOT_RUN | No complete case-specific T acceptance claimed |

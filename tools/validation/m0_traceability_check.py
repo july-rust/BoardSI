@@ -597,6 +597,10 @@ def has_audited_ledger_evidence(identifier, status, evidence):
         return evidence in ("See specification v1.0; no ID-specific full test evidence",
                             r"See \| specification v1.0; no ID-specific full test evidence")
     if identifier.startswith("T") and status == "NOT_RUN":
+        if identifier in ("T13", "T39", "T46"):
+            # Preserve existing restricted proof in the evidence cell, not as
+            # the complete T-acceptance state. Any unrelated evidence fails closed.
+            return has_row_specific_partial_evidence(identifier, evidence)
         return evidence == "No complete case-specific T acceptance claimed"
     return False
 
@@ -635,7 +639,7 @@ def extract_ledger(source):
             raise ValueError("unknown/malformed T ledger row: " + line)
         if m:
             cells = split_markdown_cells(line)
-            if len(cells)!=5 or m.group(1) in t_map or cells[3] not in ("NOT_RUN","PARTIAL"):
+            if len(cells)!=5 or m.group(1) in t_map or cells[3] != "NOT_RUN":
                 raise ValueError("invalid / duplicate T ledger row: "+line)
             if not has_audited_ledger_evidence(m.group(1), cells[3], cells[4]):
                 raise ValueError("T ledger evidence contradicts audited status: " + line)
@@ -1120,8 +1124,20 @@ if __name__=="__main__":
         "| DEFINED | PARTIAL | NOT_RUN | M0 restricted prototype; see #3 |",
         "| DEFINED | PARTIAL | NOT_RUN |  |", 1))
     must_reject(specification, ledger.replace(
-        "| PARTIAL | M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified |",
-        "| PARTIAL |  |", 1))
+        "| NOT_RUN | M0 native Qt/Worker prototype only; see #3; see #6; full T unqualified |",
+        "| NOT_RUN |  |", 1))
+    # E_002: formal acceptance must never inherit a PARTIAL/PASS prototype label.
+    for restricted_id in ("T13", "T39", "T46"):
+        original_row = next(line for line in ledger.split("\n")
+                            if line.startswith("| " + restricted_id + " |"))
+        if "| NOT_RUN |" not in original_row:
+            raise AssertionError("restricted T has no formal NOT_RUN fixture: " + restricted_id)
+        for forbidden in ("PARTIAL", "PASS"):
+            mutated = original_row.replace("| NOT_RUN |", "| " + forbidden + " |", 1)
+            must_reject(specification, ledger.replace(original_row, mutated, 1))
+        # A status-consistent but misleading narrative is also forbidden.
+        must_reject(specification, ledger.replace(original_row,
+            original_row.replace("full T unqualified", "FULL T ACCEPTANCE PASS", 1), 1))
     # Attribute-bearing raw HTML text containers cannot hide tables.
     for tag in ('<style type="text/css">', '</style >'):
         modified = specification.replace(
