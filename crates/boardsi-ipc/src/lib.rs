@@ -161,7 +161,30 @@ pub fn read_message(reader: &mut impl Read) -> io::Result<Option<Message>> {
     }
     let mut bytes = vec![0; size];
     reader.read_exact(&mut bytes)?;
+    // Keep direct strict struct deserialization: serde_json::Value alone
+    // can collapse duplicate JSON keys and weaken the v1 envelope contract.
     let m: Message = serde_json::from_slice(&bytes).map_err(|e| invalid(&e.to_string()))?;
+    // Serde's internally tagged unit variants can ignore extra body members.
+    // Reparse only those bounded unit messages to enforce exactly {"type":...}.
+    if matches!(
+        &m.body,
+        Body::Cancel
+            | Body::Started
+            | Body::Completed
+            | Body::CancelAcknowledged
+            | Body::Cancelled
+            | Body::Heartbeat
+    ) {
+        let raw: serde_json::Value =
+            serde_json::from_slice(&bytes).map_err(|e| invalid(&e.to_string()))?;
+        let body = raw
+            .get("body")
+            .and_then(|value| value.as_object())
+            .ok_or_else(|| invalid("InvalidBody"))?;
+        if body.len() != 1 {
+            return Err(invalid("UnknownBodyField"));
+        }
+    }
     m.validate().map_err(invalid)?;
     Ok(Some(m))
 }

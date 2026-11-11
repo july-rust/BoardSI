@@ -427,7 +427,7 @@ public:
             inPhase("normal", [&] { normal(); });
             inPhase("cancellation", [&] { cancellation(); });
             inPhase("real-crash", [&] { realCrash(); });
-            for (const auto &m : {"failed1","failed2","exit7","crash","schema","duplicate","reverse","scope","snapshot","frame","json","truncated"}) {
+            for (const auto &m : {"failed1","failed2","exit7","crash","schema","duplicate","reverse","scope","snapshot","frame","json","truncated","utf8","header-short","zero-frame","kind","unknown-field"}) {
                 const auto mode=QString::fromLatin1(m);
                 inPhase("fault-"+mode, [&] { fault(mode,true); });
             }
