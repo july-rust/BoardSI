@@ -94,8 +94,14 @@ pub fn inspect_pads_readiness(source: &[u8]) -> ReadinessReport {
     // header tokens. A PADS-family signature with another tag is not an import
     // qualification. In particular, UTF-8 BOM, '*' wrappers and other versions
     // cannot silently bypass the parser's exact source grammar.
-    let first = source.split(|&byte| byte == b'\n').next().unwrap_or_default();
-    let tag = first.split(|b| b.is_ascii_whitespace()).next().unwrap_or_default();
+    let first = source
+        .split(|&byte| byte == b'\n')
+        .next()
+        .unwrap_or_default();
+    let tag = first
+        .split(|b| b.is_ascii_whitespace())
+        .next()
+        .unwrap_or_default();
     const SUPPORTED_HEADERS: &[&[u8]] = &[
         b"!PADS-POWERPCB-V9.4-MILS!",
         b"!PADS-POWERPCB-V9.4-MILS-CP1252!",
@@ -171,7 +177,9 @@ mod tests {
         assert_eq!(r.geometry, "PARTIAL");
         assert_eq!(r.parser_status, "RESTRICTED_CANONICAL_PARTIAL");
         assert!(r.preview_subset_verified);
-        assert!(r.diagnostic().contains("solver_ready=false;physical_si=NOT_RUN"));
+        assert!(r
+            .diagnostic()
+            .contains("solver_ready=false;physical_si=NOT_RUN"));
         assert!(!r.diagnostic().contains("NET_A"));
         assert!(!r.diagnostic().contains("G=COMPLETE"));
     }
@@ -239,7 +247,9 @@ mod tests {
             "!PADS-POWERPCB-V9.4-MILS-250L-CP1252!",
         ] {
             let r = inspect_pads_readiness(
-                VALID.replace("!PADS-POWERPCB-V9.4-MILS!", variant).as_bytes(),
+                VALID
+                    .replace("!PADS-POWERPCB-V9.4-MILS!", variant)
+                    .as_bytes(),
             );
             assert_eq!(r.parser_status, "RESTRICTED_CANONICAL_PARTIAL");
         }
