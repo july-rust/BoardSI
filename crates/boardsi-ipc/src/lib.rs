@@ -161,7 +161,27 @@ pub fn read_message(reader: &mut impl Read) -> io::Result<Option<Message>> {
     }
     let mut bytes = vec![0; size];
     reader.read_exact(&mut bytes)?;
-    let m: Message = serde_json::from_slice(&bytes).map_err(|e| invalid(&e.to_string()))?;
+    // Serde's internally tagged unit variants can ignore unexpected body
+    // members. A v1 unit body contains only the "type" discriminator.
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&bytes).map_err(|e| invalid(&e.to_string()))?;
+    if let Some(body) = parsed.get("body").and_then(|value| value.as_object()) {
+        if matches!(
+            body.get("type").and_then(|value| value.as_str()),
+            Some(
+                "Cancel"
+                    | "Started"
+                    | "Completed"
+                    | "CancelAcknowledged"
+                    | "Cancelled"
+                    | "Heartbeat"
+            )
+        ) && body.len() != 1
+        {
+            return Err(invalid("UnknownBodyField"));
+        }
+    }
+    let m: Message = serde_json::from_value(parsed).map_err(|e| invalid(&e.to_string()))?;
     m.validate().map_err(invalid)?;
     Ok(Some(m))
 }
