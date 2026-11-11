@@ -19,6 +19,7 @@ The C_025_08 architecture choice was already recorded for a **synthetic M0 proto
 
 - [Rust wire compatibility tests](../../crates/boardsi-ipc/tests/e003_wire_compat.rs): reject unsupported v2, unknown envelope/body fields, kind mismatch, invalid UTF-8, partial headers/bodies, zero-length/oversized frames; accept unchanged valid v1 bytes. Rejected versions/scopes/gaps must not move the accepted sequence cursor.
 - [Qt test peer](../../apps/boardsi-qt-prototype/tests/fault_worker.py) and [QApplication harness](../../apps/boardsi-qt-prototype/tests/runtime.cpp): exercise actual QProcess/Qt parser against UTF-8 invalidity, short header, zero length, wrong kind, unknown field. Preserve all existing normal Rust process/cancel/crash/partial-message scenarios.
+- The [Rust IPC decoder](../../crates/boardsi-ipc/src/lib.rs) now rejects unknown body fields for internally tagged unit messages before Serde conversion. This is a fail-closed correction, not an IPC v1 wire-format change.
 - The fault peer is a public synthetic test tool and does not prove real PCB SI or formal product acceptance.
 
 ## Verification and exit boundary
