@@ -12,7 +12,7 @@ fn main() {
         || options.iter().filter(|s| *s == "--eda-nets").count() > 1
         || options.iter().filter(|s| *s == "--source-holes").count() > 1
     {
-        eprintln!("Usage: boardsi-odb-import <unpacked-product-root-or-uncompressed.tar> <step> [--eda-nets] [--source-holes]");
+        eprintln!("Usage: boardsi-odb-import <unpacked-product-root-or-USTAR-or-STORED-ZIP> <step> [--eda-nets] [--source-holes]");
         process::exit(2);
     }
     let with_eda = options.iter().any(|s| s == "--eda-nets");
@@ -24,7 +24,7 @@ fn main() {
         boardsi_import::odb_fabrication::import_path_with_holes(path, &args[2], with_eda)
             .map(|report| (report.board, Some(report.source_holes.len())))
     } else if path.is_file() {
-        boardsi_import::odb_source::import_tar_file(path, &args[2], with_eda)
+        boardsi_import::odb_source::import_archive_file(path, &args[2], with_eda)
             .map(|board| (board, None))
     } else if with_eda {
         boardsi_import::odb_source::import_directory_with_eda(path, &args[2])
