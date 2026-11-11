@@ -93,6 +93,18 @@ elif mode == 'cancel-hang':
     read()
     emit(dict(type='CancelAcknowledged'))
     emit(dict(type='Cancelled'))
+elif mode in ('late-after-ack-result', 'late-after-ack-progress'):
+    # Deterministic adversarial peer: data after the cancellation acknowledgement
+    # is not part of the actual Rust Worker's post-ACK output contract.
+    read()
+    emit(dict(type='CancelAcknowledged'))
+    if mode == 'late-after-ack-result':
+        emit(dict(type='Result', point=0, frequency_hz=0,
+                  s11=[0, 0], s21=[1, 0], synthetic=True))
+    else:
+        emit(dict(type='Progress', done=0, total=100))
+    emit(dict(type='Cancelled'))
+    sys.exit(0)
 elif mode == 'no-heartbeat':
     for _ in range(12):
         emit(dict(type='Progress', done=0, total=100))
