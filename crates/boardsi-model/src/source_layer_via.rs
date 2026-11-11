@@ -364,7 +364,7 @@ mod tests {
         board.stackup.layers[1].order = 3;
         for (index, layer) in board.stackup.layers.iter_mut().enumerate() {
             layer.z_m = source_property(
-                Rational::new((index * 2) as i128, 1_000_000).unwrap(),
+                Rational::new(index as i128, 1_000_000).unwrap(),
                 false,
             );
             layer.thickness_m = source_property(Rational::new(1, 1_000_000).unwrap(), false);
@@ -390,6 +390,8 @@ mod tests {
             thickness_m: Property::Missing,
             material: None,
         });
+        board.stackup.layers[1].z_m =
+            source_property(Rational::new(2, 1_000_000).unwrap(), false);
         let missing = board.observe_source_via_hole(&source, &h).unwrap();
         assert_eq!(missing.physical_envelope_layers.len(), 2);
         assert_eq!(missing.stackup_evidence, SourceStackupEvidence::Missing);
