@@ -90,13 +90,25 @@ impl BoardModel {
         let start = (hole.span.first - 1) as usize;
         let end = hole.span.last as usize;
         let envelope = &copper[start..end];
-        let stackup_evidence = if envelope.iter().any(|layer| {
+        // The electrical span only names COPPER endpoints. Its physical
+        // stackup uncertainty also depends on every intervening dielectric,
+        // mask and other real layer; testing copper-only would fabricate an
+        // "Explicit" stackup while a dielectric is still missing/assumed.
+        let first_order = envelope[0].order;
+        let last_order = envelope[envelope.len() - 1].order;
+        let physical_stackup: Vec<_> = self
+            .stackup
+            .layers
+            .iter()
+            .filter(|layer| layer.order >= first_order && layer.order <= last_order)
+            .collect();
+        let stackup_evidence = if physical_stackup.iter().any(|layer| {
             layer.material.is_none()
                 || matches!(&layer.z_m, Property::Missing)
                 || matches!(&layer.thickness_m, Property::Missing)
         }) {
             SourceStackupEvidence::Missing
-        } else if envelope.iter().any(|layer| {
+        } else if physical_stackup.iter().any(|layer| {
             matches!(&layer.z_m, Property::Assumed { .. })
                 || matches!(&layer.thickness_m, Property::Assumed { .. })
         }) {
@@ -131,10 +143,10 @@ impl BoardModel {
 mod tests {
     use super::*;
     use crate::{
-        BoardKind, CapabilityState, FabricationHoleShape, FabricationOperation,
-        FabricationSourceEvidence, GeometryProvenance, ImportCapability, ImportSource, Layer,
-        ObjectKind, ObjectMeta, PhysicalLayerSpan, Rational, SourceFile, SourceFormat,
-        SourceIdentity, Stackup,
+        BoardKind, CapabilityState, DielectricKind, FabricationHoleShape,
+        FabricationOperation, FabricationSourceEvidence, GeometryProvenance, ImportCapability,
+        ImportSource, Layer, Material, ObjectKind, ObjectMeta, PhysicalLayerSpan, PropertySource,
+        Rational, SourceFile, SourceFormat, SourceIdentity, Stackup,
     };
     use std::sync::Arc;
 
@@ -312,6 +324,86 @@ mod tests {
         assert!(board
             .observe_source_via_hole(&source, &hole(1, 64))
             .is_err());
+    }
+
+
+    fn source_property(value: Rational, assumed: bool) -> Property<Rational> {
+        let src = PropertySource {
+            document: "synthetic-stackup".into(),
+            revision: "v1".into(),
+            method: "fixture".into(),
+            reference_frequency_hz: None,
+            temperature_c: None,
+        };
+        if assumed {
+            Property::Assumed { value, source: src }
+        } else {
+            Property::Confirmed { value, source: src }
+        }
+    }
+
+    #[test]
+    fn intervening_dielectric_uncertainty_is_never_lost() {
+        let (mut board, source) = fixture(2);
+        let material_id = ObjectId::new(&source, ObjectKind::Material, "mat", "");
+        board.materials.push(Material {
+            meta: ObjectMeta {
+                id: material_id.clone(),
+                provenance: GeometryProvenance {
+                    source_object_type: "synthetic-material".into(),
+                    history: vec![],
+                },
+            },
+            name: "synthetic-only".into(),
+            dk: Property::Missing,
+            df: Property::Missing,
+            conductivity_s_per_m: Property::Missing,
+            valid_band: Property::Missing,
+        });
+        board.stackup.layers[0].order = 1;
+        board.stackup.layers[1].order = 3;
+        for (index, layer) in board.stackup.layers.iter_mut().enumerate() {
+            layer.z_m = source_property(
+                Rational::new((index * 2) as i128, 1_000_000).unwrap(),
+                false,
+            );
+            layer.thickness_m = source_property(Rational::new(1, 1_000_000).unwrap(), false);
+            layer.material = Some(material_id.clone());
+        }
+        let h = hole(1, 2);
+        assert_eq!(
+            board.observe_source_via_hole(&source, &h).unwrap().stackup_evidence,
+            SourceStackupEvidence::Explicit
+        );
+        board.stackup.layers.push(Layer {
+            meta: ObjectMeta {
+                id: ObjectId::new(&source, ObjectKind::Layer, "D1", ""),
+                provenance: GeometryProvenance {
+                    source_object_type: "synthetic-dielectric".into(),
+                    history: vec![],
+                },
+            },
+            name: "D1".into(),
+            order: 2,
+            kind: LayerKind::Dielectric(DielectricKind::Core),
+            z_m: Property::Missing,
+            thickness_m: Property::Missing,
+            material: None,
+        });
+        let missing = board.observe_source_via_hole(&source, &h).unwrap();
+        assert_eq!(missing.physical_envelope_layers.len(), 2);
+        assert_eq!(missing.stackup_evidence, SourceStackupEvidence::Missing);
+        let dielectric = board.stackup.layers.last_mut().unwrap();
+        dielectric.z_m = source_property(Rational::new(1, 1_000_000).unwrap(), true);
+        dielectric.thickness_m =
+            source_property(Rational::new(1, 1_000_000).unwrap(), true);
+        dielectric.material = Some(material_id);
+        assert_eq!(
+            board.observe_source_via_hole(&source, &h).unwrap().stackup_evidence,
+            SourceStackupEvidence::Assumed
+        );
+        assert!(board.vias.is_empty());
+        assert!(board.connectivity.edges.is_empty());
     }
 
     #[test]
