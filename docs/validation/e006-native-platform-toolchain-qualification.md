@@ -29,7 +29,7 @@ The unchanged *executed code* at `main@c229eccd` independently completed:
 
 ## Additional F7 *relocation* evidence — strictly separate source identity
 
-The [additional pull_request-triggered F7 relocation run **42980487868**](https://github.com/july-rust/BoardSI/actions/runs/42980487868) executed on **PR code HEAD `a4c935ed74e4ce60fe1f4678a4dbbdb4a6f0175b`**, not on either of the two main SHAs above. Three independently successful native jobs and retrievable artifacts:
+The [additional pull_request-triggered F7 relocation run **42980487868**](https://github.com/july-rust/BoardSI/actions/runs/42980487868) is **associated** with PR #588 HEAD `a4c935ed74e4ce60fe1f4678a4dbbdb4a6f0175b`, **but did not directly check out that commit**. All three actual job logs show `actions/checkout` fetched `refs/remotes/pull/588/merge` and `git log -1` reported **executed synthetic merge SHA `3ddd02b529d89945de1fc682cf0e730fde0e05ab`** (merge of `a4c935ed` into `1ceaef92`). Independently fetched Git **commit tree identities** for the [executed merge SHA](https://github.com/july-rust/BoardSI/commit/3ddd02b529d89945de1fc682cf0e730fde0e05ab), [PR HEAD](https://github.com/july-rust/BoardSI/commit/a4c935ed74e4ce60fe1f4678a4dbbdb4a6f0175b), and [protected Squash code-main](https://github.com/july-rust/BoardSI/commit/c229eccdbbba41af5f4c4d622c7a1bb6421bdf02): **all three have the same exact Git tree SHA `b7b591ae7a72286387896d842424bcdb61a4148e`**. Therefore the F7 run executed a **different commit with an identical complete checked-out source tree**, not the literal PR-head SHA. Equality was verified through Git trees, not assumed from run metadata. Three independently successful native jobs and artifacts:
 
 | Target | Job | SDK-detached restricted synthetic selftest | Artifact |
 | :--- | :--- | :--- | :--- |
@@ -37,7 +37,7 @@ The [additional pull_request-triggered F7 relocation run **42980487868**](https:
 | Windows ARM64 | [130389575228](https://github.com/july-rust/BoardSI/actions/runs/42980487868/job/130389575228) | **PASS**; process exit 0 | [13837701419](https://github.com/july-rust/BoardSI/actions/runs/42980487868/artifacts/13837701419) |
 | macOS ARM64 | [130389575175](https://github.com/july-rust/BoardSI/actions/runs/42980487868/job/130389575175) | **PASS**; process exit 0, Mach-O dependencies inspected | [13837072826](https://github.com/july-rust/BoardSI/actions/runs/42980487868/artifacts/13837072826) |
 
-The three actual job logs were fetched; the underlying workflow [`m0-f7-relocation.yml`](../../.github/workflows/m0-f7-relocation.yml) creates a relocated prototype bundle and detaches the Qt *build* SDK before executing the selftest. This proves neither an OS without its developer/runner provisioning nor legal redistribution clearance. This PR-head run is separate from the verified `main@c229eccd` Qt/Rust push runs. For full F7, see [F6/F7 evidence](m0-f6-f7-qualification-evidence.md).
+The three actual job logs and their **real checkout commit** were inspected. The underlying workflow [`m0-f7-relocation.yml`](../../.github/workflows/m0-f7-relocation.yml) creates a relocated prototype bundle and detaches the Qt *build* SDK before executing the selftest. This proves neither clean-OS deployment nor legal redistribution clearance. **F7 executed synthetic merge `3ddd02b5` (tree identical to `a4c935ed` and `c229eccd`); Qt/Rust *push* workflows executed code-main `c229eccd`.** Event metadata, checked-out commit and proven source tree are separate facts. For full F7, see [F6/F7 evidence](m0-f6-f7-qualification-evidence.md).
 
 ## Negative and fail-closed audit matrix
 
@@ -58,7 +58,7 @@ The three actual job logs were fetched; the underlying workflow [`m0-f7-relocati
 - **E_006 bounded audit:** *EVIDENCE_QUALIFIED* on 2026-11-11 KST for all three native **synthetic prototype** targets. Administrative completion additionally requires the E_006 documentation PR's checks/review/protected Squash and the exact post-merge main push verification; record that final gate in the Issue #6 completion comment.
 - **Issue #6 overall:** **OPEN / PARTIAL**. It remains incomplete for clean installation, legal runtime/third-party license and distribution verification, baseline PC/OS-version coverage and full issue-level U03/U04/U14, T13/T39 acceptance.
 - **M0 F5:** actual native prototype execution evidence PASS in its restricted scope; **M0 overall BLOCKED** (F1/F6/F7), [M0 completion gate](m0-completion-gate.md). No formal product claim.
-- **F7:** relocation synthetic smoke PASS on the recorded PR HEAD; clean installation and redistribution compliance **BLOCKED / NOT_VERIFIED** (see [blocked register](../e-stage-blocked-register.md) EB-05).
+- **F7:** relocation synthetic smoke PASS at **PR synthetic merge checkout `3ddd02b5`** with a verified Git tree identical to PR HEAD `a4c935ed` and code-main `c229eccd`; clean installation and redistribution compliance **BLOCKED / NOT_VERIFIED** (see [blocked register](../e-stage-blocked-register.md) EB-05).
 - **F8:** #46 unresolved cause and historical FAIL preserved; full release/performance acceptance NOT_VERIFIED.
 - **Products / physics:** real-board import, commercial deployment, full PCB Solver and PH-08 original Gate Q **not changed or certified**.
 
