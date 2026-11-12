@@ -4,7 +4,7 @@
 **Repository:** [july-rust/BoardSI](https://github.com/july-rust/BoardSI)  
 **Parent:** [#578](https://github.com/july-rust/BoardSI/issues/578), remains OPEN  
 **Code PR:** [#603](https://github.com/july-rust/BoardSI/pull/603)  
-**Status:** CODE_MERGED / POSTMERGE_PUSH_PENDING — exact code PR final HEAD, independent review and protected Verified Squash have been observed; do not mark bounded COMPLETE until exact code-main Push and final docs closeout are evidenced.
+**Status:** BOUNDED COMPLETE (conditional on final docs PR #604 protected CI/review/Verified Squash/exact docs-main Push). The exact code PR HEAD, independent review, Verified Squash, and exact code-main 8/8 Push workflows are verified. No full ODB++ or product SI acceptance is claimed.
 
 ## 1. Bounded acceptance contract
 
@@ -59,10 +59,10 @@ GZIP CRC32 and original-byte SHA-256 serve different purposes; CRC verifies tran
 - Rust checks and Native Windows x64 / ARM64 / macOS ARM64: **SUCCESS**, [Numerical PR run #43171338670](https://github.com/july-rust/BoardSI/actions/runs/43171338670); 7/7 GZIP source regression tests PASS in Debug and Release, existing Rust regression suites passed.
 - Independent reviewer findings / unresolved threads: **0 / 0**, Codex exact final HEAD `93ea65f1` status `completed`, `has_any_findings=false`, `has_unresolved_findings=false`.
 - GitHub Verified single-parent protected Squash: [`e32f37cb615d2053485752739f614493cde0bee9`](https://github.com/july-rust/BoardSI/commit/e32f37cb615d2053485752739f614493cde0bee9), `verification.verified=true`, exactly **one parent**. PR #603 MERGED/CLOSED.
-- Exact new code-main SHA `e32f37cb615d2053485752739f614493cde0bee9`: **8 independent Push workflows IN_PROGRESS**, do not infer their outcome from PR CI.
-- Documentation closeout final SHA and Push outcomes (if separate PR): **PENDING**
+- Exact new code-main SHA [`e32f37cb615d2053485752739f614493cde0bee9`](https://github.com/july-rust/BoardSI/commit/e32f37cb615d2053485752739f614493cde0bee9): **8/8 independently successful Push workflows, 0 FAILED** (not the PR CI): [Qt #43173352640](https://github.com/july-rust/BoardSI/actions/runs/43173352640), [Numerical #43173352774](https://github.com/july-rust/BoardSI/actions/runs/43173352774), [Docs #43173352666](https://github.com/july-rust/BoardSI/actions/runs/43173352666), [PH-06 #43173352647](https://github.com/july-rust/BoardSI/actions/runs/43173352647), [PH-07 #43173352559](https://github.com/july-rust/BoardSI/actions/runs/43173352559), [Native FEM #43173352664](https://github.com/july-rust/BoardSI/actions/runs/43173352664), [Lossless FEM #43173352630](https://github.com/july-rust/BoardSI/actions/runs/43173352630), [G0 #43173352688](https://github.com/july-rust/BoardSI/actions/runs/43173352688).
+- Docs-only closeout [PR #604](https://github.com/july-rust/BoardSI/pull/604): **PENDING final HEAD protected required CI/review/Verified Squash and exact docs-main Push**; Native SKIPPED on docs-only changes is not new test evidence.
 
-**Final E_014 status is NOT_ACCEPTED until all applicable gates succeed.**
+**Final E_014 status: BOUNDED COMPLETE after PR #604's final protected CI, independent review, Verified Squash, and exact docs-main Push succeed. The code acceptance gates are already verified.**
 
 ## 6. Limitations and parent status
 
