@@ -28,6 +28,51 @@ fn cli_distinguishes_pads_signature_from_non_pcb_asc() {
 }
 
 #[test]
+fn oversized_readiness_cli_emits_complete_fail_closed_fields() {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("system clock")
+        .as_nanos();
+    let source_path = std::env::temp_dir().join(format!(
+        "boardsi_e008_oversize_{}_{}.asc",
+        std::process::id(),
+        stamp
+    ));
+    let source = std::fs::File::create(&source_path).expect("create synthetic oversized file");
+    source
+        .set_len((boardsi_import::route_preview::MAX_FILE_BYTES + 1) as u64)
+        .expect("create sparse oversized test file");
+    drop(source);
+    let output = Command::new(env!("CARGO_BIN_EXE_boardsi-import-probe"))
+        .arg(&source_path)
+        .arg("--readiness")
+        .output()
+        .expect("readiness executable must run");
+    std::fs::remove_file(&source_path).expect("remove synthetic test file");
+    assert_eq!(output.status.code(), Some(3));
+    let diagnostic = String::from_utf8(output.stdout).expect("ASCII diagnostic");
+    for field in [
+        "format=UNKNOWN;",
+        "version=UNKNOWN;",
+        "format_status=UNKNOWN_OR_UNSUPPORTED;",
+        "parser_status=REJECTED;",
+        "reason=INVALID_FILE_SIZE;",
+        "G=UNKNOWN;",
+        "N=UNKNOWN;",
+        "P=UNKNOWN;",
+        "S=UNKNOWN;",
+        "R=UNKNOWN;",
+        "M=UNKNOWN;",
+        "skipped=0;",
+        "preview_subset_verified=false;",
+        "solver_ready=false;",
+        "physical_si=NOT_RUN",
+    ] {
+        assert!(diagnostic.contains(field), "missing {field}: {diagnostic}");
+    }
+}
+
+#[test]
 fn artwork_cli_uses_exact_nm_transport_for_known_public_geometry() {
     let bin = env!("CARGO_BIN_EXE_boardsi-import-artwork");
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
