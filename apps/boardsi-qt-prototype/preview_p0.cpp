@@ -56,6 +56,7 @@ class PreviewWindow : public QMainWindow {
     Window *ipc;
     ModelHandoffWindow *identity = nullptr;
     QAction *openAction = nullptr;
+    QAction *canonicalOpenAction = nullptr;
     QAction *saveAction = nullptr;
     QAction *runAction = nullptr;
     QAction *stopAction = nullptr;
@@ -133,6 +134,7 @@ class PreviewWindow : public QMainWindow {
 
     void refresh() {
         openAction->setEnabled(!importUI->busy());
+        canonicalOpenAction->setEnabled(!importUI->busy());
         runAction->setEnabled(ipc->runButton()->isEnabled());
         stopAction->setEnabled(ipc->cancelButton()->isEnabled());
         overallProgress->setValue(ipc->progressBar()->value());
@@ -185,6 +187,8 @@ public:
         auto *bar = addToolBar("Preview controls");
         bar->setMovable(false);
         openAction = bar->addAction("Open PCB");
+        canonicalOpenAction = bar->addAction("Open Canonical PCB");
+        canonicalOpenAction->setToolTip("Source-only Canonical padstack import; no physical SI or material qualification");
         saveAction = bar->addAction("Save Project");
         saveAction->setEnabled(false);
         saveAction->setToolTip("NOT IMPLEMENTED - project serialization");
@@ -279,17 +283,31 @@ public:
         rightLayout->addWidget(validBox);
         importUI->setStatusCallback([this](const QString &state) {
             importResultStatus = state;
+            const bool legacyAccepted = state.startsWith("PARTIAL");
+            const bool canonicalAccepted =
+                state.startsWith("CANONICAL SOURCE GEOMETRY") &&
+                importUI->imported()->canonicalMode();
+            const QByteArray acceptedSha = importUI->acceptedSourceSha256();
+            // The canonical importer owns this accepted path. Do not reuse the
+            // previous legacy candidate's path for a newly accepted source.
+            if (canonicalAccepted) chosenSourcePath = importUI->canonicalAcceptedPath();
             referenceRisk->resetSource(chosenSourcePath,
-                state.startsWith("PARTIAL")?importUI->acceptedSourceSha256():QByteArray());
-            if (state.startsWith("PARTIAL")) {
-                stackup->resetForImport(chosenSourcePath, importUI->importedLayerCount());
-                stackup->setSourceCopperInventory(importUI->importedCopperEvidence(),
-                                                   importUI->importedNetLabels(),
-                                                   importUI->importedNetInventoryComplete());
-            }
-            else if (state.startsWith("RUNNING") || state.startsWith("FAILED") ||
-                     state.startsWith("CANCELLED"))
+                legacyAccepted ? acceptedSha : QByteArray());
+            if ((legacyAccepted || canonicalAccepted) &&
+                acceptedSha.size() == 64 && importUI->importedLayerCount() > 0) {
+                stackup->resetForImport(chosenSourcePath, importUI->importedLayerCount(),
+                                        acceptedSha);
+                // Canonical padstack IPC has no qualified copper/net inventory.
+                // Never promote names or artwork geometry to Reference proof.
+                if (legacyAccepted)
+                    stackup->setSourceCopperInventory(importUI->importedCopperEvidence(),
+                                                       importUI->importedNetLabels(),
+                                                       importUI->importedNetInventoryComplete());
+            } else if (legacyAccepted || canonicalAccepted ||
+                       state.startsWith("RUNNING") || state.startsWith("FAILED") ||
+                       state.startsWith("CANCELLED")) {
                 stackup->resetForImport(QString(), 0);
+            }
             log->appendPlainText("PCB Import: " + state);
             refreshProperties();
         });
@@ -359,6 +377,12 @@ public:
             if (file.isEmpty()) return;
             openCandidate(file);
         });
+        connect(canonicalOpenAction, &QAction::triggered, this, [this] {
+            const QString file = QFileDialog::getOpenFileName(
+                this, "Open Canonical PADS PCB - source geometry only", QString(),
+                "PCB candidate (*.asc *.ASC);;All files (*)");
+            if (!file.isEmpty()) openCanonicalCandidate(file);
+        });
         auto *poll = new QTimer(this);
         poll->setInterval(100);
         connect(poll, &QTimer::timeout, this, [this] { refresh(); });
@@ -378,6 +402,16 @@ public:
         const bool started = importUI->openPath(file);
         if (!started)
             log->appendPlainText("Open PCB: unsupported PADS source or local executable unavailable.");
+        refreshProperties();
+        return started;
+    }
+    bool openCanonicalCandidate(const QString &file) {
+        if (importUI->busy()) return false;
+        chosenFile = QFileInfo(file).fileName();
+        chosenSourcePath = file;
+        const bool started = importUI->openCanonicalPath(file);
+        if (!started)
+            log->appendPlainText("Open Canonical PCB: rejected or importer unavailable.");
         refreshProperties();
         return started;
     }
@@ -4535,9 +4569,13 @@ static int runD05605PropertiesSmoke(const QString &binary,const QString &source)
     return ok?0:1;
 }
 
+#include "e011_stackup_main_test.h"
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==4 && args.at(1)=="--e011-stackup-selftest")
+        return runE011MainStackupSelftest(args.at(2), args.at(3));
     if(args.size()==3 && args.at(1)=="--d013-legacy-barrel-provenance-selftest")
         return d013::selftest(args.at(2));
     // The existing native Qt workflow invokes D_012; keep its checks intact

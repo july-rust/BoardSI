@@ -128,6 +128,15 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
     set_tests_properties(qt-e010-main-canonical-picking-reimport PROPERTIES
       TIMEOUT 150 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # E_011 exercises actual PreviewWindow Canonical import -> Stackup
+    # user overlay save/load -> same/different-source reImport fail-closed.
+    # Native Windows/macOS run this test explicitly in qt-runtime.yml.
+    add_test(NAME qt-e011-main-stackup-persistence-reimport
+      COMMAND boardsi-preview-p0 --e011-stackup-selftest
+        "${BOARDSI_CANONICAL_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
+    set_tests_properties(qt-e011-main-stackup-persistence-reimport PROPERTIES
+      TIMEOUT 180 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     add_test(NAME qt-d05605-main-rust-canonical-roundtrip
       COMMAND boardsi-d05605-main-artwork-test --source
         "${BOARDSI_CANONICAL_IMPORTER}"
