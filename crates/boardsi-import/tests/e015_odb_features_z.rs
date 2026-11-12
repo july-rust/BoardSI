@@ -7,11 +7,9 @@ use boardsi_import::odb_source::{
 const FEATURE: &[u8] = b"UNITS=MM\nF 1\n$0 r100\nL 0 0 1 0 0 P 0\n";
 // Independently validated with GNU gzip -dc (UNIX-compress compatibility).
 const FEATURE_Z: &[u8] = &[
-    0x1f, 0x9d, 0x8c, 0x55, 0x9c, 0x24, 0xa1, 0x32, 0xa5, 0x47, 0x93,
-    0x26, 0x0a, 0x8c, 0x80, 0x88, 0xa1, 0x80, 0x04, 0x0c, 0x10, 0x72,
-    0x62, 0xc0, 0x80, 0xa1, 0x80, 0x09, 0x08, 0x18, 0x20, 0x60, 0x80,
-    0x88, 0x01, 0x02, 0x06, 0x08, 0x18, 0x20, 0xa0, 0x80, 0x80, 0xa1,
-    0x00,
+    0x1f, 0x9d, 0x8c, 0x55, 0x9c, 0x24, 0xa1, 0x32, 0xa5, 0x47, 0x93, 0x26, 0x0a, 0x8c, 0x80, 0x88,
+    0xa1, 0x80, 0x04, 0x0c, 0x10, 0x72, 0x62, 0xc0, 0x80, 0xa1, 0x80, 0x09, 0x08, 0x18, 0x20, 0x60,
+    0x80, 0x88, 0x01, 0x02, 0x06, 0x08, 0x18, 0x20, 0xa0, 0x80, 0x80, 0xa1, 0x00,
 ];
 const MATRIX: &[u8] = b"STEP {\nCOL=1\nNAME=pcb\n}\n\
 LAYER {\nROW=1\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=top\nPOLARITY=POSITIVE\n}\n\
@@ -22,7 +20,10 @@ fn board(z: bool) -> OdbFileMap {
     files.insert("matrix/matrix".into(), MATRIX.to_vec());
     for layer in ["top", "bottom"] {
         files.insert(
-            format!("steps/pcb/layers/{layer}/{}", if z { "features.Z" } else { "features" }),
+            format!(
+                "steps/pcb/layers/{layer}/{}",
+                if z { "features.Z" } else { "features" }
+            ),
             if z { FEATURE_Z } else { FEATURE }.to_vec(),
         );
     }
@@ -72,10 +73,18 @@ fn compressed_source_is_geometry_equivalent_and_retains_both_digests() {
         }
         assert!(other.connectivity.edges.is_empty());
         let listed = &other.sources[0].id.files;
-        assert!(listed.iter().any(|f| f.logical_path.ends_with("/features.Z")));
+        assert!(listed
+            .iter()
+            .any(|f| f.logical_path.ends_with("/features.Z")));
         assert!(listed.iter().any(|f| f.logical_path.ends_with("/features")));
-        let compressed = listed.iter().find(|f| f.logical_path == "steps/pcb/layers/top/features.Z").unwrap();
-        let expanded = listed.iter().find(|f| f.logical_path == "steps/pcb/layers/top/features").unwrap();
+        let compressed = listed
+            .iter()
+            .find(|f| f.logical_path == "steps/pcb/layers/top/features.Z")
+            .unwrap();
+        let expanded = listed
+            .iter()
+            .find(|f| f.logical_path == "steps/pcb/layers/top/features")
+            .unwrap();
         assert_ne!(compressed.sha256, expanded.sha256);
     }
     // Legacy inputs continue to have only their original SourceFile identity.
@@ -87,7 +96,10 @@ fn compressed_source_is_geometry_equivalent_and_retains_both_digests() {
 fn duplicate_wrong_path_bad_lzw_and_unsupported_features_fail_closed() {
     let mut both = board(true);
     both.insert("steps/pcb/layers/top/features".into(), FEATURE.to_vec());
-    assert_eq!(import_unpacked(&both, "pcb").unwrap_err().code, "ODB_Z_DUPLICATE_FEATURES");
+    assert_eq!(
+        import_unpacked(&both, "pcb").unwrap_err().code,
+        "ODB_Z_DUPLICATE_FEATURES"
+    );
 
     let mut wrong = board(false);
     wrong.insert("steps/pcb/eda/data.Z".into(), FEATURE_Z.to_vec());
@@ -97,7 +109,10 @@ fn duplicate_wrong_path_bad_lzw_and_unsupported_features_fail_closed() {
     );
 
     let mut broken = board(true);
-    broken.insert("steps/pcb/layers/top/features.Z".into(), vec![0x1f, 0x9d, 0x8c, 1]);
+    broken.insert(
+        "steps/pcb/layers/top/features.Z".into(),
+        vec![0x1f, 0x9d, 0x8c, 1],
+    );
     assert!(import_unpacked(&broken, "pcb").is_err());
 
     let mut unsupported = board(true);
@@ -128,7 +143,10 @@ fn drill_tool_and_hit_audit_are_unaffected_by_compressed_copper_features() {
     assert_eq!(baseline.len(), 1);
     for layer in ["top", "bottom"] {
         plain.remove(&format!("steps/pcb/layers/{layer}/features"));
-        plain.insert(format!("steps/pcb/layers/{layer}/features.Z"), FEATURE_Z.to_vec());
+        plain.insert(
+            format!("steps/pcb/layers/{layer}/features.Z"),
+            FEATURE_Z.to_vec(),
+        );
     }
     let test = audit_unpacked_drill_hits(&plain, "pcb").unwrap();
     assert_eq!(test, baseline);
