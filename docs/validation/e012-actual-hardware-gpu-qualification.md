@@ -13,7 +13,7 @@
 ## 2. GPU 장치 확인 — 백엔드 명칭만으로 PASS 금지
 
 - **macOS ARM64:** `RHI_FRAME_METAL_HARDWARE_CONFIRMED`. Qt scene graph **render thread**에서 `QSGRendererInterface::DeviceResource`의 실제 `MTLDevice`를 받아 `conformsToProtocol(MTLDevice)` 및 비어 있지 않은 device name을 확인한다. 장치 모델명·드라이버 버전 자체는 JSON에 기록되지 않았으므로 **NOT_RECORDED**.
-- **Windows x64/ARM64:** `RHI_FRAME_D3D11_HARDWARE_CONFIRMED` Native 로그. 실제 `ID3D11Device` → `IDXGIDevice` → `IDXGIAdapter1` → `DXGI_ADAPTER_DESC1`으로 진입하여 `DXGI_ADAPTER_FLAG_SOFTWARE` 여부를 검사한다. Adapter Vendor/Device ID 및 Driver Version의 기록은 **NOT_RECORDED**.
+- **Windows x64/ARM64:** `RHI_FRAME_DIRECT3D11_HARDWARE_CONFIRMED` Native 로그. 실제 `ID3D11Device` → `IDXGIDevice` → `IDXGIAdapter1` → `DXGI_ADAPTER_DESC1`으로 진입하여 `DXGI_ADAPTER_FLAG_SOFTWARE` 여부를 검사한다. Adapter Vendor/Device ID 및 Driver Version의 기록은 **NOT_RECORDED**.
 - **공통:** `QSGRendererInterface` 선택, 단순 `frameSwapped` 이벤트, Headless `offscreen`, `QT_QUICK_BACKEND=software`만으로 Hardware PASS로 승격하지 않는다. 3 Native Job은 장치 확인 true, 각 Scene의 최소 8개 유효 연속 frame-swap sample과 `pass=true`를 보고했다. 이는 **GitHub-hosted Native 실행 환경의 장치 확인**이며 사용자 PC 및 물리 모니터의 독립 검증이 아니다.
 
 ## 3. macOS ARM64 Metal 실제 Native 계측
