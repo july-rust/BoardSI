@@ -231,6 +231,58 @@ mod tests {
         );
     }
 
+    // A deterministic *literal* LZW stream, packed in classic compress
+    // groups. This builder's 9->10->11-bit outputs were independently
+    // accepted and byte-decoded by GNU gzip -dc as a UNIX-compress oracle.
+    fn literal_z(bytes: &[u8], maxbits: usize) -> Vec<u8> {
+        fn flush(output: &mut Vec<u8>, codes: &mut Vec<u8>, width: usize, full: bool) {
+            if codes.is_empty() {
+                return;
+            }
+            let mut packed = 0u128;
+            for (index, &code) in codes.iter().enumerate() {
+                packed |= u128::from(code) << (index * width);
+            }
+            let count = if full { width } else { (codes.len() * width).div_ceil(8) };
+            output.extend_from_slice(&packed.to_le_bytes()[..count]);
+            codes.clear();
+        }
+        let mut out = vec![0x1f, 0x9d, 0x80 | maxbits as u8];
+        let mut width = 9usize;
+        let mut next = 257usize;
+        let mut first = true;
+        let mut codes = Vec::new();
+        for &byte in bytes {
+            if next > ((1usize << width) - 1) && width < maxbits {
+                flush(&mut out, &mut codes, width, true);
+                width += 1;
+            }
+            codes.push(byte);
+            if codes.len() == 8 {
+                flush(&mut out, &mut codes, width, true);
+            }
+            if !first && next < (1usize << maxbits) {
+                next += 1;
+            }
+            first = false;
+        }
+        flush(&mut out, &mut codes, width, false);
+        out
+    }
+
+    #[test]
+    fn variable_width_group_alignment_and_bounded_expansion() {
+        for size in [255usize, 256, 257, 260, 1000, 4000] {
+            let plain: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
+            let stream = literal_z(&plain, 12);
+            assert_eq!(decode_features_z(PATH, &stream, size).unwrap(), plain);
+            assert_eq!(
+                decode_features_z(PATH, &stream, size - 1).unwrap_err().code,
+                "ODB_Z_EXPANSION_LIMIT"
+            );
+        }
+    }
+
     #[test]
     fn malformed_streams_fail_closed() {
         for data in [
