@@ -822,7 +822,7 @@ pub fn import_archive_file(
 /// legacy maps remain borrowed and have exactly the previous identity bytes.
 /// Every input .Z is checked, not just the selected step, so an unsupported
 /// member cannot be hidden by a different step selection.
-fn normalized_feature_files<'a>(files: &'a OdbFileMap) -> Result<Cow<'a, OdbFileMap>, OdbError> {
+fn normalized_feature_files(files: &OdbFileMap) -> Result<Cow<'_, OdbFileMap>, OdbError> {
     if !files.keys().any(|path| path.ends_with(".Z")) {
         return Ok(Cow::Borrowed(files));
     }
