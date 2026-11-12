@@ -50,12 +50,16 @@ fn payload_start(bytes: &[u8]) -> Result<usize, OdbError> {
         return Err(bad("ODB_GZIP_TRUNCATED_HEADER"));
     }
     if flags & 0x04 != 0 {
-        let end = at.checked_add(2).ok_or_else(|| bad("ODB_GZIP_HEADER_LIMIT"))?;
+        let end = at
+            .checked_add(2)
+            .ok_or_else(|| bad("ODB_GZIP_HEADER_LIMIT"))?;
         if end > header_limit {
             return Err(bad("ODB_GZIP_TRUNCATED_HEADER"));
         }
         let xlen = usize::from(u16::from_le_bytes([bytes[at], bytes[at + 1]]));
-        at = end.checked_add(xlen).ok_or_else(|| bad("ODB_GZIP_HEADER_LIMIT"))?;
+        at = end
+            .checked_add(xlen)
+            .ok_or_else(|| bad("ODB_GZIP_HEADER_LIMIT"))?;
         if at > header_limit {
             return Err(bad("ODB_GZIP_HEADER_LIMIT"));
         }
@@ -76,7 +80,9 @@ fn payload_start(bytes: &[u8]) -> Result<usize, OdbError> {
         }
     }
     if flags & 0x02 != 0 {
-        let end = at.checked_add(2).ok_or_else(|| bad("ODB_GZIP_HEADER_LIMIT"))?;
+        let end = at
+            .checked_add(2)
+            .ok_or_else(|| bad("ODB_GZIP_HEADER_LIMIT"))?;
         if end > header_limit {
             return Err(bad("ODB_GZIP_TRUNCATED_HEADER"));
         }
@@ -196,8 +202,7 @@ mod tests {
     }
 
     fn gzip(input: &[u8]) -> Vec<u8> {
-        let mut encoder =
-            flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
         encoder.write_all(input).unwrap();
         encoder.finish().unwrap()
     }
@@ -228,9 +233,8 @@ mod tests {
             .unwrap()
             .as_nanos();
         for ext in ["tar.gz", "tgz"] {
-            let path = std::env::temp_dir().join(format!(
-                "boardsi-e014-{}-{stamp}.{ext}", std::process::id()
-            ));
+            let path = std::env::temp_dir()
+                .join(format!("boardsi-e014-{}-{stamp}.{ext}", std::process::id()));
             std::fs::write(&path, &archive).unwrap();
             let result = (|| -> Result<(), OdbError> {
                 let board = crate::odb_source::import_archive_file(&path, "pcb", false)?;
@@ -258,19 +262,24 @@ mod tests {
         let header_crc = crc32(&extra) as u16;
         extra.extend_from_slice(&header_crc.to_le_bytes());
         extra.extend_from_slice(&original[10..]);
-        assert_eq!(read_gzip_tar(&extra).unwrap(), crate::odb_tar::read_tar(&input).unwrap());
+        assert_eq!(
+            read_gzip_tar(&extra).unwrap(),
+            crate::odb_tar::read_tar(&input).unwrap()
+        );
         extra[18] ^= 0x01;
-        assert_eq!(read_gzip_tar(&extra).unwrap_err().code, "ODB_GZIP_HEADER_CRC");
+        assert_eq!(
+            read_gzip_tar(&extra).unwrap_err().code,
+            "ODB_GZIP_HEADER_CRC"
+        );
     }
 
     #[test]
     fn independent_python_gzip_vector_and_integrity() {
         // Python 3: gzip.compress(b"Hello ODB++ gzip!\n", mtime=0)
         const PYTHON_GZIP: [u8; 38] = [
-            0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff,
-            0xf3, 0x48, 0xcd, 0xc9, 0xc9, 0x57, 0xf0, 0x77, 0x71, 0xd2,
-            0xd6, 0x56, 0x48, 0xaf, 0xca, 0x2c, 0x50, 0xe4, 0x02, 0x00,
-            0xfa, 0x4d, 0x39, 0xb0, 0x12, 0x00, 0x00, 0x00,
+            0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xf3, 0x48, 0xcd, 0xc9,
+            0xc9, 0x57, 0xf0, 0x77, 0x71, 0xd2, 0xd6, 0x56, 0x48, 0xaf, 0xca, 0x2c, 0x50, 0xe4,
+            0x02, 0x00, 0xfa, 0x4d, 0x39, 0xb0, 0x12, 0x00, 0x00, 0x00,
         ];
         assert_eq!(
             inflate_gzip_with_limit(&PYTHON_GZIP, MAX_TAR).unwrap(),
