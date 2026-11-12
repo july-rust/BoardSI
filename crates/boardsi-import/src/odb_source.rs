@@ -850,8 +850,7 @@ fn normalized_feature_files<'a>(files: &'a OdbFileMap) -> Result<Cow<'a, OdbFile
         if result.len() >= MAX_FILES {
             return Err(error(path, 0, "ODB_Z_ENTRY_LIMIT"));
         }
-        let expanded =
-            crate::odb_compress_z::decode_features_z(path, compressed, MAX_FILE_BYTES)?;
+        let expanded = crate::odb_compress_z::decode_features_z(path, compressed, MAX_FILE_BYTES)?;
         total = total
             .checked_add(expanded.len())
             .ok_or_else(|| error(path, 0, "ODB_Z_SIZE_OVERFLOW"))?;
