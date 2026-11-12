@@ -61,7 +61,7 @@ Do not report compressed ODB++ products generally, verified plated vias, electri
 
 ## E_013 successor — ZIP raw DEFLATE Method 8 (2026-11-12 KST)
 
-**Code review/CI:** [PR #601](https://github.com/july-rust/BoardSI/pull/601), **IN_PROGRESS / NOT_YET_ACCEPTED** until exact final HEAD required CI, independent review, protected Verified Squash and exact code-main Push are evidenced.
+**Code review/CI:** [PR #601](https://github.com/july-rust/BoardSI/pull/601) source subset **COMPLETE (2026-11-12 KST; final docs-PR protected closeout conditional)**: final HEAD `9554db34` 38/38 Checks SUCCESS; independent Codex earlier P2 corrected, follow-up bot 👍 and unresolved threads 0; [GitHub Verified Squash `06265985`](https://github.com/july-rust/BoardSI/commit/06265985fdf7888e2b16ace7daa4b7e2bf48a0b2), one parent; exact code-main Push **8/8 workflow SUCCESS** including [Numerical native](https://github.com/july-rust/BoardSI/actions/runs/43165652402) and [Qt native](https://github.com/july-rust/BoardSI/actions/runs/43165652649). Historical D_056_09 STORED-only record above remains unchanged.
 
 - Accept ZIP member methods **0 (STORED)** and **8 (raw DEFLATE)**, including mixed-method packages. ZIP data is decompressed **in memory** through the Rust `flate2 = 1.0.35` pure-Rust backend (`miniz_oxide = 0.8.2`), not via an external process, temporary file, zlib wrapper or gzip.
 - Shared bounded original data policy: archive 256 MiB, per expanded file 16 MiB, total expanded files 128 MiB, 8192 entries. Actual output is limited **while decoding** to each member's header-advertised size and policy maximum, and cumulative declared sizes are checked before expanding.
