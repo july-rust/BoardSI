@@ -27,10 +27,10 @@ Tests include independent GNU `gzip -dc` (accepting classic UNIX Compress) decod
 
 **This record must be reconciled against the actual final PR HEAD and exact merged main SHA. No pending check is a PASS.**
 
-- Code PR #605 final HEAD/required CI: PENDING final reconciliation.
-- Independent Codex code review: PENDING final reconciliation; inspect review's exact HEAD and unresolved threads.
-- Protected squash-only GitHub Verified merge: PENDING.
-- Independent exact **code-main** Push workflows (8/8 expected): PENDING.
+- Code PR [#605](https://github.com/july-rust/BoardSI/pull/605) final HEAD `80bf903a76dd1df0712ee2f85e2ef90142eb9744`: **30/30 required/native Checks SUCCESS**, zero failed. Native Rust/Qt Windows x64, Windows ARM64, macOS ARM64 SUCCESS. Earlier formatting, Clippy and provenance-equality test failures were fixed on later HEAD and retained in GitHub history.
+- Independent Codex Code Review on final HEAD `80bf903a`: **completed, `has_any_findings=false`, `has_unresolved_findings=false`; review threads 0**.
+- Protected squash-only merge [PR #605](https://github.com/july-rust/BoardSI/pull/605) **SUCCESS**, GitHub [Verified one-parent commit `c16d568013be9e5b2d146919d2374f1cad23fbf3`](https://github.com/july-rust/BoardSI/commit/c16d568013be9e5b2d146919d2374f1cad23fbf3); successful GitHub signature verification via commit API.
+- Independent exact **code-main** Push workflows for `c16d5680`: **IN_PROGRESS**, do not count as success until all 8 concluded SUCCESS.
 - Docs-only final PR required CI, Verified merge and exact docs-main Push: PENDING.
 - Formal U/T, independent real Vendor ODB++ fixture, complete copper, EDA/PKG/PIN, plated vias, main Qt ODB Import, global Open/Short, SI solver and parent #578: **NOT_ACCEPTED / OPEN**.
 
