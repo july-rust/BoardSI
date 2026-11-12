@@ -243,4 +243,4 @@
 
 ---
 
-**목록 집계:** 160개 그룹 분류 + 0개 미분류 = **160개** 기존 Markdown 근거 파일. 개별 기록을 일괄 수정하거나 과거 `FAIL`을 변경하지 않았습니다. 신규 보고서는 이 색인에 등록하고, 정식 완료 판정은 [단일 체크리스트](../development-checklist.md)에만 반영합니다. 검증 방법은 [Validation 설명](README.md), 문서 정책은 [문서 표준](../documentation-standards.md)을 참조하십시오.
+**목록 집계:** 167개 그룹 분류 + 0개 미분류 = **167개** 기존 Markdown 근거 파일 (Stage A/B/C/D/M0/E/M2/PH-08/SEC 각 13+11+32+53+11+9+15+22+1, `README.md` 및 `INDEX.md` 제외). 개별 기록을 일괄 수정하거나 과거 `FAIL`을 변경하지 않았습니다. 신규 보고서는 이 색인에 등록하고, 정식 완료 판정은 [단일 체크리스트](../development-checklist.md)에만 반영합니다. 검증 방법은 [Validation 설명](README.md), 문서 정책은 [문서 표준](../documentation-standards.md)을 참조하십시오.
