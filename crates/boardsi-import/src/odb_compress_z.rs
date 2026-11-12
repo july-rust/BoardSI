@@ -120,10 +120,7 @@ pub(crate) fn decode_features_z(
     let mut previous: Option<usize> = None;
     let mut realign = false;
     loop {
-        let code = match groups
-            .read(width, realign)
-            .map_err(|c| bad(path, c))?
-        {
+        let code = match groups.read(width, realign).map_err(|c| bad(path, c))? {
             Some(value) => value,
             None => break,
         };
@@ -195,17 +192,18 @@ mod tests {
     // Fixed fixture: independent GNU gzip -dc validates this UNIX-compress
     // byte stream against the exact UTF-8 feature text below.
     const FEATURE_Z: &[u8] = &[
-        0x1f, 0x9d, 0x8c, 0x55, 0x9c, 0x24, 0xa1, 0x32, 0xa5, 0x47, 0x93,
-        0x26, 0x0a, 0x8c, 0x80, 0x88, 0xa1, 0x80, 0x04, 0x0c, 0x10, 0x72,
-        0x62, 0xc0, 0x80, 0xa1, 0x80, 0x09, 0x08, 0x18, 0x20, 0x60, 0x80,
-        0x88, 0x01, 0x02, 0x06, 0x08, 0x18, 0x20, 0xa0, 0x80, 0x80, 0xa1,
-        0x00,
+        0x1f, 0x9d, 0x8c, 0x55, 0x9c, 0x24, 0xa1, 0x32, 0xa5, 0x47, 0x93, 0x26, 0x0a, 0x8c, 0x80,
+        0x88, 0xa1, 0x80, 0x04, 0x0c, 0x10, 0x72, 0x62, 0xc0, 0x80, 0xa1, 0x80, 0x09, 0x08, 0x18,
+        0x20, 0x60, 0x80, 0x88, 0x01, 0x02, 0x06, 0x08, 0x18, 0x20, 0xa0, 0x80, 0x80, 0xa1, 0x00,
     ];
     const TEXT: &[u8] = b"UNITS=MM\nF 1\n$0 r100\nL 0 0 1 0 0 P 0\n";
 
     #[test]
     fn independent_unix_compress_vector_decodes() {
-        assert_eq!(decode_features_z(PATH, FEATURE_Z, 16 * 1024 * 1024).unwrap(), TEXT);
+        assert_eq!(
+            decode_features_z(PATH, FEATURE_Z, 16 * 1024 * 1024).unwrap(),
+            TEXT
+        );
         assert_eq!(
             decode_features_z(PATH, FEATURE_Z, TEXT.len() - 1)
                 .unwrap_err()
@@ -243,7 +241,11 @@ mod tests {
             for (index, &code) in codes.iter().enumerate() {
                 packed |= u128::from(code) << (index * width);
             }
-            let count = if full { width } else { (codes.len() * width).div_ceil(8) };
+            let count = if full {
+                width
+            } else {
+                (codes.len() * width).div_ceil(8)
+            };
             output.extend_from_slice(&packed.to_le_bytes()[..count]);
             codes.clear();
         }
@@ -287,8 +289,7 @@ mod tests {
     fn nonblock_dictionary_entry_256_is_not_a_clear_code() {
         // GNU gzip -dc independently decodes the non-block .Z bytes as AAA.
         assert_eq!(
-            decode_features_z(PATH, &[0x1f, 0x9d, 0x0c, 0x41, 0x00, 0x02], 100)
-                .unwrap(),
+            decode_features_z(PATH, &[0x1f, 0x9d, 0x0c, 0x41, 0x00, 0x02], 100).unwrap(),
             b"AAA"
         );
     }
