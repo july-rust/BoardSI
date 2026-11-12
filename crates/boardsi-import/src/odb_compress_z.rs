@@ -119,11 +119,7 @@ pub(crate) fn decode_features_z(
     let mut next = if block_mode { 257usize } else { 256usize };
     let mut previous: Option<usize> = None;
     let mut realign = false;
-    loop {
-        let code = match groups.read(width, realign).map_err(|c| bad(path, c))? {
-            Some(value) => value,
-            None => break,
-        };
+    while let Some(code) = groups.read(width, realign).map_err(|c| bad(path, c))? {
         realign = false;
         if block_mode && code == 256 {
             // CLEAR resets the entire dictionary and aligns to a 9-bit block.
