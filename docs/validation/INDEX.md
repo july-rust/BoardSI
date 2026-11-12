@@ -171,7 +171,7 @@
 </details>
 
 <details>
-<summary><strong>Stage E — Bounded closeout evidence</strong> — 9개 · 검증된 한정 인수와 제품 단계 미완 조건을 분리</summary>
+<summary><strong>Stage E — Bounded closeout evidence</strong> — 10개 · 검증된 한정 인수와 제품 단계 미완 조건을 분리</summary>
 
 - [E_001 · PH-07 post-audit closure and independent disposition](e001-ph07-post-audit-closure.md)
 - [E_002 · M0 F1 traceability and status reconciliation](e002-m0-f1-traceability-status-reconciliation.md)
@@ -182,6 +182,7 @@
 - [E_007 · Public fixture provenance, source integrity and rights gate](e007-public-fixture-provenance-rights-qualification.md)
 - [E_008 · PADS V9.4 MILS format/version readiness and fail-closed source qualification](e008-pads-readiness-qualification.md)
 - [E_009 · PADS V9.4 ROUTE glued-via flag source grammar qualification](e009-pads-glued-via-grammar-qualification.md)
+- [E_010 · Main Qt Canonical Import/IPC/Picking/ReImport fail-closed qualification](e010-main-qt-import-picking-qualification.md)
 
 </details>
 
