@@ -98,7 +98,7 @@ fn zip(entries: &[(String, Vec<u8>)], method: u16) -> Vec<u8> {
         put32(&mut central, packed.len() as u32);
         put32(&mut central, input.len() as u32);
         put16(&mut central, name.len() as u16);
-        for _ in 0..5 { put16(&mut central, 0); }
+        for _ in 0..4 { put16(&mut central, 0); }
         put32(&mut central, 0);
         put32(&mut central, offset);
         central.extend_from_slice(name.as_bytes());
