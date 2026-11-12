@@ -119,3 +119,11 @@ Implemented tests: 2/4/6/8/64-layer source maps; round line, rotated rectangle p
 Remaining D_056_08 gates: external valid ODB++ fixture + reference oracle, full geometry inventory including arbitrary Surface/OC/multi-island/negative handling, **complete** EDA/Net/Part/Pin/Drill mappings beyond the restricted design FID contract, safe archive handling, Main Qt/IPC integration and source-qualified complete electrical Graph behavior. D_056_08 remains OPEN until its agreed acceptance contract is actually met; Issue #532 and parent #520 remain OPEN through later format stages.
 
 Avoid filling the sole checklist with unverifiable success claims.
+
+## E_016 successor — bounded positive multi-island source geometry (2026-11-12 KST)
+
+This section supersedes the historical **single-island-only** limitation of PR #564 above; that paragraph remains unchanged as its original evidence snapshot. The current source parser accepts **2–16 disconnected positive straight-edge OB ... I islands** in one `S P` feature, within the existing aggregate 512-vertex and ±1e12 source tick bounds. It validates clockwise winding, self-intersection, touching/intersection, nesting and exact separation in i128. Single-island + up to 32 strict holes retains its prior acceptance, including legacy orientation. **Multi-island with any hole** is deliberately unsupported, as are negative polarity and OC curves. Entire feature import fails closed on any invalid contour; no island is silently skipped.
+
+Canonical mapping emits separate `CopperArea` objects, preserving original S feature and first area identity, and distinct deterministic additional IDs with their OB source lines. There is **one FID ordinal per S feature**, independent of island count. The opt-in EDA PLN/FID source Design Net ownership fans out to all child areas without creating any electrical graph nodes/edges, plating, manufacturing or SI truth. Geometry and source hashes reuse the same normalized Directory/USTAR/ZIP/GZIP/`features.Z` FileMap path. Source-only synthetic regressions; not a commercial exporter acceptance.
+
+See [E_016 validation and pending acceptance gates](../validation/e016-odb-positive-multi-island-qualification.md). E_016 is **NOT_VERIFIED pending PR final CI/review/protected Verified Squash and exact merged-main Push**. Parent #578 and #10 remain OPEN, EB-01 vendor oracle unresolved.
