@@ -83,3 +83,11 @@ Do not report compressed ODB++ products generally, verified plated vias, electri
 - Existing optional Drill Audit/EDA Source provenance flows through the same immutable `OdbFileMap`. GZIP CRC32 is transport-integrity evidence, not exporter provenance or manufactured-board validation.
 
 **Explicitly not covered:** GZIP multi-member, arbitrary PAX/link TAR, `features.Z` (E_015), negative copper/step transforms, full EDA/PKG/PIN, physical plating/via, Qt main ODB Import, electrical graph, SI solver and independent vendor oracle. Overall D_056_09 Issue #578 stays OPEN.
+
+## E_015 successor — UNIX Compress LZW `features.Z` Source member (2026-11-12 KST)
+
+**Code:** [PR #605](https://github.com/july-rust/BoardSI/pull/605) · [E_015 verification](../validation/e015-odb-features-z-qualification.md) · [single checklist](../development-checklist.md#stage-e).
+
+Unlike the historical D_056_09 ZIP Method 0 record and E_014 GZIP archive transport, the E_015 decompressor operates on **inner Layer feature members** named `steps/<step>/layers/<layer>/features.Z` from any already-supported outer transport. Magic `1F 9D` UNIX Compress LZW is not GZIP. Decoded logical `features` are checked by the existing Source subset Parser, bounded at 16 MiB each / 128 MiB aggregate, while both compressed and decoded content receive SHA-256 Source provenance entries. Plain/compressed name conflicts or unsupported `.Z` member paths fail closed. LZW has no standard mandatory CRC, ISIZE or positive EOS, so it does not provide whole-stream integrity certification; Source grammar and provenance SHA remain distinct evidence.
+
+**No promotion:** This addition does not qualify full negative Copper/Island, Step repeat/transform, EDA PKG/PIN, real vendor exporter, manufactured Plating/Via/Stackup, Qt main ODB Import, electrical Open/Short, SI or parent Issue #578. E_016/017 and later slices retain their independent gates.
