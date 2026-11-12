@@ -1,11 +1,12 @@
-//! D_056_09: strictly bounded ZIP *stored-member* ODB++ transport.
+//! D_056_09 / E_013: strictly bounded ZIP STORED/DEFLATE ODB++ transport.
 //!
-//! This deliberately does not support DEFLATE, data descriptors, Zip64,
-//! split disks, encryption, extra fields or executable/symlink members.
+//! Only methods 0 and 8 are supported; data descriptors, Zip64, split disks,
+//! encryption, extra fields and executable/symlink members remain unsupported.
 //! ZIP is only a transport; Canonical source/electrical qualification remains
 //! in the existing ODB++ importer and cannot be inferred from extraction.
 use crate::odb_source::{OdbError, OdbFileMap};
 use std::collections::BTreeSet;
+use flate2::{Decompress, FlushDecompress, Status};
 
 const MAX_ARCHIVE: usize = 256 * 1024 * 1024;
 const MAX_FILE: usize = 16 * 1024 * 1024;
@@ -58,7 +59,54 @@ fn crc32(bytes: &[u8]) -> u32 {
     !crc
 }
 
-/// Read a single-disk, zero-comment ZIP with STORED (method 0) members.
+
+fn inflate_raw_bounded(compressed: &[u8], declared_size: usize) -> Result<Vec<u8>, OdbError> {
+    if declared_size > MAX_FILE {
+        return Err(bad("ODB_ZIP_FILE_LIMIT"));
+    }
+    // ZIP method 8 is raw DEFLATE (no zlib header / checksum). Never decode
+    // an entire untrusted entry first and check its length afterwards.
+    let mut decoder = Decompress::new(false);
+    let mut result = Vec::with_capacity(declared_size.min(16 * 1024));
+    let mut input_offset = 0usize;
+    let mut chunk = [0u8; 8192];
+    loop {
+        let previous_in = decoder.total_in();
+        let previous_out = decoder.total_out();
+        let status = decoder
+            .decompress(&compressed[input_offset..], &mut chunk, FlushDecompress::None)
+            .map_err(|_| bad("ODB_ZIP_DEFLATE_INVALID"))?;
+        let consumed = usize::try_from(decoder.total_in() - previous_in)
+            .map_err(|_| bad("ODB_ZIP_SIZE_OVERFLOW"))?;
+        let produced = usize::try_from(decoder.total_out() - previous_out)
+            .map_err(|_| bad("ODB_ZIP_SIZE_OVERFLOW"))?;
+        input_offset = input_offset
+            .checked_add(consumed)
+            .ok_or_else(|| bad("ODB_ZIP_SIZE_OVERFLOW"))?;
+        let end = result
+            .len()
+            .checked_add(produced)
+            .ok_or_else(|| bad("ODB_ZIP_SIZE_OVERFLOW"))?;
+        if end > declared_size || end > MAX_FILE {
+            return Err(bad("ODB_ZIP_DEFLATE_SIZE_MISMATCH"));
+        }
+        result.extend_from_slice(&chunk[..produced]);
+        if status == Status::StreamEnd {
+            if input_offset != compressed.len() {
+                return Err(bad("ODB_ZIP_DEFLATE_TRAILING_DATA"));
+            }
+            if result.len() != declared_size {
+                return Err(bad("ODB_ZIP_DEFLATE_SIZE_MISMATCH"));
+            }
+            return Ok(result);
+        }
+        if consumed == 0 && produced == 0 {
+            return Err(bad("ODB_ZIP_DEFLATE_INVALID"));
+        }
+    }
+}
+
+/// Read a single-disk, zero-comment ZIP with STORED (0) / DEFLATE (8) members.
 /// Cross-check every central-directory record against its local header and
 /// CRC before making any file visible to the Canonical importer.
 pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
@@ -131,10 +179,10 @@ pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
         {
             return Err(bad("ODB_ZIP_UNSUPPORTED_EXTENSION"));
         }
-        if method != 0 {
+        if method != 0 && method != 8 {
             return Err(bad("ODB_ZIP_COMPRESSION_UNSUPPORTED"));
         }
-        if compressed != uncompressed || compressed > MAX_FILE {
+        if uncompressed > MAX_FILE || (method == 0 && compressed != uncompressed) {
             return Err(bad("ODB_ZIP_FILE_LIMIT"));
         }
         let name_bytes = &bytes[cursor + 46..cursor + 46 + name_len];
@@ -181,19 +229,25 @@ pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
             return Err(bad("ODB_ZIP_NAME_MISMATCH"));
         }
         let data_end = checked_end(data_start, compressed, central_start)?;
-        let data = &bytes[data_start..data_end];
-        if crc32(data) != expected_crc {
+        if !is_directory && total.checked_add(uncompressed).map_or(true, |n| n > MAX_TOTAL) {
+            return Err(bad("ODB_ZIP_TOTAL_LIMIT"));
+        }
+        let payload = &bytes[data_start..data_end];
+        let decoded = if method == 8 {
+            inflate_raw_bounded(payload, uncompressed)?
+        } else {
+            payload.to_vec()
+        };
+        if crc32(&decoded) != expected_crc {
             return Err(bad("ODB_ZIP_CRC32_MISMATCH"));
         }
         if is_directory {
-            if !data.is_empty() || !directory_names.insert(clean.to_owned()) {
+            if !decoded.is_empty() || !directory_names.insert(clean.to_owned()) {
                 return Err(bad("ODB_ZIP_DUPLICATE_OR_NONEMPTY_DIRECTORY"));
             }
         } else {
-            total = total
-                .checked_add(data.len())
-                .ok_or_else(|| bad("ODB_ZIP_TOTAL_LIMIT"))?;
-            if total > MAX_TOTAL || raw.insert(name.to_owned(), data.to_vec()).is_some() {
+            total += decoded.len(); // checked against MAX_TOTAL before decompression
+            if raw.insert(name.to_owned(), decoded).is_some() {
                 return Err(bad("ODB_ZIP_TOTAL_OR_DUPLICATE_FILE"));
             }
         }
