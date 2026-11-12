@@ -6,12 +6,13 @@
 //! Never infer via plating, physical copper continuity or a valid SI graph.
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum FeatureLocation {
     Trace(usize),
     Pad(usize),
     Arc(usize),
     Area(usize),
+    Areas(Vec<usize>), // one Source Feature / FID, several disconnected canonical areas
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,7 +182,7 @@ pub(super) fn parse(
                     (sn, loc),
                     ("TRC", FeatureLocation::Trace(_) | FeatureLocation::Arc(_))
                         | ("VIA", FeatureLocation::Pad(_))
-                        | ("PLN", FeatureLocation::Area(_))
+                        | ("PLN", FeatureLocation::Area(_) | FeatureLocation::Areas(_))
                 );
                 if !valid_kind {
                     return Err(err(no, "ODB_EDA_FID_SUBNET_KIND_CONFLICT"));
