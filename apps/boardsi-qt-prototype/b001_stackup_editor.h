@@ -181,7 +181,8 @@ public:
     QString auditScenarioRevision() const {
         return currentAuditIsFresh() ? validatedScenarioRevision_ : QString();
     }
-    void resetForImport(const QString &path, int layerCount) {
+    void resetForImport(const QString &path, int layerCount,
+                        const QByteArray &acceptedSourceDigest = QByteArray()) {
         // Begin reimport by calling with 0; fail-closed regardless of import outcome.
         sourcePath_ = layerCount > 0 ? path : QString();
         importDigest_.clear();
@@ -192,15 +193,18 @@ public:
         acceptedNetInventoryComplete_ = false;
         signalNet_->clear();
         referenceNet_->clear();
+        auditFrequency_->clear(); // Never carry audit frequency into another source.
         rows_->setRowCount(0);
         if (sourcePath_.isEmpty() || layerCount < 1 || layerCount > 64) {
             status("NO QUALIFIED STACKUP / SI NOT_RUN");
             return;
         }
         importDigest_ = sourceDigest(sourcePath_);
-        if (importDigest_.size() != 64) {
+        if (importDigest_.size() != 64 ||
+            (!acceptedSourceDigest.isEmpty() && acceptedSourceDigest != importDigest_)) {
             sourcePath_.clear();
-            status("SOURCE HASH UNAVAILABLE OR TOO LARGE / RUN BLOCKED");
+            importDigest_.clear();
+            status("SOURCE HASH MISMATCH OR UNAVAILABLE / REIMPORT REQUIRED / RUN BLOCKED");
             return;
         }
         rows_->setRowCount(layerCount);
