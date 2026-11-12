@@ -69,7 +69,7 @@ static bool run(const QString &binary, const QString &sourcePath) {
     // Public fixture via at (300, 200) ticks; 35 tick OD / 15 tick drill.
     const QPointF centre(0.0762,-0.0508);
     const QPointF copperPoint=centre+QPointF(0.003,0);
-    auto *scene=panel.findChild<QGraphicsScene*>();
+    auto *scene=art->findChild<QGraphicsScene*>();
     if (!scene ||
         art->canonicalContains(0,centre) ||
         !art->canonicalContains(0,copperPoint)) return false;
