@@ -36,6 +36,7 @@ static bool run(const QString &binary, const QString &sourcePath) {
     const QString shaB=QString::fromLatin1(
         QCryptographicHash::hash(second,QCryptographicHash::Sha256).toHex());
     if (shaA==shaB) return false;
+    qInfo("E010_STAGE:fixture-ready");
     PreviewImportPanel panel;
     panel.setCanonicalImporterBinaryForTest(binary);
     const auto import=[&](const QString &path,bool expectSuccess) {
@@ -61,10 +62,12 @@ static bool run(const QString &binary, const QString &sourcePath) {
         return completed && success==expectSuccess && !panel.busy();
     };
     auto *art=panel.imported();
+    qInfo("E010_STAGE:controller-created");
     if (!import(sourcePath,true) || !art->canonicalMode() ||
         art->canonicalSourceSha()!=shaA ||
         panel.acceptedSourceSha256()!=shaA.toLatin1() ||
         art->canonicalGlyphCount()<2) return false;
+    qInfo("E010_STAGE:source-a-imported");
     // PADS V9.4 SOURCE GRID: 1 tick = 0.000254 mm (not 1 mil).
     // Public fixture via at (300, 200) ticks; 35 tick OD / 15 tick drill.
     const QPointF centre(0.0762,-0.0508);
@@ -76,6 +79,8 @@ static bool run(const QString &binary, const QString &sourcePath) {
     // The actual QGraphicsScene hit-test must agree with Canonical copper,
     // not just the model's standalone footprint helper.
     auto *hit=scene->itemAt(copperPoint,QTransform());
+    qInfo("E010_SCENE:hit=%d hole=%d",hit!=nullptr,
+          scene->itemAt(centre,QTransform())!=nullptr);
     if (!hit || hit->data(3).toString()!="D05605Canonical" ||
         !hit->flags().testFlag(QGraphicsItem::ItemIsSelectable) ||
         !hit->data(2).toString().contains(shaA) ||
@@ -84,6 +89,7 @@ static bool run(const QString &binary, const QString &sourcePath) {
         !art->summaryText().contains("Selected: Canonical Via") ||
         !art->summaryText().contains("SOURCE SHA256 "+shaA) ||
         !art->summaryText().contains("NET_A")) return false;
+    qInfo("E010_STAGE:source-a-picked");
     auto *hide=panel.findChild<QPushButton*>("importedHideAllLayers");
     auto *show=panel.findChild<QPushButton*>("importedShowAllLayers");
     if (!hide || !show) return false;
@@ -94,6 +100,7 @@ static bool run(const QString &binary, const QString &sourcePath) {
     if (art->canonicalVisibleGlyphCount()!=art->canonicalGlyphCount() ||
         !art->selectCanonicalGlyph(0)) return false;
 
+    qInfo("E010_STAGE:layer-visibility");
     auto *nets=panel.findChild<QComboBox*>("importedNetSelect");
     auto *only=panel.findChild<QCheckBox*>("importedNetOnly");
     if (!nets || !only) return false;
@@ -106,6 +113,7 @@ static bool run(const QString &binary, const QString &sourcePath) {
     if (art->canonicalVisibleGlyphCount()!=art->canonicalGlyphCount() ||
         !art->selectCanonicalGlyph(0)) return false;
 
+    qInfo("E010_STAGE:net-filter");
     // Re-import different valid SOURCE using the SAME main Qt controller.
     if (!import(directory.filePath("source-b.asc"),true) ||
         !art->canonicalMode() ||
@@ -120,6 +128,7 @@ static bool run(const QString &binary, const QString &sourcePath) {
         !art->summaryText().contains("NET_B") ||
         art->summaryText().contains("NET_A")) return false;
 
+    qInfo("E010_STAGE:source-b-picked");
     // Unsupported V9.3 header fails in the REAL Rust importer; the main Qt
     // controller must not keep the preceding Source-B selection on screen.
     if (!import(directory.filePath("unsupported.asc"),false) ||
@@ -128,6 +137,7 @@ static bool run(const QString &binary, const QString &sourcePath) {
         !panel.acceptedSourceSha256().isEmpty() ||
         !panel.importStatus().startsWith("FAILED") ||
         art->selectCanonicalGlyph(0)) return false;
+    qInfo("E010_STAGE:malformed-rejected");
     panel.stop();
     return !panel.busy();
 }
