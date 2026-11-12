@@ -642,6 +642,10 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           pythonPath=$(python -c 'import sys; print(sys.executable)')
           ./boardsi-qt-runtime-validation$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$pythonPath" "$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests/fault_worker.py"
+          # E_010 native main Qt Canonical Import/Picking/ReImport regression.
+          # This must run on actual Windows x64/ARM64 and macOS ARM64 CI,
+          # not just Linux CTest. Offscreen CPU path is not GPU qualification.
+          QT_QPA_PLATFORM=offscreen ./boardsi-e010-main-picking-test$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-import-canonical-padstack$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc"
           ./boardsi-qt-model-v2$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame"
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame"
           BOARDSI_SOURCE_HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" ./boardsi-preview-p0$suffix --selftest "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$GITHUB_WORKSPACE/build-qt/qt-model-a.frame" "$GITHUB_WORKSPACE/build-qt/qt-model-b.frame" "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc"
