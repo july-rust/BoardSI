@@ -1,6 +1,6 @@
 //! Offline, read-only M1 detection smoke. Does not accept a PCB for SI analysis.
 //! The legacy one-argument probe output and exit codes remain unchanged.
-use boardsi_import::import_readiness::inspect_pads_readiness;
+use boardsi_import::import_readiness::{inspect_pads_readiness, ReadinessReport};
 use boardsi_import::route_preview::MAX_FILE_BYTES;
 use boardsi_import::{probe_pads_reader, Signature};
 use std::{env, fs::File, io::Read, process::ExitCode};
@@ -37,7 +37,7 @@ fn main() -> ExitCode {
             }
         };
         if !meta.is_file() || meta.len() > MAX_FILE_BYTES as u64 {
-            println!("format=UNKNOWN;parser_status=REJECTED;reason=INVALID_FILE_SIZE;preview_subset_verified=false;solver_ready=false;physical_si=NOT_RUN");
+            println!("{}", ReadinessReport::invalid_file_size().diagnostic());
             return ExitCode::from(3);
         }
         // Bound actual bytes even if the file changes size after metadata().

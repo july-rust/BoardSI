@@ -57,7 +57,7 @@
 - **작은 단위 범위:** PADS V9.4 MILS 정확한 Header/지원 버전 판별, 8 MiB 상한의 opt-in ROUTE→Canonical 제한 파서 검증, G/N/P/S/R/M Source 근거/UNKNOWN 보존, 악성·누락·미지원 입력 회귀. [기술 보고서](validation/e008-pads-readiness-qualification.md).
 - **기존 기능 호환:** `boardsi-import-probe FILE`의 514-byte Signature Probe 동작을 유지. 신규 `--readiness`는 Source-only PARTIAL 판정이며 물리 Solver·Global Connectivity·새 포맷 문법·Qt UI 기능을 추가하지 않는다.
 - **정식 인수 경계:** [Issue #8](https://github.com/july-rust/BoardSI/issues/8)은 U38–U40/U48, 실제 Vendor·형식 전반·Qt 실패 경로 및 정식 T17/T20/T22에 대한 근거가 없으므로 OPEN. E_009, E_013–E_015의 후속 원래 범위 유지.
-- **운영 종료:** E_008 PR의 정확한 최종 HEAD 필수 Checks, 독립 리뷰, 0 unresolved threads, Verified Squash 및 정확한 main Push 결과가 확인되어야 **E_008 한정 COMPLETE**로 기록. 증거 URL·SHA는 [#8 종료 댓글](https://github.com/july-rust/BoardSI/issues/8)에 기재한다.
+- **운영 종료 재감사 (2026-11-12 KST):** 기존 [E_008 PR #592](https://github.com/july-rust/BoardSI/pull/592) 최종 HEAD `b59a37c1` 30/30 Checks SUCCESS, 중간 Codex P2 수정·미해결 리뷰 0, [원본 Squash `fdf0d09d`](https://github.com/july-rust/BoardSI/commit/fdf0d09da6e8a4d72cfa7214e16dec44b75034fd) GitHub **Verified/단일 부모**, 정확한 병합 커밋 `main` [Qt Push CI](https://github.com/july-rust/BoardSI/actions/runs/43112017682) 포함 **8/8 Workflow SUCCESS**를 GitHub API로 재확인. 따라서 기존 E_008의 위 증거 미확인은 해소되었으며 **원본 제한 범위 COMPLETE**. 추가 발견한 Oversize CLI 진단 필드 누락은 별도 소형 후속 수정으로 회귀 테스트를 보강하며 후속 PR 자체의 CI/보호 병합/정확 Push 확인 전에는 **그 후속 수정의 완료를 주장하지 않는다**. 상위 [#8](https://github.com/july-rust/BoardSI/issues/8)의 전 제품/정식 T17/T20/T22는 계속 OPEN/NOT_RUN.
 
 ## E_009 PADS ROUTE glued-via grammar one-slice execution — 2026-11-12 KST
 

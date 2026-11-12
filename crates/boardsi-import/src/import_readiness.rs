@@ -39,6 +39,14 @@ impl ReadinessReport {
         }
     }
 
+    /// Reject non-regular or oversized CLI inputs without changing the machine-readable schema.
+    pub fn invalid_file_size() -> Self {
+        let mut report = Self::unknown();
+        report.parser_status = "REJECTED";
+        report.failure_code = "INVALID_FILE_SIZE";
+        report
+    }
+
     /// Stable, untrusted-input-free diagnostic fields (no paths, net names or source lines).
     pub fn diagnostic(&self) -> String {
         format!(
@@ -259,6 +267,30 @@ mod tests {
         assert_eq!(r.failure_code, "INPUT_TOO_LARGE");
         assert_eq!(r.parser_status, "REJECTED");
         assert!(!r.preview_subset_verified);
+    }
+
+    #[test]
+    fn invalid_file_size_diagnostic_is_schema_complete_and_fail_closed() {
+        let diagnostic = ReadinessReport::invalid_file_size().diagnostic();
+        for field in [
+            "format=UNKNOWN;",
+            "version=UNKNOWN;",
+            "format_status=UNKNOWN_OR_UNSUPPORTED;",
+            "parser_status=REJECTED;",
+            "reason=INVALID_FILE_SIZE;",
+            "G=UNKNOWN;",
+            "N=UNKNOWN;",
+            "P=UNKNOWN;",
+            "S=UNKNOWN;",
+            "R=UNKNOWN;",
+            "M=UNKNOWN;",
+            "skipped=0;",
+            "preview_subset_verified=false;",
+            "solver_ready=false;",
+            "physical_si=NOT_RUN",
+        ] {
+            assert!(diagnostic.contains(field), "missing {field}");
+        }
     }
 
     #[test]
