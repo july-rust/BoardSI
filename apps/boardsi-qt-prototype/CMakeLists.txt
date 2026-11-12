@@ -37,6 +37,14 @@ if(MSVC)
 else()
   target_compile_options(boardsi-d05605-main-artwork-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
+# E_010: the actual main Qt controller, canonical source identity and reImport.
+add_executable(boardsi-e010-main-picking-test e010_main_picking_test.cpp)
+target_link_libraries(boardsi-e010-main-picking-test PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+if(MSVC)
+  target_compile_options(boardsi-e010-main-picking-test PRIVATE /W4 /WX)
+else()
+  target_compile_options(boardsi-e010-main-picking-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
 # D_056_06: exact RT/ST SOURCE spokes in main Canonical Qt CPU artwork.
 add_executable(boardsi-d05606-thermal-qt-test d05606_thermal_qt_test.cpp)
 target_link_libraries(boardsi-d05606-thermal-qt-test PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
@@ -112,6 +120,14 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_rt_st_thermal_v94.asc")
     set_tests_properties(qt-d05606-main-rust-thermal-roundtrip PROPERTIES
       TIMEOUT 65 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # E_010 real Rust IPC through MAIN Qt Import and Source-A/Source-B
+    # reImport, source-backed CPU picking, unknown header fail-closed.
+    add_test(NAME qt-e010-main-canonical-picking-reimport
+      COMMAND boardsi-e010-main-picking-test
+        "${BOARDSI_CANONICAL_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
+    set_tests_properties(qt-e010-main-canonical-picking-reimport PROPERTIES
+      TIMEOUT 150 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     add_test(NAME qt-d05605-main-rust-canonical-roundtrip
       COMMAND boardsi-d05605-main-artwork-test --source
         "${BOARDSI_CANONICAL_IMPORTER}"
