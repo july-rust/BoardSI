@@ -1428,7 +1428,7 @@ mod tests {
             ("DX=30","DX=0","ODB_STEP_DUPLICATE_PLACEMENT"),
             ("NAME=pcb","NAME=panel","ODB_STEP_BAD_CHILD"),
             ("NAME=pcb","NAME=unknown","ODB_STEP_BAD_CHILD"),
-            ("STEP-REPEAT {","STEP-REPEAT { \nSTEP-REPEAT {","ODB_STEP_BAD_REPEAT_GRAMMAR"),
+            ("STEP-REPEAT {","STEP-REPEAT { \nSTEP-REPEAT {","ODB_STEP_NESTED_OR_MULTIPLE_REPEAT"),
             ("DX=30","DX=99999999999999999999","ODB_DECIMAL_OVERFLOW"),
             ("X=10","X=999999","ODB_STEP_COORD_LIMIT"),
         ] {
