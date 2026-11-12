@@ -10,6 +10,7 @@ pub use crate::odb_drill_hits::SourceDrillHit;
 use crate::odb_eda::{self, FeatureLocation};
 use crate::odb_surface::SurfaceBuilder;
 use boardsi_model::*;
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc as Shared;
 
@@ -815,6 +816,58 @@ pub fn import_archive_file(
     import_tar_file(path, step, with_eda)
 }
 
+/// Turn a validated feature.Z payload into a *separate* derived logical feature
+/// file while retaining the original compressed file and SHA-256 as evidence.
+/// The pair can therefore be distinguished in SourceIdentity.files. Uncompressed
+/// legacy maps remain borrowed and have exactly the previous identity bytes.
+/// Every input .Z is checked, not just the selected step, so an unsupported
+/// member cannot be hidden by a different step selection.
+fn normalized_feature_files<'a>(files: &'a OdbFileMap) -> Result<Cow<'a, OdbFileMap>, OdbError> {
+    if !files.keys().any(|path| path.ends_with(".Z")) {
+        return Ok(Cow::Borrowed(files));
+    }
+    // Reject malformed paths, oversize compressed members and duplicate keys
+    // before any potentially expensive LZW expansion.
+    let _original = verified_source_files(files)?;
+    let mut result = files.clone();
+    let mut total: usize = files.values().map(Vec::len).sum();
+    for (path, compressed) in files {
+        if !path.ends_with(".Z") {
+            continue;
+        }
+        let canonical = path.strip_suffix(".Z").expect("matched suffix");
+        let components: Vec<&str> = canonical.split('/').collect();
+        if components.len() != 5
+            || components[0] != "steps"
+            || components[2] != "layers"
+            || components[4] != "features"
+        {
+            return Err(error(path, 0, "ODB_Z_UNSUPPORTED_MEMBER_PATH"));
+        }
+        if files.contains_key(canonical) {
+            return Err(error(path, 0, "ODB_Z_DUPLICATE_FEATURES"));
+        }
+        if result.len() >= MAX_FILES {
+            return Err(error(path, 0, "ODB_Z_ENTRY_LIMIT"));
+        }
+        let expanded =
+            crate::odb_compress_z::decode_features_z(path, compressed, MAX_FILE_BYTES)?;
+        total = total
+            .checked_add(expanded.len())
+            .ok_or_else(|| error(path, 0, "ODB_Z_SIZE_OVERFLOW"))?;
+        if total > MAX_TOTAL_BYTES {
+            return Err(error(path, 0, "ODB_Z_CUMULATIVE_LIMIT"));
+        }
+        if result.insert(canonical.to_owned(), expanded).is_some() {
+            return Err(error(path, 0, "ODB_Z_DUPLICATE_FEATURES"));
+        }
+    }
+    // Check both original .Z and derived uncompressed entries against the
+    // same existing FileMap/SHA/path limits; do not publish a partial map.
+    let _verified = verified_source_files(&result)?;
+    Ok(Cow::Owned(result))
+}
+
 fn verified_source_files(files: &OdbFileMap) -> Result<Vec<SourceFile>, OdbError> {
     if files.len() > MAX_FILES {
         return Err(error("", 0, "ODB_TOO_MANY_FILES"));
@@ -845,6 +898,14 @@ fn verified_source_files(files: &OdbFileMap) -> Result<Vec<SourceFile>, OdbError
 /// Independent, source-only Drill Tool / Matrix span audit. No hole positions,
 /// Canonical Via/Drill objects or manufactured/electrical edges are synthesized.
 pub fn audit_unpacked_drill_tools(
+    files: &OdbFileMap,
+    step: &str,
+) -> Result<Vec<SourceDrillLayer>, OdbError> {
+    let normalized = normalized_feature_files(files)?;
+    audit_drill_tools_normalized(normalized.as_ref(), step)
+}
+
+fn audit_drill_tools_normalized(
     files: &OdbFileMap,
     step: &str,
 ) -> Result<Vec<SourceDrillLayer>, OdbError> {
@@ -949,7 +1010,9 @@ pub fn audit_unpacked_drill_hits(
     files: &OdbFileMap,
     step: &str,
 ) -> Result<Vec<SourceDrillHit>, OdbError> {
-    let drill_layers = audit_unpacked_drill_tools(files, step)?;
+    let normalized = normalized_feature_files(files)?;
+    let files = normalized.as_ref();
+    let drill_layers = audit_drill_tools_normalized(files, step)?;
     let mut out = Vec::new();
     for layer in drill_layers {
         let path = format!("steps/{step}/layers/{}/features", layer.name);
@@ -1045,6 +1108,8 @@ pub fn import_unpacked_with_eda(files: &OdbFileMap, step: &str) -> Result<BoardM
 }
 
 fn import_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardModel, OdbError> {
+    let normalized = normalized_feature_files(files)?;
+    let files = normalized.as_ref();
     if !safe_entity(step) {
         return Err(error("steps", 0, "ODB_BAD_SELECTED_STEP"));
     }
