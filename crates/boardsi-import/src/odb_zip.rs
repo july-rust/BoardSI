@@ -337,6 +337,82 @@ mod tests {
         out
     }
 
+
+    /// Test fixture generator uses the standard DEFLATE encoder. The decoder
+    /// also has an independent, precomputed Python-zlib raw-DEFLATE vector.
+    fn zip_methods(entries: &[(&str, &[u8], u16)]) -> Vec<u8> {
+        use std::io::Write;
+        let mut out = Vec::new();
+        let mut central = Vec::new();
+        for &(name, data, method) in entries {
+            assert!(method == 0 || method == 8);
+            let packed = if method == 8 {
+                let mut encoder =
+                    flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+                encoder.write_all(data).unwrap();
+                encoder.finish().unwrap()
+            } else {
+                data.to_vec()
+            };
+            let crc = crc32(data);
+            let offset = out.len() as u32;
+            let version = if method == 8 { 20 } else { 10 };
+            push32(&mut out, LOCAL as u32);
+            push16(&mut out, version);
+            push16(&mut out, 0);
+            push16(&mut out, method);
+            push16(&mut out, 0);
+            push16(&mut out, 0);
+            push32(&mut out, crc);
+            push32(&mut out, packed.len() as u32);
+            push32(&mut out, data.len() as u32);
+            push16(&mut out, name.len() as u16);
+            push16(&mut out, 0);
+            out.extend_from_slice(name.as_bytes());
+            out.extend_from_slice(&packed);
+
+            push32(&mut central, CENTRAL as u32);
+            push16(&mut central, version);
+            push16(&mut central, version);
+            push16(&mut central, 0);
+            push16(&mut central, method);
+            push16(&mut central, 0);
+            push16(&mut central, 0);
+            push32(&mut central, crc);
+            push32(&mut central, packed.len() as u32);
+            push32(&mut central, data.len() as u32);
+            push16(&mut central, name.len() as u16);
+            push16(&mut central, 0);
+            push16(&mut central, 0);
+            push16(&mut central, 0);
+            push16(&mut central, 0);
+            push32(&mut central, 0);
+            push32(&mut central, offset);
+            central.extend_from_slice(name.as_bytes());
+        }
+        let start = out.len() as u32;
+        out.extend_from_slice(&central);
+        push32(&mut out, END as u32);
+        push16(&mut out, 0);
+        push16(&mut out, 0);
+        push16(&mut out, entries.len() as u16);
+        push16(&mut out, entries.len() as u16);
+        push32(&mut out, central.len() as u32);
+        push32(&mut out, start);
+        push16(&mut out, 0);
+        out
+    }
+
+    fn zip_source(methods: [u16; 3]) -> Vec<u8> {
+        let matrix = b"STEP {\nCOL=1\nNAME=pcb\n}\nLAYER {\nROW=1\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=top\nPOLARITY=POSITIVE\n}\nLAYER {\nROW=2\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=bottom\nPOLARITY=POSITIVE\n}\n";
+        let copper = b"UNITS=MM\nF 1\n$0 r100\nL 0 0 1 0 0 P 0\n";
+        zip_methods(&[
+            ("product/matrix/matrix", matrix, methods[0]),
+            ("product/steps/pcb/layers/top/features", copper, methods[1]),
+            ("product/steps/pcb/layers/bottom/features", copper, methods[2]),
+        ])
+    }
+
     fn example() -> Vec<u8> {
         let matrix = b"STEP {\nCOL=1\nNAME=pcb\n}\nLAYER {\nROW=1\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=top\nPOLARITY=POSITIVE\n}\nLAYER {\nROW=2\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=bottom\nPOLARITY=POSITIVE\n}\n";
         let copper = b"UNITS=MM\nF 1\n$0 r100\nL 0 0 1 0 0 P 0\n";
@@ -418,10 +494,12 @@ mod tests {
         let eocd = compressed.len() - 22;
         let cd = u32_at(&compressed, eocd + 16);
         compressed[cd + 10] = 8;
-        assert_eq!(
+        assert!(matches!(
             read_zip(&compressed).unwrap_err().code,
-            "ODB_ZIP_COMPRESSION_UNSUPPORTED"
-        );
+            "ODB_ZIP_DEFLATE_INVALID"
+                | "ODB_ZIP_DEFLATE_SIZE_MISMATCH"
+                | "ODB_ZIP_DEFLATE_TRAILING_DATA"
+        ));
 
         let mut trailing = valid.clone();
         trailing.push(0);
@@ -461,4 +539,156 @@ mod tests {
             "ODB_ZIP_UNSUPPORTED_MEMBER"
         );
     }
+
+    #[test]
+    fn independent_raw_deflate_oracle_and_exact_stream_consumption() {
+        // CPython zlib.compressobj(wbits=-15) on b"hello": cb48cdc9c90700.
+        let reference = [0xcb, 0x48, 0xcd, 0xc9, 0xc9, 0x07, 0x00];
+        assert_eq!(inflate_raw_bounded(&reference, 5).unwrap(), b"hello");
+        assert_eq!(
+            inflate_raw_bounded(&reference, 4).unwrap_err().code,
+            "ODB_ZIP_DEFLATE_SIZE_MISMATCH"
+        );
+        assert_eq!(
+            inflate_raw_bounded(&reference, 6).unwrap_err().code,
+            "ODB_ZIP_DEFLATE_SIZE_MISMATCH"
+        );
+        let mut trailing = reference.to_vec();
+        trailing.push(0xaa);
+        assert_eq!(
+            inflate_raw_bounded(&trailing, 5).unwrap_err().code,
+            "ODB_ZIP_DEFLATE_TRAILING_DATA"
+        );
+        assert_eq!(
+            inflate_raw_bounded(&reference[..reference.len() - 1], 5)
+                .unwrap_err()
+                .code,
+            "ODB_ZIP_DEFLATE_INVALID"
+        );
+    }
+
+    #[test]
+    fn method8_and_mixed_method0_method8_preserve_canonical_source() {
+        let reference_map = read_zip(&example()).unwrap();
+        let reference_board = crate::odb_source::import_unpacked(&reference_map, "pcb").unwrap();
+        for methods in [[8, 8, 8], [0, 8, 0], [8, 0, 8]] {
+            let actual = read_zip(&zip_source(methods)).unwrap();
+            assert_eq!(actual, reference_map);
+            let board = crate::odb_source::import_unpacked(&actual, "pcb").unwrap();
+            assert_eq!(board.sources[0].id.files, reference_board.sources[0].id.files);
+            assert_eq!(board.traces.len(), reference_board.traces.len());
+            assert_eq!(board.stackup.layers.len(), reference_board.stackup.layers.len());
+            assert!(board.vias.is_empty());
+            assert!(board.connectivity.edges.is_empty());
+            assert!(!board.validate().has_errors());
+        }
+    }
+
+    #[test]
+    fn method8_file_route_preserves_canonical_and_drill_audit() {
+        let archive = zip_source([8, 8, 8]);
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path =
+            std::env::temp_dir().join(format!("boardsi-e013-{}-{stamp}.zip", std::process::id()));
+        std::fs::write(&path, archive).unwrap();
+        let checked = (|| -> Result<(), crate::odb_source::OdbError> {
+            let board = crate::odb_source::import_archive_file(&path, "pcb", false)?;
+            let holes = crate::odb_fabrication::import_path_with_holes(&path, "pcb", false)?;
+            let drill = crate::odb_source::audit_path_drill_source(&path, "pcb", true)?;
+            assert_eq!(board.traces.len(), 2);
+            assert_eq!(board.sources[0].id.files, holes.board.sources[0].id.files);
+            assert!(holes.source_holes.is_empty());
+            assert!(drill.layers.is_empty());
+            assert!(drill.hits.unwrap().is_empty());
+            Ok(())
+        })();
+        std::fs::remove_file(&path).unwrap();
+        checked.unwrap();
+    }
+
+    #[test]
+    fn deflate_negative_crc_header_declared_sizes_and_unsupported_method() {
+        let archive = zip_source([8, 8, 8]);
+        let end = archive.len() - 22;
+        let central = u32_at(&archive, end + 16);
+        let mut crc = archive.clone();
+        crc[14] ^= 1;
+        crc[central + 16] ^= 1;
+        assert_eq!(read_zip(&crc).unwrap_err().code, "ODB_ZIP_CRC32_MISMATCH");
+
+        let mut short = archive.clone();
+        let first_length = u32_at(&short, 22);
+        short[22..26].copy_from_slice(&(first_length - 1).to_le_bytes());
+        short[central + 24..central + 28].copy_from_slice(&(first_length - 1).to_le_bytes());
+        assert_eq!(
+            read_zip(&short).unwrap_err().code,
+            "ODB_ZIP_DEFLATE_SIZE_MISMATCH"
+        );
+
+        let mut large = archive.clone();
+        large[22..26].copy_from_slice(&(MAX_FILE as u32 + 1).to_le_bytes());
+        large[central + 24..central + 28]
+            .copy_from_slice(&(MAX_FILE as u32 + 1).to_le_bytes());
+        assert_eq!(read_zip(&large).unwrap_err().code, "ODB_ZIP_FILE_LIMIT");
+
+        let mut method = archive.clone();
+        method[8..10].copy_from_slice(&99u16.to_le_bytes());
+        method[central + 10..central + 12].copy_from_slice(&99u16.to_le_bytes());
+        assert_eq!(
+            read_zip(&method).unwrap_err().code,
+            "ODB_ZIP_COMPRESSION_UNSUPPORTED"
+        );
+
+        let mut corrupt = archive.clone();
+        let first_data = 30 + u16_at(&corrupt, 26);
+        corrupt[first_data] ^= 0xff;
+        assert!(read_zip(&corrupt).is_err());
+    }
+
+    #[test]
+    fn deflate_bomb_uses_bounded_decompression_not_untrusted_headers() {
+        let zeros = vec![0u8; 1_048_576];
+        let archive = zip_methods(&[("matrix/matrix", &zeros, 8)]);
+        let end = archive.len() - 22;
+        let central = u32_at(&archive, end + 16);
+        let mut lied = archive;
+        lied[22..26].copy_from_slice(&32u32.to_le_bytes());
+        lied[central + 24..central + 28].copy_from_slice(&32u32.to_le_bytes());
+        assert_eq!(
+            read_zip(&lied).unwrap_err().code,
+            "ODB_ZIP_DEFLATE_SIZE_MISMATCH"
+        );
+    }
+
+    #[test]
+    fn deflate_traversal_duplicate_and_multiple_roots_stay_closed() {
+        assert_eq!(
+            read_zip(&zip_methods(&[("../matrix/matrix", b"x", 8)]))
+                .unwrap_err()
+                .code,
+            "ODB_ZIP_UNSAFE_PATH"
+        );
+        assert_eq!(
+            read_zip(&zip_methods(&[
+                ("matrix/matrix", b"x", 8),
+                ("matrix/matrix", b"x", 0)
+            ]))
+            .unwrap_err()
+            .code,
+            "ODB_ZIP_TOTAL_OR_DUPLICATE_FILE"
+        );
+        assert_eq!(
+            read_zip(&zip_methods(&[
+                ("rootA/matrix/matrix", b"x", 8),
+                ("rootB/matrix/matrix", b"x", 8)
+            ]))
+            .unwrap_err()
+            .code,
+            "ODB_TAR_MULTIPLE_ROOTS"
+        );
+    }
+
 }
