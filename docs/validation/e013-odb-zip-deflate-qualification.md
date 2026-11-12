@@ -51,6 +51,6 @@
 - [x] Protected GitHub-Verified Squash, single-parent main commit
 - [x] Exact code-main Push 8/8 SUCCESS
 - [x] Source subset and old failed/cancelled histories accurately separated
-- [ ] Final docs PR protected merge and exact docs-main Push (conditional until independently verified)
+- **Final docs gate (conditional):** this document's PR required CI, protected GitHub-Verified Squash and exact docs-main Push are independently verified in the parent [Issue #578](https://github.com/july-rust/BoardSI/issues/578) closeout comment after merge; no post-facto PASS preclaim.
 
 **Only ZIP methods 0 and 8 / source-limited Canonical transport are complete.** Parent #578, real vendor oracle, manufacturing/graph/SI and E_014–E_024 remain OPEN/NOT_VERIFIED. After final docs gate completes, report the bounded E_013 unit COMPLETE without closing #578.
