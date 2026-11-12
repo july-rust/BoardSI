@@ -223,10 +223,8 @@ mod tests {
         let mut central = Vec::new();
         for &(name, data) in entries {
             let packed = if method == 8 {
-                let mut encoder = flate2::write::DeflateEncoder::new(
-                    Vec::new(),
-                    flate2::Compression::default(),
-                );
+                let mut encoder =
+                    flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
                 encoder.write_all(data).unwrap();
                 encoder.finish().unwrap()
             } else {
@@ -295,9 +293,8 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "boardsi-e014-dir-{}-{stamp}", std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("boardsi-e014-dir-{}-{stamp}", std::process::id()));
         for (path, contents) in files() {
             let relative = path.strip_prefix("product/").unwrap();
             let target = root.join(relative);
@@ -307,7 +304,10 @@ mod tests {
         let directory_board = crate::odb_source::import_directory(&root, "pcb").unwrap();
         let gzip_board = crate::odb_source::import_unpacked(&gz_map, "pcb").unwrap();
         assert_eq!(directory_board.traces.len(), gzip_board.traces.len());
-        assert_eq!(directory_board.sources[0].id.files, gzip_board.sources[0].id.files);
+        assert_eq!(
+            directory_board.sources[0].id.files,
+            gzip_board.sources[0].id.files
+        );
         std::fs::remove_dir_all(root).unwrap();
     }
 
