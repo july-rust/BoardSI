@@ -663,6 +663,58 @@ mod tests {
         );
     }
 
+
+    fn ustar_of(map: &OdbFileMap) -> Vec<u8> {
+        const BLOCK: usize = 512;
+        let mut archive = Vec::new();
+        for (name, data) in map {
+            assert!(name.len() <= 100);
+            let mut header = [0u8; BLOCK];
+            header[..name.len()].copy_from_slice(name.as_bytes());
+            header[100..108].copy_from_slice(b"0000644\0");
+            header[108..116].copy_from_slice(b"0000000\0");
+            header[116..124].copy_from_slice(b"0000000\0");
+            let size = format!("{:011o}\0", data.len());
+            header[124..136].copy_from_slice(size.as_bytes());
+            header[136..148].copy_from_slice(b"00000000000\0");
+            header[156] = b'0';
+            header[257..263].copy_from_slice(b"ustar\0");
+            header[263..265].copy_from_slice(b"00");
+            header[148..156].fill(b' ');
+            let sum: u64 = header.iter().map(|&b| u64::from(b)).sum();
+            let checksum = format!("{:06o}\0 ", sum);
+            header[148..156].copy_from_slice(checksum.as_bytes());
+            archive.extend_from_slice(&header);
+            archive.extend_from_slice(data);
+            archive.resize(archive.len().div_ceil(BLOCK) * BLOCK, 0);
+        }
+        archive.extend_from_slice(&[0u8; BLOCK * 2]);
+        archive
+    }
+
+    #[test]
+    fn method8_directory_ustar_stored_and_mixed_fixtures_match() {
+        let expected = read_zip(&zip_source([8, 8, 8])).unwrap();
+        assert_eq!(read_zip(&zip_source([0, 8, 0])).unwrap(), expected);
+        assert_eq!(read_zip(&zip_source([0, 0, 0])).unwrap(), expected);
+        assert_eq!(crate::odb_tar::read_tar(&ustar_of(&expected)).unwrap(), expected);
+
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir()
+            .join(format!("boardsi-e013-directory-{}-{stamp}", std::process::id()));
+        for (relative, data) in &expected {
+            let target = root.join(relative);
+            std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+            std::fs::write(target, data).unwrap();
+        }
+        let actual = crate::odb_source::read_source_path_file_map(&root);
+        std::fs::remove_dir_all(&root).unwrap();
+        assert_eq!(actual.unwrap(), expected);
+    }
+
     #[test]
     fn deflate_traversal_duplicate_and_multiple_roots_stay_closed() {
         assert_eq!(
