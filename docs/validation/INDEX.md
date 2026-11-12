@@ -9,6 +9,7 @@
 | 찾는 내용 | 바로가기 |
 | :--- | :--- |
 | **전체 개발 상태 / 정식 U/T** | [개발 체크리스트](../development-checklist.md) |
+| **E_012 실제 Native GPU 증거** | [Metal/D3D11 한정 계측 원본 로그 재감사](e012-actual-hardware-gpu-qualification.md) · [미인수 EB-03](../e-stage-blocked-register.md) |
 | **범용 Trace·Via·Pad 비중심 접촉** | [D_054–D_055 통합 검증](d054-d055-general-trace-contact-qualification.md) · [기하 알고리즘](../architecture/trace-copper-contact.md) |
 | **제한 개발 Preview 완료 범위** | [A_035 P2-Z 감사](a035-p2z-final-preview-acceptance.md) |
 | **M0 미완 근거** | [M0 완료 게이트](m0-completion-gate.md) · [E_002 U/T 상태 정합화](e002-m0-f1-traceability-status-reconciliation.md) · [E_003 Rust/Qt/IPC v1 호환성](e003-rust-qt-ipc-compatibility-qualification.md) |
