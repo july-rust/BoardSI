@@ -1,4 +1,4 @@
-# BoardSI PCB Import — source-format subsets and historical PADS milestones
+> **E_016 (2026-11-12 KST; implementation awaiting final CI/review/merge evidence):** The ODB++ Source-only subset now maps bounded disjoint positive multi-island `S P` contours to separate exact Canonical CopperAreas while retaining one source feature/FID and fanning out optional EDA design-net ownership. Existing single-island/hole remains; multi-island+hole, negative copper and curved OC are unsupported/fail-closed. There is no electrical graph/SI acceptance. [Qualification and gates](../../docs/validation/e016-odb-positive-multi-island-qualification.md).\n\n# BoardSI PCB Import — source-format subsets and historical PADS milestones
 
 **실행 경로 연결:** [Qt Developer Preview](../../apps/boardsi-qt-prototype/README.md) · [독립 Rust Worker](../../apps/boardsi-worker/README.md). Importer의 제한 SOURCE 국소 판정이 전체 전기적 연결성 또는 실제 물리 SI 결과로 자동 승격되지는 않습니다.
 
