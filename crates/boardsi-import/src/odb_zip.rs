@@ -5,8 +5,8 @@
 //! ZIP is only a transport; Canonical source/electrical qualification remains
 //! in the existing ODB++ importer and cannot be inferred from extraction.
 use crate::odb_source::{OdbError, OdbFileMap};
-use std::collections::BTreeSet;
 use flate2::{Decompress, FlushDecompress, Status};
+use std::collections::BTreeSet;
 
 const MAX_ARCHIVE: usize = 256 * 1024 * 1024;
 const MAX_FILE: usize = 16 * 1024 * 1024;
@@ -59,7 +59,6 @@ fn crc32(bytes: &[u8]) -> u32 {
     !crc
 }
 
-
 fn inflate_raw_bounded(compressed: &[u8], declared_size: usize) -> Result<Vec<u8>, OdbError> {
     if declared_size > MAX_FILE {
         return Err(bad("ODB_ZIP_FILE_LIMIT"));
@@ -74,7 +73,11 @@ fn inflate_raw_bounded(compressed: &[u8], declared_size: usize) -> Result<Vec<u8
         let previous_in = decoder.total_in();
         let previous_out = decoder.total_out();
         let status = decoder
-            .decompress(&compressed[input_offset..], &mut chunk, FlushDecompress::None)
+            .decompress(
+                &compressed[input_offset..],
+                &mut chunk,
+                FlushDecompress::None,
+            )
             .map_err(|_| bad("ODB_ZIP_DEFLATE_INVALID"))?;
         let consumed = usize::try_from(decoder.total_in() - previous_in)
             .map_err(|_| bad("ODB_ZIP_SIZE_OVERFLOW"))?;
@@ -234,7 +237,11 @@ pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
             return Err(bad("ODB_ZIP_NAME_MISMATCH"));
         }
         let data_end = checked_end(data_start, compressed, central_start)?;
-        if !is_directory && total.checked_add(uncompressed).map_or(true, |n| n > MAX_TOTAL) {
+        if !is_directory
+            && total
+                .checked_add(uncompressed)
+                .map_or(true, |n| n > MAX_TOTAL)
+        {
             return Err(bad("ODB_ZIP_TOTAL_LIMIT"));
         }
         let payload = &bytes[data_start..data_end];
@@ -342,7 +349,6 @@ mod tests {
         out
     }
 
-
     /// Test fixture generator uses the standard DEFLATE encoder. The decoder
     /// also has an independent, precomputed Python-zlib raw-DEFLATE vector.
     fn zip_methods(entries: &[(&str, &[u8], u16)]) -> Vec<u8> {
@@ -414,7 +420,11 @@ mod tests {
         zip_methods(&[
             ("product/matrix/matrix", matrix, methods[0]),
             ("product/steps/pcb/layers/top/features", copper, methods[1]),
-            ("product/steps/pcb/layers/bottom/features", copper, methods[2]),
+            (
+                "product/steps/pcb/layers/bottom/features",
+                copper,
+                methods[2],
+            ),
         ])
     }
 
@@ -545,7 +555,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn method8_compression_option_flags_are_accepted_only_for_deflate() {
         let source = zip_source([8, 8, 8]);
@@ -554,8 +563,7 @@ mod tests {
             let end = flagged.len() - 22;
             let first_central = u32_at(&flagged, end + 16);
             flagged[6..8].copy_from_slice(&hints.to_le_bytes());
-            flagged[first_central + 8..first_central + 10]
-                .copy_from_slice(&hints.to_le_bytes());
+            flagged[first_central + 8..first_central + 10].copy_from_slice(&hints.to_le_bytes());
             assert_eq!(read_zip(&flagged).unwrap(), read_zip(&source).unwrap());
         }
         for rejected in [0x0001u16, 0x0008] {
@@ -563,8 +571,7 @@ mod tests {
             let end = invalid.len() - 22;
             let first_central = u32_at(&invalid, end + 16);
             invalid[6..8].copy_from_slice(&rejected.to_le_bytes());
-            invalid[first_central + 8..first_central + 10]
-                .copy_from_slice(&rejected.to_le_bytes());
+            invalid[first_central + 8..first_central + 10].copy_from_slice(&rejected.to_le_bytes());
             assert_eq!(
                 read_zip(&invalid).unwrap_err().code,
                 "ODB_ZIP_UNSUPPORTED_EXTENSION"
@@ -616,9 +623,15 @@ mod tests {
             let actual = read_zip(&zip_source(methods)).unwrap();
             assert_eq!(actual, reference_map);
             let board = crate::odb_source::import_unpacked(&actual, "pcb").unwrap();
-            assert_eq!(board.sources[0].id.files, reference_board.sources[0].id.files);
+            assert_eq!(
+                board.sources[0].id.files,
+                reference_board.sources[0].id.files
+            );
             assert_eq!(board.traces.len(), reference_board.traces.len());
-            assert_eq!(board.stackup.layers.len(), reference_board.stackup.layers.len());
+            assert_eq!(
+                board.stackup.layers.len(),
+                reference_board.stackup.layers.len()
+            );
             assert!(board.vias.is_empty());
             assert!(board.connectivity.edges.is_empty());
             assert!(!board.validate().has_errors());
@@ -671,8 +684,7 @@ mod tests {
 
         let mut large = archive.clone();
         large[22..26].copy_from_slice(&(MAX_FILE as u32 + 1).to_le_bytes());
-        large[central + 24..central + 28]
-            .copy_from_slice(&(MAX_FILE as u32 + 1).to_le_bytes());
+        large[central + 24..central + 28].copy_from_slice(&(MAX_FILE as u32 + 1).to_le_bytes());
         assert_eq!(read_zip(&large).unwrap_err().code, "ODB_ZIP_FILE_LIMIT");
 
         let mut method = archive.clone();
@@ -703,7 +715,6 @@ mod tests {
             "ODB_ZIP_DEFLATE_SIZE_MISMATCH"
         );
     }
-
 
     fn ustar_of(map: &OdbFileMap) -> Vec<u8> {
         const BLOCK: usize = 512;
@@ -738,14 +749,19 @@ mod tests {
         let expected = read_zip(&zip_source([8, 8, 8])).unwrap();
         assert_eq!(read_zip(&zip_source([0, 8, 0])).unwrap(), expected);
         assert_eq!(read_zip(&zip_source([0, 0, 0])).unwrap(), expected);
-        assert_eq!(crate::odb_tar::read_tar(&ustar_of(&expected)).unwrap(), expected);
+        assert_eq!(
+            crate::odb_tar::read_tar(&ustar_of(&expected)).unwrap(),
+            expected
+        );
 
         let stamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir()
-            .join(format!("boardsi-e013-directory-{}-{stamp}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "boardsi-e013-directory-{}-{stamp}",
+            std::process::id()
+        ));
         for (relative, data) in &expected {
             let target = root.join(relative);
             std::fs::create_dir_all(target.parent().unwrap()).unwrap();
@@ -783,5 +799,4 @@ mod tests {
             "ODB_TAR_MULTIPLE_ROOTS"
         );
     }
-
 }
