@@ -9,6 +9,7 @@
 | 찾는 내용 | 바로가기 |
 | :--- | :--- |
 | **전체 개발 상태 / 정식 U/T** | [개발 체크리스트](../development-checklist.md) |
+| **E_015 ODB++ UNIX Compress features.Z** | [LZW/Source FileMap 한정 검증](e015-odb-features-z-qualification.md) · [상위 #578](https://github.com/july-rust/BoardSI/issues/578) |
 | **E_014 ODB++ GZIP/TGZ 압축 반례** | [단일 GZIP Member·USTAR 한정 검증](e014-odb-gzip-tar-qualification.md) · [상위 #578](https://github.com/july-rust/BoardSI/issues/578) |
 | **E_013 ODB++ ZIP 압축 반례** | [DEFLATE Method 8 한정 검증](e013-odb-zip-deflate-qualification.md) · [상위 #578](https://github.com/july-rust/BoardSI/issues/578) |
 | **E_012 실제 Native GPU 증거** | [Metal/D3D11 한정 계측 원본 로그 재감사](e012-actual-hardware-gpu-qualification.md) · [미인수 EB-03](../e-stage-blocked-register.md) |
@@ -190,6 +191,7 @@
 - [E_012 · Native hardware GPU Metal/D3D11 evidence audit](e012-actual-hardware-gpu-qualification.md)
 - [E_013 · ODB++ ZIP DEFLATE Method 8 and bounded decompression](e013-odb-zip-deflate-qualification.md)
 - [E_014 · ODB++ GZIP tar.gz/tgz bounded streaming and USTAR source parity](e014-odb-gzip-tar-qualification.md)
+- [E_015 · UNIX Compress features.Z LZW bounded source semantics, provenance and cross-transport regressions](e015-odb-features-z-qualification.md)
 
 </details>
 
