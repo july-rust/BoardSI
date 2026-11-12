@@ -12,7 +12,7 @@ fn main() {
         || options.iter().filter(|s| *s == "--eda-nets").count() > 1
         || options.iter().filter(|s| *s == "--source-holes").count() > 1
     {
-        eprintln!("Usage: boardsi-odb-import <unpacked-product-root-or-USTAR-or-STORED-ZIP> <step> [--eda-nets] [--source-holes]");
+        eprintln!("Usage: boardsi-odb-import <unpacked-product-root-or-USTAR-or-STORED-DEFLATE-ZIP> <step> [--eda-nets] [--source-holes]");
         process::exit(2);
     }
     let with_eda = options.iter().any(|s| s == "--eda-nets");
