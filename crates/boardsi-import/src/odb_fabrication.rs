@@ -177,8 +177,8 @@ pub fn import_unpacked_with_holes(
     })
 }
 
-/// Directory or USTAR path, safely snapped once through the same audited
-/// directory and archive readers as the existing D_056_08 import paths.
+/// Directory, USTAR, ZIP 0/8, or single GZIP+USTAR path, safely snapped once
+/// through the same validated immutable source-file-map import route.
 pub fn import_path_with_holes(
     path: &Path,
     step: &str,
