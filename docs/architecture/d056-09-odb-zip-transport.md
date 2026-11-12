@@ -70,3 +70,16 @@ Do not report compressed ODB++ products generally, verified plated vias, electri
 - All accepted decoded data feeds the **existing** root normalization, `OdbFileMap`, Source SHA-256, Canonical geometry and optional Drill Audit/EDA ownership. ZIP CRC32 is transport integrity, **not** cryptographic origin proof.
 
 **Scope boundary:** This does **not** add tar.gz/tgz (E_014), features.Z (E_015), step transforms/copper negative (E_016–017), full EDA PKG/PIN, qualified plated vias, main Qt ODB++ import, electrical connectivity, physical SI, vendor oracle or complete #578 acceptance. Unsupported source semantics remain UNKNOWN/fail-closed.
+
+
+## E_014 successor — bounded single-member GZIP + USTAR (2026-11-12 KST)
+
+**Code PR:** [#603](https://github.com/july-rust/BoardSI/pull/603). **Status: IN_PROGRESS / pending protected CI/review/merge/Push.** See [E_014 validation record](../validation/e014-odb-gzip-tar-qualification.md).
+
+- Dispatch GZIP signature (0x1f 0x8b) from the same source-only archive path into `odb_gzip::read_gzip_tar`. Existing uncompressed USTAR, ZIP STORED and ZIP DEFLATE are unchanged.
+- Parse RFC1952 single-member header with bounded optional FEXTRA, FNAME, FCOMMENT, FHCRC. The latter two are metadata only, **never filesystem paths**.
+- Strict raw-DEFLATE streaming with **256 MiB expanded TAR limit checked during decoding**, a **64 KiB header budget**, full compressed stream consumption, decoded-data CRC32 and ISIZE validation; reject truncation, multiple GZIP members and trailing data.
+- Send resulting bytes to the existing `odb_tar::read_tar`. It still enforces USTAR checksum, 16 MiB logical file, 128 MiB aggregate, 8192 member, duplicate/unsafe path, one ODB product root and SOURCE-only canonical import constraints.
+- Existing optional Drill Audit/EDA Source provenance flows through the same immutable `OdbFileMap`. GZIP CRC32 is transport-integrity evidence, not exporter provenance or manufactured-board validation.
+
+**Explicitly not covered:** GZIP multi-member, arbitrary PAX/link TAR, `features.Z` (E_015), negative copper/step transforms, full EDA/PKG/PIN, physical plating/via, Qt main ODB Import, electrical graph, SI solver and independent vendor oracle. Overall D_056_09 Issue #578 stays OPEN.
