@@ -231,6 +231,7 @@ mod odb_drill_hits;
 mod odb_eda;
 pub mod odb_fabrication;
 mod odb_gzip;
+mod odb_step_repeat;
 pub mod odb_source;
 mod odb_surface;
 mod odb_tar;
