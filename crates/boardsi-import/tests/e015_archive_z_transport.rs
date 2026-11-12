@@ -5,9 +5,9 @@ use std::io::Write;
 use std::path::Path;
 
 const FEATURE_Z: &[u8] = &[
-    0x1f, 0x9d, 0x8c, 0x55, 0x9c, 0x24, 0xa1, 0x32, 0xa5, 0x47, 0x93, 0x26, 0x0a, 0x8c, 0x80,
-    0x88, 0xa1, 0x80, 0x04, 0x0c, 0x10, 0x72, 0x62, 0xc0, 0x80, 0xa1, 0x80, 0x09, 0x08, 0x18,
-    0x20, 0x60, 0x80, 0x88, 0x01, 0x02, 0x06, 0x08, 0x18, 0x20, 0xa0, 0x80, 0x80, 0xa1, 0x00,
+    0x1f, 0x9d, 0x8c, 0x55, 0x9c, 0x24, 0xa1, 0x32, 0xa5, 0x47, 0x93, 0x26, 0x0a, 0x8c, 0x80, 0x88,
+    0xa1, 0x80, 0x04, 0x0c, 0x10, 0x72, 0x62, 0xc0, 0x80, 0xa1, 0x80, 0x09, 0x08, 0x18, 0x20, 0x60,
+    0x80, 0x88, 0x01, 0x02, 0x06, 0x08, 0x18, 0x20, 0xa0, 0x80, 0x80, 0xa1, 0x00,
 ];
 const MATRIX: &[u8] = b"STEP {\nCOL=1\nNAME=pcb\n}\n\
 LAYER {\nROW=1\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=top\nPOLARITY=POSITIVE\n}\n\
@@ -16,8 +16,14 @@ LAYER {\nROW=2\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=bottom\nPOLARITY=POSITIVE\n}\n"
 fn entries() -> Vec<(String, Vec<u8>)> {
     vec![
         ("product/matrix/matrix".into(), MATRIX.to_vec()),
-        ("product/steps/pcb/layers/top/features.Z".into(), FEATURE_Z.to_vec()),
-        ("product/steps/pcb/layers/bottom/features.Z".into(), FEATURE_Z.to_vec()),
+        (
+            "product/steps/pcb/layers/top/features.Z".into(),
+            FEATURE_Z.to_vec(),
+        ),
+        (
+            "product/steps/pcb/layers/bottom/features.Z".into(),
+            FEATURE_Z.to_vec(),
+        ),
     ]
 }
 fn tar(entries: &[(String, Vec<u8>)]) -> Vec<u8> {
@@ -98,7 +104,9 @@ fn zip(entries: &[(String, Vec<u8>)], method: u16) -> Vec<u8> {
         put32(&mut central, packed.len() as u32);
         put32(&mut central, input.len() as u32);
         put16(&mut central, name.len() as u16);
-        for _ in 0..4 { put16(&mut central, 0); }
+        for _ in 0..4 {
+            put16(&mut central, 0);
+        }
         put32(&mut central, 0);
         put32(&mut central, offset);
         central.extend_from_slice(name.as_bytes());
@@ -106,7 +114,9 @@ fn zip(entries: &[(String, Vec<u8>)], method: u16) -> Vec<u8> {
     let offset = out.len() as u32;
     out.extend_from_slice(&central);
     put32(&mut out, 0x0605_4b50);
-    for _ in 0..2 { put16(&mut out, 0); }
+    for _ in 0..2 {
+        put16(&mut out, 0);
+    }
     put16(&mut out, entries.len() as u16);
     put16(&mut out, entries.len() as u16);
     put32(&mut out, central.len() as u32);
