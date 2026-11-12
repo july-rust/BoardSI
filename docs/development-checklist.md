@@ -20,7 +20,7 @@
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
 | [**D**](#stage-d) | PADS Source 접촉 후보 · 국소 Copper · 다층·CAD Source Adapter | 95 | 8 |
-| [**E**](#stage-e) | 30개 소형 단위; 아래 행의 **COMPLETE**만 확인으로 계산 (E_006~008은 EVIDENCE_QUALIFIED, 제품 인수 외) | 8 | 22 |
+| [**E**](#stage-e) | 30개 소형 단위; 아래 행의 **COMPLETE**만 확인으로 계산 (E_006~008은 EVIDENCE_QUALIFIED, 제품 인수 외) | 9 | 21 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
