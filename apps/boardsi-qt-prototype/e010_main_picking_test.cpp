@@ -65,11 +65,21 @@ static bool run(const QString &binary, const QString &sourcePath) {
         art->canonicalSourceSha()!=shaA ||
         panel.acceptedSourceSha256()!=shaA.toLatin1() ||
         art->canonicalGlyphCount()<2) return false;
-    // Public fixture: Source via at 300/200 mil, pad diameter 35 mil,
-    // drilled opening 15 mil. Hole must never be a conductive pick.
-    const QPointF centre(7.62,-5.08);
-    if (art->canonicalContains(0,centre) ||
-        !art->canonicalContains(0,centre+QPointF(0.30,0)) ||
+    // PADS V9.4 SOURCE GRID: 1 tick = 0.000254 mm (not 1 mil).
+    // Public fixture via at (300, 200) ticks; 35 tick OD / 15 tick drill.
+    const QPointF centre(0.0762,-0.0508);
+    const QPointF copperPoint=centre+QPointF(0.003,0);
+    auto *scene=panel.findChild<QGraphicsScene*>();
+    if (!scene ||
+        art->canonicalContains(0,centre) ||
+        !art->canonicalContains(0,copperPoint)) return false;
+    // The actual QGraphicsScene hit-test must agree with Canonical copper,
+    // not just the model's standalone footprint helper.
+    auto *hit=scene->itemAt(copperPoint,QTransform());
+    if (!hit || hit->data(3).toString()!="D05605Canonical" ||
+        !hit->flags().testFlag(QGraphicsItem::ItemIsSelectable) ||
+        !hit->data(2).toString().contains(shaA) ||
+        scene->itemAt(centre,QTransform()) ||
         !art->selectCanonicalGlyph(0) ||
         !art->summaryText().contains("Selected: Canonical Via") ||
         !art->summaryText().contains("SOURCE SHA256 "+shaA) ||
