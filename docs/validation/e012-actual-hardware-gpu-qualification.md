@@ -1,6 +1,6 @@
 # E_012 — Actual native hardware GPU RHI qualification (bounded, evidence audit)
 
-> 최초 근거 확인 및 체크일: **2026-11-12 KST**. 상위 [Issue #165](https://github.com/july-rust/BoardSI/issues/165)는 전체 GPU 제품 Acceptance를 완료하지 않았으므로 **OPEN** 유지. 이 문서는 **새 하드웨어 계측을 수행했다는 주장이 아닌**, 같은 날짜 GitHub Actions에서 이미 실행된 정확한 code-main Native 원본 로그·Artifact·코드를 독립 재감사한 결과다. E_012는 최종 문서 PR의 필수 CI·독립 리뷰·보호 Verified Squash 및 정확 main Push가 성공한 후에만 한정 **COMPLETE**.
+> 최초 근거 확인 및 체크일: **2026-11-12 KST**. 상위 [Issue #165](https://github.com/july-rust/BoardSI/issues/165)는 전체 GPU 제품 Acceptance를 완료하지 않았으므로 **OPEN** 유지. 이 문서는 **새 하드웨어 계측을 수행했다는 주장이 아닌**, 같은 날짜 GitHub Actions에서 이미 실행된 정확한 code-main Native 원본 로그·Artifact·코드를 독립 재감사한 결과다. E_012는 [문서 PR #599](https://github.com/july-rust/BoardSI/pull/599)의 정확 최종 HEAD 필수 CI·Codex 리뷰·보호 Verified Squash 및 정확 docs-main Push 8/8을 모두 확인하여 **한정 COMPLETE**.
 
 ## 1. 한정 수락 범위와 재현 가능한 원본
 
@@ -51,6 +51,6 @@ macOS `qt-preview-a019-interaction-results.json`에서 각 3 cases `picking_exac
 
 ## 6. 종료 조건과 상위 이슈 처리
 
-**E_012의 소형 수락 계약**은 '실제 Native hardware RHI backend 확인 1개 플랫폼 + 10k/100k/1M 원본 정량 프레임 근거 + Fail-Closed 경계 증거 감사'다. 실제 원본 macOS 및 Windows 로그로 기술 근거를 충족했다. 문서 PR의 정확 final HEAD required checks, 독립 review/unresolved 0, 보호 Verified Squash, 정확 docs-main Push 성공까지 확인된 후에만 **E_012 bounded COMPLETE**로 간주한다.
+**E_012의 소형 수락 계약**은 '실제 Native hardware RHI backend 확인 1개 플랫폼 + 10k/100k/1M 원본 정량 프레임 근거 + Fail-Closed 경계 증거 감사'다. 실제 원본 macOS 및 Windows 로그로 기술 근거를 충족했다. [PR #599](https://github.com/july-rust/BoardSI/pull/599) final HEAD `bb81b6da` 29 Checks(13 SUCCESS, 16 docs-only SKIPPED), 독립 Codex 지적 0/미해결 0, 보호 Verified single-parent Squash [`04fd35a9`](https://github.com/july-rust/BoardSI/commit/04fd35a9776447e88e639aa7c0b00a7bb14929d6)와 정확 docs-main Push 8/8 SUCCESS를 확인하여 **E_012 bounded COMPLETE (2026-11-12 KST)**로 확정한다.
 
 상위 [#165](https://github.com/july-rust/BoardSI/issues/165)는 전체 DoD 불충족으로 **OPEN**, [EB-03](../e-stage-blocked-register.md)은 고객 GPU·VRAM·60 FPS·driver reset 등의 잔여 의존성을 계속 추적한다. E_013 ODB++ ZIP DEFLATE는 독립 진행 가능하다.
