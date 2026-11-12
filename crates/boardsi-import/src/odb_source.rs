@@ -1451,8 +1451,18 @@ mod tests {
         // Independent exact oracle: two clockwise 4x4 rectangles are 16 square
         // source units apiece, with no shared vertex, segment or area.
         let expected = [
-            [[0, 0], [0, 4_000_000_000], [4_000_000_000, 4_000_000_000], [4_000_000_000, 0]],
-            [[10_000_000_000, 10_000_000_000], [10_000_000_000, 14_000_000_000], [14_000_000_000, 14_000_000_000], [14_000_000_000, 10_000_000_000]],
+            [
+                [0, 0],
+                [0, 4_000_000_000],
+                [4_000_000_000, 4_000_000_000],
+                [4_000_000_000, 0],
+            ],
+            [
+                [10_000_000_000, 10_000_000_000],
+                [10_000_000_000, 14_000_000_000],
+                [14_000_000_000, 14_000_000_000],
+                [14_000_000_000, 10_000_000_000],
+            ],
         ];
         for (area, expected_vertices) in standalone.areas.iter().zip(expected) {
             let actual_vertices: Vec<[i64; 2]> = area
@@ -1470,8 +1480,7 @@ mod tests {
                 .zip(actual_vertices.iter().cycle().skip(1))
                 .take(actual_vertices.len())
                 .map(|(a, b)| {
-                    i128::from(a[0]) * i128::from(b[1])
-                        - i128::from(b[0]) * i128::from(a[1])
+                    i128::from(a[0]) * i128::from(b[1]) - i128::from(b[0]) * i128::from(a[1])
                 })
                 .sum();
             assert_eq!(double_area, -32_000_000_000_000_000_000_i128);
