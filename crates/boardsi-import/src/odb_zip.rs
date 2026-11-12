@@ -661,7 +661,7 @@ mod tests {
         assert_eq!(read_zip(&crc).unwrap_err().code, "ODB_ZIP_CRC32_MISMATCH");
 
         let mut short = archive.clone();
-        let first_length = u32_at(&short, 22);
+        let first_length = u32_at(&short, 22) as u32;
         short[22..26].copy_from_slice(&(first_length - 1).to_le_bytes());
         short[central + 24..central + 28].copy_from_slice(&(first_length - 1).to_le_bytes());
         assert_eq!(
