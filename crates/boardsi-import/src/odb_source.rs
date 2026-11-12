@@ -407,12 +407,27 @@ fn parse_features_content(
                 for (n, island) in islands.into_iter().enumerate() {
                     // Preserve the legacy single/first island identity. Additional
                     // islands have distinct, deterministic source-feature child IDs.
-                    let island_id = if n == 0 { id.clone() } else { format!("{id}/island-{n}") };
+                    let island_id = if n == 0 {
+                        id.clone()
+                    } else {
+                        format!("{id}/island-{n}")
+                    };
                     let island_line = if n == 0 { start_line } else { island.ob_line };
-                    let cutouts = island.holes.iter().enumerate().map(|(h, hole)| Cutout {
-                        meta: meta(source, ObjectKind::Cutout, &format!("{id}/hole-{h}"), &path, start_line),
-                        boundary: surface_boundary(&frame_id, hole),
-                    }).collect();
+                    let cutouts = island
+                        .holes
+                        .iter()
+                        .enumerate()
+                        .map(|(h, hole)| Cutout {
+                            meta: meta(
+                                source,
+                                ObjectKind::Cutout,
+                                &format!("{id}/hole-{h}"),
+                                &path,
+                                start_line,
+                            ),
+                            boundary: surface_boundary(&frame_id, hole),
+                        })
+                        .collect();
                     board.areas.push(CopperArea {
                         meta: meta(source, ObjectKind::Area, &island_id, &path, island_line),
                         layer: layer_id.clone(),
@@ -424,8 +439,11 @@ fn parse_features_content(
                 if multi {
                     // A source S record is exactly ONE FID even when it
                     // materializes into several disconnected Canonical Areas.
-                    let location = registry.get_mut(&(layer.name.clone(), feature_count - 1))
-                        .ok_or_else(|| error(&path, start_line, "ODB_EDA_MISSING_SURFACE_FEATURE"))?;
+                    let location = registry
+                        .get_mut(&(layer.name.clone(), feature_count - 1))
+                        .ok_or_else(|| {
+                            error(&path, start_line, "ODB_EDA_MISSING_SURFACE_FEATURE")
+                        })?;
                     *location = FeatureLocation::Areas((first..board.areas.len()).collect());
                 }
             }
@@ -1296,7 +1314,11 @@ fn import_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardM
                 FeatureLocation::Areas(indices) => {
                     for n in indices {
                         board.areas[*n].net = Some(id.clone());
-                        board.areas[*n].meta.provenance.history.push(witness.clone());
+                        board.areas[*n]
+                            .meta
+                            .provenance
+                            .history
+                            .push(witness.clone());
                     }
                 }
             }
@@ -1415,42 +1437,64 @@ mod tests {
     }
     #[test]
     fn e016_multi_island_canonical_fid_provenance_and_fail_closed() {
-        let path="steps/pcb/layers/sig1/features";
+        let path = "steps/pcb/layers/sig1/features";
         // Two independent 4x4 squares in clockwise contour order.
         let record="S P 0;ID=9001\nOB 0 0 I\nOS 0 4\nOS 4 4\nOS 4 0\nOS 0 0\nOE\nOB 10 10 I\nOS 10 14\nOS 14 14\nOS 14 10\nOS 10 10\nOE\nSE\n";
-        let mut f=source(2);
-        let data=String::from_utf8(f[path].clone()).unwrap().replace("F 3","F 4")+record;
-        f.insert(path.into(),data.into_bytes());
-        let standalone=import_unpacked(&f,"pcb").unwrap();
-        assert_eq!(standalone.areas.len(),2);
-        assert!(standalone.areas.iter().all(|a| a.net.is_none() && a.cutouts.is_empty() && a.outer.segments.len()==4));
-        assert_ne!(standalone.areas[0].meta.id,standalone.areas[1].meta.id);
-        assert!(standalone.connectivity.nodes.is_empty() && standalone.connectivity.edges.is_empty());
+        let mut f = source(2);
+        let data = String::from_utf8(f[path].clone())
+            .unwrap()
+            .replace("F 3", "F 4")
+            + record;
+        f.insert(path.into(), data.into_bytes());
+        let standalone = import_unpacked(&f, "pcb").unwrap();
+        assert_eq!(standalone.areas.len(), 2);
+        assert!(standalone
+            .areas
+            .iter()
+            .all(|a| a.net.is_none() && a.cutouts.is_empty() && a.outer.segments.len() == 4));
+        assert_ne!(standalone.areas[0].meta.id, standalone.areas[1].meta.id);
+        assert!(
+            standalone.connectivity.nodes.is_empty() && standalone.connectivity.edges.is_empty()
+        );
         assert!(!standalone.validate().has_errors());
-        let repeated=import_unpacked(&f,"pcb").unwrap();
-        assert_eq!(standalone.areas[0].meta.id,repeated.areas[0].meta.id);
-        assert_eq!(standalone.areas[1].meta.id,repeated.areas[1].meta.id);
-        f.insert("steps/pcb/eda/data".into(),
-            b"HDR x\nUNITS=MM\nLYR sig1 sig2\nNET POWER\nSNT PLN S E 0\nFID C 0 3\n".to_vec());
-        let owned=import_unpacked_with_eda(&f,"pcb").unwrap();
-        assert_eq!(owned.areas.len(),2);
+        let repeated = import_unpacked(&f, "pcb").unwrap();
+        assert_eq!(standalone.areas[0].meta.id, repeated.areas[0].meta.id);
+        assert_eq!(standalone.areas[1].meta.id, repeated.areas[1].meta.id);
+        f.insert(
+            "steps/pcb/eda/data".into(),
+            b"HDR x\nUNITS=MM\nLYR sig1 sig2\nNET POWER\nSNT PLN S E 0\nFID C 0 3\n".to_vec(),
+        );
+        let owned = import_unpacked_with_eda(&f, "pcb").unwrap();
+        assert_eq!(owned.areas.len(), 2);
         for area in &owned.areas {
-            assert_eq!(area.net,Some(owned.nets[0].meta.id.clone()));
-            assert!(area.meta.provenance.history.iter()
-                .any(|w| w.operation=="odb-eda-fid-design-net-ownership"));
+            assert_eq!(area.net, Some(owned.nets[0].meta.id.clone()));
+            assert!(area
+                .meta
+                .provenance
+                .history
+                .iter()
+                .any(|w| w.operation == "odb-eda-fid-design-net-ownership"));
         }
         assert!(owned.connectivity.nodes.is_empty() && owned.connectivity.edges.is_empty());
         assert!(!owned.validate().has_errors());
-        let mut invalid=f.clone();
-        invalid.insert("steps/pcb/eda/data".into(),
-            b"HDR x\nUNITS=MM\nLYR sig1 sig2\nNET POWER\nSNT TRC\nFID C 0 3\n".to_vec());
-        assert_eq!(import_unpacked_with_eda(&invalid,"pcb").unwrap_err().code,
-            "ODB_EDA_FID_SUBNET_KIND_CONFLICT");
-        let mut negative=f.clone();
-        let data=String::from_utf8(negative[path].clone()).unwrap().replace("S P 0;ID=9001","S N 0;ID=9001");
-        negative.insert(path.into(),data.into_bytes());
-        assert_eq!(import_unpacked(&negative,"pcb").unwrap_err().code,
-            "ODB_SURFACE_NEGATIVE_UNSUPPORTED");
+        let mut invalid = f.clone();
+        invalid.insert(
+            "steps/pcb/eda/data".into(),
+            b"HDR x\nUNITS=MM\nLYR sig1 sig2\nNET POWER\nSNT TRC\nFID C 0 3\n".to_vec(),
+        );
+        assert_eq!(
+            import_unpacked_with_eda(&invalid, "pcb").unwrap_err().code,
+            "ODB_EDA_FID_SUBNET_KIND_CONFLICT"
+        );
+        let mut negative = f.clone();
+        let data = String::from_utf8(negative[path].clone())
+            .unwrap()
+            .replace("S P 0;ID=9001", "S N 0;ID=9001");
+        negative.insert(path.into(), data.into_bytes());
+        assert_eq!(
+            import_unpacked(&negative, "pcb").unwrap_err().code,
+            "ODB_SURFACE_NEGATIVE_UNSUPPORTED"
+        );
     }
     #[test]
     fn malformed_and_unknown_odb_surfaces_fail_closed() {

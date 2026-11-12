@@ -104,7 +104,12 @@ fn rings_touch(a: &[Tick], b: &[Tick]) -> bool {
 }
 
 impl SurfaceBuilder {
-    pub(crate) fn begin(&mut self, start: Tick, hole: bool, ob_line: usize) -> Result<(), &'static str> {
+    pub(crate) fn begin(
+        &mut self,
+        start: Tick,
+        hole: bool,
+        ob_line: usize,
+    ) -> Result<(), &'static str> {
         if self.active.is_some() {
             return Err("ODB_SURFACE_NESTED_OB");
         }
@@ -119,7 +124,12 @@ impl SurfaceBuilder {
                 return Err("ODB_SURFACE_TOO_MANY_HOLES");
             }
         } else {
-            if self.islands.first().map(|v| !v.holes.is_empty()).unwrap_or(false) {
+            if self
+                .islands
+                .first()
+                .map(|v| !v.holes.is_empty())
+                .unwrap_or(false)
+            {
                 return Err("ODB_SURFACE_MULTI_ISLAND_HOLE_UNSUPPORTED");
             }
             if self.islands.len() >= MAX_ISLANDS {
@@ -162,9 +172,11 @@ impl SurfaceBuilder {
         if self.islands.is_empty() {
             return Err("ODB_SURFACE_NO_ISLAND");
         }
-        let total: usize = self.islands.iter().map(|island| {
-            island.outer.len() + island.holes.iter().map(Vec::len).sum::<usize>()
-        }).sum();
+        let total: usize = self
+            .islands
+            .iter()
+            .map(|island| island.outer.len() + island.holes.iter().map(Vec::len).sum::<usize>())
+            .sum();
         if total > MAX_VERTICES {
             return Err("ODB_SURFACE_TOTAL_VERTEX_LIMIT");
         }
@@ -175,10 +187,14 @@ impl SurfaceBuilder {
                 if !island.holes.is_empty() {
                     return Err("ODB_SURFACE_MULTI_ISLAND_HOLE_UNSUPPORTED");
                 }
-                let signed_area2: i128 = island.outer.windows(2).map(|edge| {
-                    i128::from(edge[0][0]) * i128::from(edge[1][1])
-                        - i128::from(edge[1][0]) * i128::from(edge[0][1])
-                }).sum();
+                let signed_area2: i128 = island
+                    .outer
+                    .windows(2)
+                    .map(|edge| {
+                        i128::from(edge[0][0]) * i128::from(edge[1][1])
+                            - i128::from(edge[1][0]) * i128::from(edge[0][1])
+                    })
+                    .sum();
                 if signed_area2 >= 0 {
                     return Err("ODB_SURFACE_ISLAND_WINDING");
                 }
@@ -197,9 +213,7 @@ impl SurfaceBuilder {
             let mut hole_area2 = 0i128;
             for (i, hole) in island.holes.iter().enumerate() {
                 hole_area2 += validate_ring(hole)?;
-                if rings_touch(&island.outer, hole)
-                    || !strictly_inside(hole[0], &island.outer)
-                {
+                if rings_touch(&island.outer, hole) || !strictly_inside(hole[0], &island.outer) {
                     return Err("ODB_SURFACE_HOLE_OUTSIDE_OR_TOUCHING");
                 }
                 for previous in &island.holes[..i] {
@@ -223,77 +237,98 @@ impl SurfaceBuilder {
 mod tests {
     use super::*;
     fn rectangle(s: &mut SurfaceBuilder, x: i64, y: i64, w: i64, clockwise: bool) {
-        s.begin([x,y], false, 1).unwrap();
+        s.begin([x, y], false, 1).unwrap();
         let points = if clockwise {
-            [[x,y+w],[x+w,y+w],[x+w,y],[x,y]]
+            [[x, y + w], [x + w, y + w], [x + w, y], [x, y]]
         } else {
-            [[x+w,y],[x+w,y+w],[x,y+w],[x,y]]
+            [[x + w, y], [x + w, y + w], [x, y + w], [x, y]]
         };
-        for p in points { s.line(p).unwrap(); }
+        for p in points {
+            s.line(p).unwrap();
+        }
         s.close().unwrap();
     }
     #[test]
     fn original_single_island_and_hole_are_compatible() {
-        let mut s=SurfaceBuilder::default();
-        rectangle(&mut s,0,0,4,false);
-        s.begin([1,1],true,10).unwrap();
-        for p in [[1,2],[2,2],[2,1],[1,1]] {s.line(p).unwrap();}
+        let mut s = SurfaceBuilder::default();
+        rectangle(&mut s, 0, 0, 4, false);
+        s.begin([1, 1], true, 10).unwrap();
+        for p in [[1, 2], [2, 2], [2, 1], [1, 1]] {
+            s.line(p).unwrap();
+        }
         s.close().unwrap();
-        let islands=s.finish().unwrap();
-        assert_eq!(islands.len(),1);
-        assert_eq!(islands[0].outer.len(),5);
-        assert_eq!(islands[0].holes.len(),1);
+        let islands = s.finish().unwrap();
+        assert_eq!(islands.len(), 1);
+        assert_eq!(islands[0].outer.len(), 5);
+        assert_eq!(islands[0].holes.len(), 1);
     }
     #[test]
     fn two_and_three_separate_clockwise_islands_are_exact() {
-        for count in [2,3] {
-            let mut s=SurfaceBuilder::default();
-            for i in 0..count {rectangle(&mut s,i*10,0,4,true);}
-            let islands=s.finish().unwrap();
-            assert_eq!(islands.len(),count as usize);
-            assert_eq!(islands[0].outer[0],[0,0]);
-            assert_eq!(islands[1].outer[0],[10,0]);
+        for count in [2, 3] {
+            let mut s = SurfaceBuilder::default();
+            for i in 0..count {
+                rectangle(&mut s, i * 10, 0, 4, true);
+            }
+            let islands = s.finish().unwrap();
+            assert_eq!(islands.len(), count as usize);
+            assert_eq!(islands[0].outer[0], [0, 0]);
+            assert_eq!(islands[1].outer[0], [10, 0]);
         }
     }
     #[test]
     fn intersect_touch_contain_wrong_winding_and_hole_fail_closed() {
-        for (x,y,w,expected) in [
-            (3,0,4,"ODB_SURFACE_ISLAND_CONFLICT"), // overlap
-            (4,0,4,"ODB_SURFACE_ISLAND_CONFLICT"), // touch
-            (1,1,1,"ODB_SURFACE_ISLAND_CONFLICT"), // containment
+        for (x, y, w, expected) in [
+            (3, 0, 4, "ODB_SURFACE_ISLAND_CONFLICT"), // overlap
+            (4, 0, 4, "ODB_SURFACE_ISLAND_CONFLICT"), // touch
+            (1, 1, 1, "ODB_SURFACE_ISLAND_CONFLICT"), // containment
         ] {
-            let mut s=SurfaceBuilder::default();
-            rectangle(&mut s,0,0,4,true);
-            rectangle(&mut s,x,y,w,true);
-            assert_eq!(s.finish().unwrap_err(),expected);
+            let mut s = SurfaceBuilder::default();
+            rectangle(&mut s, 0, 0, 4, true);
+            rectangle(&mut s, x, y, w, true);
+            assert_eq!(s.finish().unwrap_err(), expected);
         }
-        let mut winding=SurfaceBuilder::default();
-        rectangle(&mut winding,0,0,4,true);
-        rectangle(&mut winding,10,0,4,false);
-        assert_eq!(winding.finish().unwrap_err(),"ODB_SURFACE_ISLAND_WINDING");
-        let mut mix=SurfaceBuilder::default();
-        rectangle(&mut mix,0,0,4,true);
-        rectangle(&mut mix,10,0,4,true);
-        assert_eq!(mix.begin([1,1],true,13),Err("ODB_SURFACE_MULTI_ISLAND_HOLE_UNSUPPORTED"));
-        let mut mix_reverse=SurfaceBuilder::default();
-        rectangle(&mut mix_reverse,0,0,4,true);
-        mix_reverse.begin([1,1],true,8).unwrap();
-        for p in [[1,2],[2,2],[2,1],[1,1]] {mix_reverse.line(p).unwrap();}
+        let mut winding = SurfaceBuilder::default();
+        rectangle(&mut winding, 0, 0, 4, true);
+        rectangle(&mut winding, 10, 0, 4, false);
+        assert_eq!(winding.finish().unwrap_err(), "ODB_SURFACE_ISLAND_WINDING");
+        let mut mix = SurfaceBuilder::default();
+        rectangle(&mut mix, 0, 0, 4, true);
+        rectangle(&mut mix, 10, 0, 4, true);
+        assert_eq!(
+            mix.begin([1, 1], true, 13),
+            Err("ODB_SURFACE_MULTI_ISLAND_HOLE_UNSUPPORTED")
+        );
+        let mut mix_reverse = SurfaceBuilder::default();
+        rectangle(&mut mix_reverse, 0, 0, 4, true);
+        mix_reverse.begin([1, 1], true, 8).unwrap();
+        for p in [[1, 2], [2, 2], [2, 1], [1, 1]] {
+            mix_reverse.line(p).unwrap();
+        }
         mix_reverse.close().unwrap();
-        assert_eq!(mix_reverse.begin([10,0],false,14),Err("ODB_SURFACE_MULTI_ISLAND_HOLE_UNSUPPORTED"));
+        assert_eq!(
+            mix_reverse.begin([10, 0], false, 14),
+            Err("ODB_SURFACE_MULTI_ISLAND_HOLE_UNSUPPORTED")
+        );
     }
     #[test]
     fn bounded_islands_vertices_and_malformed_lines() {
-        let mut s=SurfaceBuilder::default();
-        for i in 0..16 {rectangle(&mut s, i*10, 0, 4, true);}
-        assert_eq!(s.begin([200,0],false,99),Err("ODB_SURFACE_TOO_MANY_ISLANDS"));
-        assert_eq!(s.finish().unwrap().len(),16);
-        let mut missing=SurfaceBuilder::default();
-        missing.begin([0,0],false,1).unwrap();
-        assert_eq!(missing.finish().unwrap_err(),"ODB_SURFACE_MISSING_OE");
-        let mut bow=SurfaceBuilder::default();
-        bow.begin([0,0],false,1).unwrap();
-        for p in [[3,3],[0,3],[3,0],[0,0]] {bow.line(p).unwrap();}
-        assert_eq!(bow.close(),Err("ODB_SURFACE_SELF_INTERSECTION"));
+        let mut s = SurfaceBuilder::default();
+        for i in 0..16 {
+            rectangle(&mut s, i * 10, 0, 4, true);
+        }
+        assert_eq!(
+            s.begin([200, 0], false, 99),
+            Err("ODB_SURFACE_TOO_MANY_ISLANDS")
+        );
+        assert_eq!(s.finish().unwrap().len(), 16);
+        let mut missing = SurfaceBuilder::default();
+        missing.begin([0, 0], false, 1).unwrap();
+        assert_eq!(missing.finish().unwrap_err(), "ODB_SURFACE_MISSING_OE");
+        let mut bow = SurfaceBuilder::default();
+        bow.begin([0, 0], false, 1).unwrap();
+        for p in [[3, 3], [0, 3], [3, 0], [0, 0]] {
+            bow.line(p).unwrap();
+        }
+        assert_eq!(bow.close(), Err("ODB_SURFACE_SELF_INTERSECTION"));
     }
 }
