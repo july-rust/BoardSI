@@ -1,4 +1,6 @@
-# D_056_09 — ODB++ ZIP STORED transport (source scope only)
+# D_056_09 — ODB++ ZIP STORED transport (historical source baseline)
+
+> Historical D_056_09 Method 0 record: preserved unchanged below. The **E_013 Method 8 successor** is documented at the end and in [E_013 validation](../validation/e013-odb-zip-deflate-qualification.md). Do not read the historical unsupported list as the current combined method 0/8 contract.
 
 **First implementation:** 2026-11-11 KST. **Owner issue:** [#578](https://github.com/july-rust/BoardSI/issues/578). **Code PR:** [#579](https://github.com/july-rust/BoardSI/pull/579). **Status:** one bounded transport subset merged; **D_056_09 overall OPEN**.
 
@@ -55,3 +57,16 @@ Unsupported cases remain **FAIL-CLOSED**, not silently skipped and not promoted 
 - **D_056_09 whole-stage gate**: OPEN under #578. This file is an acceptance record for ZIP STORED transport only.
 
 Do not report compressed ODB++ products generally, verified plated vias, electrical Open/Short, or solver-ready S-parameters as supported until independently validated.
+
+
+## E_013 successor — ZIP raw DEFLATE Method 8 (2026-11-12 KST)
+
+**Code review/CI:** [PR #601](https://github.com/july-rust/BoardSI/pull/601), **IN_PROGRESS / NOT_YET_ACCEPTED** until exact final HEAD required CI, independent review, protected Verified Squash and exact code-main Push are evidenced.
+
+- Accept ZIP member methods **0 (STORED)** and **8 (raw DEFLATE)**, including mixed-method packages. ZIP data is decompressed **in memory** through the Rust `flate2 = 1.0.35` pure-Rust backend (`miniz_oxide = 0.8.2`), not via an external process, temporary file, zlib wrapper or gzip.
+- Shared bounded original data policy: archive 256 MiB, per expanded file 16 MiB, total expanded files 128 MiB, 8192 entries. Actual output is limited **while decoding** to each member's header-advertised size and policy maximum, and cumulative declared sizes are checked before expanding.
+- Enforce entire raw stream consumption and exact decoded byte count, then CRC32 on expanded data, and local/central header equality. Invalid or unsupported ZIP members fail the whole import, never yielding a partial Canonical board.
+- Existing strict ZIP limits remain: no ZIP64, multiple disks, data descriptors, encryption, extra fields, comments, self-extracting prefixes, symlinks, or path traversal.
+- All accepted decoded data feeds the **existing** root normalization, `OdbFileMap`, Source SHA-256, Canonical geometry and optional Drill Audit/EDA ownership. ZIP CRC32 is transport integrity, **not** cryptographic origin proof.
+
+**Scope boundary:** This does **not** add tar.gz/tgz (E_014), features.Z (E_015), step transforms/copper negative (E_016–017), full EDA PKG/PIN, qualified plated vias, main Qt ODB++ import, electrical connectivity, physical SI, vendor oracle or complete #578 acceptance. Unsupported source semantics remain UNKNOWN/fail-closed.

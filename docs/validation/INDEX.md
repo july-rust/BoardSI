@@ -9,6 +9,7 @@
 | 찾는 내용 | 바로가기 |
 | :--- | :--- |
 | **전체 개발 상태 / 정식 U/T** | [개발 체크리스트](../development-checklist.md) |
+| **E_013 ODB++ ZIP 압축 반례** | [DEFLATE Method 8 한정 검증](e013-odb-zip-deflate-qualification.md) · [상위 #578](https://github.com/july-rust/BoardSI/issues/578) |
 | **E_012 실제 Native GPU 증거** | [Metal/D3D11 한정 계측 원본 로그 재감사](e012-actual-hardware-gpu-qualification.md) · [미인수 EB-03](../e-stage-blocked-register.md) |
 | **범용 Trace·Via·Pad 비중심 접촉** | [D_054–D_055 통합 검증](d054-d055-general-trace-contact-qualification.md) · [기하 알고리즘](../architecture/trace-copper-contact.md) |
 | **제한 개발 Preview 완료 범위** | [A_035 P2-Z 감사](a035-p2z-final-preview-acceptance.md) |
@@ -172,7 +173,7 @@
 </details>
 
 <details>
-<summary><strong>Stage E — Bounded closeout evidence</strong> — 11개 · 검증된 한정 인수와 제품 단계 미완 조건을 분리</summary>
+<summary><strong>Stage E — Bounded closeout evidence</strong> — 13개 · 검증된 한정 인수와 제품 단계 미완 조건을 분리</summary>
 
 - [E_001 · PH-07 post-audit closure and independent disposition](e001-ph07-post-audit-closure.md)
 - [E_002 · M0 F1 traceability and status reconciliation](e002-m0-f1-traceability-status-reconciliation.md)
@@ -185,6 +186,8 @@
 - [E_009 · PADS V9.4 ROUTE glued-via flag source grammar qualification](e009-pads-glued-via-grammar-qualification.md)
 - [E_010 · Main Qt Canonical Import/IPC/Picking/ReImport fail-closed qualification](e010-main-qt-import-picking-qualification.md)
 - [E_011 · Main Qt Canonical Stackup edit/persistence/reImport fail-closed qualification](e011-stackup-edit-persistence-reimport-qualification.md)
+- [E_012 · Native hardware GPU Metal/D3D11 evidence audit](e012-actual-hardware-gpu-qualification.md)
+- [E_013 · ODB++ ZIP DEFLATE Method 8 and bounded decompression](e013-odb-zip-deflate-qualification.md)
 
 </details>
 
@@ -246,4 +249,4 @@
 
 ---
 
-**목록 집계:** 167개 그룹 분류 + 0개 미분류 = **167개** 기존 Markdown 근거 파일 (Stage A/B/C/D/M0/E/M2/PH-08/SEC 각 13+11+32+53+11+9+15+22+1, `README.md` 및 `INDEX.md` 제외). 개별 기록을 일괄 수정하거나 과거 `FAIL`을 변경하지 않았습니다. 신규 보고서는 이 색인에 등록하고, 정식 완료 판정은 [단일 체크리스트](../development-checklist.md)에만 반영합니다. 검증 방법은 [Validation 설명](README.md), 문서 정책은 [문서 표준](../documentation-standards.md)을 참조하십시오.
+**목록 집계:** 171개 그룹 분류 + 0개 미분류 = **171개** Markdown 근거 파일 (Stage A/B/C/D/M0/E/M2/PH-08/SEC 각 13+11+32+53+11+13+15+22+1, `README.md` 및 `INDEX.md` 제외). 개별 기록을 일괄 수정하거나 과거 `FAIL`을 변경하지 않았습니다. 신규 보고서는 이 색인에 등록하고, 정식 완료 판정은 [단일 체크리스트](../development-checklist.md)에만 반영합니다. 검증 방법은 [Validation 설명](README.md), 문서 정책은 [문서 표준](../documentation-standards.md)을 참조하십시오.
