@@ -1,7 +1,7 @@
 //! D_056_08: fail-closed ODB++Design *unpacked-file-map* source subset.
 //! Siemens ODB++Design Format Specification 8.1 Update 4:
 //! matrix/matrix pp.62-66; features pp.164-172; standard symbols pp.187-189.
-//! This is NOT a whole-package, step-repeat, drill, full EDA/Net, or Qt importer.
+//! This is NOT a whole-package, full Step Repeat, drill, full EDA/Net, or Qt importer.
 //! Source geometry is not manufactured connectivity, stackup z, or SI proof.
 use crate::odb_drill::parse_tools;
 pub use crate::odb_drill::{DrillIntent, SourceDrillLayer, SourceDrillTool};
@@ -1131,7 +1131,10 @@ pub fn import_unpacked_with_eda(files: &OdbFileMap, step: &str) -> Result<BoardM
 
 fn import_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardModel, OdbError> {
     let normalized = normalized_feature_files(files)?;
-    let files = normalized.as_ref();
+    import_normalized_inner(normalized.as_ref(), step, with_eda)
+}
+
+fn import_normalized_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardModel, OdbError> {
     if !safe_entity(step) {
         return Err(error("steps", 0, "ODB_BAD_SELECTED_STEP"));
     }
@@ -1140,14 +1143,21 @@ fn import_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardM
     if !matrix.steps.iter().any(|s| s == step) {
         return Err(error("matrix/matrix", 0, "ODB_UNDECLARED_STEP"));
     }
-    // Nested step-repeat transformations are not source-qualified in this slice.
-    let stephdr = format!("steps/{step}/stephdr");
-    if let Some(bytes) = files.get(&stephdr) {
-        let header =
-            std::str::from_utf8(bytes).map_err(|_| error(&stephdr, 0, "ODB_INVALID_TEXT"))?;
-        if header.contains("STEP-REPEAT") {
-            return Err(error(&stephdr, 0, "ODB_UNSUPPORTED_STEP_REPEAT"));
+    // E_017: only a single child, one rectangular, unrotated, unmirrored
+    // STEP-REPEAT is admitted. The strict parser rejects all other transforms.
+    let copper_names: Vec<String> = matrix.layers.iter()
+        .filter(|l| l.context == "BOARD" && copper_type(&l.layer_type))
+        .map(|l| l.name.clone()).collect();
+    if let Some(placement) =
+        crate::odb_step_repeat::parse(files, step, &matrix.steps, &copper_names)?
+    {
+        if with_eda {
+            return Err(error(&placement.header_path, placement.record_line,
+                "ODB_STEP_EDA_NOT_QUALIFIED"));
         }
+        // Already-normalized logical file map: do not decompress features.Z twice.
+        let child = import_normalized_inner(files, &placement.child, false)?;
+        return crate::odb_step_repeat::instantiate(child, &placement);
     }
     let copper: Vec<&MatrixLayer> = matrix
         .layers
