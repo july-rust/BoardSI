@@ -4,7 +4,7 @@
 **Repository:** [july-rust/BoardSI](https://github.com/july-rust/BoardSI)  
 **Parent:** [#578](https://github.com/july-rust/BoardSI/issues/578), remains OPEN  
 **Code PR:** [#603](https://github.com/july-rust/BoardSI/pull/603)  
-**Status:** IN_PROGRESS — do not mark COMPLETE before exact final PR HEAD, independent review, protected Verified Squash, and exact new main Push are evidenced.
+**Status:** CODE_MERGED / POSTMERGE_PUSH_PENDING — exact code PR final HEAD, independent review and protected Verified Squash have been observed; do not mark bounded COMPLETE until exact code-main Push and final docs closeout are evidenced.
 
 ## 1. Bounded acceptance contract
 
@@ -39,15 +39,15 @@ GZIP CRC32 and original-byte SHA-256 serve different purposes; CRC verifies tran
 
 | Test | Acceptance criterion | Evidence |
 | :--- | :--- | :--- |
-| GZIP+USTAR positive | 2 layer, 2 trace source import, no promoted electrical edges | PR #603 test/CI pending |
-| Directory-equivalent USTAR bytes | Normalized file map and Canonical source path identical | PR #603 test/CI pending |
-| `.tar.gz` and `.tgz` real paths | Both use archive source path and drill-source snapshot | PR #603 test/CI pending |
-| GZIP optional metadata + FHCRC | Header metadata accepted but never trusted for paths; CRC verified | PR #603 test/CI pending |
-| Independent Python gzip vector | RFC1952 compression cross-implementation decode | PR #603 test/CI pending |
-| Truncated stream/header, flags, checksum, ISIZE | Deterministic fail-closed | PR #603 test/CI pending |
-| Expansion limit | In-flight rejection before an excessive allocation | PR #603 test/CI pending |
-| Concatenated member / trailing data | Reject the entire package | PR #603 test/CI pending |
-| Unsafe / duplicate / multiple-root / invalid USTAR | Existing parser rejects after valid GZIP decode | PR #603 test/CI pending |
+| GZIP+USTAR positive | 2 layer, 2 trace source import, no promoted electrical edges | PR #603 exact HEAD 30/30 CI SUCCESS; GZIP regression 7/7 Debug+Release PASS |
+| Directory-equivalent USTAR bytes | Normalized file map and Canonical source path identical | PR #603 exact HEAD 30/30 CI SUCCESS; GZIP regression 7/7 Debug+Release PASS |
+| `.tar.gz` and `.tgz` real paths | Both use archive source path and drill-source snapshot | PR #603 exact HEAD 30/30 CI SUCCESS; GZIP regression 7/7 Debug+Release PASS |
+| GZIP optional metadata + FHCRC | Header metadata accepted but never trusted for paths; CRC verified | PR #603 exact HEAD 30/30 CI SUCCESS; GZIP regression 7/7 Debug+Release PASS |
+| Independent Python gzip vector | RFC1952 compression cross-implementation decode | PR #603 exact HEAD 30/30 CI SUCCESS; GZIP regression 7/7 Debug+Release PASS |
+| Truncated stream/header, flags, checksum, ISIZE | Deterministic fail-closed | PR #603 exact HEAD 30/30 CI SUCCESS; GZIP regression 7/7 Debug+Release PASS |
+| Expansion limit | In-flight rejection before an excessive allocation | PR #603 exact HEAD 30/30 CI SUCCESS; GZIP regression 7/7 Debug+Release PASS |
+| Concatenated member / trailing data | Reject the entire package | PR #603 exact HEAD 30/30 CI SUCCESS; GZIP regression 7/7 Debug+Release PASS |
+| Unsafe / duplicate / multiple-root / invalid USTAR | Existing parser rejects after valid GZIP decode | PR #603 exact HEAD 30/30 CI SUCCESS; GZIP regression 7/7 Debug+Release PASS |
 | ZIP STORED/DEFLATE and unrelated PADS | No regression | Final CI pending |
 | Independent commercial exporter oracle | **NOT_RUN** (outside E_014) | EB-01 / E_023 |
 
@@ -55,11 +55,11 @@ GZIP CRC32 and original-byte SHA-256 serve different purposes; CRC verifies tran
 
 ## 5. Exact final operational evidence (to complete only after observation)
 
-- Final PR HEAD: **PENDING**
-- Rust checks and Native Windows x64 / ARM64 / macOS ARM64: **PENDING**
-- Independent reviewer findings / unresolved threads: **PENDING**
-- GitHub Verified single-parent protected Squash: **PENDING**
-- Exact new code-main SHA and its 8 Push workflow outcomes: **PENDING**
+- Final PR HEAD: [`93ea65f140b0b076221a7fc8ee95a853ab0c9863`](https://github.com/july-rust/BoardSI/pull/603), **30/30 required PR Checks SUCCESS**, including Native Windows x64/ARM64 and macOS ARM64.
+- Rust checks and Native Windows x64 / ARM64 / macOS ARM64: **SUCCESS**, [Numerical PR run #43171338670](https://github.com/july-rust/BoardSI/actions/runs/43171338670); 7/7 GZIP source regression tests PASS in Debug and Release, existing Rust regression suites passed.
+- Independent reviewer findings / unresolved threads: **0 / 0**, Codex exact final HEAD `93ea65f1` status `completed`, `has_any_findings=false`, `has_unresolved_findings=false`.
+- GitHub Verified single-parent protected Squash: [`e32f37cb615d2053485752739f614493cde0bee9`](https://github.com/july-rust/BoardSI/commit/e32f37cb615d2053485752739f614493cde0bee9), `verification.verified=true`, exactly **one parent**. PR #603 MERGED/CLOSED.
+- Exact new code-main SHA `e32f37cb615d2053485752739f614493cde0bee9`: **8 independent Push workflows IN_PROGRESS**, do not infer their outcome from PR CI.
 - Documentation closeout final SHA and Push outcomes (if separate PR): **PENDING**
 
 **Final E_014 status is NOT_ACCEPTED until all applicable gates succeed.**
