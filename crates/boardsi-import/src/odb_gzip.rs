@@ -211,6 +211,106 @@ mod tests {
         tar(&files())
     }
 
+    fn zip_methods(entries: &[(&str, &[u8])], method: u16) -> Vec<u8> {
+        assert!(method == 0 || method == 8);
+        fn put16(v: &mut Vec<u8>, n: u16) {
+            v.extend_from_slice(&n.to_le_bytes());
+        }
+        fn put32(v: &mut Vec<u8>, n: u32) {
+            v.extend_from_slice(&n.to_le_bytes());
+        }
+        let mut out = Vec::new();
+        let mut central = Vec::new();
+        for &(name, data) in entries {
+            let packed = if method == 8 {
+                let mut encoder = flate2::write::DeflateEncoder::new(
+                    Vec::new(),
+                    flate2::Compression::default(),
+                );
+                encoder.write_all(data).unwrap();
+                encoder.finish().unwrap()
+            } else {
+                data.to_vec()
+            };
+            let offset = out.len() as u32;
+            let version = if method == 8 { 20 } else { 10 };
+            let crc = crc32(data);
+            put32(&mut out, 0x0403_4b50);
+            put16(&mut out, version);
+            put16(&mut out, 0);
+            put16(&mut out, method);
+            put16(&mut out, 0);
+            put16(&mut out, 0);
+            put32(&mut out, crc);
+            put32(&mut out, packed.len() as u32);
+            put32(&mut out, data.len() as u32);
+            put16(&mut out, name.len() as u16);
+            put16(&mut out, 0);
+            out.extend_from_slice(name.as_bytes());
+            out.extend_from_slice(&packed);
+
+            put32(&mut central, 0x0201_4b50);
+            put16(&mut central, version);
+            put16(&mut central, version);
+            put16(&mut central, 0);
+            put16(&mut central, method);
+            put16(&mut central, 0);
+            put16(&mut central, 0);
+            put32(&mut central, crc);
+            put32(&mut central, packed.len() as u32);
+            put32(&mut central, data.len() as u32);
+            put16(&mut central, name.len() as u16);
+            put16(&mut central, 0);
+            put16(&mut central, 0);
+            put16(&mut central, 0);
+            put16(&mut central, 0);
+            put32(&mut central, 0);
+            put32(&mut central, offset);
+            central.extend_from_slice(name.as_bytes());
+        }
+        let start = out.len() as u32;
+        out.extend_from_slice(&central);
+        put32(&mut out, 0x0605_4b50);
+        put16(&mut out, 0);
+        put16(&mut out, 0);
+        put16(&mut out, entries.len() as u16);
+        put16(&mut out, entries.len() as u16);
+        put32(&mut out, central.len() as u32);
+        put32(&mut out, start);
+        put16(&mut out, 0);
+        out
+    }
+
+    #[test]
+    fn gzip_tar_matches_directory_and_both_zip_methods() {
+        let input = sample_tar();
+        let gz_map = read_gzip_tar(&gzip(&input)).unwrap();
+        let tar_map = crate::odb_tar::read_tar(&input).unwrap();
+        assert_eq!(gz_map, tar_map);
+        for method in [0u16, 8u16] {
+            let zip_map = crate::odb_zip::read_zip(&zip_methods(&files(), method)).unwrap();
+            assert_eq!(gz_map, zip_map);
+        }
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "boardsi-e014-dir-{}-{stamp}", std::process::id()
+        ));
+        for (path, contents) in files() {
+            let relative = path.strip_prefix("product/").unwrap();
+            let target = root.join(relative);
+            std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+            std::fs::write(target, contents).unwrap();
+        }
+        let directory_board = crate::odb_source::import_directory(&root, "pcb").unwrap();
+        let gzip_board = crate::odb_source::import_unpacked(&gz_map, "pcb").unwrap();
+        assert_eq!(directory_board.traces.len(), gzip_board.traces.len());
+        assert_eq!(directory_board.sources[0].id.files, gzip_board.sources[0].id.files);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn gzip_matches_uncompressed_ustar_and_canonical_source() {
         let plain = sample_tar();
