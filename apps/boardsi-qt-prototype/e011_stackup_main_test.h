@@ -39,7 +39,7 @@ static int runE011MainStackupSelftest(const QString &canonicalBinary,
     const QString unknownOverlay = directory.filePath("unknown.json");
     const QString corrupt = directory.filePath("corrupt.json");
 
-    PreviewWindow window(QString());
+    PreviewWindow window{QString()};
     auto *panel = window.importPanel();
     auto *editor = window.stackupEditor();
     panel->setCanonicalImporterBinaryForTest(canonicalBinary);
