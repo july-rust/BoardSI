@@ -74,7 +74,7 @@ Do not report compressed ODB++ products generally, verified plated vias, electri
 
 ## E_014 successor — bounded single-member GZIP + USTAR (2026-11-12 KST)
 
-**Code PR:** [#603](https://github.com/july-rust/BoardSI/pull/603). **Status: CODE_MERGED / POSTMERGE_PUSH_PENDING.** Final code PR HEAD `93ea65f1` 30/30 SUCCESS, Codex 0/0, Verified Squash `e32f37cb`; final main Push and docs acceptance remain pending. See [E_014 validation record](../validation/e014-odb-gzip-tar-qualification.md).
+**Code PR:** [#603](https://github.com/july-rust/BoardSI/pull/603). **Status: bounded COMPLETE after final docs-PR #604 gate.** Final code PR #603 HEAD `93ea65f1` 30/30 SUCCESS, Codex 0/0, GitHub Verified single-parent Squash [`e32f37cb`](https://github.com/july-rust/BoardSI/commit/e32f37cb615d2053485752739f614493cde0bee9), exact code-main Push 8/8 workflow SUCCESS including [Qt](https://github.com/july-rust/BoardSI/actions/runs/43173352640) and [Numerical](https://github.com/july-rust/BoardSI/actions/runs/43173352774). Parent #578 OPEN. See [E_014 validation record](../validation/e014-odb-gzip-tar-qualification.md).
 
 - Dispatch GZIP signature (0x1f 0x8b) from the same source-only archive path into `odb_gzip::read_gzip_tar`. Existing uncompressed USTAR, ZIP STORED and ZIP DEFLATE are unchanged.
 - Parse RFC1952 single-member header with bounded optional FEXTRA, FNAME, FCOMMENT, FHCRC. The latter two are metadata only, **never filesystem paths**.
