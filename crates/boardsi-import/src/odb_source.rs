@@ -768,9 +768,9 @@ pub fn import_tar_with_eda(bytes: &[u8], step: &str) -> Result<BoardModel, OdbEr
     import_unpacked_with_eda(&crate::odb_tar::read_tar(bytes)?, step)
 }
 
-/// Load bounded USTAR or ZIP members (STORED/DEFLATE only) without file extraction.
-/// Both transports yield identical source-relative maps; symlinks, descriptors,
-/// unknown compression methods and unsafe paths fail closed.
+/// Load bounded USTAR, single-member GZIP+USTAR, or ZIP (STORED/DEFLATE)
+/// without filesystem extraction. All transports yield the same source-relative
+/// map; unsupported extensions, symlinks and unsafe paths fail closed.
 fn read_tar_file_map(path: &std::path::Path) -> Result<OdbFileMap, OdbError> {
     let info =
         std::fs::symlink_metadata(path).map_err(|_| error("product.tar", 0, "ODB_TAR_FILE_IO"))?;
@@ -783,12 +783,14 @@ fn read_tar_file_map(path: &std::path::Path) -> Result<OdbFileMap, OdbError> {
     }
     if bytes.starts_with(b"PK\x03\x04") {
         crate::odb_zip::read_zip(&bytes)
+    } else if bytes.starts_with(&[0x1f, 0x8b]) {
+        crate::odb_gzip::read_gzip_tar(&bytes)
     } else {
         crate::odb_tar::read_tar(&bytes)
     }
 }
 
-/// Backward-compatible local archive import: USTAR or bounded STORED/DEFLATE ZIP.
+/// Backward-compatible archive import: USTAR, bounded GZIP+USTAR, or ZIP 0/8.
 /// No external extractor, shell, symlink or filesystem extraction.
 pub fn import_tar_file(
     path: &std::path::Path,
@@ -803,8 +805,8 @@ pub fn import_tar_file(
     }
 }
 
-/// Explicit package entrypoint: ZIP method 0/8 accepted. GZIP/tgz, ZIP64,
-/// features.Z and other compressed member formats remain UNSUPPORTED.
+/// Explicit package entrypoint: USTAR, GZIP tar.gz/tgz, and ZIP method 0/8.
+/// ZIP64, features.Z, and unsupported compressed member formats fail closed.
 pub fn import_archive_file(
     path: &std::path::Path,
     step: &str,
@@ -1018,7 +1020,7 @@ pub(crate) fn read_source_path_file_map(path: &std::path::Path) -> Result<OdbFil
     }
 }
 
-/// Unified directory / USTAR Drill SOURCE audit. Read the source files once,
+/// Unified directory / USTAR / GZIP / ZIP Drill SOURCE audit. Read the source files once,
 /// then verify tool declarations and P hits against that same file-map snapshot.
 /// Neither variant licenses plated barrel, global Open/Short or SI conclusions.
 pub fn audit_path_drill_source(
