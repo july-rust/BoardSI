@@ -225,6 +225,7 @@ pub mod straight_area_witness;
 // D_056_03 source layer via/SMD pad direct contact candidates.
 pub mod layered_pad_contacts;
 pub mod material_contract;
+mod odb_compress_z;
 mod odb_drill;
 mod odb_drill_hits;
 mod odb_eda;
