@@ -8,3 +8,4 @@ publish = false
 [dependencies]
 
 boardsi-model = { path = "../boardsi-model" }
+flate2 = { version = "=1.0.35", default-features = false, features = ["rust_backend"] }
