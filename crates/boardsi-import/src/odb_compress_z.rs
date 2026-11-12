@@ -76,7 +76,7 @@ fn expand(
     stack.clear();
     let mut count = 0usize;
     while code >= 256 {
-        if code == 256 || code >= next || count >= prefix.len() {
+        if code >= next || count >= prefix.len() {
             return Err("ODB_Z_INVALID_DICTIONARY");
         }
         stack.push(suffix[code]);
@@ -281,6 +281,16 @@ mod tests {
                 "ODB_Z_EXPANSION_LIMIT"
             );
         }
+    }
+
+    #[test]
+    fn nonblock_dictionary_entry_256_is_not_a_clear_code() {
+        // GNU gzip -dc independently decodes the non-block .Z bytes as AAA.
+        assert_eq!(
+            decode_features_z(PATH, &[0x1f, 0x9d, 0x0c, 0x41, 0x00, 0x02], 100)
+                .unwrap(),
+            b"AAA"
+        );
     }
 
     #[test]
