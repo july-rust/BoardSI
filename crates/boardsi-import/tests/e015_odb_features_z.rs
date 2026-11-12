@@ -68,7 +68,14 @@ fn compressed_source_is_geometry_equivalent_and_retains_both_digests() {
         assert_eq!(a.arcs.len(), other.arcs.len());
         assert_eq!(a.areas.len(), other.areas.len());
         for (ta, tb) in a.traces.iter().zip(other.traces.iter()) {
-            assert_eq!(ta.centreline, tb.centreline);
+            assert_eq!(ta.centreline.len(), tb.centreline.len());
+            for (pa, pb) in ta.centreline.iter().zip(tb.centreline.iter()) {
+                // Compressed and plain Source IDs intentionally differ: only
+                // physical coordinates and their logical frame must match.
+                assert_eq!(pa.ticks, pb.ticks);
+                assert_eq!(pa.frame.kind, pb.frame.kind);
+                assert_eq!(pa.frame.source_object, pb.frame.source_object);
+            }
             assert_eq!(ta.width_m, tb.width_m);
         }
         assert!(other.connectivity.edges.is_empty());
