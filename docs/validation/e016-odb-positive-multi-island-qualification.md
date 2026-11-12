@@ -1,6 +1,6 @@
 # E_016 — ODB++ Positive Multi-Island SOURCE qualification
 
-**최초 기록일:** 2026-11-12 KST. **상태: SOURCE 한정 조건부 COMPLETE / 최종 증거 확인 전 NOT_VERIFIED.** This row becomes bounded COMPLETE only when [PR #608](https://github.com/july-rust/BoardSI/pull/608) exact HEAD CI, independent review, GitHub Verified protected Squash, and exact merged-main Push CI all pass and the outcome is recorded on parent #578. Parent [#578](https://github.com/july-rust/BoardSI/issues/578) and [#10](https://github.com/july-rust/BoardSI/issues/10) remain OPEN.
+**최초 기록일:** 2026-11-12 KST. **최종 근거 확인:** 2026-11-13 KST. **상태: COMPLETE — Positive Multi-Island SOURCE 부분 기능 한정.** [PR #608](https://github.com/july-rust/BoardSI/pull/608) exact HEAD CI, final-HEAD independent review, protected Verified Squash and exact merged-main Push all succeeded; evidence independently recorded in [#578 closeout](https://github.com/july-rust/BoardSI/issues/578#issuecomment-6839190698) and [#10 importer gate](https://github.com/july-rust/BoardSI/issues/10#issuecomment-6839191366). #578 was administratively CLOSED by its owner *before* E_016 began (2026-11-12T12:23:49Z); its closed status does NOT imply whole ODB++ acceptance. Product-wide importer issue #10 remains OPEN.
 
 ## Scope and exact contracts
 
@@ -24,16 +24,16 @@
 | S N negative or OC arc | Explicit unsupported |
 | Same bytes imported twice | Deterministic Canonical source-based identities |
 
-Current automated unit/integration tests exercise the above supported subset and negative cases; **do not claim these PASSED until exact GitHub CI checks are observed**. Vendor exporter fixture is not available, so independent commercial CAD geometry equivalence is NOT_VERIFIED.
+The bounded positive/negative synthetic regression suites and independent exact-integer rectangular-geometry assertions passed on PR #608 final HEAD `ba26bde470b61e3d0a72e6c5093d204458a2375b`: **30/30 Checks SUCCESS**, including actual Windows x64/ARM64 and macOS ARM64 Rust/Qt Native jobs. This is **not** independent commercial Vendor Export/CAM cross-CAD verification; that remains NOT_VERIFIED (EB-01).
 
 ## Final completion gates
 
-- [ ] Final HEAD Rust import and regression CI successful
-- [ ] Windows x64/ARM64, macOS ARM64 relevant Native evidence successful
-- [ ] Independent reviewer findings addressed; 0 unresolved review threads
-- [ ] Protected GitHub Verified, single-parent squash merge
-- [ ] Exact final merged-main SHA: independent Push workflows successful
-- [ ] Sole checklist and plan consistent with verified scope and dates
-- [ ] Parent #578/#10 comment records exact status; parents OPEN
+- [x] Final PR HEAD `ba26bde470b61e3d0a72e6c5093d204458a2375b`: **30/30 Checks SUCCESS**, exact Rust import and regression CI
+- [x] Windows x64/ARM64, macOS ARM64 relevant Native Rust/Qt successful (PR plus exact main Push)
+- [x] Codex independent final HEAD review **0 findings / 0 unresolved**, GraphQL threads 0
+- [x] Protected GitHub **Verified single-parent Squash** [`ff6fecb0af3b4e37f7a08859342286c4d85a3656`](https://github.com/july-rust/BoardSI/commit/ff6fecb0af3b4e37f7a08859342286c4d85a3656); PR #608 merged/closed
+- [x] Exact merged code-main `ff6fecb0af3b4e37f7a08859342286c4d85a3656`: **8/8 event=push Workflow SUCCESS** ([Qt](https://github.com/july-rust/BoardSI/actions/runs/43225216787), [Numerical](https://github.com/july-rust/BoardSI/actions/runs/43225216846), [Docs](https://github.com/july-rust/BoardSI/actions/runs/43225217018), [PH-06](https://github.com/july-rust/BoardSI/actions/runs/43225217173), [PH-07](https://github.com/july-rust/BoardSI/actions/runs/43225216716), [Native FEM](https://github.com/july-rust/BoardSI/actions/runs/43225216768), [Lossless FEM](https://github.com/july-rust/BoardSI/actions/runs/43225216828), [G0](https://github.com/july-rust/BoardSI/actions/runs/43225217101))
+- [x] Sole checklist and plan reconciled with original scope/dates; this docs-only evidence closeout does not claim new Native execution
+- [x] Exact code evidence recorded on [historically closed #578](https://github.com/july-rust/BoardSI/issues/578#issuecomment-6839190698) and [open #10](https://github.com/july-rust/BoardSI/issues/10#issuecomment-6839191366); whole-format acceptance unverified
 
-**No staged implementation success equals full ODB++ qualification.** Upon success, only E_016's positive multi-island source subset may be marked bounded COMPLETE, not the parent/whole product.
+**Completion scope:** Only the E_016 positive multi-island Source subset is COMPLETE. It is not full ODB++ product, Vendor Oracle, manufactured plating, inter-layer connectivity, main Qt ODB Import, or physical SI acceptance. Historic failed/cancelled earlier attempts remain historic and are not relabelled PASS. The E_016 implementation PR is merged and closed; the independent code-main Push is complete. Any docs-only closeout PR must independently satisfy its own protected CI and exact docs-main Push before claiming that separate administrative action complete.
