@@ -69,10 +69,14 @@ static bool run(const QString &binary, const QString &sourcePath) {
         art->canonicalGlyphCount()<2) return false;
     qInfo("E010_STAGE:source-a-imported");
     // PADS V9.4 SOURCE GRID: 1 tick = 0.000254 mm (not 1 mil).
-    // Public fixture via at (300, 200) ticks; 35 tick OD / 15 tick drill.
-    const QPointF centre(0.0762,-0.0508);
-    const QPointF copperPoint=centre+QPointF(0.003,0);
+    // PADS file numbers are MILS; parse_fixed scales them by 100 centimil ticks.
+    // Source via (300,200) MILS -> (30000,20000) ticks -> (7.62,-5.08) mm.
+    // Via 35 MILS OD / 15 MILS drill; 0.30 mm copper offset.
+    const QPointF centre(7.62,-5.08);
+    const QPointF copperPoint=centre+QPointF(0.30,0);
     auto *scene=art->findChild<QGraphicsScene*>();
+    qInfo("E010_GEOMETRY:scene=%d centre=%d annulus=%d", scene!=nullptr,
+          art->canonicalContains(0,centre),art->canonicalContains(0,copperPoint));
     if (!scene ||
         art->canonicalContains(0,centre) ||
         !art->canonicalContains(0,copperPoint)) return false;
