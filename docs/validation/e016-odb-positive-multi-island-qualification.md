@@ -1,6 +1,6 @@
 # E_016 — ODB++ Positive Multi-Island SOURCE qualification
 
-**최초 기록일:** 2026-11-12 KST. **상태: NOT_VERIFIED** until the exact PR HEAD CI, independent review, GitHub Verified protected squash, and exact merged-main Push CI all pass. Parent [#578](https://github.com/july-rust/BoardSI/issues/578) and [#10](https://github.com/july-rust/BoardSI/issues/10) remain OPEN.
+**최초 기록일:** 2026-11-12 KST. **상태: SOURCE 한정 조건부 COMPLETE / 최종 증거 확인 전 NOT_VERIFIED.** This row becomes bounded COMPLETE only when [PR #608](https://github.com/july-rust/BoardSI/pull/608) exact HEAD CI, independent review, GitHub Verified protected Squash, and exact merged-main Push CI all pass and the outcome is recorded on parent #578. Parent [#578](https://github.com/july-rust/BoardSI/issues/578) and [#10](https://github.com/july-rust/BoardSI/issues/10) remain OPEN.
 
 ## Scope and exact contracts
 
