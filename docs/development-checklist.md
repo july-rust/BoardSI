@@ -20,12 +20,14 @@
 | [**B**](#stage-b) | Stackup · Copper/Reference 후보 | 17 | 6 |
 | [**C**](#stage-c) | Reference 기하 · Qt 통합 · 감사 | 40 | 8 |
 | [**D**](#stage-d) | PADS Source 접촉 후보 · 국소 Copper · 다층·CAD Source Adapter | 95 | 8 |
-| [**E**](#stage-e) | 미완 감사·기능 30개 소형 종결 단위 (제품 인수 외; E_009 Glued Via 문법 한정 구현·검증) | 8 | 22 |
+| [**E**](#stage-e) | 30개 소형 단위; 아래 행의 **COMPLETE**만 확인으로 계산 (E_006~008은 EVIDENCE_QUALIFIED, 제품 인수 외) | 6 | 24 |
 | [**SEC_001**](#stage-security) | CodeQL Alert #1 한정 Fixed 확인 | 1 | 0 |
 | [**U01–U48**](#stage-acceptance) | 제품 요구사항 | 1 | 47 |
 | [**T01–T54**](#stage-acceptance) | 정식 인수시험 | 0 | 54 |
 
 **전체 체크 상태: 166건 확인 · 128건 미확인.**
+
+**Stage E 집계 기준:** 상세 원장의 명시적 **COMPLETE** 6건(E_001~E_005, E_009)과 **미완/미확인** 24건(EVIDENCE_QUALIFIED 3건 E_006~E_008 + NOT_STARTED 21건 E_010~E_030)으로 계산합니다. E_006~E_008의 기술 근거가 존재하더라도 미충족 종료 관문을 통과한 것으로 집계하지 않습니다. 위 166건/128건은 Stage E를 제외한 기존 통계입니다.
 
 > E_001은 제한된 사후 감사 종결, E_002는 M0 F1 인수상태 정합화 한정 완료, E_003은 Rust/Qt/IPC v1 제한 호환성 회귀입니다. E_004는 Source-bound Canonical Layer/Via 계약·합성 회귀 **한정 완료**입니다. [PR #586](https://github.com/july-rust/BoardSI/pull/586) 최종 HEAD **38/38 Checks SUCCESS** · 독립 리뷰 지적 0/미해결 0 · 보호 Verified Squash [main `de87983a`](https://github.com/july-rust/BoardSI/commit/de87983a6af2f55423a49881eaacae690fe3b50f) · 정확 main Push **8/8 Workflow SUCCESS**를 확인했습니다. E_005는 취소 승인 이후 늦은 계산 데이터 거부 및 동일 Qt Window/Worker 재실행 **한정 완료**([PR #588](https://github.com/july-rust/BoardSI/pull/588), [정확한 코드 main Push CI](https://github.com/july-rust/BoardSI/commit/c229eccdbbba41af5f4c4d622c7a1bb6421bdf02) 8/8). E_006은 기존 실행 SHA·Native Qt/Rust/F7 근거를 재감사한 한정 E 단위입니다([검증 보고서](validation/e006-native-platform-toolchain-qualification.md)); 코드-main `c229eccd`의 세 플랫폼 Qt/Rust Native가 각각 성공했고 뒤따른 `main@400fe8e`는 문서 5개만 변경하여 Native Job이 SKIPPED되었습니다. 새로운 main Native PASS로 계산하지 않습니다. E_007은 공개 Fixture 2종의 기존 바이트/원본·KiCad 기하 검증 증거를 대조하고 변조·누락 Fail-Closed 회귀를 보강하는 한정 단위입니다([E_007 검증 보고서](validation/e007-public-fixture-provenance-rights-qualification.md)). 최종 PR HEAD CI·독립 리뷰·Verified Squash·정확 main Push 성공 시에만 제한 COMPLETE로 판정하며, 권리 승인/실제 기준 PC/정식 수락은 여전히 BLOCKED입니다. E_008은 보호 병합 이력이 있습니다. E_009는 [PR #593](https://github.com/july-rust/BoardSI/pull/593) 최종 HEAD **30/30**·독립 리뷰 지적/미해결 **0/0**·Verified Squash `bbc9c0ff`·정확 코드-main Push **8/8 Workflow, 24/24 Job SUCCESS**를 확인한 **한정 COMPLETE (2026-11-12 KST)**입니다. E_010~E_030은 미착수 21건입니다. E 수치는 기존 **166건 확인 · 128건 미확인**의 A/B/C/D/SEC/U/T 통계에 포함하지 않습니다. 제한 범위의 완료 기록은 제품 완료율을 뜻하지 않습니다.
 
