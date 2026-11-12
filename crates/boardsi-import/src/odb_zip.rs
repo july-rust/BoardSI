@@ -170,8 +170,13 @@ pub fn read_zip(bytes: &[u8]) -> Result<OdbFileMap, OdbError> {
                 .ok_or_else(|| bad("ODB_ZIP_SIZE_OVERFLOW"))?,
             eocd,
         )?;
+        // Method 8 uses general-purpose bits 1/2 as compression-level
+        // hints (maximum/fast/super-fast); they are not encryption flags.
+        // Method 0 may not use these bits. All other optional ZIP features,
+        // including encryption and data descriptors, remain fail-closed.
+        let accepted_flags = if method == 8 { 0x0806 } else { 0x0800 };
         if version > 20
-            || flags & !0x0800 != 0
+            || flags & !accepted_flags != 0
             || extra_len != 0
             || comment_len != 0
             || disk != 0
@@ -537,6 +542,42 @@ mod tests {
         assert_eq!(
             read_zip(&link).unwrap_err().code,
             "ODB_ZIP_UNSUPPORTED_MEMBER"
+        );
+    }
+
+
+    #[test]
+    fn method8_compression_option_flags_are_accepted_only_for_deflate() {
+        let source = zip_source([8, 8, 8]);
+        for hints in [0x0002u16, 0x0004, 0x0006] {
+            let mut flagged = source.clone();
+            let end = flagged.len() - 22;
+            let first_central = u32_at(&flagged, end + 16);
+            flagged[6..8].copy_from_slice(&hints.to_le_bytes());
+            flagged[first_central + 8..first_central + 10]
+                .copy_from_slice(&hints.to_le_bytes());
+            assert_eq!(read_zip(&flagged).unwrap(), read_zip(&source).unwrap());
+        }
+        for rejected in [0x0001u16, 0x0008] {
+            let mut invalid = source.clone();
+            let end = invalid.len() - 22;
+            let first_central = u32_at(&invalid, end + 16);
+            invalid[6..8].copy_from_slice(&rejected.to_le_bytes());
+            invalid[first_central + 8..first_central + 10]
+                .copy_from_slice(&rejected.to_le_bytes());
+            assert_eq!(
+                read_zip(&invalid).unwrap_err().code,
+                "ODB_ZIP_UNSUPPORTED_EXTENSION"
+            );
+        }
+        let mut stored = example();
+        let end = stored.len() - 22;
+        let first_central = u32_at(&stored, end + 16);
+        stored[6..8].copy_from_slice(&2u16.to_le_bytes());
+        stored[first_central + 8..first_central + 10].copy_from_slice(&2u16.to_le_bytes());
+        assert_eq!(
+            read_zip(&stored).unwrap_err().code,
+            "ODB_ZIP_UNSUPPORTED_EXTENSION"
         );
     }
 
