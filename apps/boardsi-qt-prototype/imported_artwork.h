@@ -397,8 +397,8 @@ class ImportedArtworkPanel final : public QWidget {
                 if (on) ++shown;
             }
             QString message=QString(odbMode_ ? "E_021 MAIN ARTWORK / ODB++ CANONICAL SOURCE GEOMETRY ONLY" :
-                                  "D_056_05 MAIN ARTWORK / CANONICAL SOURCE GEOMETRY ONLY"
-                " / SI NOT_RUN\nSource SHA256: %1\nPhysical layers: %2"
+                                  "D_056_05 MAIN ARTWORK / CANONICAL SOURCE GEOMETRY ONLY") +
+                                  QString(" / SI NOT_RUN\nSource SHA256: %1\nPhysical layers: %2"
                 " / layer glyphs: %3 / visible: %4\n"
                 "Plating UNVERIFIED / connected layers UNKNOWN / Global Open/Short NOT_VERIFIED\n"
                 "Renderer: %5 / rendering is display-only, not electrical evidence")
@@ -1175,6 +1175,7 @@ public:
     }
     QString canonicalSourceSha() const {return canonicalSha_;}
     bool canonicalMode() const {return canonicalMode_;}
+    bool odbMode() const {return odbMode_;}
     bool load(int layerCount, int skipped, const std::vector<ImportedTrack> &input,
               const std::vector<ImportedVia> &viaInput = {},
               const std::vector<ImportedPad> &padInput = {},
