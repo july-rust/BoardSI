@@ -1,6 +1,6 @@
 //! E_015 .Z-inside-archive cross-transport and legacy compatibility regression.
 //! No fabricated electrical connectivity, layer material or manufactured vias.
-use boardsi_import::odb_source::{import_archive_file, import_directory};
+use boardsi_import::odb_source::{audit_path_eda_packages, import_archive_file, import_directory};
 use std::io::Write;
 use std::path::Path;
 
@@ -242,5 +242,63 @@ fn e017_step_repeat_directory_ustar_gzip_zip0_zip8_and_features_z_exact_parity()
     assert_eq!(
         import_directory(&root, "panel").unwrap_err().code,
         "ODB_STEP_TRANSFORM_UNSUPPORTED"
+    );
+}
+
+#[test]
+fn e018_package_audit_directory_ustar_gzip_zip0_zip8_sha_parity() {
+    // E_018 Package/Pin evidence must be archive-transport independent.
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let base = std::env::temp_dir().join(format!("boardsi-e018-{}-{stamp}", std::process::id()));
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    std::fs::create_dir_all(&base).unwrap();
+    let _cleanup = Cleanup(base.clone());
+    let mut sources = entries();
+    sources.push((
+        "product/steps/pcb/eda/data".into(),
+        b"HDR synthetic\nUNITS=MM\nLYR top bottom\nNET $NONE$\nPKG X 1 -2 -2 2 2;ID=25\nRC -2 -2 4 4\nPIN 1 S -1 0 0 E S ID=26\nRC -1 0 1 1\nPIN 2 S 1 0 0 E S;ID=27\nRC 1 0 1 1\n".to_vec(),
+    ));
+    for (name, body) in &sources {
+        let path = base.join(name);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        write(&path, body);
+    }
+    let root = base.join("product");
+    let expected = audit_path_eda_packages(&root, "pcb").unwrap();
+    assert_eq!(expected.packages.len(), 1);
+    assert_eq!(expected.packages[0].pins.len(), 2);
+    let tar_bytes = tar(&sources);
+    let tar_path = base.join("board.tar");
+    write(&tar_path, &tar_bytes);
+    let mut gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    gzip.write_all(&tar_bytes).unwrap();
+    let tgz_path = base.join("board.tgz");
+    write(&tgz_path, &gzip.finish().unwrap());
+    let zip0_path = base.join("board-stored.zip");
+    write(&zip0_path, &zip(&sources, 0));
+    let zip8_path = base.join("board-deflate.zip");
+    write(&zip8_path, &zip(&sources, 8));
+    for path in [&tar_path, &tgz_path, &zip0_path, &zip8_path] {
+        let actual = audit_path_eda_packages(path, "pcb").unwrap();
+        assert_eq!(actual.packages, expected.packages, "{}", path.display());
+        assert_eq!(actual.source_files, expected.source_files, "{}", path.display());
+        assert_eq!(actual.metres_per_tick, expected.metres_per_tick);
+    }
+    let data_path = root.join("steps/pcb/eda/data");
+    let corrupt = std::fs::read_to_string(&data_path)
+        .unwrap()
+        .replace("PIN 2 S 1 0 0 E S;ID=27", "PIN 2 B 1 0 0 E S;ID=27");
+    write(&data_path, corrupt.as_bytes());
+    assert_eq!(
+        audit_path_eda_packages(&root, "pcb").unwrap_err().code,
+        "ODB_EDA_PIN_UNSUPPORTED_TYPE"
     );
 }
