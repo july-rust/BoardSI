@@ -4,7 +4,8 @@ use std::{collections::BTreeMap, path::Path};
 
 use boardsi_model::{
     BoardModel, FabricationHole, FabricationHoleShape, FabricationOperation, FabricationPlating,
-    FabricationSourceEvidence, PhysicalLayerSpan, Rational, SourceId, SourceViaEvidenceState, SourceViaHoleObservation,
+    FabricationSourceEvidence, PhysicalLayerSpan, Rational, SourceId, SourceViaEvidenceState,
+    SourceViaHoleObservation,
 };
 
 use crate::odb_drill::{DrillIntent, SourceDrillLayer};
@@ -259,12 +260,7 @@ fn source_plated_candidates(
     // path+SHA even when independent drill files have identical bytes.
     let requests: Vec<(&str, &FabricationHole)> = prepared
         .iter()
-        .map(|(i, _, _)| {
-            (
-                holes[*i].hit.source_file.as_str(),
-                &holes[*i].fabrication,
-            )
-        })
+        .map(|(i, _, _)| (holes[*i].hit.source_file.as_str(), &holes[*i].fabrication))
         .collect();
     let observations = board
         .observe_source_via_holes_by_path(source, &requests)
