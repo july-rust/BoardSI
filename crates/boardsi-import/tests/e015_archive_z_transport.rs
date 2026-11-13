@@ -173,3 +173,74 @@ fn directory_ustar_gzip_and_zip_0_8_load_same_decoded_feature_geometry() {
         assert_eq!(board.sources[0].id.files, baseline.sources[0].id.files);
     }
 }
+
+#[test]
+fn e017_step_repeat_directory_ustar_gzip_zip0_zip8_and_features_z_exact_parity() {
+    // Transport-level oracle: one STEP-REPEAT source model with compressed
+    // child features.Z must produce exactly the same Canonical object graph,
+    // file hashes, rational frame offsets and instance provenance regardless
+    // of physical directory, TAR, GZIP, ZIP STORE or ZIP DEFLATE packaging.
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let base = std::env::temp_dir().join(format!("boardsi-e017-{}-{stamp}", std::process::id()));
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    std::fs::create_dir_all(&base).unwrap();
+    let _cleanup = Cleanup(base.clone());
+    let mut sources = entries();
+    let matrix =
+        String::from_utf8(sources[0].1.clone()).unwrap() + "STEP {\nCOL=2\nNAME=panel\n}\n";
+    sources[0].1 = matrix.into_bytes();
+    sources.push((
+        "product/steps/pcb/stephdr".into(),
+        b"UNITS=MM\nX_DATUM=0\nY_DATUM=0\nX_ORIGIN=0\nY_ORIGIN=0\n".to_vec(),
+    ));
+    sources.push((
+        "product/steps/panel/stephdr".into(),
+        b"UNITS=MM\nX_DATUM=0\nY_DATUM=0\nSTEP-REPEAT {\nNAME=pcb\nX=10\nY=20\nDX=30\nDY=40\nNX=2\nNY=2\nANGLE=0\nFLIP=NO\nMIRROR=NO\n}\n".to_vec(),
+    ));
+    for (name, bytes) in &sources {
+        let path = base.join(name);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        write(&path, bytes);
+    }
+    let root = base.join("product");
+    let child = import_directory(&root, "pcb").unwrap();
+    let expected = import_directory(&root, "panel").unwrap();
+    assert_eq!(expected.traces.len(), child.traces.len() * 4);
+    assert_eq!(expected.frames.len(), child.frames.len() * 4);
+    assert_eq!(expected.padstacks.len(), child.padstacks.len() * 4);
+    assert!(!expected.validate().has_errors());
+    assert!(expected.connectivity.edges.is_empty());
+    let tar_path = base.join("board.tar");
+    let tar_bytes = tar(&sources);
+    write(&tar_path, &tar_bytes);
+    let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    gz.write_all(&tar_bytes).unwrap();
+    let tgz_path = base.join("board.tgz");
+    write(&tgz_path, &gz.finish().unwrap());
+    let zip0_path = base.join("board-stored.zip");
+    write(&zip0_path, &zip(&sources, 0));
+    let zip8_path = base.join("board-deflate.zip");
+    write(&zip8_path, &zip(&sources, 8));
+    for file in [&tar_path, &tgz_path, &zip0_path, &zip8_path] {
+        let received = import_archive_file(file, "panel", false).unwrap();
+        assert_eq!(received, expected, "source differs for {}", file.display());
+    }
+    // A transport does not make unsupported rotation/mirroring safe.
+    let header_path = root.join("steps/panel/stephdr");
+    let rotated = std::fs::read_to_string(&header_path)
+        .unwrap()
+        .replace("ANGLE=0", "ANGLE=45");
+    write(&header_path, rotated.as_bytes());
+    assert_eq!(
+        import_directory(&root, "panel").unwrap_err().code,
+        "ODB_STEP_TRANSFORM_UNSUPPORTED"
+    );
+}
