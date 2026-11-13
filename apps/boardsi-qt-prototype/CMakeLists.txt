@@ -219,6 +219,17 @@ if(BUILD_TESTING)
   # Optional P2-A import smoke: actual Rust binary and a public synthetic fixture.
   set(BOARDSI_IMPORTER "" CACHE FILEPATH "Absolute built PADS route importer")
   if(BOARDSI_IMPORTER)
+    # E_021: real PreviewWindow cross-format PADS -> rejected/cancelled ODB
+    # must preserve the accepted PADS source filename, SHA and Properties.
+    if(BOARDSI_ODB_QT_IMPORTER)
+      add_test(NAME qt-e021-preview-crossformat-retention
+        COMMAND boardsi-preview-p0 --e021-crossformat-selftest
+          "${BOARDSI_IMPORTER}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc"
+          "${BOARDSI_ODB_QT_IMPORTER}")
+      set_tests_properties(qt-e021-preview-crossformat-retention PROPERTIES
+        TIMEOUT 90 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endif()
     # C_005: source-verified Rust topology → Qt CPU/RHI marker and stale removal.
     add_test(NAME qt-preview-c005-reference-risk
       COMMAND boardsi-preview-p0 --c005-risk-selftest "${BOARDSI_IMPORTER}")
