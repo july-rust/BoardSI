@@ -53,24 +53,40 @@ impl BoardModel {
         source: &SourceId,
         hole: &FabricationHole,
     ) -> Result<SourceViaHoleObservation, ModelError> {
-        if self.validate().has_errors()
-            || !self.sources.iter().any(|item| &item.id == source)
-            || source.files.iter().any(|f| f.sha256 == [0_u8; 32])
-        {
-            return Err(ModelError::InvalidProvenance);
-        }
-
-        // A SHA alone is not a file locator when two logical files have
-        // identical bytes. Preserve that ambiguity instead of choosing one.
-        let matching_files: Vec<_> = source
+        // Preserve the historical SHA-only contract: duplicate content is
+        // intentionally ambiguous unless the caller supplies a path.
+        let candidates: Vec<_> = source
             .files
             .iter()
             .filter(|f| f.sha256 == hole.evidence.source_sha256)
             .collect();
-        if matching_files.len() != 1 {
+        if candidates.len() != 1 {
             return Err(ModelError::InvalidProvenance);
         }
+        self.observe_source_via_holes_by_path(
+            source,
+            &[(candidates[0].logical_path.as_str(), hole)],
+        )
+        .map_err(|(_, error)| error)
+        .map(|mut records| records.remove(0))
+    }
 
+    /// E_019: batch path-qualified, SOURCE-only observations. A single board
+    /// validation and a single physical-copper sort cover all holes; no
+    /// manufactured barrel, Pad, Via or graph edge is ever synthesized.
+    /// The error index identifies the exact input hole (zero on a board-wide
+    /// validation failure), so callers can report the right source location.
+    pub fn observe_source_via_holes_by_path(
+        &self,
+        source: &SourceId,
+        holes: &[(&str, &FabricationHole)],
+    ) -> Result<Vec<SourceViaHoleObservation>, (usize, ModelError)> {
+        if self.validate().has_errors()
+            || !self.sources.iter().any(|item| &item.id == source)
+            || source.files.iter().any(|f| f.sha256 == [0_u8; 32])
+        {
+            return Err((0, ModelError::InvalidProvenance));
+        }
         let mut copper: Vec<_> = self
             .stackup
             .layers
@@ -81,61 +97,74 @@ impl BoardModel {
         if !(2..=64).contains(&copper.len())
             || copper.iter().any(|layer| &layer.meta.id.source != source)
         {
-            return Err(ModelError::InvalidStackup);
+            return Err((0, ModelError::InvalidStackup));
         }
-        // Existing manufacturing validation checks dimensions, reversed or
-        // out-of-bounds spans, source SHA presence, line and operation.
-        hole.validate(copper.len() as u32)?;
-
-        let start = (hole.span.first - 1) as usize;
-        let end = hole.span.last as usize;
-        let envelope = &copper[start..end];
-        // The electrical span only names COPPER endpoints. Its physical
-        // stackup uncertainty also depends on every intervening dielectric,
-        // mask and other real layer; testing copper-only would fabricate an
-        // "Explicit" stackup while a dielectric is still missing/assumed.
-        let first_order = envelope[0].order;
-        let last_order = envelope[envelope.len() - 1].order;
-        let physical_stackup: Vec<_> = self
-            .stackup
-            .layers
-            .iter()
-            .filter(|layer| layer.order >= first_order && layer.order <= last_order)
-            .collect();
-        let stackup_evidence = if physical_stackup.iter().any(|layer| {
-            layer.material.is_none()
-                || matches!(&layer.z_m, Property::Missing)
-                || matches!(&layer.thickness_m, Property::Missing)
-        }) {
-            SourceStackupEvidence::Missing
-        } else if physical_stackup.iter().any(|layer| {
-            matches!(&layer.z_m, Property::Assumed { .. })
-                || matches!(&layer.thickness_m, Property::Assumed { .. })
-        }) {
-            SourceStackupEvidence::Assumed
-        } else {
-            SourceStackupEvidence::Explicit
-        };
-        let via_evidence = if !hole.evidence.qualified_native_grammar {
-            SourceViaEvidenceState::UnsupportedGrammar
-        } else {
-            match hole.plating {
-                FabricationPlating::Unknown => SourceViaEvidenceState::UnknownPlating,
-                FabricationPlating::SourceDeclaredPlated => {
-                    SourceViaEvidenceState::SourceDeclaredPlated
-                }
-                FabricationPlating::NonPlated => SourceViaEvidenceState::SourceDeclaredNonPlated,
+        let mut out = Vec::with_capacity(holes.len());
+        for (index, (path, hole)) in holes.iter().copied().enumerate() {
+            if source
+                .files
+                .iter()
+                .filter(|f| f.logical_path == path && f.sha256 == hole.evidence.source_sha256)
+                .count()
+                != 1
+            {
+                return Err((index, ModelError::InvalidProvenance));
             }
-        };
-        Ok(SourceViaHoleObservation {
-            source_file: matching_files[0].logical_path.clone(),
-            source_line: hole.evidence.source_line,
-            first_layer: envelope[0].meta.id.clone(),
-            last_layer: envelope[envelope.len() - 1].meta.id.clone(),
-            physical_envelope_layers: envelope.iter().map(|layer| layer.meta.id.clone()).collect(),
-            via_evidence,
-            stackup_evidence,
-        })
+            hole.validate(copper.len() as u32).map_err(|e| (index, e))?;
+            let start = (hole.span.first - 1) as usize;
+            let end = hole.span.last as usize;
+            let envelope = &copper[start..end];
+            // The physical envelope is NOT the set of conductive contacts.
+            // Check every intervening real layer, including dielectrics.
+            let first_order = envelope[0].order;
+            let last_order = envelope[envelope.len() - 1].order;
+            let physical_stackup: Vec<_> = self
+                .stackup
+                .layers
+                .iter()
+                .filter(|layer| layer.order >= first_order && layer.order <= last_order)
+                .collect();
+            let stackup_evidence = if physical_stackup.iter().any(|layer| {
+                layer.material.is_none()
+                    || matches!(&layer.z_m, Property::Missing)
+                    || matches!(&layer.thickness_m, Property::Missing)
+            }) {
+                SourceStackupEvidence::Missing
+            } else if physical_stackup.iter().any(|layer| {
+                matches!(&layer.z_m, Property::Assumed { .. })
+                    || matches!(&layer.thickness_m, Property::Assumed { .. })
+            }) {
+                SourceStackupEvidence::Assumed
+            } else {
+                SourceStackupEvidence::Explicit
+            };
+            let via_evidence = if !hole.evidence.qualified_native_grammar {
+                SourceViaEvidenceState::UnsupportedGrammar
+            } else {
+                match hole.plating {
+                    FabricationPlating::Unknown => SourceViaEvidenceState::UnknownPlating,
+                    FabricationPlating::SourceDeclaredPlated => {
+                        SourceViaEvidenceState::SourceDeclaredPlated
+                    }
+                    FabricationPlating::NonPlated => {
+                        SourceViaEvidenceState::SourceDeclaredNonPlated
+                    }
+                }
+            };
+            out.push(SourceViaHoleObservation {
+                source_file: path.to_string(),
+                source_line: hole.evidence.source_line,
+                first_layer: envelope[0].meta.id.clone(),
+                last_layer: envelope[envelope.len() - 1].meta.id.clone(),
+                physical_envelope_layers: envelope
+                    .iter()
+                    .map(|layer| layer.meta.id.clone())
+                    .collect(),
+                via_evidence,
+                stackup_evidence,
+            });
+        }
+        Ok(out)
     }
 }
 
