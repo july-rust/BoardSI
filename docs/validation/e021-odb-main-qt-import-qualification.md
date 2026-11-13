@@ -2,6 +2,20 @@
 
 **Evidence date:** 2026-11-13 KST. **Scope:** bounded, public synthetic ODB++Design SOURCE directory/one STEP, positive straight Trace and round/rectangle Pad; actual main Qt artwork, picking, cancel and re-import. **Product acceptance:** NOT_VERIFIED. This is *not* an ODB++ vendor interchange, physical electrical graph, manufactured via or SI solver acceptance.
 
+
+## E_021 final bounded code closeout update — 2026-11-14 KST
+
+**Latest implementation acceptance:** The E_021 narrowly defined SOURCE-only main-Qt feature is implemented, **both code PRs #620 and #622 are MERGED**, and the native pull-request CI for both is PASS. **Whole commercial ODB++ / physical electrical or SI product gates remain NOT_VERIFIED.** This dated addendum supersedes the historical code-only snapshot statements below that said failed re-import cleared accepted artwork.
+
+- Initial bounded implementation: [PR #620](https://github.com/july-rust/BoardSI/pull/620), protected `squash` merge commit [`a423b1ba8a68726eb57ea013c5a0e8f9bbf46cef`](https://github.com/july-rust/BoardSI/commit/a423b1ba8a68726eb57ea013c5a0e8f9bbf46cef). Exact final PR HEAD `5843c2c87091af96c2a4f0e140b7f27fd03768ca`: **11/11 PR workflows SUCCESS**; four native Qt platforms PASS.
+- Accepted-board retention fix: [PR #622](https://github.com/july-rust/BoardSI/pull/622), final PR HEAD `8c45333a4105abb9e4ba37d433c5bdd6068edeb8`: **10/10 PR workflows SUCCESS**, including [Qt runtime #43417925993](https://github.com/july-rust/BoardSI/actions/runs/43417925993) Linux x64, Windows x64, Windows ARM64, macOS ARM64 jobs **5/5 SUCCESS** (one classification plus four native jobs). Linux CTest **88/88 PASS**; `qt-e021-main-odb-picking-reimport` and `qt-e021-preview-crossformat-retention` individually PASS. These are offscreen/native-software tests, not physical GPU qualification.
+- PR #622 corrected **two independently reported Codex P2 defects**: accepted PADS filename was replaced by the rejected ODB candidate name; result summary incorrectly described retained PADS artwork as synthetic/no PCB. Both 2/2 review threads were resolved. The final code HEAD Codex review request was posted, but no independent final-HEAD reply was confirmed; earlier reviews are preserved under their actual SHAs.
+- PR #622 was Squash-merged into `main` as [`7ddf9210265d7e0b3ba351a2f5872def6d37772f`](https://github.com/july-rust/BoardSI/commit/7ddf9210265d7e0b3ba351a2f5872def6d37772f). GitHub API merge response reported `merged=true`. The connected GitHub tools **do not expose** cryptographic commit `verification.verified` or complete merged-`main` `event=push` workflow runs, so the signature and independent post-merge 8/8 workflows for code commits #620/#622 remain **NOT_VERIFIED**, not FAIL and not PASS.
+- Current behavior: **a failed, rejected, timed-out or canceled ODB candidate leaves the last accepted PADS or ODB geometry, SOURCE SHA, filename and relevant UI/Properties intact**, while the failed candidate is not promoted. On a successfully accepted replacement, old scene/selection is invalidated. The original #620 behavior of clearing the prior board on failure is superseded by #622. The proof is limited to the verified synthetic fixture and its negative tests; adversarial concurrent filesystem mutations/complete vendor ODB++ syntax are not certified.
+- The new ODB++ main Qt route is **directory with selected STEP, straight Trace and circle/rectangle Pad only**; unsupported Arc, Area/Cutout, manufacturing Via and arbitrary vendor syntax fail closed. SOURCE geometry/Design Net are not manufactured/electrical continuity, full Open/Short or SI proof. Issue #10/#11 stay OPEN, #578 stays historically CLOSED; E_022/E_023/E_024 remain distinct.
+
+**Scoped disposition:** `E_021 SOURCE/Qt code implementation and native PR CI COMPLETE`; `protected main signature and exact post-merge Push acceptance gates NOT_VERIFIED`. Do not promote the E_021 record to *fully independently verified protected-main closeout* until those receipts are obtained.
+
 ## Actual code and CI evidence
 
 - [Code PR #620](https://github.com/july-rust/BoardSI/pull/620) merged by GitHub **squash** as [`a423b1ba8a68726eb57ea013c5a0e8f9bbf46cef`](https://github.com/july-rust/BoardSI/commit/a423b1ba8a68726eb57ea013c5a0e8f9bbf46cef). Source PR final HEAD: `5843c2c87091af96c2a4f0e140b7f27fd03768ca` (16 PR commits; 9 changed files).
@@ -28,7 +42,7 @@ CPU software drawing is deliberately used for this bounded Trace/Pad preview; th
 | Unknown IPC version/layer ID/manifest mismatch | Strict decoder test | PR-head PASS, bounded synthetic |
 | Existing PADS + Qt regression | Qt runtime CI | PR-head PASS |
 | Windows x64/ARM64, macOS ARM64, Linux x64 native software tests | Qt #43412000983 | PR-head PASS |
-| Last successfully accepted board retained after failing import | No such behavior implemented | NOT_IMPLEMENTED, explicit narrower rollback contract |
+| Last successfully accepted board retained after failing/canceled ODB import | PR #622 cross-format PreviewWindow test + four native Qt jobs | PR-head PASS, bounded synthetic |
 | Independent commercial ODB++, archive UI, negative/area Copper, Step Repeat | No independent qualification | NOT_VERIFIED |
 | Verified merge signature / exact code-main Push CI | Not retrievable from available connected tools | NOT_VERIFIED |
 | Final HEAD independent Codex review receipt | Request posted, no final receipt confirmed | NOT_VERIFIED |
@@ -36,4 +50,4 @@ CPU software drawing is deliberately used for this bounded Trace/Pad preview; th
 
 ## Closeout decision
 
-Code PR #620 is **MERGED**, all observed PR-head CI jobs passed and the two observed P2 findings were addressed. E_021 is **IMPLEMENTED, post-merge qualified completion PENDING** until the exact signed squash verification and independent code-main Push CI are established, with final HEAD review evidence accounted for. The stronger accepted-board rollback behavior and comprehensive ODB feature coverage are **not** claimed. Keep #10 and #11 OPEN; historical #578 remains CLOSED. The next E_022 scope remains the independently source-proven LOCAL electrical graph, not an inference from Qt artwork.
+Code PR #620 is **MERGED**, all observed PR-head CI jobs passed and the two observed P2 findings were addressed. E_021 is **IMPLEMENTED, post-merge qualified completion PENDING** until the exact signed squash verification and independent code-main Push CI are established, with final HEAD review evidence accounted for. The earlier #620 rollback limitation has been corrected by the later PR #622 as dated above; comprehensive ODB feature coverage is **not** claimed. Keep #10 and #11 OPEN; historical #578 remains CLOSED. The next E_022 scope remains the independently source-proven LOCAL electrical graph, not an inference from Qt artwork.
