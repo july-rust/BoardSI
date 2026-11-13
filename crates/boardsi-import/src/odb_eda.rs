@@ -39,6 +39,7 @@ pub(super) struct EdaAssignment {
 pub(super) struct EdaOwnership {
     pub nets: Vec<EdaNet>,
     pub assignments: Vec<EdaAssignment>,
+    pub packages: Vec<crate::odb_eda_packages::SourcePackage>,
 }
 
 /// An intentionally restricted EDA grammar. All FID records are checked
@@ -48,6 +49,10 @@ pub(super) fn parse(
     text: &str,
     features: &BTreeMap<(String, usize), FeatureLocation>,
 ) -> Result<EdaOwnership, EdaError> {
+    // Validate the complete PKG/PIN/RC grammar before accepting any NET/FID.
+    // A source definition never creates a placed component or electrical edge.
+    let packages = crate::odb_eda_packages::parse_packages(text)
+        .map_err(|e| err(e.line, e.code))?;
     let mut layer_names: Option<Vec<String>> = None;
     let mut nets = Vec::new();
     let mut assignments = Vec::new();
@@ -209,6 +214,9 @@ pub(super) fn parse(
                 // Preserve lookup definitions in source SHA, but do not infer
                 // physical impedance, net role or attribute semantics.
             }
+            "PKG" | "PIN" | "RC" => {
+                // Already fully validated by the source-only package parser.
+            }
             "PRP" => {
                 // PRP is a design property, not an FID, and does not grant
                 // authoritative manufacturing or connectivity evidence.
@@ -219,7 +227,7 @@ pub(super) fn parse(
     if !saw_hdr || units.is_none() || layer_names.is_none() || nets.is_empty() {
         return Err(err(0, "ODB_EDA_INCOMPLETE"));
     }
-    Ok(EdaOwnership { nets, assignments })
+    Ok(EdaOwnership { nets, assignments, packages })
 }
 
 #[cfg(test)]
