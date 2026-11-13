@@ -476,11 +476,9 @@ pub(crate) fn instantiate(child: BoardModel, p: &Placement) -> Result<BoardModel
                 witness(&mut item.meta, p, ix, iy);
                 for (axis, offset) in offsets.iter().enumerate() {
                     item.origin_m[axis] =
-                        item.origin_m[axis]
-                            .checked_add(*offset)
-                            .map_err(|_| {
-                                err(&p.header_path, p.record_line, "ODB_STEP_RATIONAL_OVERFLOW")
-                            })?;
+                        item.origin_m[axis].checked_add(*offset).map_err(|_| {
+                            err(&p.header_path, p.record_line, "ODB_STEP_RATIONAL_OVERFLOW")
+                        })?;
                 }
                 board.frames.push(item);
             }
