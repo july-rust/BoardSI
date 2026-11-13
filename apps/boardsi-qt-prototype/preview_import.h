@@ -937,6 +937,30 @@ public:
     bool importedNetInventoryComplete() const { return importedNetInventoryComplete_; }
     void setStatusCallback(std::function<void(const QString &)> cb) { callback_ = std::move(cb); }
     void setCanonicalImporterBinaryForTest(const QString &path) { canonicalBinary_=path; }
+    void setOdbImporterBinaryForTest(const QString &path) { odbBinary_=path; }
+    bool openOdbPath(const QString &root,const QString &step="pcb") {
+        if(busy())return false;
+        imported_->clearArtwork();
+        acceptedDigest_.clear();importedLayerCount_=0;
+        importedCopperEvidence_=QJsonArray();importedNetLabels_=QJsonArray();
+        importedNetInventoryComplete_=false;canonicalPath_.clear();
+        tabs_->setTabText(1,"Imported ODB++ (none)");
+        if(!QFileInfo(root).isDir() || QFileInfo(root).isSymLink() ||
+           step.isEmpty() || step.size()>128 ||
+           !QRegularExpression("^[A-Za-z0-9_.-]+$").match(step).hasMatch()) {
+            status("FAILED / ODB_DIRECTORY_OR_STEP_UNSUPPORTED / NOTHING IMPORTED");return false;
+        }
+        if(!QFileInfo(odbBinary_).isAbsolute() || !QFileInfo(odbBinary_).isExecutable()) {
+            status("FAILED / ODB_IMPORTER_UNAVAILABLE / NOTHING IMPORTED");return false;
+        }
+        odbRoot_=root;
+        odbData_.clear();odbErrors_.clear();
+        odbCancelled_=false;odbTimedOut_=false;odbOverflow_=false;
+        status("RUNNING / ODB++ Canonical SOURCE import / SI NOT_RUN");
+        odbDeadline_.start(20000);
+        odbProcess_.start(odbBinary_,{root,step});
+        return true;
+    }
     bool openCanonicalPath(const QString &path) {
         if(process_.state()!=QProcess::NotRunning ||
            canonicalProcess_.state()!=QProcess::NotRunning) return false;
@@ -970,8 +994,7 @@ public:
         return true;
     }
     bool openPath(const QString &path) {
-        if (process_.state() != QProcess::NotRunning ||
-            canonicalProcess_.state() != QProcess::NotRunning) return false;
+        if (busy()) return false;
         // An import attempt replaces the candidate, even when start/parse fails.
         // Never show previous geometry with the current "NOTHING IMPORTED" result.
         imported_->clearArtwork();
@@ -1011,9 +1034,13 @@ public:
             canonicalCancelled_=true;
             canonicalProcess_.kill();
         }
+        if(odbProcess_.state()!=QProcess::NotRunning) {
+            odbCancelled_=true;odbProcess_.kill();
+        }
     }
     bool busy() const {
         return process_.state() != QProcess::NotRunning ||
-               canonicalProcess_.state() != QProcess::NotRunning;
+               canonicalProcess_.state() != QProcess::NotRunning ||
+               odbProcess_.state() != QProcess::NotRunning;
     }
 };
