@@ -962,8 +962,7 @@ public:
         return true;
     }
     bool openCanonicalPath(const QString &path) {
-        if(process_.state()!=QProcess::NotRunning ||
-           canonicalProcess_.state()!=QProcess::NotRunning) return false;
+        if (busy()) return false;
         imported_->clearArtwork();
         importedLayerCount_=0;
         acceptedDigest_.clear();
