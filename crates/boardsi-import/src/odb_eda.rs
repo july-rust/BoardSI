@@ -302,7 +302,10 @@ mod tests {
             "ODB_EDA_FID_WITHOUT_NET"
         );
         let explicit = template.replace("FID C 0 0", "NET NEW\nSNT TRC\nFID C 0 0");
-        assert_eq!(parse(&explicit, &features()).unwrap().assignments[0].net_name, "NEW");
+        assert_eq!(
+            parse(&explicit, &features()).unwrap().assignments[0].net_name,
+            "NEW"
+        );
     }
 
     #[test]
