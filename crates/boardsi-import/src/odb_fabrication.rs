@@ -193,9 +193,9 @@ fn source_plated_candidates(
     holes: &[OdbSourceHole],
     layers: &[SourceDrillLayer],
 ) -> Result<Vec<OdbPlatedViaCandidate>, OdbError> {
-    let mut out = Vec::new();
     let source = &board.sources[0].id; // validated ODB importer returns one source
-    for hole in holes {
+    let mut prepared = Vec::new();
+    for (index, hole) in holes.iter().enumerate() {
         let hit = &hole.hit;
         if hit.tool_intent != DrillIntent::Plated || hit.tool_subtype != "STANDARD" {
             continue;
@@ -234,8 +234,8 @@ fn source_plated_candidates(
                 crate::odb_source::length_symbol(v, mode, &layer.source_file, tool.source_line)
             })
             .transpose()?;
-        // Bind the exact logical path and SHA for all THREE manufacturing
-        // records; hash equality alone is ambiguous for repeated file content.
+        // Bind exact logical path AND SHA for hit, tools, and matrix. The
+        // identical bytes of distinct files are not an identity collision.
         for (path, sha) in [
             (hit.source_file.as_str(), hit.source_sha256),
             (hit.tool_source_file.as_str(), hit.tool_source_sha256),
@@ -251,14 +251,39 @@ fn source_plated_candidates(
                 return Err(error(hit, "ODB_VIA_CANDIDATE_PROVENANCE_MISMATCH"));
             }
         }
-        let observed = board
-            .observe_source_via_hole(source, &hole.fabrication)
-            .map_err(|_| error(hit, "ODB_VIA_CANDIDATE_SOURCE_OBSERVATION"))?;
+        prepared.push((index, finished_diameter_m, tool_diameter_m));
+    }
+    if prepared.is_empty() {
+        return Ok(Vec::new());
+    }
+    // Validate BoardModel only ONCE. The batch observation identifies exact
+    // path+SHA even when independent drill files have identical bytes.
+    let requests: Vec<(&str, &FabricationHole)> = prepared
+        .iter()
+        .map(|(i, _, _)| {
+            (
+                holes[*i].hit.source_file.as_str(),
+                &holes[*i].fabrication,
+            )
+        })
+        .collect();
+    let observations = board
+        .observe_source_via_holes_by_path(source, &requests)
+        .map_err(|(index, _)| {
+            error(
+                &holes[prepared[index].0].hit,
+                "ODB_VIA_CANDIDATE_SOURCE_OBSERVATION",
+            )
+        })?;
+    let mut out = Vec::with_capacity(prepared.len());
+    for ((index, finished_diameter_m, tool_diameter_m), observed) in
+        prepared.into_iter().zip(observations)
+    {
+        let hole = &holes[index];
+        let hit = &hole.hit;
         if observed.source_file != hit.source_file
             || observed.source_line != hit.source_line
             || observed.via_evidence != SourceViaEvidenceState::SourceDeclaredPlated
-            || observed.stackup_evidence == SourceStackupEvidence::Explicit
-                && board.stackup.layers.iter().any(|l| l.material.is_none())
         {
             return Err(error(hit, "ODB_VIA_CANDIDATE_EVIDENCE_CONFLICT"));
         }
