@@ -77,9 +77,9 @@ inline bool decode(const QByteArray &wire,const QString &root,Source &out) {
         }
         if(QString::fromLatin1(hash.result().toHex())!=row[2]) return false;
         manifest.addData(row[1].toLatin1());
-        manifest.addData("|",1);
+        manifest.addData(QByteArray("|"));
         manifest.addData(row[2].toLatin1());
-        manifest.addData("\n",1);
+        manifest.addData(QByteArray("\n"));
     }
     // A SOURCE file omitted by a stale IPC invalidates the entire snapshot.
     QDirIterator it(root,QDir::AllEntries|QDir::Hidden|QDir::System|QDir::NoDotAndDotDot,
