@@ -2,7 +2,7 @@
 
 **최초 체크일:** 2026-11-13 KST  
 **코드 및 Source 회귀:** MERGED / VERIFIED  
-**E_017 완료 판정:** IN_PROGRESS — 최종 코드 main `83f0871e` Push CI 확인 및 docs-only 보호 종료 대기.  
+**E_017 완료 판정:** COMPLETE — **단일 단계 Step Repeat SOURCE 범위 한정** (최초 체크일/코드 근거일 2026-11-13 KST). 보호 병합된 최종 코드 main 두 SHA의 Push CI 8/8 각각 성공. 본 문서 전용 PR #612의 보호 Verified Squash 및 정확 docs-main Push 8/8 성공을 최종 운영 종료 조건으로 하며, 이 조건은 #10 전체 ODB++ 제품 수락을 뜻하지 않는다.  
 **전체 ODB++ 제품 수락:** NOT_VERIFIED. [전체 Importer #10](https://github.com/july-rust/BoardSI/issues/10)는 OPEN. [#578](https://github.com/july-rust/BoardSI/issues/578)은 E_016 이전 행정 종료 기록을 그대로 유지한다.
 
 ## 공식 규격·범위
@@ -46,7 +46,7 @@
 - [PR #611](https://github.com/july-rust/BoardSI/pull/611) final HEAD `bfdfe551324ecc3e308c43a9838d8311d90cc7ce`: **29/29 PR Checks SUCCESS**, `features.Z`와 Step Repeat의 Directory·USTAR·GZIP·ZIP0/8 1:1 전체 모델 동등성을 실제 Rust 자동 테스트에서 확인([Numerical Job](https://github.com/july-rust/BoardSI/actions/runs/43338216885/job/131599912511)).
 - 독립 Codex final HEAD review 지적 0/미해결 0, 스레드 0.
 - 보호된 GitHub Verified 단일 부모 Squash [`83f0871e2608a5b2e8336d6bbea81d6d08b5d7fe`](https://github.com/july-rust/BoardSI/commit/83f0871e2608a5b2e8336d6bbea81d6d08b5d7fe), 부모 `8717317387114a6001b553f1a40136e73a204be8`.
-- 정확한 코드-main `83f0871e` Push CI 8개: **PENDING — 검증 후 위 기록을 갱신한다.**
+- 정확한 코드-main `83f0871e2608a5b2e8336d6bbea81d6d08b5d7fe`: **독립 event=push 8/8 Workflow SUCCESS**, 0 실패: [Qt](https://github.com/july-rust/BoardSI/actions/runs/43340500007), [Numerical](https://github.com/july-rust/BoardSI/actions/runs/43340500023), [Docs](https://github.com/july-rust/BoardSI/actions/runs/43340499925), [PH-06](https://github.com/july-rust/BoardSI/actions/runs/43340500044), [PH-07](https://github.com/july-rust/BoardSI/actions/runs/43340499908), [Native FEM](https://github.com/july-rust/BoardSI/actions/runs/43340500018), [Lossless](https://github.com/july-rust/BoardSI/actions/runs/43340500316), [G0](https://github.com/july-rust/BoardSI/actions/runs/43340500094). PR #611의 29/29 CI와 별개의 exact main 실행.
 
 ## 수락 경계와 후속 번호
 
