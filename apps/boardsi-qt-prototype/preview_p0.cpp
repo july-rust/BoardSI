@@ -163,13 +163,15 @@ class PreviewWindow : public QMainWindow {
                     " (PREVIOUS ACCEPTED ARTWORK RETAINED)" : " (NOT IMPORTED)")) +
             "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
+        const bool acceptedLegacyArtwork = !importUI->imported()->canonicalMode() &&
+            importUI->acceptedSourceSha256().size()==64;
         resultSummary->setPlainText(
             "DEVELOPER PREVIEW P2-L - PARTIAL Import / NOT PCB SI\n\n"
             "Worker: independent Rust process\n" + status + "\n" +
             ipc->resultLabel()->text() +
             (error.isEmpty() ? QString() : "\nERROR: " + error) +
             "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n" +
-            (importResultStatus.startsWith("PARTIAL") ?
+            ((importResultStatus.startsWith("PARTIAL") || acceptedLegacyArtwork) ?
                 "Imported PCB: PARTIAL accepted straight/arc routes, through vias, restricted SMD pads and restricted straight/arc/circular board artwork; other geometry/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
              importUI->imported()->canonicalMode() &&
              importUI->acceptedSourceSha256().size()==64 ?
@@ -453,6 +455,7 @@ public:
         return started;
     }
     QString displayedProperties() const { return properties->text(); }
+    QString displayedResultSummary() const { return resultSummary->toPlainText(); }
     Window *workerControls() const { return ipc; }
     ModelHandoffWindow *modelIdentity() const { return identity; }
     QAction *runControl() const { return runAction; }
@@ -4632,7 +4635,8 @@ static int runE021CrossFormatRetentionSelftest(
     const QByteArray acceptedSha=panel->acceptedSourceSha256();
     const QString acceptedName=QFileInfo(padsFixture).fileName();
     if(!window.displayedProperties().contains(acceptedName) ||
-       !window.displayedProperties().contains("PADS V9.4"))return 1;
+       !window.displayedProperties().contains("PADS V9.4") ||
+       !window.displayedResultSummary().contains("Imported PCB: PARTIAL"))return 1;
     QTemporaryDir temp;
     if(!temp.isValid())return 1;
     QDir dir(temp.path());
@@ -4641,7 +4645,8 @@ static int runE021CrossFormatRetentionSelftest(
        !panel->importStatus().contains("PREVIOUS ARTWORK RETAINED") ||
        panel->acceptedSourceSha256()!=acceptedSha ||
        !window.displayedProperties().contains(acceptedName) ||
-       window.displayedProperties().contains("rejected-odb-candidate"))return 1;
+       window.displayedProperties().contains("rejected-odb-candidate") ||
+       !window.displayedResultSummary().contains("Imported PCB: PARTIAL"))return 1;
     if(!dir.mkpath("matrix") || !dir.mkpath("steps/pcb/layers/sig1") ||
        !dir.mkpath("steps/pcb/layers/sig2"))return 1;
     const auto write=[&](const QString &p,const QByteArray &data) {
@@ -4666,7 +4671,8 @@ static int runE021CrossFormatRetentionSelftest(
        panel->acceptedSourceSha256()!=acceptedSha ||
        !window.displayedProperties().contains(acceptedName) ||
        window.displayedProperties().contains(QFileInfo(temp.path()).fileName()) ||
-       !window.displayedProperties().contains("PADS V9.4"))return 1;
+       !window.displayedProperties().contains("PADS V9.4") ||
+       !window.displayedResultSummary().contains("Imported PCB: PARTIAL"))return 1;
     return 0;
 }
 
