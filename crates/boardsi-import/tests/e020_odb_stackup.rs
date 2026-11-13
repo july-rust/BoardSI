@@ -253,3 +253,17 @@ fn e020_nested_group_must_not_hide_dielectric_from_complete_z() {
         "ODB_STACKUP_NESTED_OR_UNKNOWN_GROUP_CHILD"
     );
 }
+
+#[test]
+fn e020_xml_matrix_copper_type_conflict_is_not_accepted() {
+    let mut files = sample(4);
+    rewrite(
+        &mut files,
+        "LayerName=\"sig1\" LayerType=\"SIGNAL\"",
+        "LayerName=\"sig1\" LayerType=\"POWER_GROUND\"",
+    );
+    assert_eq!(
+        audit_unpacked_stackup(&files, "pcb").unwrap_err().code,
+        "ODB_STACKUP_MATRIX_LAYER_TYPE_MISMATCH"
+    );
+}
