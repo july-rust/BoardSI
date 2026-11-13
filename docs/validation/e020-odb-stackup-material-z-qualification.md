@@ -1,6 +1,6 @@
 # E_020 — ODB++ Stackup Material/Thickness/z SOURCE Qualification
 
-**Scope:** Siemens ODB++Design Release 8.1 Update 4, optional `matrix/stackup.xml`, EDA design `StackupFile/EdaData` only. **Evidence date:** 2026-11-13 KST. **Current status:** IMPLEMENTED_IN_PR / CI_AND_REVIEW_PENDING (do not mark COMPLETE without final receipts).
+**Scope:** Siemens ODB++Design Release 8.1 Update 4, optional `matrix/stackup.xml`, EDA design `StackupFile/EdaData` only. **Evidence date:** 2026-11-13 KST. **Current status:** CODE_MERGED / EVIDENCE_QUALIFIED — exact code-main Push workflows and cryptographic Signed/Verified flag are not independently accessible from this connector, so overall E_020 is **NOT YET COMPLETE** under the original final-gate contract.
 
 ## Contract
 
@@ -17,19 +17,22 @@
 
 No independent real ODB exporter fixture, manufacturing stackup, material measurement, dielectric dispersion model, full XML schema/XSD engine, design-to-supplier material reconciliation, formal product U/T or Solver input qualification is accepted.
 
-## Final evidence gate — fill from GitHub only after verifying
+## Final code PR evidence — 2026-11-13 KST
 
-| Gate | Actual status |
+| Gate | Independently observed evidence |
 | --- | --- |
-| PR | [#617](https://github.com/july-rust/BoardSI/pull/617) |
-| Final PR HEAD / required checks | PENDING; record exact SHA and success counts |
-| Native Windows x64 / ARM64 / macOS ARM64 | PENDING |
-| Independent review and unresolved threads | PENDING |
-| Verified protected squash merge SHA | PENDING |
-| Independent exact merged-code main push workflows | PENDING |
-| Sole checklist and architecture evidence | This report is a pending PR artifact until merged |
+| Code PR | [#617](https://github.com/july-rust/BoardSI/pull/617), **MERGED** |
+| Final code HEAD | `d03e64ae19c90704bb79a6a4d8340a5b6dcc2c0e` |
+| Final HEAD Actions | **9/9 GitHub workflows SUCCESS, 25/25 jobs SUCCESS, 0 failed, 0 skipped**; [Numerical #43386906295](https://github.com/july-rust/BoardSI/actions/runs/43386906295), [Qt #43386906273](https://github.com/july-rust/BoardSI/actions/runs/43386906273), [Planning #43386906396](https://github.com/july-rust/BoardSI/actions/runs/43386906396); other M2/A032 workflows confirmed on exact HEAD |
+| Native source regressions | Linux numerical; Windows x64, Windows ARM64, macOS ARM64 Rust; Linux Qt offscreen and all three native Qt targets success on exact HEAD |
+| Independent Codex review | Initial automated Codex review on earlier HEAD `4ec3acb874` found **2 P2**; nested Group and multi-Property thickness ambiguity fixed, each separately tested, **2/2 threads resolved, 0 unresolved**. Later final-HEAD Codex review requested but no final-HEAD response captured; do **not** claim final-HEAD independently approved |
+| Protected Squash merge | GitHub accepted protected `squash` merge; exact main SHA [`d96e3b9f4be443a634aa964ad9fbb1894e6c8147`](https://github.com/july-rust/BoardSI/commit/d96e3b9f4be443a634aa964ad9fbb1894e6c8147). Commit's cryptographic `verification.verified` and parent count not exposed by this tool, so **NOT VERIFIED** independently |
+| Exact merged-code main `event=push` | **NOT VERIFIED**. Connected GitHub workflow retrieval is limited to `pull_request` events and returns no push runs for `d96e3b9f`; PR success is not reused as post-merge Push proof |
+| Documentation closeout | This report, sole checklist and E-stage plan updated via a separate protected docs-only PR; its SHA and CI evidence require independent final reconciliation |
 
-**Status must remain IN_PROGRESS until every required completion gate above is verified.** Upper-level [#10](https://github.com/july-rust/BoardSI/issues/10) remains OPEN. Historical [#578](https://github.com/july-rust/BoardSI/issues/578) is administratively CLOSED, not proof of whole-ODB++ acceptance. E_021 Main Qt import, E_022 source-graph, E_023 vendor oracle and E_024 overall acceptance stay unaccepted.
+Actual test log attempts with format/Clippy failures or cancellations before the final green HEAD are preserved on GitHub. Source-only software acceptance is implemented and merged, but **E_020 remains EVIDENCE_QUALIFIED** until final-HEAD independent review requirement, Signed/Verified merge metadata and exact code-main Push workflows are independently checked. Do not promote these missing process gates to PASS.
+
+**Status remains EVIDENCE_QUALIFIED / NOT_FINAL_ACCEPTED until every required completion gate above is verified.** Upper-level [#10](https://github.com/july-rust/BoardSI/issues/10) remains OPEN. Historical [#578](https://github.com/july-rust/BoardSI/issues/578) is administratively CLOSED, not proof of whole-ODB++ acceptance. E_021 Main Qt import, E_022 source-graph, E_023 vendor oracle and E_024 overall acceptance stay unaccepted.
 
 ## Sources
 
