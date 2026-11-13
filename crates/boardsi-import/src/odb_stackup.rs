@@ -348,19 +348,17 @@ pub struct OdbSourceStackup {
     pub layers: Vec<SourceStackupLayer>,
     pub complete_z: bool,
 }
+type SelectedMaterial = (
+    Option<Rational>,
+    Option<Rational>,
+    Vec<SourceDielectricProperty>,
+);
 fn selected_material(
     nodes: &[Element],
     material: usize,
     selected: Option<&str>,
     default_unit: &str,
-) -> Result<
-    (
-        Option<Rational>,
-        Option<Rational>,
-        Vec<SourceDielectricProperty>,
-    ),
-    OdbError,
-> {
+) -> Result<SelectedMaterial, OdbError> {
     let base = one(nodes, material, "Default_Thickness")?;
     let mut nominal = thickness(&nodes[base], "Thickness", default_unit, "Units")?;
     if nominal.is_none() {
