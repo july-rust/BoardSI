@@ -1,7 +1,7 @@
 //! D_056_08: fail-closed ODB++Design *unpacked-file-map* source subset.
 //! Siemens ODB++Design Format Specification 8.1 Update 4:
 //! matrix/matrix pp.62-66; features pp.164-172; standard symbols pp.187-189.
-//! This is NOT a whole-package, step-repeat, drill, full EDA/Net, or Qt importer.
+//! This is NOT a whole-package, full Step Repeat, drill, full EDA/Net, or Qt importer.
 //! Source geometry is not manufactured connectivity, stackup z, or SI proof.
 use crate::odb_drill::parse_tools;
 pub use crate::odb_drill::{DrillIntent, SourceDrillLayer, SourceDrillTool};
@@ -1131,7 +1131,14 @@ pub fn import_unpacked_with_eda(files: &OdbFileMap, step: &str) -> Result<BoardM
 
 fn import_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardModel, OdbError> {
     let normalized = normalized_feature_files(files)?;
-    let files = normalized.as_ref();
+    import_normalized_inner(normalized.as_ref(), step, with_eda)
+}
+
+fn import_normalized_inner(
+    files: &OdbFileMap,
+    step: &str,
+    with_eda: bool,
+) -> Result<BoardModel, OdbError> {
     if !safe_entity(step) {
         return Err(error("steps", 0, "ODB_BAD_SELECTED_STEP"));
     }
@@ -1140,14 +1147,27 @@ fn import_inner(files: &OdbFileMap, step: &str, with_eda: bool) -> Result<BoardM
     if !matrix.steps.iter().any(|s| s == step) {
         return Err(error("matrix/matrix", 0, "ODB_UNDECLARED_STEP"));
     }
-    // Nested step-repeat transformations are not source-qualified in this slice.
-    let stephdr = format!("steps/{step}/stephdr");
-    if let Some(bytes) = files.get(&stephdr) {
-        let header =
-            std::str::from_utf8(bytes).map_err(|_| error(&stephdr, 0, "ODB_INVALID_TEXT"))?;
-        if header.contains("STEP-REPEAT") {
-            return Err(error(&stephdr, 0, "ODB_UNSUPPORTED_STEP_REPEAT"));
+    // E_017: only a single child, one rectangular, unrotated, unmirrored
+    // STEP-REPEAT is admitted. The strict parser rejects all other transforms.
+    let copper_names: Vec<String> = matrix
+        .layers
+        .iter()
+        .filter(|l| l.context == "BOARD" && copper_type(&l.layer_type))
+        .map(|l| l.name.clone())
+        .collect();
+    if let Some(placement) =
+        crate::odb_step_repeat::parse(files, step, &matrix.steps, &copper_names)?
+    {
+        if with_eda {
+            return Err(error(
+                &placement.header_path,
+                placement.record_line,
+                "ODB_STEP_EDA_NOT_QUALIFIED",
+            ));
         }
+        // Already-normalized logical file map: do not decompress features.Z twice.
+        let child = import_normalized_inner(files, &placement.child, false)?;
+        return crate::odb_step_repeat::instantiate(child, &placement);
     }
     let copper: Vec<&MatrixLayer> = matrix
         .layers
@@ -1348,6 +1368,238 @@ mod tests {
         f.insert("matrix/matrix".into(), matrix.into_bytes());
         f
     }
+
+    fn e017_panel() -> OdbFileMap {
+        let mut f = source(2);
+        let mut matrix = String::from_utf8(f["matrix/matrix"].clone()).unwrap();
+        matrix.push_str("STEP {\nCOL=2\nNAME=panel\n}\n");
+        f.insert("matrix/matrix".into(), matrix.into_bytes());
+        f.insert(
+            "steps/pcb/stephdr".into(),
+            b"UNITS=MM\nX_DATUM=1\nY_DATUM=2\nX_ORIGIN=0\nY_ORIGIN=0\n".to_vec(),
+        );
+        f.insert("steps/panel/stephdr".into(),
+            b"UNITS=MM\nX_DATUM=0\nY_DATUM=0\nSTEP-REPEAT {\nNAME=pcb\nX=10\nY=20\nDX=30\nDY=40\nNX=2\nNY=2\nANGLE=0\nFLIP=NO\nMIRROR=NO\n}\n".to_vec());
+        f
+    }
+    #[test]
+    fn e017_one_level_exact_frame_translation_and_identity() {
+        let f = e017_panel();
+        let board = import_unpacked(&f, "panel").unwrap();
+        assert_eq!(board.stackup.layers.len(), 2);
+        assert_eq!(board.frames.len(), 8);
+        assert_eq!(board.traces.len(), 8);
+        assert_eq!(board.pads.len(), 8);
+        assert_eq!(board.arcs.len(), 8);
+        assert_eq!(board.padstacks.len(), 8);
+        assert!(board.connectivity.nodes.is_empty());
+        assert!(board.connectivity.edges.is_empty());
+        assert!(!board.validate().has_errors());
+        let source_start = &board.traces[0].centreline[0];
+        let first_frame = board
+            .frames
+            .iter()
+            .find(|f| f.meta.id == source_start.frame)
+            .unwrap();
+        assert_eq!(
+            first_frame.exact_m(source_start).unwrap(),
+            [
+                Rational::new(9, 1000).unwrap(),
+                Rational::new(18, 1000).unwrap()
+            ]
+        );
+        // Import order is row-major; each instance contains both copper layers.
+        let next_x = &board.traces[2].centreline[0];
+        let frame = board
+            .frames
+            .iter()
+            .find(|f| f.meta.id == next_x.frame)
+            .unwrap();
+        assert_eq!(
+            frame.exact_m(next_x).unwrap()[0],
+            Rational::new(39, 1000).unwrap()
+        );
+        let next_y = &board.traces[4].centreline[0];
+        let frame = board
+            .frames
+            .iter()
+            .find(|f| f.meta.id == next_y.frame)
+            .unwrap();
+        assert_eq!(
+            frame.exact_m(next_y).unwrap()[1],
+            Rational::new(58, 1000).unwrap()
+        );
+        assert_ne!(board.traces[0].meta.id, board.traces[2].meta.id);
+        assert_eq!(board, import_unpacked(&f, "panel").unwrap());
+        assert_ne!(
+            board.sources[0].id,
+            import_unpacked(&f, "pcb").unwrap().sources[0].id
+        );
+    }
+    #[test]
+    fn e017_positive_multi_island_repeated_as_separate_areas() {
+        let mut f = e017_panel();
+        let path = "steps/pcb/layers/sig1/features";
+        let record="S P 0\nOB 0 0 I\nOS 0 4\nOS 4 4\nOS 4 0\nOS 0 0\nOE\nOB 10 10 I\nOS 10 14\nOS 14 14\nOS 14 10\nOS 10 10\nOE\nSE\n";
+        let s = String::from_utf8(f[path].clone())
+            .unwrap()
+            .replace("F 3", "F 4")
+            + record;
+        f.insert(path.into(), s.into_bytes());
+        let board = import_unpacked(&f, "panel").unwrap();
+        assert_eq!(board.areas.len(), 8);
+        assert_eq!(board.areas[0].outer.segments.len(), 4);
+        assert_eq!(board.areas[1].outer.segments.len(), 4);
+        assert!(board.areas.iter().all(|area| area.cutouts.is_empty()));
+        assert!(!board.validate().has_errors());
+        assert_eq!(board.areas[0].layer, board.areas[2].layer);
+        assert_ne!(board.areas[0].meta.id, board.areas[2].meta.id);
+    }
+    #[test]
+    fn e017_header_malformed_unsupported_or_duplicate_fail_closed() {
+        let f = e017_panel();
+        let panel = "steps/panel/stephdr";
+        let base = String::from_utf8(f[panel].clone()).unwrap();
+        for (from, to, expected) in [
+            ("ANGLE=0", "ANGLE=45", "ODB_STEP_TRANSFORM_UNSUPPORTED"),
+            ("FLIP=NO", "FLIP=YES", "ODB_STEP_TRANSFORM_UNSUPPORTED"),
+            ("MIRROR=NO", "MIRROR=YES", "ODB_STEP_TRANSFORM_UNSUPPORTED"),
+            ("NX=2", "NX=0", "ODB_STEP_BAD_COUNT"),
+            ("NY=2", "NY=100", "ODB_STEP_BAD_COUNT"),
+            ("DX=30", "DX=0", "ODB_STEP_DUPLICATE_PLACEMENT"),
+            ("NAME=pcb", "NAME=panel", "ODB_STEP_BAD_CHILD"),
+            ("NAME=pcb", "NAME=unknown", "ODB_STEP_BAD_CHILD"),
+            (
+                "STEP-REPEAT {",
+                "STEP-REPEAT { \nSTEP-REPEAT {",
+                "ODB_STEP_NESTED_OR_MULTIPLE_REPEAT",
+            ),
+            ("DX=30", "DX=99999999999999999999", "ODB_DECIMAL_OVERFLOW"),
+            ("X=10", "X=999999", "ODB_STEP_COORD_LIMIT"),
+        ] {
+            let mut bad = f.clone();
+            bad.insert(panel.into(), base.replace(from, to).into_bytes());
+            assert_eq!(
+                import_unpacked(&bad, "panel").unwrap_err().code,
+                expected,
+                "mutation {from} -> {to}"
+            );
+        }
+        let mut bad = f.clone();
+        bad.insert(
+            panel.into(),
+            base.replace("NX=2", "NX=2\nNX=2").into_bytes(),
+        );
+        assert_eq!(
+            import_unpacked(&bad, "panel").unwrap_err().code,
+            "ODB_STEP_DUPLICATE_FIELD"
+        );
+        let mut bad = f.clone();
+        bad.insert(
+            "steps/pcb/stephdr".into(),
+            b"UNITS=MM\nX_DATUM=0\nY_DATUM=0\nSTEP-REPEAT {\nNAME=panel\n}\n".to_vec(),
+        );
+        assert_eq!(
+            import_unpacked(&bad, "panel").unwrap_err().code,
+            "ODB_STEP_NESTED_REPEAT_UNSUPPORTED"
+        );
+        assert_eq!(
+            import_unpacked_with_eda(&f, "panel").unwrap_err().code,
+            "ODB_STEP_EDA_NOT_QUALIFIED"
+        );
+    }
+    #[test]
+    fn e017_mixed_units_exact_and_source_sha_mutation() {
+        let f = e017_panel();
+        let mut mixed = f.clone();
+        mixed.insert(
+            "steps/pcb/stephdr".into(),
+            b"UNITS=INCH\nX_DATUM=0.1\nY_DATUM=0\n".to_vec(),
+        );
+        let panel = "steps/panel/stephdr";
+        let h = String::from_utf8(mixed[panel].clone())
+            .unwrap()
+            .replace("X=10", "X=2.54")
+            .replace("Y=20", "Y=0");
+        mixed.insert(panel.into(), h.into_bytes());
+        let b = import_unpacked(&mixed, "panel").unwrap();
+        let p = &b.traces[0].centreline[0];
+        let frame = b.frames.iter().find(|f| f.meta.id == p.frame).unwrap();
+        assert_eq!(
+            frame.exact_m(p).unwrap(),
+            [Rational::integer(0), Rational::integer(0)]
+        );
+        let mut modified = f.clone();
+        modified
+            .get_mut(panel)
+            .unwrap()
+            .extend_from_slice(b"# source changed\n");
+        let a = import_unpacked(&f, "panel").unwrap();
+        let c = import_unpacked(&modified, "panel").unwrap();
+        assert_ne!(a.sources[0].id, c.sources[0].id);
+        assert_ne!(a.traces[0].meta.id, c.traces[0].meta.id);
+    }
+
+    #[test]
+    fn e017_nested_cutout_expansion_is_bounded_before_clone() {
+        // Codex P2: the old count included each Area only once and ignored
+        // its holes and boundary vertices. A large array must fail BEFORE
+        // duplicating millions of derived cutout objects.
+        let mut f = e017_panel();
+        let layer_path = "steps/pcb/layers/sig1/features";
+        let record = "S P 0\nOB 0 0 I\nOS 0 4\nOS 4 4\nOS 4 0\nOS 0 0\nOE\nOB 1 1 H\nOS 1 2\nOS 2 2\nOS 2 1\nOS 1 1\nOE\nSE\n";
+        let s = String::from_utf8(f[layer_path].clone())
+            .unwrap()
+            .replace("F 3", "F 4")
+            + record;
+        f.insert(layer_path.into(), s.into_bytes());
+        let parent_path = "steps/panel/stephdr";
+        let h = String::from_utf8(f[parent_path].clone())
+            .unwrap()
+            .replace("NX=2", "NX=8")
+            .replace("NY=2", "NY=8");
+        f.insert(parent_path.into(), h.into_bytes());
+        let mut child = import_unpacked(&f, "pcb").unwrap();
+        let template = child.areas[0].clone();
+        for _ in 0..2000 {
+            child.areas.push(template.clone());
+        }
+        let steps = vec!["pcb".to_string(), "panel".to_string()];
+        let copper = vec!["sig1".to_string(), "sig2".to_string()];
+        let placement = crate::odb_step_repeat::parse(&f, "panel", &steps, &copper)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            crate::odb_step_repeat::instantiate(child, &placement)
+                .unwrap_err()
+                .code,
+            "ODB_STEP_EXPANSION_LIMIT"
+        );
+    }
+
+    #[test]
+    fn e017_no_partial_parent_artwork_and_bad_child_origin() {
+        let f = e017_panel();
+        let mut bad = f.clone();
+        bad.insert(
+            "steps/panel/layers/sig1/features".into(),
+            b"UNITS=MM\nF 0\n".to_vec(),
+        );
+        assert_eq!(
+            import_unpacked(&bad, "panel").unwrap_err().code,
+            "ODB_STEP_PARENT_ARTWORK_UNSUPPORTED"
+        );
+        let mut bad = f.clone();
+        bad.insert(
+            "steps/pcb/stephdr".into(),
+            b"UNITS=MM\nX_DATUM=0\nY_DATUM=0\nX_ORIGIN=1\n".to_vec(),
+        );
+        assert_eq!(
+            import_unpacked(&bad, "panel").unwrap_err().code,
+            "ODB_STEP_NONZERO_ORIGIN_UNSUPPORTED"
+        );
+    }
+
     #[test]
     fn flexible_layers_and_canonical_shapes() {
         for n in [2, 4, 6, 8, 64] {
