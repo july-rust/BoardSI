@@ -1123,6 +1123,52 @@ pub fn import_unpacked(files: &OdbFileMap, step: &str) -> Result<BoardModel, Odb
     import_inner(files, step, false)
 }
 
+/// Source-only Package/Pin definitions, coupled to the exact logical source SHA list.
+/// Positions are in 1e-9 units relative to the package datum; no placed Part/Pad.
+pub use crate::odb_eda_packages::{SourcePackage, SourcePin, SourceRectangle};
+#[derive(Debug, Clone)]
+pub struct EdaPackageAudit {
+    pub step: String,
+    pub source_files: Vec<SourceFile>,
+    pub metres_per_tick: Rational,
+    pub packages: Vec<SourcePackage>,
+}
+
+/// Strict EDA + Canonical validation precedes publication of package evidence.
+/// This does not emit Canonical Component, Pin, Pad, or Connectivity edges.
+pub fn audit_unpacked_eda_packages(
+    files: &OdbFileMap,
+    step: &str,
+) -> Result<EdaPackageAudit, OdbError> {
+    let _validated = import_unpacked_with_eda(files, step)?;
+    let normalized = normalized_feature_files(files)?;
+    let files = normalized.as_ref();
+    let path = format!("steps/{step}/eda/data");
+    let data = ascii_file(files, &path)?;
+    let packages = crate::odb_eda_packages::parse_packages(data)
+        .map_err(|e| error(&path, e.line, e.code))?;
+    if packages.is_empty() { return Err(error(&path, 0, "ODB_EDA_NO_PACKAGES")); }
+    let units = data.lines().map(str::trim).find(|s|s.starts_with("UNITS="))
+        .ok_or_else(|| error(&path, 0, "ODB_EDA_MISSING_UNITS"))?;
+    let metres_per_tick = match units {
+        "UNITS=MM" => Rational::new(1, 1_000_000_000_000),
+        "UNITS=INCH" => Rational::new(254, 10_000_000_000_000),
+        _ => return Err(error(&path, 0, "ODB_EDA_UNSUPPORTED_UNITS")),
+    }.map_err(|_| error(&path, 0, "ODB_EDA_PKG_RATIONAL"))?;
+    Ok(EdaPackageAudit {
+        step: step.to_owned(), source_files: verified_source_files(files)?,
+        metres_per_tick, packages,
+    })
+}
+
+/// One read of directory, USTAR, GZIP tar or ZIP; no extraction and no Qt.
+pub fn audit_path_eda_packages(
+    path: &std::path::Path,
+    step: &str,
+) -> Result<EdaPackageAudit, OdbError> {
+    audit_unpacked_eda_packages(&read_source_path_file_map(path)?, step)
+}
+
 /// Strict opt-in import of design Net identities and EDA FID ownership.
 /// Unsupported EDA syntax returns an error for the *entire* import.
 pub fn import_unpacked_with_eda(files: &OdbFileMap, step: &str) -> Result<BoardModel, OdbError> {
@@ -1268,6 +1314,7 @@ fn import_normalized_inner(
         let path = format!("steps/{step}/eda/data");
         let mapping = odb_eda::parse(ascii_file(files, &path)?, &registry)
             .map_err(|e| error(&path, e.line, e.code))?;
+        let has_source_packages = !mapping.packages.is_empty();
         // Complete parsing and duplicate/reference checks precede all model
         // mutations; an invalid input is never returned as a partial success.
         let mut net_ids = BTreeMap::new();
@@ -1342,6 +1389,11 @@ fn import_normalized_inner(
                     }
                 }
             }
+        }
+        if has_source_packages {
+            board.sources[0].capability.object_coverage.push(
+                "E_018 PKG/PIN RC definitions are SOURCE only: no placed component, pad or pin-to-pad relationship".into(),
+            );
         }
         board.sources[0].capability.net = CapabilityState::Partial;
         board.sources[0].capability.object_coverage.push(
