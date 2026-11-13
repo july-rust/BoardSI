@@ -148,7 +148,7 @@ fn xml_tree(bytes: &[u8]) -> Result<Vec<Element>, OdbError> {
             continue;
         }
         let start_line = line;
-        if text[p..].starts_with("<?xml") && nodes.is_empty() && !declaration_seen {
+        if text[p..].starts_with("<?xml ") && nodes.is_empty() && !declaration_seen {
             let end = text[p..]
                 .find("?>")
                 .ok_or_else(|| fail(line, "ODB_STACKUP_XML_DECLARATION"))?
@@ -371,12 +371,23 @@ fn selected_material(
         return Err(fail(nodes[material].line, "ODB_STACKUP_MATERIAL_KIND"));
     }
     let entity = dielectric.first().or(conductor.first()).copied().unwrap();
+    // Conductor resin values are not dielectric layer Dk/Df in this bounded slice.
+    if !conductor.is_empty() && !children(nodes, entity, "Properties").is_empty() {
+        return Err(fail(nodes[entity].line, "ODB_STACKUP_CONDUCTOR_PROPERTIES_UNSUPPORTED"));
+    }
     let mut props = Vec::new();
+    let mut selected_group = false;
+    let mut override_line = None;
+    let mut frequencies = BTreeSet::new();
     for group in children(nodes, entity, "Properties") {
         let name = nodes[group].require("PropertyName")?.to_owned();
         if selected.is_some_and(|s| s != name) {
             continue;
         }
+        if selected_group {
+            return Err(fail(nodes[group].line, "ODB_STACKUP_DUPLICATE_PROPERTY_GROUP"));
+        }
+        selected_group = true;
         for property in children(nodes, group, "Property") {
             let n = &nodes[property];
             let dk = n
@@ -387,9 +398,13 @@ fn selected_material(
                 .attr("LossTangent_Df")
                 .map(|s| number(s, n.line, false))
                 .transpose()?;
+            let frequency = frequency_hz(n)?;
+            if !frequencies.insert(frequency.map(f64::to_bits)) {
+                return Err(fail(n.line, "ODB_STACKUP_DUPLICATE_FREQUENCY"));
+            }
             props.push(SourceDielectricProperty {
                 property_name: name.clone(),
-                frequency_hz: frequency_hz(n)?,
+                frequency_hz: frequency,
                 dk,
                 df,
                 source_line: n.line,
@@ -398,9 +413,7 @@ fn selected_material(
             let finished_override =
                 thickness(n, "Finished_Thickness", default_unit, "Units_Thickness")?;
             if overridden.is_some() || finished_override.is_some() {
-                if props.len() != 1 {
-                    return Err(fail(n.line, "ODB_STACKUP_AMBIGUOUS_THICKNESS"));
-                }
+                override_line = Some(n.line);
                 if overridden.is_some() {
                     nominal = overridden;
                 }
@@ -408,6 +421,11 @@ fn selected_material(
                     finished = finished_override;
                 }
             }
+        }
+    }
+    if let Some(line) = override_line {
+        if props.len() != 1 {
+            return Err(fail(line, "ODB_STACKUP_AMBIGUOUS_THICKNESS"));
         }
     }
     if selected.is_some() && props.is_empty() {
@@ -446,6 +464,11 @@ pub fn audit_unpacked_stackup(
     }
     let spec_root = one(&nodes, eda[0], "Specs")?;
     let layer_root = one(&nodes, eda[0], "Stackup")?;
+    if let Some(target) = nodes[layer_root].attr("StackupThickness") {
+        let unit = nodes[layer_root].attr("Units").unwrap_or(default_unit);
+        let _target_thickness = exact_length(target, unit, nodes[layer_root].line)?;
+        // Target thickness may differ from nominal layer sum; no silent equality assumption.
+    }
     let groups = children(&nodes, layer_root, "Group");
     if groups.len() != 1 {
         return Err(fail(nodes[layer_root].line, "ODB_STACKUP_GROUP_AMBIGUOUS"));
@@ -468,6 +491,9 @@ pub fn audit_unpacked_stackup(
     let mut copper = Vec::new();
     for id in children(&nodes, groups[0], "Layer") {
         let e = &nodes[id];
+        if e.children.iter().any(|i| nodes[*i].name != "SpecRef") {
+            return Err(fail(e.line, "ODB_STACKUP_LAYER_CHILD_UNSUPPORTED"));
+        }
         let name = e.require("LayerName")?.to_owned();
         if !names.insert(name.clone()) {
             return Err(fail(e.line, "ODB_STACKUP_DUPLICATE_LAYER"));
