@@ -45,6 +45,14 @@ if(MSVC)
 else()
   target_compile_options(boardsi-e010-main-picking-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
+# E_021: actual Qt ImportPanel consuming bounded ODB++ Canonical SOURCE-only IPC.
+add_executable(boardsi-e021-main-odb-test e021_main_odb_test.cpp)
+target_link_libraries(boardsi-e021-main-odb-test PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+if(MSVC)
+  target_compile_options(boardsi-e021-main-odb-test PRIVATE /W4 /WX)
+else()
+  target_compile_options(boardsi-e021-main-odb-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
 # D_056_06: exact RT/ST SOURCE spokes in main Canonical Qt CPU artwork.
 add_executable(boardsi-d05606-thermal-qt-test d05606_thermal_qt_test.cpp)
 target_link_libraries(boardsi-d05606-thermal-qt-test PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
@@ -102,6 +110,13 @@ if(BUILD_TESTING)
   add_test(NAME qt-d05604-canonical-padstack-ipc
     COMMAND boardsi-d05604-canonical-ipc-test --selftest)
   set_tests_properties(qt-d05604-canonical-padstack-ipc PROPERTIES TIMEOUT 30)
+  set(BOARDSI_ODB_QT_IMPORTER "" CACHE FILEPATH "E_021 ODB++ source-only Rust Qt IPC CLI")
+  if(BOARDSI_ODB_QT_IMPORTER)
+    add_test(NAME qt-e021-main-odb-picking-reimport
+      COMMAND boardsi-e021-main-odb-test "${BOARDSI_ODB_QT_IMPORTER}")
+    set_tests_properties(qt-e021-main-odb-picking-reimport PROPERTIES
+      TIMEOUT 150 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  endif()
   set(BOARDSI_CANONICAL_IMPORTER "" CACHE FILEPATH "Optional D_056_04 Rust Canonical IPC CLI")
   if(BOARDSI_CANONICAL_IMPORTER)
     add_test(NAME qt-d05604-rust-canonical-roundtrip
