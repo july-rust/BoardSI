@@ -420,13 +420,42 @@ pub(crate) fn instantiate(child: BoardModel, p: &Placement) -> Result<BoardModel
         ));
     }
     let count = p.nx * p.ny;
-    let objects = child.frames.len()
-        + child.traces.len()
-        + child.arcs.len()
-        + child.pads.len()
-        + child.padstacks.len()
-        + child.areas.len();
-    let expanded = objects
+    // Charge nested vertices/segments and hole objects BEFORE cloning the child.
+    // Counting Area alone allows a compact holed source to multiply into a
+    // multi-gigabyte allocation. The limit is for total expanded geometry units,
+    // not merely top-level objects (Codex P2 review on PR #610).
+    let mut units = child.frames.len()
+        .checked_add(child.traces.len())
+        .and_then(|n| n.checked_add(child.arcs.len()))
+        .and_then(|n| n.checked_add(child.pads.len()))
+        .and_then(|n| n.checked_add(child.padstacks.len()))
+        .and_then(|n| n.checked_add(child.areas.len()))
+        .ok_or_else(|| err(&p.header_path, 0, "ODB_STEP_EXPANSION_LIMIT"))?;
+    let mut charge = |n: usize| -> Result<(), OdbError> {
+        units = units
+            .checked_add(n)
+            .ok_or_else(|| err(&p.header_path, 0, "ODB_STEP_EXPANSION_LIMIT"))?;
+        Ok(())
+    };
+    for trace in &child.traces {
+        charge(trace.centreline.len())?;
+    }
+    for arc in &child.arcs {
+        charge(3)?; // start, end, centre
+    }
+    for padstack in &child.padstacks {
+        charge(padstack.entries.len())?;
+    }
+    for area in &child.areas {
+        charge(area.outer.segments.len().checked_mul(3)
+            .ok_or_else(|| err(&p.header_path, 0, "ODB_STEP_EXPANSION_LIMIT"))?)?;
+        for hole in &area.cutouts {
+            charge(1)?;
+            charge(hole.boundary.segments.len().checked_mul(3)
+                .ok_or_else(|| err(&p.header_path, 0, "ODB_STEP_EXPANSION_LIMIT"))?)?;
+        }
+    }
+    let expanded = units
         .checked_mul(count)
         .ok_or_else(|| err(&p.header_path, 0, "ODB_STEP_EXPANSION_LIMIT"))?;
     if expanded > MAX_EXPANDED_OBJECTS {
