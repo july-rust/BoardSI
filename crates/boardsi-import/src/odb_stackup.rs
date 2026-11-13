@@ -486,6 +486,11 @@ pub fn audit_unpacked_stackup(
             }
         }
     }
+    // A nested Group can hide dielectric layers from the copper-only Matrix check.
+    // Reject it rather than calculate a misleading complete-z stackup.
+    if nodes[groups[0]].children.iter().any(|id| nodes[*id].name != "Layer") {
+        return Err(fail(nodes[groups[0]].line, "ODB_STACKUP_NESTED_OR_UNKNOWN_GROUP_CHILD"));
+    }
     let mut layers = Vec::new();
     let mut names = BTreeSet::new();
     let mut copper = Vec::new();
