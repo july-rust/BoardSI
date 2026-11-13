@@ -51,8 +51,9 @@ static bool exercise(const QString &binary) {
                 loop.quit();
             }
         });
-        if(!panel.openOdbPath(temp.path(),"pcb") || art->canonicalMode() ||
-           !panel.acceptedSourceSha256().isEmpty()) return false;
+        const QByteArray acceptedBefore=panel.acceptedSourceSha256();
+        if(!panel.openOdbPath(temp.path(),"pcb") ||
+           panel.acceptedSourceSha256()!=acceptedBefore) return false;
         timer.start(45000);loop.exec();
         return completed && passed==success && !panel.busy();
     };
@@ -81,12 +82,17 @@ static bool exercise(const QString &binary) {
        art->canonicalSourceSha()==shaA ||
        art->summaryText().contains(shaA) || art->canonicalGlyphCount()!=4 ||
        !art->canonicalContains(0,{0.9,0}))return false;
-    // A supported file mutation must never retain the preceding selection.
+    // A rejected replacement retains the exact last accepted snapshot, not
+    // a partially replaced SOURCE or an empty/incorrect active scene.
+    const QString lastAccepted=art->canonicalSourceSha();
     QByteArray invalid=a;
     invalid.replace("L 0 0", "X 0 0");
     if(!writeFile(first,invalid) || !run(false) ||
-       art->canonicalMode() || art->canonicalGlyphCount()!=0 ||
-       !panel.acceptedSourceSha256().isEmpty())return false;
+       !art->canonicalMode() || !art->odbMode() ||
+       art->canonicalGlyphCount()!=4 ||
+       art->canonicalSourceSha()!=lastAccepted ||
+       QString::fromLatin1(panel.acceptedSourceSha256())!=lastAccepted ||
+       !panel.importStatus().contains("PREVIOUS ARTWORK RETAINED"))return false;
     // An unsupported transport version must fail closed.
     if(!writeFile(first,a))return false;
     QProcess producer;
@@ -116,8 +122,9 @@ static bool exercise(const QString &binary) {
         if(!panel.busy())drained.quit();
     });
     stop.start(15000);poll.start(10);drained.exec();
-    return !panel.busy() && !art->canonicalMode() &&
-           !panel.importStatus().startsWith("CANONICAL SOURCE GEOMETRY");
+    return !panel.busy() && art->canonicalMode() && art->odbMode() &&
+           art->canonicalSourceSha()==lastAccepted &&
+           panel.importStatus().contains("PREVIOUS ARTWORK RETAINED");
 }
 int main(int argc,char **argv) {
     QApplication app(argc,argv);
