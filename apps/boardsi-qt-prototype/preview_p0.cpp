@@ -4608,9 +4608,74 @@ static int runD05605PropertiesSmoke(const QString &binary,const QString &source)
 
 #include "e011_stackup_main_test.h"
 
+// E_021 cross-format regression on the ACTUAL PreviewWindow, not the panel
+// alone: a rejected/cancelled ODB candidate cannot relabel accepted PADS.
+static int runE021CrossFormatRetentionSelftest(
+    const QString &padsBinary,const QString &padsFixture,const QString &odbBinary) {
+    PreviewWindow window(QString(),QString(),QString(),padsBinary);
+    auto *panel=window.importPanel();
+    panel->setOdbImporterBinaryForTest(odbBinary);
+    const auto drain=[panel]() {
+        QEventLoop loop;
+        QTimer poll,timeout;
+        timeout.setSingleShot(true);
+        QObject::connect(&timeout,&QTimer::timeout,&loop,&QEventLoop::quit);
+        QObject::connect(&poll,&QTimer::timeout,&loop,[&]{
+            if(!panel->busy())loop.quit();
+        });
+        timeout.start(30000);poll.start(10);loop.exec();
+        return !panel->busy();
+    };
+    if(!window.openCandidate(padsFixture) || !drain() ||
+       !panel->importStatus().startsWith("PARTIAL") ||
+       panel->acceptedSourceSha256().size()!=64)return 1;
+    const QByteArray acceptedSha=panel->acceptedSourceSha256();
+    const QString acceptedName=QFileInfo(padsFixture).fileName();
+    if(!window.displayedProperties().contains(acceptedName) ||
+       !window.displayedProperties().contains("PADS V9.4"))return 1;
+    QTemporaryDir temp;
+    if(!temp.isValid())return 1;
+    QDir dir(temp.path());
+    const QString rejected=dir.filePath("rejected-odb-candidate");
+    if(window.openOdbCandidate(rejected,"pcb") ||
+       !panel->importStatus().contains("PREVIOUS ARTWORK RETAINED") ||
+       panel->acceptedSourceSha256()!=acceptedSha ||
+       !window.displayedProperties().contains(acceptedName) ||
+       window.displayedProperties().contains("rejected-odb-candidate"))return 1;
+    if(!dir.mkpath("matrix") || !dir.mkpath("steps/pcb/layers/sig1") ||
+       !dir.mkpath("steps/pcb/layers/sig2"))return 1;
+    const auto write=[&](const QString &p,const QByteArray &data) {
+        QFile file(dir.filePath(p));
+        return file.open(QIODevice::WriteOnly|QIODevice::Truncate) &&
+               file.write(data)==data.size() && file.flush();
+    };
+    const QByteArray matrix=
+        "STEP {\nCOL=1\nNAME=pcb\n}\n"
+        "LAYER {\nROW=1\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=sig1\nPOLARITY=POSITIVE\n}\n"
+        "LAYER {\nROW=2\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=sig2\nPOLARITY=POSITIVE\n}\n";
+    const QByteArray features="UNITS=MM\nF 2\n$0 r100\n$1 rect200x100 M\n"
+                              "L 0 0 1.5 0 0 P 0\nP 1.5 0 1 P 0 0\n";
+    if(!write("matrix/matrix",matrix) ||
+       !write("steps/pcb/layers/sig1/features",features) ||
+       !write("steps/pcb/layers/sig2/features",features))return 1;
+    if(!window.openOdbCandidate(temp.path(),"pcb"))return 1;
+    auto *cancel=panel->findChild<QPushButton*>("importCancelButton");
+    if(!cancel || !cancel->isEnabled())return 1;
+    cancel->click();
+    if(!drain() || !panel->importStatus().contains("PREVIOUS ARTWORK RETAINED") ||
+       panel->acceptedSourceSha256()!=acceptedSha ||
+       !window.displayedProperties().contains(acceptedName) ||
+       window.displayedProperties().contains(QFileInfo(temp.path()).fileName()) ||
+       !window.displayedProperties().contains("PADS V9.4"))return 1;
+    return 0;
+}
+
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==5 && args.at(1)=="--e021-crossformat-selftest")
+        return runE021CrossFormatRetentionSelftest(args.at(2),args.at(3),args.at(4));
     if(args.size()==4 && args.at(1)=="--e011-stackup-selftest")
         return runE011MainStackupSelftest(args.at(2), args.at(3));
     if(args.size()==3 && args.at(1)=="--d013-legacy-barrel-provenance-selftest")
