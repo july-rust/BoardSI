@@ -1550,10 +1550,12 @@ mod tests {
         let record = "S P 0\nOB 0 0 I\nOS 0 4\nOS 4 4\nOS 4 0\nOS 0 0\nOE\nOB 1 1 H\nOS 1 2\nOS 2 2\nOS 2 1\nOS 1 1\nOE\nSE\n";
         let s = String::from_utf8(f[layer_path].clone())
             .unwrap()
-            .replace("F 3", "F 4") + record;
+            .replace("F 3", "F 4")
+            + record;
         f.insert(layer_path.into(), s.into_bytes());
         let parent_path = "steps/panel/stephdr";
-        let h = String::from_utf8(f[parent_path].clone()).unwrap()
+        let h = String::from_utf8(f[parent_path].clone())
+            .unwrap()
             .replace("NX=2", "NX=8")
             .replace("NY=2", "NY=8");
         f.insert(parent_path.into(), h.into_bytes());
