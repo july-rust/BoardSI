@@ -4,8 +4,7 @@ use std::{collections::BTreeMap, path::Path};
 
 use boardsi_model::{
     BoardModel, FabricationHole, FabricationHoleShape, FabricationOperation, FabricationPlating,
-    FabricationSourceEvidence, PhysicalLayerSpan, Rational, SourceId, SourceStackupEvidence,
-    SourceViaEvidenceState, SourceViaHoleObservation,
+    FabricationSourceEvidence, PhysicalLayerSpan, Rational, SourceId, SourceViaEvidenceState, SourceViaHoleObservation,
 };
 
 use crate::odb_drill::{DrillIntent, SourceDrillLayer};
