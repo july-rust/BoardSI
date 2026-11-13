@@ -289,7 +289,12 @@ fn e018_package_audit_directory_ustar_gzip_zip0_zip8_sha_parity() {
     for path in [&tar_path, &tgz_path, &zip0_path, &zip8_path] {
         let actual = audit_path_eda_packages(path, "pcb").unwrap();
         assert_eq!(actual.packages, expected.packages, "{}", path.display());
-        assert_eq!(actual.source_files, expected.source_files, "{}", path.display());
+        assert_eq!(
+            actual.source_files,
+            expected.source_files,
+            "{}",
+            path.display()
+        );
         assert_eq!(actual.metres_per_tick, expected.metres_per_tick);
     }
     let data_path = root.join("steps/pcb/eda/data");
