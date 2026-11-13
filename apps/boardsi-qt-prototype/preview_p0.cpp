@@ -32,6 +32,7 @@
 #include <QDir>
 #include <QEventLoop>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QGroupBox>
 #include <QGuiApplication>
 #include <QHBoxLayout>
@@ -57,6 +58,7 @@ class PreviewWindow : public QMainWindow {
     ModelHandoffWindow *identity = nullptr;
     QAction *openAction = nullptr;
     QAction *canonicalOpenAction = nullptr;
+    QAction *odbOpenAction = nullptr;
     QAction *saveAction = nullptr;
     QAction *runAction = nullptr;
     QAction *stopAction = nullptr;
@@ -126,7 +128,9 @@ class PreviewWindow : public QMainWindow {
         }
         properties->setText(
             (canonicalLoaded ?
-                QString("Source: CANONICAL PADSTACK / V1 / GEOMETRY_ONLY\n") :
+                (importUI->imported()->odbMode() ?
+                    QString("Source: ODB++ CANONICAL IPC V1 / GEOMETRY_PARTIAL\n") :
+                    QString("Source: CANONICAL PADSTACK / V1 / GEOMETRY_ONLY\n")) :
                 QString("Source: IMPORTED PARTIAL / PADS V9.4 MILS\n")) +
             candidate + "\n" + importedDetails +
             "\nPlating UNVERIFIED / electrical connectivity UNKNOWN / SI NOT_RUN");
@@ -135,6 +139,7 @@ class PreviewWindow : public QMainWindow {
     void refresh() {
         openAction->setEnabled(!importUI->busy());
         canonicalOpenAction->setEnabled(!importUI->busy());
+        odbOpenAction->setEnabled(!importUI->busy());
         runAction->setEnabled(ipc->runButton()->isEnabled());
         stopAction->setEnabled(ipc->cancelButton()->isEnabled());
         overallProgress->setValue(ipc->progressBar()->value());
@@ -161,7 +166,9 @@ class PreviewWindow : public QMainWindow {
             (importResultStatus.startsWith("PARTIAL") ?
                 "Imported PCB: PARTIAL accepted straight/arc routes, through vias, restricted SMD pads and restricted straight/arc/circular board artwork; other geometry/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
              importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") ?
-                "Imported Canonical Padstack: SOURCE geometry only, physical Layer/Via/Pad/Drill proven by accepted source subset. Actual manufactured plating, connectivity and SI NOT_VERIFIED." :
+                (importUI->imported()->odbMode() ?
+                "Imported ODB++ Canonical: SOURCE Trace/Pad geometry only; connectivity, manufacture and SI NOT_VERIFIED." :
+                "Imported Canonical Padstack: SOURCE geometry only, physical Layer/Via/Pad/Drill proven by accepted source subset. Actual manufactured plating, connectivity and SI NOT_VERIFIED.") :
                 "Synthetic fixture only; no real PCB imported or physical SI analysis performed."));
         if (status != previousStatus) {
             log->appendPlainText("Worker: " + status);
@@ -188,6 +195,8 @@ public:
         bar->setMovable(false);
         openAction = bar->addAction("Open PCB");
         canonicalOpenAction = bar->addAction("Open Canonical PCB");
+        odbOpenAction = bar->addAction("Open ODB++");
+        odbOpenAction->setToolTip("Local ODB++ directory and STEP, SOURCE geometry only; no SI");
         canonicalOpenAction->setToolTip("Source-only Canonical padstack import; no physical SI or material qualification");
         saveAction = bar->addAction("Save Project");
         saveAction->setEnabled(false);
@@ -377,6 +386,15 @@ public:
             if (file.isEmpty()) return;
             openCandidate(file);
         });
+        connect(odbOpenAction,&QAction::triggered,this,[this] {
+            const QString root=QFileDialog::getExistingDirectory(
+                this,"Open unpacked ODB++ product directory");
+            if(root.isEmpty())return;
+            bool accepted=false;
+            const QString step=QInputDialog::getText(this,"ODB++ STEP",
+                "Selected BOARD STEP name",QLineEdit::Normal,"pcb",&accepted);
+            if(accepted && !step.isEmpty())openOdbCandidate(root,step);
+        });
         connect(canonicalOpenAction, &QAction::triggered, this, [this] {
             const QString file = QFileDialog::getOpenFileName(
                 this, "Open Canonical PADS PCB - source geometry only", QString(),
@@ -412,6 +430,14 @@ public:
         const bool started = importUI->openCanonicalPath(file);
         if (!started)
             log->appendPlainText("Open Canonical PCB: rejected or importer unavailable.");
+        refreshProperties();
+        return started;
+    }
+    bool openOdbCandidate(const QString &root,const QString &step="pcb") {
+        if(importUI->busy())return false;
+        chosenFile=QFileInfo(root).fileName();chosenSourcePath=root;
+        const bool started=importUI->openOdbPath(root,step);
+        if(!started)log->appendPlainText("Open ODB++: rejected source or importer unavailable.");
         refreshProperties();
         return started;
     }

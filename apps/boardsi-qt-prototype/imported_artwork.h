@@ -2,6 +2,7 @@
 #pragma once
 #include "synthetic_artwork.h"
 #include "d05605_canonical_artwork.h"
+#include "e021_odb_ipc.h"
 #include <QComboBox>
 #include <QGraphicsLineItem>
 #include <QGraphicsEllipseItem>
@@ -373,6 +374,7 @@ class ImportedArtworkPanel final : public QWidget {
     // legacy V1-V14. Canonical geometry is never forced into ImportedVia.
     std::vector<std::pair<QGraphicsPathItem *, d05605::Glyph>> canonical_;
     bool canonicalMode_ = false;
+    bool odbMode_ = false;
     QString canonicalSha_;
     static QString canonicalNet(const QString &id) {
         return id == "-" ? QString("UNKNOWN") : d05605::readableId(id);
@@ -380,7 +382,7 @@ class ImportedArtworkPanel final : public QWidget {
     void refresh() {
         if (canonicalMode_) {
 #ifdef BOARDSI_RHI_ARTWORK
-            if(rhi_)rhi_->filter(layerVisible_,nets_->currentText(),
+            if(rhi_ && !odbMode_)rhi_->filter(layerVisible_,nets_->currentText(),
                 netOnly_ && netOnly_->isChecked());
 #endif
             const QString selected = nets_->currentText();
@@ -394,8 +396,9 @@ class ImportedArtworkPanel final : public QWidget {
                 entry.first->setOpacity(selected=="All nets" || canonicalNet(g.netId)==selected ? 1.0 : 0.15);
                 if (on) ++shown;
             }
-            QString message=QString("D_056_05 MAIN ARTWORK / CANONICAL SOURCE GEOMETRY ONLY"
-                " / SI NOT_RUN\nSource SHA256: %1\nPhysical layers: %2"
+            QString message=QString(odbMode_ ? "E_021 MAIN ARTWORK / ODB++ CANONICAL SOURCE GEOMETRY ONLY" :
+                                  "D_056_05 MAIN ARTWORK / CANONICAL SOURCE GEOMETRY ONLY") +
+                                  QString(" / SI NOT_RUN\nSource SHA256: %1\nPhysical layers: %2"
                 " / layer glyphs: %3 / visible: %4\n"
                 "Plating UNVERIFIED / connected layers UNKNOWN / Global Open/Short NOT_VERIFIED\n"
                 "Renderer: %5 / rendering is display-only, not electrical evidence")
@@ -1027,7 +1030,7 @@ public:
         pours_.clear();
         copper_.clear();
         scene_->clear();
-        canonical_.clear(); canonicalMode_=false; canonicalSha_.clear();
+        canonical_.clear(); canonicalMode_=false; odbMode_=false; canonicalSha_.clear();
         layerVisible_.clear();
         layers_->clear();
         nets_->clear();
@@ -1053,7 +1056,7 @@ public:
         d05605::Model prepared;
         if (!d05605::make(source,expectedSha,prepared)) return false;
         clearArtwork();
-        canonicalMode_=true; canonicalSha_=prepared.sourceSha;
+        canonicalMode_=true; odbMode_=false; canonicalSha_=prepared.sourceSha;
         layerVisible_=QVector<bool>(prepared.layerCount+1,true);
         const QSignalBlocker muteLayers(layers_);
         const QSignalBlocker muteNets(nets_);
@@ -1109,6 +1112,42 @@ public:
         fitArtwork();
         return true;
     }
+    // E_021: this renders the already-validated ODB++ Canonical straight Trace
+    // and Pad glyphs in the ACTUAL main ImportedArtworkPanel. No new mock scene.
+    bool loadOdb(const e021ipc::Source &source) {
+        const auto &prepared=source.artwork;
+        if(prepared.layerCount<2 || prepared.layerCount>64 ||
+           prepared.layerCount!=source.layerNames.size() ||
+           prepared.glyphs.isEmpty() || prepared.glyphs.size()>256 ||
+           !d056ipc::hash64(prepared.sourceSha) ||
+           prepared.bounds.isEmpty() || !prepared.bounds.isValid())return false;
+        clearArtwork();
+        canonicalMode_=true;odbMode_=true;canonicalSha_=prepared.sourceSha;
+        layerVisible_=QVector<bool>(prepared.layerCount+1,true);
+        const QSignalBlocker muteLayers(layers_);
+        const QSignalBlocker muteNets(nets_);
+        for(int n=1;n<=prepared.layerCount;++n)
+            layers_->addItem(source.layerNames[n-1],n);
+        for(const auto &g:prepared.glyphs) {
+            if(nets_->findText(canonicalNet(g.netId))<0)
+                nets_->addItem(canonicalNet(g.netId));
+            auto *item=scene_->addPath(g.footprint,QPen(Qt::NoPen),
+                QBrush(QColor(g.layer==1 ? "#d0a55a" :
+                    g.layer==prepared.layerCount ? "#55b4e9" : "#a9d48e")));
+            item->setData(0,canonicalNet(g.netId));
+            item->setData(2,g.details);
+            item->setData(3,"E021OdbCanonical");
+            item->setToolTip(g.details);
+            item->setFlag(QGraphicsItem::ItemIsSelectable);
+            canonical_.push_back({item,g});
+        }
+        scene_->setSceneRect(prepared.bounds.adjusted(-1,-1,1,1));
+        // The current GPU via mesh cannot encode arbitrary Trace/Pad paths.
+        // Keep exact CPU artwork rather than silently disappearing copper.
+        canvasStack_->setCurrentWidget(view_);
+        refresh();fitArtwork();
+        return true;
+    }
     int canonicalGlyphCount() const {return static_cast<int>(canonical_.size());}
     int canonicalLayerGlyphCount(int layer) const {
         int count=0; for(const auto &g:canonical_) if(g.second.layer==layer) ++count;
@@ -1136,6 +1175,7 @@ public:
     }
     QString canonicalSourceSha() const {return canonicalSha_;}
     bool canonicalMode() const {return canonicalMode_;}
+    bool odbMode() const {return odbMode_;}
     bool load(int layerCount, int skipped, const std::vector<ImportedTrack> &input,
               const std::vector<ImportedVia> &viaInput = {},
               const std::vector<ImportedPad> &padInput = {},
@@ -1332,7 +1372,7 @@ public:
             boundaries_.clear();
             pours_.clear();
             copper_.clear();
-            canonical_.clear(); canonicalMode_=false; canonicalSha_.clear();
+            canonical_.clear(); canonicalMode_=false; odbMode_=false; canonicalSha_.clear();
             scene_->clear();
         }
         layerVisible_ = QVector<bool>(layerCount + 1, true);

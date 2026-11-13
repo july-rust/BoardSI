@@ -2,6 +2,7 @@
 // Only restricted V9.4-MILS straight segments -> partial Canonical -> Qt, SI NOT_RUN.
 #pragma once
 #include "imported_artwork.h"
+#include "e021_odb_ipc.h"
 #include "a032_contact_records.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -34,6 +35,11 @@ class PreviewImportPanel final : public QWidget {
     // Separate source SHA-bound Canonical producer. Never reinterpret V1-V14.
     QProcess canonicalProcess_;
     QTimer canonicalDeadline_;
+    QProcess odbProcess_;
+    QTimer odbDeadline_;
+    QByteArray odbData_, odbErrors_;
+    QString odbBinary_, odbRoot_;
+    bool odbCancelled_=false, odbTimedOut_=false, odbOverflow_=false;
     QByteArray canonicalData_, canonicalDigest_, canonicalErrors_;
     QString canonicalPath_, canonicalBinary_;
     bool canonicalCancelled_ = false, canonicalExpired_ = false, canonicalOverflow_ = false;
@@ -67,6 +73,15 @@ class PreviewImportPanel final : public QWidget {
         if (importLabel_) importLabel_->setText(message);
         if (cancelButton_) cancelButton_->setEnabled(message.startsWith("RUNNING"));
         if (callback_) callback_(status_);
+    }
+    void collectOdb() {
+        while(odbProcess_.bytesAvailable()>0) {
+            const qint64 free=4*1024*1024-odbData_.size();
+            if(free<=0){odbOverflow_=true;odbProcess_.kill();return;}
+            const QByteArray piece=odbProcess_.read(qMin<qint64>(65536,free));
+            if(piece.isEmpty())break;
+            odbData_.append(piece);
+        }
     }
     void collectCanonicalStderr() {
         appendBoundedStderr(canonicalErrors_,canonicalStderrOverflow_,
@@ -615,6 +630,12 @@ public:
         canonicalBinary_ = QFileInfo(binary_).absolutePath() +
             "/boardsi-import-canonical-padstack";
 #endif
+        odbBinary_=QFileInfo(binary_).absolutePath()+
+#ifdef Q_OS_WIN
+            "/boardsi-odb-qt-import.exe";
+#else
+            "/boardsi-odb-qt-import";
+#endif
         auto *layout = new QVBoxLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
         auto *controls = new QHBoxLayout();
@@ -641,6 +662,11 @@ public:
                 deadline_.stop();
                 process_.kill();
                 status("CANCELLED / no new board imported / SI NOT_RUN");
+            }
+            if (odbProcess_.state() != QProcess::NotRunning) {
+                odbCancelled_=true;odbDeadline_.stop();odbProcess_.kill();
+                imported_->clearArtwork();
+                status("CANCELLED / ODB++ SOURCE discarded / SI NOT_RUN");
             }
             if (canonicalProcess_.state() != QProcess::NotRunning) {
                 canonicalCancelled_=true;
@@ -803,6 +829,47 @@ public:
             expired_ = true;
             if (process_.state() != QProcess::NotRunning) process_.kill();
         });
+        odbProcess_.setProcessChannelMode(QProcess::SeparateChannels);
+        odbDeadline_.setSingleShot(true);
+        connect(&odbProcess_,&QProcess::readyReadStandardOutput,this,[this]{collectOdb();});
+        connect(&odbProcess_,&QProcess::readyReadStandardError,this,[this]{
+            const QByteArray piece=odbProcess_.readAllStandardError();
+            const qint64 free=256-odbErrors_.size();
+            if(free<static_cast<qint64>(piece.size()))odbOverflow_=true;
+            if(free>0)odbErrors_.append(piece.left(free));
+            if(odbOverflow_)odbProcess_.kill();
+        });
+        connect(&odbDeadline_,&QTimer::timeout,this,[this]{
+            odbTimedOut_=true;odbProcess_.kill();
+        });
+        connect(&odbProcess_,&QProcess::finished,this,[this](int code,QProcess::ExitStatus exitStatus){
+            odbDeadline_.stop();collectOdb();
+            if(odbCancelled_)return;
+            if(odbTimedOut_ || odbOverflow_ || code!=0 || exitStatus!=QProcess::NormalExit) {
+                status(odbTimedOut_ ? "FAILED / ODB_IMPORT_TIMEOUT / NOTHING IMPORTED" :
+                    "FAILED / ODB_IMPORT_PROCESS / NOTHING IMPORTED");return;
+            }
+            e021ipc::Source candidate;
+            if(!e021ipc::decode(odbData_,odbRoot_,candidate) ||
+               !imported_->loadOdb(candidate)) {
+                status("FAILED / ODB_SOURCE_OR_IPC_UNVERIFIED / NOTHING IMPORTED");return;
+            }
+            canonicalPath_=odbRoot_;
+            importedLayerCount_=candidate.artwork.layerCount;
+            acceptedDigest_=candidate.artwork.sourceSha.toLatin1();
+            tabs_->setTabText(1,"Imported ODB++ SOURCE geometry");
+            tabs_->setCurrentWidget(imported_);
+            QTimer::singleShot(0,imported_,[this]{
+                if(tabs_->currentWidget()==imported_)imported_->fitArtwork();
+            });
+            status(QString("CANONICAL SOURCE GEOMETRY / ODB++ / %1 layers / %2 shapes"
+                " / connectivity UNKNOWN / SI NOT_RUN")
+                .arg(importedLayerCount_).arg(candidate.artwork.glyphs.size()));
+        });
+        connect(&odbProcess_,&QProcess::errorOccurred,this,[this](QProcess::ProcessError e){
+            if(e==QProcess::FailedToStart){odbDeadline_.stop();
+                status("FAILED / ODB_IMPORTER_UNAVAILABLE / NOTHING IMPORTED");}
+        });
         canonicalProcess_.setProcessChannelMode(QProcess::SeparateChannels);
         canonicalDeadline_.setSingleShot(true);
         connect(&canonicalProcess_,&QProcess::readyReadStandardOutput,
@@ -870,9 +937,32 @@ public:
     bool importedNetInventoryComplete() const { return importedNetInventoryComplete_; }
     void setStatusCallback(std::function<void(const QString &)> cb) { callback_ = std::move(cb); }
     void setCanonicalImporterBinaryForTest(const QString &path) { canonicalBinary_=path; }
+    void setOdbImporterBinaryForTest(const QString &path) { odbBinary_=path; }
+    bool openOdbPath(const QString &root,const QString &step="pcb") {
+        if(busy())return false;
+        imported_->clearArtwork();
+        acceptedDigest_.clear();importedLayerCount_=0;
+        importedCopperEvidence_=QJsonArray();importedNetLabels_=QJsonArray();
+        importedNetInventoryComplete_=false;canonicalPath_.clear();
+        tabs_->setTabText(1,"Imported ODB++ (none)");
+        if(!QFileInfo(root).isDir() || QFileInfo(root).isSymLink() ||
+           step.isEmpty() || step.size()>128 ||
+           !QRegularExpression("^[A-Za-z0-9_.-]+$").match(step).hasMatch()) {
+            status("FAILED / ODB_DIRECTORY_OR_STEP_UNSUPPORTED / NOTHING IMPORTED");return false;
+        }
+        if(!QFileInfo(odbBinary_).isAbsolute() || !QFileInfo(odbBinary_).isExecutable()) {
+            status("FAILED / ODB_IMPORTER_UNAVAILABLE / NOTHING IMPORTED");return false;
+        }
+        odbRoot_=root;
+        odbData_.clear();odbErrors_.clear();
+        odbCancelled_=false;odbTimedOut_=false;odbOverflow_=false;
+        status("RUNNING / ODB++ Canonical SOURCE import / SI NOT_RUN");
+        odbDeadline_.start(20000);
+        odbProcess_.start(odbBinary_,{root,step});
+        return true;
+    }
     bool openCanonicalPath(const QString &path) {
-        if(process_.state()!=QProcess::NotRunning ||
-           canonicalProcess_.state()!=QProcess::NotRunning) return false;
+        if (busy()) return false;
         imported_->clearArtwork();
         importedLayerCount_=0;
         acceptedDigest_.clear();
@@ -903,8 +993,7 @@ public:
         return true;
     }
     bool openPath(const QString &path) {
-        if (process_.state() != QProcess::NotRunning ||
-            canonicalProcess_.state() != QProcess::NotRunning) return false;
+        if (busy()) return false;
         // An import attempt replaces the candidate, even when start/parse fails.
         // Never show previous geometry with the current "NOTHING IMPORTED" result.
         imported_->clearArtwork();
@@ -944,9 +1033,13 @@ public:
             canonicalCancelled_=true;
             canonicalProcess_.kill();
         }
+        if(odbProcess_.state()!=QProcess::NotRunning) {
+            odbCancelled_=true;odbProcess_.kill();
+        }
     }
     bool busy() const {
         return process_.state() != QProcess::NotRunning ||
-               canonicalProcess_.state() != QProcess::NotRunning;
+               canonicalProcess_.state() != QProcess::NotRunning ||
+               odbProcess_.state() != QProcess::NotRunning;
     }
 };
