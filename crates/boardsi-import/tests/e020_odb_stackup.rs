@@ -234,3 +234,22 @@ fn e020_rejects_invalid_target_and_xml_resource_budget() {
         "ODB_STACKUP_XML_TOO_LARGE"
     );
 }
+
+#[test]
+fn e020_nested_group_must_not_hide_dielectric_from_complete_z() {
+    let mut files = sample(2);
+    rewrite(
+        &mut files,
+        "<Layer LayerName=\"d1\"",
+        "<Group GroupName=\"Hidden\"><Layer LayerName=\"d1\"",
+    );
+    rewrite(
+        &mut files,
+        "PropertyName=\"measured\"/></SpecRef></Layer><Layer LayerName=\"sig2\"",
+        "PropertyName=\"measured\"/></SpecRef></Layer></Group><Layer LayerName=\"sig2\"",
+    );
+    assert_eq!(
+        audit_unpacked_stackup(&files, "pcb").unwrap_err().code,
+        "ODB_STACKUP_NESTED_OR_UNKNOWN_GROUP_CHILD"
+    );
+}
