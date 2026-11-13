@@ -1,6 +1,6 @@
 # E_018 — ODB++ EDA PKG/PIN RC Source Qualification
 
-**Status:** IN_PROGRESS until final PR HEAD CI, independent review, protected Verified Squash, and exact merged-main Push checks. This report is a source-only development artifact, **not** vendor/cross-CAD or electrical acceptance.
+**Status:** E_018 SOURCE-only code merged and bounded unit tests PASS; exact code-main Push 8-workflow qualification **PENDING**. Do not mark final COMPLETE until the main Push and this docs closeout PR are verified. This is not vendor/cross-CAD or electrical acceptance.
 
 ## Normative grammar and admission
 
@@ -20,16 +20,25 @@ Siemens [ODB++Design 8.1 Update 4](https://odbplusplus.com/wp-content/uploads/si
 
 Existing single-level E_017 Step Repeat has **no qualified EDA mapping** and must continue returning `ODB_STEP_EDA_NOT_QUALIFIED`; source components are not duplicated into repeated board placements.
 
-## Acceptance tests and evidence (fill only after GitHub observation)
+## Acceptance tests and evidence — exact code PR #613
 
-- Rust isolated PKG/PIN positive/negative, exact decimal, multiple packages and ID conflict: PENDING
-- `BoardModel` + EDA NET/FID invariant and physical graph absence: PENDING
-- MM/INCH exact-coordinate equivalence: PENDING
-- Directory / USTAR / GZIP / ZIP source transport identity parity: PENDING
-- Existing E_013–E_017, PADS, Qt/IPC regressions: PENDING
-- Final PR HEAD + Required Checks / native Win x64, Win ARM64, macOS ARM64: PENDING
-- Independent review and zero unresolved threads: PENDING
-- Protected Verified Squash commit and exact main Push CI: PENDING
+- **Source PR:** [#613](https://github.com/july-rust/BoardSI/pull/613), final HEAD `75a79dd807a68719d3506bad72586187b6795c73`, 30/30 final-head Check Runs SUCCESS including Windows x64/ARM64 and macOS ARM64 Native Rust/Qt, Linux Qt, CodeQL and docs.
+- **Numerical source validation:** `boardsi-import` 333/333 library tests in Debug, 333/333 in Release. Independent E_018 archive-parity integration test PASS in both variants; existing E_013–E_017 and PADS test regression suite also passed.
+- **Review:** Codex found P2 stale NET/SNT context after PKG; fixed with fail-closed regression, replied and resolved thread. Codex independent final-head `+1`, 0 unresolved threads.
+- **Protected merge:** GitHub Verified single-parent Squash [`fc096f2da66280e43eb43c20bddd1fe076cac35c`](https://github.com/july-rust/BoardSI/commit/fc096f2da66280e43eb43c20bddd1fe076cac35c), verified=true/valid, parent `d0cabad37f6403cabe5042b1dff60573b8194b8e`.
+- **Exact code-main event=push:** 8-workflow result **PENDING**; must verify all 8 against `fc096f2da66280e43eb43c20bddd1fe076cac35c`, not substitute PR checks.
+- **Evidence recording:** 2026-11-13 KST. All historical failed CI attempts and their fixes remain visible in PR #613.
+
+## Automated acceptance matrix
+
+- Rust isolated PKG/PIN positive/negative, exact decimal, multiple packages and ID conflict: PASS (333/333 crate lib suite Debug/Release)
+- `BoardModel` + EDA NET/FID invariant and physical graph absence: PASS
+- MM/INCH exact-coordinate equivalence: PASS
+- Directory / USTAR / GZIP / ZIP STORED / ZIP DEFLATE with features.Z logical source identity parity: PASS
+- Existing E_013–E_017, PADS, Qt/IPC regressions: PASS on PR HEAD; code-main Push PENDING
+- Final PR HEAD + Required Checks / native Win x64, Win ARM64, macOS ARM64: 30/30 SUCCESS
+- Independent review and zero unresolved threads: Codex final-head +1, 0 unresolved; P2 corrected
+- Protected Verified Squash: `fc096f2da66280e43eb43c20bddd1fe076cac35c` SUCCESS; exact main Push CI: PENDING
 
 ## Not accepted
 
