@@ -361,7 +361,10 @@ fn selected_material(
 ) -> Result<SelectedMaterial, OdbError> {
     let bases = children(nodes, material, "Default_Thickness");
     if bases.len() > 1 {
-        return Err(fail(nodes[material].line, "ODB_STACKUP_DUPLICATE_DEFAULT_THICKNESS"));
+        return Err(fail(
+            nodes[material].line,
+            "ODB_STACKUP_DUPLICATE_DEFAULT_THICKNESS",
+        ));
     }
     // A source may specify a material but omit its thickness. This is UNKNOWN,
     // not a guessed zero or a reason to publish a complete-z receipt.
