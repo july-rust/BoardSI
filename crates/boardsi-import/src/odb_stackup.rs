@@ -359,12 +359,22 @@ fn selected_material(
     selected: Option<&str>,
     default_unit: &str,
 ) -> Result<SelectedMaterial, OdbError> {
-    let base = one(nodes, material, "Default_Thickness")?;
-    let mut nominal = thickness(&nodes[base], "Thickness", default_unit, "Units")?;
-    if nominal.is_none() {
-        return Err(fail(nodes[base].line, "ODB_STACKUP_THICKNESS"));
+    let bases = children(nodes, material, "Default_Thickness");
+    if bases.len() > 1 {
+        return Err(fail(nodes[material].line, "ODB_STACKUP_DUPLICATE_DEFAULT_THICKNESS"));
     }
-    let mut finished = thickness(&nodes[base], "Finished_Thickness", default_unit, "Units")?;
+    // A source may specify a material but omit its thickness. This is UNKNOWN,
+    // not a guessed zero or a reason to publish a complete-z receipt.
+    let mut nominal = bases
+        .first()
+        .map(|base| thickness(&nodes[*base], "Thickness", default_unit, "Units"))
+        .transpose()?
+        .flatten();
+    let mut finished = bases
+        .first()
+        .map(|base| thickness(&nodes[*base], "Finished_Thickness", default_unit, "Units"))
+        .transpose()?
+        .flatten();
     let dielectric = children(nodes, material, "Dielectric");
     let conductor = children(nodes, material, "Conductor");
     if dielectric.len() + conductor.len() != 1 {
