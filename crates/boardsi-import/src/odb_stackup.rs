@@ -228,7 +228,7 @@ fn xml_tree(bytes: &[u8]) -> Result<Vec<Element>, OdbError> {
     }
     Ok(nodes)
 }
-fn children<'a>(nodes: &'a [Element], parent: usize, tag: &str) -> Vec<usize> {
+fn children(nodes: &[Element], parent: usize, tag: &str) -> Vec<usize> {
     nodes[parent]
         .children
         .iter()
