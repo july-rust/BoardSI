@@ -1539,6 +1539,42 @@ mod tests {
         assert_ne!(a.sources[0].id, c.sources[0].id);
         assert_ne!(a.traces[0].meta.id, c.traces[0].meta.id);
     }
+
+    #[test]
+    fn e017_nested_cutout_expansion_is_bounded_before_clone() {
+        // Codex P2: the old count included each Area only once and ignored
+        // its holes and boundary vertices. A large array must fail BEFORE
+        // duplicating millions of derived cutout objects.
+        let mut f = e017_panel();
+        let layer_path = "steps/pcb/layers/sig1/features";
+        let record = "S P 0\nOB 0 0 I\nOS 0 4\nOS 4 4\nOS 4 0\nOS 0 0\nOE\nOB 1 1 H\nOS 1 2\nOS 2 2\nOS 2 1\nOS 1 1\nOE\nSE\n";
+        let s = String::from_utf8(f[layer_path].clone())
+            .unwrap()
+            .replace("F 3", "F 4") + record;
+        f.insert(layer_path.into(), s.into_bytes());
+        let parent_path = "steps/panel/stephdr";
+        let h = String::from_utf8(f[parent_path].clone()).unwrap()
+            .replace("NX=2", "NX=8")
+            .replace("NY=2", "NY=8");
+        f.insert(parent_path.into(), h.into_bytes());
+        let mut child = import_unpacked(&f, "pcb").unwrap();
+        let template = child.areas[0].clone();
+        for _ in 0..2000 {
+            child.areas.push(template.clone());
+        }
+        let steps = vec!["pcb".to_string(), "panel".to_string()];
+        let copper = vec!["sig1".to_string(), "sig2".to_string()];
+        let placement = crate::odb_step_repeat::parse(&f, "panel", &steps, &copper)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            crate::odb_step_repeat::instantiate(child, &placement)
+                .unwrap_err()
+                .code,
+            "ODB_STEP_EXPANSION_LIMIT"
+        );
+    }
+
     #[test]
     fn e017_no_partial_parent_artwork_and_bad_child_origin() {
         let f = e017_panel();
