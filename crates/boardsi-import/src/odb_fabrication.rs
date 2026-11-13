@@ -4,8 +4,8 @@ use std::{collections::BTreeMap, path::Path};
 
 use boardsi_model::{
     BoardModel, FabricationHole, FabricationHoleShape, FabricationOperation, FabricationPlating,
-    FabricationSourceEvidence, PhysicalLayerSpan, Rational, SourceId,
-    SourceStackupEvidence, SourceViaEvidenceState, SourceViaHoleObservation,
+    FabricationSourceEvidence, PhysicalLayerSpan, Rational, SourceId, SourceStackupEvidence,
+    SourceViaEvidenceState, SourceViaHoleObservation,
 };
 
 use crate::odb_drill::{DrillIntent, SourceDrillLayer};
@@ -200,9 +200,14 @@ fn source_plated_candidates(
         if hit.tool_intent != DrillIntent::Plated || hit.tool_subtype != "STANDARD" {
             continue;
         }
-        let layer = layers.iter().find(|l| l.name == hit.layer_name)
+        let layer = layers
+            .iter()
+            .find(|l| l.name == hit.layer_name)
             .ok_or_else(|| error(hit, "ODB_VIA_CANDIDATE_LAYER_MISSING"))?;
-        let tool = layer.tools.iter().find(|t| t.number == hit.tool_number)
+        let tool = layer
+            .tools
+            .iter()
+            .find(|t| t.number == hit.tool_number)
             .ok_or_else(|| error(hit, "ODB_VIA_CANDIDATE_TOOL_MISSING"))?;
         if tool.intent != DrillIntent::Plated || tool.subtype != "STANDARD" {
             return Err(error(hit, "ODB_VIA_CANDIDATE_TOOL_CONFLICT"));
@@ -217,11 +222,18 @@ fn source_plated_candidates(
             _ => return Err(error(hit, "ODB_VIA_CANDIDATE_BAD_UNITS")),
         };
         let finished_diameter_m = crate::odb_source::length_symbol(
-            &tool.finish_size, mode, &layer.source_file, tool.source_line,
+            &tool.finish_size,
+            mode,
+            &layer.source_file,
+            tool.source_line,
         )?;
-        let tool_diameter_m = tool.drill_size.as_deref().map(|v| {
-            crate::odb_source::length_symbol(v, mode, &layer.source_file, tool.source_line)
-        }).transpose()?;
+        let tool_diameter_m = tool
+            .drill_size
+            .as_deref()
+            .map(|v| {
+                crate::odb_source::length_symbol(v, mode, &layer.source_file, tool.source_line)
+            })
+            .transpose()?;
         // Bind the exact logical path and SHA for all THREE manufacturing
         // records; hash equality alone is ambiguous for repeated file content.
         for (path, sha) in [
@@ -229,11 +241,18 @@ fn source_plated_candidates(
             (hit.tool_source_file.as_str(), hit.tool_source_sha256),
             ("matrix/matrix", hit.matrix_source_sha256),
         ] {
-            if source.files.iter().filter(|f| f.logical_path == path && f.sha256 == sha).count() != 1 {
+            if source
+                .files
+                .iter()
+                .filter(|f| f.logical_path == path && f.sha256 == sha)
+                .count()
+                != 1
+            {
                 return Err(error(hit, "ODB_VIA_CANDIDATE_PROVENANCE_MISMATCH"));
             }
         }
-        let observed = board.observe_source_via_hole(source, &hole.fabrication)
+        let observed = board
+            .observe_source_via_hole(source, &hole.fabrication)
             .map_err(|_| error(hit, "ODB_VIA_CANDIDATE_SOURCE_OBSERVATION"))?;
         if observed.source_file != hit.source_file
             || observed.source_line != hit.source_line
