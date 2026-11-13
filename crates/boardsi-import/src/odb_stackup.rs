@@ -1,7 +1,9 @@
 //! E_020: bounded ODB++Design 8.1-U4 EDA stackup observation.
 //! This is source-only, not manufactured dimensions, validated loss or SI.
 //! Schema: matrix/stackup.xml (StackupFile/EdaData/Specs, Stackup/Group).
-use crate::odb_source::{declared_board_copper, import_unpacked, read_source_path_file_map, OdbError, OdbFileMap};
+use crate::odb_source::{
+    declared_board_copper, import_unpacked, read_source_path_file_map, OdbError, OdbFileMap,
+};
 use boardsi_model::{Rational, SourceId};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -373,7 +375,10 @@ fn selected_material(
     let entity = dielectric.first().or(conductor.first()).copied().unwrap();
     // Conductor resin values are not dielectric layer Dk/Df in this bounded slice.
     if !conductor.is_empty() && !children(nodes, entity, "Properties").is_empty() {
-        return Err(fail(nodes[entity].line, "ODB_STACKUP_CONDUCTOR_PROPERTIES_UNSUPPORTED"));
+        return Err(fail(
+            nodes[entity].line,
+            "ODB_STACKUP_CONDUCTOR_PROPERTIES_UNSUPPORTED",
+        ));
     }
     let mut props = Vec::new();
     let mut selected_group = false;
@@ -385,7 +390,10 @@ fn selected_material(
             continue;
         }
         if selected_group {
-            return Err(fail(nodes[group].line, "ODB_STACKUP_DUPLICATE_PROPERTY_GROUP"));
+            return Err(fail(
+                nodes[group].line,
+                "ODB_STACKUP_DUPLICATE_PROPERTY_GROUP",
+            ));
         }
         selected_group = true;
         for property in children(nodes, group, "Property") {
@@ -488,8 +496,15 @@ pub fn audit_unpacked_stackup(
     }
     // A nested Group can hide dielectric layers from the copper-only Matrix check.
     // Reject it rather than calculate a misleading complete-z stackup.
-    if nodes[groups[0]].children.iter().any(|id| nodes[*id].name != "Layer") {
-        return Err(fail(nodes[groups[0]].line, "ODB_STACKUP_NESTED_OR_UNKNOWN_GROUP_CHILD"));
+    if nodes[groups[0]]
+        .children
+        .iter()
+        .any(|id| nodes[*id].name != "Layer")
+    {
+        return Err(fail(
+            nodes[groups[0]].line,
+            "ODB_STACKUP_NESTED_OR_UNKNOWN_GROUP_CHILD",
+        ));
     }
     let mut layers = Vec::new();
     let mut names = BTreeSet::new();
@@ -553,7 +568,12 @@ pub fn audit_unpacked_stackup(
     }
     let xml_types: Vec<_> = layers
         .iter()
-        .filter(|layer| matches!(layer.layer_type.as_str(), "SIGNAL" | "POWER_GROUND" | "MIXED"))
+        .filter(|layer| {
+            matches!(
+                layer.layer_type.as_str(),
+                "SIGNAL" | "POWER_GROUND" | "MIXED"
+            )
+        })
         .map(|layer| (layer.layer_name.clone(), layer.layer_type.clone()))
         .collect();
     if xml_types != declared_board_copper(files)? {
