@@ -332,6 +332,7 @@ public:
             }
             log->appendPlainText("PCB Import: " + state);
             refreshProperties();
+            refresh(); // Keep result summary aligned with the accepted scene.
         });
         // Edits to the independent Stackup editor invalidate the source-risk
         // display, never authorize physical Solver readiness.
