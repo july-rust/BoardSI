@@ -271,3 +271,30 @@ fn e020_xml_matrix_copper_type_conflict_is_not_accepted() {
         "ODB_STACKUP_MATRIX_LAYER_TYPE_MISMATCH"
     );
 }
+
+#[test]
+fn e020_missing_thickness_is_unknown_not_fabricated_z() {
+    let mut missing_nominal = sample(4);
+    rewrite(
+        &mut missing_nominal,
+        "<Default_Thickness Thickness=\"0.100\"/>",
+        "<Default_Thickness/>",
+    );
+    let out = audit_unpacked_stackup(&missing_nominal, "pcb")
+        .unwrap()
+        .unwrap();
+    assert!(!out.complete_z);
+    assert!(out.layers[1].thickness_m.is_none());
+    assert!(out.layers.iter().all(|layer| layer.z_top_m.is_none()));
+    assert_eq!(out.layers[1].dielectric_properties[0].dk, Some(4.4));
+
+    let mut no_default = sample(4);
+    rewrite(
+        &mut no_default,
+        "<Default_Thickness Thickness=\"0.100\"/>",
+        "",
+    );
+    let out = audit_unpacked_stackup(&no_default, "pcb").unwrap().unwrap();
+    assert!(!out.complete_z);
+    assert!(out.layers.iter().all(|layer| layer.z_top_m.is_none()));
+}
