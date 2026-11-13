@@ -35,18 +35,10 @@ pub(crate) struct Placement {
     pub record_line: usize,
 }
 
-fn fields(
-    text: &str,
-    path: &str,
-    array: bool,
-) -> Result<
-    (
-        BTreeMap<String, String>,
-        Option<BTreeMap<String, String>>,
-        usize,
-    ),
-    OdbError,
-> {
+type HeaderFields = BTreeMap<String, String>;
+type ParsedHeader = (HeaderFields, Option<HeaderFields>, usize);
+
+fn fields(text: &str, path: &str, array: bool) -> Result<ParsedHeader, OdbError> {
     let mut general = BTreeMap::new();
     let mut repeat: Option<BTreeMap<String, String>> = None;
     let mut inside = false;
@@ -482,10 +474,10 @@ pub(crate) fn instantiate(child: BoardModel, p: &Placement) -> Result<BoardModel
                 let mut item = original.clone();
                 item.meta.id = new_id(&source, &item.meta.id, Some((p, ix, iy)));
                 witness(&mut item.meta, p, ix, iy);
-                for axis in 0..2 {
+                for (axis, offset) in offsets.iter().enumerate() {
                     item.origin_m[axis] =
                         item.origin_m[axis]
-                            .checked_add(offsets[axis])
+                            .checked_add(*offset)
                             .map_err(|_| {
                                 err(&p.header_path, p.record_line, "ODB_STEP_RATIONAL_OVERFLOW")
                             })?;
