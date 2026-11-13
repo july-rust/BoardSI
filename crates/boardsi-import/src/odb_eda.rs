@@ -51,8 +51,8 @@ pub(super) fn parse(
 ) -> Result<EdaOwnership, EdaError> {
     // Validate the complete PKG/PIN/RC grammar before accepting any NET/FID.
     // A source definition never creates a placed component or electrical edge.
-    let packages = crate::odb_eda_packages::parse_packages(text)
-        .map_err(|e| err(e.line, e.code))?;
+    let packages =
+        crate::odb_eda_packages::parse_packages(text).map_err(|e| err(e.line, e.code))?;
     let mut layer_names: Option<Vec<String>> = None;
     let mut nets = Vec::new();
     let mut assignments = Vec::new();
@@ -227,7 +227,11 @@ pub(super) fn parse(
     if !saw_hdr || units.is_none() || layer_names.is_none() || nets.is_empty() {
         return Err(err(0, "ODB_EDA_INCOMPLETE"));
     }
-    Ok(EdaOwnership { nets, assignments, packages })
+    Ok(EdaOwnership {
+        nets,
+        assignments,
+        packages,
+    })
 }
 
 #[cfg(test)]
