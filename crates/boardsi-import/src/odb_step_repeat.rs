@@ -562,7 +562,10 @@ pub(crate) fn instantiate(child: BoardModel, p: &Placement) -> Result<BoardModel
             }
         }
     }
-    if board.validate().has_errors() {
+    // The child source parser has already established exact local geometry.
+    // A full BoardModel::validate() performs quadratic padstack lookups;
+    // verify the repeated references/IDs in O(N log N) instead.
+    if !references_valid(&board) {
         return Err(err(
             &p.header_path,
             p.record_line,
@@ -570,4 +573,62 @@ pub(crate) fn instantiate(child: BoardModel, p: &Placement) -> Result<BoardModel
         ));
     }
     Ok(board)
+}
+
+
+type IdView<'a> = (ObjectKind, &'a str, &'a str);
+fn id_view(id: &ObjectId) -> IdView<'_> {
+    (id.kind, &id.source_object, &id.part)
+}
+
+/// Indexed O(N log N) reference validation for the expanded SOURCE model.
+/// All values were already geometry-parsed in the child, and all identities
+/// are remapped to one parent SourceIdentity by construction.
+fn references_valid(board: &BoardModel) -> bool {
+    let layers: BTreeSet<_> = board.stackup.layers.iter()
+        .map(|v| id_view(&v.meta.id)).collect();
+    let frames: BTreeSet<_> = board.frames.iter()
+        .map(|v| id_view(&v.meta.id)).collect();
+    let padstacks: BTreeSet<_> = board.padstacks.iter()
+        .map(|v| id_view(&v.meta.id)).collect();
+    if layers.len() != board.stackup.layers.len()
+        || frames.len() != board.frames.len()
+        || padstacks.len() != board.padstacks.len() {
+        return false;
+    }
+    let point_valid = |p: &Point| frames.contains(&id_view(&p.frame));
+    let boundary_valid = |b: &Boundary| b.segments.iter().all(|s| match s {
+        BoundarySegment::Line { start, end } =>
+            point_valid(start) && point_valid(end),
+        BoundarySegment::Arc { centre, start, end, .. } =>
+            point_valid(centre) && point_valid(start) && point_valid(end),
+    });
+    if board.traces.iter().any(|t| !layers.contains(&id_view(&t.layer))
+        || !t.centreline.iter().all(&point_valid))
+        || board.arcs.iter().any(|a| !layers.contains(&id_view(&a.layer))
+            || !point_valid(&a.start) || !point_valid(&a.end) || !point_valid(&a.centre))
+        || board.padstacks.iter().any(|p| p.entries.iter()
+            .any(|e| !layers.contains(&id_view(&e.layer))))
+        || board.pads.iter().any(|p| !point_valid(&p.position)
+            || !padstacks.contains(&id_view(&p.padstack)))
+        || board.areas.iter().any(|a| !layers.contains(&id_view(&a.layer))
+            || !boundary_valid(&a.outer)
+            || a.cutouts.iter().any(|c| !boundary_valid(&c.boundary))) {
+        return false;
+    }
+    let mut ids = BTreeSet::new();
+    for id in board.stackup.layers.iter().map(|v| &v.meta.id)
+        .chain(board.frames.iter().map(|v| &v.meta.id))
+        .chain(board.padstacks.iter().map(|v| &v.meta.id))
+        .chain(board.pads.iter().map(|v| &v.meta.id))
+        .chain(board.traces.iter().map(|v| &v.meta.id))
+        .chain(board.arcs.iter().map(|v| &v.meta.id))
+        .chain(board.areas.iter().map(|v| &v.meta.id))
+        .chain(board.areas.iter().flat_map(|a| a.cutouts.iter().map(|c| &c.meta.id)))
+    {
+        if !ids.insert(id_view(id)) {
+            return false;
+        }
+    }
+    true
 }
