@@ -229,6 +229,7 @@ mod odb_compress_z;
 mod odb_drill;
 mod odb_drill_hits;
 mod odb_eda;
+mod odb_eda_packages;
 pub mod odb_fabrication;
 mod odb_gzip;
 pub mod odb_source;
