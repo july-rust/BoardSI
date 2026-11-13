@@ -222,7 +222,11 @@ fn e020_rejects_multi_frequency_thickness_override_and_duplicate_frequency() {
 #[test]
 fn e020_rejects_invalid_target_and_xml_resource_budget() {
     let mut files = sample(2);
-    rewrite(&mut files, "StackupThickness=\"1\"", "StackupThickness=\"-1\"");
+    rewrite(
+        &mut files,
+        "StackupThickness=\"1\"",
+        "StackupThickness=\"-1\"",
+    );
     assert_eq!(
         audit_unpacked_stackup(&files, "pcb").unwrap_err().code,
         "ODB_STACKUP_THICKNESS"
