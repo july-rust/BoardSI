@@ -646,6 +646,9 @@ jobs:
           ./boardsi-qt-runtime-validation$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-worker$suffix" "$pythonPath" "$GITHUB_WORKSPACE/apps/boardsi-qt-prototype/tests/fault_worker.py"
           # E_021: real main Qt ODB++ bounded SOURCE Import, Picking, ReImport, Cancel.
           QT_QPA_PLATFORM=offscreen ./boardsi-e021-main-odb-test$suffix "$GITHUB_WORKSPACE/target/debug/boardsi-odb-qt-import$suffix"
+          # E_021: actual PreviewWindow cross-format accepted PADS identity persists
+          # when a candidate ODB directory is rejected or a child is cancelled.
+          QT_QPA_PLATFORM=offscreen ./boardsi-preview-p0$suffix --e021-crossformat-selftest "$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork$suffix" "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_route_straight_v94.asc" "$GITHUB_WORKSPACE/target/debug/boardsi-odb-qt-import$suffix"
           # E_010 native main Qt Canonical Import/Picking/ReImport regression.
           # This must run on actual Windows x64/ARM64 and macOS ARM64 CI,
           # not just Linux CTest. Offscreen CPU path is not GPU qualification.
