@@ -195,3 +195,42 @@ fn e020_precise_mil_unit_and_precision_failure() {
         "ODB_STACKUP_PRECISION"
     );
 }
+
+#[test]
+fn e020_rejects_multi_frequency_thickness_override_and_duplicate_frequency() {
+    let mut files = sample(2);
+    rewrite(
+        &mut files,
+        "DielectricConstant_Dk=\"4.4\" LossTangent_Df=\"0.015\"/>",
+        "DielectricConstant_Dk=\"4.4\" LossTangent_Df=\"0.015\" Thickness=\"0.100\"/><Property FrequencyVal=\"2\" Units=\"GHz\" DielectricConstant_Dk=\"4.2\"/>",
+    );
+    assert_eq!(
+        audit_unpacked_stackup(&files, "pcb").unwrap_err().code,
+        "ODB_STACKUP_AMBIGUOUS_THICKNESS"
+    );
+    let mut files = sample(2);
+    rewrite(
+        &mut files,
+        "LossTangent_Df=\"0.015\"/>",
+        "LossTangent_Df=\"0.015\"/><Property FrequencyVal=\"1\" Units=\"GHz\" DielectricConstant_Dk=\"4.1\"/>",
+    );
+    assert_eq!(
+        audit_unpacked_stackup(&files, "pcb").unwrap_err().code,
+        "ODB_STACKUP_DUPLICATE_FREQUENCY"
+    );
+}
+#[test]
+fn e020_rejects_invalid_target_and_xml_resource_budget() {
+    let mut files = sample(2);
+    rewrite(&mut files, "StackupThickness=\"1\"", "StackupThickness=\"-1\"");
+    assert_eq!(
+        audit_unpacked_stackup(&files, "pcb").unwrap_err().code,
+        "ODB_STACKUP_THICKNESS"
+    );
+    let mut files = sample(2);
+    files.insert("matrix/stackup.xml".into(), vec![b' '; 2 * 1024 * 1024 + 1]);
+    assert_eq!(
+        audit_unpacked_stackup(&files, "pcb").unwrap_err().code,
+        "ODB_STACKUP_XML_TOO_LARGE"
+    );
+}
