@@ -66,7 +66,9 @@ class PreviewWindow : public QMainWindow {
     PreviewImportPanel *importUI = nullptr;
     B001StackupEditor *stackup = nullptr;
     C005ReferenceRiskController *referenceRisk = nullptr;
-    QString chosenSourcePath;
+    QString chosenSourcePath; // pending candidate, never accepted identity
+    QString acceptedSourcePath;
+    QString acceptedFile;
     QString importResultStatus = "NOT IMPORTED";
     QLabel *properties = nullptr;
     QLabel *validation = nullptr;
@@ -106,8 +108,9 @@ class PreviewWindow : public QMainWindow {
             importUI->imported()->canonicalGlyphCount()>0 &&
             importUI->acceptedSourceSha256().size()==64;
         const QString sourcePath=canonicalLoaded ? importUI->canonicalAcceptedPath() : QString();
-        const QString displayName=sourcePath.isEmpty() ? chosenFile :
-                                  QFileInfo(sourcePath).fileName();
+        const QString displayName=sourcePath.isEmpty() ?
+            (acceptedFile.isEmpty() ? chosenFile : acceptedFile) :
+            QFileInfo(sourcePath).fileName();
         const QString candidate = displayName.isEmpty() ? QString("No PCB candidate selected") :
                                   QString("PCB candidate: ") + displayName;
         const bool legacyLoaded = !canonicalLoaded &&
@@ -147,7 +150,8 @@ class PreviewWindow : public QMainWindow {
         const QString error = ipc->errorLabel()->text();
         stateSummary->setText("Worker: " + status + " | PCB: " + importResultStatus + " | SI NOT_RUN");
         const QString currentFile=importUI->canonicalAcceptedPath().isEmpty() ?
-            chosenFile : QFileInfo(importUI->canonicalAcceptedPath()).fileName();
+            (acceptedFile.isEmpty() ? chosenFile : acceptedFile) :
+            QFileInfo(importUI->canonicalAcceptedPath()).fileName();
         validation->setText(
             (currentFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
                 "PCB candidate: " + currentFile +
@@ -300,25 +304,29 @@ public:
                 state.startsWith("CANONICAL SOURCE GEOMETRY") &&
                 importUI->imported()->canonicalMode();
             const QByteArray acceptedSha = importUI->acceptedSourceSha256();
-            // The canonical importer owns this accepted path. Do not reuse the
-            // previous legacy candidate's path for a newly accepted source.
-            if (canonicalAccepted) chosenSourcePath = importUI->canonicalAcceptedPath();
-            referenceRisk->resetSource(chosenSourcePath,
-                legacyAccepted ? acceptedSha : QByteArray());
-            if ((legacyAccepted || canonicalAccepted) &&
-                acceptedSha.size() == 64 && importUI->importedLayerCount() > 0) {
-                stackup->resetForImport(chosenSourcePath, importUI->importedLayerCount(),
+            // Pending candidate is not the accepted board. Preserve source
+            // filename, stackup and risk evidence across failed ODB replacements.
+            const bool newAccepted=(legacyAccepted || canonicalAccepted) &&
+                acceptedSha.size()==64 && importUI->importedLayerCount()>0;
+            const bool retainedAccepted=acceptedSha.size()==64;
+            if(newAccepted) {
+                acceptedSourcePath=canonicalAccepted ?
+                    importUI->canonicalAcceptedPath() : chosenSourcePath;
+                acceptedFile=QFileInfo(acceptedSourcePath).fileName();
+                referenceRisk->resetSource(acceptedSourcePath,
+                    legacyAccepted ? acceptedSha : QByteArray());
+                stackup->resetForImport(acceptedSourcePath,importUI->importedLayerCount(),
                                         acceptedSha);
-                // Canonical padstack IPC has no qualified copper/net inventory.
-                // Never promote names or artwork geometry to Reference proof.
-                if (legacyAccepted)
+                if(legacyAccepted)
                     stackup->setSourceCopperInventory(importUI->importedCopperEvidence(),
                                                        importUI->importedNetLabels(),
                                                        importUI->importedNetInventoryComplete());
-            } else if (legacyAccepted || canonicalAccepted ||
-                       state.startsWith("RUNNING") || state.startsWith("FAILED") ||
-                       state.startsWith("CANCELLED")) {
-                stackup->resetForImport(QString(), 0);
+            } else if(!retainedAccepted &&
+                      (state.startsWith("RUNNING") || state.startsWith("FAILED") ||
+                       state.startsWith("CANCELLED"))) {
+                acceptedSourcePath.clear();acceptedFile.clear();
+                referenceRisk->resetSource(QString(),QByteArray());
+                stackup->resetForImport(QString(),0);
             }
             log->appendPlainText("PCB Import: " + state);
             refreshProperties();
@@ -326,15 +334,15 @@ public:
         // Edits to the independent Stackup editor invalidate the source-risk
         // display, never authorize physical Solver readiness.
         connect(stackup->table(),&QTableWidget::itemChanged,this,[this](QTableWidgetItem *) {
-            referenceRisk->resetSource(chosenSourcePath,
-                        importResultStatus.startsWith("PARTIAL")?
+            referenceRisk->resetSource(acceptedSourcePath,
+                        !importUI->imported()->canonicalMode() ?
                         importUI->acceptedSourceSha256():QByteArray());
         });
         for(const char *name:{"b001AuditFrequencyHz","b001SignalNet","b001ReferenceNet"}) {
             if(auto *field=stackup->findChild<QLineEdit *>(name))
                 connect(field,&QLineEdit::textChanged,this,[this](const QString &) {
-                    referenceRisk->resetSource(chosenSourcePath,
-                        importResultStatus.startsWith("PARTIAL")?
+                    referenceRisk->resetSource(acceptedSourcePath,
+                        !importUI->imported()->canonicalMode() ?
                         importUI->acceptedSourceSha256():QByteArray());
                 });
         }
