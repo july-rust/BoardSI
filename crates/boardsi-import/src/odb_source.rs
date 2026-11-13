@@ -2267,4 +2267,56 @@ mod tests {
             "ODB_UNDECLARED_STEP"
         );
     }
+    fn e018_eda_board() -> OdbFileMap {
+        let mut f = source(2);
+        f.insert("steps/pcb/eda/data".into(),
+            b"HDR synthetic\nUNITS=MM\nLYR sig1 sig2\nNET CLK\nSNT TRC\nFID C 0 0\nPKG QFN 0.5 -2 -2 2 2;ID=12\nRC -2 -2 4 4\nPIN 1 S -1.5 0 0 E S ID=13\nRC -1.75 -0.2 0.5 0.4\nPIN 2 S 1.5 0 0 E S;ID=14\nRC 1.25 -0.2 0.5 0.4\n".to_vec());
+        f
+    }
+
+    #[test]
+    fn e018_eda_package_audit_preserves_sha_and_never_creates_copper_pin() {
+        let f=e018_eda_board();
+        let audit=audit_unpacked_eda_packages(&f,"pcb").unwrap();
+        assert_eq!(audit.packages.len(),1);
+        assert_eq!(audit.packages[0].ordinal,0);
+        assert_eq!(audit.packages[0].pins.len(),2);
+        assert_eq!(audit.packages[0].pins[0].center,[-1_500_000_000,0]);
+        assert!(audit.source_files.iter().any(|item|item.logical_path=="steps/pcb/eda/data"));
+        assert_eq!(audit.metres_per_tick,Rational::new(1,1_000_000_000_000).unwrap());
+        let board=import_unpacked_with_eda(&f,"pcb").unwrap();
+        assert_eq!(board.traces[0].net,Some(board.nets[0].meta.id.clone()));
+        assert!(board.components.is_empty() && board.pins.is_empty());
+        assert!(board.connectivity.nodes.is_empty() && board.connectivity.edges.is_empty());
+        assert!(!board.validate().has_errors());
+        assert_eq!(audit_unpacked_eda_packages(&f,"pcb").unwrap().packages,audit.packages);
+        let mut b=f.clone();
+        b.insert("steps/pcb/eda/data".into(),
+            String::from_utf8(f["steps/pcb/eda/data"].clone()).unwrap()
+            .replace("PIN 2 S 1.5 0 0 E S;ID=14","PIN 2 T 1.5 0 0 E S;ID=14").into_bytes());
+        assert_eq!(import_unpacked_with_eda(&b,"pcb").unwrap_err().code,
+            "ODB_EDA_PIN_UNSUPPORTED_TYPE");
+        assert_eq!(audit_unpacked_eda_packages(&b,"pcb").unwrap_err().code,
+            "ODB_EDA_PIN_UNSUPPORTED_TYPE");
+    }
+
+    #[test]
+    fn e018_metric_and_inch_package_coordinates_are_exactly_equivalent() {
+        let mut mm=e018_eda_board();
+        let mm_path="steps/pcb/eda/data";
+        mm.insert(mm_path.into(),
+            b"HDR x\nUNITS=MM\nLYR sig1 sig2\nNET A\nSNT TRC\nFID C 0 0\nPKG P 25.4 -25.4 -25.4 25.4 25.4\nRC -25.4 -25.4 50.8 50.8\nPIN 1 S -25.4 0 0 E S\nRC -25.4 0 25.4 25.4\n".to_vec());
+        let mut inch=mm.clone();
+        inch.insert(mm_path.into(),
+            b"HDR x\nUNITS=INCH\nLYR sig1 sig2\nNET A\nSNT TRC\nFID C 0 0\nPKG P 1 -1 -1 1 1\nRC -1 -1 2 2\nPIN 1 S -1 0 0 E S\nRC -1 0 1 1\n".to_vec());
+        let m=audit_unpacked_eda_packages(&mm,"pcb").unwrap();
+        let i=audit_unpacked_eda_packages(&inch,"pcb").unwrap();
+        let mm_x=i128::from(m.packages[0].pins[0].center[0]);
+        let in_x=i128::from(i.packages[0].pins[0].center[0]);
+        assert_eq!(Rational::new(mm_x,1_000_000_000_000).unwrap(),
+                   Rational::new(in_x*254,10_000_000_000_000).unwrap());
+        assert_ne!(m.source_files.iter().find(|x|x.logical_path==mm_path).unwrap().sha256,
+                   i.source_files.iter().find(|x|x.logical_path==mm_path).unwrap().sha256);
+    }
+
 }
