@@ -440,9 +440,8 @@ pub(crate) fn instantiate(child: BoardModel, p: &Placement) -> Result<BoardModel
     for trace in &child.traces {
         charge(trace.centreline.len())?;
     }
-    for arc in &child.arcs {
-        charge(3)?; // start, end, centre
-    }
+    charge(child.arcs.len().checked_mul(3)
+        .ok_or_else(|| err(&p.header_path, 0, "ODB_STEP_EXPANSION_LIMIT"))?)?; // start/end/centre
     for padstack in &child.padstacks {
         charge(padstack.entries.len())?;
     }
