@@ -233,6 +233,7 @@ mod odb_eda_packages;
 pub mod odb_fabrication;
 mod odb_gzip;
 pub mod odb_source;
+pub mod odb_stackup;
 mod odb_step_repeat;
 mod odb_surface;
 mod odb_tar;

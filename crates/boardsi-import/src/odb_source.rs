@@ -1117,6 +1117,18 @@ pub fn audit_path_drill_source(
     audit_source_drill_map(&files, step, with_hits)
 }
 
+/// E_020: expose the already-validated MATRIX copper names and native types,
+/// rather than inferring them from Canonical LayerKind::Copper.
+pub(crate) fn declared_board_copper(files: &OdbFileMap) -> Result<Vec<(String, String)>, OdbError> {
+    let matrix = parse_matrix(ascii_file(files, "matrix/matrix")?)?;
+    Ok(matrix
+        .layers
+        .into_iter()
+        .filter(|layer| layer.context == "BOARD" && copper_type(&layer.layer_type))
+        .map(|layer| (layer.name, layer.layer_type))
+        .collect())
+}
+
 /// Source-limited canonical import. All conductive records in the selected step's
 /// copper layers must use the accepted syntax or the entire import fails.
 pub fn import_unpacked(files: &OdbFileMap, step: &str) -> Result<BoardModel, OdbError> {
