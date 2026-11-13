@@ -262,7 +262,7 @@ mod tests {
             ("SNT TRC", "SNT TOP T 0 0", "ODB_EDA_UNSUPPORTED_SUBNET"),
             ("NET CLK", "NET CLK\nNET CLK", "ODB_EDA_AMBIGUOUS_NET_NAME"),
             ("FID C 0 0", "FID C 0 0\nFID C 0 0", "ODB_EDA_DUPLICATE_FID"),
-            ("SNT TRC", "SNT TRC\nPKG U1", "ODB_EDA_UNSUPPORTED_RECORD"),
+            ("SNT TRC", "SNT TRC\nPKG U1", "ODB_EDA_PKG_BAD_RECORD"),
         ] {
             let input = valid.replace(from, to);
             assert_eq!(parse(&input, &features()).unwrap_err().code, code);
