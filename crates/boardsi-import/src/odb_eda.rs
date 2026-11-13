@@ -214,7 +214,13 @@ pub(super) fn parse(
                 // Preserve lookup definitions in source SHA, but do not infer
                 // physical impedance, net role or attribute semantics.
             }
-            "PKG" | "PIN" | "RC" => {
+            "PKG" => {
+                // Package definitions terminate the previous NET/SNT section.
+                // Never allow a subsequent FID to inherit stale design ownership.
+                net_name = None;
+                subnet = None;
+            }
+            "PIN" | "RC" => {
                 // Already fully validated by the source-only package parser.
             }
             "PRP" => {
@@ -286,6 +292,17 @@ mod tests {
             parse(duplicate_fid, &features()).unwrap_err().code,
             "ODB_EDA_DUPLICATE_FID"
         );
+    }
+
+    #[test]
+    fn e018_package_never_leaks_prior_net_subnet_ownership_to_later_fid() {
+        let template = "HDR x\nUNITS=MM\nLYR top bottom\nNET CLK\nSNT TRC\nPKG QFN 1 -2 -2 2 2\nRC -2 -2 4 4\nPIN 1 S 0 0 0 E S\nRC 0 0 1 1\nFID C 0 0\n";
+        assert_eq!(
+            parse(template, &features()).unwrap_err().code,
+            "ODB_EDA_FID_WITHOUT_NET"
+        );
+        let explicit = template.replace("FID C 0 0", "NET NEW\nSNT TRC\nFID C 0 0");
+        assert_eq!(parse(&explicit, &features()).unwrap().assignments[0].net_name, "NEW");
     }
 
     #[test]
