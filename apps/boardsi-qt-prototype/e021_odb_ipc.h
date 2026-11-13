@@ -23,9 +23,10 @@ inline bool mm(const QString &s, double &v, bool positive=false) {
     return std::isfinite(v) && (!positive || v>0) && std::abs(v)<=1000000.;
 }
 inline bool sourcePath(const QString &p) {
+    const QStringList parts=p.split('/');
     return !p.isEmpty() && p.size()<=1024 && !p.startsWith('/') && !p.contains('\\')
         && !p.contains(':') && !p.contains(QChar::Null) &&
-        std::all_of(p.split('/').cbegin(),p.split('/').cend(),[](const QString &s) {
+        std::all_of(parts.cbegin(),parts.cend(),[](const QString &s) {
             return !s.isEmpty() && s!="." && s!="..";
         });
 }
