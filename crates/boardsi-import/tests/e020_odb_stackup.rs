@@ -46,7 +46,10 @@ fn sample(count: usize) -> OdbFileMap {
 fn rewrite(files: &mut OdbFileMap, from: &str, to: &str) {
     let xml = String::from_utf8(files["matrix/stackup.xml"].clone()).unwrap();
     assert!(xml.contains(from));
-    files.insert("matrix/stackup.xml".into(), xml.replace(from, to).into_bytes());
+    files.insert(
+        "matrix/stackup.xml".into(),
+        xml.replace(from, to).into_bytes(),
+    );
 }
 #[test]
 fn e020_exact_material_layer_order_and_source_only() {
@@ -92,19 +95,44 @@ fn e020_optional_xml_and_supplier_only_do_not_promote() {
     assert!(audit_unpacked_stackup(&files, "pcb").unwrap().is_none());
     files.insert(
         "matrix/stackup.xml".into(),
-        b"<StackupFile Version=\"8.1\"><SupplierData CompanyName=\"Supplier\"/></StackupFile>".to_vec(),
+        b"<StackupFile Version=\"8.1\"><SupplierData CompanyName=\"Supplier\"/></StackupFile>"
+            .to_vec(),
     );
     assert!(audit_unpacked_stackup(&files, "pcb").unwrap().is_none());
 }
 #[test]
 fn e020_malformed_untrusted_xml_and_conflicts_fail_closed() {
     let cases = [
-        ("<StackupFile", "<!DOCTYPE StackupFile [<!ENTITY x SYSTEM 'file:///etc/passwd'>]><StackupFile", "ODB_STACKUP_XML_EXTERNAL_OR_EXTENSION"),
-        ("</Group></Stackup>", "</Group><Group GroupName=\"Other\"/></Stackup>", "ODB_STACKUP_GROUP_AMBIGUOUS"),
-        ("LayerName=\"sig1\"", "LayerName=\"missing\"", "ODB_STACKUP_MATRIX_LAYER_MISMATCH"),
-        ("MaterialName=\"Cu\"/></SpecRef>", "MaterialName=\"NonExisting\"/></SpecRef>", "ODB_STACKUP_UNKNOWN_MATERIAL"),
-        ("Thickness=\"0.018\"", "Thickness=\"-0.018\"", "ODB_STACKUP_THICKNESS"),
-        ("LayerType=\"DIELECTRIC\"", "LayerType=\"SIGNAL\"", "ODB_STACKUP_MATERIAL_LAYER_CONFLICT"),
+        (
+            "<StackupFile",
+            "<!DOCTYPE StackupFile [<!ENTITY x SYSTEM 'file:///etc/passwd'>]><StackupFile",
+            "ODB_STACKUP_XML_EXTERNAL_OR_EXTENSION",
+        ),
+        (
+            "</Group></Stackup>",
+            "</Group><Group GroupName=\"Other\"/></Stackup>",
+            "ODB_STACKUP_GROUP_AMBIGUOUS",
+        ),
+        (
+            "LayerName=\"sig1\"",
+            "LayerName=\"missing\"",
+            "ODB_STACKUP_MATRIX_LAYER_MISMATCH",
+        ),
+        (
+            "MaterialName=\"Cu\"/></SpecRef>",
+            "MaterialName=\"NonExisting\"/></SpecRef>",
+            "ODB_STACKUP_UNKNOWN_MATERIAL",
+        ),
+        (
+            "Thickness=\"0.018\"",
+            "Thickness=\"-0.018\"",
+            "ODB_STACKUP_THICKNESS",
+        ),
+        (
+            "LayerType=\"DIELECTRIC\"",
+            "LayerType=\"SIGNAL\"",
+            "ODB_STACKUP_MATERIAL_LAYER_CONFLICT",
+        ),
         ("Version=\"8.1\"", "Version=\"7.0\"", "ODB_STACKUP_VERSION"),
         ("<StackupFile", "<NotStackupFile", "ODB_STACKUP_XML_CLOSE"),
     ];
@@ -118,7 +146,11 @@ fn e020_malformed_untrusted_xml_and_conflicts_fail_closed() {
 #[test]
 fn e020_duplicate_attribute_and_unclosed_xml_are_rejected() {
     let mut files = sample(2);
-    rewrite(&mut files, "DefaultUnits=\"MM\"", "DefaultUnits=\"MM\" DefaultUnits=\"MIL\"");
+    rewrite(
+        &mut files,
+        "DefaultUnits=\"MM\"",
+        "DefaultUnits=\"MM\" DefaultUnits=\"MIL\"",
+    );
     assert_eq!(
         audit_unpacked_stackup(&files, "pcb").unwrap_err().code,
         "ODB_STACKUP_DUPLICATE_ATTRIBUTE"
@@ -148,9 +180,16 @@ fn e020_precise_mil_unit_and_precision_failure() {
     rewrite(&mut files, "DefaultUnits=\"MM\"", "DefaultUnits=\"MIL\"");
     rewrite(&mut files, "Thickness=\"0.018\"", "Thickness=\"1\"");
     let result = audit_unpacked_stackup(&files, "pcb").unwrap().unwrap();
-    assert_eq!(result.layers[0].thickness_m, Some(Rational::new(127, 5_000_000).unwrap()));
+    assert_eq!(
+        result.layers[0].thickness_m,
+        Some(Rational::new(127, 5_000_000).unwrap())
+    );
     let mut files = sample(2);
-    rewrite(&mut files, "Thickness=\"0.018\"", "Thickness=\"0.00000000001\"");
+    rewrite(
+        &mut files,
+        "Thickness=\"0.018\"",
+        "Thickness=\"0.00000000001\"",
+    );
     assert_eq!(
         audit_unpacked_stackup(&files, "pcb").unwrap_err().code,
         "ODB_STACKUP_PRECISION"
