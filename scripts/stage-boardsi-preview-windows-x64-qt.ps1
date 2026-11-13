@@ -21,6 +21,7 @@ $items=@{
  'target/debug/boardsi-worker.exe'='boardsi-worker.exe'
  'target/debug/boardsi-import-artwork.exe'='boardsi-import-artwork.exe'
  'target/debug/boardsi-import-canonical-padstack.exe'='boardsi-import-canonical-padstack.exe'
+ 'target/debug/boardsi-odb-qt-import.exe'='boardsi-odb-qt-import.exe'
  'target/debug/boardsi-stackup-config.exe'='boardsi-stackup-config.exe'
  'build-qt/qt-model-a.frame'='qt-model-a.frame'
  'build-qt/qt-model-b.frame'='qt-model-b.frame'
