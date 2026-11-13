@@ -146,3 +146,166 @@ fn optional_hole_import_does_not_change_default_odb_geometry_contract() {
     assert_eq!(original, enriched.board);
     assert_eq!(original.traces.len(), 4);
 }
+
+#[test]
+fn e019_plated_candidate_exact_source_and_no_electrical_promotion() {
+    for count in [2, 4, 6, 8, 64] {
+        let fixture = product(count);
+        let a = import_unpacked_with_holes(&fixture, "pcb", false).unwrap();
+        let b = import_unpacked_with_holes(&fixture, "pcb", false).unwrap();
+        assert_eq!(a.via_candidates.len(), 1);
+        let c = &a.via_candidates[0];
+        assert_eq!(c.source_identity, a.board.sources[0].id);
+        assert_eq!(c.source_identity, b.via_candidates[0].source_identity);
+        assert_eq!(c.candidate_key, b.via_candidates[0].candidate_key);
+        assert_eq!(
+            c.xy_m,
+            [
+                Rational::new(1, 800).unwrap(),
+                Rational::new(-1, 4000).unwrap()
+            ]
+        );
+        assert_eq!(c.finished_diameter_m, Rational::new(7, 50_000).unwrap());
+        assert_eq!(c.tool_diameter_m, Some(Rational::new(1, 6_250).unwrap()));
+        assert_eq!(c.fabrication.span.first, 1);
+        assert_eq!(c.fabrication.span.last, count as u32);
+        assert_eq!(c.source_observation.physical_envelope_layers.len(), count);
+        assert_eq!(
+            c.source_observation.via_evidence,
+            boardsi_model::SourceViaEvidenceState::SourceDeclaredPlated
+        );
+        assert_eq!(
+            c.source_observation.stackup_evidence,
+            boardsi_model::SourceStackupEvidence::Missing
+        );
+        assert_eq!(c.source_observation.source_file, c.hit.source_file);
+        assert_eq!(c.source_observation.source_line, c.hit.source_line);
+        assert!(c.hit.tool_source_line > 0);
+        assert_ne!(c.hit.matrix_source_sha256, [0; 32]);
+        assert!(!c.has_verified_barrel() && !c.is_solver_ready());
+        assert!(a.board.vias.is_empty() && a.board.drills.is_empty());
+        assert!(a.board.connectivity.edges.is_empty());
+        assert_eq!(a.source_holes.len(), 3);
+        assert_eq!(
+            a.source_holes[1].fabrication.plating,
+            FabricationPlating::NonPlated
+        );
+        assert_eq!(
+            a.source_holes[2].fabrication.plating,
+            FabricationPlating::Unknown
+        );
+    }
+}
+
+#[test]
+fn e019_partial_span_and_changed_provenance_are_not_guessed() {
+    let mut partial = product(6);
+    let matrix = String::from_utf8(partial["matrix/matrix"].clone())
+        .unwrap()
+        .replace(
+            "START_NAME=sig1\nEND_NAME=sig6",
+            "START_NAME=sig2\nEND_NAME=sig5",
+        );
+    partial.insert("matrix/matrix".into(), matrix.into_bytes());
+    let a = import_unpacked_with_holes(&partial, "pcb", false).unwrap();
+    assert_eq!(a.via_candidates.len(), 1);
+    let c = &a.via_candidates[0];
+    assert_eq!((c.fabrication.span.first, c.fabrication.span.last), (2, 5));
+    assert_eq!(c.source_observation.physical_envelope_layers.len(), 4);
+    assert!(a.board.connectivity.edges.is_empty());
+
+    let mut changed = partial.clone();
+    changed
+        .get_mut("steps/pcb/layers/hole/features")
+        .unwrap()
+        .extend_from_slice(b"# sha mutation\n");
+    let b = import_unpacked_with_holes(&changed, "pcb", false).unwrap();
+    assert_ne!(
+        a.via_candidates[0].source_identity,
+        b.via_candidates[0].source_identity
+    );
+    assert!(b.board.connectivity.edges.is_empty());
+}
+
+#[test]
+fn e019_unqualified_process_or_finish_diameter_never_promoted() {
+    let mut missing_finish = product(4);
+    let path = "steps/pcb/layers/hole/tools";
+    let t = String::from_utf8(missing_finish[path].clone())
+        .unwrap()
+        .replace("FINISH_SIZE=140", "FINISH_SIZE=-1");
+    missing_finish.insert(path.into(), t.into_bytes());
+    let out = import_unpacked_with_holes(&missing_finish, "pcb", false).unwrap();
+    assert_eq!(out.source_holes.len(), 3);
+    assert_eq!(out.via_candidates.len(), 0);
+    assert!(out.board.vias.is_empty());
+
+    let mut press_fit = product(4);
+    let t = String::from_utf8(press_fit[path].clone()).unwrap().replace(
+        "TYPE2=STANDARD\nFINISH_SIZE=140",
+        "TYPE2=PRESS_FIT\nFINISH_SIZE=140",
+    );
+    press_fit.insert(path.into(), t.into_bytes());
+    let out = import_unpacked_with_holes(&press_fit, "pcb", false).unwrap();
+    assert_eq!(out.source_holes.len(), 3);
+    assert!(out.via_candidates.is_empty());
+
+    let mut no_plating_proof = product(4);
+    let t = String::from_utf8(no_plating_proof[path].clone())
+        .unwrap()
+        .replace("TYPE=PLATED\nTYPE2=STANDARD", "TYPE=VIA\nTYPE2=STANDARD");
+    no_plating_proof.insert(path.into(), t.into_bytes());
+    let out = import_unpacked_with_holes(&no_plating_proof, "pcb", false).unwrap();
+    assert!(out.via_candidates.is_empty());
+    assert!(out.board.connectivity.edges.is_empty());
+}
+
+#[test]
+fn e019_duplicate_content_different_source_paths_is_unambiguous() {
+    let mut files = product(4);
+    let real_path = "steps/pcb/layers/hole/features";
+    files.insert(
+        "steps/unused/layers/hole/features".into(),
+        files[real_path].clone(),
+    );
+    let imported = import_unpacked_with_holes(&files, "pcb", false).unwrap();
+    assert_eq!(imported.via_candidates.len(), 1);
+    let candidate = &imported.via_candidates[0];
+    assert_eq!(candidate.source_observation.source_file, real_path);
+    // The old SHA-only, single-hole observer remains fail-closed on ambiguity.
+    assert!(imported
+        .board
+        .observe_source_via_hole(&candidate.source_identity, &candidate.fabrication,)
+        .is_err());
+    assert!(imported.board.connectivity.edges.is_empty());
+}
+
+#[test]
+fn e019_batch_multiple_hits_remains_source_only_and_order_stable() {
+    let mut files = product(4);
+    let path = "steps/pcb/layers/hole/features";
+    let mut data = String::from_utf8(files[path].clone())
+        .unwrap()
+        .replace("F 3", "F 259");
+    for n in 0..256 {
+        data.push_str(&format!("P {} 0 0 P 7 0;ID=more{}\n", n + 5, n));
+    }
+    files.insert(path.into(), data.into_bytes());
+    let a = import_unpacked_with_holes(&files, "pcb", false).unwrap();
+    let b = import_unpacked_with_holes(&files, "pcb", false).unwrap();
+    assert_eq!(a.source_holes.len(), 259);
+    assert_eq!(a.via_candidates.len(), 257);
+    assert_eq!(
+        a.via_candidates
+            .iter()
+            .map(|c| c.candidate_key.as_str())
+            .collect::<Vec<_>>(),
+        b.via_candidates
+            .iter()
+            .map(|c| c.candidate_key.as_str())
+            .collect::<Vec<_>>(),
+    );
+    assert!(a.board.vias.is_empty());
+    assert!(a.board.drills.is_empty());
+    assert!(a.board.connectivity.edges.is_empty());
+}

@@ -4,7 +4,8 @@ use std::{collections::BTreeMap, path::Path};
 
 use boardsi_model::{
     BoardModel, FabricationHole, FabricationHoleShape, FabricationOperation, FabricationPlating,
-    FabricationSourceEvidence, PhysicalLayerSpan, Rational,
+    FabricationSourceEvidence, PhysicalLayerSpan, Rational, SourceId, SourceViaEvidenceState,
+    SourceViaHoleObservation,
 };
 
 use crate::odb_drill::{DrillIntent, SourceDrillLayer};
@@ -24,6 +25,35 @@ pub struct OdbSourceHole {
     pub hit: SourceDrillHit,
 }
 
+/// E_019: exact source-backed, nonconductive via candidate, never an actual
+/// Canonical Via/Drill, proved barrel, connected-layer set, or SI input.
+#[derive(Clone, Debug)]
+pub struct OdbPlatedViaCandidate {
+    /// Canonical source identity includes verified hashes of all source files.
+    pub source_identity: SourceId,
+    /// Stable within one SourceIdentity; pair both to identify a candidate.
+    pub candidate_key: String,
+    pub xy_m: [Rational; 2],
+    pub fabrication: FabricationHole,
+    /// Finished-hole and drilling-tool diameters MUST remain separate.
+    pub finished_diameter_m: Rational,
+    pub tool_diameter_m: Option<Rational>,
+    /// E_004 observation: physical envelope, NOT a connected-layer set.
+    pub source_observation: SourceViaHoleObservation,
+    /// Original SHA/path/line, tool number and feature ordinal witnesses.
+    pub hit: SourceDrillHit,
+}
+
+impl OdbPlatedViaCandidate {
+    /// A source PLATED declaration is not manufactured electrical proof.
+    pub fn has_verified_barrel(&self) -> bool {
+        false
+    }
+    pub fn is_solver_ready(&self) -> bool {
+        false
+    }
+}
+
 #[derive(Debug)]
 pub struct OdbSourceImport {
     /// Original canonical copper/optional design-net import, unchanged.
@@ -31,6 +61,9 @@ pub struct OdbSourceImport {
     /// All declared drill hits that can be represented WITHOUT guessing span,
     /// diameter, backdrill removal, or manufactured interconnect.
     pub source_holes: Vec<OdbSourceHole>,
+    /// Explicit TYPE=PLATED, TYPE2=STANDARD round-hole candidates only.
+    /// This sidecar does not mutate BoardModel::vias/drills/connectivity.
+    pub via_candidates: Vec<OdbPlatedViaCandidate>,
 }
 
 fn error(hit: &SourceDrillHit, code: &'static str) -> OdbError {
@@ -152,6 +185,120 @@ fn source_holes(
     Ok(out)
 }
 
+/// E_019: derive one bounded candidate kind from the already validated
+/// manufacturing-hole observations. Unsupported/unknown intent remains in
+/// source_holes; it is never promoted by fallback or topology assumptions.
+fn source_plated_candidates(
+    board: &BoardModel,
+    holes: &[OdbSourceHole],
+    layers: &[SourceDrillLayer],
+) -> Result<Vec<OdbPlatedViaCandidate>, OdbError> {
+    let source = &board.sources[0].id; // validated ODB importer returns one source
+    let mut prepared = Vec::new();
+    for (index, hole) in holes.iter().enumerate() {
+        let hit = &hole.hit;
+        if hit.tool_intent != DrillIntent::Plated || hit.tool_subtype != "STANDARD" {
+            continue;
+        }
+        let layer = layers
+            .iter()
+            .find(|l| l.name == hit.layer_name)
+            .ok_or_else(|| error(hit, "ODB_VIA_CANDIDATE_LAYER_MISSING"))?;
+        let tool = layer
+            .tools
+            .iter()
+            .find(|t| t.number == hit.tool_number)
+            .ok_or_else(|| error(hit, "ODB_VIA_CANDIDATE_TOOL_MISSING"))?;
+        if tool.intent != DrillIntent::Plated || tool.subtype != "STANDARD" {
+            return Err(error(hit, "ODB_VIA_CANDIDATE_TOOL_CONFLICT"));
+        }
+        // Unknown FINISH_SIZE must stay unknown even when DRILL_SIZE is known.
+        if tool.finish_size == "-1" {
+            continue;
+        }
+        let mode = match layer.unit.as_str() {
+            "MM" => "M",
+            "INCH" => "I",
+            _ => return Err(error(hit, "ODB_VIA_CANDIDATE_BAD_UNITS")),
+        };
+        let finished_diameter_m = crate::odb_source::length_symbol(
+            &tool.finish_size,
+            mode,
+            &layer.source_file,
+            tool.source_line,
+        )?;
+        let tool_diameter_m = tool
+            .drill_size
+            .as_deref()
+            .map(|v| {
+                crate::odb_source::length_symbol(v, mode, &layer.source_file, tool.source_line)
+            })
+            .transpose()?;
+        // Bind exact logical path AND SHA for hit, tools, and matrix. The
+        // identical bytes of distinct files are not an identity collision.
+        for (path, sha) in [
+            (hit.source_file.as_str(), hit.source_sha256),
+            (hit.tool_source_file.as_str(), hit.tool_source_sha256),
+            ("matrix/matrix", hit.matrix_source_sha256),
+        ] {
+            if source
+                .files
+                .iter()
+                .filter(|f| f.logical_path == path && f.sha256 == sha)
+                .count()
+                != 1
+            {
+                return Err(error(hit, "ODB_VIA_CANDIDATE_PROVENANCE_MISMATCH"));
+            }
+        }
+        prepared.push((index, finished_diameter_m, tool_diameter_m));
+    }
+    if prepared.is_empty() {
+        return Ok(Vec::new());
+    }
+    // Validate BoardModel only ONCE. The batch observation identifies exact
+    // path+SHA even when independent drill files have identical bytes.
+    let requests: Vec<(&str, &FabricationHole)> = prepared
+        .iter()
+        .map(|(i, _, _)| (holes[*i].hit.source_file.as_str(), &holes[*i].fabrication))
+        .collect();
+    let observations = board
+        .observe_source_via_holes_by_path(source, &requests)
+        .map_err(|(index, _)| {
+            error(
+                &holes[prepared[index].0].hit,
+                "ODB_VIA_CANDIDATE_SOURCE_OBSERVATION",
+            )
+        })?;
+    let mut out = Vec::with_capacity(prepared.len());
+    for ((index, finished_diameter_m, tool_diameter_m), observed) in
+        prepared.into_iter().zip(observations)
+    {
+        let hole = &holes[index];
+        let hit = &hole.hit;
+        if observed.source_file != hit.source_file
+            || observed.source_line != hit.source_line
+            || observed.via_evidence != SourceViaEvidenceState::SourceDeclaredPlated
+        {
+            return Err(error(hit, "ODB_VIA_CANDIDATE_EVIDENCE_CONFLICT"));
+        }
+        out.push(OdbPlatedViaCandidate {
+            source_identity: source.clone(),
+            candidate_key: format!(
+                "odb-hole:{}:feature-{}:tool-{}",
+                hit.source_file, hit.feature_index, hit.tool_number,
+            ),
+            xy_m: hole.xy_m,
+            fabrication: hole.fabrication.clone(),
+            finished_diameter_m,
+            tool_diameter_m,
+            source_observation: observed,
+            hit: hit.clone(),
+        });
+    }
+    Ok(out)
+}
+
 /// Derive qualified source-hole observations and Canonical copper from ONE
 /// immutable source file map. Full unsupported inputs fail transactionally.
 pub fn import_unpacked_with_holes(
@@ -167,6 +314,7 @@ pub fn import_unpacked_with_holes(
     let layers = audit_unpacked_drill_tools(files, step)?;
     let hits = audit_unpacked_drill_hits(files, step)?;
     let holes = source_holes(&board, &layers, hits)?;
+    let via_candidates = source_plated_candidates(&board, &holes, &layers)?;
     // DO NOT synthesize Canonical Drill/Via without complete padstack/process
     // evidence: neither source position nor net implies plated continuity.
     debug_assert!(board.drills.is_empty() && board.vias.is_empty());
@@ -174,6 +322,7 @@ pub fn import_unpacked_with_holes(
     Ok(OdbSourceImport {
         board,
         source_holes: holes,
+        via_candidates,
     })
 }
 
