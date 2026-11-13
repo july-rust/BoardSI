@@ -424,7 +424,9 @@ pub(crate) fn instantiate(child: BoardModel, p: &Placement) -> Result<BoardModel
     // Counting Area alone allows a compact holed source to multiply into a
     // multi-gigabyte allocation. The limit is for total expanded geometry units,
     // not merely top-level objects (Codex P2 review on PR #610).
-    let mut units = child.frames.len()
+    let mut units = child
+        .frames
+        .len()
         .checked_add(child.traces.len())
         .and_then(|n| n.checked_add(child.arcs.len()))
         .and_then(|n| n.checked_add(child.pads.len()))
@@ -440,18 +442,33 @@ pub(crate) fn instantiate(child: BoardModel, p: &Placement) -> Result<BoardModel
     for trace in &child.traces {
         charge(trace.centreline.len())?;
     }
-    charge(child.arcs.len().checked_mul(3)
-        .ok_or_else(|| err(&p.header_path, 0, "ODB_STEP_EXPANSION_LIMIT"))?)?; // start/end/centre
+    charge(
+        child
+            .arcs
+            .len()
+            .checked_mul(3)
+            .ok_or_else(|| err(&p.header_path, 0, "ODB_STEP_EXPANSION_LIMIT"))?,
+    )?; // start/end/centre
     for padstack in &child.padstacks {
         charge(padstack.entries.len())?;
     }
     for area in &child.areas {
-        charge(area.outer.segments.len().checked_mul(3)
-            .ok_or_else(|| err(&p.header_path, 0, "ODB_STEP_EXPANSION_LIMIT"))?)?;
+        charge(
+            area.outer
+                .segments
+                .len()
+                .checked_mul(3)
+                .ok_or_else(|| err(&p.header_path, 0, "ODB_STEP_EXPANSION_LIMIT"))?,
+        )?;
         for hole in &area.cutouts {
             charge(1)?;
-            charge(hole.boundary.segments.len().checked_mul(3)
-                .ok_or_else(|| err(&p.header_path, 0, "ODB_STEP_EXPANSION_LIMIT"))?)?;
+            charge(
+                hole.boundary
+                    .segments
+                    .len()
+                    .checked_mul(3)
+                    .ok_or_else(|| err(&p.header_path, 0, "ODB_STEP_EXPANSION_LIMIT"))?,
+            )?;
         }
     }
     let expanded = units
@@ -575,7 +592,6 @@ pub(crate) fn instantiate(child: BoardModel, p: &Placement) -> Result<BoardModel
     Ok(board)
 }
 
-
 type IdView<'a> = (ObjectKind, &'a str, &'a str);
 fn id_view(id: &ObjectId) -> IdView<'_> {
     (id.kind, &id.source_object, &id.part)
@@ -585,46 +601,78 @@ fn id_view(id: &ObjectId) -> IdView<'_> {
 /// All values were already geometry-parsed in the child, and all identities
 /// are remapped to one parent SourceIdentity by construction.
 fn references_valid(board: &BoardModel) -> bool {
-    let layers: BTreeSet<_> = board.stackup.layers.iter()
-        .map(|v| id_view(&v.meta.id)).collect();
-    let frames: BTreeSet<_> = board.frames.iter()
-        .map(|v| id_view(&v.meta.id)).collect();
-    let padstacks: BTreeSet<_> = board.padstacks.iter()
-        .map(|v| id_view(&v.meta.id)).collect();
+    let layers: BTreeSet<_> = board
+        .stackup
+        .layers
+        .iter()
+        .map(|v| id_view(&v.meta.id))
+        .collect();
+    let frames: BTreeSet<_> = board.frames.iter().map(|v| id_view(&v.meta.id)).collect();
+    let padstacks: BTreeSet<_> = board
+        .padstacks
+        .iter()
+        .map(|v| id_view(&v.meta.id))
+        .collect();
     if layers.len() != board.stackup.layers.len()
         || frames.len() != board.frames.len()
-        || padstacks.len() != board.padstacks.len() {
+        || padstacks.len() != board.padstacks.len()
+    {
         return false;
     }
     let point_valid = |p: &Point| frames.contains(&id_view(&p.frame));
-    let boundary_valid = |b: &Boundary| b.segments.iter().all(|s| match s {
-        BoundarySegment::Line { start, end } =>
-            point_valid(start) && point_valid(end),
-        BoundarySegment::Arc { centre, start, end, .. } =>
-            point_valid(centre) && point_valid(start) && point_valid(end),
-    });
-    if board.traces.iter().any(|t| !layers.contains(&id_view(&t.layer))
-        || !t.centreline.iter().all(&point_valid))
-        || board.arcs.iter().any(|a| !layers.contains(&id_view(&a.layer))
-            || !point_valid(&a.start) || !point_valid(&a.end) || !point_valid(&a.centre))
-        || board.padstacks.iter().any(|p| p.entries.iter()
-            .any(|e| !layers.contains(&id_view(&e.layer))))
-        || board.pads.iter().any(|p| !point_valid(&p.position)
-            || !padstacks.contains(&id_view(&p.padstack)))
-        || board.areas.iter().any(|a| !layers.contains(&id_view(&a.layer))
-            || !boundary_valid(&a.outer)
-            || a.cutouts.iter().any(|c| !boundary_valid(&c.boundary))) {
+    let boundary_valid = |b: &Boundary| {
+        b.segments.iter().all(|s| match s {
+            BoundarySegment::Line { start, end } => point_valid(start) && point_valid(end),
+            BoundarySegment::Arc {
+                centre, start, end, ..
+            } => point_valid(centre) && point_valid(start) && point_valid(end),
+        })
+    };
+    if board
+        .traces
+        .iter()
+        .any(|t| !layers.contains(&id_view(&t.layer)) || !t.centreline.iter().all(&point_valid))
+        || board.arcs.iter().any(|a| {
+            !layers.contains(&id_view(&a.layer))
+                || !point_valid(&a.start)
+                || !point_valid(&a.end)
+                || !point_valid(&a.centre)
+        })
+        || board.padstacks.iter().any(|p| {
+            p.entries
+                .iter()
+                .any(|e| !layers.contains(&id_view(&e.layer)))
+        })
+        || board
+            .pads
+            .iter()
+            .any(|p| !point_valid(&p.position) || !padstacks.contains(&id_view(&p.padstack)))
+        || board.areas.iter().any(|a| {
+            !layers.contains(&id_view(&a.layer))
+                || !boundary_valid(&a.outer)
+                || a.cutouts.iter().any(|c| !boundary_valid(&c.boundary))
+        })
+    {
         return false;
     }
     let mut ids = BTreeSet::new();
-    for id in board.stackup.layers.iter().map(|v| &v.meta.id)
+    for id in board
+        .stackup
+        .layers
+        .iter()
+        .map(|v| &v.meta.id)
         .chain(board.frames.iter().map(|v| &v.meta.id))
         .chain(board.padstacks.iter().map(|v| &v.meta.id))
         .chain(board.pads.iter().map(|v| &v.meta.id))
         .chain(board.traces.iter().map(|v| &v.meta.id))
         .chain(board.arcs.iter().map(|v| &v.meta.id))
         .chain(board.areas.iter().map(|v| &v.meta.id))
-        .chain(board.areas.iter().flat_map(|a| a.cutouts.iter().map(|c| &c.meta.id)))
+        .chain(
+            board
+                .areas
+                .iter()
+                .flat_map(|a| a.cutouts.iter().map(|c| &c.meta.id)),
+        )
     {
         if !ids.insert(id_view(id)) {
             return false;
