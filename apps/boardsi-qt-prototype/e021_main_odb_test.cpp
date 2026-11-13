@@ -82,7 +82,8 @@ static bool exercise(const QString &binary) {
        art->summaryText().contains(shaA) || art->canonicalGlyphCount()!=4 ||
        !art->canonicalContains(0,{0.9,0}))return false;
     // A supported file mutation must never retain the preceding selection.
-    const QByteArray invalid=a.replace("L 0 0", "X 0 0");
+    QByteArray invalid=a;
+    invalid.replace("L 0 0", "X 0 0");
     if(!writeFile(first,invalid) || !run(false) ||
        art->canonicalMode() || art->canonicalGlyphCount()!=0 ||
        !panel.acceptedSourceSha256().isEmpty())return false;
