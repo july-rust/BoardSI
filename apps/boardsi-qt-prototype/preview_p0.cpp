@@ -102,7 +102,6 @@ class PreviewWindow : public QMainWindow {
             return;
         }
         const bool canonicalLoaded =
-            importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") &&
             importUI->imported()->canonicalMode() &&
             importUI->imported()->canonicalGlyphCount()>0 &&
             importUI->acceptedSourceSha256().size()==64;
@@ -111,7 +110,8 @@ class PreviewWindow : public QMainWindow {
                                   QFileInfo(sourcePath).fileName();
         const QString candidate = displayName.isEmpty() ? QString("No PCB candidate selected") :
                                   QString("PCB candidate: ") + displayName;
-        const bool legacyLoaded = importResultStatus.startsWith("PARTIAL") &&
+        const bool legacyLoaded = !canonicalLoaded &&
+                            importUI->acceptedSourceSha256().size()==64 &&
                             ((importUI->imported()->segmentCount() + importUI->imported()->viaCount() +
                               importUI->imported()->padCount() + importUI->imported()->arcCount() +
                               importUI->imported()->outlineCount() +
@@ -154,7 +154,9 @@ class PreviewWindow : public QMainWindow {
                 (importResultStatus.startsWith("PARTIAL") ?
                     " (PARTIAL ARTWORK IMPORT)" :
                  importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") ?
-                    " (CANONICAL SOURCE GEOMETRY ONLY)" : " (NOT IMPORTED)")) +
+                    " (CANONICAL SOURCE GEOMETRY ONLY)" :
+                 importResultStatus.contains("PREVIOUS ARTWORK RETAINED") ?
+                    " (PREVIOUS ACCEPTED ARTWORK RETAINED)" : " (NOT IMPORTED)")) +
             "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
         resultSummary->setPlainText(
@@ -165,7 +167,8 @@ class PreviewWindow : public QMainWindow {
             "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n" +
             (importResultStatus.startsWith("PARTIAL") ?
                 "Imported PCB: PARTIAL accepted straight/arc routes, through vias, restricted SMD pads and restricted straight/arc/circular board artwork; other geometry/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
-             importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") ?
+             importUI->imported()->canonicalMode() &&
+             importUI->acceptedSourceSha256().size()==64 ?
                 (importUI->imported()->odbMode() ?
                 "Imported ODB++ Canonical: SOURCE Trace/Pad geometry only; connectivity, manufacture and SI NOT_VERIFIED." :
                 "Imported Canonical Padstack: SOURCE geometry only, physical Layer/Via/Pad/Drill proven by accepted source subset. Actual manufactured plating, connectivity and SI NOT_VERIFIED.") :
