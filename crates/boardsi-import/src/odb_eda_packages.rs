@@ -108,6 +108,9 @@ pub fn parse_packages(text: &str) -> Result<Vec<SourcePackage>, PackageError> {
         }
         let kind = line.split_whitespace().next().unwrap_or("");
         if require_immediate_pkg_rc && kind != "RC" {
+            if matches!(kind, "CR" | "SQ" | "CT" | "OB" | "OS" | "OC" | "OE" | "CE") {
+                return Err(err(no, "ODB_EDA_PKG_OUTLINE_UNSUPPORTED"));
+            }
             return Err(err(no, "ODB_EDA_PKG_IMMEDIATE_OUTLINE_REQUIRED"));
         }
         if kind != "RC" && kind != "PRP" {
