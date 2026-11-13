@@ -273,10 +273,10 @@ fn e019_duplicate_content_different_source_paths_is_unambiguous() {
     let candidate = &imported.via_candidates[0];
     assert_eq!(candidate.source_observation.source_file, real_path);
     // The old SHA-only, single-hole observer remains fail-closed on ambiguity.
-    assert!(imported.board.observe_source_via_hole(
-        &candidate.source_identity,
-        &candidate.fabrication,
-    ).is_err());
+    assert!(imported
+        .board
+        .observe_source_via_hole(&candidate.source_identity, &candidate.fabrication,)
+        .is_err());
     assert!(imported.board.connectivity.edges.is_empty());
 }
 
@@ -284,7 +284,9 @@ fn e019_duplicate_content_different_source_paths_is_unambiguous() {
 fn e019_batch_multiple_hits_remains_source_only_and_order_stable() {
     let mut files = product(4);
     let path = "steps/pcb/layers/hole/features";
-    let mut data = String::from_utf8(files[path].clone()).unwrap().replace("F 3", "F 259");
+    let mut data = String::from_utf8(files[path].clone())
+        .unwrap()
+        .replace("F 3", "F 259");
     for n in 0..256 {
         data.push_str(&format!("P {} 0 0 P 7 0;ID=more{}\n", n + 5, n));
     }
@@ -294,8 +296,14 @@ fn e019_batch_multiple_hits_remains_source_only_and_order_stable() {
     assert_eq!(a.source_holes.len(), 259);
     assert_eq!(a.via_candidates.len(), 257);
     assert_eq!(
-        a.via_candidates.iter().map(|c| c.candidate_key.as_str()).collect::<Vec<_>>(),
-        b.via_candidates.iter().map(|c| c.candidate_key.as_str()).collect::<Vec<_>>(),
+        a.via_candidates
+            .iter()
+            .map(|c| c.candidate_key.as_str())
+            .collect::<Vec<_>>(),
+        b.via_candidates
+            .iter()
+            .map(|c| c.candidate_key.as_str())
+            .collect::<Vec<_>>(),
     );
     assert!(a.board.vias.is_empty());
     assert!(a.board.drills.is_empty());
