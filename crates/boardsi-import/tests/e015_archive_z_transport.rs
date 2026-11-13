@@ -174,7 +174,6 @@ fn directory_ustar_gzip_and_zip_0_8_load_same_decoded_feature_geometry() {
     }
 }
 
-
 #[test]
 fn e017_step_repeat_directory_ustar_gzip_zip0_zip8_and_features_z_exact_parity() {
     // Transport-level oracle: one STEP-REPEAT source model with compressed
@@ -195,8 +194,8 @@ fn e017_step_repeat_directory_ustar_gzip_zip0_zip8_and_features_z_exact_parity()
     std::fs::create_dir_all(&base).unwrap();
     let _cleanup = Cleanup(base.clone());
     let mut sources = entries();
-    let matrix = String::from_utf8(sources[0].1.clone()).unwrap()
-        + "STEP {\nCOL=2\nNAME=panel\n}\n";
+    let matrix =
+        String::from_utf8(sources[0].1.clone()).unwrap() + "STEP {\nCOL=2\nNAME=panel\n}\n";
     sources[0].1 = matrix.into_bytes();
     sources.push((
         "product/steps/pcb/stephdr".into(),
@@ -236,7 +235,8 @@ fn e017_step_repeat_directory_ustar_gzip_zip0_zip8_and_features_z_exact_parity()
     }
     // A transport does not make unsupported rotation/mirroring safe.
     let header_path = root.join("steps/panel/stephdr");
-    let rotated = std::fs::read_to_string(&header_path).unwrap()
+    let rotated = std::fs::read_to_string(&header_path)
+        .unwrap()
         .replace("ANGLE=0", "ANGLE=45");
     write(&header_path, rotated.as_bytes());
     assert_eq!(
