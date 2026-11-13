@@ -66,7 +66,9 @@ class PreviewWindow : public QMainWindow {
     PreviewImportPanel *importUI = nullptr;
     B001StackupEditor *stackup = nullptr;
     C005ReferenceRiskController *referenceRisk = nullptr;
-    QString chosenSourcePath;
+    QString chosenSourcePath; // pending candidate, never accepted identity
+    QString acceptedSourcePath;
+    QString acceptedFile;
     QString importResultStatus = "NOT IMPORTED";
     QLabel *properties = nullptr;
     QLabel *validation = nullptr;
@@ -102,16 +104,17 @@ class PreviewWindow : public QMainWindow {
             return;
         }
         const bool canonicalLoaded =
-            importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") &&
             importUI->imported()->canonicalMode() &&
             importUI->imported()->canonicalGlyphCount()>0 &&
             importUI->acceptedSourceSha256().size()==64;
         const QString sourcePath=canonicalLoaded ? importUI->canonicalAcceptedPath() : QString();
-        const QString displayName=sourcePath.isEmpty() ? chosenFile :
-                                  QFileInfo(sourcePath).fileName();
+        const QString displayName=sourcePath.isEmpty() ?
+            (acceptedFile.isEmpty() ? chosenFile : acceptedFile) :
+            QFileInfo(sourcePath).fileName();
         const QString candidate = displayName.isEmpty() ? QString("No PCB candidate selected") :
                                   QString("PCB candidate: ") + displayName;
-        const bool legacyLoaded = importResultStatus.startsWith("PARTIAL") &&
+        const bool legacyLoaded = !canonicalLoaded &&
+                            importUI->acceptedSourceSha256().size()==64 &&
                             ((importUI->imported()->segmentCount() + importUI->imported()->viaCount() +
                               importUI->imported()->padCount() + importUI->imported()->arcCount() +
                               importUI->imported()->outlineCount() +
@@ -147,25 +150,31 @@ class PreviewWindow : public QMainWindow {
         const QString error = ipc->errorLabel()->text();
         stateSummary->setText("Worker: " + status + " | PCB: " + importResultStatus + " | SI NOT_RUN");
         const QString currentFile=importUI->canonicalAcceptedPath().isEmpty() ?
-            chosenFile : QFileInfo(importUI->canonicalAcceptedPath()).fileName();
+            (acceptedFile.isEmpty() ? chosenFile : acceptedFile) :
+            QFileInfo(importUI->canonicalAcceptedPath()).fileName();
         validation->setText(
             (currentFile.isEmpty() ? QString("PCB: NOT IMPORTED") :
                 "PCB candidate: " + currentFile +
                 (importResultStatus.startsWith("PARTIAL") ?
                     " (PARTIAL ARTWORK IMPORT)" :
                  importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") ?
-                    " (CANONICAL SOURCE GEOMETRY ONLY)" : " (NOT IMPORTED)")) +
+                    " (CANONICAL SOURCE GEOMETRY ONLY)" :
+                 importResultStatus.contains("PREVIOUS ARTWORK RETAINED") ?
+                    " (PREVIOUS ACCEPTED ARTWORK RETAINED)" : " (NOT IMPORTED)")) +
             "\nSynthetic Artwork UI: DISPLAYED (fixture only)\nImported Artwork: " + importResultStatus + "\nPhysical SI: NOT_RUN\nWorker: " + status +
             (error.isEmpty() ? QString() : "\nWorker error: " + error.left(250)));
+        const bool acceptedLegacyArtwork = !importUI->imported()->canonicalMode() &&
+            importUI->acceptedSourceSha256().size()==64;
         resultSummary->setPlainText(
             "DEVELOPER PREVIEW P2-L - PARTIAL Import / NOT PCB SI\n\n"
             "Worker: independent Rust process\n" + status + "\n" +
             ipc->resultLabel()->text() +
             (error.isEmpty() ? QString() : "\nERROR: " + error) +
             "\n\nGenerated demonstration numbers are NOT physical PCB S-parameters.\n" +
-            (importResultStatus.startsWith("PARTIAL") ?
+            ((importResultStatus.startsWith("PARTIAL") || acceptedLegacyArtwork) ?
                 "Imported PCB: PARTIAL accepted straight/arc routes, through vias, restricted SMD pads and restricted straight/arc/circular board artwork; other geometry/stackup/connectivity NOT IMPORTED. Physical SI NOT_RUN." :
-             importResultStatus.startsWith("CANONICAL SOURCE GEOMETRY") ?
+             importUI->imported()->canonicalMode() &&
+             importUI->acceptedSourceSha256().size()==64 ?
                 (importUI->imported()->odbMode() ?
                 "Imported ODB++ Canonical: SOURCE Trace/Pad geometry only; connectivity, manufacture and SI NOT_VERIFIED." :
                 "Imported Canonical Padstack: SOURCE geometry only, physical Layer/Via/Pad/Drill proven by accepted source subset. Actual manufactured plating, connectivity and SI NOT_VERIFIED.") :
@@ -297,41 +306,46 @@ public:
                 state.startsWith("CANONICAL SOURCE GEOMETRY") &&
                 importUI->imported()->canonicalMode();
             const QByteArray acceptedSha = importUI->acceptedSourceSha256();
-            // The canonical importer owns this accepted path. Do not reuse the
-            // previous legacy candidate's path for a newly accepted source.
-            if (canonicalAccepted) chosenSourcePath = importUI->canonicalAcceptedPath();
-            referenceRisk->resetSource(chosenSourcePath,
-                legacyAccepted ? acceptedSha : QByteArray());
-            if ((legacyAccepted || canonicalAccepted) &&
-                acceptedSha.size() == 64 && importUI->importedLayerCount() > 0) {
-                stackup->resetForImport(chosenSourcePath, importUI->importedLayerCount(),
+            // Pending candidate is not the accepted board. Preserve source
+            // filename, stackup and risk evidence across failed ODB replacements.
+            const bool newAccepted=(legacyAccepted || canonicalAccepted) &&
+                acceptedSha.size()==64 && importUI->importedLayerCount()>0;
+            const bool retainedAccepted=acceptedSha.size()==64;
+            if(newAccepted) {
+                acceptedSourcePath=canonicalAccepted ?
+                    importUI->canonicalAcceptedPath() : chosenSourcePath;
+                acceptedFile=QFileInfo(acceptedSourcePath).fileName();
+                referenceRisk->resetSource(acceptedSourcePath,
+                    legacyAccepted ? acceptedSha : QByteArray());
+                stackup->resetForImport(acceptedSourcePath,importUI->importedLayerCount(),
                                         acceptedSha);
-                // Canonical padstack IPC has no qualified copper/net inventory.
-                // Never promote names or artwork geometry to Reference proof.
-                if (legacyAccepted)
+                if(legacyAccepted)
                     stackup->setSourceCopperInventory(importUI->importedCopperEvidence(),
                                                        importUI->importedNetLabels(),
                                                        importUI->importedNetInventoryComplete());
-            } else if (legacyAccepted || canonicalAccepted ||
-                       state.startsWith("RUNNING") || state.startsWith("FAILED") ||
-                       state.startsWith("CANCELLED")) {
-                stackup->resetForImport(QString(), 0);
+            } else if(!retainedAccepted &&
+                      (state.startsWith("RUNNING") || state.startsWith("FAILED") ||
+                       state.startsWith("CANCELLED"))) {
+                acceptedSourcePath.clear();acceptedFile.clear();
+                referenceRisk->resetSource(QString(),QByteArray());
+                stackup->resetForImport(QString(),0);
             }
             log->appendPlainText("PCB Import: " + state);
             refreshProperties();
+            refresh(); // Keep result summary aligned with the accepted scene.
         });
         // Edits to the independent Stackup editor invalidate the source-risk
         // display, never authorize physical Solver readiness.
         connect(stackup->table(),&QTableWidget::itemChanged,this,[this](QTableWidgetItem *) {
-            referenceRisk->resetSource(chosenSourcePath,
-                        importResultStatus.startsWith("PARTIAL")?
+            referenceRisk->resetSource(acceptedSourcePath,
+                        !importUI->imported()->canonicalMode() ?
                         importUI->acceptedSourceSha256():QByteArray());
         });
         for(const char *name:{"b001AuditFrequencyHz","b001SignalNet","b001ReferenceNet"}) {
             if(auto *field=stackup->findChild<QLineEdit *>(name))
                 connect(field,&QLineEdit::textChanged,this,[this](const QString &) {
-                    referenceRisk->resetSource(chosenSourcePath,
-                        importResultStatus.startsWith("PARTIAL")?
+                    referenceRisk->resetSource(acceptedSourcePath,
+                        !importUI->imported()->canonicalMode() ?
                         importUI->acceptedSourceSha256():QByteArray());
                 });
         }
@@ -442,6 +456,7 @@ public:
         return started;
     }
     QString displayedProperties() const { return properties->text(); }
+    QString displayedResultSummary() const { return resultSummary->toPlainText(); }
     Window *workerControls() const { return ipc; }
     ModelHandoffWindow *modelIdentity() const { return identity; }
     QAction *runControl() const { return runAction; }
@@ -4597,9 +4612,77 @@ static int runD05605PropertiesSmoke(const QString &binary,const QString &source)
 
 #include "e011_stackup_main_test.h"
 
+// E_021 cross-format regression on the ACTUAL PreviewWindow, not the panel
+// alone: a rejected/cancelled ODB candidate cannot relabel accepted PADS.
+static int runE021CrossFormatRetentionSelftest(
+    const QString &padsBinary,const QString &padsFixture,const QString &odbBinary) {
+    PreviewWindow window(QString(),QString(),QString(),padsBinary);
+    auto *panel=window.importPanel();
+    panel->setOdbImporterBinaryForTest(odbBinary);
+    const auto drain=[panel]() {
+        QEventLoop loop;
+        QTimer poll,timeout;
+        timeout.setSingleShot(true);
+        QObject::connect(&timeout,&QTimer::timeout,&loop,&QEventLoop::quit);
+        QObject::connect(&poll,&QTimer::timeout,&loop,[&]{
+            if(!panel->busy())loop.quit();
+        });
+        timeout.start(30000);poll.start(10);loop.exec();
+        return !panel->busy();
+    };
+    if(!window.openCandidate(padsFixture) || !drain() ||
+       !panel->importStatus().startsWith("PARTIAL") ||
+       panel->acceptedSourceSha256().size()!=64)return 1;
+    const QByteArray acceptedSha=panel->acceptedSourceSha256();
+    const QString acceptedName=QFileInfo(padsFixture).fileName();
+    if(!window.displayedProperties().contains(acceptedName) ||
+       !window.displayedProperties().contains("PADS V9.4") ||
+       !window.displayedResultSummary().contains("Imported PCB: PARTIAL"))return 1;
+    QTemporaryDir temp;
+    if(!temp.isValid())return 1;
+    QDir dir(temp.path());
+    const QString rejected=dir.filePath("rejected-odb-candidate");
+    if(window.openOdbCandidate(rejected,"pcb") ||
+       !panel->importStatus().contains("PREVIOUS ARTWORK RETAINED") ||
+       panel->acceptedSourceSha256()!=acceptedSha ||
+       !window.displayedProperties().contains(acceptedName) ||
+       window.displayedProperties().contains("rejected-odb-candidate") ||
+       !window.displayedResultSummary().contains("Imported PCB: PARTIAL"))return 1;
+    if(!dir.mkpath("matrix") || !dir.mkpath("steps/pcb/layers/sig1") ||
+       !dir.mkpath("steps/pcb/layers/sig2"))return 1;
+    const auto write=[&](const QString &p,const QByteArray &data) {
+        QFile file(dir.filePath(p));
+        return file.open(QIODevice::WriteOnly|QIODevice::Truncate) &&
+               file.write(data)==data.size() && file.flush();
+    };
+    const QByteArray matrix=
+        "STEP {\nCOL=1\nNAME=pcb\n}\n"
+        "LAYER {\nROW=1\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=sig1\nPOLARITY=POSITIVE\n}\n"
+        "LAYER {\nROW=2\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=sig2\nPOLARITY=POSITIVE\n}\n";
+    const QByteArray features="UNITS=MM\nF 2\n$0 r100\n$1 rect200x100 M\n"
+                              "L 0 0 1.5 0 0 P 0\nP 1.5 0 1 P 0 0\n";
+    if(!write("matrix/matrix",matrix) ||
+       !write("steps/pcb/layers/sig1/features",features) ||
+       !write("steps/pcb/layers/sig2/features",features))return 1;
+    if(!window.openOdbCandidate(temp.path(),"pcb"))return 1;
+    auto *cancel=panel->findChild<QPushButton*>("importCancelButton");
+    if(!cancel || !cancel->isEnabled())return 1;
+    cancel->click();
+    if(!drain() || !panel->importStatus().contains("PREVIOUS ARTWORK RETAINED") ||
+       panel->acceptedSourceSha256()!=acceptedSha ||
+       !window.displayedProperties().contains(acceptedName) ||
+       window.displayedProperties().contains(QFileInfo(temp.path()).fileName()) ||
+       !window.displayedProperties().contains("PADS V9.4") ||
+       !window.displayedResultSummary().contains("Imported PCB: PARTIAL"))return 1;
+    return 0;
+}
+
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==5 && args.at(1)=="--e021-crossformat-selftest")
+        return runE021CrossFormatRetentionSelftest(args.at(2),args.at(3),args.at(4));
     if(args.size()==4 && args.at(1)=="--e011-stackup-selftest")
         return runE011MainStackupSelftest(args.at(2), args.at(3));
     if(args.size()==3 && args.at(1)=="--d013-legacy-barrel-provenance-selftest")
