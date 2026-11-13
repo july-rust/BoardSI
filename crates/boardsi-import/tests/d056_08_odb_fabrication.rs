@@ -259,3 +259,45 @@ fn e019_unqualified_process_or_finish_diameter_never_promoted() {
     assert!(out.via_candidates.is_empty());
     assert!(out.board.connectivity.edges.is_empty());
 }
+
+#[test]
+fn e019_duplicate_content_different_source_paths_is_unambiguous() {
+    let mut files = product(4);
+    let real_path = "steps/pcb/layers/hole/features";
+    files.insert(
+        "steps/unused/layers/hole/features".into(),
+        files[real_path].clone(),
+    );
+    let imported = import_unpacked_with_holes(&files, "pcb", false).unwrap();
+    assert_eq!(imported.via_candidates.len(), 1);
+    let candidate = &imported.via_candidates[0];
+    assert_eq!(candidate.source_observation.source_file, real_path);
+    // The old SHA-only, single-hole observer remains fail-closed on ambiguity.
+    assert!(imported.board.observe_source_via_hole(
+        &candidate.source_identity,
+        &candidate.fabrication,
+    ).is_err());
+    assert!(imported.board.connectivity.edges.is_empty());
+}
+
+#[test]
+fn e019_batch_multiple_hits_remains_source_only_and_order_stable() {
+    let mut files = product(4);
+    let path = "steps/pcb/layers/hole/features";
+    let mut data = String::from_utf8(files[path].clone()).unwrap().replace("F 3", "F 259");
+    for n in 0..256 {
+        data.push_str(&format!("P {} 0 0 P 7 0;ID=more{}\n", n + 5, n));
+    }
+    files.insert(path.into(), data.into_bytes());
+    let a = import_unpacked_with_holes(&files, "pcb", false).unwrap();
+    let b = import_unpacked_with_holes(&files, "pcb", false).unwrap();
+    assert_eq!(a.source_holes.len(), 259);
+    assert_eq!(a.via_candidates.len(), 257);
+    assert_eq!(
+        a.via_candidates.iter().map(|c| c.candidate_key.as_str()).collect::<Vec<_>>(),
+        b.via_candidates.iter().map(|c| c.candidate_key.as_str()).collect::<Vec<_>>(),
+    );
+    assert!(a.board.vias.is_empty());
+    assert!(a.board.drills.is_empty());
+    assert!(a.board.connectivity.edges.is_empty());
+}
