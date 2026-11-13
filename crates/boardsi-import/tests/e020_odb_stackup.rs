@@ -100,13 +100,13 @@ fn e020_optional_xml_and_supplier_only_do_not_promote() {
 fn e020_malformed_untrusted_xml_and_conflicts_fail_closed() {
     let cases = [
         ("<StackupFile", "<!DOCTYPE StackupFile [<!ENTITY x SYSTEM 'file:///etc/passwd'>]><StackupFile", "ODB_STACKUP_XML_EXTERNAL_OR_EXTENSION"),
-        ("<Group GroupName=\"Design\">", "<Group GroupName=\"Design\"><Group GroupName=\"Other\"/>", "ODB_STACKUP_GROUP_AMBIGUOUS"),
+        ("</Group></Stackup>", "</Group><Group GroupName=\"Other\"/></Stackup>", "ODB_STACKUP_GROUP_AMBIGUOUS"),
         ("LayerName=\"sig1\"", "LayerName=\"missing\"", "ODB_STACKUP_MATRIX_LAYER_MISMATCH"),
         ("MaterialName=\"Cu\"/></SpecRef>", "MaterialName=\"NonExisting\"/></SpecRef>", "ODB_STACKUP_UNKNOWN_MATERIAL"),
         ("Thickness=\"0.018\"", "Thickness=\"-0.018\"", "ODB_STACKUP_THICKNESS"),
         ("LayerType=\"DIELECTRIC\"", "LayerType=\"SIGNAL\"", "ODB_STACKUP_MATERIAL_LAYER_CONFLICT"),
         ("Version=\"8.1\"", "Version=\"7.0\"", "ODB_STACKUP_VERSION"),
-        ("<StackupFile", "<NotStackupFile", "ODB_STACKUP_XML_STRUCTURE"),
+        ("<StackupFile", "<NotStackupFile", "ODB_STACKUP_XML_CLOSE"),
     ];
     for (a, b, expected) in cases {
         let mut files = sample(4);
