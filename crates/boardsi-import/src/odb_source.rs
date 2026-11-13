@@ -1123,6 +1123,60 @@ pub fn import_unpacked(files: &OdbFileMap, step: &str) -> Result<BoardModel, Odb
     import_inner(files, step, false)
 }
 
+/// Source-only Package/Pin definitions, coupled to the exact logical source SHA list.
+/// Positions are in 1e-9 units relative to the package datum; no placed Part/Pad.
+pub use crate::odb_eda_packages::{SourcePackage, SourcePin, SourceRectangle};
+#[derive(Debug, Clone)]
+pub struct EdaPackageAudit {
+    pub step: String,
+    pub source_files: Vec<SourceFile>,
+    pub metres_per_tick: Rational,
+    pub packages: Vec<SourcePackage>,
+}
+
+/// Strict EDA + Canonical validation precedes publication of package evidence.
+/// This does not emit Canonical Component, Pin, Pad, or Connectivity edges.
+pub fn audit_unpacked_eda_packages(
+    files: &OdbFileMap,
+    step: &str,
+) -> Result<EdaPackageAudit, OdbError> {
+    let _validated = import_unpacked_with_eda(files, step)?;
+    let normalized = normalized_feature_files(files)?;
+    let files = normalized.as_ref();
+    let path = format!("steps/{step}/eda/data");
+    let data = ascii_file(files, &path)?;
+    let packages =
+        crate::odb_eda_packages::parse_packages(data).map_err(|e| error(&path, e.line, e.code))?;
+    if packages.is_empty() {
+        return Err(error(&path, 0, "ODB_EDA_NO_PACKAGES"));
+    }
+    let units = data
+        .lines()
+        .map(str::trim)
+        .find(|s| s.starts_with("UNITS="))
+        .ok_or_else(|| error(&path, 0, "ODB_EDA_MISSING_UNITS"))?;
+    let metres_per_tick = match units {
+        "UNITS=MM" => Rational::new(1, 1_000_000_000_000),
+        "UNITS=INCH" => Rational::new(254, 10_000_000_000_000),
+        _ => return Err(error(&path, 0, "ODB_EDA_UNSUPPORTED_UNITS")),
+    }
+    .map_err(|_| error(&path, 0, "ODB_EDA_PKG_RATIONAL"))?;
+    Ok(EdaPackageAudit {
+        step: step.to_owned(),
+        source_files: verified_source_files(files)?,
+        metres_per_tick,
+        packages,
+    })
+}
+
+/// One read of directory, USTAR, GZIP tar or ZIP; no extraction and no Qt.
+pub fn audit_path_eda_packages(
+    path: &std::path::Path,
+    step: &str,
+) -> Result<EdaPackageAudit, OdbError> {
+    audit_unpacked_eda_packages(&read_source_path_file_map(path)?, step)
+}
+
 /// Strict opt-in import of design Net identities and EDA FID ownership.
 /// Unsupported EDA syntax returns an error for the *entire* import.
 pub fn import_unpacked_with_eda(files: &OdbFileMap, step: &str) -> Result<BoardModel, OdbError> {
@@ -1268,6 +1322,7 @@ fn import_normalized_inner(
         let path = format!("steps/{step}/eda/data");
         let mapping = odb_eda::parse(ascii_file(files, &path)?, &registry)
             .map_err(|e| error(&path, e.line, e.code))?;
+        let has_source_packages = !mapping.packages.is_empty();
         // Complete parsing and duplicate/reference checks precede all model
         // mutations; an invalid input is never returned as a partial success.
         let mut net_ids = BTreeMap::new();
@@ -1342,6 +1397,11 @@ fn import_normalized_inner(
                     }
                 }
             }
+        }
+        if has_source_packages {
+            board.sources[0].capability.object_coverage.push(
+                "E_018 PKG/PIN RC definitions are SOURCE only: no placed component, pad or pin-to-pad relationship".into(),
+            );
         }
         board.sources[0].capability.net = CapabilityState::Partial;
         board.sources[0].capability.object_coverage.push(
@@ -2213,6 +2273,86 @@ mod tests {
         assert_eq!(
             import_unpacked(&f, "panel").unwrap_err().code,
             "ODB_UNDECLARED_STEP"
+        );
+    }
+    fn e018_eda_board() -> OdbFileMap {
+        let mut f = source(2);
+        f.insert("steps/pcb/eda/data".into(),
+            b"HDR synthetic\nUNITS=MM\nLYR sig1 sig2\nNET CLK\nSNT TRC\nFID C 0 0\nPKG QFN 0.5 -2 -2 2 2;ID=12\nRC -2 -2 4 4\nPIN 1 S -1.5 0 0 E S ID=13\nRC -1.75 -0.2 0.5 0.4\nPIN 2 S 1.5 0 0 E S;ID=14\nRC 1.25 -0.2 0.5 0.4\n".to_vec());
+        f
+    }
+
+    #[test]
+    fn e018_eda_package_audit_preserves_sha_and_never_creates_copper_pin() {
+        let f = e018_eda_board();
+        let audit = audit_unpacked_eda_packages(&f, "pcb").unwrap();
+        assert_eq!(audit.packages.len(), 1);
+        assert_eq!(audit.packages[0].ordinal, 0);
+        assert_eq!(audit.packages[0].pins.len(), 2);
+        assert_eq!(audit.packages[0].pins[0].center, [-1_500_000_000, 0]);
+        assert!(audit
+            .source_files
+            .iter()
+            .any(|item| item.logical_path == "steps/pcb/eda/data"));
+        assert_eq!(
+            audit.metres_per_tick,
+            Rational::new(1, 1_000_000_000_000).unwrap()
+        );
+        let board = import_unpacked_with_eda(&f, "pcb").unwrap();
+        assert_eq!(board.traces[0].net, Some(board.nets[0].meta.id.clone()));
+        assert!(board.components.is_empty() && board.pins.is_empty());
+        assert!(board.connectivity.nodes.is_empty() && board.connectivity.edges.is_empty());
+        assert!(!board.validate().has_errors());
+        assert_eq!(
+            audit_unpacked_eda_packages(&f, "pcb").unwrap().packages,
+            audit.packages
+        );
+        let mut b = f.clone();
+        b.insert(
+            "steps/pcb/eda/data".into(),
+            String::from_utf8(f["steps/pcb/eda/data"].clone())
+                .unwrap()
+                .replace("PIN 2 S 1.5 0 0 E S;ID=14", "PIN 2 T 1.5 0 0 E S;ID=14")
+                .into_bytes(),
+        );
+        assert_eq!(
+            import_unpacked_with_eda(&b, "pcb").unwrap_err().code,
+            "ODB_EDA_PIN_UNSUPPORTED_TYPE"
+        );
+        assert_eq!(
+            audit_unpacked_eda_packages(&b, "pcb").unwrap_err().code,
+            "ODB_EDA_PIN_UNSUPPORTED_TYPE"
+        );
+    }
+
+    #[test]
+    fn e018_metric_and_inch_package_coordinates_are_exactly_equivalent() {
+        let mut mm = e018_eda_board();
+        let mm_path = "steps/pcb/eda/data";
+        mm.insert(mm_path.into(),
+            b"HDR x\nUNITS=MM\nLYR sig1 sig2\nNET A\nSNT TRC\nFID C 0 0\nPKG P 25.4 -25.4 -25.4 25.4 25.4\nRC -25.4 -25.4 50.8 50.8\nPIN 1 S -25.4 0 0 E S\nRC -25.4 0 25.4 25.4\n".to_vec());
+        let mut inch = mm.clone();
+        inch.insert(mm_path.into(),
+            b"HDR x\nUNITS=INCH\nLYR sig1 sig2\nNET A\nSNT TRC\nFID C 0 0\nPKG P 1 -1 -1 1 1\nRC -1 -1 2 2\nPIN 1 S -1 0 0 E S\nRC -1 0 1 1\n".to_vec());
+        let m = audit_unpacked_eda_packages(&mm, "pcb").unwrap();
+        let i = audit_unpacked_eda_packages(&inch, "pcb").unwrap();
+        let mm_x = i128::from(m.packages[0].pins[0].center[0]);
+        let in_x = i128::from(i.packages[0].pins[0].center[0]);
+        assert_eq!(
+            Rational::new(mm_x, 1_000_000_000_000).unwrap(),
+            Rational::new(in_x * 254, 10_000_000_000_000).unwrap()
+        );
+        assert_ne!(
+            m.source_files
+                .iter()
+                .find(|x| x.logical_path == mm_path)
+                .unwrap()
+                .sha256,
+            i.source_files
+                .iter()
+                .find(|x| x.logical_path == mm_path)
+                .unwrap()
+                .sha256
         );
     }
 }

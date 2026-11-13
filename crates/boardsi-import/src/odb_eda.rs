@@ -39,6 +39,7 @@ pub(super) struct EdaAssignment {
 pub(super) struct EdaOwnership {
     pub nets: Vec<EdaNet>,
     pub assignments: Vec<EdaAssignment>,
+    pub packages: Vec<crate::odb_eda_packages::SourcePackage>,
 }
 
 /// An intentionally restricted EDA grammar. All FID records are checked
@@ -48,6 +49,10 @@ pub(super) fn parse(
     text: &str,
     features: &BTreeMap<(String, usize), FeatureLocation>,
 ) -> Result<EdaOwnership, EdaError> {
+    // Validate the complete PKG/PIN/RC grammar before accepting any NET/FID.
+    // A source definition never creates a placed component or electrical edge.
+    let packages =
+        crate::odb_eda_packages::parse_packages(text).map_err(|e| err(e.line, e.code))?;
     let mut layer_names: Option<Vec<String>> = None;
     let mut nets = Vec::new();
     let mut assignments = Vec::new();
@@ -209,6 +214,15 @@ pub(super) fn parse(
                 // Preserve lookup definitions in source SHA, but do not infer
                 // physical impedance, net role or attribute semantics.
             }
+            "PKG" => {
+                // Package definitions terminate the previous NET/SNT section.
+                // Never allow a subsequent FID to inherit stale design ownership.
+                net_name = None;
+                subnet = None;
+            }
+            "PIN" | "RC" => {
+                // Already fully validated by the source-only package parser.
+            }
             "PRP" => {
                 // PRP is a design property, not an FID, and does not grant
                 // authoritative manufacturing or connectivity evidence.
@@ -219,7 +233,11 @@ pub(super) fn parse(
     if !saw_hdr || units.is_none() || layer_names.is_none() || nets.is_empty() {
         return Err(err(0, "ODB_EDA_INCOMPLETE"));
     }
-    Ok(EdaOwnership { nets, assignments })
+    Ok(EdaOwnership {
+        nets,
+        assignments,
+        packages,
+    })
 }
 
 #[cfg(test)]
@@ -254,7 +272,7 @@ mod tests {
             ("SNT TRC", "SNT TOP T 0 0", "ODB_EDA_UNSUPPORTED_SUBNET"),
             ("NET CLK", "NET CLK\nNET CLK", "ODB_EDA_AMBIGUOUS_NET_NAME"),
             ("FID C 0 0", "FID C 0 0\nFID C 0 0", "ODB_EDA_DUPLICATE_FID"),
-            ("SNT TRC", "SNT TRC\nPKG U1", "ODB_EDA_UNSUPPORTED_RECORD"),
+            ("SNT TRC", "SNT TRC\nPKG U1", "ODB_EDA_PKG_BAD_RECORD"),
         ] {
             let input = valid.replace(from, to);
             assert_eq!(parse(&input, &features()).unwrap_err().code, code);
@@ -273,6 +291,20 @@ mod tests {
         assert_eq!(
             parse(duplicate_fid, &features()).unwrap_err().code,
             "ODB_EDA_DUPLICATE_FID"
+        );
+    }
+
+    #[test]
+    fn e018_package_never_leaks_prior_net_subnet_ownership_to_later_fid() {
+        let template = "HDR x\nUNITS=MM\nLYR top bottom\nNET CLK\nSNT TRC\nPKG QFN 1 -2 -2 2 2\nRC -2 -2 4 4\nPIN 1 S 0 0 0 E S\nRC 0 0 1 1\nFID C 0 0\n";
+        assert_eq!(
+            parse(template, &features()).unwrap_err().code,
+            "ODB_EDA_FID_WITHOUT_NET"
+        );
+        let explicit = template.replace("FID C 0 0", "NET NEW\nSNT TRC\nFID C 0 0");
+        assert_eq!(
+            parse(&explicit, &features()).unwrap().assignments[0].net_name,
+            "NEW"
         );
     }
 
