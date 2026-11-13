@@ -74,6 +74,12 @@ class PreviewImportPanel final : public QWidget {
         if (cancelButton_) cancelButton_->setEnabled(message.startsWith("RUNNING"));
         if (callback_) callback_(status_);
     }
+    // A failed or cancelled ODB import never destroys the last accepted artwork.
+    // The candidate is validated offscreen and only committed after full IPC checks.
+    void odbFailure(const QString &code) {
+        status(QString("FAILED / %1 / %2").arg(code,
+            acceptedDigest_.isEmpty() ? "NOTHING IMPORTED" : "PREVIOUS ARTWORK RETAINED"));
+    }
     void collectOdb() {
         while(odbProcess_.bytesAvailable()>0) {
             const qint64 free=4*1024*1024-odbData_.size();
@@ -665,8 +671,9 @@ public:
             }
             if (odbProcess_.state() != QProcess::NotRunning) {
                 odbCancelled_=true;odbDeadline_.stop();odbProcess_.kill();
-                imported_->clearArtwork();
-                status("CANCELLED / ODB++ SOURCE discarded / SI NOT_RUN");
+                status(acceptedDigest_.isEmpty()
+                    ? "CANCELLED / ODB++ SOURCE discarded / SI NOT_RUN"
+                    : "CANCELLED / ODB++ candidate discarded / PREVIOUS ARTWORK RETAINED / SI NOT_RUN");
             }
             if (canonicalProcess_.state() != QProcess::NotRunning) {
                 canonicalCancelled_=true;
@@ -846,17 +853,19 @@ public:
             odbDeadline_.stop();collectOdb();
             if(odbCancelled_)return;
             if(odbTimedOut_ || odbOverflow_ || code!=0 || exitStatus!=QProcess::NormalExit) {
-                status(odbTimedOut_ ? "FAILED / ODB_IMPORT_TIMEOUT / NOTHING IMPORTED" :
-                    "FAILED / ODB_IMPORT_PROCESS / NOTHING IMPORTED");return;
+                odbFailure(odbTimedOut_ ? "ODB_IMPORT_TIMEOUT" : "ODB_IMPORT_PROCESS");return;
             }
             e021ipc::Source candidate;
             if(!e021ipc::decode(odbData_,odbRoot_,candidate) ||
                !imported_->loadOdb(candidate)) {
-                status("FAILED / ODB_SOURCE_OR_IPC_UNVERIFIED / NOTHING IMPORTED");return;
+                odbFailure("ODB_SOURCE_OR_IPC_UNVERIFIED");return;
             }
             canonicalPath_=odbRoot_;
             importedLayerCount_=candidate.artwork.layerCount;
             acceptedDigest_=candidate.artwork.sourceSha.toLatin1();
+            importedCopperEvidence_=QJsonArray();
+            importedNetLabels_=QJsonArray();
+            importedNetInventoryComplete_=false;
             tabs_->setTabText(1,"Imported ODB++ SOURCE geometry");
             tabs_->setCurrentWidget(imported_);
             QTimer::singleShot(0,imported_,[this]{
@@ -868,7 +877,7 @@ public:
         });
         connect(&odbProcess_,&QProcess::errorOccurred,this,[this](QProcess::ProcessError e){
             if(e==QProcess::FailedToStart){odbDeadline_.stop();
-                status("FAILED / ODB_IMPORTER_UNAVAILABLE / NOTHING IMPORTED");}
+                odbFailure("ODB_IMPORTER_UNAVAILABLE");}
         });
         canonicalProcess_.setProcessChannelMode(QProcess::SeparateChannels);
         canonicalDeadline_.setSingleShot(true);
@@ -940,18 +949,16 @@ public:
     void setOdbImporterBinaryForTest(const QString &path) { odbBinary_=path; }
     bool openOdbPath(const QString &root,const QString &step="pcb") {
         if(busy())return false;
-        imported_->clearArtwork();
-        acceptedDigest_.clear();importedLayerCount_=0;
-        importedCopperEvidence_=QJsonArray();importedNetLabels_=QJsonArray();
-        importedNetInventoryComplete_=false;canonicalPath_.clear();
-        tabs_->setTabText(1,"Imported ODB++ (none)");
+        // Keep the last accepted scene/selection/identity until the new candidate
+        // has passed both Rust import and Qt IPC+manifest checks. Failure, Cancel
+        // and timeout preserve the accepted snapshot rather than blanking it.
         if(!QFileInfo(root).isDir() || QFileInfo(root).isSymLink() ||
            step.isEmpty() || step.size()>128 ||
            !QRegularExpression("^[A-Za-z0-9_.-]+$").match(step).hasMatch()) {
-            status("FAILED / ODB_DIRECTORY_OR_STEP_UNSUPPORTED / NOTHING IMPORTED");return false;
+            odbFailure("ODB_DIRECTORY_OR_STEP_UNSUPPORTED");return false;
         }
         if(!QFileInfo(odbBinary_).isAbsolute() || !QFileInfo(odbBinary_).isExecutable()) {
-            status("FAILED / ODB_IMPORTER_UNAVAILABLE / NOTHING IMPORTED");return false;
+            odbFailure("ODB_IMPORTER_UNAVAILABLE");return false;
         }
         odbRoot_=root;
         odbData_.clear();odbErrors_.clear();
