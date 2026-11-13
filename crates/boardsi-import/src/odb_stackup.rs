@@ -1,7 +1,7 @@
 //! E_020: bounded ODB++Design 8.1-U4 EDA stackup observation.
 //! This is source-only, not manufactured dimensions, validated loss or SI.
 //! Schema: matrix/stackup.xml (StackupFile/EdaData/Specs, Stackup/Group).
-use crate::odb_source::{import_unpacked, read_source_path_file_map, OdbError, OdbFileMap};
+use crate::odb_source::{declared_board_copper, import_unpacked, read_source_path_file_map, OdbError, OdbFileMap};
 use boardsi_model::{Rational, SourceId};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -549,6 +549,17 @@ pub fn audit_unpacked_stackup(
         return Err(fail(
             nodes[groups[0]].line,
             "ODB_STACKUP_MATRIX_LAYER_MISMATCH",
+        ));
+    }
+    let xml_types: Vec<_> = layers
+        .iter()
+        .filter(|layer| matches!(layer.layer_type.as_str(), "SIGNAL" | "POWER_GROUND" | "MIXED"))
+        .map(|layer| (layer.layer_name.clone(), layer.layer_type.clone()))
+        .collect();
+    if xml_types != declared_board_copper(files)? {
+        return Err(fail(
+            nodes[groups[0]].line,
+            "ODB_STACKUP_MATRIX_LAYER_TYPE_MISMATCH",
         ));
     }
     let complete = !layers.is_empty() && layers.iter().all(|l| l.thickness_m.is_some());
