@@ -74,9 +74,9 @@ pub fn qualify_pads_kicad_single_through_via(
     let frame = &model.frames[0];
     if frame.metres_per_tick != Rational::new(127, 500_000_000).map_err(|_| "E028_FRAME_INVALID")?
         || frame.origin_m != [Rational::integer(0); 2]
-        || frame.orientation != Orientation::Orthogonal {
+        || frame.orientation != (Orientation::Orthogonal {
             turn: QuarterTurn::Zero, mirror_x: false
-        }
+        })
     {
         return Err("E028_UNSUPPORTED_PADS_FRAME");
     }
