@@ -28,6 +28,8 @@
 | EB-07 | [#2](https://github.com/july-rust/BoardSI/issues/2) · E_002 ([추적성 정합화](validation/e002-m0-f1-traceability-status-reconciliation.md)) | U01–U48/T01–T54 메타데이터 매핑은 존재하지만 M0 F1의 개별 시험별 승인·원본 Fixture·실행 SHA/Job·독립 인수 심사는 미충족. T13/T39/T46의 제한 M0 프로토타입 PARTIAL 증거는 정식 전체 시험 `NOT_RUN`과 구분한다. 원본 10-case JSON은 변경하지 않는다 | BLOCKED / NOT_VERIFIED | M0 전용 적합성 판단 후 각각의 기대값·실제 결과·재현 Fixture·SHA·Job/Artifact·독립 승인일을 확인해야 Issue #2 전체 DoD를 재평가할 수 있음 |
 | EB-06 | [#520](https://github.com/july-rust/BoardSI/issues/520), [#532](https://github.com/july-rust/BoardSI/issues/532) | 임의 ODB++/IPC-2581/KiCad/Gerber 및 제조 Plating/Barrel/Stackup의 전체 원본 근거 미인수 | NOT_VERIFIED | 각 네이티브 형식별 공개 규격·양/음성 Fixture·Source Provenance·독립 교차 Oracle |
 
+| EB-08 | [E_025 PR #628](https://github.com/july-rust/BoardSI/pull/628) · [한정 검증](validation/e025-ipc2581c-layer-net-source-qualification.md) | IPC-2581C 제한 Layer/LogicalNet Source 코드 PR은 보호 Verified Squash `e9ef6510`로 병합되었고 코드/PR CI는 통과. 그러나 Codex 사용량 한도 및 Copilot 완료 리뷰 부재로 **독립 최종 코드 리뷰는 NOT_VERIFIED**. 독립 리뷰 없이 정식 E_025 COMPLETE로 승격 금지 | NOT_VERIFIED / DEPENDENCY_UNVERIFIED | 최종 병합 코드의 독립 리뷰 확보·P1/P2 수정 및 적용 회귀 재실행, 근거 SHA/리뷰 일자 기록 후 제한 E_025 완료 재평가. 상위 #23/#532/#520은 원래대로 OPEN |
+
 ## 장기 제품 개발 — E에서 억지로 종료하지 않을 이슈
 
 | 유형 | 추적할 기존 열린 이슈 | 취급 |

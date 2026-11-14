@@ -1,6 +1,6 @@
 # E_025 — IPC-2581C Source Layer/LogicalNet Qualification
 
-> Date: 2026-11-14 KST. Status: **CODE CI PASS / INDEPENDENT REVIEW NOT_VERIFIED / MERGE PENDING**. Actual Rust/Qt/CI code HEAD `fab3652c429260da5b4d3eef7ebe15698a460598` succeeded; final docs PR HEAD, protected merge and exact main Push remain separate obligations. No completed U/T/production gate is claimed.
+> Date: 2026-11-14 KST. Status: **CODE MERGED / INDEPENDENT REVIEW NOT_VERIFIED / EXACT MAIN PUSH PENDING**. Actual Rust/Qt/CI code HEAD `fab3652c429260da5b4d3eef7ebe15698a460598` succeeded; final PR HEAD 30/30 GitHub Checks SUCCESS and protected signed squash merge are verified; independent exact main Push is running and independent review is NOT_VERIFIED. No completed U/T/production gate is claimed.
 
 ## Requirement and source
 
@@ -48,3 +48,10 @@ The table below describes what these executed tests cover; `PASS (synthetic scop
 ## Closeout criteria
 
 Final E_025 SOURCE-only COMPLETE requires exact PR HEAD applicable checks, independent code review/threads resolved, protected Verified squash merge and exact merged-main Push verification. An unavailable proof is NOT_VERIFIED, not PASS. Parent issues #532/#23/#520 and formal U07/U33/U38/U40/T16/T18/T19/T20 remain OPEN / not product accepted.
+
+## Protected integration receipt — 2026-11-14 KST
+
+- [PR #628](https://github.com/july-rust/BoardSI/pull/628) state MERGED/CLOSED; final PR HEAD `a5de84e79aea5bf7f35a8c895580ad574c3fb0ff`, **30/30 GitHub check-runs SUCCESS**, 0 unresolved review threads. This exact PR HEAD changes only E_025 documentation relative to fully executed code HEAD `fab3652c`; compare confirmed only 3 Markdown files.
+- Exact protected single-parent **Verified** squash on main: [`e9ef651049524fa2dd2d2c8d06c1dfc53dc75548`](https://github.com/july-rust/BoardSI/commit/e9ef651049524fa2dd2d2c8d06c1dfc53dc75548), GitHub verification `valid`; parent `c97487918ea7d44e8513febc9491db323b55dafc`. Main ref independently observed matching merge SHA.
+- Separate exact code-main `event=push` Actions [8-run collection](https://github.com/july-rust/BoardSI/commit/e9ef651049524fa2dd2d2c8d06c1dfc53dc75548/checks) initiated. **RESULT PENDING** in this document revision, not yet asserted as passing. Independent final result must be audited separately from PR CI.
+- Independent external GitHub code review was not obtained (Codex quota exhausted, Copilot request yielded no completed external review). A same-author COMMENT review is **not an approval**. Review obligation remains **NOT_VERIFIED** and is listed as EB-08; do not check off E_025 full closeout, claim product acceptance or close parent #23/#532/#520.
