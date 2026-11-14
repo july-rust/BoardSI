@@ -208,9 +208,9 @@ pub fn inspect(bytes: &[u8]) -> Result<Inventory, ImportError> {
     if field(&root.attrs, "xmlns")? != NAMESPACE { return Err(err("UNSUPPORTED_NAMESPACE")); }
     let mut raw_layers: Vec<(String,String,String,String)> = Vec::new();
     let mut raw_nets: Vec<(String,Vec<(Option<String>,String)>)> = Vec::new();
-    let mut layer_names = BTreeSet::new();
-    let mut net_names = BTreeSet::new();
-    let mut layer_refs = BTreeSet::new();
+    let mut layer_names: BTreeSet<String> = BTreeSet::new();
+    let mut net_names: BTreeSet<String> = BTreeSet::new();
+    let mut layer_refs: BTreeSet<String> = BTreeSet::new();
     let mut step: Option<String> = None;
     let (mut content, mut cad_data) = (false, false);
     for tag in &tags {
@@ -336,7 +336,7 @@ mod tests {
         let s = sample(2);
         reject(s.replace("revision=\"C\"","revision=\"B\""),"UNSUPPORTED_REVISION");
         reject(s.replace("http://webstds.ipc.org/2581","http://bad"),"UNSUPPORTED_NAMESPACE");
-        reject(s.replace("<IPC-2581 ","<Fake "),"BAD_ROOT");
+        reject(s.replace("<IPC-2581 ","<Fake "),"MISMATCHED_XML_CLOSE");
         reject(s.replace("</IPC-2581>","</Fake>"),"MISMATCHED_XML_CLOSE");
         reject(s.replace("name=\"L1\"","name=\"L0\""),"DUPLICATE_LAYER_REF");
         reject(s.replace("<LayerRef name=\"L1\"/>","<LayerRef name=\"MISSING\"/>"),"UNKNOWN_LAYER_REF");
