@@ -1,6 +1,6 @@
 # E_025 — IPC-2581C Source Layer/LogicalNet Qualification
 
-> Date: 2026-11-14 KST. Status: **IMPLEMENTED / CI_PENDING** until the exact final PR HEAD, independent review, protected squash merge and merged-main Push receipts are confirmed. No completed U/T/production gate is claimed.
+> Date: 2026-11-14 KST. Status: **CODE CI PASS / INDEPENDENT REVIEW NOT_VERIFIED / MERGE PENDING**. Actual Rust/Qt/CI code HEAD `900e8ab066c830dd4f5e3ffb67afa6dc29b79f71` succeeded; final docs PR HEAD, protected merge and exact main Push remain separate obligations. No completed U/T/production gate is claimed.
 
 ## Requirement and source
 
@@ -27,21 +27,23 @@ This restricted reader **is not a full IPC-2581C XSD validator**. It does not va
 
 ## Tests and required evidence
 
-Initial test definitions (results remain NOT_RUN until CI evidence arrives):
+**Executed code-head evidence (2026-11-14 KST):** [PR #628](https://github.com/july-rust/BoardSI/pull/628), exact code HEAD [`900e8ab0`](https://github.com/july-rust/BoardSI/commit/900e8ab066c830dd4f5e3ffb67afa6dc29b79f71): **30/30 GitHub check-runs SUCCESS, 0 failed** (includes applicable 17 protected checks, additional CodeQL and classifier). Numerical workflow [run 43556754146](https://github.com/july-rust/BoardSI/actions/runs/43556754146) Linux job `132331341212` ran **Rust Unit 348/348 Debug and 348/348 Release PASS**, formatting/Clippy PASS. Rust native Windows x64/ARM64, macOS ARM64 SUCCESS. Qt runtime [run 43556754052](https://github.com/july-rust/BoardSI/actions/runs/43556754052) Linux/Windows x64/ARM64/macOS ARM64 SUCCESS; docs, FEM, FVM and import benchmarks also SUCCESS. Initial compile type inference, rustfmt, and strict Clippy failures at earlier HEAD were corrected; do not erase failures or relabel them PASS.
+
+The table below describes what these executed tests cover; `PASS (synthetic scope)` means only the bounded Source Inventory contract.
 
 | Test scope | Intended outcome | Actual |
 | --- | --- | --- |
-| 2/4/6/8/64 Layer declaration inventory | deterministic counts, no inferred physical order | NOT_RUN |
-| RevC Layer/Net/PinRef and original IDs | exact SourceIdentity and SHA-256, partial capability | NOT_RUN |
-| byte mutation and reimport | distinct SHA and distinct source identity | NOT_RUN |
-| other Revision/namespace, malformed XML | fail closed | NOT_RUN |
-| duplicate/missing Layer/Net/PinRef, unknown references | fail closed | NOT_RUN |
-| unknown layer function | `Other` / UNKNOWN, not Copper | NOT_RUN |
-| malicious entity/DTD/nested namespace/oversize | reject without loading external resources | NOT_RUN |
-| existing PADS/ODB++ and Rust/Qt native regressions | preserved behavior | NOT_RUN |
+| 2/4/6/8/64 Layer declaration inventory | deterministic counts, no inferred physical order | PASS (synthetic scope) |
+| RevC Layer/Net/PinRef and original IDs | exact SourceIdentity and SHA-256, partial capability | PASS (synthetic scope) |
+| byte mutation and reimport | distinct SHA and distinct source identity | PASS (synthetic scope) |
+| other Revision/namespace, malformed XML | fail closed | PASS (synthetic scope) |
+| duplicate/missing Layer/Net/PinRef, unknown references | fail closed | PASS (synthetic scope) |
+| unknown layer function | `Other` / UNKNOWN, not Copper | PASS (synthetic scope) |
+| malicious entity/DTD/nested namespace/oversize | reject without loading external resources | PASS (synthetic scope) |
+| existing PADS/ODB++ and Rust/Qt native regressions | preserved behavior | PASS (Rust/Qt Native CI only) |
 | Independent vendor RevC fixture / official full XSD | separate qualification | NOT_VERIFIED |
 
-No observed Native CI, exact PR checks or code-main Push success is claimed at report creation time.
+**Important evidence boundary:** the exact code PR HEAD passed CI; final documentation edit commits can result in docs-only Native SKIPPED and must not be counted as a new Native PASS. GitHub Codex independent code-review attempts failed due exhausted review quota (see PR #628 conversation), **not a clean review and not a finding-free approval**; no completed independent final-HEAD review is available. Merge verified signature and exact merged-main `event=push` are NOT_VERIFIED until independently checked. Official RevC XSD-valid vendor input, independent Oracle and formal product U/T are NOT_VERIFIED/NOT_RUN.
 
 ## Closeout criteria
 
