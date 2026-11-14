@@ -416,12 +416,9 @@ pub fn inspect(bytes: &[u8]) -> Result<Inventory, ImportError> {
             "IPC-2581/Ecad/CadData/Step/LogicalNet/PinRef" => {
                 let pin = field(&tag.attrs, "pin")?;
                 let comp = tag.attrs.get("componentRef").cloned();
-                if comp
-                    .as_deref()
-                    .is_some_and(|v| {
-                        v.is_empty() || v.len() > 256 || v.chars().any(char::is_control)
-                    })
-                {
+                if comp.as_deref().is_some_and(|v| {
+                    v.is_empty() || v.len() > 256 || v.chars().any(char::is_control)
+                }) {
                     return Err(err("BAD_IDENTIFIER"));
                 }
                 raw_nets
@@ -631,7 +628,10 @@ mod tests {
             "BAD_XML_ATTRIBUTE",
         );
         reject(
-            s.replace("name=\"L0\" layerFunction", "name=\"L0\"\u{000b}layerFunction"),
+            s.replace(
+                "name=\"L0\" layerFunction",
+                "name=\"L0\"\u{000b}layerFunction",
+            ),
             "BAD_XML_ATTRIBUTE",
         );
         reject(
