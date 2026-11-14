@@ -10,6 +10,12 @@
 - **NOT_VERIFIED:** 완료를 주장할 독립 근거가 부족하다. 일부 기능이 존재할 수 있다.
 - **DEFERRED_PRODUCT:** 기능이 크거나 후속 마일스톤 범위로서 E 우선순위 밖에 둔다. 차단 실패와 혼동하지 않는다.
 
+## E_024 전체 ODB++ Gate 재평가 후 상태 (2026-11-14 KST)
+
+[E_024 G01~G15 감사 보고서](validation/e024-odb-full-import-acceptance-gate.md)는 기존 제한 SOURCE/Qt/Graph 증거를 재대조했으며, 실제 Vendor/타 CAD 동일 Revision·권한·원본 SHA-256·독립 실행 Oracle 부재를 해소하지 못했습니다. **EB-01은 그대로 BLOCKED / DEPENDENCY_UNVERIFIED**이고, [#10](https://github.com/july-rust/BoardSI/issues/10)은 OPEN입니다. 역사적 [#578](https://github.com/july-rust/BoardSI/issues/578)의 CLOSED는 전체 인수와 다릅니다.
+
+복잡한 Copper Cutout/Polarity, 중첩 Step, 완성된 EDA 및 제조 Via/Barrel·전기 Open/Short, 전체 Qt/SI 및 정식 U/T는 별개의 제품 의무입니다. **E_024 문서 감사 종료와 ODB++ 제품 인수는 별개**이며, E_021/022의 일부 독립 PR final-head/merged-main 증거는 NOT_VERIFIED로 유지합니다. 감사 PR이 완료되더라도 EB-01을 자동 해제하지 않습니다.
+
 ## 독립적으로 관리할 의존성
 
 | ID | 연관 이슈 | 증거로 확인한 사실 / 부족한 점 | 분류 | 재개 조건 |
