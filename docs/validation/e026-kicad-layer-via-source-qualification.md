@@ -109,18 +109,61 @@ Known unsupported cases include:
   PH07 FVM #43573232512 and PH06 FVM #43573232499. All eight exact
   merge-SHA event=push runs report `completed / success` (2026-11-14 KST).
 
+## Final exact-commit Qt and merged-main receipt (2026-11-14 KST)
+
+- **Corrective source PR:** [#635](https://github.com/july-rust/BoardSI/pull/635),
+  final head `2e683961949f2c4a2303831b1ba0636f54c5cd0f`.
+  Exactly **30/30 check-runs SUCCESS** on the final PR head; this includes
+  actual applicable Rust and Qt Native Windows x64, Windows ARM64, macOS ARM64,
+  and Linux jobs. Codex independent source review **COMPLETED / findings=0 /
+  unresolved=0** on that corrective SHA. GitHub protected Verified 1-parent
+  Squash main commit: [`9f1829bac92f06dce1eed7e3d904856a6717c76e`](https://github.com/july-rust/BoardSI/commit/9f1829bac92f06dce1eed7e3d904856a6717c76e).
+- **Corrective code-main exact `9f1829ba` Push CI: all 8/8 Workflow runs
+  `completed / success`.** Seven workflows succeeded on attempt 1;
+  [Qt Runtime run #43587722917](https://github.com/july-rust/BoardSI/actions/runs/43587722917)
+  was **CANCELLED in attempt 1** during subsequent main activity;
+  that cancellation is retained as a historical result, not rewritten as PASS.
+  A **retry of failed/cancelled jobs on the same immutable code SHA**
+  completed as **attempt 2: SUCCESS**. Qt Native Windows x64, Windows ARM64,
+  macOS ARM64, and Linux x86_64 all report `completed / success` in that
+  attempt. The other exact-code Push workflow runs are:
+  [Numerical #43587722918](https://github.com/july-rust/BoardSI/actions/runs/43587722918),
+  [Docs #43587722951](https://github.com/july-rust/BoardSI/actions/runs/43587722951),
+  [M2 native FEM #43587723017](https://github.com/july-rust/BoardSI/actions/runs/43587723017),
+  [M2 PH-07 #43587723001](https://github.com/july-rust/BoardSI/actions/runs/43587723001),
+  [M2 PH-06 #43587722953](https://github.com/july-rust/BoardSI/actions/runs/43587722953),
+  [M2 isolated FEM #43587722924](https://github.com/july-rust/BoardSI/actions/runs/43587722924),
+  and [M2 synthetic G0 #43587722927](https://github.com/july-rust/BoardSI/actions/runs/43587722927).
+- **Prior review closure:** original source PR #633 had one legitimate P2
+  finding (KiCad 9 valued Via flags), explicitly corrected in #635;
+  the original inline review thread was answered and marked **RESOLVED**.
+  [Documentation PR #634](https://github.com/july-rust/BoardSI/pull/634)
+  and [Codex review reconciliation #637](https://github.com/july-rust/BoardSI/pull/637)
+  also had Codex reviews **COMPLETED / no findings**. #637 final docs PR
+  checks **13 SUCCESS / 16 SKIPPED (docs-only paths)**, protected Verified
+  Squash [`add89abab321f2fb3cd61b422739c942b15a283c`](https://github.com/july-rust/BoardSI/commit/add89abab321f2fb3cd61b422739c942b15a283c).
+- **Exact #637 docs-main `add89aba` Push CI:** **8/8 completed / success**
+  independently of the corrective code-main evidence. [Qt runtime
+  #43588413071](https://github.com/july-rust/BoardSI/actions/runs/43588413071),
+  [Numerical #43588413142](https://github.com/july-rust/BoardSI/actions/runs/43588413142),
+  [Docs #43588413128](https://github.com/july-rust/BoardSI/actions/runs/43588413128)
+  and the other five code-independent workflows all succeeded.
+
 ## Closeout truth boundary
 
-**Code scope:** KiCad 9 `20241229` Layer/Via SOURCE-only inventory.
-Original #633 + post-merge Codex P2 correction #635 are both protected
-Verified Squash merged. Original review **COMPLETED/P2 found 1**; corrective
-final-HEAD review **COMPLETED/no findings**. Main Push receipt for corrective
-merge SHA `9f1829ba` is checked separately and must not be claimed successful
-until observed. The earlier #633 code-main 8/8 push SUCCESS remains valid.
+**E_026 SOURCE-LIMITED COMPLETE (initial checkbox/evidence date: 2026-11-14
+KST)** after the corrected parser, exact final PR-head tests, completed
+independent Codex reviews, resolved P2, protected Verified Squash merges,
+and exact corrective code-main plus docs-main 8/8 successful Push workflows.
+This checkbox **only accepts the bounded KiCad 9 `20241229` source
+Layer/Via inventory and its source-provenance/fail-closed qualification**.
 
-**No product promotion:** This does not establish full native KiCad
-readability, independently exported KiCad 9 real design Oracle, Qt import,
-physical via contact, stackup material/z, net connectivity or SI. Formal
-U07/U33/U38/U40 and T16/T18/T19/T20 remain NOT_RUN. Parent
-#23/#532/#520 remain OPEN. Track final documentation PR independently;
-avoid describing docs-only SKIPPED Native jobs as new Native PASS.
+**Explicitly NOT accepted:** full KiCad PCB import, independent physical
+KiCad 9 export/native application Oracle, Qt/worker end-to-end board
+integration, real plated/barrel electrical contact, stackup material/z,
+global open/short, solver-ready connected graph, SI and formal U07/U33/U38/U40
+or T16/T18/T19/T20. Those remain **NOT_VERIFIED / NOT_RUN** and parents
+#23 / #532 / #520 remain OPEN. Do not promote synthetic parser test evidence
+to native vendor acceptance or confuse docs-only skipped workflows with
+new Native PASS. E_027 / E_028 are separate limited gates, not residual
+P2 corrective work for E_026.
