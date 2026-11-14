@@ -97,6 +97,12 @@ fn decode(s: &str) -> Result<String, ImportError> {
     out.push_str(rest);
     Ok(out)
 }
+fn xml_space(c: u8) -> bool {
+    matches!(c, b' ' | b'\t' | b'\r' | b'\n')
+}
+fn name_start(c: u8) -> bool {
+    c.is_ascii_alphabetic() || c == b'_'
+}
 fn name_byte(c: u8) -> bool {
     c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-' | b'.' | b':')
 }
@@ -106,7 +112,7 @@ fn parse_tag(body: &str) -> Result<(String, BTreeMap<String, String>), ImportErr
     while i < b.len() && name_byte(b[i]) {
         i += 1;
     }
-    if i == 0 || b[0].is_ascii_digit() {
+    if i == 0 || !name_start(b[0]) {
         return Err(err("BAD_XML_TAG"));
     }
     let name = body[..i].to_owned();
@@ -115,28 +121,33 @@ fn parse_tag(body: &str) -> Result<(String, BTreeMap<String, String>), ImportErr
     }
     let mut attrs = BTreeMap::new();
     while i < b.len() {
-        while i < b.len() && b[i].is_ascii_whitespace() {
+        let separator_start = i;
+        while i < b.len() && xml_space(b[i]) {
             i += 1;
         }
         if i == b.len() {
             break;
         }
+        // XML requires at least one S character between attributes.
+        if i == separator_start {
+            return Err(err("BAD_XML_ATTRIBUTE"));
+        }
         let start = i;
         while i < b.len() && name_byte(b[i]) {
             i += 1;
         }
-        if i == start {
+        if i == start || !name_start(b[start]) {
             return Err(err("BAD_XML_ATTRIBUTE"));
         }
         let key = &body[start..i];
-        while i < b.len() && b[i].is_ascii_whitespace() {
+        while i < b.len() && xml_space(b[i]) {
             i += 1;
         }
         if b.get(i) != Some(&b'=') {
             return Err(err("BAD_XML_ATTRIBUTE"));
         }
         i += 1;
-        while i < b.len() && b[i].is_ascii_whitespace() {
+        while i < b.len() && xml_space(b[i]) {
             i += 1;
         }
         let quote = *b.get(i).ok_or_else(|| err("BAD_XML_ATTRIBUTE"))?;
@@ -201,11 +212,17 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
             if body.contains("--") || body.ends_with('-') {
                 return Err(err("INVALID_XML_COMMENT"));
             }
+            if body.chars().any(|c| !valid(c)) {
+                return Err(err("INVALID_XML_CHAR"));
+            }
             pos += 4 + n + 3;
             continue;
         }
         if tail.starts_with("<?xml ") && pos == 0 {
             let n = tail.find("?>").ok_or_else(|| err("BAD_XML_DECLARATION"))?;
+            if tail[..n + 2].chars().any(|c| !valid(c)) {
+                return Err(err("INVALID_XML_CHAR"));
+            }
             pos += n + 2;
             continue;
         }
@@ -401,7 +418,7 @@ pub fn inspect(bytes: &[u8]) -> Result<Inventory, ImportError> {
                 let comp = tag.attrs.get("componentRef").cloned();
                 if comp
                     .as_deref()
-                    .is_some_and(|v| v.is_empty() || v.len() > 256)
+                    .is_some_and(|v| v.is_empty() || v.len() > 256 || v.chars().any(char::is_control))
                 {
                     return Err(err("BAD_IDENTIFIER"));
                 }
@@ -603,6 +620,30 @@ mod tests {
         );
         reject(s.replace("<Content>", "<Content>]]>"), "INVALID_XML_TEXT");
         reject(format!("{s}]]>"), "INVALID_XML_TEXT");
+    }
+    #[test]
+    fn malformed_xml_attribute_boundaries_and_control_chars_fail_closed() {
+        let s = sample(2);
+        reject(
+            s.replace("name=\"L0\" layerFunction", "name=\"L0\"layerFunction"),
+            "BAD_XML_ATTRIBUTE",
+        );
+        reject(
+            s.replace("name=\"L0\" layerFunction", "name=\"L0\"\u{000b}layerFunction"),
+            "BAD_XML_ATTRIBUTE",
+        );
+        reject(
+            s.replace("componentRef=\"U1\"", "componentRef=\"U&#10;1\""),
+            "BAD_IDENTIFIER",
+        );
+        reject(
+            s.replace("<Content>", "<!--\u{0001}--><Content>"),
+            "INVALID_XML_CHAR",
+        );
+        reject(
+            s.replace("<?xml version", "<?xml \u{0001}version"),
+            "INVALID_XML_CHAR",
+        );
     }
     #[test]
     fn duplicate_nets_and_size_are_rejected() {
