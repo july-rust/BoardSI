@@ -172,14 +172,14 @@ pub fn qualify_unpacked(
             return Err(fail("E022_UNSUPPORTED_PADSTACK"));
         }
         let entry = &stack.entries[0];
-        let PadShape::Circle { diameter_m } = entry.shape else {
+        let PadShape::Circle { diameter_m } = &entry.shape else {
             return Err(fail("E022_UNSUPPORTED_PAD_SHAPE"));
         };
         let layer_index = board.stackup.layers.iter().position(|l| l.meta.id == entry.layer)
             .ok_or_else(|| fail("E022_INVALID_LAYER"))?;
         let frame = board.frames.iter().find(|f| f.meta.id == pad.position.frame)
             .ok_or_else(|| fail("E022_INVALID_FRAME"))?;
-        let diameter = width_ticks(diameter_m, frame.metres_per_tick)?;
+        let diameter = width_ticks(*diameter_m, frame.metres_per_tick)?;
         if nodes.len() >= MAX_NODES { return Err(fail("E022_NODE_LIMIT")); }
         pad_nodes.push((nodes.len(), index, diameter));
         nodes.push(CopperNode {
