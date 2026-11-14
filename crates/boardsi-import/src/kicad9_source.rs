@@ -116,10 +116,8 @@ impl Node {
     fn child(&self, name: &str) -> Result<Option<&Node>, ImportError> {
         let mut result = None;
         for node in self.children() {
-            if node.head()? == name {
-                if result.replace(node).is_some() {
-                    return Err(err("DUPLICATE_FIELD"));
-                }
+            if node.head()? == name && result.replace(node).is_some() {
+                return Err(err("DUPLICATE_FIELD"));
             }
         }
         Ok(result)
