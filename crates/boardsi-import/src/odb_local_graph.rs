@@ -9,7 +9,6 @@ use crate::layered_source_graph::{
 };
 use crate::odb_source::{self, OdbError, OdbFileMap};
 use boardsi_model::{BoardModel, ObjectId, PadRole, PadShape, Point, Rational, SourceId};
-use std::collections::BTreeMap;
 
 const MAX_NODES: usize = 50_000;
 const MAX_PAIRS: usize = 2_000_000;
