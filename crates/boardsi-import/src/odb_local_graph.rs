@@ -23,7 +23,8 @@ pub struct OdbLocalGraphQualification {
     /// SOURCE-local design edges only, never manufactured or SI edges.
     pub analysis: QualificationReport,
     /// Indeterminate narrow-phase comparisons, not negative contact proof.
-    pub unknown_pairs: usize,}
+    pub unknown_pairs: usize,
+}
 
 fn fail(code: &'static str) -> OdbError {
     OdbError {
@@ -517,5 +518,4 @@ mod tests {
             "E022_STEP_REPEAT_UNSUPPORTED"
         );
     }
-
 }
