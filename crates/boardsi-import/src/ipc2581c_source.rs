@@ -8,6 +8,8 @@ use boardsi_model::{
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 const LIMIT: usize = 8 * 1024 * 1024;
+// Limit repeated ancestor-name copies across all stored paths, independently of input bytes.
+const PATH_STORAGE_LIMIT: usize = 8 * 1024 * 1024;
 const NAMESPACE: &str = "http://webstds.ipc.org/2581";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -74,9 +76,17 @@ fn decode(s: &str) -> Result<String, ImportError> {
             "apos" => '\'',
             _ => {
                 let number = if let Some(h) = name.strip_prefix("#x") {
-                    u32::from_str_radix(h, 16).ok()
+                    if !h.is_empty() && h.bytes().all(|b| b.is_ascii_hexdigit()) {
+                        u32::from_str_radix(h, 16).ok()
+                    } else {
+                        None
+                    }
                 } else if let Some(d) = name.strip_prefix('#') {
-                    d.parse::<u32>().ok()
+                    if !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()) {
+                        d.parse::<u32>().ok()
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 };
@@ -99,6 +109,28 @@ fn decode(s: &str) -> Result<String, ImportError> {
 }
 fn xml_space(c: u8) -> bool {
     matches!(c, b' ' | b'\t' | b'\r' | b'\n')
+}
+fn only_xml_space(s: &str) -> bool {
+    s.bytes().all(xml_space)
+}
+fn normalize_literal_attr(s: &str) -> String {
+    // XML 1.0 line-end normalization runs before attribute normalization.
+    // Literal TAB/LF/CR become spaces; character references are decoded later.
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\r' => {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                out.push(' ');
+            }
+            '\t' | '\n' => out.push(' '),
+            _ => out.push(c),
+        }
+    }
+    out
 }
 fn name_start(c: u8) -> bool {
     c.is_ascii_alphabetic() || c == b'_'
@@ -165,7 +197,7 @@ fn parse_tag(body: &str) -> Result<(String, BTreeMap<String, String>), ImportErr
         if i == b.len() || i - start > 4096 {
             return Err(err("BAD_XML_ATTRIBUTE"));
         }
-        let value = decode(&body[start..i])?;
+        let value = decode(&normalize_literal_attr(&body[start..i]))?;
         i += 1;
         if attrs.insert(key.to_owned(), value).is_some() {
             return Err(err("DUPLICATE_XML_ATTRIBUTE"));
@@ -180,6 +212,7 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
     let mut stack: Vec<String> = Vec::new();
     let mut tags = Vec::new();
     let mut roots = 0;
+    let mut stored_path_bytes = 0usize;
     while pos < xml.len() {
         let tail = &xml[pos..];
         let i = match tail.find('<') {
@@ -189,13 +222,13 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
                     return Err(err("INVALID_XML_TEXT"));
                 }
                 decode(tail)?;
-                if !tail.trim().is_empty() {
+                if !only_xml_space(tail) {
                     return Err(err("TEXT_OUTSIDE_ROOT"));
                 }
                 break;
             }
         };
-        if stack.is_empty() && !tail[..i].trim().is_empty() {
+        if stack.is_empty() && !only_xml_space(&tail[..i]) {
             return Err(err("TEXT_OUTSIDE_ROOT"));
         }
         if tail[..i].contains("]]>") {
@@ -218,10 +251,24 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
             pos += 4 + n + 3;
             continue;
         }
-        if tail.starts_with("<?xml ") && pos == 0 {
+        if tail.starts_with("<?xml") && pos == 0 {
             let n = tail.find("?>").ok_or_else(|| err("BAD_XML_DECLARATION"))?;
             if tail[..n + 2].chars().any(|c| !valid(c)) {
                 return Err(err("INVALID_XML_CHAR"));
+            }
+            let declaration = &tail[2..n];
+            if declaration.contains('&') {
+                return Err(err("BAD_XML_DECLARATION"));
+            }
+            let (name, attrs) =
+                parse_tag(declaration).map_err(|_| err("BAD_XML_DECLARATION"))?;
+            if name != "xml"
+                || attrs.get("version").map(String::as_str) != Some("1.0")
+                || attrs.keys().any(|k| !matches!(k.as_str(), "version" | "encoding" | "standalone"))
+                || attrs.get("encoding").is_some_and(|v| !v.eq_ignore_ascii_case("utf-8"))
+                || attrs.get("standalone").is_some_and(|v| v != "yes" && v != "no")
+            {
+                return Err(err("BAD_XML_DECLARATION"));
             }
             pos += n + 2;
             continue;
@@ -275,6 +322,19 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
                     .any(|k| k == "xmlns" || k.starts_with("xmlns:"))
             {
                 return Err(err("NESTED_NAMESPACE_UNSUPPORTED"));
+            }
+            // input-length/node/depth caps alone cannot bound repeated stack.join output.
+            // Compute the exact path allocation and aggregate before allocating.
+            let path_len = stack
+                .iter()
+                .try_fold(0usize, |n, part| n.checked_add(part.len()))
+                .and_then(|n| n.checked_add(stack.len().saturating_sub(1)))
+                .ok_or_else(|| err("XML_PATH_STORAGE_LIMIT"))?;
+            stored_path_bytes = stored_path_bytes
+                .checked_add(path_len)
+                .ok_or_else(|| err("XML_PATH_STORAGE_LIMIT"))?;
+            if stored_path_bytes > PATH_STORAGE_LIMIT {
+                return Err(err("XML_PATH_STORAGE_LIMIT"));
             }
             tags.push(Tag {
                 path: stack.join("/"),
@@ -664,6 +724,53 @@ mod tests {
             s.replace("<?xml version", "<?xml \u{0001}version"),
             "INVALID_XML_CHAR",
         );
+    }
+    #[test]
+    fn numeric_entities_and_xml_boundary_whitespace_fail_closed() {
+        let s = sample(2);
+        reject(s.replace("name=\"SIG\"", "name=\"&#+65;\""), "BAD_ENTITY");
+        reject(s.replace("name=\"SIG\"", "name=\"&#x+41;\""), "BAD_ENTITY");
+        assert_eq!(
+            inspect(s.replace("name=\"SIG\"", "name=\"&#65;\"").as_bytes())
+                .unwrap()
+                .nets[0]
+                .net
+                .name,
+            "A"
+        );
+        reject(format!("{s}\u{a0}"), "TEXT_OUTSIDE_ROOT");
+        reject(format!("\u{a0}{s}"), "TEXT_OUTSIDE_ROOT");
+    }
+    #[test]
+    fn xml_declaration_and_attribute_normalization() {
+        let s = sample(2);
+        assert!(inspect(s.replace("<?xml version", "<?xml\tversion").as_bytes()).is_ok());
+        reject(
+            s.replace("<?xml version=\"1.0\"?>", "<?xml ?>"),
+            "BAD_XML_DECLARATION",
+        );
+        reject(
+            s.replace("version=\"1.0\"", "version=\"1.1\""),
+            "BAD_XML_DECLARATION",
+        );
+        reject(
+            s.replace("<?xml version=\"1.0\"?>", "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>"),
+            "BAD_XML_DECLARATION",
+        );
+        let tabs = inspect(s.replace("name=\"SIG\"", "name=\"S\tIG\"").as_bytes()).unwrap();
+        assert_eq!(tabs.nets[0].net.name, "S IG");
+        let crlf = inspect(s.replace("name=\"SIG\"", "name=\"S\r\nIG\"").as_bytes()).unwrap();
+        assert_eq!(crlf.nets[0].net.name, "S IG");
+        reject(s.replace("name=\"SIG\"", "name=\"S&#10;IG\""), "BAD_IDENTIFIER");
+    }
+    #[test]
+    fn repeated_ancestor_path_storage_is_bounded() {
+        let s = sample(2);
+        let long_name = "A".repeat(16_384);
+        let unknown = format!("<{long_name}>{}</{long_name}>", "<X/>".repeat(1_000));
+        let oversized_paths = s.replace("<LogisticHeader/>", &format!("<LogisticHeader/>{unknown}"));
+        assert!(oversized_paths.len() < LIMIT);
+        reject(oversized_paths, "XML_PATH_STORAGE_LIMIT");
     }
     #[test]
     fn duplicate_nets_and_size_are_rejected() {
