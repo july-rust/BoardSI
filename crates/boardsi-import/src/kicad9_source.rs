@@ -834,7 +834,8 @@ mod tests {
             "(net 1)",
             "(locked yes) (free yes) (remove_unused_layers yes) (keep_end_layers yes) (net 1)",
         );
-        let flags = &inspect(board(2, &yes).as_bytes()).unwrap().vias[0];
+        let yes_inventory = inspect(board(2, &yes).as_bytes()).unwrap();
+        let flags = &yes_inventory.vias[0];
         assert!(flags.locked);
         assert!(flags.free);
         assert!(flags.remove_unused_layers);
@@ -844,7 +845,8 @@ mod tests {
             "(net 1)",
             "(locked no) (free no) (remove_unused_layers no) (keep_end_layers no) (net 1)",
         );
-        let flags = &inspect(board(2, &no).as_bytes()).unwrap().vias[0];
+        let no_inventory = inspect(board(2, &no).as_bytes()).unwrap();
+        let flags = &no_inventory.vias[0];
         assert!(!flags.locked);
         assert!(!flags.free);
         assert!(!flags.remove_unused_layers);
@@ -861,9 +863,13 @@ mod tests {
             assert!(inspect(board(2, &invalid).as_bytes()).is_err());
         }
         // An obsolete positional locked atom and modern child may not coexist.
-        let mixed = original.replacen("(via ", "(via locked ", 1)
+        let mixed = original
+            .replacen("(via ", "(via locked ", 1)
             .replace("(net 1)", "(locked no) (net 1)");
-        assert_eq!(inspect(board(2, &mixed).as_bytes()).unwrap_err().code, "DUPLICATE_VIA_FLAG");
+        assert_eq!(
+            inspect(board(2, &mixed).as_bytes()).unwrap_err().code,
+            "DUPLICATE_VIA_FLAG"
+        );
     }
 
     #[test]
