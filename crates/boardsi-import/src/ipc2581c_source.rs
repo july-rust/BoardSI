@@ -246,10 +246,10 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
             }
         }
         let gt = gt.ok_or_else(|| err("UNCLOSED_XML_TAG"))?;
-        let raw = tail[1..gt].trim();
+        let raw = tail[1..gt].trim_end_matches(|c| matches!(c, ' ' | '\t' | '\r' | '\n'));
         if let Some(close) = raw.strip_prefix('/') {
             let open = stack.pop().ok_or_else(|| err("EXTRA_XML_CLOSE"))?;
-            if close.trim() != open {
+            if close != open {
                 return Err(err("MISMATCHED_XML_CLOSE"));
             }
         } else {
@@ -418,7 +418,9 @@ pub fn inspect(bytes: &[u8]) -> Result<Inventory, ImportError> {
                 let comp = tag.attrs.get("componentRef").cloned();
                 if comp
                     .as_deref()
-                    .is_some_and(|v| v.is_empty() || v.len() > 256 || v.chars().any(char::is_control))
+                    .is_some_and(|v| {
+                        v.is_empty() || v.len() > 256 || v.chars().any(char::is_control)
+                    })
                 {
                     return Err(err("BAD_IDENTIFIER"));
                 }
@@ -631,6 +633,18 @@ mod tests {
         reject(
             s.replace("name=\"L0\" layerFunction", "name=\"L0\"\u{000b}layerFunction"),
             "BAD_XML_ATTRIBUTE",
+        );
+        reject(
+            s.replace("<IPC-2581 revision", "< IPC-2581 revision"),
+            "BAD_XML_TAG",
+        );
+        reject(
+            s.replace("</IPC-2581>", "</ IPC-2581>"),
+            "MISMATCHED_XML_CLOSE",
+        );
+        reject(
+            s.replace("</IPC-2581>", "</IPC-2581\u{000b}>"),
+            "MISMATCHED_XML_CLOSE",
         );
         reject(
             s.replace("componentRef=\"U1\"", "componentRef=\"U&#10;1\""),
