@@ -187,8 +187,8 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
         decode(&tail[..i])?;
         pos += i;
         let tail = &xml[pos..];
-        if tail.starts_with("<!--") {
-            let n = tail[4..]
+        if let Some(after_comment_open) = tail.strip_prefix("<!--") {
+            let n = after_comment_open
                 .find("-->")
                 .ok_or_else(|| err("UNCLOSED_XML_COMMENT"))?;
             pos += 4 + n + 3;
@@ -317,7 +317,8 @@ pub fn inspect(bytes: &[u8]) -> Result<Inventory, ImportError> {
         return Err(err("UNSUPPORTED_NAMESPACE"));
     }
     let mut raw_layers: Vec<(String, String, String, String)> = Vec::new();
-    let mut raw_nets: Vec<(String, Vec<(Option<String>, String)>)> = Vec::new();
+    type RawNet = (String, Vec<(Option<String>, String)>);
+    let mut raw_nets: Vec<RawNet> = Vec::new();
     let mut layer_names: BTreeSet<String> = BTreeSet::new();
     let mut net_names: BTreeSet<String> = BTreeSet::new();
     let mut layer_refs: BTreeSet<String> = BTreeSet::new();
@@ -478,11 +479,17 @@ pub fn inspect(bytes: &[u8]) -> Result<Inventory, ImportError> {
 mod tests {
     use super::*;
     fn sample(count: usize) -> String {
-        let layers: String = (0..count).map(|n|format!(
-            "<Layer name=\"L{n}\" layerFunction=\"SIGNAL\" side=\"INTERNAL\" polarity=\"POSITIVE\"/>")).collect();
-        let refs: String = (0..count)
-            .map(|n| format!("<LayerRef name=\"L{n}\"/>"))
-            .collect();
+        use std::fmt::Write as _;
+        let mut layers = String::new();
+        let mut refs = String::new();
+        for n in 0..count {
+            write!(
+                &mut layers,
+                "<Layer name=\"L{n}\" layerFunction=\"SIGNAL\" side=\"INTERNAL\" polarity=\"POSITIVE\"/>"
+            )
+            .expect("String is writable");
+            write!(&mut refs, "<LayerRef name=\"L{n}\"/>").expect("String is writable");
+        }
         format!("<?xml version=\"1.0\"?><IPC-2581 revision=\"C\" xmlns=\"http://webstds.ipc.org/2581\"><Content>{refs}</Content><LogisticHeader/><HistoryRecord/><Ecad><CadHeader units=\"MILLIMETER\"/><CadData>{layers}<Step name=\"BOARD\"><LogicalNet name=\"SIG\"><PinRef componentRef=\"U1\" pin=\"1\"/></LogicalNet></Step></CadData></Ecad></IPC-2581>")
     }
     fn reject(s: String, reason: &str) {
