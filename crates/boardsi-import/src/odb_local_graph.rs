@@ -23,8 +23,7 @@ pub struct OdbLocalGraphQualification {
     /// SOURCE-local design edges only, never manufactured or SI edges.
     pub analysis: QualificationReport,
     /// Indeterminate narrow-phase comparisons, not negative contact proof.
-    pub unknown_pairs: usize,
-}
+    pub unknown_pairs: usize,}
 
 fn fail(code: &'static str) -> OdbError {
     OdbError {
@@ -155,7 +154,10 @@ pub fn qualify_unpacked(
     };
     // Do not run potentially quadratic Canonical padstack validation on a
     // million-feature source before enforcing this adapter's own node budget.
-    let node_count = board.traces.len().checked_add(board.pads.len())
+    let node_count = board
+        .traces
+        .len()
+        .checked_add(board.pads.len())
         .ok_or_else(|| fail("E022_NODE_LIMIT"))?;
     if node_count > MAX_NODES {
         return Err(fail("E022_NODE_LIMIT"));
@@ -165,9 +167,12 @@ pub fn qualify_unpacked(
     }
     // A single-instance STEP-REPEAT still has one frame per layer. Its
     // provenance must be rejected explicitly, not inferred from frame count.
-    if board.sources[0].id.conditions.iter().any(|(key, _)| {
-        key == "step_repeat_mode" || key == "step_repeat_child"
-    }) {
+    if board.sources[0]
+        .id
+        .conditions
+        .iter()
+        .any(|(key, _)| key == "step_repeat_mode" || key == "step_repeat_child")
+    {
         return Err(fail("E022_STEP_REPEAT_UNSUPPORTED"));
     }
     if board.validate().has_errors() {
@@ -499,12 +504,16 @@ mod tests {
         let matrix = String::from_utf8(files["matrix/matrix"].clone()).unwrap()
             + "STEP {\nCOL=2\nNAME=panel\n}\n";
         files.insert("matrix/matrix".into(), matrix.into_bytes());
-        files.insert("steps/pcb/stephdr".into(),
-            b"UNITS=MM\nX_DATUM=0\nY_DATUM=0\n".to_vec());
+        files.insert(
+            "steps/pcb/stephdr".into(),
+            b"UNITS=MM\nX_DATUM=0\nY_DATUM=0\n".to_vec(),
+        );
         files.insert("steps/panel/stephdr".into(),
             b"UNITS=MM\nX_DATUM=0\nY_DATUM=0\nSTEP-REPEAT {\nNAME=pcb\nX=10\nY=20\nDX=0\nDY=0\nNX=1\nNY=1\nANGLE=0\nFLIP=NO\nMIRROR=NO\n}\n".to_vec());
         assert_eq!(
-            qualify_unpacked(&files, "panel", false, None).unwrap_err().code,
+            qualify_unpacked(&files, "panel", false, None)
+                .unwrap_err()
+                .code,
             "E022_STEP_REPEAT_UNSUPPORTED"
         );
     }
