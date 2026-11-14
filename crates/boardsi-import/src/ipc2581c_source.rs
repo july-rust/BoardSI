@@ -353,7 +353,10 @@ pub fn inspect(bytes: &[u8]) -> Result<Inventory, ImportError> {
                     return Err(err("LAYER_LIMIT"));
                 }
                 let side = field(&tag.attrs, "side")?;
-                if !matches!(side, "TOP" | "BOTTOM" | "BOTH" | "INTERNAL" | "ALL" | "NONE") {
+                if !matches!(
+                    side,
+                    "TOP" | "BOTTOM" | "BOTH" | "INTERNAL" | "ALL" | "NONE"
+                ) {
                     return Err(err("INVALID_LAYER_SIDE"));
                 }
                 let polarity = field(&tag.attrs, "polarity")?;
@@ -563,10 +566,19 @@ mod tests {
     #[test]
     fn lexical_boundaries_and_layer_enums() {
         let s = sample(2);
-        assert_eq!(inspect(format!("{s}\n").as_bytes()).unwrap().layers.len(), 2);
+        assert_eq!(
+            inspect(format!("{s}\n").as_bytes()).unwrap().layers.len(),
+            2
+        );
         reject(format!("garbage{s}"), "TEXT_OUTSIDE_ROOT");
-        reject(s.replace("side=\"INTERNAL\"", "side=\"UNKNOWN\""), "INVALID_LAYER_SIDE");
-        reject(s.replace("polarity=\"POSITIVE\"", "polarity=\"UNKNOWN\""), "INVALID_LAYER_POLARITY");
+        reject(
+            s.replace("side=\"INTERNAL\"", "side=\"UNKNOWN\""),
+            "INVALID_LAYER_SIDE",
+        );
+        reject(
+            s.replace("polarity=\"POSITIVE\"", "polarity=\"UNKNOWN\""),
+            "INVALID_LAYER_POLARITY",
+        );
     }
     #[test]
     fn duplicate_nets_and_size_are_rejected() {
