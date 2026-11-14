@@ -284,3 +284,6 @@ pub mod trace_contact;
 
 // D_055 generic off-centre SOURCE trace-to-via-annulus and SMD pad contacts.
 pub mod trace_attachment;
+
+// E_025 opt-in IPC-2581C Layer/LogicalNet SOURCE-only inventory; not an XSD or SI importer.
+pub mod ipc2581c_source;
