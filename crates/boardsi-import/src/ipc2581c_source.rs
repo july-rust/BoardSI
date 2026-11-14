@@ -246,16 +246,18 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
             }
         }
         let gt = gt.ok_or_else(|| err("UNCLOSED_XML_TAG"))?;
-        let raw = tail[1..gt].trim_end_matches(|c| matches!(c, ' ' | '\t' | '\r' | '\n'));
+        let raw = &tail[1..gt];
         if let Some(close) = raw.strip_prefix('/') {
+            let close = close.trim_end_matches(|c| matches!(c, ' ' | '\t' | '\r' | '\n'));
             let open = stack.pop().ok_or_else(|| err("EXTRA_XML_CLOSE"))?;
             if close != open {
                 return Err(err("MISMATCHED_XML_CLOSE"));
             }
         } else {
+            // In XML, empty elements end in "/>" with no S between '/' and '>'.
             let empty = raw.ends_with('/');
             let body = if empty {
-                raw[..raw.len() - 1].trim_end()
+                raw[..raw.len() - 1].trim_end_matches(|c| matches!(c, ' ' | '\t' | '\r' | '\n'))
             } else {
                 raw
             };
@@ -645,6 +647,10 @@ mod tests {
         reject(
             s.replace("</IPC-2581>", "</IPC-2581\u{000b}>"),
             "MISMATCHED_XML_CLOSE",
+        );
+        reject(
+            s.replace("polarity=\"POSITIVE\"/>", "polarity=\"POSITIVE\"/ >"),
+            "BAD_XML_ATTRIBUTE",
         );
         reject(
             s.replace("componentRef=\"U1\"", "componentRef=\"U&#10;1\""),
