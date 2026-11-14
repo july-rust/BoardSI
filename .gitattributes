@@ -3,3 +3,7 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.json text eol=lf
+
+# E_028 byte-identical synthetic oracle fixtures on Windows/macOS/Linux.
+crates/boardsi-import/tests/fixtures/e028-via-pads-v94.asc text eol=lf
+crates/boardsi-import/tests/fixtures/e028-via-kicad9.kicad_pcb text eol=lf
