@@ -171,7 +171,19 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
     let mut roots = 0;
     while pos < xml.len() {
         let tail = &xml[pos..];
-        let i = tail.find('<').ok_or_else(|| err("UNCLOSED_XML_TEXT"))?;
+        let i = match tail.find('<') {
+            Some(i) => i,
+            None => {
+                decode(tail)?;
+                if !tail.trim().is_empty() {
+                    return Err(err("TEXT_OUTSIDE_ROOT"));
+                }
+                break;
+            }
+        };
+        if stack.is_empty() && !tail[..i].trim().is_empty() {
+            return Err(err("TEXT_OUTSIDE_ROOT"));
+        }
         decode(&tail[..i])?;
         pos += i;
         let tail = &xml[pos..];
@@ -313,8 +325,18 @@ pub fn inspect(bytes: &[u8]) -> Result<Inventory, ImportError> {
     let (mut content, mut cad_data) = (false, false);
     for tag in &tags {
         match tag.path.as_str() {
-            "IPC-2581/Content" => content = true,
-            "IPC-2581/Ecad/CadData" => cad_data = true,
+            "IPC-2581/Content" => {
+                if content {
+                    return Err(err("DUPLICATE_CONTENT"));
+                }
+                content = true;
+            }
+            "IPC-2581/Ecad/CadData" => {
+                if cad_data {
+                    return Err(err("DUPLICATE_CADDATA"));
+                }
+                cad_data = true;
+            }
             "IPC-2581/Content/LayerRef" => {
                 let name = field(&tag.attrs, "name")?;
                 if !layer_refs.insert(name.to_owned()) {
@@ -329,11 +351,19 @@ pub fn inspect(bytes: &[u8]) -> Result<Inventory, ImportError> {
                 if raw_layers.len() >= 4096 {
                     return Err(err("LAYER_LIMIT"));
                 }
+                let side = field(&tag.attrs, "side")?;
+                if !matches!(side, "TOP" | "BOTTOM" | "BOTH" | "INTERNAL" | "ALL" | "NONE") {
+                    return Err(err("INVALID_LAYER_SIDE"));
+                }
+                let polarity = field(&tag.attrs, "polarity")?;
+                if !matches!(polarity, "POSITIVE" | "NEGATIVE") {
+                    return Err(err("INVALID_LAYER_POLARITY"));
+                }
                 raw_layers.push((
                     name.into(),
                     field(&tag.attrs, "layerFunction")?.into(),
-                    field(&tag.attrs, "side")?.into(),
-                    field(&tag.attrs, "polarity")?.into(),
+                    side.into(),
+                    polarity.into(),
                 ));
             }
             "IPC-2581/Ecad/CadData/Step" => {
@@ -522,6 +552,14 @@ mod tests {
             s.replace("<Content>", "<Content xmlns=\"http://other\">"),
             "NESTED_NAMESPACE_UNSUPPORTED",
         );
+    }
+    #[test]
+    fn lexical_boundaries_and_layer_enums() {
+        let s = sample(2);
+        assert_eq!(inspect(format!("{s}\n").as_bytes()).unwrap().layers.len(), 2);
+        reject(format!("garbage{s}"), "TEXT_OUTSIDE_ROOT");
+        reject(s.replace("side=\"INTERNAL\"", "side=\"UNKNOWN\""), "INVALID_LAYER_SIDE");
+        reject(s.replace("polarity=\"POSITIVE\"", "polarity=\"UNKNOWN\""), "INVALID_LAYER_POLARITY");
     }
     #[test]
     fn duplicate_nets_and_size_are_rejected() {
