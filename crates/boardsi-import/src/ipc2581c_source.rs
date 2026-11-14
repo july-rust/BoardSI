@@ -174,6 +174,9 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
         let i = match tail.find('<') {
             Some(i) => i,
             None => {
+                if tail.contains("]]>") {
+                    return Err(err("INVALID_XML_TEXT"));
+                }
                 decode(tail)?;
                 if !tail.trim().is_empty() {
                     return Err(err("TEXT_OUTSIDE_ROOT"));
@@ -184,6 +187,9 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
         if stack.is_empty() && !tail[..i].trim().is_empty() {
             return Err(err("TEXT_OUTSIDE_ROOT"));
         }
+        if tail[..i].contains("]]>") {
+            return Err(err("INVALID_XML_TEXT"));
+        }
         decode(&tail[..i])?;
         pos += i;
         let tail = &xml[pos..];
@@ -191,6 +197,10 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
             let n = after_comment_open
                 .find("-->")
                 .ok_or_else(|| err("UNCLOSED_XML_COMMENT"))?;
+            let body = &after_comment_open[..n];
+            if body.contains("--") || body.ends_with('-') {
+                return Err(err("INVALID_XML_COMMENT"));
+            }
             pos += 4 + n + 3;
             continue;
         }
@@ -579,6 +589,20 @@ mod tests {
             s.replace("polarity=\"POSITIVE\"", "polarity=\"UNKNOWN\""),
             "INVALID_LAYER_POLARITY",
         );
+    }
+    #[test]
+    fn illegal_xml_comment_and_cdata_terminator_fail_closed() {
+        let s = sample(2);
+        reject(
+            s.replace("<Content>", "<!--bad -- double-hyphen--><Content>"),
+            "INVALID_XML_COMMENT",
+        );
+        reject(
+            s.replace("<Content>", "<!--trailing-dash---><Content>"),
+            "INVALID_XML_COMMENT",
+        );
+        reject(s.replace("<Content>", "<Content>]]>"), "INVALID_XML_TEXT");
+        reject(format!("{s}]]>"), "INVALID_XML_TEXT");
     }
     #[test]
     fn duplicate_nets_and_size_are_rejected() {
