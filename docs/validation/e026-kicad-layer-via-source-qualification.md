@@ -81,14 +81,20 @@ Known unsupported cases include:
   review threads 0 (zero threads is not an independent approval).
   Do not claim completed Codex/Copilot approval. Previous E_025 Codex
   requests reported account usage limit. No review bot outcome for E_026.
-- **Exact code-main event=push CI: IN_PROGRESS / NOT_YET_VERIFIED** on the
-  code merge SHA. Must check [Actions runs for code-main SHA](https://github.com/july-rust/BoardSI/actions)
-  independently of PR checks and amend this record with actual eight workflow results.
+- **Exact code-main event=push CI: 8/8 WORKFLOWS SUCCESS** on
+  `9e6a98729905529222ca0e3b56472e232ec874a8` verified separately from PR checks.
+  [Numerical core run #43573232613](https://github.com/july-rust/BoardSI/actions/runs/43573232613)
+  and [Qt runtime run #43573232555](https://github.com/july-rust/BoardSI/actions/runs/43573232555)
+  include Native Rust/Qt Windows x64, ARM64, macOS ARM64 and Linux GUI;
+  other six runs: docs #43573232547, M2 isolated FEM #43573232533,
+  synthetic G0 #43573232558, M2 Native FEM #43573232510,
+  PH07 FVM #43573232512 and PH06 FVM #43573232499. All eight exact
+  merge-SHA event=push runs report `completed / success` (2026-11-14 KST).
 
 ## Closeout truth boundary
 
-`CODE MERGED / PR CI 30/30 PASS / INDEPENDENT_REVIEW NOT_VERIFIED`.
-The main Push Gate remains pending until all corresponding workflow runs finish.
+`CODE MERGED / PR CI 30/30 PASS / MAIN PUSH 8/8 SUCCESS / INDEPENDENT_REVIEW NOT_VERIFIED`.
+The main Push Gate is **confirmed 8/8 SUCCESS on the exact Squash SHA**.
 Do not mark E_026 **full gate COMPLETE** or tick the sole canonical checklist
 while external independent final-HEAD review is missing. The narrower
 implemented source subset is merged and exercised by CI, not a full native
