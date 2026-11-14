@@ -153,7 +153,24 @@ pub fn qualify_unpacked(
     } else {
         odb_source::import_unpacked(files, step)?
     };
-    if board.sources.len() != 1 || board.validate().has_errors() {
+    // Do not run potentially quadratic Canonical padstack validation on a
+    // million-feature source before enforcing this adapter's own node budget.
+    let node_count = board.traces.len().checked_add(board.pads.len())
+        .ok_or_else(|| fail("E022_NODE_LIMIT"))?;
+    if node_count > MAX_NODES {
+        return Err(fail("E022_NODE_LIMIT"));
+    }
+    if board.sources.len() != 1 {
+        return Err(fail("E022_CANONICAL_INVALID"));
+    }
+    // A single-instance STEP-REPEAT still has one frame per layer. Its
+    // provenance must be rejected explicitly, not inferred from frame count.
+    if board.sources[0].id.conditions.iter().any(|(key, _)| {
+        key == "step_repeat_mode" || key == "step_repeat_child"
+    }) {
+        return Err(fail("E022_STEP_REPEAT_UNSUPPORTED"));
+    }
+    if board.validate().has_errors() {
         return Err(fail("E022_CANONICAL_INVALID"));
     }
     // E_022 intentionally excludes Step Repeat, arcs, surfaces, vias/drills,
@@ -476,4 +493,20 @@ mod tests {
         assert_eq!(a.analysis.edges, b.analysis.edges);
         assert_eq!(a.analysis.unverified_barrel_keys.len(), 0);
     }
+    #[test]
+    fn one_instance_step_repeat_must_fail_closed() {
+        let mut files = fixture(2, "0 0 2 0", "1 0");
+        let matrix = String::from_utf8(files["matrix/matrix"].clone()).unwrap()
+            + "STEP {\nCOL=2\nNAME=panel\n}\n";
+        files.insert("matrix/matrix".into(), matrix.into_bytes());
+        files.insert("steps/pcb/stephdr".into(),
+            b"UNITS=MM\nX_DATUM=0\nY_DATUM=0\n".to_vec());
+        files.insert("steps/panel/stephdr".into(),
+            b"UNITS=MM\nX_DATUM=0\nY_DATUM=0\nSTEP-REPEAT {\nNAME=pcb\nX=10\nY=20\nDX=0\nDY=0\nNX=1\nNY=1\nANGLE=0\nFLIP=NO\nMIRROR=NO\n}\n".to_vec());
+        assert_eq!(
+            qualify_unpacked(&files, "panel", false, None).unwrap_err().code,
+            "E022_STEP_REPEAT_UNSUPPORTED"
+        );
+    }
+
 }
