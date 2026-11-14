@@ -264,7 +264,9 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
                 parse_tag(declaration).map_err(|_| err("BAD_XML_DECLARATION"))?;
             if name != "xml"
                 || attrs.get("version").map(String::as_str) != Some("1.0")
-                || attrs.keys().any(|k| !matches!(k.as_str(), "version" | "encoding" | "standalone"))
+                || attrs
+                    .keys()
+                    .any(|k| !matches!(k.as_str(), "version" | "encoding" | "standalone"))
                 || attrs.get("encoding").is_some_and(|v| !v.eq_ignore_ascii_case("utf-8"))
                 || attrs.get("standalone").is_some_and(|v| v != "yes" && v != "no")
             {
@@ -768,7 +770,10 @@ mod tests {
         let s = sample(2);
         let long_name = "A".repeat(16_384);
         let unknown = format!("<{long_name}>{}</{long_name}>", "<X/>".repeat(1_000));
-        let oversized_paths = s.replace("<LogisticHeader/>", &format!("<LogisticHeader/>{unknown}"));
+        let oversized_paths = s.replace(
+            "<LogisticHeader/>",
+            &format!("<LogisticHeader/>{unknown}"),
+        );
         assert!(oversized_paths.len() < LIMIT);
         reject(oversized_paths, "XML_PATH_STORAGE_LIMIT");
     }
