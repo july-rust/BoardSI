@@ -56,6 +56,9 @@ pub struct SourceVia {
     pub net_ordinal: u32,
     pub remove_unused_layers: bool,
     pub keep_end_layers: bool,
+    /// KiCad source UI flags; neither conveys electrical connectivity.
+    pub locked: bool,
+    pub free: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -383,6 +386,20 @@ fn arguments<'a>(n: &'a Node, key: &str, count: usize) -> Result<Vec<&'a str>, I
     Ok(words.into_iter().skip(1).collect())
 }
 
+/// KiCad 9 permits legacy presence-only flags and explicit (flag yes/no).
+/// Keep the value (not merely field presence); malformed values fail closed.
+fn via_flag(node: &Node, key: &str) -> Result<bool, ImportError> {
+    let Some(field) = node.child(key)? else {
+        return Ok(false);
+    };
+    let words = field.words()?;
+    match words.as_slice() {
+        [_] | [_, "yes"] => Ok(true),
+        [_, "no"] => Ok(false),
+        _ => Err(err("BAD_VIA_FLAG")),
+    }
+}
+
 pub fn inspect(bytes: &[u8]) -> Result<Inventory, ImportError> {
     if bytes.len() > MAX_INPUT {
         return Err(err("INPUT_TOO_LARGE"));
@@ -573,16 +590,14 @@ pub fn inspect(bytes: &[u8]) -> Result<Inventory, ImportError> {
             if !child_keys.insert(key.to_owned()) {
                 return Err(err("DUPLICATE_VIA_FIELD"));
             }
-            if matches!(
-                key,
-                "remove_unused_layers" | "keep_end_layers" | "free" | "locked"
-            ) && child.words()?.len() != 1
-            {
-                return Err(err("BAD_VIA_FLAG"));
-            }
         }
-        let remove_unused = child_keys.contains("remove_unused_layers");
-        let keep_ends = child_keys.contains("keep_end_layers");
+        if locked && child_keys.contains("locked") {
+            return Err(err("DUPLICATE_VIA_FLAG"));
+        }
+        let remove_unused = via_flag(node, "remove_unused_layers")?;
+        let keep_ends = via_flag(node, "keep_end_layers")?;
+        let free = via_flag(node, "free")?;
+        let locked = locked || via_flag(node, "locked")?;
         if keep_ends && !remove_unused {
             return Err(err("INVALID_KEEP_END_LAYERS"));
         }
@@ -680,6 +695,8 @@ pub fn inspect(bytes: &[u8]) -> Result<Inventory, ImportError> {
             net_ordinal: net,
             remove_unused_layers: remove_unused,
             keep_end_layers: keep_ends,
+            locked,
+            free,
         });
     }
     Ok(Inventory {
@@ -810,6 +827,51 @@ mod tests {
         assert_eq!(inspect(nested.as_bytes()).unwrap_err().code, "DEPTH_LIMIT");
         assert!(inspect(br#"(kicad_pcb (version 20241229) (layers (0 "F.Cu" signal) "#).is_err());
     }
+    #[test]
+    fn explicit_kicad9_boolean_via_flags_are_preserved() {
+        let original = via("", "F.Cu", "B.Cu");
+        let yes = original.replace(
+            "(net 1)",
+            "(locked yes) (free yes) (remove_unused_layers yes) (keep_end_layers yes) (net 1)",
+        );
+        let yes_inventory = inspect(board(2, &yes).as_bytes()).unwrap();
+        let flags = &yes_inventory.vias[0];
+        assert!(flags.locked);
+        assert!(flags.free);
+        assert!(flags.remove_unused_layers);
+        assert!(flags.keep_end_layers);
+
+        let no = original.replace(
+            "(net 1)",
+            "(locked no) (free no) (remove_unused_layers no) (keep_end_layers no) (net 1)",
+        );
+        let no_inventory = inspect(board(2, &no).as_bytes()).unwrap();
+        let flags = &no_inventory.vias[0];
+        assert!(!flags.locked);
+        assert!(!flags.free);
+        assert!(!flags.remove_unused_layers);
+        assert!(!flags.keep_end_layers);
+
+        for invalid in [
+            original.replace("(net 1)", "(locked maybe) (net 1)"),
+            original.replace("(net 1)", "(free true) (net 1)"),
+            original.replace("(net 1)", "(remove_unused_layers yes no) (net 1)"),
+            original.replace("(net 1)", "(keep_end_layers 1) (net 1)"),
+            original.replace("(net 1)", "(locked yes) (locked no) (net 1)"),
+            original.replace("(net 1)", "(keep_end_layers yes) (net 1)"),
+        ] {
+            assert!(inspect(board(2, &invalid).as_bytes()).is_err());
+        }
+        // An obsolete positional locked atom and modern child may not coexist.
+        let mixed = original
+            .replacen("(via ", "(via locked ", 1)
+            .replace("(net 1)", "(locked no) (net 1)");
+        assert_eq!(
+            inspect(board(2, &mixed).as_bytes()).unwrap_err().code,
+            "DUPLICATE_VIA_FLAG"
+        );
+    }
+
     #[test]
     fn flags_and_unsupported_field_are_safe() {
         let v = via("", "F.Cu", "B.Cu");
