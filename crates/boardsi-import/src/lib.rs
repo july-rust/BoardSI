@@ -287,3 +287,6 @@ pub mod trace_attachment;
 
 // E_025 opt-in IPC-2581C Layer/LogicalNet SOURCE-only inventory; not an XSD or SI importer.
 pub mod ipc2581c_source;
+
+// E_026 opt-in KiCad 9 SOURCE-only Layer/Via span inventory; not a board/SI import.
+pub mod kicad9_source;
