@@ -1,6 +1,6 @@
 # E_025 — IPC-2581C Source Layer/LogicalNet Qualification
 
-> Date: 2026-11-14 KST. Status: **CODE CI PASS / INDEPENDENT REVIEW NOT_VERIFIED / MERGE PENDING**. Actual Rust/Qt/CI code HEAD `900e8ab066c830dd4f5e3ffb67afa6dc29b79f71` succeeded; final docs PR HEAD, protected merge and exact main Push remain separate obligations. No completed U/T/production gate is claimed.
+> Date: 2026-11-14 KST. Status: **CODE CI PASS / INDEPENDENT REVIEW NOT_VERIFIED / MERGE PENDING**. Actual Rust/Qt/CI code HEAD `fab3652c429260da5b4d3eef7ebe15698a460598` succeeded; final docs PR HEAD, protected merge and exact main Push remain separate obligations. No completed U/T/production gate is claimed.
 
 ## Requirement and source
 
@@ -15,7 +15,7 @@
 
 - `crates/boardsi-import/src/ipc2581c_source.rs` exposes opt-in `inspect(bytes)`.
 - Hard 8 MiB document limit, 100,000 element limit, 64-level depth limit, 4,096 Layer and 65,536 LogicalNet limits.
-- Decodes built-in and numeric XML character references, rejects invalid UTF-8, malformed tags/attrs, repeated attrs, DTD/CDATA/external/unknown entities, prefixed elements and nested namespace overrides.
+- Decodes built-in and numeric XML character references, rejects invalid UTF-8, malformed tags/attrs, repeated attrs, DTD/CDATA/external/unknown entities, prefixed elements and nested namespace overrides. An additional parser audit now rejects XML comments with an illegal interior `--` or terminal `-`, and prohibited `]]>` in character data, with negative regression cases.
 - Rejects revision != C or noncanonical default namespace, malformed/missing required declaration attributes, duplicate Layer/Net IDs, unknown declared Content LayerRef, ambiguous multiple Step and LogicalNet with no PinRef.
 - Preserves raw source declaration names, function/side/polarity and raw PinRef; `SourceIdentity` binds SHA-256 of exact bytes, selected Step and importer version; `ObjectId` binds the original Layer and Step/LogicalNet names.
 - Unknown layer functions are retained as nonconductive `LayerKind::Other` with explicit count, **never converted to copper**.
@@ -27,7 +27,7 @@ This restricted reader **is not a full IPC-2581C XSD validator**. It does not va
 
 ## Tests and required evidence
 
-**Executed code-head evidence (2026-11-14 KST):** [PR #628](https://github.com/july-rust/BoardSI/pull/628), exact code HEAD [`900e8ab0`](https://github.com/july-rust/BoardSI/commit/900e8ab066c830dd4f5e3ffb67afa6dc29b79f71): **30/30 GitHub check-runs SUCCESS, 0 failed** (includes applicable 17 protected checks, additional CodeQL and classifier). Numerical workflow [run 43556754146](https://github.com/july-rust/BoardSI/actions/runs/43556754146) Linux job `132331341212` ran **Rust Unit 348/348 Debug and 348/348 Release PASS**, formatting/Clippy PASS. Rust native Windows x64/ARM64, macOS ARM64 SUCCESS. Qt runtime [run 43556754052](https://github.com/july-rust/BoardSI/actions/runs/43556754052) Linux/Windows x64/ARM64/macOS ARM64 SUCCESS; docs, FEM, FVM and import benchmarks also SUCCESS. Initial compile type inference, rustfmt, and strict Clippy failures at earlier HEAD were corrected; do not erase failures or relabel them PASS.
+**Executed code-head evidence (2026-11-14 KST):** [PR #628](https://github.com/july-rust/BoardSI/pull/628), exact code HEAD [`fab3652c`](https://github.com/july-rust/BoardSI/commit/fab3652c429260da5b4d3eef7ebe15698a460598): **30/30 GitHub check-runs SUCCESS, 0 failed** (includes applicable 17 protected checks, additional CodeQL and classifier). Numerical workflow [run 43559931382](https://github.com/july-rust/BoardSI/actions/runs/43559931382) Linux job `132341172270` ran **Rust Unit 349/349 Debug and 349/349 Release PASS (E_025 six source tests PASS in both)**, formatting/Clippy PASS. Rust native Windows x64/ARM64, macOS ARM64 SUCCESS. Qt runtime [run 43559931318](https://github.com/july-rust/BoardSI/actions/runs/43559931318) Linux/Windows x64/ARM64/macOS ARM64 SUCCESS; docs, FEM, FVM and import benchmarks also SUCCESS. Initial compile type inference, rustfmt, and strict Clippy failures at earlier HEAD were corrected; do not erase failures or relabel them PASS.
 
 The table below describes what these executed tests cover; `PASS (synthetic scope)` means only the bounded Source Inventory contract.
 
@@ -43,7 +43,7 @@ The table below describes what these executed tests cover; `PASS (synthetic scop
 | existing PADS/ODB++ and Rust/Qt native regressions | preserved behavior | PASS (Rust/Qt Native CI only) |
 | Independent vendor RevC fixture / official full XSD | separate qualification | NOT_VERIFIED |
 
-**Important evidence boundary:** the exact code PR HEAD passed CI; final documentation edit commits can result in docs-only Native SKIPPED and must not be counted as a new Native PASS. GitHub Codex independent code-review attempts failed due exhausted review quota (see PR #628 conversation), **not a clean review and not a finding-free approval**; no completed independent final-HEAD review is available. Merge verified signature and exact merged-main `event=push` are NOT_VERIFIED until independently checked. Official RevC XSD-valid vendor input, independent Oracle and formal product U/T are NOT_VERIFIED/NOT_RUN.
+**Important evidence boundary:** the exact code PR HEAD passed CI; final documentation edit commits can result in docs-only Native SKIPPED and must not be counted as a new Native PASS. GitHub Codex independent code-review attempts failed due exhausted review quota; a GitHub Copilot review was requested via the reviewer API but **no completed Copilot review has appeared in the PR review records** (see PR #628 conversation), **not a clean review and not a finding-free approval**; no completed independent final-HEAD review is available. Merge verified signature and exact merged-main `event=push` are NOT_VERIFIED until independently checked. Official RevC XSD-valid vendor input, independent Oracle and formal product U/T are NOT_VERIFIED/NOT_RUN.
 
 ## Closeout criteria
 
