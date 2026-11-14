@@ -260,15 +260,18 @@ fn scan(source: &str) -> Result<Vec<Tag>, ImportError> {
             if declaration.contains('&') {
                 return Err(err("BAD_XML_DECLARATION"));
             }
-            let (name, attrs) =
-                parse_tag(declaration).map_err(|_| err("BAD_XML_DECLARATION"))?;
+            let (name, attrs) = parse_tag(declaration).map_err(|_| err("BAD_XML_DECLARATION"))?;
             if name != "xml"
                 || attrs.get("version").map(String::as_str) != Some("1.0")
                 || attrs
                     .keys()
                     .any(|k| !matches!(k.as_str(), "version" | "encoding" | "standalone"))
-                || attrs.get("encoding").is_some_and(|v| !v.eq_ignore_ascii_case("utf-8"))
-                || attrs.get("standalone").is_some_and(|v| v != "yes" && v != "no")
+                || attrs
+                    .get("encoding")
+                    .is_some_and(|v| !v.eq_ignore_ascii_case("utf-8"))
+                || attrs
+                    .get("standalone")
+                    .is_some_and(|v| v != "yes" && v != "no")
             {
                 return Err(err("BAD_XML_DECLARATION"));
             }
@@ -756,24 +759,28 @@ mod tests {
             "BAD_XML_DECLARATION",
         );
         reject(
-            s.replace("<?xml version=\"1.0\"?>", "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>"),
+            s.replace(
+                "<?xml version=\"1.0\"?>",
+                "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>",
+            ),
             "BAD_XML_DECLARATION",
         );
         let tabs = inspect(s.replace("name=\"SIG\"", "name=\"S\tIG\"").as_bytes()).unwrap();
         assert_eq!(tabs.nets[0].net.name, "S IG");
         let crlf = inspect(s.replace("name=\"SIG\"", "name=\"S\r\nIG\"").as_bytes()).unwrap();
         assert_eq!(crlf.nets[0].net.name, "S IG");
-        reject(s.replace("name=\"SIG\"", "name=\"S&#10;IG\""), "BAD_IDENTIFIER");
+        reject(
+            s.replace("name=\"SIG\"", "name=\"S&#10;IG\""),
+            "BAD_IDENTIFIER",
+        );
     }
     #[test]
     fn repeated_ancestor_path_storage_is_bounded() {
         let s = sample(2);
         let long_name = "A".repeat(16_384);
         let unknown = format!("<{long_name}>{}</{long_name}>", "<X/>".repeat(1_000));
-        let oversized_paths = s.replace(
-            "<LogisticHeader/>",
-            &format!("<LogisticHeader/>{unknown}"),
-        );
+        let oversized_paths =
+            s.replace("<LogisticHeader/>", &format!("<LogisticHeader/>{unknown}"));
         assert!(oversized_paths.len() < LIMIT);
         reject(oversized_paths, "XML_PATH_STORAGE_LIMIT");
     }
