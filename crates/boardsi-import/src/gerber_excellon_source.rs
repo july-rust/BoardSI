@@ -226,7 +226,8 @@ pub fn inspect_gerber(bytes: &[u8]) -> Result<GerberInventory, ImportError> {
                 if units { return Err(fail("DUPLICATE_UNITS", pos)); }
                 units = true;
             } else if cmd.starts_with("TF.") {
-                if func.replace(copper_function(cmd, pos)?).is_some() { return Err(fail("DUPLICATE_FILE_FUNCTION", pos)); }
+                let (number, side) = copper_function(cmd, pos)?;
+                if func.replace((number, side, pos)).is_some() { return Err(fail("DUPLICATE_FILE_FUNCTION", pos)); }
             } else if let Some(def) = cmd.strip_prefix("ADD") {
                 let (n, spec) = def.split_once('C').ok_or_else(|| fail("UNSUPPORTED_APERTURE", pos))?;
                 let aperture_id = n.parse::<u32>().map_err(|_| fail("BAD_APERTURE_ID", pos))?;
@@ -264,11 +265,11 @@ pub fn inspect_gerber(bytes: &[u8]) -> Result<GerberInventory, ImportError> {
     if !ended || !units || !positive || fmt.is_none() || func.is_none() || rows.is_empty() {
         return Err(fail("INCOMPLETE_GERBER", bytes.len()));
     }
-    let (number, side) = func.expect("checked above");
+    let (number, side, attribute_offset) = func.expect("checked above");
     let id = identity(SourceFormat::Gerber, "X2-circular-flash-subset", "artwork.gbr", bytes);
     let layer = CopperLayer {
         meta: meta(&id, ObjectKind::Layer, &format!("X2:Copper:L{number}:{side}"), "Gerber X2 FileFunction"),
-        source_level: number, source_position: side, attribute_offset: 0,
+        source_level: number, source_position: side, attribute_offset,
     };
     let flashes = rows.into_iter().map(|(centre_nm, diameter_nm, aperture_id, source_offset)| CopperFlash {
         meta: meta(&id, ObjectKind::Pad, &format!("flash@byte:{source_offset}"), "Gerber circular flash copper"),
