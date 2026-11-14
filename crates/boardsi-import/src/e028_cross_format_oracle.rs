@@ -53,8 +53,8 @@ pub fn qualify_pads_kicad_single_through_via(
         return Err("E028_RAW_SOURCE_SHA_MISMATCH");
     }
 
-    let artwork = crate::route_preview::parse_generalized(pads)
-        .map_err(|_| "E028_PADS_SOURCE_REJECTED")?;
+    let artwork =
+        crate::route_preview::parse_generalized(pads).map_err(|_| "E028_PADS_SOURCE_REJECTED")?;
     if artwork.max_layer != expected.copper_layers
         || artwork.vias.len() != 1
         || artwork.skipped != 0
@@ -64,8 +64,10 @@ pub fn qualify_pads_kicad_single_through_via(
     }
     let model = crate::route_preview::into_canonical(pads, &artwork)
         .map_err(|_| "E028_PADS_CANONICAL_REJECTED")?;
-    if model.vias.len() != 1 || model.stackup.layers.len() != 4
-        || model.sources.len() != 1 || model.frames.len() != 1
+    if model.vias.len() != 1
+        || model.stackup.layers.len() != 4
+        || model.sources.len() != 1
+        || model.frames.len() != 1
         || model.sources[0].id.files.len() != 1
         || model.sources[0].id.files[0].sha256 != pads_sha
     {
@@ -74,9 +76,11 @@ pub fn qualify_pads_kicad_single_through_via(
     let frame = &model.frames[0];
     if frame.metres_per_tick != Rational::new(127, 500_000_000).map_err(|_| "E028_FRAME_INVALID")?
         || frame.origin_m != [Rational::integer(0); 2]
-        || frame.orientation != (Orientation::Orthogonal {
-            turn: QuarterTurn::Zero, mirror_x: false
-        })
+        || frame.orientation
+            != (Orientation::Orthogonal {
+                turn: QuarterTurn::Zero,
+                mirror_x: false,
+            })
     {
         return Err("E028_UNSUPPORTED_PADS_FRAME");
     }
@@ -86,7 +90,8 @@ pub fn qualify_pads_kicad_single_through_via(
         }
     }
     let p = &artwork.vias[0];
-    if p.shaped.is_some() || p.glued
+    if p.shaped.is_some()
+        || p.glued
         || p.first_layer != expected.first_layer
         || p.last_layer != expected.last_layer
         || p.point[0].checked_mul(254) != Some(expected.centre_nm[0])
@@ -96,12 +101,14 @@ pub fn qualify_pads_kicad_single_through_via(
         return Err("E028_PADS_VIA_GEOMETRY_MISMATCH");
     }
     let topology = p.topology.as_ref().ok_or("E028_PADS_TOPOLOGY_UNKNOWN")?;
-    if topology.kind != expected.kind || topology.pads.len() != 2
+    if topology.kind != expected.kind
+        || topology.pads.len() != 2
         || topology.first_layer != expected.first_layer
         || topology.last_layer != expected.last_layer
         || topology.diameter_on(1).and_then(|v| v.checked_mul(254)) != Some(expected.diameter_nm)
         || topology.diameter_on(4).and_then(|v| v.checked_mul(254)) != Some(expected.diameter_nm)
-        || topology.diameter_on(2).is_some() || topology.diameter_on(3).is_some()
+        || topology.diameter_on(2).is_some()
+        || topology.diameter_on(3).is_some()
     {
         return Err("E028_PADS_LAYER_PAD_MISMATCH");
     }
@@ -114,9 +121,15 @@ pub fn qualify_pads_kicad_single_through_via(
     {
         return Err("E028_PADS_CANONICAL_VIA_MISMATCH");
     }
-    let padstack = model.padstacks.iter().find(|v| v.meta.id == canonical_via.padstack)
+    let padstack = model
+        .padstacks
+        .iter()
+        .find(|v| v.meta.id == canonical_via.padstack)
         .ok_or("E028_PADS_PADSTACK_MISSING")?;
-    let drill = model.drills.iter().find(|v| v.meta.id == canonical_via.drill)
+    let drill = model
+        .drills
+        .iter()
+        .find(|v| v.meta.id == canonical_via.drill)
         .ok_or("E028_PADS_DRILL_MISSING")?;
     let expected_diameter_m = Rational::new(i128::from(expected.diameter_nm), 1_000_000_000)
         .map_err(|_| "E028_ORACLE_DIMENSION_INVALID")?;
@@ -137,9 +150,13 @@ pub fn qualify_pads_kicad_single_through_via(
         }
     }
 
-    let inventory = crate::kicad9_source::inspect(kicad)
-        .map_err(|_| "E028_KICAD_SOURCE_REJECTED")?;
-    let copper: Vec<_> = inventory.layers.iter().filter(|l| l.kind == LayerKind::Copper).collect();
+    let inventory =
+        crate::kicad9_source::inspect(kicad).map_err(|_| "E028_KICAD_SOURCE_REJECTED")?;
+    let copper: Vec<_> = inventory
+        .layers
+        .iter()
+        .filter(|l| l.kind == LayerKind::Copper)
+        .collect();
     if inventory.identity.files.len() != 1
         || inventory.identity.files[0].sha256 != kicad_sha
         || inventory.vias.len() != 1
@@ -154,21 +171,41 @@ pub fn qualify_pads_kicad_single_through_via(
         return Err("E028_KICAD_LAYER_MAPPING_MISMATCH");
     }
     let kv = &inventory.vias[0];
-    if kv.kind != expected.kind || kv.centre_nm != expected.centre_nm
-        || kv.diameter_nm != expected.diameter_nm || kv.drill_nm != expected.drill_nm
-        || kv.source_first_layer != "F.Cu" || kv.source_last_layer != "B.Cu"
-        || kv.span.first_layer != copper.iter().find(|v| v.copper_order == Some(0))
-            .ok_or("E028_KICAD_LAYER_MAPPING_MISMATCH")?.meta.id
-        || kv.span.last_layer != copper.iter().find(|v| v.copper_order == Some(3))
-            .ok_or("E028_KICAD_LAYER_MAPPING_MISMATCH")?.meta.id
+    if kv.kind != expected.kind
+        || kv.centre_nm != expected.centre_nm
+        || kv.diameter_nm != expected.diameter_nm
+        || kv.drill_nm != expected.drill_nm
+        || kv.source_first_layer != "F.Cu"
+        || kv.source_last_layer != "B.Cu"
+        || kv.span.first_layer
+            != copper
+                .iter()
+                .find(|v| v.copper_order == Some(0))
+                .ok_or("E028_KICAD_LAYER_MAPPING_MISMATCH")?
+                .meta
+                .id
+        || kv.span.last_layer
+            != copper
+                .iter()
+                .find(|v| v.copper_order == Some(3))
+                .ok_or("E028_KICAD_LAYER_MAPPING_MISMATCH")?
+                .meta
+                .id
         || kv.envelope_layers.len() != 4
-        || kv.remove_unused_layers || kv.keep_end_layers
+        || kv.remove_unused_layers
+        || kv.keep_end_layers
     {
         return Err("E028_KICAD_VIA_GEOMETRY_MISMATCH");
     }
     for (i, id) in kv.envelope_layers.iter().enumerate() {
-        if *id != copper.iter().find(|l| l.copper_order == Some(i))
-            .ok_or("E028_KICAD_LAYER_MAPPING_MISMATCH")?.meta.id {
+        if *id
+            != copper
+                .iter()
+                .find(|l| l.copper_order == Some(i))
+                .ok_or("E028_KICAD_LAYER_MAPPING_MISMATCH")?
+                .meta
+                .id
+        {
             return Err("E028_KICAD_LAYER_MAPPING_MISMATCH");
         }
     }
