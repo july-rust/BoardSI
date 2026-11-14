@@ -77,10 +77,28 @@ Known unsupported cases include:
   (one parent `51eaa0454bfd1c42afacf1c19033d3d85e1fb74b`).
   GitHub commit API `verification.verified=true`, `reason=valid`.
   `refs/heads/main` matched this exact SHA directly after merge.
-- **Independent final-head review NOT_VERIFIED**: PR reviews empty and
-  review threads 0 (zero threads is not an independent approval).
-  Do not claim completed Codex/Copilot approval. Previous E_025 Codex
-  requests reported account usage limit. No review bot outcome for E_026.
+- **Original code-merge review snapshot, preserved:** before 2026-11-14 Codex retry,
+  the final-head independent review was NOT_VERIFIED (initial usage-limit
+  failure; zero review threads was not proof of review).
+- **Actual post-merge Codex review completed:** bot reviewed original
+  merge SHA `9e6a98729905529222ca0e3b56472e232ec874a8` on PR #633,
+  finding **one P2**: `(locked yes/no)`, `(free yes/no)`,
+  `(remove_unused_layers yes/no)` and `(keep_end_layers yes/no)` had
+  been incorrectly rejected as `BAD_VIA_FLAG`. This is a genuine
+  source parser compatibility bug; original CI did not cover valued flags.
+  Source cross-check: KiCad 9 upstream `parseMaybeAbsentBool(true)` for
+  all four fields.
+- **P2 correction PR #635**: final HEAD
+  `2e683961949f2c4a2303831b1ba0636f54c5cd0f`; accepts bare/yes/no
+  forms with typed rejection of invalid/multiple flags; preserves effective
+  `locked` and `free` SOURCE flags. Adds positive and mutation regressions.
+  **30/30 PR checks SUCCESS** including Native Rust/Qt Windows x64/ARM64,
+  macOS ARM64 and Linux. **Independent Codex review COMPLETED, findings=0,
+  unresolved=0** for exact corrective HEAD. Protected Verified one-parent
+  Squash `9f1829bac92f06dce1eed7e3d904856a6717c76e`.
+  Code-main Push check is recorded separately below when completed.
+- **Documentation PR #634** was also independently reviewed after merge
+  by Codex at `d73de8de`: COMPLETED, no findings.
 - **Exact code-main event=push CI: 8/8 WORKFLOWS SUCCESS** on
   `9e6a98729905529222ca0e3b56472e232ec874a8` verified separately from PR checks.
   [Numerical core run #43573232613](https://github.com/july-rust/BoardSI/actions/runs/43573232613)
@@ -93,10 +111,16 @@ Known unsupported cases include:
 
 ## Closeout truth boundary
 
-`CODE MERGED / PR CI 30/30 PASS / MAIN PUSH 8/8 SUCCESS / INDEPENDENT_REVIEW NOT_VERIFIED`.
-The main Push Gate is **confirmed 8/8 SUCCESS on the exact Squash SHA**.
-Do not mark E_026 **full gate COMPLETE** or tick the sole canonical checklist
-while external independent final-HEAD review is missing. The narrower
-implemented source subset is merged and exercised by CI, not a full native
-KiCad board importer or SI result. Formal U07/U33/U38/U40 and
-T16/T18/T19/T20 remain NOT_RUN; upstream #23/#532/#520 remain OPEN.
+**Code scope:** KiCad 9 `20241229` Layer/Via SOURCE-only inventory.
+Original #633 + post-merge Codex P2 correction #635 are both protected
+Verified Squash merged. Original review **COMPLETED/P2 found 1**; corrective
+final-HEAD review **COMPLETED/no findings**. Main Push receipt for corrective
+merge SHA `9f1829ba` is checked separately and must not be claimed successful
+until observed. The earlier #633 code-main 8/8 push SUCCESS remains valid.
+
+**No product promotion:** This does not establish full native KiCad
+readability, independently exported KiCad 9 real design Oracle, Qt import,
+physical via contact, stackup material/z, net connectivity or SI. Formal
+U07/U33/U38/U40 and T16/T18/T19/T20 remain NOT_RUN. Parent
+#23/#532/#520 remain OPEN. Track final documentation PR independently;
+avoid describing docs-only SKIPPED Native jobs as new Native PASS.
