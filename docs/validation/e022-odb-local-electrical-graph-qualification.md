@@ -25,20 +25,23 @@ The code adds these tests inside boardsi-import/src/odb_local_graph.rs:
 | stale_sha_reimport_and_bad_eda_fail_closed | Stale manifest and unsupported FID rejected | PASS |
 | unsupported_shapes_and_conductors_fail_closed | Arc/unsupported round-line symbol rejected | PASS |
 | exact_source_identity_and_repeat_determinism | Source identity and edge order stable | PASS |
+| one_instance_step_repeat_must_fail_closed | Reject a translated single-instance panel despite one frame per copper layer | PASS |
 
 Additional required regressions: preexisting PADS graph, ODB Source Import/E_019/E_020, E_021 Qt Artwork/Picking/Import/ReImport and native runtime. All results must be recorded from actual CI, never inferred from this plan.
 
-## CI/review/merge evidence ledger
+## CI/review/merge evidence ledger — 2026-11-14 KST
 
-- Code PR: **PENDING**
-- Exact code PR HEAD SHA: **PENDING**
-- fmt/clippy/workspace tests: **NOT_RUN until CI evidence**
-- Linux x64 / Windows x64 / Windows ARM64 / macOS ARM64 native CI: **NOT_RUN until CI evidence**
-- Independent review and unresolved threads: **NOT_VERIFIED**
-- Protected Verified Squash and exact merged code-main Push: **NOT_VERIFIED**
-- Commercial ODB++/cross-format oracle, manufactured barrel, electrical/global Open/Short and SI: **NOT_VERIFIED / excluded from this slice**
+- **Code merged:** [PR #624](https://github.com/july-rust/BoardSI/pull/624) GitHub API returned `merged=true` after normal protected `squash`; merged-`main` SHA [`3dab514179bdb28513236df6c5dfcea938bb8055`](https://github.com/july-rust/BoardSI/commit/3dab514179bdb28513236df6c5dfcea938bb8055). Exact final code PR HEAD `f18824d5c59128a22f24c632fa3d2afbffe6bc80`.
+- **Exact HEAD CI:** **9/9 workflow runs SUCCESS**, including [Numerical Core run #43533121289](https://github.com/july-rust/BoardSI/actions/runs/43533121289) and [Qt runtime run #43533121200](https://github.com/july-rust/BoardSI/actions/runs/43533121200). Docs/A032/G0/PH-06/PH-07/Native FEM/Lossless FEM also SUCCESS. Required PR checks were completed before protected squash.
+- **Rust tests:** Format/Clippy strict `-D warnings` SUCCESS. Exact Numerical Core Linux log: `boardsi-import` **343/343 unit tests PASS**, including **10/10 E_022 module tests**, zero failed; other workspace/integration tests PASS as observed. No assumption of a manufactured PCB.
+- **Native Rust:** Windows x64 SUCCESS, Windows ARM64 SUCCESS, macOS ARM64 SUCCESS **on job rerun attempt 2**. Preserve the historical first macOS attempt **FAILED** on existing unrelated `d006_via_three_area_cli::copper_cutout_blocks_candidate`; E_022's own 10 tests were PASS on that first attempt. Do not rewrite the first failure into success. The same SHA was retried without modifying application code and the latest macOS run returned SUCCESS.
+- **Native Qt:** [Qt runtime #43533121200](https://github.com/july-rust/BoardSI/actions/runs/43533121200) Linux x64 offscreen, Windows x64, Windows ARM64 and macOS ARM64 all SUCCESS. These test E_021 regression compatibility; they do not validate actual manufacturing or hardware GPU graphics.
+- **Independent review:** [Codex review](https://github.com/july-rust/BoardSI/pull/624) on earlier HEAD `421935ad` reported **two P2 findings**: NX=NY=1 STEP-REPEAT incorrectly admitted and potentially quadratic padstack validation before node-count preflight. Both defects corrected, an explicit single-instance negative fixture added, and **2/2 inline review threads resolved**. Re-review of exact final HEAD `f18824d5` **FAILED due Codex code-review usage quota**; no positive final-HEAD independent review receipt may be asserted.
+- **Signature and independent post-merge Push:** Connector merge API confirmed successful Squash and its SHA, but cryptographic GitHub `verification.verified` and separately correlated exact code-`main` `event=push` workflow result were **NOT_VERIFIED** by the available tool access. PR-head 9/9 cannot substitute for independent code-main Push acceptance.
+- **Formal bounded verdict:** `SOURCE GRAPH IMPLEMENTED; FINAL CODE PR CI 9/9 PASS; MERGED; LAST-HEAD INDEPENDENT REVIEW AND VERIFIED/POST-MERGE MAIN EVIDENCE NOT_VERIFIED`. This is an implementation closeout with a separate evidence gap, **not a fully verified protected-main Stage E acceptance**.
+- **Excluded evidence:** Commercial ODB++ export/cross-CAD oracle, manufactured plating/barrel, global electrical Open/Short, SI readiness, whole Issue #10/#520: `NOT_VERIFIED`/not within the E_022 slice.
 
-Update this section with real, exact evidence before marking the E_022 scope complete. Do not promote any status from an unsupported source.
+Do not change prior time-stamped failures or present unverified gates as PASS.
 
 ## Closure boundary
 
