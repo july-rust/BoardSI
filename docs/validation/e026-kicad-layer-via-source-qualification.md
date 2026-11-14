@@ -59,16 +59,44 @@ Known unsupported cases include:
 - independent public KiCad 9 board exporter and native GUI confirmation;
 - cross-format independent CAD Oracle (tracked separately in E_028).
 
-## Verification matrix (evidence must be filled from actual runs)
+## Code PR and independent evidence (2026-11-14 KST)
 
-- Rust unit tests: 2/4/6/8/32 layer through vias, partial spans,
-  UUID/source digest mutation, fail-closed negative mutations, limits.
-- Repository `cargo fmt --check`, `cargo clippy`, `cargo test`;
-  all applicable protected Windows x64/ARM64, macOS ARM64, Linux and
-  Qt workflow checks: **CI_PENDING until observed**.
-- Independent review on final HEAD: **NOT_VERIFIED until performed**.
-- Verified Squash Merge and exact merged-main Push CI: **NOT_VERIFIED until observed**.
+- [Code PR #633](https://github.com/july-rust/BoardSI/pull/633): final implementation HEAD
+  `2257b8db7031124e5c1671ed9eb9887e7f1da289` **30/30 PR GitHub check-runs SUCCESS**;
+  **0 failure, 0 incomplete** at final-head check.
+- [Numerical core run #43571970100](https://github.com/july-rust/BoardSI/actions/runs/43571970100):
+  Rust 1.75 `cargo fmt --all -- --check`, strict Clippy, workspace numerical/
+  model integrity tests success; all six `kicad9_source::tests` pass in
+  both Debug and Release job logs. Synthetic source tests cover 2/4/6/8/32
+  Cu layers, through/blind/buried/microvia, file hash mutation and negative
+  input/resource caps. No actual KiCad physical Vendor board qualification.
+- Exact final HEAD checks: native Rust Windows x64/ARM64, macOS ARM64;
+  native Qt Windows x64/ARM64, macOS ARM64 and provisional Linux offscreen;
+  FEM/independent-FVM/docs/security workflows applicable to PR **SUCCESS**.
+- Protected Squash merged [`main@9e6a98729905529222ca0e3b56472e232ec874a8`](https://github.com/july-rust/BoardSI/commit/9e6a98729905529222ca0e3b56472e232ec874a8)
+  (one parent `51eaa0454bfd1c42afacf1c19033d3d85e1fb74b`).
+  GitHub commit API `verification.verified=true`, `reason=valid`.
+  `refs/heads/main` matched this exact SHA directly after merge.
+- **Independent final-head review NOT_VERIFIED**: PR reviews empty and
+  review threads 0 (zero threads is not an independent approval).
+  Do not claim completed Codex/Copilot approval. Previous E_025 Codex
+  requests reported account usage limit. No review bot outcome for E_026.
+- **Exact code-main event=push CI: 8/8 WORKFLOWS SUCCESS** on
+  `9e6a98729905529222ca0e3b56472e232ec874a8` verified separately from PR checks.
+  [Numerical core run #43573232613](https://github.com/july-rust/BoardSI/actions/runs/43573232613)
+  and [Qt runtime run #43573232555](https://github.com/july-rust/BoardSI/actions/runs/43573232555)
+  include Native Rust/Qt Windows x64, ARM64, macOS ARM64 and Linux GUI;
+  other six runs: docs #43573232547, M2 isolated FEM #43573232533,
+  synthetic G0 #43573232558, M2 Native FEM #43573232510,
+  PH07 FVM #43573232512 and PH06 FVM #43573232499. All eight exact
+  merge-SHA event=push runs report `completed / success` (2026-11-14 KST).
 
-Do not mark E_026 COMPLETE in the canonical checklist until these real
-evidence gates are satisfied. Formal U07/U33/U38/U40 and
+## Closeout truth boundary
+
+`CODE MERGED / PR CI 30/30 PASS / MAIN PUSH 8/8 SUCCESS / INDEPENDENT_REVIEW NOT_VERIFIED`.
+The main Push Gate is **confirmed 8/8 SUCCESS on the exact Squash SHA**.
+Do not mark E_026 **full gate COMPLETE** or tick the sole canonical checklist
+while external independent final-HEAD review is missing. The narrower
+implemented source subset is merged and exercised by CI, not a full native
+KiCad board importer or SI result. Formal U07/U33/U38/U40 and
 T16/T18/T19/T20 remain NOT_RUN; upstream #23/#532/#520 remain OPEN.
