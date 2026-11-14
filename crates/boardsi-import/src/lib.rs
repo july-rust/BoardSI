@@ -231,6 +231,8 @@ mod odb_drill_hits;
 mod odb_eda;
 mod odb_eda_packages;
 pub mod odb_fabrication;
+// E_022 opt-in ODB++ SOURCE-only local copper contact and design graph qualification.
+pub mod odb_local_graph;
 mod odb_gzip;
 pub mod odb_source;
 pub mod odb_stackup;
