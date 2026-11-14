@@ -38,3 +38,11 @@ Six unit-level synthetic qualification tests validate positive artwork/drill geo
 - The Excellon subset here is explicitly local and intentionally narrower than the family of Excellon/NC Drill dialects. Exact per-exporter dialect acceptance requires its own source reference and regression fixtures.
 
 E_028 cross-format geometry equivalence, independent origin alignment, and multilayer via-span promotion are separate gates.
+
+## E_027 code PR #636 protected merge receipt (2026-11-14 KST)
+
+- PR final reviewed HEAD: `69f3e5aed3a604535d2bba2d6f217b49541aa483`; 30/30 GitHub Checks SUCCESS and 9/9 PR Workflows SUCCESS, including Linux/Windows x64/Windows ARM64/macOS ARM64 Rust/Qt Native. Independent Codex final-HEAD review `completed`, no findings and no unresolved threads.
+- The original P2 FileFunction attribute byte-offset provenance error was fixed and its inline review thread resolved. The earlier `dfaff409` Windows ARM64 unrelated D_006 `copper_cutout_blocks_candidate` failure is retained as historic FAIL; a rerun was cancelled following branch synchronization, while the exact final PR HEAD passed Windows ARM64. Do not relabel the historic failure as PASS.
+- Protected merge commit [`cb898e56827bdc8eda25e9957903c0be606d10c8`](https://github.com/july-rust/BoardSI/commit/cb898e56827bdc8eda25e9957903c0be606d10c8): verified GitHub signature `valid`, exactly one parent `7402d35a15e653a93133717fdd8bc98952784d42`. Code PR #636 merged and closed.
+- Exact merged-main **Push CI is a distinct gate and is not yet certified in this receipt**. Only append SUCCESS after workflow and job results for this exact SHA have been read. E_027 small-scope COMPLETE marking must remain pending until that gate.
+- This receipt qualifies only the restricted *source inventories*, not full Gerber artwork, production Excellon dialects, a fabricated Canonical BoardModel, cross-format geometry, Qt importing of Gerber, manufactured connectivity or SI solver input. Parent #23/#532/#520 remain open.
