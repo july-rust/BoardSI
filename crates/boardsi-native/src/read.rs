@@ -1054,5 +1054,6 @@ pub(crate) fn read_board(conn: &Connection) -> Result<LoadedBoard> {
     if !crate::storage_valid(&model) {
         return Err(invalid("canonical model invalid"));
     }
+    model.persistence_read_only = read_only;
     Ok(LoadedBoard { model, read_only })
 }
