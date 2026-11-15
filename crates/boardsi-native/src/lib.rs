@@ -2,12 +2,14 @@
 mod bsig;
 mod encoding;
 mod read;
+mod recovery;
 mod shared;
 mod storage_validation;
 mod store;
 mod write;
 pub use bsig::{Field, GeometryRecord};
 pub use store::{load, save, LoadedBoard};
+pub use recovery::recover_owned_staging;
 
 #[derive(Debug)]
 pub enum NativeError {
