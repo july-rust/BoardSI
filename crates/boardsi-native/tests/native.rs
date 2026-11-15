@@ -786,12 +786,19 @@ fn nonempty_connectivity_graph_round_trip_and_corrupt_witness_fail_closed() {
             evidence: "source-declared coincident endpoints".into(),
         },
     });
-    assert!(!board.validate().has_errors(), "synthetic contact must be valid");
+    assert!(
+        !board.validate().has_errors(),
+        "synthetic contact must be valid"
+    );
     let file = path("graph-contact-evidence");
     save(&file, &board).unwrap();
     let recovered = load(&file).unwrap();
     assert!(!recovered.is_read_only());
-    assert_eq!(recovered.model(), &board, "complete nonempty graph must round trip");
+    assert_eq!(
+        recovered.model(),
+        &board,
+        "complete nonempty graph must round trip"
+    );
     drop(recovered);
 
     // A valid SQLite enum mutation must still be rejected by native semantic validation.
