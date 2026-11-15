@@ -1,5 +1,5 @@
 //! SQL writer for the existing canonical model; no new competing board model.
-use crate::encoding::{i128_bytes, rational_bytes, sql_orientation, Geom};
+use crate::encoding::{i128_bytes, sql_orientation, Geom};
 use crate::shared::*;
 use crate::{invalid, Result};
 use boardsi_model::*;
