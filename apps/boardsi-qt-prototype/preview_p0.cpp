@@ -4759,9 +4759,111 @@ static int runE021CrossFormatRetentionSelftest(
 }
 
 
+
+// F_003_1 actual MAIN Preview + QProcess native file smoke. No mock worker.
+// Qt's repeating timer is serviced between source import, save, reload and
+// malformed-file rejection; all operations use the production menu handlers.
+static int runF0031NativeSelftest(const QString &nativeBinary,
+                                  const QString &canonicalBinary,
+                                  const QString &source) {
+    QTemporaryDir directory;
+    if(!directory.isValid()) return 2;
+    const QString original=directory.path()+"/roundtrip.bsi";
+    const QString copy=directory.path()+"/copy.bsi";
+    const QString bad=directory.path()+"/corrupt.bsi";
+    QFile damaged(bad);
+    if(!damaged.open(QIODevice::WriteOnly) ||
+       damaged.write("not a SQLite native design")<=0) return 2;
+    damaged.close();
+    PreviewWindow window(QString(),QString(),QString(),canonicalBinary,nativeBinary);
+    window.show();
+    if(!window.openCanonicalCandidate(source)) return 2;
+    QEventLoop loop;
+    QTimer tick;
+    tick.setInterval(30);
+    QElapsedTimer elapsed;
+    elapsed.start();
+    int phase=0, eventTicks=0;
+    bool success=false;
+    QString failure;
+    QObject::connect(&tick,&QTimer::timeout,&loop,[&] {
+        ++eventTicks;
+        if(elapsed.elapsed()>85000) {
+            failure="timeout at phase "+QString::number(phase);
+            loop.quit();return;
+        }
+        const QString st=window.nativePanel()->status();
+        if(phase==0) {
+            const QString import=window.importPanel()->importStatus();
+            if(import.startsWith("FAILED") || import.startsWith("CANCELLED")) {
+                failure="Canonical import failed: "+import;loop.quit();return;
+            }
+            if(!import.startsWith("CANONICAL SOURCE GEOMETRY")) return;
+            if(!window.saveNativeCandidate(original)) {
+                failure="main Native Save Project handler rejected accepted Canonical";
+                loop.quit();return;
+            }
+            phase=1;return;
+        }
+        if(st.startsWith("FAILED")) {
+            if(phase==4 && window.nativePanel()->loadedPath()==copy) {
+                // Deliberately corrupt file must not destroy accepted .bsi.
+                if(!window.openNativeCandidate(copy)) {
+                    failure="cannot reopen previous valid native after rejected candidate";
+                    loop.quit();return;
+                }
+                phase=5;return;
+            }
+            failure="native operation failed: "+st;loop.quit();return;
+        }
+        if(!st.startsWith("COMPLETED")) return;
+        if(phase==1) {
+            if(!QFileInfo(original).isFile() || !window.openNativeCandidate(original)) {
+                failure="native file missing or main Open rejected";
+                loop.quit();return;
+            }
+            phase=2;return;
+        }
+        if(phase==2) {
+            if(window.nativePanel()->loadedPath()!=original ||
+               !window.nativePanel()->status().contains("open") ||
+               !window.copyNativeCandidate(copy)) {
+                failure="native Open receipt or Save As rejected";
+                loop.quit();return;
+            }
+            phase=3;return;
+        }
+        if(phase==3) {
+            if(!QFileInfo(copy).isFile() || !window.openNativeCandidate(bad)) {
+                failure="Native Save As failed or malformed Open not started";
+                loop.quit();return;
+            }
+            phase=4;return;
+        }
+        if(phase==5) {
+            success=window.nativePanel()->loadedPath()==copy &&
+                    window.nativePanel()->status().contains("open") &&
+                    window.nativePanel()->findChild<QPlainTextEdit *>("f0031NativeSummary")
+                        ->toPlainText().contains("STRUCTURALLY LOADED") &&
+                    eventTicks>4;
+            if(!success)failure="native receipt/event-loop/reload mismatch";
+            loop.quit();
+        }
+    });
+    tick.start();loop.exec();tick.stop();
+    qInfo().noquote() << QJsonDocument(QJsonObject{
+        {"schema","boardsi-f0031-main-native-v1"},
+        {"pass",success},{"phase",phase},{"event_loop_ticks",eventTicks},
+        {"error",failure},{"physical_si","NOT_RUN"}
+    }).toJson(QJsonDocument::Compact);
+    return success ? 0 : 1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==5 && args.at(1)=="--f0031-native-selftest")
+        return runF0031NativeSelftest(args.at(2),args.at(3),args.at(4));
     if(args.size()==5 && args.at(1)=="--e021-crossformat-selftest")
         return runE021CrossFormatRetentionSelftest(args.at(2),args.at(3),args.at(4));
     if(args.size()==4 && args.at(1)=="--e011-stackup-selftest")
