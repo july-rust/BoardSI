@@ -10,7 +10,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc as Shared;
 
 type GeometryBytesById = BTreeMap<ObjectId, (Vec<u8>, Vec<(ObjectId, String)>)>;
-type PendingArea = (ObjectMeta, Boundary, Vec<ObjectId>, ObjectId, Option<ObjectId>);
+type PendingArea = (
+    ObjectMeta,
+    Boundary,
+    Vec<ObjectId>,
+    ObjectId,
+    Option<ObjectId>,
+);
 
 fn rational_pair(num: &[u8], den: &[u8]) -> Result<Rational> {
     let mut b = Vec::with_capacity(32);
@@ -425,10 +431,7 @@ fn check_relation(
     })
     .transpose()
 }
-fn exact_reencode(
-    model: &BoardModel,
-    original: &GeometryBytesById,
-) -> Result<()> {
+fn exact_reencode(model: &BoardModel, original: &GeometryBytesById) -> Result<()> {
     use crate::encoding::Geom;
     let mut count = 0usize;
     let mut check = |g: Geom<'_>| -> Result<()> {
