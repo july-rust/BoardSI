@@ -62,6 +62,16 @@ name = "boardsi-model"
 version = "0.1.0"
 
 [[package]]
+name = "boardsi-native-file"
+version = "0.1.0"
+dependencies = [
+ "boardsi-import",
+ "boardsi-native",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "boardsi-native"
 version = "0.1.0"
 dependencies = [
