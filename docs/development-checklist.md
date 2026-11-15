@@ -68,11 +68,13 @@
 | :--- | :--- | :--- | :--- |
 | **F_001** | SQLite 단일 파일·i64/i128 Geometry·52 B BLOB envelope·영구 호환성 계약 | **100% COMPLETE (규격 한정)** · Writer/Reader NOT_RUN | [규격](architecture/f001-bsi-format-contract.md) · [검증](validation/f001-bsi-format-qualification.md) · [PR #647](https://github.com/july-rust/BoardSI/pull/647) |
 | **F_002** | SQLite v1 STRICT DDL·BSIG 9종 byte layout·Native SQLite 검증 | **100% COMPLETE (스키마/규격 한정)** · F_003 Writer/Reader NOT_RUN | [스키마](architecture/f002-bsi-sqlite-schema.md) · [바이너리](architecture/f002-bsi-geometry-binary-layout.md) · [검증](validation/f002-bsi-schema-qualification.md) · [PR #649](https://github.com/july-rust/BoardSI/pull/649) |
-| **F_003** | Native Rust BSIG 9종·SQLite Writer/Reader·정밀 Round-Trip | **CORE COMPLETE** · PR 47/47 · main 41/41 · 물리 장애·취소/비차단 검증 PARTIAL | [검증](validation/f003-native-writer-reader-qualification.md) · [PR #651](https://github.com/july-rust/BoardSI/pull/651) |
+| **F_003** | Native Rust BSIG 9종·SQLite Writer/Reader·정밀 Round-Trip | **CORE COMPLETE** · 강제 종료/ENOSPC/파일 잠금·10k Geometry 검증 PASS · 실제 정전/Qt UI 통합 NOT_RUN | [검증](validation/f003-native-writer-reader-qualification.md) · [구현 #651](https://github.com/july-rust/BoardSI/pull/651) · [복원력 #653](https://github.com/july-rust/BoardSI/pull/653) |
 
 > F_001 **최초 완료일·근거일: 2026-11-15 KST**. PR #647 최종 HEAD `989d3225` CI 8/8, 독립 Codex 0건, Verified Squash [`e8538172`](https://github.com/july-rust/BoardSI/commit/e8538172f7eb8d1559753fc9888371457026fde5), 정확한 `main` Push 8/8 SUCCESS. 기존 **166/128은 A~D·보안·U/T 집계**이며 F 규격과 제품 인수를 혼동하지 않습니다.
 
 > F_003 **핵심 구현 최초 완료일·근거일: 2026-11-15 KST**. [PR #651](https://github.com/july-rust/BoardSI/pull/651) HEAD `5766601b` 47/47 SUCCESS, 독립 리뷰 스레드 미해결 0. 보호 Squash [main `cdbf57bd`](https://github.com/july-rust/BoardSI/commit/cdbf57bd4c596e2643c78b59eee122accfe123d3) Verified, 정확한 main Push **41/41 SUCCESS**. **완료: Native 저장/복원·BSIG·실행한 Fail-Closed·4 OS 시험.** 물리 전원 차단/디스크 고갈 및 시간·메모리 스트레스·취소/Qt 비차단 인수 미검증(PARTIAL), 정식 제품 U/T 승격 금지. A~D·보안·U/T 역사적 166/128 체크 유지.
+
+> F_003 **추가 검증일: 2026-11-16 KST**. [PR #653](https://github.com/july-rust/BoardSI/pull/653)에서 OS 4종 프로세스 강제 종료·SQLite 파일 잠금·실제 Linux ENOSPC(16 MiB tmpfs) 및 10,000개 Geometry 읽기/쓰기·바이너리 단독 최고 RSS를 재검증. **실제 전원 차단 및 Qt 파일 UI/이벤트 루프 연계는 미검증**이며, 기존 A~D·U/T 상태는 변동 없음. 상세 수치·CI 증거는 [F_003 검증 원장](validation/f003-native-writer-reader-qualification.md) 참조.
 
 > F_002 **최초 완료일·근거일: 2026-11-15 KST**. [PR #649](https://github.com/july-rust/BoardSI/pull/649) 최종 HEAD `2872f463` 9/9 SUCCESS, 독립 Codex 지적·미해결 0, Native SQLite 네 OS 4/4 SUCCESS. 보호 Squash [main `3108587d`](https://github.com/july-rust/BoardSI/commit/3108587d363f671dfc0dd66fefefcdccabcd255f) Verified, 정확한 main Push 9/9 SUCCESS. **Schema/DDL/Byte Contract 한정 완료**이며 F_003 Native Writer/Reader는 NOT_RUN. A~D·보안·U/T 기존 166/128 체크 수 변동 없음.
 
