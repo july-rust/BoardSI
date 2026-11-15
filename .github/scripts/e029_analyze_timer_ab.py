@@ -45,9 +45,11 @@ def summarize(directory: pathlib.Path):
         show_end = record.get("show_end_ms")
         if mode == "control" and (show_begin != -1 or show_end != -1):
             raise ValueError("Control created a recorded native window")
-        if mode == "window" and (not isinstance(show_begin, int) or not isinstance(show_end, int)
-                                 or show_begin < tick or show_end < show_begin):
-            raise ValueError("Experimental window missing native show timing")
+        if mode == "window" and (not isinstance(show_begin, int) or isinstance(show_begin, bool)
+                                 or not isinstance(show_end, int) or isinstance(show_end, bool)
+                                 or show_begin < tick or show_end < show_begin
+                                 or show_end > first):
+            raise ValueError("Experimental window not shown completely before first PreciseTimer callback")
         if record.get("timer_callback_count", 0) < 1:
             raise ValueError("No PreciseTimer callback actually fired")
         samples.append(record)
