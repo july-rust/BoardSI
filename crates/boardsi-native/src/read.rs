@@ -67,6 +67,7 @@ fn check_source(source: Option<&PropertySource>) -> Result<()> {
 fn read_source_ids(conn: &Connection) -> Result<(Vec<ImportSource>, BTreeMap<i64, SourceId>)> {
     let mut out = Vec::new();
     let mut refs = BTreeMap::new();
+    let mut total_source_files = 0usize;
     let mut s=conn.prepare("SELECT id,source_format,format_other,format_version,importer_version,producer,producer_version FROM source_identity ORDER BY id")?;
     let mut rows = s.query([])?;
     while let Some(r) = rows.next()? {
