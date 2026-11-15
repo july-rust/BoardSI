@@ -78,6 +78,13 @@ fn sources(tx: &Transaction<'_>, board: &BoardModel) -> Result<BTreeMap<SourceId
     if board.sources.len() > 100_000 {
         return Err(invalid("source count"));
     }
+    let total_source_files = board.sources.iter().try_fold(0usize, |sum, src| {
+        sum.checked_add(src.id.files.len())
+            .ok_or_else(|| invalid("source file count overflow"))
+    })?;
+    if total_source_files > 100_000 {
+        return Err(invalid("source file count budget"));
+    }
     let mut indexed: BTreeMap<SourceIdentity, &ImportSource> = BTreeMap::new();
     for src in &board.sources {
         if indexed.insert((*src.id).clone(), src).is_some() {
