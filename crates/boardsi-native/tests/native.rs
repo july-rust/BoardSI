@@ -706,3 +706,19 @@ fn later_minor_version_is_read_only_and_save_as_cannot_drop_it() {
     assert!(!copy.exists());
     std::fs::remove_file(&original).unwrap();
 }
+
+#[test]
+fn source_file_total_budget_rejects_over_100k_before_writing() {
+    let mut board = fixture();
+    let mut identity = (*board.sources[0].id).clone();
+    identity.files = (0..100_001)
+        .map(|n| SourceFile {
+            logical_path: format!("synthetic/file-{n:06}.asc"),
+            sha256: [7; 32],
+        })
+        .collect();
+    board.sources[0].id = Arc::new(identity);
+    let output = path("source-file-budget");
+    assert_eq!(save(&output, &board).err().unwrap().code(), "BSI_INVALID");
+    assert!(!output.exists());
+}
