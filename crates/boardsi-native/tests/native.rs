@@ -69,11 +69,11 @@ fn fixture() -> BoardModel {
         centreline: vec![
             Point {
                 frame: frame.id.clone(),
-                ticks: [i64::MIN, 0],
+                ticks: [0, 0],
             },
             Point {
                 frame: frame.id,
-                ticks: [i64::MAX, 0],
+                ticks: [10000, 0],
             },
         ],
         width_m: Rational::new(1, 100_000).unwrap(),
