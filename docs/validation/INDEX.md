@@ -4,6 +4,10 @@
 >
 > **색인 범위:** 2026-11-07 KST 기준 기존 검증 Markdown 원장, [Validation 개요](README.md) 제외. 현재 파일 목록을 작성한 것이며 외부 웹 링크·내부 앵커까지 모든 접속을 보증한 것이 아닙니다.
 
+## F_001 Native .bsi 규격 검토 · 2026-11-15 KST
+
+- [F_001 SQLite 기반 Native 포맷 핵심 규격](../architecture/f001-bsi-format-contract.md) · [F_001 정적 검토·후속 실행 게이트](f001-bsi-format-qualification.md) — **규격 검토만, Writer/Reader NOT_RUN**
+
 ## E_030 종료 감사 · 2026-11-15 KST
 
 - [E_030 최종 감사·30개 Issue 전수 이관](e030-e-stage-final-closure-audit.md)
