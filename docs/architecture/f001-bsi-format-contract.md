@@ -26,7 +26,7 @@ PADS / ODB++ / IPC-2581 / Gerber+Drill / KiCad (실제 지원 부분집합만)
 | 구분 | 영구 계약 | F_002/F_003 구현 확인 |
 | :--- | :--- | :--- |
 | 파일 외형 | SQLite 표준 헤더 `SQLite format 3\0`, 확장자 `.bsi` | 헤더/파일 식별 검사 |
-| Application ID | `PRAGMA application_id = 0x42534931` (ASCII `BSI1`), 향후 고정 | 최초 정식 발행 전 SQLite application-id 등록/충돌 확인 |
+| Application ID | `PRAGMA application_id = 0x42534931` (ASCII `BSI1`), 향후 고정 | 최초 정식 발행 전 공개 ID 목록 충돌 확인; file(1) 등록은 선택 |
 | Schema 버전 | `PRAGMA user_version` = 최초 `1`부터 단조 증가하는 **물리 DDL 버전** | DDL/사용 라이브러리 지원 범위와 대조 |
 | 파일 의미 버전 | 메타데이터에 `format_major`, `format_minor`, `minimum_reader` | major/minor 지원 매트릭스 |
 | 초기 파일 버전 | 최초 발행 예약값 `1.0`; 초기 Reader 최소 `1.0` | 발행 전 Golden Fixture 생성 및 발행 기록 |
@@ -34,7 +34,7 @@ PADS / ODB++ / IPC-2581 / Gerber+Drill / KiCad (실제 지원 부분집합만)
 | 진단/호환성 | `integrity_check`, `foreign_key_check`, 의미 검증 각각 수행 | 결함별 오류 코드/테스트 |
 | 최소 SQLite | F_002에서 확정하고 빌드에 고정. `STRICT` 채택 시 **3.37.0 이상** 필요 | 세 플랫폼 동일 DDL 지원 및 실제 Library 버전 기록 |
 
-`0x42534931`은 F_001의 **제안 고정 상수**이며 외부 SQLite ID 등록 여부는 **NOT_VERIFIED**다. 최초 정식 `.bsi` 배포 전 충돌을 검증하고 등록한다. **정식 발행 이후 ID 변경은 금지**한다. `user_version`은 파일 기능/확장 의미 버전을 대신하지 않는다.
+`0x42534931`은 F_001의 **제안 고정 상수**이며 공개 ID 목록과의 충돌은 아직 **NOT_VERIFIED**다. 최초 정식 `.bsi` 배포 전 충돌을 확인한다. OS `file(1)`의 별도 파일 형식 인식이 필요하면 해당 유틸리티 관리 프로젝트에 선택적으로 등록을 요청할 수 있으며, **SQLite DB 사용에 등록이 필수는 아니다**. **정식 발행 이후 ID 변경은 금지**한다. `user_version`은 파일 기능/확장 의미 버전을 대신하지 않는다.
 
 SQLite 페이지 크기·자동 vacuum·인덱스·`STRICT` 적용 범위는 F_002에 위임한다. 해당 선택은 반드시 F_001 읽기 호환 정책을 지켜야 한다.
 
@@ -134,7 +134,7 @@ Geometry 데이터의 논리 단위는 **객체 또는 독립 스트림 단위�
 | 근거 | 확인 사실 | F_001 선택 |
 | :--- | :--- | :--- |
 | [SQLite application file format](https://www.sqlite.org/appfileformat.html) | 스키마를 가진 SQLite 파일은 단일 파일·트랜잭션·확장성을 제공 | 표준 SQLite를 네이티브 컨테이너로 채택 |
-| [SQLite file format](https://www.sqlite.org/fileformat2.html), [PRAGMA](https://www.sqlite.org/pragma.html) | SQLite 헤더 및 application_id/user_version은 표준 구조 | 자체 외부 헤더 금지, 버전·식별 분리 |
+| [SQLite file format](https://www.sqlite.org/fileformat2.html), [PRAGMA](https://www.sqlite.org/pragma.html), [application-id 등록 논의](https://sqlite.org/forum/info/6a768e7dca11a7b2) | SQLite 헤더 및 application_id/user_version은 표준 구조 | 자체 외부 헤더 금지, 버전·식별 분리 |
 | [SQLite WAL](https://www.sqlite.org/wal.html) | `-wal`, `-shm` 별도 파일과 checkpoint 주의 | 배포용 snapshot/단일 파일 확정 절차 |
 | [SQLite STRICT](https://www.sqlite.org/stricttables.html) | STRICT는 SQLite 3.37.0 이후 | 최소 런타임 버전과 DDL 선택 함께 검증 |
 | [KiCad PCB format](https://dev-docs.kicad.org/en/file-formats/sexpr-pcb/), [좌표 계약](https://dev-docs.kicad.org/en/file-formats/sexpr-intro/) | 문서 구조에서 Layer/Net/Footprint/Track/Zone을 명시하며 Source Frame 단위가 정의됨 | Native를 Source 구문과 독립시켜 Provenance 보존 |
