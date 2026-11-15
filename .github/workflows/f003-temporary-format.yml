@@ -1,0 +1,26 @@
+name: F003 Temporary Rustfmt
+on:
+  pull_request:
+permissions:
+  contents: write
+jobs:
+  format:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/f003-native-writer-reader'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+      - name: Run Rustfmt
+        run: |
+          rustup toolchain install 1.75.0 --profile minimal --component rustfmt
+          cargo fmt --all
+      - name: Commit formatter output
+        run: |
+          git add crates/boardsi-native Cargo.lock
+          if ! git diff --cached --quiet; then
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "style(F_003): format latest native codec and integration tests"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
