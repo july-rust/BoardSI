@@ -522,7 +522,10 @@ fn save_never_overwrites_read_only_unknown_optional_feature() {
         loaded.save_as(&other).err().unwrap().code(),
         "BSI_UNSUPPORTED_REQUIRED"
     );
-    assert!(!other.exists(), "Save As must not create a lossy replacement");
+    assert!(
+        !other.exists(),
+        "Save As must not create a lossy replacement"
+    );
     let original = std::fs::read(&p).unwrap();
     assert_eq!(
         save(&p, &board).err().unwrap().code(),
