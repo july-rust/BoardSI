@@ -187,7 +187,7 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
         }
         // Fully independent read verifies byte grammar, object graph and semantic invariants.
         let restored = load(&stage)?;
-        if restored.read_only || restored.model != *board {
+        if restored.read_only || !crate::same_semantics(&restored.model, board) {
             return Err(invalid("native round-trip semantics mismatch"));
         }
         replace(&stage, dest)
