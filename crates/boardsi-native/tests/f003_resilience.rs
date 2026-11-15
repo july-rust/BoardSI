@@ -164,3 +164,33 @@ fn sparse_oversized_file_rejected_before_sqlite_parsing() {
     assert_eq!(load(&oversized).err().unwrap().code(), "BSI_INVALID");
     fs::remove_file(&oversized).unwrap();
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn actual_tmpfs_enospc_preserves_last_good_native_file() {
+    // Executed only by the dedicated Linux mount test. Unlike RLIMIT_FSIZE,
+    // this fills a real tiny filesystem and checks the ENOSPC code path.
+    let Some(dir) = std::env::var_os("F003_ENOSPC_DIR") else {
+        return;
+    };
+    let directory = PathBuf::from(dir);
+    let dest = directory.join("last-good.bsi");
+    let before = original(&dest);
+    let filler = directory.join("filler");
+    let status = Command::new("dd")
+        .arg("if=/dev/zero")
+        .arg(format!("of={}", filler.display()))
+        .args(["bs=1048576", "count=32", "conv=fsync"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .unwrap();
+    assert!(!status.success(), "the 16 MiB test filesystem was not exhausted");
+    assert!(
+        save(&dest, &BoardModel::empty(BoardKind::Pcb)).is_err(),
+        "native writer cannot succeed on a full filesystem"
+    );
+    assert_original(&dest, &before);
+    fs::remove_file(&filler).unwrap();
+    fs::remove_file(&dest).unwrap();
+}
