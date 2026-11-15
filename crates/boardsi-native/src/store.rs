@@ -181,7 +181,7 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
         tx.commit()?;
         check_db(&conn)?;
         conn.close().map_err(|(_, e)| NativeError::Sql(e))?;
-        File::open(&stage)?.sync_all()?;
+        OpenOptions::new().write(true).open(&stage)?.sync_all()?;
         if fs::metadata(&stage)?.len() > MAX_FILE {
             return Err(invalid("output file exceeds limit"));
         }
