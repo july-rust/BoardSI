@@ -27,6 +27,23 @@ jobs:
         shell: bash
         run: |
           cargo test --locked -p boardsi-native --features f003-qualification --test f003_resilience -- --nocapture
+  enospc:
+    name: F003 actual Linux filesystem ENOSPC preserves existing native file
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install locked Rust
+        run: rustup toolchain install 1.75.0 --profile minimal --component rustfmt
+      - name: Fill dedicated 16 MiB tmpfs and assert native fails closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          FS="$RUNNER_TEMP/f003-enospc"
+          mkdir -p "$FS"
+          sudo mount -t tmpfs -o size=16m tmpfs "$FS"
+          trap 'sudo umount "$FS"' EXIT
+          F003_ENOSPC_DIR="$FS" cargo test --locked -p boardsi-native --features f003-qualification --test f003_resilience actual_tmpfs_enospc_preserves_last_good_native_file -- --exact --nocapture
   stress:
     name: F003 bounded 10k-geometry resource profile / Linux
     runs-on: ubuntu-latest
