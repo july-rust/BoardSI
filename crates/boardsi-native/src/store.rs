@@ -159,6 +159,32 @@ pub fn load(path: impl AsRef<Path>) -> Result<LoadedBoard> {
     let conn = checked_connection(path.as_ref())?;
     read::read_board(&conn)
 }
+/// Qualification-only failpoint: compiled out of normal application builds.
+/// Parent CI process can inspect a fully validated staging DB, then terminate
+/// this child before the sole destination replacement operation.
+#[cfg(feature = "f003-qualification")]
+fn qualification_before_replace() -> Result<()> {
+    let Ok(mode) = std::env::var("BOARDSI_F003_QUAL_MODE") else {
+        return Ok(());
+    };
+    if mode != "pause" && mode != "fail" {
+        return Ok(());
+    }
+    let marker = std::env::var_os("BOARDSI_F003_QUAL_MARKER")
+        .ok_or_else(|| invalid("qualification marker missing"))?;
+    fs::write(marker, b"validated-before-replace")?;
+    if mode == "fail" {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "F003 qualification injected I/O failure before replace",
+        )
+        .into());
+    }
+    loop {
+        std::thread::park_timeout(std::time::Duration::from_millis(100));
+    }
+}
+
 fn replace(staging: &Path, dest: &Path) -> Result<()> {
     if dest.exists() {
         #[cfg(windows)]
@@ -273,6 +299,8 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
         if restored.read_only || !crate::same_semantics(&restored.model, board) {
             return Err(invalid("native round-trip semantics mismatch"));
         }
+        #[cfg(feature = "f003-qualification")]
+        qualification_before_replace()?;
         replace(&stage, dest)
     })();
     if result.is_err() {
