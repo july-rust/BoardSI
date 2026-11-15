@@ -1019,7 +1019,7 @@ pub(crate) fn read_board(conn: &Connection) -> Result<LoadedBoard> {
     read_components_pins(conn, &mut model, &objects)?;
     read_graph(conn, &mut model, &objects)?;
     validate_coverage(conn, &objects)?;
-    if model.validate().has_errors() {
+    if !crate::storage_valid(&model) {
         return Err(invalid("canonical model invalid"));
     }
     Ok(LoadedBoard { model, read_only })
