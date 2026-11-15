@@ -117,6 +117,15 @@ if(BUILD_TESTING)
     set_tests_properties(qt-e021-main-odb-picking-reimport PROPERTIES
       TIMEOUT 150 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
+  set(BOARDSI_NATIVE_FILE_WORKER "" CACHE FILEPATH "F_003_1 Rust Native file worker")
+  if(BOARDSI_NATIVE_FILE_WORKER AND BOARDSI_CANONICAL_IMPORTER)
+    add_test(NAME qt-f0031-real-native-file-main
+      COMMAND boardsi-preview-p0 --f0031-native-selftest
+        "${BOARDSI_NATIVE_FILE_WORKER}" "${BOARDSI_CANONICAL_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
+    set_tests_properties(qt-f0031-real-native-file-main PROPERTIES
+      TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  endif()
   set(BOARDSI_CANONICAL_IMPORTER "" CACHE FILEPATH "Optional D_056_04 Rust Canonical IPC CLI")
   if(BOARDSI_CANONICAL_IMPORTER)
     add_test(NAME qt-d05604-rust-canonical-roundtrip
