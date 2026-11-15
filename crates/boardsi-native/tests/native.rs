@@ -487,3 +487,84 @@ fn save_never_overwrites_read_only_unknown_optional_feature() {
     assert_eq!(std::fs::read(&p).unwrap(),original);
     std::fs::remove_file(&p).unwrap();
 }
+
+
+#[test]
+fn relative_destination_sync_does_not_report_failure_after_replace() {
+    let filename = format!(
+        "f003-relative-{}-{}.bsi",
+        std::process::id(),
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+    );
+    let relative = std::path::PathBuf::from(filename);
+    let board = BoardModel::empty(BoardKind::Pcb);
+    save(&relative, &board).expect("safe relative filename save");
+    assert_eq!(load(&relative).unwrap().model, board);
+    std::fs::remove_file(&relative).unwrap();
+}
+
+#[test]
+fn sqlite_internal_prefix_is_literal_not_like_wildcard() {
+    let p = path("sqlite-name-prefix");
+    save(&p,&fixture()).unwrap();
+    let conn = rusqlite::Connection::open(&p).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE sqliteXvendor(data BLOB) STRICT;\
+         INSERT INTO sqliteXvendor VALUES(X'DEADBEEF');"
+    ).unwrap();
+    drop(conn);
+    assert_eq!(load(&p).err().unwrap().code(),"BSI_INVALID");
+    std::fs::remove_file(&p).unwrap();
+}
+
+#[test]
+fn unrepresentable_geometry_relation_columns_fail_closed() {
+    let mut board = fixture();
+    let source = board.frames[0].meta.id.source.clone();
+    let layer = board.stackup.layers[0].meta.id.clone();
+    let frame = board.frames[0].meta.id.clone();
+    let stack_id = ObjectId::new(&source,ObjectKind::Padstack,"PS-RELS","");
+    let provenance = GeometryProvenance {
+        source_object_type: "synthetic".into(),
+        history: vec![],
+    };
+    board.padstacks.push(Padstack {
+        meta: ObjectMeta { id: stack_id.clone(), provenance: provenance.clone() },
+        entries: vec![PadstackLayer {
+            layer: layer.clone(),
+            role: PadRole::Conductive,
+            shape: PadShape::Circle {
+                diameter_m: Rational::new(1,10_000).unwrap(),
+            },
+        }],
+    });
+    board.pads.push(Pad {
+        meta: ObjectMeta {
+            id: ObjectId::new(&source,ObjectKind::Pad,"PAD-RELS",""),
+            provenance,
+        },
+        position: Point {frame,ticks:[50,50]},
+        orientation: Orientation::Orthogonal {
+            turn: QuarterTurn::Zero,mirror_x:false,
+        },
+        padstack: stack_id,
+        net: None,
+    });
+    let p=path("sql-extra-rel");
+    save(&p,&board).unwrap();
+    let conn=rusqlite::Connection::open(&p).unwrap();
+    conn.execute_batch(
+        "UPDATE geometry SET padstack_id=(SELECT object_id FROM geometry WHERE geometry_kind=5) \
+         WHERE geometry_kind=1;"
+    ).unwrap();
+    drop(conn);
+    assert_eq!(load(&p).err().unwrap().code(),"BSI_INVALID");
+    let conn=rusqlite::Connection::open(&p).unwrap();
+    conn.execute_batch(
+        "UPDATE geometry SET padstack_id=NULL WHERE geometry_kind=1;\
+         UPDATE geometry SET layer_id=(SELECT object_id FROM layers LIMIT 1) WHERE geometry_kind=6;"
+    ).unwrap();
+    drop(conn);
+    assert_eq!(load(&p).err().unwrap().code(),"BSI_INVALID");
+    std::fs::remove_file(&p).unwrap();
+}

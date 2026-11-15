@@ -582,6 +582,9 @@ fn read_geometry(
         let decoded = decode(&record, &refdict)?;
         match decoded {
             Decoded::Trace(centreline, width_m) => {
+                if padstack.is_some() {
+                    return Err(invalid("geometry kind forbids padstack relation"));
+                }
                 let layer = layer.ok_or_else(|| invalid("trace layer"))?;
                 model.traces.push(Trace {
                     meta: m.clone(),
@@ -592,6 +595,9 @@ fn read_geometry(
                 });
             }
             Decoded::Arc(centre, start, end, clockwise, width_m) => {
+                if padstack.is_some() {
+                    return Err(invalid("geometry kind forbids padstack relation"));
+                }
                 let layer = layer.ok_or_else(|| invalid("arc layer"))?;
                 model.arcs.push(Arc {
                     meta: m.clone(),
@@ -605,6 +611,9 @@ fn read_geometry(
                 });
             }
             Decoded::Area(outer, cutout_ids) => {
+                if padstack.is_some() {
+                    return Err(invalid("geometry kind forbids padstack relation"));
+                }
                 let layer = layer.ok_or_else(|| invalid("area layer"))?;
                 areas.push((m.clone(), outer, cutout_ids, layer, net));
             }
@@ -638,6 +647,9 @@ fn read_geometry(
                 });
             }
             Decoded::Pad(position, orientation) => {
+                if layer.is_some() {
+                    return Err(invalid("pad or via forbids direct layer relation"));
+                }
                 let padstack = padstack.ok_or_else(|| invalid("missing padstack"))?;
                 model.pads.push(Pad {
                     meta: m.clone(),
@@ -648,6 +660,9 @@ fn read_geometry(
                 });
             }
             Decoded::Via(position, via_kind, span, connected_layers) => {
+                if layer.is_some() {
+                    return Err(invalid("pad or via forbids direct layer relation"));
+                }
                 let padstack = padstack.ok_or_else(|| invalid("via padstack"))?;
                 let drill = refdict
                     .entries

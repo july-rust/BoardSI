@@ -67,7 +67,7 @@ fn restrict_connection(conn: &Connection) {
 fn schema_objects(conn: &Connection) -> Result<Vec<(String, String, Option<String>)>> {
     let mut stmt = conn.prepare(
         "SELECT type,name,sql FROM sqlite_master \
-         WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name",
+         WHERE substr(name,1,7) != 'sqlite_' ORDER BY type,name",
     )?;
     let mut rows = stmt.query([])?;
     let mut objects = Vec::new();
@@ -169,7 +169,11 @@ fn replace(staging: &Path, dest: &Path) -> Result<()> {
         fs::rename(staging, dest)?;
     }
     #[cfg(unix)]
-    if let Some(parent) = dest.parent() {
+    {
+        let parent = dest
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
         File::open(parent)?.sync_all()?;
     }
     Ok(())
