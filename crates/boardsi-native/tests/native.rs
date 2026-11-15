@@ -679,3 +679,27 @@ fn pending_rotation_cannot_hide_invalid_arc_geometry() {
     assert_eq!(save(&p, &board).err().unwrap().code(), "BSI_INVALID");
     assert!(!p.exists());
 }
+
+#[test]
+fn later_minor_version_is_read_only_and_save_as_cannot_drop_it() {
+    let original = path("future-minor");
+    save(&original, &fixture()).unwrap();
+    let conn = rusqlite::Connection::open(&original).unwrap();
+    conn.execute("UPDATE file_meta SET format_minor=1", [])
+        .unwrap();
+    drop(conn);
+    let loaded = load(&original).unwrap();
+    assert!(loaded.is_read_only());
+    assert!(loaded.model().persistence_read_only);
+    let copy = path("future-minor-copy");
+    assert_eq!(
+        loaded.save_as(&copy).err().unwrap().code(),
+        "BSI_UNSUPPORTED_REQUIRED"
+    );
+    assert_eq!(
+        save(&copy, loaded.model()).err().unwrap().code(),
+        "BSI_UNSUPPORTED_REQUIRED"
+    );
+    assert!(!copy.exists());
+    std::fs::remove_file(&original).unwrap();
+}
