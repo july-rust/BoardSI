@@ -207,6 +207,11 @@ fn replace(staging: &Path, dest: &Path) -> Result<()> {
     Ok(())
 }
 pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
+    // A loaded read-only document must never be re-serialized to another path:
+    // the Canonical model cannot carry unknown optional payloads or SHA attestations.
+    if board.persistence_read_only {
+        return Err(NativeError::UnsupportedRequired);
+    }
     let dest = path.as_ref();
     if dest.extension().and_then(|x| x.to_str()) != Some("bsi") {
         return Err(invalid(".bsi extension required"));
