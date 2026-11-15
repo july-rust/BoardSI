@@ -293,3 +293,6 @@ pub mod kicad9_source;
 
 // E_027 opt-in source-only Gerber X2 and Excellon inventories (no via/graph/SI).
 pub mod gerber_excellon_source;
+
+/// E_028: opt-in bounded cross-format source-geometry oracle.
+pub mod e028_cross_format_oracle;
