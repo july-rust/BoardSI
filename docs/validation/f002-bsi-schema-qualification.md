@@ -53,8 +53,8 @@
 | Inline review threads | [PR #649](https://github.com/july-rust/BoardSI/pull/649) | **0 unresolved** |
 | Protected squash | [main `3108587d`](https://github.com/july-rust/BoardSI/commit/3108587d363f671dfc0dd66fefefcdccabcd255f) | **MERGED**, single parent |
 | Merge commit signature | [GitHub commit REST](https://api.github.com/repos/july-rust/BoardSI/commits/3108587d363f671dfc0dd66fefefcdccabcd255f) | **Verified=true, reason=valid** |
-| Exact main Push | [GitHub run query](https://api.github.com/repos/july-rust/BoardSI/actions/runs?head_sha=3108587d363f671dfc0dd66fefefcdccabcd255f&event=push&per_page=100) | **PENDING** until all jobs finish |
+| Exact main Push | [GitHub run query](https://api.github.com/repos/july-rust/BoardSI/actions/runs?head_sha=3108587d363f671dfc0dd66fefefcdccabcd255f&event=push&per_page=100) | **9/9 COMPLETED SUCCESS** on exact merged SHA |
 | Rust production Writer/Reader | F_003 | **NOT_RUN**, no false assertion |
 | CAD lossless round-trip, migration Golden | F_004–F_005 | **NOT_RUN**, product status unchanged |
 
-This receipt is **provisional until exact merged main Push 9/9 finishes**. Update the single checklist only after that independent run check. Original A~D/Security/U/T counters **166 checked / 128 unchecked** remain unchanged.
+**Final #649 implementation receipt: exact merged main Push 9/9 SUCCESS confirmed, PR final HEAD 9/9 SUCCESS, independent Codex completed with no outstanding findings, and Verified protected squash. F_002 schema/DDL/byte-contract qualification 100% COMPLETE; production Rust Writer/Reader, migration and real CAD end-to-end remain NOT_RUN (F_003–F_005).** Original A~D/Security/U/T counters **166 checked / 128 unchecked** remain unchanged.
