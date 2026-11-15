@@ -1,6 +1,9 @@
 //! BoardSI native .bsi v1; all load paths are read-only and fail-closed.
 mod bsig;
 mod encoding;
+mod shared;
+mod write;
+mod read;
 mod store;
 pub use bsig::{Field, GeometryRecord};
 pub use store::{load, save, LoadedBoard};
