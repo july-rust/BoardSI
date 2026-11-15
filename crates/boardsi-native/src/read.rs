@@ -1007,7 +1007,9 @@ pub(crate) fn read_board(conn: &Connection) -> Result<LoadedBoard> {
     if *major != 1 || *minor < 0 {
         return Err(invalid("format version"));
     }
-    let mut read_only = false;
+    // Unknown later minor format revisions may carry semantics this reader cannot emit.
+    // Preserve the original file: permit inspection, but forbid lossy reserialization.
+    let mut read_only = *minor > 0;
     for table in ["features", "extensions"] {
         let sql = if table == "features" {
             "SELECT required FROM features"
