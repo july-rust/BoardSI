@@ -14,7 +14,7 @@
 | SQLite + 관계형 메타데이터 + Geometry BLOB, envelope, version 정책 | [F_001 계약](../architecture/f001-bsi-format-contract.md) | **DESIGN DECISION** — 신규 제품 설계 |
 | 실제 `.bsi` 파일 bytes 로드, round-trip, 손상 복구, 이종 OS 성능 | F_002~F_005 구현·시험 증거 필요 | **NOT_RUN** |
 
-**불확실성:** `application_id=0x42534931`의 외부 등록·충돌 여부 **NOT_VERIFIED**, **첫 정식 배포 전에 반드시 확인**. 초기 정식 `.bsi` Golden Fixture는 아직 없으며 과거 파일 호환성은 **정책만 확정**됐다. 테스트하지 않은 정상화/무손실 왕복을 주장하지 않는다.
+**불확실성:** `application_id=0x42534931`의 공개 ID 목록 충돌 여부 **NOT_VERIFIED**이며 **첫 정식 배포 전에 확인**한다. `file(1)` 형식 인식을 위한 별도 등록은 선택적이고 SQLite 사용에 필수가 아니다. 초기 정식 `.bsi` Golden Fixture는 아직 없으며 과거 파일 호환성은 **정책만 확정**됐다. 테스트하지 않은 정상화/무손실 왕복을 주장하지 않는다.
 
 ## 2. F001-T01~T08 명시적 검토
 
@@ -63,7 +63,7 @@ F_001에서 **추가 이슈를 생성하지 않고**, 이미 예정된 F_002 계
 
 1. 정규화된 DDL: FileMeta, Version/Features, SourceIdentity, CoordinateFrames, Objects/Geometry, Layer/Net/Component/Pin, Stackup/Material, Diagnostics, Extensions와 FK/index를 설계한다.
 2. Geometry Payload **52 byte envelope는 변경 금지**. 타입별 Shape 레코드·참조/압축/수치 경계·canonical byte 순서를 규정한다.
-3. SQLite runtime version/STRICT 선택, `application_id` 등록·충돌 검증, 안전한 SQLite 설정·최대 한도·DDL 호환성을 확정한다.
+3. SQLite runtime version/STRICT 선택, `application_id` 공개 목록 충돌 검증·선택적 file(1) 인식 등록 검토, 안전한 SQLite 설정·최대 한도·DDL 호환성을 확정한다.
 4. 최초 writer를 배포할 때 공식 Golden Fixture/해시, source fixture 출처·권리·실행 OS·SQLite version을 남긴다.
 5. `BSI_INVALID`, `BSI_FUTURE_SCHEMA`, `BSI_UNSUPPORTED_REQUIRED`, `BSI_NOT_NATIVE`를 데이터 검사에서 별도 오류로 노출한다.
 6. F_003에서 손상/중단/확장/마이그레이션 반례 N01~N09의 **실제 실행 증거**를 수집한다.
