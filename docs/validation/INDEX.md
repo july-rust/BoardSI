@@ -4,6 +4,10 @@
 >
 > **색인 범위:** 2026-11-07 KST 기준 기존 검증 Markdown 원장, [Validation 개요](README.md) 제외. 현재 파일 목록을 작성한 것이며 외부 웹 링크·내부 앵커까지 모든 접속을 보증한 것이 아닙니다.
 
+## F_002 Native SQLite Schema · 2026-11-15 KST
+
+- [F_002 SQLite v1 스키마](../architecture/f002-bsi-sqlite-schema.md) · [52-byte BSIG Geometry 상세](../architecture/f002-bsi-geometry-binary-layout.md) · [DDL/벡터 검증](f002-bsi-schema-qualification.md) — **Writer/Reader 제품 구현은 F_003**
+
 ## F_001 Native .bsi 규격 검토 · 2026-11-15 KST
 
 - [F_001 SQLite 기반 Native 포맷 핵심 규격](../architecture/f001-bsi-format-contract.md) · [F_001 정적 검토·후속 실행 게이트](f001-bsi-format-qualification.md) — **규격 검토만, Writer/Reader NOT_RUN**
