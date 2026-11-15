@@ -2,7 +2,7 @@
 
 Evidence date: **2026-11-15 KST**. Baseline: protected main 557a9c685f468768ae27a1da81a58beda1a9351c (E_027 #640 merged). Parent: #532 / #520.
 
-**Status: IMPLEMENTED / FINAL PR CI, INDEPENDENT REVIEW, MERGE, MAIN PUSH PENDING. Not a PASS receipt.**
+**Status: CODE MERGED / FINAL PR-head 30/30 CHECKS PASS / independent Codex review complete / cryptographic Verified protected Squash; exact code-main push CI pending.** This is **one source-level via slice only**, not whole Canonical BoardModel parity or a product U/T acceptance.
 
 ## Independent numeric oracle (synthetic original, not vendor)
 
@@ -21,6 +21,8 @@ Two separately parsed raw sources represent one **four-copper-layer through via*
 | **NOT PROVED** | KiCad per-layer conductive pads; full trace/pad/Net parity; manufactured barrel; electrical contact; material, z, SI |
 
 1 mil is exactly 25,400 nm. No floating-point tolerance is allowed. Both source files are independently parsed and each checked against this static witness. Source identities stay distinct.
+
+Fixture bytes are pinned to LF using scoped `.gitattributes` rules. This is essential on Windows checkout (`core.autocrlf`), where unpinned raw text was converted into CRLF and failed immutable SHA checks. Changes to bytes must be independently re-pinned, not silently normalized by the oracle.
 
 Original fixture files:
 - crates/boardsi-import/tests/fixtures/e028-via-pads-v94.asc
@@ -55,12 +57,16 @@ Before concluding SOURCE-LIMITED QUALIFIED, require real final HEAD Debug/Releas
 
 E_023 / EB-01 actual independent Vendor Source and same-revision CAD Oracle remain BLOCKED. Parent #532/#520 and full product U/T remain OPEN / NOT_ACCEPTED. No invented PAD contacts, electrical Graph or SI PASS.
 
-Initial evidence ledger (update only from actual observed results):
-- PR: PENDING
-- Final HEAD: PENDING
-- Local Rust toolchain: NOT_AVAILABLE in connected container
-- CI: PENDING
-- Independent review: PENDING
-- Verified Squash: PENDING
-- Exact main Push: PENDING
-- Conclusion: NOT_VERIFIED
+## Final observed code PR and remaining push evidence (2026-11-15 KST)
+
+- Code [PR #641](https://github.com/july-rust/BoardSI/pull/641) — **MERGED**.
+- Final reviewed/tested PR HEAD: `1fd050631ede26358e132d37fd44e96870b4fc41`.
+- PR-head **30/30 GitHub Checks SUCCESS**, including all Numerical Core and Qt native Windows x64, Windows ARM64 and macOS ARM64; **9/9 pull_request workflow runs SUCCESS**.
+- Independent Codex review on the **exact final HEAD** completed with **0 findings, 0 unresolved findings, 0 unresolved review threads**.
+- Protected Squash commit [`d882d8f7f73a78e6f3f24c00950e6d5df73fc191`](https://github.com/july-rust/BoardSI/commit/d882d8f7f73a78e6f3f24c00950e6d5df73fc191). GitHub commit REST `commit.verification.verified=true`, reason `valid`, **one parent** `557a9c685f468768ae27a1da81a58beda1a9351c`. Exact `main` ref points to this Squash.
+- Accurate original failure history: initial HEAD `0d0129a9` had `cargo fmt --check` FAIL in Numerical Core (log under [run #43654522308](https://github.com/july-rust/BoardSI/actions/runs/43654522308)); next HEAD `f74a8f88` had Native Windows x64 FAIL because `include_bytes!` saw CRLF instead of the pinned LF fixture bytes ([run #43654685289](https://github.com/july-rust/BoardSI/actions/runs/43654685289)). Both defects were corrected; historical FAIL receipts are **not** retroactively PASS.
+- New exact `main@d882d8f7` event=`push` CI **8 workflow runs exist**: Numerical #43656614970, Qt #43656615003, documentation #43656615009, PH-06 #43656615124, PH-07 #43656615032, native FEM #43656615049, synthetic G0 #43656615015, isolated FEM #43656614997. **Independent success on all 8 still PENDING when this draft was authored**, and must be checked before E_028 is marked final SOURCE-limited COMPLETE.
+- The connected container has no Rust executable; native Debug/Release evidence is from real GitHub Actions runners and must not be misreported as local tests.
+- Separate docs-only final reconciliation PR, its actual final HEAD CI/merge/main Push, and checklist disposition: **PENDING**.
+
+**Evidence gate:** This document must be finalized against the actual exact-main Push conclusions. Any failed, canceled, skipped-required or unobserved run remains NOT_VERIFIED / BLOCKED; no automatic product promotion.
