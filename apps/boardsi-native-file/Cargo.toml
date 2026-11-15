@@ -1,0 +1,12 @@
+[package]
+name = "boardsi-native-file"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+publish = false
+
+[dependencies]
+boardsi-import = { path = "../../crates/boardsi-import" }
+boardsi-native = { path = "../../crates/boardsi-native" }
+serde_json = "=1.0.114"
+sha2 = "=0.10.8"
