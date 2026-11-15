@@ -459,3 +459,15 @@ fn material_property_and_layer_evidence_round_trip() {
     assert_eq!(load(&p).unwrap().model,board);
     std::fs::remove_file(&p).unwrap();
 }
+
+
+#[test]
+fn unversioned_extra_schema_must_fail_closed() {
+    let p = path("schema-drift");
+    save(&p,&fixture()).unwrap();
+    let conn = rusqlite::Connection::open(&p).unwrap();
+    conn.execute_batch("CREATE TABLE hidden_vendor_payload(data BLOB) STRICT").unwrap();
+    drop(conn);
+    assert_eq!(load(&p).err().unwrap().code(),"BSI_INVALID");
+    std::fs::remove_file(&p).unwrap();
+}

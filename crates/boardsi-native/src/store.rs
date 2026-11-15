@@ -2,7 +2,7 @@
 use crate::{invalid, NativeError, Result};
 use crate::{read, write};
 use boardsi_model::BoardModel;
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{limits::Limit, Connection, OpenFlags};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
 use std::io::Read;
@@ -54,6 +54,40 @@ fn preflight(path: &Path) -> Result<()> {
     }
     Ok(())
 }
+
+/// SQLite 3.37+ runtime guardrails: apply before reading any untrusted row/blob.
+fn restrict_connection(conn: &Connection) {
+    let _ = conn.set_limit(Limit::SQLITE_LIMIT_LENGTH, 64 * 1024 * 1024 + 8192);
+    let _ = conn.set_limit(Limit::SQLITE_LIMIT_SQL_LENGTH, 1024 * 1024);
+    let _ = conn.set_limit(Limit::SQLITE_LIMIT_COLUMN, 128);
+    let _ = conn.set_limit(Limit::SQLITE_LIMIT_ATTACHED, 0);
+}
+/// The published v1 DDL is immutable: extra tables, columns, indexes or
+/// triggers without a physical user_version bump must never be discarded.
+fn schema_objects(conn: &Connection) -> Result<Vec<(String, String, Option<String>)>> {
+    let mut stmt = conn.prepare(
+        "SELECT type,name,sql FROM sqlite_master \
+         WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name",
+    )?;
+    let mut rows = stmt.query([])?;
+    let mut objects = Vec::new();
+    while let Some(row) = rows.next()? {
+        if objects.len() >= 128 {
+            return Err(invalid("SQLite schema object budget"));
+        }
+        objects.push((row.get(0)?, row.get(1)?, row.get(2)?));
+    }
+    Ok(objects)
+}
+fn check_v1_schema(conn: &Connection) -> Result<()> {
+    let reference = Connection::open_in_memory()?;
+    reference.execute_batch(DDL)?;
+    if schema_objects(conn)? != schema_objects(&reference)? {
+        return Err(invalid("unversioned SQLite v1 schema change"));
+    }
+    Ok(())
+}
+
 fn check_db(conn: &Connection) -> Result<()> {
     let app: i64 = conn.pragma_query_value(None, "application_id", |r| r.get(0))?;
     if app != APP_ID {
@@ -66,6 +100,7 @@ fn check_db(conn: &Connection) -> Result<()> {
     if version != 1 {
         return Err(invalid("schema version"));
     }
+    check_v1_schema(conn)?;
     let integrity: String = conn.query_row("PRAGMA integrity_check", [], |r| r.get(0))?;
     if integrity != "ok" {
         return Err(invalid("SQLite integrity"));
@@ -85,6 +120,7 @@ fn checked_connection(path: &Path) -> Result<Connection> {
         path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )?;
+    restrict_connection(&conn);
     conn.pragma_update(None, "trusted_schema", "OFF")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
     conn.busy_timeout(std::time::Duration::from_secs(3))?;
@@ -174,7 +210,9 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
     let stage = stage.ok_or_else(|| invalid("staging name collision"))?;
     let result = (|| -> Result<()> {
         let mut conn = Connection::open(&stage)?;
+        restrict_connection(&conn);
         conn.execute_batch(DDL)?;
+        conn.pragma_update(None, "max_page_count", 131072i64)?;
         conn.pragma_update(None, "synchronous", "FULL")?;
         let tx = conn.transaction()?;
         write::write_board(&tx, board, &uuid())?;

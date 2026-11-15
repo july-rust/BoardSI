@@ -166,6 +166,9 @@ fn read_source_ids(conn: &Connection) -> Result<(Vec<ImportSource>, BTreeMap<i64
         if refs.insert(id, source_id.clone()).is_some() {
             return Err(invalid("duplicate source id"));
         }
+        if out.len() >= 100_000 {
+            return Err(invalid("source count budget"));
+        }
         out.push(ImportSource {
             id: source_id,
             producer,
