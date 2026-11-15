@@ -446,7 +446,8 @@ mod tests {
     fn corruptions_fail_closed() {
         for r in records() {
             let mut bytes = r.encode().unwrap();
-            bytes[bytes.len() - 1] ^= 1;
+            let last = bytes.len() - 1;
+            bytes[last] ^= 1;
             assert!(GeometryRecord::decode(&bytes, r.kind).is_err());
         }
     }
