@@ -91,25 +91,114 @@ def decode(data, expected_kind):
         fields[fid] = (typ, value)
     if offset != len(payload) or list(fields) != sorted(fields):
         raise ValueError("trailing data/order")
-    # Explicit required fields for Trace/Arc: no permissive unknown layout.
-    required = {1: {1: 7, 2: 5}, 2: {1: 6, 2: 6, 3: 6, 4: 1, 5: 5}}
-    if kind in required:
-        if {f: typ for f, (typ, _) in fields.items()} != required[kind]:
-            raise ValueError("shape field contract")
-        for typ, value in fields.values():
-            if typ == 5:
-                parse_rational(value)
-            elif typ == 6 and len(value) != 20:
-                raise ValueError("point size")
-            elif typ == 1 and (len(value) != 1 or value[0] not in (0, 1)):
-                raise ValueError("boolean")
-            elif typ == 7:
-                if len(value) < 4:
-                    raise ValueError("point list")
-                count = struct.unpack_from("<I", value)[0]
-                if count < 2 or len(value) != 4 + 20 * count:
-                    raise ValueError("point list size")
+    required = {
+        1: {1: 7, 2: 5},  # Trace
+        2: {1: 6, 2: 6, 3: 6, 4: 1, 5: 5},  # Arc
+        3: {1: 8, 2: 9},  # Area
+        4: {1: 8},  # Cutout
+        5: {1: 11},  # Padstack
+        6: {1: 6, 2: 10},  # Pad
+        7: {1: 6, 2: 2, 3: 12, 4: 9},  # Via
+        8: {1: 5, 2: 1, 3: 12},  # Drill
+        9: {1: 8, 2: 9},  # Outline
+    }
+    if {f: typ for f, (typ, _) in fields.items()} != required[kind]:
+        raise ValueError("shape field contract")
+    for fid, (typ, value) in fields.items():
+        if typ == 1 and (len(value) != 1 or value[0] not in (0, 1)):
+            raise ValueError("boolean")
+        elif typ == 2 and len(value) != 1:
+            raise ValueError("u8")
+        elif typ == 5:
+            parse_rational(value)
+        elif typ == 6 and len(value) != 20:
+            raise ValueError("point size")
+        elif typ == 7:
+            if len(value) < 4:
+                raise ValueError("point list")
+            n = struct.unpack_from("<I", value)[0]
+            if n < 2 or len(value) != 4 + 20 * n:
+                raise ValueError("point list size")
+        elif typ == 8:
+            check_boundary(value)
+        elif typ == 9:
+            if len(value) < 4:
+                raise ValueError("ref list")
+            n = struct.unpack_from("<I", value)[0]
+            if n > 65535 or len(value) != 4 + n * 4:
+                raise ValueError("ref list size")
+        elif typ == 10:
+            if len(value) not in (4, 12):
+                raise ValueError("orientation size")
+            mode, mirror, turn, reserved = value[:4]
+            if mirror not in (0, 1) or reserved != 0:
+                raise ValueError("orientation flags")
+            if mode == 0 and (turn > 3 or len(value) != 4):
+                raise ValueError("orthogonal turn")
+            if mode == 1:
+                import math
+                if turn != 255 or len(value) != 12 or not math.isfinite(struct.unpack("<d", value[4:])[0]):
+                    raise ValueError("pending rotation")
+            if mode not in (0, 1):
+                raise ValueError("orientation kind")
+        elif typ == 11:
+            check_padstack_entries(value)
+        elif typ == 12:
+            if len(value) != 8 or value[:4] == value[4:8]:
+                raise ValueError("span reference")
+        elif typ not in (1, 2, 5, 6, 7, 8, 9, 10, 11, 12):
+            raise ValueError("unknown TLV type")
+    if kind == 7 and fields[2][1][0] not in (0, 1, 2, 3):
+        raise ValueError("via kind")
     return fields
+
+
+def check_boundary(value):
+    if len(value) < 4:
+        raise ValueError("short boundary")
+    count = struct.unpack_from("<I", value)[0]
+    if count == 0 or count > 1000000:
+        raise ValueError("boundary count")
+    pos = 4
+    for _ in range(count):
+        if pos >= len(value):
+            raise ValueError("boundary truncated")
+        tag = value[pos]
+        size = {1: 41, 2: 62}.get(tag)
+        if size is None or pos + size > len(value):
+            raise ValueError("boundary segment")
+        if tag == 2 and value[pos + 61] not in (0, 1):
+            raise ValueError("arc clockwise")
+        pos += size
+    if pos != len(value):
+        raise ValueError("boundary trailing")
+
+
+def check_padstack_entries(value):
+    if len(value) < 4:
+        raise ValueError("short padstack")
+    count = struct.unpack_from("<I", value)[0]
+    if count == 0 or count > 65535:
+        raise ValueError("padstack count")
+    pos = 4
+    for _ in range(count):
+        if pos + 12 > len(value):
+            raise ValueError("padstack entry truncated")
+        layer, role, shape, reserved, size = struct.unpack_from("<IBBHI", value, pos)
+        pos += 12
+        if role > 2 or shape > 4 or reserved or pos + size > len(value):
+            raise ValueError("padstack role/shape")
+        body = value[pos:pos + size]
+        lengths = {0: 32, 1: 64, 2: 64, 3: 103}
+        if shape == 4:
+            check_boundary(body)
+        elif len(body) != lengths[shape]:
+            raise ValueError("padstack shape size")
+        if shape == 3 and body[0] not in (0, 1):
+            raise ValueError("thermal shape bool")
+        pos += size
+    if pos != len(value):
+        raise ValueError("padstack trailing")
 
 
 class F002SchemaQualification(unittest.TestCase):
@@ -187,6 +276,36 @@ class F002SchemaQualification(unittest.TestCase):
                          (5, 5, rational(1, 1000))])
         self.assertEqual(len(decode(arc, 2)), 5)
         self.assertNotEqual(vec, encode(1, [(2, 5, rational(1, 1000)), (1, 7, vertices)]) + b"\0")  # canonical order
+
+    def test_t05_all_nine_shape_grammar_vectors(self):
+        p0 = point(0, 0, 0)
+        p1 = point(0, 10, 0)
+        line = b"\x01" + p0 + p1
+        boundary = struct.pack("<I", 1) + line
+        empty_refs = struct.pack("<I", 0)
+        span = struct.pack("<II", 0, 1)
+        pad_entry = struct.pack("<IBBHI", 0, 0, 0, 0, 32) + rational(1, 10)
+        kinds = {
+            1: [(1, 7, struct.pack("<I", 2) + p0 + p1), (2, 5, rational(1, 10))],
+            2: [(1, 6, p0), (2, 6, p1), (3, 6, p0), (4, 1, b"\x01"),
+                (5, 5, rational(1, 10))],
+            3: [(1, 8, boundary), (2, 9, empty_refs)],
+            4: [(1, 8, boundary)],
+            5: [(1, 11, struct.pack("<I", 1) + pad_entry)],
+            6: [(1, 6, p0), (2, 10, b"\x00\x00\x00\x00")],
+            7: [(1, 6, p0), (2, 2, b"\x00"), (3, 12, span),
+                (4, 9, struct.pack("<II", 1, 0))],
+            8: [(1, 5, rational(1, 10)), (2, 1, b"\x01"), (3, 12, span)],
+            9: [(1, 8, boundary), (2, 9, empty_refs)],
+        }
+        for kind, f in kinds.items():
+            with self.subTest(kind=kind):
+                blob = encode(kind, f)
+                self.assertEqual(len(decode(blob, kind)), len(f))
+                damaged = blob[:-1] + bytes([blob[-1] ^ 1])
+                with self.assertRaises(ValueError):
+                    decode(damaged, kind)
+        self.assertEqual(encode(1, kinds[1]), encode(1, list(reversed(kinds[1]))))
 
     def test_t06_integer_rational_boundaries(self):
         self.assertEqual(parse_rational(rational(I128_MAX, 1)), (I128_MAX, 1))
