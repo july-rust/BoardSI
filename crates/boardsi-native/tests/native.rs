@@ -813,3 +813,41 @@ fn nonempty_connectivity_graph_round_trip_and_corrupt_witness_fail_closed() {
     assert_eq!(load(&file).err().unwrap().code(), "BSI_INVALID");
     std::fs::remove_file(&file).unwrap();
 }
+
+#[cfg(feature = "f003-qualification")]
+#[test]
+fn qualification_ten_thousand_geometry_round_trip_with_resource_evidence() {
+    let count = std::env::var("F003_STRESS_OBJECTS")
+        .ok()
+        .and_then(|x| x.parse::<usize>().ok())
+        .unwrap_or(10_000);
+    assert!((1..=40_000).contains(&count));
+    let mut board = fixture();
+    let sample = board.traces[0].clone();
+    let source = sample.meta.id.source.clone();
+    board.traces.clear();
+    for i in 0..count {
+        let mut trace = sample.clone();
+        trace.meta.id = ObjectId::new(&source, ObjectKind::Trace, &format!("bulk-{i:06}"), "");
+        let x = i64::try_from(i).unwrap() * 100;
+        trace.centreline[0].ticks = [x, 0];
+        trace.centreline[1].ticks = [x + 50, 0];
+        board.traces.push(trace);
+    }
+    let p = path("10k-resource");
+    let start = std::time::Instant::now();
+    save(&p, &board).expect("bounded large native writer");
+    let write_elapsed = start.elapsed();
+    let size = std::fs::metadata(&p).unwrap().len();
+    assert!(size <= 512 * 1024 * 1024);
+    let loaded = load(&p).expect("bounded large native reader");
+    let read_elapsed = start.elapsed() - write_elapsed;
+    assert_eq!(loaded.model().traces.len(), count);
+    assert_eq!(loaded.model(), &board);
+    println!(
+        "F003_RESOURCE_EVIDENCE objects={count} bsi_bytes={size} save_ms={} load_ms={}",
+        write_elapsed.as_millis(),
+        read_elapsed.as_millis()
+    );
+    std::fs::remove_file(p).unwrap();
+}
