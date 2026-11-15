@@ -41,3 +41,20 @@
 개발 중인 이 문서의 내용 자체가 완료 증거가 아니다. PR 최종 HEAD CI, 독립 리뷰, 보호 Squash Merge, Verified 서명 및 정확한 main Push CI를 확인한 뒤 체크리스트에 **100% COMPLETE (F_002 한정)**를 기록한다.
 
 **F_002 작업 내용:** DDL/Byte Contract/SQLite Matrix 테스트. **F_003 작업 내용:** Production Rust Serializer/Reader, Writer/Reader 전체 타입 검증, Qt 파일 열기, 실제 원자적 저장. 서로 혼동하지 않는다.
+
+## 5. Protected implementation PR receipt (2026-11-15 KST)
+
+| Gate | Exact evidence | Result |
+| :--- | :--- | :--- |
+| Final source HEAD | [PR #649](https://github.com/july-rust/BoardSI/pull/649) `2872f463ba4a1c2326a6673a6322faa4422bec10` | F_002 DDL+spec+tests |
+| Native SQLite reference run | [workflow #43691876782](https://github.com/july-rust/BoardSI/actions/runs/43691876782) | Windows x64/ARM64, macOS ARM64, Linux x64 **4/4 SUCCESS**, 13 unit cases per OS |
+| Other PR workflows | [PR #649 Checks](https://github.com/july-rust/BoardSI/pull/649/checks), exact HEAD | **9/9 SUCCESS** |
+| Independent Codex | PR #649 exact HEAD review state | **COMPLETED, 0 findings, 0 unresolved** after four fixed P2 findings |
+| Inline review threads | [PR #649](https://github.com/july-rust/BoardSI/pull/649) | **0 unresolved** |
+| Protected squash | [main `3108587d`](https://github.com/july-rust/BoardSI/commit/3108587d363f671dfc0dd66fefefcdccabcd255f) | **MERGED**, single parent |
+| Merge commit signature | [GitHub commit REST](https://api.github.com/repos/july-rust/BoardSI/commits/3108587d363f671dfc0dd66fefefcdccabcd255f) | **Verified=true, reason=valid** |
+| Exact main Push | [GitHub run query](https://api.github.com/repos/july-rust/BoardSI/actions/runs?head_sha=3108587d363f671dfc0dd66fefefcdccabcd255f&event=push&per_page=100) | **PENDING** until all jobs finish |
+| Rust production Writer/Reader | F_003 | **NOT_RUN**, no false assertion |
+| CAD lossless round-trip, migration Golden | F_004–F_005 | **NOT_RUN**, product status unchanged |
+
+This receipt is **provisional until exact merged main Push 9/9 finishes**. Update the single checklist only after that independent run check. Original A~D/Security/U/T counters **166 checked / 128 unchecked** remain unchanged.
