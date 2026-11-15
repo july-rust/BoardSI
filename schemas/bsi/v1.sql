@@ -127,11 +127,11 @@ CREATE TABLE material_properties (
   material_id INTEGER NOT NULL REFERENCES materials(object_id) ON DELETE RESTRICT,
   property_key TEXT NOT NULL CHECK(property_key IN ('Dk','Df','Conductivity','ValidBand')),
   status TEXT NOT NULL CHECK(status IN ('Missing','Assumed','Confirmed')),
-  value_b64 BLOB,
+  value_blob BLOB,
   document TEXT, revision TEXT, method TEXT, reference_frequency_hz REAL, temperature_c REAL,
   PRIMARY KEY(material_id,property_key),
-  CHECK((status='Missing' AND value_b64 IS NULL AND document IS NULL AND revision IS NULL AND method IS NULL)
-      OR (status IN ('Assumed','Confirmed') AND value_b64 IS NOT NULL AND document IS NOT NULL
+  CHECK((status='Missing' AND value_blob IS NULL AND document IS NULL AND revision IS NULL AND method IS NULL)
+      OR (status IN ('Assumed','Confirmed') AND value_blob IS NOT NULL AND document IS NOT NULL
           AND revision IS NOT NULL AND method IS NOT NULL))
 ) STRICT, WITHOUT ROWID;
 
