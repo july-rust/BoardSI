@@ -1,6 +1,7 @@
 //! Only after a complete SQLite and Canonical validation is a board returned.
 use crate::{invalid, NativeError, Result};
 use crate::{read, write};
+use crate::recovery::{recover_owned_staging, StageOwner};
 use boardsi_model::BoardModel;
 use rusqlite::{limits::Limit, Connection, OpenFlags};
 use sha2::{Digest, Sha256};
@@ -252,6 +253,8 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
     if dest.is_dir() {
         return Err(invalid("destination is directory"));
     }
+    // Recover only previously abandoned, independently locked staging pairs.
+    recover_owned_staging(parent)?;
     // Never destroy an existing file with unpreservable optional extensions,
     // unsupported source verification claims, future schema or corruption.
     if dest.exists() {
@@ -279,6 +282,13 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
         }
     }
     let stage = stage.ok_or_else(|| invalid("staging name collision"))?;
+    let owner = match StageOwner::acquire(&stage) {
+        Ok(owner) => owner,
+        Err(e) => {
+            let _ = fs::remove_file(&stage);
+            return Err(e.into());
+        }
+    };
     let result = (|| -> Result<()> {
         let mut conn = Connection::open(&stage)?;
         restrict_connection(&conn);
@@ -303,8 +313,6 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
         qualification_before_replace()?;
         replace(&stage, dest)
     })();
-    if result.is_err() {
-        let _ = fs::remove_file(&stage);
-    }
+    drop(owner); // Removes the unused stage and releases/removes its marker.
     result
 }
