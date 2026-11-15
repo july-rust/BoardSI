@@ -1,0 +1,25 @@
+name: F002 Native SQLite Schema
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  sqlite_schema:
+    name: SQLite v1 DDL / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022, windows-11-arm, macos-15]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup Python for host-native SQLite
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Execute F002 DDL and byte-vector contract tests
+        shell: bash
+        run: python -m unittest discover -s tools/validation -p 'test_f002_schema.py' -v
