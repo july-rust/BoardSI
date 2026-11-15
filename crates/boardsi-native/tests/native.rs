@@ -722,3 +722,94 @@ fn source_file_total_budget_rejects_over_100k_before_writing() {
     assert_eq!(save(&output, &board).err().unwrap().code(), "BSI_INVALID");
     assert!(!output.exists());
 }
+
+#[test]
+fn nonempty_connectivity_graph_round_trip_and_corrupt_witness_fail_closed() {
+    let mut board = fixture();
+    let source = board.frames[0].meta.id.source.clone();
+    let frame = board.frames[0].meta.id.clone();
+    let layer = board.stackup.layers[0].meta.id.clone();
+    let meta = |kind, key: &str| ObjectMeta {
+        id: ObjectId::new(&source, kind, key, ""),
+        provenance: GeometryProvenance {
+            source_object_type: "synthetic-contact-evidence".into(),
+            history: vec![],
+        },
+    };
+    let net = meta(ObjectKind::Net, "NET_A");
+    let net_id = net.id.clone();
+    board.nets.push(Net {
+        meta: net,
+        name: "NET_A".into(),
+        role: NetRole::Signal,
+    });
+    board.traces[0].net = Some(net_id.clone());
+    let first_trace = board.traces[0].meta.id.clone();
+    let second_trace = meta(ObjectKind::Trace, "T2");
+    let second_trace_id = second_trace.id.clone();
+    board.traces.push(Trace {
+        meta: second_trace,
+        layer: layer.clone(),
+        net: Some(net_id),
+        centreline: vec![
+            Point {
+                frame: frame.clone(),
+                ticks: [10000, 0],
+            },
+            Point {
+                frame,
+                ticks: [20000, 0],
+            },
+        ],
+        width_m: Rational::new(1, 100_000).unwrap(),
+    });
+    let node_a = meta(ObjectKind::Node, "TRACE-T1-END");
+    let node_b = meta(ObjectKind::Node, "TRACE-T2-START");
+    let (a, b) = (node_a.id.clone(), node_b.id.clone());
+    board.connectivity.nodes.push(ConnectivityNode {
+        meta: node_a,
+        conductor: first_trace,
+        layer: layer.clone(),
+        site: ContactSite::TraceVertex(1),
+    });
+    board.connectivity.nodes.push(ConnectivityNode {
+        meta: node_b,
+        conductor: second_trace_id,
+        layer,
+        site: ContactSite::TraceVertex(0),
+    });
+    board.connectivity.edges.push(ConnectivityEdge {
+        meta: meta(ObjectKind::Edge, "T1-T2-JOINT"),
+        a,
+        b,
+        evidence: ConnectionEvidence::SameLayerContact {
+            evidence: "source-declared coincident endpoints".into(),
+        },
+    });
+    assert!(
+        !board.validate().has_errors(),
+        "synthetic contact must be valid"
+    );
+    let file = path("graph-contact-evidence");
+    save(&file, &board).unwrap();
+    let recovered = load(&file).unwrap();
+    assert!(!recovered.is_read_only());
+    assert_eq!(
+        recovered.model(),
+        &board,
+        "complete nonempty graph must round trip"
+    );
+    drop(recovered);
+
+    // A valid SQLite enum mutation must still be rejected by native semantic validation.
+    let conn = rusqlite::Connection::open(&file).unwrap();
+    conn.execute(
+        "UPDATE connectivity_nodes SET witness_kind='PadCentre', trace_vertex_index=NULL \
+         WHERE object_id=(SELECT MIN(object_id) FROM connectivity_nodes)",
+        [],
+    )
+    .unwrap();
+    drop(conn);
+    assert_eq!(load(&file).err().unwrap().code(), "BSI_INVALID");
+    std::fs::remove_file(&file).unwrap();
+}
