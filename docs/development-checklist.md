@@ -4,7 +4,7 @@
 >
 > 현재 상태는 **이 파일 하나**에 기록합니다. 기존 2,802줄의 상세 내용은 [변경 전 커밋의 불변 원본](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md)에서 확인하세요. 기존 Git 커밋을 직접 참조하므로 원본 내부 상대경로 증거 링크도 그대로 동작합니다. 과거 원장은 두 번째 현행 체크리스트가 아닙니다.
 
-**바로가기:** [현황](#stage-overview) · [E 작업](#stage-e) · [차단](#blocked) · [A~D](#stage-history) · [U/T](#stage-acceptance) · [항목별 체크 증거](#check-evidence)
+**바로가기:** [현황](#stage-overview) · [E 작업](#stage-e) · [F 작업](#stage-f) · [차단](#blocked) · [A~D](#stage-history) · [U/T](#stage-acceptance) · [항목별 체크 증거](#check-evidence)
 
 <a id="stage-overview"></a>
 ## 1. 전체 현황
@@ -61,8 +61,17 @@
 
 > **E_030은 E 시리즈 마지막 작업입니다.** E 작업별 한정 결과는 전체 제품 인수가 아니며, E_030 PR 최종 보호 병합·사후 확인 뒤에 행정 종료합니다.
 
+<a id="stage-f"></a>
+## 3. F 단계 — Native `.bsi` 파일
+
+| 작업 | 핵심 결과 | 상태 | 근거 |
+| :--- | :--- | :--- | :--- |
+| **F_001** | SQLite 단일 파일·i64/i128 Geometry·52 B BLOB envelope·영구 호환성 계약 | **SPEC_PASS (문서 한정)** · 저장/로드 NOT_RUN | [규격](architecture/f001-bsi-format-contract.md) · [검증](validation/f001-bsi-format-qualification.md) |
+
+> F_001의 **규격 검토일 2026-11-15 KST**, 근거일 동일. 최종 보호 병합·사후 `main` CI는 실제 PR 실행 결과로 별도 판정합니다. 기존 **166/128 수치는 A~D·보안·U/T 기존 항목만** 집계하며 F 규격을 제품 인수에 포함하지 않습니다.
+
 <a id="blocked"></a>
-## 3. 진행 차단·후속 의무
+## 4. 진행 차단·후속 의무
 
 | 코드 | 핵심 차단 이유 | 소유 이슈 |
 | :--- | :--- | :--- |
@@ -77,7 +86,7 @@
 [차단 상세 및 재개 조건](e-stage-blocked-register.md). 감사 시작 시 **Open Issue 28개, Open PR 0개**. 과거 #41/#578은 Closed이며, 나머지 제품 이슈는 거짓 종결하지 않습니다.
 
 <a id="stage-history"></a><a id="stage-a"></a><a id="a-history-ledger"></a><a id="stage-b"></a><a id="stage-c"></a><a id="stage-d"></a><a id="stage-security"></a><a id="stage-milestones"></a>
-## 4. A~D 작업 이력
+## 5. A~D 작업 이력
 
 | 단계 | 한정 확인된 구현 | 제품에서 남은 부분 |
 | :--- | :--- | :--- |
@@ -104,7 +113,7 @@
 - <a id="d_056_09"></a> **D_056_09** · ODB++ 제한 범위 종료 · [기존 검증 기록](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md#L2757)
 
 <a id="stage-acceptance"></a>
-## 5. 정식 U/T 인수
+## 6. 정식 U/T 인수
 
 - **U01~U48:** 1건(U16 제품명 적용) 확인, 47건 정식 인수 미완.
 - **T01~T54:** 54건 모두 정식 인수 미완.
@@ -452,7 +461,7 @@
 </details>
 
 <a id="update-policy"></a><a id="documentation-ci-evidence"></a>
-## 7. 일정한 문서 양식 유지
+## 8. 일정한 문서 양식 유지
 
 1. **현재 체크리스트는 이 파일 하나.** 챙이 GitHub PR로 갱신합니다.
 2. 업무 요약은 위 표의 **해당 행 한 줄**만 고칩니다. 새 장문 보고서를 앞부분에 누적하지 않습니다.
