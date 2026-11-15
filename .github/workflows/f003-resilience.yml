@@ -35,8 +35,14 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install locked Rust
         run: rustup toolchain install 1.75.0 --profile minimal --component rustfmt
-      - name: Run 10k Geometry with wall-clock timeout and peak RSS
+      - name: Compile stress test before measurement
+        run: cargo test --locked -p boardsi-native --features f003-qualification --test native --no-run
+      - name: Run isolated 10k Geometry binary with timeout and peak RSS
         env:
           F003_STRESS_OBJECTS: '10000'
+        shell: bash
         run: |
-          timeout --signal=TERM 360s /usr/bin/time -v cargo test --locked -p boardsi-native --features f003-qualification --test native qualification_ten_thousand_geometry_round_trip_with_resource_evidence -- --exact --nocapture
+          set -euo pipefail
+          TEST_EXE=$(find target/debug/deps -maxdepth 1 -type f -name 'native-*' -perm -111 | head -n 1)
+          test -n "$TEST_EXE"
+          timeout --signal=TERM 240s /usr/bin/time -v "$TEST_EXE" qualification_ten_thousand_geometry_round_trip_with_resource_evidence --exact --nocapture
