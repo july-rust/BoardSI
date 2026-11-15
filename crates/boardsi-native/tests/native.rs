@@ -344,7 +344,11 @@ fn cross_os_reference_fixture() {
     if filename.exists() {
         let got = load(&filename).expect("cross-platform SQLite .bsi read");
         assert!(!got.is_read_only());
-        assert_eq!(got.model().clone(), expected, "lossless cross-OS Canonical equality");
+        assert_eq!(
+            got.model().clone(),
+            expected,
+            "lossless cross-OS Canonical equality"
+        );
     } else {
         assert!(
             std::env::var("F003_CROSS_OS_WRITER").as_deref() == Ok("1"),
@@ -353,7 +357,6 @@ fn cross_os_reference_fixture() {
         save(&filename, &expected).expect("native Ubuntu fixture writer");
     }
 }
-
 
 #[test]
 fn unknown_feature_and_future_schema_fail_closed() {
@@ -365,14 +368,17 @@ fn unknown_feature_and_future_schema_fail_closed() {
         [],
     ).unwrap();
     drop(conn);
-    assert!(load(&p).unwrap().is_read_only(), "unknown optional feature must prevent Save As");
+    assert!(
+        load(&p).unwrap().is_read_only(),
+        "unknown optional feature must prevent Save As"
+    );
     let conn = rusqlite::Connection::open(&p).unwrap();
     conn.execute("UPDATE features SET required=1", []).unwrap();
     drop(conn);
     assert_eq!(load(&p).err().unwrap().code(), "BSI_UNSUPPORTED_REQUIRED");
     let conn = rusqlite::Connection::open(&p).unwrap();
     conn.execute("DELETE FROM features", []).unwrap();
-    conn.pragma_update(None,"user_version",2i64).unwrap();
+    conn.pragma_update(None, "user_version", 2i64).unwrap();
     drop(conn);
     assert_eq!(load(&p).err().unwrap().code(), "BSI_FUTURE_SCHEMA");
     std::fs::remove_file(&p).unwrap();
@@ -383,7 +389,8 @@ fn verified_sha_provenance_does_not_silently_disappear() {
     let p = path("sha-verified");
     save(&p, &fixture()).unwrap();
     let conn = rusqlite::Connection::open(&p).unwrap();
-    conn.execute("UPDATE source_files SET sha_verified=1", []).unwrap();
+    conn.execute("UPDATE source_files SET sha_verified=1", [])
+        .unwrap();
     drop(conn);
     assert!(load(&p).unwrap().is_read_only());
     std::fs::remove_file(&p).unwrap();
@@ -394,7 +401,11 @@ fn sql_blob_kind_mismatch_fail_closed() {
     let p = path("sql-kind");
     save(&p, &fixture()).unwrap();
     let conn = rusqlite::Connection::open(&p).unwrap();
-    conn.execute("UPDATE geometry SET geometry_kind=2 WHERE geometry_kind=1", []).unwrap();
+    conn.execute(
+        "UPDATE geometry SET geometry_kind=2 WHERE geometry_kind=1",
+        [],
+    )
+    .unwrap();
     drop(conn);
     assert_eq!(load(&p).err().unwrap().code(), "BSI_INVALID");
     std::fs::remove_file(&p).unwrap();
@@ -408,10 +419,20 @@ fn geometry_bsig_bytes_are_deterministic_across_saves() {
     save(&a, &board).unwrap();
     save(&b, &board).unwrap();
     let read = |file: &std::path::Path| -> Vec<u8> {
-        rusqlite::Connection::open(file).unwrap()
-            .query_row("SELECT envelope FROM geometry WHERE geometry_kind=1",[],|r|r.get(0)).unwrap()
+        rusqlite::Connection::open(file)
+            .unwrap()
+            .query_row(
+                "SELECT envelope FROM geometry WHERE geometry_kind=1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap()
     };
-    assert_eq!(read(&a), read(&b), "BSIG payload bytes must be deterministic");
+    assert_eq!(
+        read(&a),
+        read(&b),
+        "BSIG payload bytes must be deterministic"
+    );
     std::fs::remove_file(&a).unwrap();
     std::fs::remove_file(&b).unwrap();
 }
@@ -437,11 +458,20 @@ fn material_property_and_layer_evidence_round_trip() {
             },
         },
         name: "FR-4".into(),
-        dk: Property::Confirmed { value: 4.4, source: evidence.clone() },
-        df: Property::Assumed { value: 0.015, source: evidence.clone() },
+        dk: Property::Confirmed {
+            value: 4.4,
+            source: evidence.clone(),
+        },
+        df: Property::Assumed {
+            value: 0.015,
+            source: evidence.clone(),
+        },
         conductivity_s_per_m: Property::Missing,
         valid_band: Property::Confirmed {
-            value: FrequencyRange { min_hz: 1.0, max_hz: 10_000_000_000.0 },
+            value: FrequencyRange {
+                min_hz: 1.0,
+                max_hz: 10_000_000_000.0,
+            },
             source: evidence.clone(),
         },
     });
@@ -451,27 +481,26 @@ fn material_property_and_layer_evidence_round_trip() {
         source: evidence.clone(),
     };
     board.stackup.layers[0].thickness_m = Property::Assumed {
-        value: Rational::new(35,1_000_000).unwrap(),
+        value: Rational::new(35, 1_000_000).unwrap(),
         source: evidence,
     };
-    let p=path("material-evidence");
-    save(&p,&board).unwrap();
-    assert_eq!(load(&p).unwrap().model().clone(),board);
+    let p = path("material-evidence");
+    save(&p, &board).unwrap();
+    assert_eq!(load(&p).unwrap().model().clone(), board);
     std::fs::remove_file(&p).unwrap();
 }
-
 
 #[test]
 fn unversioned_extra_schema_must_fail_closed() {
     let p = path("schema-drift");
-    save(&p,&fixture()).unwrap();
+    save(&p, &fixture()).unwrap();
     let conn = rusqlite::Connection::open(&p).unwrap();
-    conn.execute_batch("CREATE TABLE hidden_vendor_payload(data BLOB) STRICT").unwrap();
+    conn.execute_batch("CREATE TABLE hidden_vendor_payload(data BLOB) STRICT")
+        .unwrap();
     drop(conn);
-    assert_eq!(load(&p).err().unwrap().code(),"BSI_INVALID");
+    assert_eq!(load(&p).err().unwrap().code(), "BSI_INVALID");
     std::fs::remove_file(&p).unwrap();
 }
-
 
 #[test]
 fn save_never_overwrites_read_only_unknown_optional_feature() {
@@ -483,18 +512,23 @@ fn save_never_overwrites_read_only_unknown_optional_feature() {
     drop(conn);
     assert!(load(&p).unwrap().is_read_only());
     let original = std::fs::read(&p).unwrap();
-    assert_eq!(save(&p,&board).err().unwrap().code(),"BSI_UNSUPPORTED_REQUIRED");
-    assert_eq!(std::fs::read(&p).unwrap(),original);
+    assert_eq!(
+        save(&p, &board).err().unwrap().code(),
+        "BSI_UNSUPPORTED_REQUIRED"
+    );
+    assert_eq!(std::fs::read(&p).unwrap(), original);
     std::fs::remove_file(&p).unwrap();
 }
-
 
 #[test]
 fn relative_destination_sync_does_not_report_failure_after_replace() {
     let filename = format!(
         "f003-relative-{}-{}.bsi",
         std::process::id(),
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
     );
     let relative = std::path::PathBuf::from(filename);
     let board = BoardModel::empty(BoardKind::Pcb);
@@ -506,14 +540,15 @@ fn relative_destination_sync_does_not_report_failure_after_replace() {
 #[test]
 fn sqlite_internal_prefix_is_literal_not_like_wildcard() {
     let p = path("sqlite-name-prefix");
-    save(&p,&fixture()).unwrap();
+    save(&p, &fixture()).unwrap();
     let conn = rusqlite::Connection::open(&p).unwrap();
     conn.execute_batch(
         "CREATE TABLE sqliteXvendor(data BLOB) STRICT;\
-         INSERT INTO sqliteXvendor VALUES(X'DEADBEEF');"
-    ).unwrap();
+         INSERT INTO sqliteXvendor VALUES(X'DEADBEEF');",
+    )
+    .unwrap();
     drop(conn);
-    assert_eq!(load(&p).err().unwrap().code(),"BSI_INVALID");
+    assert_eq!(load(&p).err().unwrap().code(), "BSI_INVALID");
     std::fs::remove_file(&p).unwrap();
 }
 
@@ -523,65 +558,78 @@ fn unrepresentable_geometry_relation_columns_fail_closed() {
     let source = board.frames[0].meta.id.source.clone();
     let layer = board.stackup.layers[0].meta.id.clone();
     let frame = board.frames[0].meta.id.clone();
-    let stack_id = ObjectId::new(&source,ObjectKind::Padstack,"PS-RELS","");
+    let stack_id = ObjectId::new(&source, ObjectKind::Padstack, "PS-RELS", "");
     let provenance = GeometryProvenance {
         source_object_type: "synthetic".into(),
         history: vec![],
     };
     board.padstacks.push(Padstack {
-        meta: ObjectMeta { id: stack_id.clone(), provenance: provenance.clone() },
+        meta: ObjectMeta {
+            id: stack_id.clone(),
+            provenance: provenance.clone(),
+        },
         entries: vec![PadstackLayer {
             layer: layer.clone(),
             role: PadRole::Conductive,
             shape: PadShape::Circle {
-                diameter_m: Rational::new(1,10_000).unwrap(),
+                diameter_m: Rational::new(1, 10_000).unwrap(),
             },
         }],
     });
     board.pads.push(Pad {
         meta: ObjectMeta {
-            id: ObjectId::new(&source,ObjectKind::Pad,"PAD-RELS",""),
+            id: ObjectId::new(&source, ObjectKind::Pad, "PAD-RELS", ""),
             provenance,
         },
-        position: Point {frame,ticks:[50,50]},
+        position: Point {
+            frame,
+            ticks: [50, 50],
+        },
         orientation: Orientation::Orthogonal {
-            turn: QuarterTurn::Zero,mirror_x:false,
+            turn: QuarterTurn::Zero,
+            mirror_x: false,
         },
         padstack: stack_id,
         net: None,
     });
-    let p=path("sql-extra-rel");
-    save(&p,&board).unwrap();
-    let conn=rusqlite::Connection::open(&p).unwrap();
+    let p = path("sql-extra-rel");
+    save(&p, &board).unwrap();
+    let conn = rusqlite::Connection::open(&p).unwrap();
     conn.execute_batch(
         "UPDATE geometry SET padstack_id=(SELECT object_id FROM geometry WHERE geometry_kind=5) \
-         WHERE geometry_kind=1;"
-    ).unwrap();
+         WHERE geometry_kind=1;",
+    )
+    .unwrap();
     drop(conn);
-    assert_eq!(load(&p).err().unwrap().code(),"BSI_INVALID");
-    let conn=rusqlite::Connection::open(&p).unwrap();
+    assert_eq!(load(&p).err().unwrap().code(), "BSI_INVALID");
+    let conn = rusqlite::Connection::open(&p).unwrap();
     conn.execute_batch(
         "UPDATE geometry SET padstack_id=NULL WHERE geometry_kind=1;\
          UPDATE geometry SET layer_id=(SELECT object_id FROM layers LIMIT 1) WHERE geometry_kind=6;"
     ).unwrap();
     drop(conn);
-    assert_eq!(load(&p).err().unwrap().code(),"BSI_INVALID");
+    assert_eq!(load(&p).err().unwrap().code(), "BSI_INVALID");
     std::fs::remove_file(&p).unwrap();
 }
-
 
 #[test]
 fn unknown_optional_save_as_cannot_drop_opaque_data() {
     let p = path("opaque-source");
     let other = path("opaque-save-as");
-    save(&p,&fixture()).unwrap();
+    save(&p, &fixture()).unwrap();
     let conn = rusqlite::Connection::open(&p).unwrap();
     conn.execute("INSERT INTO features(name,feature_version,required,opaque_payload) VALUES('proprietary-optional',1,0,X'CAFE')",[]).unwrap();
     drop(conn);
     let document = load(&p).unwrap();
     assert!(document.is_read_only());
-    assert_eq!(document.save_as(&other).err().unwrap().code(),"BSI_UNSUPPORTED_REQUIRED");
-    assert_eq!(document.into_editable().err().unwrap().code(),"BSI_UNSUPPORTED_REQUIRED");
+    assert_eq!(
+        document.save_as(&other).err().unwrap().code(),
+        "BSI_UNSUPPORTED_REQUIRED"
+    );
+    assert_eq!(
+        document.into_editable().err().unwrap().code(),
+        "BSI_UNSUPPORTED_REQUIRED"
+    );
     assert!(!other.exists());
     std::fs::remove_file(&p).unwrap();
 }
@@ -595,12 +643,16 @@ fn pending_rotation_cannot_hide_invalid_arc_geometry() {
     };
     let source = board.frames[0].meta.id.source.clone();
     let frame = board.frames[0].meta.id.clone();
-    let centre = Point { frame, ticks: [100, 100] };
+    let centre = Point {
+        frame,
+        ticks: [100, 100],
+    };
     board.arcs.push(boardsi_model::Arc {
         meta: ObjectMeta {
-            id: ObjectId::new(&source,ObjectKind::Arc,"PENDING-BAD-ARC",""),
+            id: ObjectId::new(&source, ObjectKind::Arc, "PENDING-BAD-ARC", ""),
             provenance: GeometryProvenance {
-                source_object_type: "synthetic".into(), history: vec![],
+                source_object_type: "synthetic".into(),
+                history: vec![],
             },
         },
         layer: board.stackup.layers[0].meta.id.clone(),
@@ -609,9 +661,9 @@ fn pending_rotation_cannot_hide_invalid_arc_geometry() {
         start: centre.clone(),
         end: centre,
         clockwise: false,
-        width_m: Rational::new(1,100_000).unwrap(),
+        width_m: Rational::new(1, 100_000).unwrap(),
     });
-    let p=path("pending-invalid-arc");
-    assert_eq!(save(&p,&board).err().unwrap().code(),"BSI_INVALID");
+    let p = path("pending-invalid-arc");
+    assert_eq!(save(&p, &board).err().unwrap().code(), "BSI_INVALID");
     assert!(!p.exists());
 }

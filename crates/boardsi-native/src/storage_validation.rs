@@ -47,14 +47,17 @@ fn boundary(board: &BoardModel, b: &Boundary) -> bool {
     for s in &b.segments {
         let (start, end) = match s {
             BoundarySegment::Line { start, end } => (start, end),
-            BoundarySegment::Arc { centre, start, end, .. } => {
+            BoundarySegment::Arc {
+                centre, start, end, ..
+            } => {
                 if !arc(board, centre, start, end) {
                     return false;
                 }
                 (start, end)
             }
         };
-        if same_point(board, start, end) || !point_exists(board, start) || !point_exists(board, end) {
+        if same_point(board, start, end) || !point_exists(board, start) || !point_exists(board, end)
+        {
             return false;
         }
         endpoints.push((start, end));
@@ -68,19 +71,29 @@ fn shape(board: &BoardModel, s: &PadShape) -> bool {
     match s {
         PadShape::Circle { diameter_m } => diameter_m.positive(),
         PadShape::Rectangle { size_m } => size_m.iter().all(|r| r.positive()),
-        PadShape::Annulus { outer_diameter_m, inner_diameter_m } => {
+        PadShape::Annulus {
+            outer_diameter_m,
+            inner_diameter_m,
+        } => {
             inner_diameter_m.positive()
                 && outer_diameter_m.positive()
                 && outer_diameter_m.checked_cmp(*inner_diameter_m).ok() == Some(Ordering::Greater)
         }
         PadShape::Thermal {
-            centre_size_m, outer_size_m, spoke_width_m,
-            first_spoke_degrees, spoke_count, ..
+            centre_size_m,
+            outer_size_m,
+            spoke_width_m,
+            first_spoke_degrees,
+            spoke_count,
+            ..
         } => {
             centre_size_m.positive()
                 && outer_size_m.checked_cmp(*centre_size_m).ok() == Some(Ordering::Greater)
                 && spoke_width_m.positive()
-                && centre_size_m.checked_cmp(*spoke_width_m).ok().is_some_and(|o| o != Ordering::Less)
+                && centre_size_m
+                    .checked_cmp(*spoke_width_m)
+                    .ok()
+                    .is_some_and(|o| o != Ordering::Less)
                 && *first_spoke_degrees < 360
                 && (1..=64).contains(spoke_count)
         }
@@ -96,11 +109,15 @@ fn copper_order(board: &BoardModel, id: &ObjectId) -> Option<u32> {
         .map(|layer| layer.order)
 }
 fn span(board: &BoardModel, s: &ViaSpan) -> Option<(u32, u32)> {
-    let (first, last) = (copper_order(board, &s.first_layer)?, copper_order(board, &s.last_layer)?);
+    let (first, last) = (
+        copper_order(board, &s.first_layer)?,
+        copper_order(board, &s.last_layer)?,
+    );
     (first < last).then_some((first, last))
 }
 fn net(board: &BoardModel, id: &Option<ObjectId>) -> bool {
-    id.as_ref().map_or(true, |net| board.nets.iter().any(|x| x.meta.id == *net))
+    id.as_ref()
+        .map_or(true, |net| board.nets.iter().any(|x| x.meta.id == *net))
 }
 fn orientation_valid(orientation: &Orientation) -> bool {
     match orientation {
@@ -144,9 +161,7 @@ pub(crate) fn valid(board: &BoardModel) -> bool {
         }
     }
     for x in &board.outlines {
-        if !boundary(board, &x.outer)
-            || x.cutouts.iter().any(|c| !boundary(board, &c.boundary))
-        {
+        if !boundary(board, &x.outer) || x.cutouts.iter().any(|c| !boundary(board, &c.boundary)) {
             return false;
         }
     }
@@ -186,7 +201,9 @@ pub(crate) fn valid(board: &BoardModel) -> bool {
         }
     }
     let all_copper: Vec<_> = board
-        .stackup.layers.iter()
+        .stackup
+        .layers
+        .iter()
         .filter(|x| x.kind == LayerKind::Copper)
         .map(|x| x.order)
         .collect();
@@ -215,21 +232,27 @@ pub(crate) fn valid(board: &BoardModel) -> bool {
             ViaKind::Through => first == minimum && last == maximum,
             ViaKind::Blind => (first == minimum) != (last == maximum),
             ViaKind::Buried => first > minimum && last < maximum,
-            ViaKind::Microvia => !all_copper.iter().any(|order| *order > first && *order < last),
+            ViaKind::Microvia => !all_copper
+                .iter()
+                .any(|order| *order > first && *order < last),
         };
-        if !kind_ok || stack.entries.iter().any(|entry| {
-            !copper_order(board, &entry.layer)
-                .is_some_and(|order| order >= first && order <= last)
-        }) {
+        if !kind_ok
+            || stack.entries.iter().any(|entry| {
+                !copper_order(board, &entry.layer)
+                    .is_some_and(|order| order >= first && order <= last)
+            })
+        {
             return false;
         }
         let mut seen = BTreeSet::new();
         for layer in &x.connected_layers {
             if !drill.plated
                 || !seen.insert(layer)
-                || !copper_order(board, layer)
-                    .is_some_and(|order| order >= first && order <= last)
-                || !stack.entries.iter().any(|e| &e.layer == layer && e.role == PadRole::Conductive)
+                || !copper_order(board, layer).is_some_and(|order| order >= first && order <= last)
+                || !stack
+                    .entries
+                    .iter()
+                    .any(|e| &e.layer == layer && e.role == PadRole::Conductive)
             {
                 return false;
             }

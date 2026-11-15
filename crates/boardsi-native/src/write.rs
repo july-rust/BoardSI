@@ -335,7 +335,11 @@ pub(crate) struct ContactLookup<'a> {
 impl<'a> ContactLookup<'a> {
     pub(crate) fn new(board: &'a BoardModel) -> Self {
         Self {
-            traces: board.traces.iter().map(|x| (x.meta.id.clone(), x)).collect(),
+            traces: board
+                .traces
+                .iter()
+                .map(|x| (x.meta.id.clone(), x))
+                .collect(),
             arcs: board.arcs.iter().map(|x| (x.meta.id.clone(), x)).collect(),
             pads: board.pads.iter().map(|x| (x.meta.id.clone(), x)).collect(),
             vias: board.vias.iter().map(|x| (x.meta.id.clone(), x)).collect(),
@@ -347,29 +351,54 @@ impl<'a> ContactLookup<'a> {
     ) -> Result<(Point, &'static str, Option<i64>, String)> {
         let (p, kind, index, evidence) = match &n.site {
             ContactSite::TraceVertex(i) => {
-                let trace = self.traces.get(&n.conductor).ok_or_else(|| invalid("trace vertex conductor"))?;
-                let p = trace.centreline.get(*i).ok_or_else(|| invalid("trace vertex bounds"))?;
+                let trace = self
+                    .traces
+                    .get(&n.conductor)
+                    .ok_or_else(|| invalid("trace vertex conductor"))?;
+                let p = trace
+                    .centreline
+                    .get(*i)
+                    .ok_or_else(|| invalid("trace vertex bounds"))?;
                 (p.clone(), "TraceVertex", Some(*i as i64), String::new())
             }
             ContactSite::TraceInterior(p) => (p.clone(), "TraceInterior", None, String::new()),
             ContactSite::ArcStart | ContactSite::ArcEnd => {
-                let a = self.arcs.get(&n.conductor).ok_or_else(|| invalid("arc contact conductor"))?;
+                let a = self
+                    .arcs
+                    .get(&n.conductor)
+                    .ok_or_else(|| invalid("arc contact conductor"))?;
                 (
-                    if matches!(n.site, ContactSite::ArcStart) { a.start.clone() } else { a.end.clone() },
-                    if matches!(n.site, ContactSite::ArcStart) { "ArcStart" } else { "ArcEnd" },
-                    None, String::new(),
+                    if matches!(n.site, ContactSite::ArcStart) {
+                        a.start.clone()
+                    } else {
+                        a.end.clone()
+                    },
+                    if matches!(n.site, ContactSite::ArcStart) {
+                        "ArcStart"
+                    } else {
+                        "ArcEnd"
+                    },
+                    None,
+                    String::new(),
                 )
             }
             ContactSite::PadCentre => {
-                let x = self.pads.get(&n.conductor).ok_or_else(|| invalid("pad conductor"))?;
+                let x = self
+                    .pads
+                    .get(&n.conductor)
+                    .ok_or_else(|| invalid("pad conductor"))?;
                 (x.position.clone(), "PadCentre", None, String::new())
             }
             ContactSite::ViaCentre => {
-                let x = self.vias.get(&n.conductor).ok_or_else(|| invalid("via conductor"))?;
+                let x = self
+                    .vias
+                    .get(&n.conductor)
+                    .ok_or_else(|| invalid("via conductor"))?;
                 (x.position.clone(), "ViaCentre", None, String::new())
             }
-            ContactSite::AreaWitness { point, evidence } =>
-                (point.clone(), "AreaWitness", None, evidence.clone()),
+            ContactSite::AreaWitness { point, evidence } => {
+                (point.clone(), "AreaWitness", None, evidence.clone())
+            }
             ContactSite::AreaInterior(p) => (p.clone(), "AreaInterior", None, String::new()),
         };
         Ok((p, kind, index, evidence))

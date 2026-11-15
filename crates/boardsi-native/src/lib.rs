@@ -55,7 +55,10 @@ fn storage_valid(board: &boardsi_model::BoardModel) -> bool {
     let report = board.validate();
     let projection_incomplete = report.issues.iter().any(|issue| {
         issue.severity == Severity::Error
-            && matches!(issue.error, ModelError::UnsupportedTransform | ModelError::PrecisionLoss)
+            && matches!(
+                issue.error,
+                ModelError::UnsupportedTransform | ModelError::PrecisionLoss
+            )
     });
     // Contact evidence cannot be independently validated if frame projection is pending.
     // Reject that narrower case rather than accepting an unverified electrical graph.
