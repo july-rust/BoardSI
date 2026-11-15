@@ -20,7 +20,6 @@ fn lock(file: &File) -> io::Result<bool> {
 }
 #[cfg(windows)]
 #[repr(C)]
-#[derive(Default)]
 struct Overlapped {
     internal: usize, internal_high: usize, offset: u32,
     offset_high: u32, event: *mut std::ffi::c_void,
@@ -33,7 +32,7 @@ fn lock(file: &File) -> io::Result<bool> {
         fn LockFileEx(file: *mut std::ffi::c_void, flags: u32, reserved: u32,
                       low: u32, high: u32, overlapped: *mut Overlapped) -> i32;
     }
-    let mut overlap = Overlapped::default();
+    let mut overlap: Overlapped = unsafe { std::mem::zeroed() };
     // The lock is a single byte and is held until this handle is closed.
     let rc = unsafe { LockFileEx(file.as_raw_handle() as _, 0x3, 0, 1, 0, &mut overlap) };
     if rc != 0 { return Ok(true); }
@@ -50,7 +49,7 @@ fn stage_name(stage: &Path) -> io::Result<String> {
     let name = stage.file_name().and_then(|n| n.to_str())
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "staging name"))?;
     if !name.starts_with(PREFIX) || name.len() > 140 ||
-        !name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_')) {
+        !name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.')) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "staging name"));
     }
     Ok(name.to_owned())
@@ -103,7 +102,7 @@ pub fn recover_owned_staging(dir: &Path) -> io::Result<usize> {
             Ok(true) => {}, Ok(false) => continue, Err(_) => continue,
         }
         let mut bytes = Vec::new();
-        if file.take(256).read_to_end(&mut bytes).is_err() ||
+        if (&mut file).take(256).read_to_end(&mut bytes).is_err() ||
             bytes != format!("{MAGIC}{base}\n").as_bytes() { continue; }
         // Missing stage means the process already replaced the destination,
         // then crashed before cleaning its marker.
