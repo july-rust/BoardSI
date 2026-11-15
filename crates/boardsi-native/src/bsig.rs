@@ -35,7 +35,10 @@ fn read_u64(x: &[u8]) -> u64 {
 }
 fn slice(data: &[u8], off: &mut usize, len: usize) -> Result<Vec<u8>> {
     let end = off.checked_add(len).ok_or_else(|| invalid("overflow"))?;
-    let bytes = data.get(*off..end).ok_or_else(|| invalid("truncated field"))?.to_vec();
+    let bytes = data
+        .get(*off..end)
+        .ok_or_else(|| invalid("truncated field"))?
+        .to_vec();
     *off = end;
     Ok(bytes)
 }
@@ -76,9 +79,20 @@ fn boundary(bytes: &[u8]) -> Result<()> {
     }
     let mut pos = 4usize;
     for _ in 0..count {
-        let tag = *bytes.get(pos).ok_or_else(|| invalid("boundary truncated"))?;
-        let segment_size = match tag { 1 => 41, 2 => 62, _ => return Err(invalid("boundary tag")) };
-        let seg = bytes.get(pos..pos.checked_add(segment_size).ok_or_else(|| invalid("overflow"))?)
+        let tag = *bytes
+            .get(pos)
+            .ok_or_else(|| invalid("boundary truncated"))?;
+        let segment_size = match tag {
+            1 => 41,
+            2 => 62,
+            _ => return Err(invalid("boundary tag")),
+        };
+        let seg = bytes
+            .get(
+                pos..pos
+                    .checked_add(segment_size)
+                    .ok_or_else(|| invalid("overflow"))?,
+            )
             .ok_or_else(|| invalid("boundary data"))?;
         match tag {
             1 => {
@@ -97,26 +111,38 @@ fn boundary(bytes: &[u8]) -> Result<()> {
         }
         pos += segment_size;
     }
-    if pos != bytes.len() { return Err(invalid("boundary trailing bytes")); }
+    if pos != bytes.len() {
+        return Err(invalid("boundary trailing bytes"));
+    }
     Ok(())
 }
 fn refs(bytes: &[u8]) -> Result<()> {
-    if bytes.len() < 4 { return Err(invalid("short ref list")); }
+    if bytes.len() < 4 {
+        return Err(invalid("short ref list"));
+    }
     let count = read_u32(&bytes[..4]) as usize;
-    if count > MAX_REFS || 4usize.checked_add(count.checked_mul(4).ok_or_else(|| invalid("overflow"))?)
-        != Some(bytes.len()) {
+    if count > MAX_REFS
+        || 4usize.checked_add(count.checked_mul(4).ok_or_else(|| invalid("overflow"))?)
+            != Some(bytes.len())
+    {
         return Err(invalid("ref count/size"));
     }
     Ok(())
 }
 fn padstack(bytes: &[u8]) -> Result<()> {
-    if bytes.len() < 4 { return Err(invalid("short padstack")); }
+    if bytes.len() < 4 {
+        return Err(invalid("short padstack"));
+    }
     let count = read_u32(&bytes[..4]) as usize;
-    if count == 0 || count > MAX_REFS { return Err(invalid("padstack count")); }
+    if count == 0 || count > MAX_REFS {
+        return Err(invalid("padstack count"));
+    }
     let mut pos = 4usize;
     for _ in 0..count {
         let end = pos.checked_add(12).ok_or_else(|| invalid("overflow"))?;
-        let entry = bytes.get(pos..end).ok_or_else(|| invalid("short padstack entry"))?;
+        let entry = bytes
+            .get(pos..end)
+            .ok_or_else(|| invalid("short padstack entry"))?;
         let role = entry[4];
         let shape = entry[5];
         let reserved = read_u16(&entry[6..8]);
@@ -124,7 +150,8 @@ fn padstack(bytes: &[u8]) -> Result<()> {
         if role > 2 || shape > 4 || reserved != 0 {
             return Err(invalid("padstack role/shape"));
         }
-        let body = bytes.get(end..end.checked_add(length).ok_or_else(|| invalid("overflow"))?)
+        let body = bytes
+            .get(end..end.checked_add(length).ok_or_else(|| invalid("overflow"))?)
             .ok_or_else(|| invalid("short padstack shape"))?;
         match shape {
             0 if length == 32 => reduced_rational(body)?,
@@ -133,7 +160,9 @@ fn padstack(bytes: &[u8]) -> Result<()> {
                 reduced_rational(&body[32..64])?;
             }
             3 if length == 103 => {
-                if body[0] > 1 { return Err(invalid("thermal bool")); }
+                if body[0] > 1 {
+                    return Err(invalid("thermal bool"));
+                }
                 for start in [1, 33, 65] {
                     reduced_rational(&body[start..start + 32])?;
                 }
@@ -146,7 +175,9 @@ fn padstack(bytes: &[u8]) -> Result<()> {
         }
         pos = end + length;
     }
-    if pos != bytes.len() { return Err(invalid("padstack trailing data")); }
+    if pos != bytes.len() {
+        return Err(invalid("padstack trailing data"));
+    }
     Ok(())
 }
 fn validate_field(f: &Field) -> Result<()> {
@@ -159,19 +190,30 @@ fn validate_field(f: &Field) -> Result<()> {
         5 => reduced_rational(b)?,
         6 => point(b)?,
         7 => {
-            if b.len() < 4 { return Err(invalid("short point list")); }
+            if b.len() < 4 {
+                return Err(invalid("short point list"));
+            }
             let count = read_u32(&b[..4]) as usize;
-            if count < 2 || 4usize.checked_add(count.checked_mul(20).ok_or_else(|| invalid("overflow"))?)
-                != Some(b.len()) { return Err(invalid("point list count/length")); }
-            for p in b[4..].chunks_exact(20) { point(p)?; }
+            if count < 2
+                || 4usize.checked_add(count.checked_mul(20).ok_or_else(|| invalid("overflow"))?)
+                    != Some(b.len())
+            {
+                return Err(invalid("point list count/length"));
+            }
+            for p in b[4..].chunks_exact(20) {
+                point(p)?;
+            }
         }
         8 => boundary(b)?,
         9 => refs(b)?,
         10 => {
-            if b.len() < 4 || b[1] > 1 || b[3] != 0 { return Err(invalid("orientation flags")); }
+            if b.len() < 4 || b[1] > 1 || b[3] != 0 {
+                return Err(invalid("orientation flags"));
+            }
             match b[0] {
                 0 if b.len() == 4 && b[2] <= 3 => {}
-                1 if b.len() == 12 && b[2] == 255
+                1 if b.len() == 12
+                    && b[2] == 255
                     && f64::from_le_bytes(b[4..12].try_into().expect("slice")).is_finite() => {}
                 _ => return Err(invalid("orientation kind/value")),
             }
@@ -192,9 +234,14 @@ const VIA: &[(u16, u16)] = &[(1, 6), (2, 2), (3, 12), (4, 9)];
 const DRILL: &[(u16, u16)] = &[(1, 5), (2, 1), (3, 12)];
 fn expected_fields(kind: u16) -> Result<&'static [(u16, u16)]> {
     match kind {
-        1 => Ok(TRACE), 2 => Ok(ARC), 3 | 9 => Ok(AREA),
-        4 => Ok(CUTOUT), 5 => Ok(PADSTACK), 6 => Ok(PAD),
-        7 => Ok(VIA), 8 => Ok(DRILL),
+        1 => Ok(TRACE),
+        2 => Ok(ARC),
+        3 | 9 => Ok(AREA),
+        4 => Ok(CUTOUT),
+        5 => Ok(PADSTACK),
+        6 => Ok(PAD),
+        7 => Ok(VIA),
+        8 => Ok(DRILL),
         _ => Err(invalid("unknown geometry kind")),
     }
 }
@@ -222,8 +269,13 @@ impl GeometryRecord {
         payload.extend_from_slice(&(self.fields.len() as u16).to_le_bytes());
         for f in &self.fields {
             let len = u32::try_from(f.bytes.len()).map_err(|_| invalid("field length"))?;
-            if payload.len().checked_add(8).and_then(|n| n.checked_add(f.bytes.len()))
-                .ok_or_else(|| invalid("overflow"))? > MAX_PAYLOAD {
+            if payload
+                .len()
+                .checked_add(8)
+                .and_then(|n| n.checked_add(f.bytes.len()))
+                .ok_or_else(|| invalid("overflow"))?
+                > MAX_PAYLOAD
+            {
                 return Err(invalid("payload budget"));
             }
             payload.extend_from_slice(&f.id.to_le_bytes());
@@ -245,12 +297,13 @@ impl GeometryRecord {
         if bytes.len() < ENVELOPE_LEN || bytes.len() > ENVELOPE_LEN + MAX_PAYLOAD {
             return Err(invalid("envelope budget"));
         }
-        if &bytes[0..4] != b"BSIG" || read_u16(&bytes[4..6]) != 1
-            || read_u32(&bytes[8..12]) != 0 {
+        if &bytes[0..4] != b"BSIG" || read_u16(&bytes[4..6]) != 1 || read_u32(&bytes[8..12]) != 0 {
             return Err(invalid("BSIG magic/codec/flags"));
         }
         let kind = read_u16(&bytes[6..8]);
-        if kind != expected_kind { return Err(invalid("SQL/BLOB geometry kind mismatch")); }
+        if kind != expected_kind {
+            return Err(invalid("SQL/BLOB geometry kind mismatch"));
+        }
         expected_fields(kind)?;
         let length = read_u64(&bytes[12..20]);
         if length != (bytes.len() - ENVELOPE_LEN) as u64 {
@@ -264,19 +317,29 @@ impl GeometryRecord {
             return Err(invalid("record version"));
         }
         let count = read_u16(&payload[2..4]) as usize;
-        if count == 0 || count > 64 { return Err(invalid("TLV count")); }
+        if count == 0 || count > 64 {
+            return Err(invalid("TLV count"));
+        }
         let mut fields = Vec::with_capacity(count);
         let mut pos = 4;
         for _ in 0..count {
-            let hdr = payload.get(pos..pos + 8).ok_or_else(|| invalid("TLV header"))?;
+            let hdr = payload
+                .get(pos..pos + 8)
+                .ok_or_else(|| invalid("TLV header"))?;
             let id = read_u16(&hdr[..2]);
             let ty = read_u16(&hdr[2..4]);
             let length = read_u32(&hdr[4..8]) as usize;
             pos += 8;
             let data = slice(payload, &mut pos, length)?;
-            fields.push(Field { id, ty, bytes: data });
+            fields.push(Field {
+                id,
+                ty,
+                bytes: data,
+            });
         }
-        if pos != payload.len() { return Err(invalid("TLV trailing bytes")); }
+        if pos != payload.len() {
+            return Err(invalid("TLV trailing bytes"));
+        }
         let record = Self { kind, fields };
         record.validate()?;
         Ok(record)
@@ -285,7 +348,9 @@ impl GeometryRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn field(id: u16, ty: u16, bytes: Vec<u8>) -> Field { Field { id, ty, bytes } }
+    fn field(id: u16, ty: u16, bytes: Vec<u8>) -> Field {
+        Field { id, ty, bytes }
+    }
     fn p(x: i64, y: i64) -> Vec<u8> {
         let mut b = 0u32.to_le_bytes().to_vec();
         b.extend_from_slice(&x.to_le_bytes());
@@ -298,30 +363,75 @@ mod tests {
         b
     }
     fn records() -> Vec<GeometryRecord> {
-        let p0 = p(0, 0); let p1 = p(10, 0);
+        let p0 = p(0, 0);
+        let p1 = p(10, 0);
         let mut point_list = 2u32.to_le_bytes().to_vec();
-        point_list.extend_from_slice(&p0); point_list.extend_from_slice(&p1);
-        let mut b = 1u32.to_le_bytes().to_vec(); b.push(1);
-        b.extend_from_slice(&p0); b.extend_from_slice(&p1);
+        point_list.extend_from_slice(&p0);
+        point_list.extend_from_slice(&p1);
+        let mut b = 1u32.to_le_bytes().to_vec();
+        b.push(1);
+        b.extend_from_slice(&p0);
+        b.extend_from_slice(&p1);
         let empty_refs = 0u32.to_le_bytes().to_vec();
-        let mut span = 0u32.to_le_bytes().to_vec(); span.extend_from_slice(&1u32.to_le_bytes());
+        let mut span = 0u32.to_le_bytes().to_vec();
+        span.extend_from_slice(&1u32.to_le_bytes());
         let mut entry = 1u32.to_le_bytes().to_vec();
-        entry.extend_from_slice(&0u32.to_le_bytes()); entry.extend_from_slice(&[0, 0, 0, 0]);
+        entry.extend_from_slice(&0u32.to_le_bytes());
+        entry.extend_from_slice(&[0, 0, 0, 0]);
         entry.extend_from_slice(&32u32.to_le_bytes());
         entry.extend_from_slice(&rational(1, 10));
         vec![
-            GeometryRecord {kind:1,fields:vec![field(1,7,point_list),field(2,5,rational(1,10))]},
-            GeometryRecord {kind:2,fields:vec![field(1,6,p0.clone()),field(2,6,p1.clone()),
-                field(3,6,p0.clone()),field(4,1,vec![1]),field(5,5,rational(1,10))]},
-            GeometryRecord {kind:3,fields:vec![field(1,8,b.clone()),field(2,9,empty_refs.clone())]},
-            GeometryRecord {kind:4,fields:vec![field(1,8,b.clone())]},
-            GeometryRecord {kind:5,fields:vec![field(1,11,entry)]},
-            GeometryRecord {kind:6,fields:vec![field(1,6,p0.clone()),field(2,10,vec![0,0,0,0])]},
-            GeometryRecord {kind:7,fields:vec![field(1,6,p0.clone()),field(2,2,vec![0]),
-                field(3,12,span.clone()),field(4,9,empty_refs.clone())]},
-            GeometryRecord {kind:8,fields:vec![field(1,5,rational(1,10)),field(2,1,vec![1]),
-                field(3,12,span)]},
-            GeometryRecord {kind:9,fields:vec![field(1,8,b),field(2,9,empty_refs)]},
+            GeometryRecord {
+                kind: 1,
+                fields: vec![field(1, 7, point_list), field(2, 5, rational(1, 10))],
+            },
+            GeometryRecord {
+                kind: 2,
+                fields: vec![
+                    field(1, 6, p0.clone()),
+                    field(2, 6, p1.clone()),
+                    field(3, 6, p0.clone()),
+                    field(4, 1, vec![1]),
+                    field(5, 5, rational(1, 10)),
+                ],
+            },
+            GeometryRecord {
+                kind: 3,
+                fields: vec![field(1, 8, b.clone()), field(2, 9, empty_refs.clone())],
+            },
+            GeometryRecord {
+                kind: 4,
+                fields: vec![field(1, 8, b.clone())],
+            },
+            GeometryRecord {
+                kind: 5,
+                fields: vec![field(1, 11, entry)],
+            },
+            GeometryRecord {
+                kind: 6,
+                fields: vec![field(1, 6, p0.clone()), field(2, 10, vec![0, 0, 0, 0])],
+            },
+            GeometryRecord {
+                kind: 7,
+                fields: vec![
+                    field(1, 6, p0.clone()),
+                    field(2, 2, vec![0]),
+                    field(3, 12, span.clone()),
+                    field(4, 9, empty_refs.clone()),
+                ],
+            },
+            GeometryRecord {
+                kind: 8,
+                fields: vec![
+                    field(1, 5, rational(1, 10)),
+                    field(2, 1, vec![1]),
+                    field(3, 12, span),
+                ],
+            },
+            GeometryRecord {
+                kind: 9,
+                fields: vec![field(1, 8, b), field(2, 9, empty_refs)],
+            },
         ]
     }
     #[test]
@@ -336,27 +446,28 @@ mod tests {
     fn corruptions_fail_closed() {
         for r in records() {
             let mut bytes = r.encode().unwrap();
-            bytes[bytes.len()-1] ^= 1;
+            bytes[bytes.len() - 1] ^= 1;
             assert!(GeometryRecord::decode(&bytes, r.kind).is_err());
         }
     }
     #[test]
     fn rejects_unreduced_and_pending_nan() {
-        let mut r=records().remove(0);
-        r.fields[1].bytes=rational(2,4);
+        let mut r = records().remove(0);
+        r.fields[1].bytes = rational(2, 4);
         assert!(r.encode().is_err());
-        let mut p=records().remove(5);
-        let mut o=vec![1,0,255,0]; o.extend_from_slice(&f64::NAN.to_le_bytes());
-        p.fields[1].bytes=o;
+        let mut p = records().remove(5);
+        let mut o = vec![1, 0, 255, 0];
+        o.extend_from_slice(&f64::NAN.to_le_bytes());
+        p.fields[1].bytes = o;
         assert!(p.encode().is_err());
     }
     #[test]
     fn exact_i64_extremes() {
-        let mut r=records().remove(0);
-        let mut points=2u32.to_le_bytes().to_vec();
-        points.extend_from_slice(&p(i64::MIN,0));
-        points.extend_from_slice(&p(i64::MAX,-1));
-        r.fields[0].bytes=points;
-        assert_eq!(GeometryRecord::decode(&r.encode().unwrap(),1).unwrap(),r);
+        let mut r = records().remove(0);
+        let mut points = 2u32.to_le_bytes().to_vec();
+        points.extend_from_slice(&p(i64::MIN, 0));
+        points.extend_from_slice(&p(i64::MAX, -1));
+        r.fields[0].bytes = points;
+        assert_eq!(GeometryRecord::decode(&r.encode().unwrap(), 1).unwrap(), r);
     }
 }

@@ -1,10 +1,10 @@
 //! BoardSI native .bsi v1; all load paths are read-only and fail-closed.
 mod bsig;
 mod encoding;
-mod shared;
-mod write;
 mod read;
+mod shared;
 mod store;
+mod write;
 pub use bsig::{Field, GeometryRecord};
 pub use store::{load, save, LoadedBoard};
 
@@ -35,9 +35,15 @@ impl std::fmt::Display for NativeError {
 }
 impl std::error::Error for NativeError {}
 impl From<std::io::Error> for NativeError {
-    fn from(e: std::io::Error) -> Self { Self::Io(e) }
+    fn from(e: std::io::Error) -> Self {
+        Self::Io(e)
+    }
 }
 impl From<rusqlite::Error> for NativeError {
-    fn from(e: rusqlite::Error) -> Self { Self::Sql(e) }
+    fn from(e: rusqlite::Error) -> Self {
+        Self::Sql(e)
+    }
 }
-fn invalid(msg: &'static str) -> NativeError { NativeError::Invalid(msg) }
+fn invalid(msg: &'static str) -> NativeError {
+    NativeError::Invalid(msg)
+}
