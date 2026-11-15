@@ -88,6 +88,21 @@
 
 **번호별 상세:** [원본 A/B/C/D 전체 색인](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md#L369). A_001~A_036의 누락된 개별 완료 증거는 추정하지 않습니다. D_018의 docs-only 관리 이력과 C_025 하위 번호도 보존합니다.
 
+<a id="d_056"></a>
+### D_056 상세 — 기존 문서 링크 호환
+
+**D_056 범용 입력 정규화는 부분 구현이며 제품 전체 인수는 미완입니다.** [원본 기술 원장](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md#L2459)
+
+- <a id="d_056_01"></a> **D_056_01** · 기존 Source 계약 감사 · [기존 검증 기록](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md#L2492)
+- <a id="d_056_02"></a> **D_056_02** · 다층 Copper 접점 후보 · [기존 검증 기록](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md#L2505)
+- <a id="d_056_03"></a> **D_056_03** · SOURCE 국소 전기 Graph · [기존 검증 기록](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md#L2526)
+- <a id="d_056_04"></a> **D_056_04** · Canonical Padstack·IPC · [기존 검증 기록](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md#L2585)
+- <a id="d_056_05"></a> **D_056_05** · 메인 Qt 다층 Via Artwork · [기존 검증 기록](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md#L2605)
+- <a id="d_056_06"></a> **D_056_06** · Thermal RT/ST SOURCE·Qt · [기존 검증 기록](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md#L2627)
+- <a id="d_056_07"></a> **D_056_07** · 제조 Hole/Slot 증거 · [기존 검증 기록](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md#L2649)
+- <a id="d_056_08"></a> **D_056_08** · ODB++ Source Adapter · [기존 검증 기록](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md#L2677)
+- <a id="d_056_09"></a> **D_056_09** · ODB++ 제한 범위 종료 · [기존 검증 기록](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md#L2757)
+
 <a id="stage-acceptance"></a>
 ## 5. 정식 U/T 인수
 
