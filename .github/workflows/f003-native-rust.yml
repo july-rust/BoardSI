@@ -1,0 +1,30 @@
+name: F003 Native BSI Rust
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  native:
+    name: Rust SQLite BSIG / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022, windows-11-arm, macos-15]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install project toolchain
+        run: rustup toolchain install 1.75.0 --profile minimal --component rustfmt
+      - name: Assert lock and format
+        shell: bash
+        run: |
+          cargo fmt --all -- --check
+          cargo fetch --locked
+      - name: Run Rust native geometry and SQL tests
+        shell: bash
+        run: |
+          cargo test -p boardsi-native --locked --verbose
+          cargo test -p boardsi-native --release --locked
