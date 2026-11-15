@@ -1,0 +1,42 @@
+name: F003 Native Resilience Qualification
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: f003-resilience-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  fault:
+    name: F003 real process kill and fault boundaries / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 22
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022, windows-11-arm, macos-15]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install locked Rust
+        run: rustup toolchain install 1.75.0 --profile minimal --component rustfmt
+      - name: Check project formatting
+        run: cargo fmt --all -- --check
+      - name: Exercise actual standalone process fault boundaries
+        shell: bash
+        run: |
+          cargo test --locked -p boardsi-native --features f003-qualification --test f003_resilience -- --nocapture
+  stress:
+    name: F003 bounded 10k-geometry resource profile / Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install locked Rust
+        run: rustup toolchain install 1.75.0 --profile minimal --component rustfmt
+      - name: Run 10k Geometry with wall-clock timeout and peak RSS
+        env:
+          F003_STRESS_OBJECTS: '10000'
+        run: |
+          timeout --signal=TERM 360s /usr/bin/time -v cargo test --locked -p boardsi-native --features f003-qualification --test native qualification_ten_thousand_geometry_round_trip_with_resource_evidence -- --exact --nocapture
