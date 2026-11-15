@@ -388,7 +388,7 @@ pub(crate) fn contact_point(
     Ok((p, kind, index, evidence))
 }
 pub(crate) fn write_board(tx: &Transaction<'_>, board: &BoardModel, uuid: &str) -> Result<()> {
-    if board.validate().has_errors() {
+    if !crate::storage_valid(board) {
         return Err(invalid("canonical model validation"));
     }
     tx.execute(
