@@ -150,6 +150,17 @@ CREATE TABLE layers (
   CHECK((z_status='Missing')=(z_num_le IS NULL AND z_den_le IS NULL)),
   CHECK((thickness_status='Missing')=(thickness_num_le IS NULL AND thickness_den_le IS NULL))
 ) STRICT;
+-- Property<Rational> on each Layer has independent PropertySource evidence.
+CREATE TABLE layer_property_sources (
+  layer_id INTEGER NOT NULL REFERENCES layers(object_id) ON DELETE RESTRICT,
+  property_key TEXT NOT NULL CHECK(property_key IN ('z_m','thickness_m')),
+  document TEXT NOT NULL,
+  revision TEXT NOT NULL,
+  method TEXT NOT NULL,
+  reference_frequency_hz REAL,
+  temperature_c REAL,
+  PRIMARY KEY(layer_id,property_key)
+) STRICT, WITHOUT ROWID;
 CREATE TABLE nets (
   object_id INTEGER PRIMARY KEY REFERENCES objects(id) ON DELETE RESTRICT,
   name TEXT NOT NULL,
@@ -217,16 +228,25 @@ CREATE TABLE connectivity_nodes (
   frame_id INTEGER NOT NULL REFERENCES coordinate_frames(object_id) ON DELETE RESTRICT,
   x_ticks INTEGER NOT NULL,
   y_ticks INTEGER NOT NULL,
-  witness_kind TEXT NOT NULL
+  witness_kind TEXT NOT NULL CHECK(witness_kind IN
+    ('TraceVertex','TraceInterior','ArcStart','ArcEnd','PadCentre',
+     'ViaCentre','AreaWitness','AreaInterior')),
+  trace_vertex_index INTEGER CHECK(trace_vertex_index IS NULL OR trace_vertex_index>=0),
+  witness_evidence TEXT NOT NULL DEFAULT '',
+  CHECK((witness_kind='TraceVertex')=(trace_vertex_index IS NOT NULL))
 ) STRICT;
 CREATE TABLE connectivity_edges (
   object_id INTEGER PRIMARY KEY REFERENCES objects(id) ON DELETE RESTRICT,
   first_node INTEGER NOT NULL REFERENCES connectivity_nodes(object_id) ON DELETE RESTRICT,
   second_node INTEGER NOT NULL REFERENCES connectivity_nodes(object_id) ON DELETE RESTRICT,
-  evidence_kind TEXT NOT NULL,
+  evidence_kind TEXT NOT NULL CHECK(evidence_kind IN
+    ('SameLayerContact','ViaBarrel','AreaContinuity')),
   evidence_text TEXT NOT NULL,
+  witness_object_id INTEGER REFERENCES objects(id) ON DELETE RESTRICT,
   verified_state TEXT NOT NULL CHECK(verified_state IN ('Unverified','Candidate','SourceDeclared','Verified')),
-  CHECK(first_node<>second_node)
+  CHECK(first_node<>second_node),
+  CHECK((evidence_kind='SameLayerContact' AND length(evidence_text)>0 AND witness_object_id IS NULL)
+    OR (evidence_kind IN ('ViaBarrel','AreaContinuity') AND witness_object_id IS NOT NULL))
 ) STRICT;
 CREATE INDEX connectivity_edges_nodes ON connectivity_edges(first_node,second_node);
 
