@@ -96,7 +96,10 @@ fn schema_objects(conn: &Connection) -> Result<Vec<(String, String, Option<Strin
         if objects.len() >= 128 {
             return Err(invalid("SQLite schema object budget"));
         }
-        objects.push((row.get(0)?, row.get(1)?, row.get(2)?));
+        // Git checkout may use CRLF on Windows and LF on Unix. Preserve exact
+        // schema tokens and constraints; normalize only the platform EOL bytes.
+        let sql: Option<String> = row.get(2)?;
+        objects.push((row.get(0)?, row.get(1)?, sql.map(|v| v.replace("\\r\\n", "\\n"))));
     }
     Ok(objects)
 }
