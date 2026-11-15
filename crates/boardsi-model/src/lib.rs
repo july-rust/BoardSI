@@ -351,6 +351,9 @@ pub struct BoardModel {
     pub vias: Vec<Via>,
     pub outlines: Vec<Outline>,
     pub connectivity: ConnectivityGraph,
+    /// Fail-closed native persistence policy: models loaded with opaque optional
+    /// features or unverifiable evidence cannot be re-saved without preservation.
+    pub persistence_read_only: bool,
 }
 impl BoardModel {
     pub fn empty(kind: BoardKind) -> Self {
@@ -372,6 +375,7 @@ impl BoardModel {
             vias: Vec::new(),
             outlines: Vec::new(),
             connectivity: ConnectivityGraph::default(),
+            persistence_read_only: false,
         }
     }
 }

@@ -1,0 +1,64 @@
+name: F003 Native BSI Rust
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: f003-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  reference:
+    name: Produce Ubuntu cross-OS native fixture
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Rust 1.75
+        run: rustup toolchain install 1.75.0 --profile minimal
+      - name: Generate independent read fixture with Rust Writer
+        shell: bash
+        env:
+          F003_CROSS_OS_DIR: ${{ github.workspace }}/f003-cross-os
+          F003_CROSS_OS_WRITER: '1'
+        run: |
+          mkdir -p f003-cross-os
+          cargo test -p boardsi-native --locked --test native cross_os_reference_fixture -- --exact
+          test -s f003-cross-os/cross_os_fixture.bsi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f003-linux-native-fixture
+          path: f003-cross-os/cross_os_fixture.bsi
+          if-no-files-found: error
+          retention-days: 7
+  native:
+    needs: reference
+    name: Rust SQLite BSIG / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022, windows-11-arm, macos-15]
+    env:
+      F003_CROSS_OS_DIR: ${{ github.workspace }}/f003-cross-os
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install project toolchain
+        run: rustup toolchain install 1.75.0 --profile minimal --component rustfmt
+      - uses: actions/download-artifact@v4
+        with:
+          name: f003-linux-native-fixture
+          path: f003-cross-os
+      - name: Assert lock and format and fixture
+        shell: bash
+        run: |
+          test -s f003-cross-os/cross_os_fixture.bsi
+          cargo fmt --all -- --check
+          cargo fetch --locked
+      - name: Run Rust native geometry, SQL and cross-OS round-trip tests
+        shell: bash
+        run: |
+          cargo test -p boardsi-native --locked --verbose
+          cargo test -p boardsi-native --release --locked
