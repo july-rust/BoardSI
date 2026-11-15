@@ -103,6 +103,10 @@ fn read_source_ids(conn: &Connection) -> Result<(Vec<ImportSource>, BTreeMap<i64
                 return Err(invalid("source file provenance/path"));
             }
             let sha256: [u8; 32] = hash.try_into().map_err(|_| invalid("source hash length"))?;
+            if total_source_files >= 100_000 {
+                return Err(invalid("source file count budget"));
+            }
+            total_source_files += 1;
             files.push(SourceFile {
                 logical_path: path,
                 sha256,
