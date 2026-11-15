@@ -67,6 +67,7 @@
 | 작업 | 핵심 결과 | 상태 | 근거 |
 | :--- | :--- | :--- | :--- |
 | **F_001** | SQLite 단일 파일·i64/i128 Geometry·52 B BLOB envelope·영구 호환성 계약 | **100% COMPLETE (규격 한정)** · Writer/Reader NOT_RUN | [규격](architecture/f001-bsi-format-contract.md) · [검증](validation/f001-bsi-format-qualification.md) · [PR #647](https://github.com/july-rust/BoardSI/pull/647) |
+| **F_002** | SQLite v1 STRICT DDL·BSIG 9종 byte layout·Native SQLite 검증 | **IN_PROGRESS** — PR/CI/병합 최종 확인 전 | [스키마](architecture/f002-bsi-sqlite-schema.md) · [바이너리](architecture/f002-bsi-geometry-binary-layout.md) · [검증](validation/f002-bsi-schema-qualification.md) |
 
 > F_001 **최초 완료일·근거일: 2026-11-15 KST**. PR #647 최종 HEAD `989d3225` CI 8/8, 독립 Codex 0건, Verified Squash [`e8538172`](https://github.com/july-rust/BoardSI/commit/e8538172f7eb8d1559753fc9888371457026fde5), 정확한 `main` Push 8/8 SUCCESS. 기존 **166/128은 A~D·보안·U/T 집계**이며 F 규격과 제품 인수를 혼동하지 않습니다.
 
