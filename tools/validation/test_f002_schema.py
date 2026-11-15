@@ -194,8 +194,19 @@ def check_padstack_entries(value):
             check_boundary(body)
         elif len(body) != lengths[shape]:
             raise ValueError("padstack shape size")
-        if shape == 3 and body[0] not in (0, 1):
-            raise ValueError("thermal shape bool")
+        elif shape == 0:
+            parse_rational(body)
+        elif shape in (1, 2):
+            parse_rational(body[:32])
+            parse_rational(body[32:64])
+        elif shape == 3:
+            if body[0] not in (0, 1):
+                raise ValueError("thermal shape bool")
+            for start in (1, 33, 65):
+                parse_rational(body[start:start + 32])
+            first_angle, spokes = struct.unpack_from("<HI", body, 97)
+            if first_angle >= 360 or spokes == 0:
+                raise ValueError("thermal angles/spokes")
         pos += size
     if pos != len(value):
         raise ValueError("padstack trailing")
@@ -309,6 +320,18 @@ class F002SchemaQualification(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     decode(damaged, kind)
         self.assertEqual(encode(1, kinds[1]), encode(1, list(reversed(kinds[1]))))
+
+    def test_t05_reject_corrupt_padstack_rationals(self):
+        bad = i128(1) + i128(0)
+        for shape, body in [(0, bad), (1, rational(1, 10) + bad),
+                            (2, bad + rational(1, 10)),
+                            (3, b"\x01" + bad + rational(1, 10) +
+                             rational(1, 10) + struct.pack("<HI", 0, 4))]:
+            with self.subTest(shape=shape):
+                entry = struct.pack("<IBBHI", 0, 0, shape, 0, len(body)) + body
+                vec = encode(5, [(1, 11, struct.pack("<I", 1) + entry)])
+                with self.assertRaises(ValueError):
+                    decode(vec, 5)
 
     def test_t06_integer_rational_boundaries(self):
         self.assertEqual(parse_rational(rational(I128_MAX, 1)), (I128_MAX, 1))
