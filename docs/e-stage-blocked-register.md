@@ -1,4 +1,20 @@
-# BoardSI E 단계 — 진행 차단·외부 의존성 별도 관리
+# BoardSI E 단계 — 차단 및 이관 원장
+
+> **2026-11-15 KST E_030 감사.** 간단한 현황은 [단일 체크리스트](development-checklist.md), 전수 이관은 [E_030 최종 보고서](validation/e030-e-stage-final-closure-audit.md)를 확인합니다. 차단이 남아 있어도 E_031을 추가하지 않고 원래 기술 Issue로 추적합니다.
+
+| 코드 | 현재 상태 | 담당 Issue | 필수 재개 증거 |
+| :--- | :--- | :--- | :--- |
+| EB-01 | BLOCKED | [#10](https://github.com/july-rust/BoardSI/issues/10) | Vendor ODB++·동일 Rev CAD/권리/SHA/Oracle |
+| EB-02 | ROOT_CAUSE_UNVERIFIED | [#46](https://github.com/july-rust/BoardSI/issues/46) | Cold-host 재현·원인 분리·수정 전후 검증 |
+| EB-03 | NOT_ACCEPTED | [#165](https://github.com/july-rust/BoardSI/issues/165) | 실제 GPU·Driver·VRAM·Reset/성능 |
+| EB-04 | FAIL | [#16](https://github.com/july-rust/BoardSI/issues/16) | PH-08 원본 실패 수정·독립 재실행 |
+| EB-05 | DEPENDENCY_UNVERIFIED | [#3](https://github.com/july-rust/BoardSI/issues/3), [#6](https://github.com/july-rust/BoardSI/issues/6), [#7](https://github.com/july-rust/BoardSI/issues/7) | Fixture 권리·Clean-Host·기준 PC |
+| EB-06 | PARTIAL | [#520](https://github.com/july-rust/BoardSI/issues/520), [#532](https://github.com/july-rust/BoardSI/issues/532) | CAD 형식별 실제 Source/제조 검증 |
+| EB-07 | NOT_ACCEPTED | [#2](https://github.com/july-rust/BoardSI/issues/2) | 개별 U/T 시험 증거·독립 승인 |
+
+<details>
+<summary><strong>기존 세부 원인·증거·재개 조건 펼치기</strong></summary>
+
 
 > 기준: **2026-11-11 KST**. 실행 계획은 [E 단계 계획](e-stage-closure-plan.md), 정식 체크 상태는 [단일 개발 체크리스트](development-checklist.md)만 사용한다. 이 문서는 **기술 완료 체크리스트가 아니라 차단·이관 원장**이다.
 
@@ -41,3 +57,5 @@
 차단 원장에 등재하는 것은 **완료 처리도, 자동 이슈 Close도 아니다**. 원인·증거·재개 조건을 바꿀 때 날짜/원본 SHA를 덧붙인다. 재개 가능해지면 가장 작은 다음 E 단위로 시작하고, 해당 작업의 코드·테스트·체크리스트·PR을 한 번에 종결한다.
 
 기존 이슈를 **전혀 해결하지 못했는데 닫는 행위는 금지**한다. 열려 있어야 하는 상위/장기 이슈와, 시작한 E 번호의 실제 미완 PR을 구분해 관리한다.
+
+</details>

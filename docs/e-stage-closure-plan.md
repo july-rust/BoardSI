@@ -1,4 +1,10 @@
-# BoardSI E 단계 — 잔여 작업 종결 계획
+# BoardSI E 단계 — 최종 계획 및 역사적 실행 기록
+
+> **E_030 감사 · 2026-11-15 KST:** E_001~E_030에서 E 단계 종료, **추가 E 번호 생성 없음**. [단일 체크리스트](development-checklist.md)는 짧은 현행 상태, [최종 감사 보고서](validation/e030-e-stage-final-closure-audit.md)는 30개 Issue·검증 정산을 관리합니다. 아래 긴 실행 계획은 **2026-11-11 당시 계획 및 과거 기록**입니다. 그때의 Open 30건은 현재 숫자가 아닙니다. E_030 보호 병합·사후 검증 후 행정 종료합니다.
+
+<details>
+<summary><strong>역사적 E 단계 계획·단위별 실행 원장 펼치기</strong></summary>
+
 
 > 기준: **2026-11-11 KST**. 이 문서는 E_001 실행 전 작성한 계획을 유지하며, 아래에 E_001의 검증된 종결 이력도 추가한 **계획·인수 경계 설명서**다. 체크 상태의 유일한 정본은 [단일 개발 체크리스트](development-checklist.md)다. 진행 불가·외부 근거 부족은 [별도 의존성 원장](e-stage-blocked-register.md)에서 관리한다.
 
@@ -163,3 +169,5 @@
 ## E_021 final follow-up — 2026-11-14 KST
 
 The original [PR #620](https://github.com/july-rust/BoardSI/pull/620) was limited to the first SOURCE/Qt implementation and initially cleared the previously accepted board on rejected imports. That historical behavior is **superseded** by [PR #622](https://github.com/july-rust/BoardSI/pull/622), now merged via protected Squash as [`7ddf9210265d7e0b3ba351a2f5872def6d37772f`](https://github.com/july-rust/BoardSI/commit/7ddf9210265d7e0b3ba351a2f5872def6d37772f). Exact #622 HEAD `8c45333a4105abb9e4ba37d433c5bdd6068edeb8` **10/10 PR workflows SUCCESS**, including [Qt runtime #43417925993](https://github.com/july-rust/BoardSI/actions/runs/43417925993) Linux/Windows x64/Windows ARM64/macOS ARM64 native PASS; Linux CTest 88/88, with main ODB picking/reimport and actual PreviewWindow PADS→ODB rejection/cancel retention both PASS. Codex P2 two defects corrected (accepted PADS filename and result summary on rejected candidate); 2/2 threads resolved. Last accepted PCB scene/identity/Properties is retained upon failed, rejected, cancelled or timed-out ODB candidates. This qualification remains straight Trace/Pad SOURCE and Qt SOFTWARE, not full Copper surface/arc, vendor export, manufactured via, global electric Graph or SI. No confirmed independent Codex final-head review receipt is claimed. GitHub squash API confirmed the merge but connected tools do **not** expose `verification.verified` or exact merged-main `event=push` workflow checks; both remain **NOT_VERIFIED** (rather than PASS). Parent #10/#11 remain OPEN and #578 CLOSED. See [detailed E_021 qualification](validation/e021-odb-main-qt-import-qualification.md).
+
+</details>
