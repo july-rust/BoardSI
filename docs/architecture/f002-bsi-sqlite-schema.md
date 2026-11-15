@@ -43,7 +43,7 @@ SQL은 `source_files` 순서의 유일성과 `source_conditions` 키 유일성�
 ### 좌표 및 Unknown
 
 * `i128`은 정확한 little-endian signed 16B 두 보수. 분모>0, 분자 != MIN, 기약분수여야 한다. `0/1`은 합법, `0/0`은 아님. SQLite BLOB CHECK 길이만으로는 이 조건을 강제할 수 없다.
-* `material_properties.value_b64`는 역사적 컬럼 이름이지만 **Base64 문자열이 아닌 원본 binary64 값 또는 FrequencyRange 두 binary64를 담는 BLOB**이다. F_003 구현 시 이 의미를 반드시 고수하고 인코딩된 ASCII Base64를 넣지 않는다.
+* `material_properties.value_blob`는 **Base64 문자열이 아닌 원본 binary64 값 또는 FrequencyRange 두 binary64를 담는 BLOB**이다. F_003 구현 시 이 의미를 반드시 고수하고 인코딩된 ASCII Base64를 넣지 않는다.
 * `PendingRotation`은 f64 radians를 손실 없이 저장하고, 모델이 변환 미지원인 경우 그 상태 유지. 무단 정수화 금지.
 * `geometry_refs.ref_index`는 각 BLOB 안에서만 사용하는 **u32 로컬 순서형 참조**다. SQL row ID가 영구 ID가 아님. Writer는 참조 대상의 전체 ObjectId 의미 튜플을 정렬하여 0부터 연속 인덱스를 만들고, Reader는 대상 Kind/정렬/연속성 및 실제 Shape 요구사항을 재검증한다.
 * `geometry.geometry_kind`는 `BSIG` envelope kind와 반드시 동일해야 한다. SQL은 값 범위만 제한하며 Reader가 일치 확인.
