@@ -1,7 +1,7 @@
 //! SQL writer for the existing canonical model; no new competing board model.
 use boardsi_model::*;
 use rusqlite::{params,Transaction};
-use std::collections::{BTreeMap,BTreeSet};
+use std::collections::BTreeMap;
 use crate::{invalid,Result};
 use crate::encoding::{i128_bytes,rational_bytes,sql_orientation,Geom};
 use crate::shared::*;
@@ -178,7 +178,7 @@ fn span_order(board:&BoardModel,span:&ViaSpan)->Result<(i64,i64)>{
     if a>=b{return Err(invalid("span order"));}
     Ok((a,b))
 }
-fn contact_point(board:&BoardModel,n:&ConnectivityNode)->Result<(Point,&'static str,Option<i64>,String)>{
+pub(crate) fn contact_point(board:&BoardModel,n:&ConnectivityNode)->Result<(Point,&'static str,Option<i64>,String)>{
     let (p,kind,index,evidence)=match &n.site{
         ContactSite::TraceVertex(i)=>{
             let trace=board.traces.iter().find(|t|t.meta.id==n.conductor)
@@ -218,7 +218,7 @@ pub(crate) fn write_board(tx:&Transaction<'_>,board:&BoardModel,uuid:&str)->Resu
     for x in &board.frames{
         let id=id_of(&ids,&x.meta.id)?;
         let (mode,q,r,mirror)=sql_orientation(&x.orientation)?;
-        tx.execute("INSERT INTO coordinate_frames VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        tx.execute("INSERT INTO coordinate_frames VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
             params![id,x.unit_label,i128_bytes(x.metres_per_tick.numerator()),
                 i128_bytes(x.metres_per_tick.denominator()),
                 i128_bytes(x.origin_m[0].numerator()),i128_bytes(x.origin_m[0].denominator()),
@@ -316,6 +316,5 @@ pub(crate) fn write_board(tx:&Transaction<'_>,board:&BoardModel,uuid:&str)->Resu
     }
     // There is no diagnostics vector on BoardModel: never invent claims.
     // Unknown required fields/features are intentionally NOT materialized as native v1.
-    let _=BTreeSet::<i64>::new();
     Ok(())
 }
