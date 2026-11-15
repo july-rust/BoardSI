@@ -510,7 +510,19 @@ fn save_never_overwrites_read_only_unknown_optional_feature() {
     let conn = rusqlite::Connection::open(&p).unwrap();
     conn.execute("INSERT INTO features(name,feature_version,required,opaque_payload) VALUES('opaque-evidence',1,0,X'DEADBEEF')",[]).unwrap();
     drop(conn);
-    assert!(load(&p).unwrap().is_read_only());
+    let loaded = load(&p).unwrap();
+    assert!(loaded.is_read_only());
+    assert!(loaded.model().persistence_read_only);
+    let other = path("save-as-opaque-rejection");
+    assert_eq!(
+        save(&other, loaded.model()).err().unwrap().code(),
+        "BSI_UNSUPPORTED_REQUIRED"
+    );
+    assert_eq!(
+        loaded.save_as(&other).err().unwrap().code(),
+        "BSI_UNSUPPORTED_REQUIRED"
+    );
+    assert!(!other.exists(), "Save As must not create a lossy replacement");
     let original = std::fs::read(&p).unwrap();
     assert_eq!(
         save(&p, &board).err().unwrap().code(),
