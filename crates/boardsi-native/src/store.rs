@@ -189,6 +189,14 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
     if dest.is_dir() {
         return Err(invalid("destination is directory"));
     }
+    // Never destroy an existing file with unpreservable optional extensions,
+    // unsupported source verification claims, future schema or corruption.
+    if dest.exists() {
+        let existing = load(dest)?;
+        if existing.read_only {
+            return Err(NativeError::UnsupportedRequired);
+        }
+    }
     // Do not create a truncated destination. Acquire exclusive stage file first.
     let mut stage = None;
     for nonce in 0..16u32 {

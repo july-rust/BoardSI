@@ -471,3 +471,19 @@ fn unversioned_extra_schema_must_fail_closed() {
     assert_eq!(load(&p).err().unwrap().code(),"BSI_INVALID");
     std::fs::remove_file(&p).unwrap();
 }
+
+
+#[test]
+fn save_never_overwrites_read_only_unknown_optional_feature() {
+    let p = path("protect-optional-feature");
+    let board = fixture();
+    save(&p, &board).unwrap();
+    let conn = rusqlite::Connection::open(&p).unwrap();
+    conn.execute("INSERT INTO features(name,feature_version,required,opaque_payload) VALUES('opaque-evidence',1,0,X'DEADBEEF')",[]).unwrap();
+    drop(conn);
+    assert!(load(&p).unwrap().read_only);
+    let original = std::fs::read(&p).unwrap();
+    assert_eq!(save(&p,&board).err().unwrap().code(),"BSI_UNSUPPORTED_REQUIRED");
+    assert_eq!(std::fs::read(&p).unwrap(),original);
+    std::fs::remove_file(&p).unwrap();
+}
