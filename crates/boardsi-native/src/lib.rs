@@ -48,7 +48,6 @@ fn invalid(msg: &'static str) -> NativeError {
     NativeError::Invalid(msg)
 }
 
-
 /// Native storage retains exact data even if a solver f64 transform is not ready.
 fn storage_valid(board: &boardsi_model::BoardModel) -> bool {
     use boardsi_model::{ModelError, Severity};
@@ -65,34 +64,38 @@ fn sorted_equal<T: PartialEq>(
     b: &[T],
     key: impl Fn(&T) -> &boardsi_model::ObjectId,
 ) -> bool {
-    if a.len() != b.len() { return false; }
+    if a.len() != b.len() {
+        return false;
+    }
     let mut left: Vec<&T> = a.iter().collect();
     let mut right: Vec<&T> = b.iter().collect();
-    left.sort_by(|x,y|key(x).cmp(key(y)));
-    right.sort_by(|x,y|key(x).cmp(key(y)));
+    left.sort_by(|x, y| key(x).cmp(key(y)));
+    right.sort_by(|x, y| key(x).cmp(key(y)));
     left == right
 }
-fn same_semantics(a:&boardsi_model::BoardModel,b:&boardsi_model::BoardModel)->bool {
-    if a.kind!=b.kind {return false;}
-    let mut asrc=a.sources.iter().collect::<Vec<_>>();
-    let mut bsrc=b.sources.iter().collect::<Vec<_>>();
-    asrc.sort_by(|a,b|a.id.cmp(&b.id));
-    bsrc.sort_by(|a,b|a.id.cmp(&b.id));
-    asrc==bsrc
-        && sorted_equal(&a.frames,&b.frames,|x|&x.meta.id)
-        && sorted_equal(&a.stackup.layers,&b.stackup.layers,|x|&x.meta.id)
-        && sorted_equal(&a.materials,&b.materials,|x|&x.meta.id)
-        && sorted_equal(&a.nets,&b.nets,|x|&x.meta.id)
-        && sorted_equal(&a.components,&b.components,|x|&x.meta.id)
-        && sorted_equal(&a.pins,&b.pins,|x|&x.meta.id)
-        && sorted_equal(&a.traces,&b.traces,|x|&x.meta.id)
-        && sorted_equal(&a.arcs,&b.arcs,|x|&x.meta.id)
-        && sorted_equal(&a.areas,&b.areas,|x|&x.meta.id)
-        && sorted_equal(&a.padstacks,&b.padstacks,|x|&x.meta.id)
-        && sorted_equal(&a.pads,&b.pads,|x|&x.meta.id)
-        && sorted_equal(&a.drills,&b.drills,|x|&x.meta.id)
-        && sorted_equal(&a.vias,&b.vias,|x|&x.meta.id)
-        && sorted_equal(&a.outlines,&b.outlines,|x|&x.meta.id)
-        && sorted_equal(&a.connectivity.nodes,&b.connectivity.nodes,|x|&x.meta.id)
-        && sorted_equal(&a.connectivity.edges,&b.connectivity.edges,|x|&x.meta.id)
+fn same_semantics(a: &boardsi_model::BoardModel, b: &boardsi_model::BoardModel) -> bool {
+    if a.kind != b.kind {
+        return false;
+    }
+    let mut asrc = a.sources.iter().collect::<Vec<_>>();
+    let mut bsrc = b.sources.iter().collect::<Vec<_>>();
+    asrc.sort_by(|a, b| a.id.cmp(&b.id));
+    bsrc.sort_by(|a, b| a.id.cmp(&b.id));
+    asrc == bsrc
+        && sorted_equal(&a.frames, &b.frames, |x| &x.meta.id)
+        && sorted_equal(&a.stackup.layers, &b.stackup.layers, |x| &x.meta.id)
+        && sorted_equal(&a.materials, &b.materials, |x| &x.meta.id)
+        && sorted_equal(&a.nets, &b.nets, |x| &x.meta.id)
+        && sorted_equal(&a.components, &b.components, |x| &x.meta.id)
+        && sorted_equal(&a.pins, &b.pins, |x| &x.meta.id)
+        && sorted_equal(&a.traces, &b.traces, |x| &x.meta.id)
+        && sorted_equal(&a.arcs, &b.arcs, |x| &x.meta.id)
+        && sorted_equal(&a.areas, &b.areas, |x| &x.meta.id)
+        && sorted_equal(&a.padstacks, &b.padstacks, |x| &x.meta.id)
+        && sorted_equal(&a.pads, &b.pads, |x| &x.meta.id)
+        && sorted_equal(&a.drills, &b.drills, |x| &x.meta.id)
+        && sorted_equal(&a.vias, &b.vias, |x| &x.meta.id)
+        && sorted_equal(&a.outlines, &b.outlines, |x| &x.meta.id)
+        && sorted_equal(&a.connectivity.nodes, &b.connectivity.nodes, |x| &x.meta.id)
+        && sorted_equal(&a.connectivity.edges, &b.connectivity.edges, |x| &x.meta.id)
 }
