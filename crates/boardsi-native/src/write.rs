@@ -56,7 +56,6 @@ fn metas(board: &BoardModel) -> Vec<(&ObjectMeta, ObjectKind)> {
             v.push((&c.meta, ObjectKind::Cutout));
         }
     }
-    let contact_index = ContactLookup::new(board);
     for x in &board.connectivity.nodes {
         v.push((&x.meta, ObjectKind::Node));
     }
@@ -583,6 +582,7 @@ pub(crate) fn write_board(tx: &Transaction<'_>, board: &BoardModel, uuid: &str) 
             ],
         )?;
     }
+    let contact_index = ContactLookup::new(board);
     for x in &board.connectivity.nodes {
         let (p, kind, index, evidence) = contact_index.point(x)?;
         tx.execute(
