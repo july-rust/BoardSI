@@ -9,6 +9,9 @@ use rusqlite::{Connection, OptionalExtension};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc as Shared;
 
+type GeometryBytesById = BTreeMap<ObjectId, (Vec<u8>, Vec<(ObjectId, String)>)>;
+type PendingArea = (ObjectMeta, Boundary, Vec<ObjectId>, ObjectId, Option<ObjectId>);
+
 fn rational_pair(num: &[u8], den: &[u8]) -> Result<Rational> {
     let mut b = Vec::with_capacity(32);
     b.extend_from_slice(num);
@@ -424,7 +427,7 @@ fn check_relation(
 }
 fn exact_reencode(
     model: &BoardModel,
-    original: &BTreeMap<ObjectId, (Vec<u8>, Vec<(ObjectId, String)>)>,
+    original: &GeometryBytesById,
 ) -> Result<()> {
     use crate::encoding::Geom;
     let mut count = 0usize;
@@ -485,15 +488,9 @@ fn read_geometry(
     model: &mut BoardModel,
     objects: &BTreeMap<i64, ObjectMeta>,
 ) -> Result<()> {
-    let mut original: BTreeMap<ObjectId, (Vec<u8>, Vec<(ObjectId, String)>)> = BTreeMap::new();
+    let mut original: GeometryBytesById = BTreeMap::new();
     let mut cutouts: BTreeMap<ObjectId, (Cutout, Option<ObjectId>)> = BTreeMap::new();
-    let mut areas: Vec<(
-        ObjectMeta,
-        Boundary,
-        Vec<ObjectId>,
-        ObjectId,
-        Option<ObjectId>,
-    )> = Vec::new();
+    let mut areas: Vec<PendingArea> = Vec::new();
     let mut outlines: Vec<(ObjectMeta, Boundary, Vec<ObjectId>)> = Vec::new();
     let mut stmt=conn.prepare("SELECT object_id,geometry_kind,codec_version,envelope,layer_id,net_id,parent_geometry_id,padstack_id,first_copper_order,last_copper_order,plating FROM geometry ORDER BY object_id")?;
     let mut rows = stmt.query([])?;
