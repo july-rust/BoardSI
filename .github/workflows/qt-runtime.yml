@@ -1084,6 +1084,50 @@ jobs:
         shell: bash
         run: |
           if test -f build-qt/qt-runtime-results.json; then cat build-qt/qt-runtime-results.json; fi
+      # E_029 diagnostic-only. Run after the *entire* native M0 suite so a
+      # diagnostic failure cannot bypass earlier unchanged worker/UI assertions.
+      - name: E_029 native ABBA timer experiment (two cycles, eight processes)
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          BOARDSI_E029_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          cd build-qt
+          suffix=''
+          if test "$RUNNER_OS" = Windows; then suffix='.exe'; fi
+          idx=0
+          diag_rc=0
+          for mode in control window window control control window window control; do
+            idx=$((idx+1))
+            outfile=$(printf 'e029-ab-%02d-%s.json' "$idx" "$mode")
+            if ./boardsi-e029-timer-ab$suffix --mode "$mode" "$outfile"; then
+              trial_rc=0
+            else
+              trial_rc=$?
+            fi
+            if test "$trial_rc" -ne 0; then
+              echo "E029 trial $idx ($mode) failed: exit $trial_rc" >&2
+              diag_rc=1
+            fi
+          done
+          if python "$GITHUB_WORKSPACE/.github/scripts/e029_analyze_timer_ab.py" "$PWD"; then
+            analyzer_rc=0
+          else
+            analyzer_rc=$?
+          fi
+          if test "$analyzer_rc" -ne 0 || test "$diag_rc" -ne 0; then
+            echo "E029 diagnostic failure preserved; original Qt runtime suite already executed" >&2
+            exit 1
+          fi
+      - name: Preserve E_029 native diagnostic receipts including failure cases
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e029-native-abba-${{ env.BOARDSI_CI_NAME }}
+          path: |
+            build-qt/e029-ab-*.json
+          if-no-files-found: warn
   native-qt_windows_arm64:
     needs: classify
     # The classifier failing must NEVER suppress a required platform build.
