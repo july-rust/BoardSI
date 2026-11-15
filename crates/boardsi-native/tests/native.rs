@@ -333,3 +333,23 @@ fn all_nine_kinds_in_one_real_sqlite_file() {
     assert_eq!(read_back.model, board);
     std::fs::remove_file(&pth).unwrap();
 }
+
+#[test]
+fn cross_os_reference_fixture() {
+    let Ok(dir) = std::env::var("F003_CROSS_OS_DIR") else {
+        return; // Only run as a multi-platform fixture exchange contract.
+    };
+    let filename = std::path::Path::new(&dir).join("cross_os_fixture.bsi");
+    let expected = fixture();
+    if filename.exists() {
+        let got = load(&filename).expect("cross-platform SQLite .bsi read");
+        assert!(!got.read_only);
+        assert_eq!(got.model, expected, "lossless cross-OS Canonical equality");
+    } else {
+        assert!(
+            std::env::var("F003_CROSS_OS_WRITER").as_deref() == Ok("1"),
+            "reader must not silently regenerate missing cross-platform input"
+        );
+        save(&filename, &expected).expect("native Ubuntu fixture writer");
+    }
+}
