@@ -87,7 +87,7 @@ fn empty_board_round_trip() {
     save(&p, &b).unwrap();
     let got = load(&p).unwrap();
     assert!(!got.is_read_only());
-    assert_eq!(got.model().clone(), b);
+    assert_eq!(got.model(), &b);
     std::fs::remove_file(&p).unwrap();
 }
 #[test]
@@ -96,7 +96,7 @@ fn exact_i64_geometry_source_round_trip() {
     let b = fixture();
     save(&p, &b).unwrap();
     let got = load(&p).unwrap();
-    assert_eq!(got.model().clone(), b);
+    assert_eq!(got.model(), &b);
     std::fs::remove_file(&p).unwrap();
 }
 #[test]
@@ -330,7 +330,7 @@ fn all_nine_kinds_in_one_real_sqlite_file() {
     assert_eq!(read_back.model().drills.len(), 1);
     assert_eq!(read_back.model().outlines.len(), 1);
     assert_eq!(read_back.model().outlines[0].cutouts.len(), 1);
-    assert_eq!(read_back.model().clone(), board);
+    assert_eq!(read_back.model(), &board);
     std::fs::remove_file(&pth).unwrap();
 }
 
@@ -345,8 +345,8 @@ fn cross_os_reference_fixture() {
         let got = load(&filename).expect("cross-platform SQLite .bsi read");
         assert!(!got.is_read_only());
         assert_eq!(
-            got.model().clone(),
-            expected,
+            got.model(),
+            &expected,
             "lossless cross-OS Canonical equality"
         );
     } else {
@@ -486,7 +486,7 @@ fn material_property_and_layer_evidence_round_trip() {
     };
     let p = path("material-evidence");
     save(&p, &board).unwrap();
-    assert_eq!(load(&p).unwrap().model().clone(), board);
+    assert_eq!(load(&p).unwrap().model(), &board);
     std::fs::remove_file(&p).unwrap();
 }
 
@@ -533,7 +533,7 @@ fn relative_destination_sync_does_not_report_failure_after_replace() {
     let relative = std::path::PathBuf::from(filename);
     let board = BoardModel::empty(BoardKind::Pcb);
     save(&relative, &board).expect("safe relative filename save");
-    assert_eq!(load(&relative).unwrap().model().clone(), board);
+    assert_eq!(load(&relative).unwrap().model(), &board);
     std::fs::remove_file(&relative).unwrap();
 }
 
