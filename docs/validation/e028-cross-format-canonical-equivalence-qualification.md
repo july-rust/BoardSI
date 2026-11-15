@@ -2,7 +2,7 @@
 
 Evidence date: **2026-11-15 KST**. Baseline: protected main 557a9c685f468768ae27a1da81a58beda1a9351c (E_027 #640 merged). Parent: #532 / #520.
 
-**Status: CODE MERGED / FINAL PR-head 30/30 CHECKS PASS / independent Codex review complete / cryptographic Verified protected Squash; exact code-main push CI pending.** This is **one source-level via slice only**, not whole Canonical BoardModel parity or a product U/T acceptance.
+**Status: [x] SOURCE-LIMITED QUALIFIED (2026-11-15 KST)** — single 4-copper-layer PADS V9.4/KiCad 9 Through Via common geometry. Code PR 30/30 checks PASS, independent final-HEAD review 0/0, protected verified Squash and exact code-main Push 8/8 workflows (28/28 checks) PASS. **Full Canonical BoardModel cross-format trace/pad equivalence, manufactured electrical contact, vendor fixture and SI/product U/T remain NOT_ACCEPTED.**
 
 ## Independent numeric oracle (synthetic original, not vendor)
 
@@ -57,7 +57,7 @@ Before concluding SOURCE-LIMITED QUALIFIED, require real final HEAD Debug/Releas
 
 E_023 / EB-01 actual independent Vendor Source and same-revision CAD Oracle remain BLOCKED. Parent #532/#520 and full product U/T remain OPEN / NOT_ACCEPTED. No invented PAD contacts, electrical Graph or SI PASS.
 
-## Final observed code PR and remaining push evidence (2026-11-15 KST)
+## Final observed code PR and exact main Push evidence (2026-11-15 KST)
 
 - Code [PR #641](https://github.com/july-rust/BoardSI/pull/641) — **MERGED**.
 - Final reviewed/tested PR HEAD: `1fd050631ede26358e132d37fd44e96870b4fc41`.
@@ -65,8 +65,8 @@ E_023 / EB-01 actual independent Vendor Source and same-revision CAD Oracle rema
 - Independent Codex review on the **exact final HEAD** completed with **0 findings, 0 unresolved findings, 0 unresolved review threads**.
 - Protected Squash commit [`d882d8f7f73a78e6f3f24c00950e6d5df73fc191`](https://github.com/july-rust/BoardSI/commit/d882d8f7f73a78e6f3f24c00950e6d5df73fc191). GitHub commit REST `commit.verification.verified=true`, reason `valid`, **one parent** `557a9c685f468768ae27a1da81a58beda1a9351c`. Exact `main` ref points to this Squash.
 - Accurate original failure history: initial HEAD `0d0129a9` had `cargo fmt --check` FAIL in Numerical Core (log under [run #43654522308](https://github.com/july-rust/BoardSI/actions/runs/43654522308)); next HEAD `f74a8f88` had Native Windows x64 FAIL because `include_bytes!` saw CRLF instead of the pinned LF fixture bytes ([run #43654685289](https://github.com/july-rust/BoardSI/actions/runs/43654685289)). Both defects were corrected; historical FAIL receipts are **not** retroactively PASS.
-- New exact `main@d882d8f7` event=`push` CI **8 workflow runs exist**: Numerical #43656614970, Qt #43656615003, documentation #43656615009, PH-06 #43656615124, PH-07 #43656615032, native FEM #43656615049, synthetic G0 #43656615015, isolated FEM #43656614997. **Independent success on all 8 still PENDING when this draft was authored**, and must be checked before E_028 is marked final SOURCE-limited COMPLETE.
+- Exact code-main `d882d8f7f73a78e6f3f24c00950e6d5df73fc191`, event=`push`: **8/8 independent workflow runs completed SUCCESS and 28/28 check runs SUCCESS**. Numerical [#43656614970](https://github.com/july-rust/BoardSI/actions/runs/43656614970), Qt [#43656615003](https://github.com/july-rust/BoardSI/actions/runs/43656615003), docs [#43656615009](https://github.com/july-rust/BoardSI/actions/runs/43656615009), PH-06 [#43656615124](https://github.com/july-rust/BoardSI/actions/runs/43656615124), PH-07 [#43656615032](https://github.com/july-rust/BoardSI/actions/runs/43656615032), native FEM [#43656615049](https://github.com/july-rust/BoardSI/actions/runs/43656615049), synthetic G0 [#43656615015](https://github.com/july-rust/BoardSI/actions/runs/43656615015), isolated FEM [#43656614997](https://github.com/july-rust/BoardSI/actions/runs/43656614997). Qt Push run independently completed its Windows ARM64 native job successfully; this result is not inferred from PR-head CI.
 - The connected container has no Rust executable; native Debug/Release evidence is from real GitHub Actions runners and must not be misreported as local tests.
-- Separate docs-only final reconciliation PR, its actual final HEAD CI/merge/main Push, and checklist disposition: **PENDING**.
+- This final validation receipt, sole authoritative development checklist and E-stage closure-plan update are delivered together in docs-only [PR #642](https://github.com/july-rust/BoardSI/pull/642). The documentation PR must separately pass its final-HEAD required CI, independent code review and protected Verified Squash; final exact docs-main Push status is verified externally, not assumed from this text.
 
-**Evidence gate:** This document must be finalized against the actual exact-main Push conclusions. Any failed, canceled, skipped-required or unobserved run remains NOT_VERIFIED / BLOCKED; no automatic product promotion.
+**Evidence gate passed for this bounded SOURCE subset only.** Historical failures remain visible. Any separately failed, canceled, skipped-required or unobserved broader acceptance case stays NOT_VERIFIED / BLOCKED; **never** promote to full-board Canonical equivalence, manufactured copper or SI based on this qualification.
