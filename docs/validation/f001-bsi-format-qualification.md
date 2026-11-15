@@ -70,7 +70,21 @@ F_001에서 **추가 이슈를 생성하지 않고**, 이미 예정된 F_002 계
 
 **별도 제품 이슈:** E_030의 EB-01~EB-07 / U/T 정식 시험 미인수 상태 유지. PR CI나 docs lint가 성공해도 이를 상위 제품 PASS로 승격하지 않는다.
 
-## 5. GitHub 종료 증거
+## 5. GitHub F_001 최종 종료 증거 — 2026-11-15 KST
 
-- **작성 시점:** F_001 문서 작성·정적 검토. 최종 PR 번호, 최종 HEAD, CI/리뷰/보호 Squash, 정확한 main Push workflow는 아직 **미확정**이며 실제 GitHub 결과를 검토해 최종 보고에서 기록한다.
-- **종료 판정:** 문서 SPEC_PASS와 필수 protected PR/merge gate가 확인되면 **F_001 문서·아키텍처 작업만 한정 COMPLETE**. 실제 Native `.bsi` round-trip은 계속 NOT_RUN.
+| 게이트 | 정확한 근거 | 판정 |
+| :--- | :--- | :--- |
+| F_001 문서 | [규격 계약](../architecture/f001-bsi-format-contract.md), 본 정적 검토 F001-T01~T08 | **SPEC_PASS** (문서에 한정) |
+| 최종 PR HEAD | [PR #647](https://github.com/july-rust/BoardSI/pull/647) `989d3225fc05546164b86ea7238a1e50f3a25b2c` | **8/8 PR workflows SUCCESS** |
+| 독립 Codex 리뷰 | PR #647 Bot의 정확한 HEAD `989d3225fc` receipt 및 review summary | **COMPLETED, findings 0, unresolved 0** |
+| Review threads | PR #647 inline thread 조회 | **0 unresolved** |
+| 보호 병합 | [Squash commit](https://github.com/july-rust/BoardSI/commit/e8538172f7eb8d1559753fc9888371457026fde5) `e8538172f7eb8d1559753fc9888371457026fde5` | **MERGED**, 단일 parent `eda743fa6` |
+| Verified signature | [GitHub commit REST](https://api.github.com/repos/july-rust/BoardSI/commits/e8538172f7eb8d1559753fc9888371457026fde5): `verification.verified=true`, `reason=valid`, `verified_at=2026-11-15T07:11:05Z` | **VERIFIED** |
+| 정확한 main Push CI | [GitHub Actions REST](https://api.github.com/repos/july-rust/BoardSI/actions/runs?head_sha=e8538172f7eb8d1559753fc9888371457026fde5&event=push&per_page=100): `total_count=8`, 동일 `head_sha`/push, 모두 completed/success | **8/8 SUCCESS** |
+| Documentation job | [main push run #43688799512](https://github.com/july-rust/BoardSI/actions/runs/43688799512): `docs=success` | **SUCCESS** |
+| Native execution | 문서 변경 전용 조건으로 Rust/Qt/FEM 실제 계산 job이 `skipped` | **SKIPPED**, Native PASS 주장이 아님 |
+| 체크리스트 | [단일 정본](../development-checklist.md) · A~D/보안/U/T 기존 `166 [x]`, `128 [ ]` 유지 | **정합성 보존** |
+
+**최종 판정: F_001의 정의된 규격/문서/PR 검토/보호 병합/Verified 서명/정확 main Push 게이트는 100% COMPLETE.** 실제 `.bsi` Writer/Reader, Migration 및 CAD 왕복 검증은 처음부터 F_002–F_005 범위이며 **NOT_RUN** 상태를 변경하지 않는다. E_030 EB-01~EB-07 및 제품 U/T의 원래 미인수·FAIL 상태도 보존한다.
+
+**기록 주의:** 이전 PR #647 댓글에 있었던 Verified/Main-Push `NOT_VERIFIED`는 해당 시점의 조회 제약을 반영한 과거 기록이다. 위 정확한 GitHub REST 재조회와 [PR #647 최종 정정 댓글](https://github.com/july-rust/BoardSI/pull/647)에서 그 불확실성이 해소됐다.
