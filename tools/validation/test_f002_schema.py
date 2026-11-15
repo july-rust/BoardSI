@@ -224,11 +224,14 @@ class F002SchemaQualification(unittest.TestCase):
         self.assertEqual(self.db.execute("PRAGMA integrity_check").fetchone(), ("ok",))
         with tempfile.TemporaryDirectory() as d:
             path = pathlib.Path(d) / "fixture.bsi"
-            with sqlite3.connect(path) as con:
+            con = sqlite3.connect(path)
+            try:
                 con.executescript(DDL)
                 con.execute("""INSERT INTO file_meta VALUES
                   (1,'123e4567-e89b-42d3-a456-426614174000',1,0,1,0,'Pcb','BoardSI','F_002','2026-11-15T00:00:00Z')""")
                 con.commit()
+            finally:
+                con.close()
             blob = path.read_bytes()
             self.assertEqual(blob[:16], b"SQLite format 3\\0".replace(b"\\0", b"\0"))
             self.assertEqual(int.from_bytes(blob[68:72], "big"), APPLICATION_ID)
@@ -350,7 +353,7 @@ class F002SchemaQualification(unittest.TestCase):
         # Per-runner evidence: SQLite library version and exact platform, not claimed physical CAD.
         import platform
         print("F002_ENGINE", sqlite3.sqlite_version, "PYTHON", platform.python_version(),
-              "OS", platform.platform(), "DRIVER", sqlite3.version)
+              "OS", platform.platform())
         self.assertGreaterEqual(sqlite3.sqlite_version_info, (3, 37, 0))
 
 
