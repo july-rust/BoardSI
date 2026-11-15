@@ -4,7 +4,7 @@ use rusqlite::{Connection,OptionalExtension};
 use std::collections::{BTreeMap,BTreeSet};
 use std::sync::Arc as Shared;
 use crate::{invalid,NativeError,Result};
-use crate::encoding::{from_i128,from_rational,from_sql_orientation,decode,reference_dict,Decoded};
+use crate::encoding::{from_rational,from_sql_orientation,decode,reference_dict,Decoded};
 use crate::shared::*;
 use crate::store::LoadedBoard;
 use crate::bsig::GeometryRecord;
@@ -308,8 +308,6 @@ fn read_geometry(conn:&Connection,model:&mut BoardModel,objects:&BTreeMap<i64,Ob
         let record=GeometryRecord::decode(&blob,kind as u16)?;
         let layer=check_relation(objects,row.get(4)?,ObjectKind::Layer)?;
         let net=check_relation(objects,row.get(5)?,ObjectKind::Net)?;
-        let parent=check_relation(objects,row.get(6)?,ObjectKind::Area)?
-            .or(check_relation(objects,row.get(6)?,ObjectKind::Outline).ok().flatten());
         // Parent is checked strictly below because Area and Outline share the FK.
         let parent_raw:Option<i64>=row.get(6)?;
         let parent=if let Some(n)=parent_raw{
@@ -553,8 +551,7 @@ fn validate_coverage(conn:&Connection,objects:&BTreeMap<i64,ObjectMeta>)->Result
             ObjectKind::Edge=>"connectivity_edges",
             _=>"geometry",
         };
-        let sql=format!("SELECT COUNT(*) FROM {table} WHERE {}=?",
-            if table=="geometry"{"object_id"}else{"object_id"});
+        let sql=format!("SELECT COUNT(*) FROM {table} WHERE object_id=?");
         let count:i64=conn.query_row(&sql,[id],|r|r.get(0))?;
         if count!=1 {return Err(invalid("orphan or extra typed object"));}
     }
