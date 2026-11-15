@@ -49,6 +49,13 @@ SQL은 `source_files` 순서의 유일성과 `source_conditions` 키 유일성�
 * `geometry.geometry_kind`는 `BSIG` envelope kind와 반드시 동일해야 한다. SQL은 값 범위만 제한하며 Reader가 일치 확인.
 * 지지되지 않는 CAD Source 형상(예: 현재 Canonical이 정확히 표현하지 못하는 제조 특징)을 `Trace`/Pad 등으로 위장하지 않는다. 필요하면 required 확장으로 명시하고 호환 Reader는 거부한다.
 
+### Source/Property/Contact 정확도 보강
+
+- `layer_property_sources`는 `Layer.z_m`과 `Layer.thickness_m`의 `PropertySource`(document/revision/method/reference_frequency/temperature)를 별도로 보존한다. Missing에는 Source 없음, Assumed/Confirmed에는 각각의 Source 1건을 Reader가 필수 확인한다.
+- `connectivity_nodes`는 `witness_kind`, `trace_vertex_index`, `witness_evidence`, frame별 정확 tick을 보존한다. `TraceInterior`/ `AreaWitness` 등의 의미를 단순 점 일치로 축소하지 않는다.
+- `connectivity_edges`는 `evidence_kind`의 SameLayerContact/ViaBarrel/AreaContinuity, `witness_object_id`(Via/Area), evidence text를 구분한다. Witness 객체의 Kind 및 Layer/Net 구조 검사는 Reader 책임이며, 선언을 물리적 검증 사실로 자동 승격하지 않는다.
+- `material_properties.value_blob`의 `Dk`, `Df`, `Conductivity`는 **IEEE-754 finite f64 Little-Endian 8 bytes**; `ValidBand`는 `f64 min_hz + f64 max_hz`의 16 bytes다. 상태/참고 Source를 동반하고 `NaN/Inf` 및 범위 부정합은 Reader가 거부한다. SQL의 REAL 자료형에는 자료 출처 참고치만 저장한다.
+
 ## 3. 열기/저장 순서
 
 `BSI_NOT_NATIVE`: magic/application_id 불일치 → `BSI_FUTURE_SCHEMA`: 미래 DDL/major → `BSI_UNSUPPORTED_REQUIRED`: 지원하지 않는 required/min_reader/codec → `BSI_INVALID`: 무결성/FK/의미/Envelope 검증 오류.
