@@ -12,7 +12,10 @@ fn path(label: &str) -> PathBuf {
     std::env::temp_dir().join(format!(
         "boardsi-f003-resilience-{}-{}-{label}.bsi",
         std::process::id(),
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
     ))
 }
 fn original(path: &Path) -> Vec<u8> {
@@ -22,7 +25,11 @@ fn original(path: &Path) -> Vec<u8> {
     bytes
 }
 fn assert_original(path: &Path, before: &[u8]) {
-    assert_eq!(fs::read(path).unwrap(), before, "last good file was mutated");
+    assert_eq!(
+        fs::read(path).unwrap(),
+        before,
+        "last good file was mutated"
+    );
     let loaded = load(path).expect("last good .bsi is still readable");
     assert!(loaded.model().traces.is_empty());
 }
@@ -32,7 +39,11 @@ fn stages(pid: u32, parent: &Path) -> Vec<PathBuf> {
         .unwrap()
         .filter_map(|entry| {
             let entry = entry.ok()?;
-            entry.file_name().to_str()?.starts_with(&prefix).then_some(entry.path())
+            entry
+                .file_name()
+                .to_str()?
+                .starts_with(&prefix)
+                .then_some(entry.path())
         })
         .collect()
 }
@@ -60,9 +71,15 @@ fn injected_pre_replace_io_failure_preserves_original_and_cleans_stage() {
     let mut worker = child(&dest, "fail", &marker);
     let status = worker.wait().unwrap();
     assert!(!status.success(), "injected I/O failure must reject save");
-    assert!(marker.exists(), "failure was reached after staging validation");
+    assert!(
+        marker.exists(),
+        "failure was reached after staging validation"
+    );
     assert_original(&dest, &before);
-    assert!(stages(worker.id(), dest.parent().unwrap()).is_empty(), "failed save left staged file");
+    assert!(
+        stages(worker.id(), dest.parent().unwrap()).is_empty(),
+        "failed save left staged file"
+    );
     fs::remove_file(&marker).unwrap();
     fs::remove_file(&dest).unwrap();
 }
@@ -85,10 +102,16 @@ fn force_killed_worker_before_replace_preserves_last_good_file() {
     }
     let leftovers = stages(worker.id(), dest.parent().unwrap());
     assert_eq!(leftovers.len(), 1, "one validated temporary file expected");
-    assert!(load(&leftovers[0]).is_ok(), "temporary DB must be independently readable");
+    assert!(
+        load(&leftovers[0]).is_ok(),
+        "temporary DB must be independently readable"
+    );
     worker.kill().expect("terminate qualification process");
     let status = worker.wait().unwrap();
-    assert!(!status.success(), "forced termination must not report success");
+    assert!(
+        !status.success(),
+        "forced termination must not report success"
+    );
     assert_original(&dest, &before);
     for stage in leftovers {
         fs::remove_file(stage).unwrap();
@@ -124,7 +147,10 @@ fn real_process_file_size_quota_failure_preserves_last_good_file() {
         .env("BOARDSI_F003_DEST", &dest)
         .status()
         .unwrap();
-    assert!(!status.success(), "file-size limit must make replacement fail");
+    assert!(
+        !status.success(),
+        "file-size limit must make replacement fail"
+    );
     assert_original(&dest, &before);
     fs::remove_file(&dest).unwrap();
 }
