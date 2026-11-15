@@ -79,7 +79,8 @@ int main(int argc, char **argv) {
     const bool nativePlatform = !expected.isEmpty() && actual == expected;
     const bool valid = appRc == 0 && nativePlatform && timerArmed >= 0 &&
                        firstPrecise >= timerArmed && firstZero >= timerArmed &&
-                       timerCallbacks > 0 && (mode != "window" || showEnd >= showBegin);
+                       timerCallbacks > 0 && (mode != "window" ||
+                       (showBegin >= timerArmed && showEnd >= showBegin && showEnd <= firstPrecise));
     QJsonObject result{
         {"schema", "boardsi-e029-timer-ab-v1"},
         {"diagnostic_only", true},
