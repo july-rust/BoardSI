@@ -937,16 +937,20 @@ fn read_graph(
             evidence,
         });
     }
+    let identity_ids: BTreeMap<ObjectId, i64> = objects
+        .iter()
+        .map(|(id, meta)| (meta.id.clone(), *id))
+        .collect();
+    let contact_index = crate::write::ContactLookup::new(model);
     for n in &model.connectivity.nodes {
-        let id = objects
-            .iter()
-            .find(|(_, m)| m.id == n.meta.id)
-            .map(|(id, _)| *id)
+        let id = identity_ids
+            .get(&n.meta.id)
+            .copied()
             .ok_or_else(|| invalid("contact ID"))?;
         let (p, kind) = positions
             .get(&id)
             .ok_or_else(|| invalid("contact position"))?;
-        let (want, want_kind, _, _) = crate::write::contact_point(model, n)?;
+        let (want, want_kind, _, _) = contact_index.point(n)?;
         if want != *p || want_kind != kind {
             return Err(invalid("contact witness geometry mismatch"));
         }

@@ -86,8 +86,8 @@ fn empty_board_round_trip() {
     let b = BoardModel::empty(BoardKind::Pcb);
     save(&p, &b).unwrap();
     let got = load(&p).unwrap();
-    assert!(!got.read_only);
-    assert_eq!(got.model, b);
+    assert!(!got.is_read_only());
+    assert_eq!(got.model().clone(), b);
     std::fs::remove_file(&p).unwrap();
 }
 #[test]
@@ -96,7 +96,7 @@ fn exact_i64_geometry_source_round_trip() {
     let b = fixture();
     save(&p, &b).unwrap();
     let got = load(&p).unwrap();
-    assert_eq!(got.model, b);
+    assert_eq!(got.model().clone(), b);
     std::fs::remove_file(&p).unwrap();
 }
 #[test]
@@ -319,18 +319,18 @@ fn all_nine_kinds_in_one_real_sqlite_file() {
     let pth = path("nine-kinds");
     save(&pth, &board).unwrap();
     let read_back = load(&pth).unwrap();
-    assert!(!read_back.read_only);
-    assert_eq!(read_back.model.traces.len(), 1);
-    assert_eq!(read_back.model.arcs.len(), 1);
-    assert_eq!(read_back.model.areas.len(), 1);
-    assert_eq!(read_back.model.areas[0].cutouts.len(), 1);
-    assert_eq!(read_back.model.padstacks.len(), 1);
-    assert_eq!(read_back.model.pads.len(), 1);
-    assert_eq!(read_back.model.vias.len(), 1);
-    assert_eq!(read_back.model.drills.len(), 1);
-    assert_eq!(read_back.model.outlines.len(), 1);
-    assert_eq!(read_back.model.outlines[0].cutouts.len(), 1);
-    assert_eq!(read_back.model, board);
+    assert!(!read_back.is_read_only());
+    assert_eq!(read_back.model().traces.len(), 1);
+    assert_eq!(read_back.model().arcs.len(), 1);
+    assert_eq!(read_back.model().areas.len(), 1);
+    assert_eq!(read_back.model().areas[0].cutouts.len(), 1);
+    assert_eq!(read_back.model().padstacks.len(), 1);
+    assert_eq!(read_back.model().pads.len(), 1);
+    assert_eq!(read_back.model().vias.len(), 1);
+    assert_eq!(read_back.model().drills.len(), 1);
+    assert_eq!(read_back.model().outlines.len(), 1);
+    assert_eq!(read_back.model().outlines[0].cutouts.len(), 1);
+    assert_eq!(read_back.model().clone(), board);
     std::fs::remove_file(&pth).unwrap();
 }
 
@@ -343,8 +343,8 @@ fn cross_os_reference_fixture() {
     let expected = fixture();
     if filename.exists() {
         let got = load(&filename).expect("cross-platform SQLite .bsi read");
-        assert!(!got.read_only);
-        assert_eq!(got.model, expected, "lossless cross-OS Canonical equality");
+        assert!(!got.is_read_only());
+        assert_eq!(got.model().clone(), expected, "lossless cross-OS Canonical equality");
     } else {
         assert!(
             std::env::var("F003_CROSS_OS_WRITER").as_deref() == Ok("1"),
@@ -365,7 +365,7 @@ fn unknown_feature_and_future_schema_fail_closed() {
         [],
     ).unwrap();
     drop(conn);
-    assert!(load(&p).unwrap().read_only, "unknown optional feature must prevent Save As");
+    assert!(load(&p).unwrap().is_read_only(), "unknown optional feature must prevent Save As");
     let conn = rusqlite::Connection::open(&p).unwrap();
     conn.execute("UPDATE features SET required=1", []).unwrap();
     drop(conn);
@@ -385,7 +385,7 @@ fn verified_sha_provenance_does_not_silently_disappear() {
     let conn = rusqlite::Connection::open(&p).unwrap();
     conn.execute("UPDATE source_files SET sha_verified=1", []).unwrap();
     drop(conn);
-    assert!(load(&p).unwrap().read_only);
+    assert!(load(&p).unwrap().is_read_only());
     std::fs::remove_file(&p).unwrap();
 }
 
@@ -456,7 +456,7 @@ fn material_property_and_layer_evidence_round_trip() {
     };
     let p=path("material-evidence");
     save(&p,&board).unwrap();
-    assert_eq!(load(&p).unwrap().model,board);
+    assert_eq!(load(&p).unwrap().model().clone(),board);
     std::fs::remove_file(&p).unwrap();
 }
 
@@ -481,7 +481,7 @@ fn save_never_overwrites_read_only_unknown_optional_feature() {
     let conn = rusqlite::Connection::open(&p).unwrap();
     conn.execute("INSERT INTO features(name,feature_version,required,opaque_payload) VALUES('opaque-evidence',1,0,X'DEADBEEF')",[]).unwrap();
     drop(conn);
-    assert!(load(&p).unwrap().read_only);
+    assert!(load(&p).unwrap().is_read_only());
     let original = std::fs::read(&p).unwrap();
     assert_eq!(save(&p,&board).err().unwrap().code(),"BSI_UNSUPPORTED_REQUIRED");
     assert_eq!(std::fs::read(&p).unwrap(),original);
@@ -499,7 +499,7 @@ fn relative_destination_sync_does_not_report_failure_after_replace() {
     let relative = std::path::PathBuf::from(filename);
     let board = BoardModel::empty(BoardKind::Pcb);
     save(&relative, &board).expect("safe relative filename save");
-    assert_eq!(load(&relative).unwrap().model, board);
+    assert_eq!(load(&relative).unwrap().model().clone(), board);
     std::fs::remove_file(&relative).unwrap();
 }
 
@@ -567,4 +567,51 @@ fn unrepresentable_geometry_relation_columns_fail_closed() {
     drop(conn);
     assert_eq!(load(&p).err().unwrap().code(),"BSI_INVALID");
     std::fs::remove_file(&p).unwrap();
+}
+
+
+#[test]
+fn unknown_optional_save_as_cannot_drop_opaque_data() {
+    let p = path("opaque-source");
+    let other = path("opaque-save-as");
+    save(&p,&fixture()).unwrap();
+    let conn = rusqlite::Connection::open(&p).unwrap();
+    conn.execute("INSERT INTO features(name,feature_version,required,opaque_payload) VALUES('proprietary-optional',1,0,X'CAFE')",[]).unwrap();
+    drop(conn);
+    let document = load(&p).unwrap();
+    assert!(document.is_read_only());
+    assert_eq!(document.save_as(&other).err().unwrap().code(),"BSI_UNSUPPORTED_REQUIRED");
+    assert_eq!(document.into_editable().err().unwrap().code(),"BSI_UNSUPPORTED_REQUIRED");
+    assert!(!other.exists());
+    std::fs::remove_file(&p).unwrap();
+}
+
+#[test]
+fn pending_rotation_cannot_hide_invalid_arc_geometry() {
+    let mut board = fixture();
+    board.frames[0].orientation = Orientation::PendingRotation {
+        radians: 0.125,
+        mirror_x: false,
+    };
+    let source = board.frames[0].meta.id.source.clone();
+    let frame = board.frames[0].meta.id.clone();
+    let centre = Point { frame, ticks: [100, 100] };
+    board.arcs.push(boardsi_model::Arc {
+        meta: ObjectMeta {
+            id: ObjectId::new(&source,ObjectKind::Arc,"PENDING-BAD-ARC",""),
+            provenance: GeometryProvenance {
+                source_object_type: "synthetic".into(), history: vec![],
+            },
+        },
+        layer: board.stackup.layers[0].meta.id.clone(),
+        net: None,
+        centre: centre.clone(),
+        start: centre.clone(),
+        end: centre,
+        clockwise: false,
+        width_m: Rational::new(1,100_000).unwrap(),
+    });
+    let p=path("pending-invalid-arc");
+    assert_eq!(save(&p,&board).err().unwrap().code(),"BSI_INVALID");
+    assert!(!p.exists());
 }

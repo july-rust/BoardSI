@@ -56,6 +56,7 @@ fn metas(board: &BoardModel) -> Vec<(&ObjectMeta, ObjectKind)> {
             v.push((&c.meta, ObjectKind::Cutout));
         }
     }
+    let contact_index = ContactLookup::new(board);
     for x in &board.connectivity.nodes {
         v.push((&x.meta, ObjectKind::Node));
     }
@@ -325,67 +326,55 @@ fn span_order(board: &BoardModel, span: &ViaSpan) -> Result<(i64, i64)> {
     }
     Ok((a, b))
 }
-pub(crate) fn contact_point(
-    board: &BoardModel,
-    n: &ConnectivityNode,
-) -> Result<(Point, &'static str, Option<i64>, String)> {
-    let (p, kind, index, evidence) = match &n.site {
-        ContactSite::TraceVertex(i) => {
-            let trace = board
-                .traces
-                .iter()
-                .find(|t| t.meta.id == n.conductor)
-                .ok_or_else(|| invalid("trace vertex conductor"))?;
-            let p = trace
-                .centreline
-                .get(*i)
-                .ok_or_else(|| invalid("trace vertex bounds"))?;
-            (p.clone(), "TraceVertex", Some(*i as i64), String::new())
+/// Indexed contact geometry lookup. BTreeMap avoids O(nodes × conductors) work.
+pub(crate) struct ContactLookup<'a> {
+    traces: BTreeMap<ObjectId, &'a Trace>,
+    arcs: BTreeMap<ObjectId, &'a Arc>,
+    pads: BTreeMap<ObjectId, &'a Pad>,
+    vias: BTreeMap<ObjectId, &'a Via>,
+}
+impl<'a> ContactLookup<'a> {
+    pub(crate) fn new(board: &'a BoardModel) -> Self {
+        Self {
+            traces: board.traces.iter().map(|x| (x.meta.id.clone(), x)).collect(),
+            arcs: board.arcs.iter().map(|x| (x.meta.id.clone(), x)).collect(),
+            pads: board.pads.iter().map(|x| (x.meta.id.clone(), x)).collect(),
+            vias: board.vias.iter().map(|x| (x.meta.id.clone(), x)).collect(),
         }
-        ContactSite::TraceInterior(p) => (p.clone(), "TraceInterior", None, String::new()),
-        ContactSite::ArcStart | ContactSite::ArcEnd => {
-            let a = board
-                .arcs
-                .iter()
-                .find(|a| a.meta.id == n.conductor)
-                .ok_or_else(|| invalid("arc contact conductor"))?;
-            (
-                if matches!(n.site, ContactSite::ArcStart) {
-                    a.start.clone()
-                } else {
-                    a.end.clone()
-                },
-                if matches!(n.site, ContactSite::ArcStart) {
-                    "ArcStart"
-                } else {
-                    "ArcEnd"
-                },
-                None,
-                String::new(),
-            )
-        }
-        ContactSite::PadCentre => {
-            let x = board
-                .pads
-                .iter()
-                .find(|x| x.meta.id == n.conductor)
-                .ok_or_else(|| invalid("pad conductor"))?;
-            (x.position.clone(), "PadCentre", None, String::new())
-        }
-        ContactSite::ViaCentre => {
-            let x = board
-                .vias
-                .iter()
-                .find(|x| x.meta.id == n.conductor)
-                .ok_or_else(|| invalid("via conductor"))?;
-            (x.position.clone(), "ViaCentre", None, String::new())
-        }
-        ContactSite::AreaWitness { point, evidence } => {
-            (point.clone(), "AreaWitness", None, evidence.clone())
-        }
-        ContactSite::AreaInterior(p) => (p.clone(), "AreaInterior", None, String::new()),
-    };
-    Ok((p, kind, index, evidence))
+    }
+    pub(crate) fn point(
+        &self,
+        n: &ConnectivityNode,
+    ) -> Result<(Point, &'static str, Option<i64>, String)> {
+        let (p, kind, index, evidence) = match &n.site {
+            ContactSite::TraceVertex(i) => {
+                let trace = self.traces.get(&n.conductor).ok_or_else(|| invalid("trace vertex conductor"))?;
+                let p = trace.centreline.get(*i).ok_or_else(|| invalid("trace vertex bounds"))?;
+                (p.clone(), "TraceVertex", Some(*i as i64), String::new())
+            }
+            ContactSite::TraceInterior(p) => (p.clone(), "TraceInterior", None, String::new()),
+            ContactSite::ArcStart | ContactSite::ArcEnd => {
+                let a = self.arcs.get(&n.conductor).ok_or_else(|| invalid("arc contact conductor"))?;
+                (
+                    if matches!(n.site, ContactSite::ArcStart) { a.start.clone() } else { a.end.clone() },
+                    if matches!(n.site, ContactSite::ArcStart) { "ArcStart" } else { "ArcEnd" },
+                    None, String::new(),
+                )
+            }
+            ContactSite::PadCentre => {
+                let x = self.pads.get(&n.conductor).ok_or_else(|| invalid("pad conductor"))?;
+                (x.position.clone(), "PadCentre", None, String::new())
+            }
+            ContactSite::ViaCentre => {
+                let x = self.vias.get(&n.conductor).ok_or_else(|| invalid("via conductor"))?;
+                (x.position.clone(), "ViaCentre", None, String::new())
+            }
+            ContactSite::AreaWitness { point, evidence } =>
+                (point.clone(), "AreaWitness", None, evidence.clone()),
+            ContactSite::AreaInterior(p) => (p.clone(), "AreaInterior", None, String::new()),
+        };
+        Ok((p, kind, index, evidence))
+    }
 }
 pub(crate) fn write_board(tx: &Transaction<'_>, board: &BoardModel, uuid: &str) -> Result<()> {
     if !crate::storage_valid(board) {
@@ -595,7 +584,7 @@ pub(crate) fn write_board(tx: &Transaction<'_>, board: &BoardModel, uuid: &str) 
         )?;
     }
     for x in &board.connectivity.nodes {
-        let (p, kind, index, evidence) = contact_point(board, x)?;
+        let (p, kind, index, evidence) = contact_index.point(x)?;
         tx.execute(
             "INSERT INTO connectivity_nodes VALUES(?,?,?,?,?,?,?,?,?)",
             params![

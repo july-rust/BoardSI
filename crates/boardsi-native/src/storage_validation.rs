@@ -80,7 +80,7 @@ fn shape(board: &BoardModel, s: &PadShape) -> bool {
             centre_size_m.positive()
                 && outer_size_m.checked_cmp(*centre_size_m).ok() == Some(Ordering::Greater)
                 && spoke_width_m.positive()
-                && centre_size_m.checked_cmp(*spoke_width_m).ok() != Some(Ordering::Less)
+                && centre_size_m.checked_cmp(*spoke_width_m).ok().is_some_and(|o| o != Ordering::Less)
                 && *first_spoke_degrees < 360
                 && (1..=64).contains(spoke_count)
         }
@@ -115,7 +115,12 @@ pub(crate) fn valid(board: &BoardModel) -> bool {
             || copper_order(board, &trace.layer).is_none()
             || !net(board, &trace.net)
             || trace.centreline.iter().any(|p| !point_exists(board, p))
-            || trace.centreline.windows(2).any(|pair| same_point(board, &pair[0], &pair[1]))
+            || trace.centreline.windows(2).any(|pair| {
+                (pair[0].frame != pair[1].frame
+                    && (board.exact_point_m(&pair[0]).is_err()
+                        || board.exact_point_m(&pair[1]).is_err()))
+                    || same_point(board, &pair[0], &pair[1])
+            })
         {
             return false;
         }

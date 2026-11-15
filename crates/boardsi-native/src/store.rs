@@ -13,9 +13,30 @@ const MAX_FILE: u64 = 512 * 1024 * 1024;
 const APP_ID: i64 = 0x42534931;
 const DDL: &str = include_str!("../../../schemas/bsi/v1.sql");
 pub struct LoadedBoard {
-    pub model: BoardModel,
-    /// Optional unknown feature or extension: never mutate/re-save without opaque preservation.
-    pub read_only: bool,
+    pub(crate) model: BoardModel,
+    /// Unknown optional or source-verified evidence must not be lost by native Save As.
+    pub(crate) read_only: bool,
+}
+impl LoadedBoard {
+    pub fn model(&self) -> &BoardModel {
+        &self.model
+    }
+    pub fn is_read_only(&self) -> bool {
+        self.read_only
+    }
+    /// The safe Save As entry point for any file loaded through Native Reader.
+    pub fn save_as(&self, path: impl AsRef<Path>) -> Result<()> {
+        if self.read_only {
+            return Err(NativeError::UnsupportedRequired);
+        }
+        save(path, &self.model)
+    }
+    pub fn into_editable(self) -> Result<BoardModel> {
+        if self.read_only {
+            return Err(NativeError::UnsupportedRequired);
+        }
+        Ok(self.model)
+    }
 }
 fn uuid() -> String {
     let now = SystemTime::now()

@@ -3,6 +3,7 @@ mod bsig;
 mod encoding;
 mod read;
 mod shared;
+mod storage_validation;
 mod store;
 mod write;
 pub use bsig::{Field, GeometryRecord};
@@ -51,13 +52,26 @@ fn invalid(msg: &'static str) -> NativeError {
 /// Native storage retains exact data even if a solver f64 transform is not ready.
 fn storage_valid(board: &boardsi_model::BoardModel) -> bool {
     use boardsi_model::{ModelError, Severity};
-    !board.validate().issues.iter().any(|issue| {
+    let report = board.validate();
+    let projection_incomplete = report.issues.iter().any(|issue| {
         issue.severity == Severity::Error
-            && !matches!(
-                issue.error,
-                ModelError::UnsupportedTransform | ModelError::PrecisionLoss
-            )
-    })
+            && matches!(issue.error, ModelError::UnsupportedTransform | ModelError::PrecisionLoss)
+    });
+    // Contact evidence cannot be independently validated if frame projection is pending.
+    // Reject that narrower case rather than accepting an unverified electrical graph.
+    if projection_incomplete
+        && (!board.connectivity.nodes.is_empty() || !board.connectivity.edges.is_empty())
+    {
+        return false;
+    }
+    storage_validation::valid(board)
+        && !report.issues.iter().any(|issue| {
+            issue.severity == Severity::Error
+                && !matches!(
+                    issue.error,
+                    ModelError::UnsupportedTransform | ModelError::PrecisionLoss
+                )
+        })
 }
 fn sorted_equal<T: PartialEq>(
     a: &[T],
