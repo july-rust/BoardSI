@@ -4,6 +4,10 @@
 >
 > **색인 범위:** 2026-11-07 KST 기준 기존 검증 Markdown 원장, [Validation 개요](README.md) 제외. 현재 파일 목록을 작성한 것이며 외부 웹 링크·내부 앵커까지 모든 접속을 보증한 것이 아닙니다.
 
+## F_003 Native BSI Writer/Reader · 2026-11-15 KST
+
+- [Rust BSIG 9종·SQLite 저장/복원·4 OS 검증 및 명시적 한계](f003-native-writer-reader-qualification.md) — **CORE COMPLETE**, T10/T12 전체 극한 시나리오 PARTIAL
+
 ## F_002 Native SQLite Schema · 2026-11-15 KST
 
 - [F_002 SQLite v1 스키마](../architecture/f002-bsi-sqlite-schema.md) · [52-byte BSIG Geometry 상세](../architecture/f002-bsi-geometry-binary-layout.md) · [DDL/벡터 검증](f002-bsi-schema-qualification.md) — **Writer/Reader 제품 구현은 F_003**
