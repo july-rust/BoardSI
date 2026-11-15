@@ -184,7 +184,7 @@ CREATE TABLE geometry (
   plating TEXT CHECK(plating IN ('NonPlated','SourceDeclaredPlated','Unknown')),
   CHECK((first_copper_order IS NULL AND last_copper_order IS NULL) OR
     (first_copper_order IS NOT NULL AND last_copper_order IS NOT NULL
-    AND first_copper_order>0 AND first_copper_order<last_copper_order))
+    AND first_copper_order>=0 AND first_copper_order<last_copper_order))
 ) STRICT;
 CREATE INDEX geometry_layer_net ON geometry(layer_id,net_id);
 CREATE INDEX geometry_padstack ON geometry(padstack_id);
