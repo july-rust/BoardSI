@@ -100,7 +100,8 @@ fn force_killed_worker_before_replace_preserves_last_good_file() {
         );
         std::thread::sleep(Duration::from_millis(30));
     }
-    let leftovers = stages(worker.id(), dest.parent().unwrap());
+    let leftovers: Vec<_> = stages(worker.id(), dest.parent().unwrap())
+        .into_iter().filter(|p| !p.to_string_lossy().ends_with(".owner")).collect();
     assert_eq!(leftovers.len(), 1, "one validated temporary file expected");
     assert!(
         load(&leftovers[0]).is_ok(),
@@ -113,8 +114,9 @@ fn force_killed_worker_before_replace_preserves_last_good_file() {
         "forced termination must not report success"
     );
     assert_original(&dest, &before);
+    assert_eq!(boardsi_native::recover_owned_staging(dest.parent().unwrap()).unwrap(), 1);
     for stage in leftovers {
-        fs::remove_file(stage).unwrap();
+        assert!(!stage.exists(), "product recovery removes orphan stage");
     }
     fs::remove_file(&marker).unwrap();
     fs::remove_file(&dest).unwrap();
