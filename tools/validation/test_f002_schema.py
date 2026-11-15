@@ -263,6 +263,19 @@ class F002SchemaQualification(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("INSERT INTO features VALUES('x',1,7,NULL)")
 
+    def test_t02_zero_based_copper_span(self):
+        self.seed()
+        self.db.execute("""INSERT INTO objects (id,source_id,kind,source_object,part,source_object_type)
+            VALUES(2,1,'Via','V1','','Via')""")
+        vec = encode(7, [(1, 6, point(0, 0, 0)), (2, 2, b"\x00"),
+                         (3, 12, struct.pack("<II", 0, 1)),
+                         (4, 9, struct.pack("<I", 0))])
+        self.db.execute("""INSERT INTO geometry
+            (object_id,geometry_kind,codec_version,envelope,first_copper_order,last_copper_order,plating)
+            VALUES(2,7,1,?,0,2,'Unknown')""", (vec,))
+        self.assertEqual(self.db.execute(
+            "SELECT first_copper_order,last_copper_order FROM geometry").fetchone(), (0, 2))
+
     def test_t03_application_and_pragma(self):
         self.assertEqual(self.db.execute("PRAGMA application_id").fetchone(), (APPLICATION_ID,))
         self.assertEqual(self.db.execute("PRAGMA user_version").fetchone(), (1,))
