@@ -7,7 +7,7 @@
 ## E_030 종료 감사 · 2026-11-15 KST
 
 - [E_030 최종 감사·30개 Issue 전수 이관](e030-e-stage-final-closure-audit.md)
-- [E_030 이전 원본 체크리스트 2,802줄 스냅샷](e030-original-checklist-snapshot-20261115.md) — **역사 기록**, 현행 정본 아님
+- [E_030 이전 원본 체크리스트 2,802줄 — 불변 Git 커밋](https://github.com/july-rust/BoardSI/blob/d2e99bfde2c3bbd98fa6655a15ab8d1ad7731cf3/docs/development-checklist.md) — **과거 Git 커밋**, 현행 정본 아님
 
 ## 3분 빠른 탐색
 
