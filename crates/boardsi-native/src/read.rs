@@ -1013,6 +1013,16 @@ pub(crate) fn read_board(conn: &Connection) -> Result<LoadedBoard> {
     let mut model = BoardModel::empty(board_kind);
     let (sources, source_ids) = read_source_ids(conn)?;
     model.sources = sources;
+    // A verified-source claim has no Boolean field in the current Canonical model.
+    // The file remains read-only rather than silently losing this evidence on Save As.
+    let verified_files: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM source_files WHERE sha_verified=1",
+        [],
+        |row| row.get(0),
+    )?;
+    if verified_files != 0 {
+        read_only = true;
+    }
     let objects = read_objects(conn, &source_ids)?;
     read_fixed(conn, &mut model, &objects)?;
     read_geometry(conn, &mut model, &objects)?;

@@ -392,7 +392,7 @@ pub(crate) fn write_board(tx: &Transaction<'_>, board: &BoardModel, uuid: &str) 
         return Err(invalid("canonical model validation"));
     }
     tx.execute(
-        "INSERT INTO file_meta VALUES(1,?,1,0,1,0,?,'BoardSI','F_003','2026-11-15T00:00:00Z')",
+        "INSERT INTO file_meta VALUES(1,?,1,0,1,0,?,'BoardSI','F_003',strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
         params![
             uuid,
             match board.kind {

@@ -353,3 +353,109 @@ fn cross_os_reference_fixture() {
         save(&filename, &expected).expect("native Ubuntu fixture writer");
     }
 }
+
+
+#[test]
+fn unknown_feature_and_future_schema_fail_closed() {
+    let p = path("version-feature");
+    save(&p, &fixture()).unwrap();
+    let conn = rusqlite::Connection::open(&p).unwrap();
+    conn.execute(
+        "INSERT INTO features(name,feature_version,required,opaque_payload) VALUES('vendor-note',1,0,X'0102')",
+        [],
+    ).unwrap();
+    drop(conn);
+    assert!(load(&p).unwrap().read_only, "unknown optional feature must prevent Save As");
+    let conn = rusqlite::Connection::open(&p).unwrap();
+    conn.execute("UPDATE features SET required=1", []).unwrap();
+    drop(conn);
+    assert_eq!(load(&p).err().unwrap().code(), "BSI_UNSUPPORTED_REQUIRED");
+    let conn = rusqlite::Connection::open(&p).unwrap();
+    conn.execute("DELETE FROM features", []).unwrap();
+    conn.pragma_update(None,"user_version",2i64).unwrap();
+    drop(conn);
+    assert_eq!(load(&p).err().unwrap().code(), "BSI_FUTURE_SCHEMA");
+    std::fs::remove_file(&p).unwrap();
+}
+
+#[test]
+fn verified_sha_provenance_does_not_silently_disappear() {
+    let p = path("sha-verified");
+    save(&p, &fixture()).unwrap();
+    let conn = rusqlite::Connection::open(&p).unwrap();
+    conn.execute("UPDATE source_files SET sha_verified=1", []).unwrap();
+    drop(conn);
+    assert!(load(&p).unwrap().read_only);
+    std::fs::remove_file(&p).unwrap();
+}
+
+#[test]
+fn sql_blob_kind_mismatch_fail_closed() {
+    let p = path("sql-kind");
+    save(&p, &fixture()).unwrap();
+    let conn = rusqlite::Connection::open(&p).unwrap();
+    conn.execute("UPDATE geometry SET geometry_kind=2 WHERE geometry_kind=1", []).unwrap();
+    drop(conn);
+    assert_eq!(load(&p).err().unwrap().code(), "BSI_INVALID");
+    std::fs::remove_file(&p).unwrap();
+}
+
+#[test]
+fn geometry_bsig_bytes_are_deterministic_across_saves() {
+    let a = path("stable-a");
+    let b = path("stable-b");
+    let board = fixture();
+    save(&a, &board).unwrap();
+    save(&b, &board).unwrap();
+    let read = |file: &std::path::Path| -> Vec<u8> {
+        rusqlite::Connection::open(file).unwrap()
+            .query_row("SELECT envelope FROM geometry WHERE geometry_kind=1",[],|r|r.get(0)).unwrap()
+    };
+    assert_eq!(read(&a), read(&b), "BSIG payload bytes must be deterministic");
+    std::fs::remove_file(&a).unwrap();
+    std::fs::remove_file(&b).unwrap();
+}
+
+#[test]
+fn material_property_and_layer_evidence_round_trip() {
+    let mut board = fixture();
+    let src = board.frames[0].meta.id.source.clone();
+    let id = ObjectId::new(&src, ObjectKind::Material, "FR4", "");
+    let evidence = PropertySource {
+        document: "fixture-datasheet".into(),
+        revision: "A".into(),
+        method: "vendor-declared".into(),
+        reference_frequency_hz: Some(1_000_000_000.0),
+        temperature_c: Some(23.0),
+    };
+    board.materials.push(Material {
+        meta: ObjectMeta {
+            id: id.clone(),
+            provenance: GeometryProvenance {
+                source_object_type: "synthetic material".into(),
+                history: vec![],
+            },
+        },
+        name: "FR-4".into(),
+        dk: Property::Confirmed { value: 4.4, source: evidence.clone() },
+        df: Property::Assumed { value: 0.015, source: evidence.clone() },
+        conductivity_s_per_m: Property::Missing,
+        valid_band: Property::Confirmed {
+            value: FrequencyRange { min_hz: 1.0, max_hz: 10_000_000_000.0 },
+            source: evidence.clone(),
+        },
+    });
+    board.stackup.layers[0].material = Some(id);
+    board.stackup.layers[0].z_m = Property::Confirmed {
+        value: Rational::integer(0),
+        source: evidence.clone(),
+    };
+    board.stackup.layers[0].thickness_m = Property::Assumed {
+        value: Rational::new(35,1_000_000).unwrap(),
+        source: evidence,
+    };
+    let p=path("material-evidence");
+    save(&p,&board).unwrap();
+    assert_eq!(load(&p).unwrap().model,board);
+    std::fs::remove_file(&p).unwrap();
+}
