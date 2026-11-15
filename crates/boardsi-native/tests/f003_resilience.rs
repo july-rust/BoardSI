@@ -185,7 +185,10 @@ fn actual_tmpfs_enospc_preserves_last_good_native_file() {
         .stderr(std::process::Stdio::null())
         .status()
         .unwrap();
-    assert!(!status.success(), "the 16 MiB test filesystem was not exhausted");
+    assert!(
+        !status.success(),
+        "the 16 MiB test filesystem was not exhausted"
+    );
     assert!(
         save(&dest, &BoardModel::empty(BoardKind::Pcb)).is_err(),
         "native writer cannot succeed on a full filesystem"
