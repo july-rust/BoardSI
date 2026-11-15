@@ -66,9 +66,9 @@
 
 | 작업 | 핵심 결과 | 상태 | 근거 |
 | :--- | :--- | :--- | :--- |
-| **F_001** | SQLite 단일 파일·i64/i128 Geometry·52 B BLOB envelope·영구 호환성 계약 | **SPEC_PASS (문서 한정)** · 저장/로드 NOT_RUN | [규격](architecture/f001-bsi-format-contract.md) · [검증](validation/f001-bsi-format-qualification.md) |
+| **F_001** | SQLite 단일 파일·i64/i128 Geometry·52 B BLOB envelope·영구 호환성 계약 | **100% COMPLETE (규격 한정)** · Writer/Reader NOT_RUN | [규격](architecture/f001-bsi-format-contract.md) · [검증](validation/f001-bsi-format-qualification.md) · [PR #647](https://github.com/july-rust/BoardSI/pull/647) |
 
-> F_001의 **규격 검토일 2026-11-15 KST**, 근거일 동일. 최종 보호 병합·사후 `main` CI는 실제 PR 실행 결과로 별도 판정합니다. 기존 **166/128 수치는 A~D·보안·U/T 기존 항목만** 집계하며 F 규격을 제품 인수에 포함하지 않습니다.
+> F_001 **최초 완료일·근거일: 2026-11-15 KST**. PR #647 최종 HEAD `989d3225` CI 8/8, 독립 Codex 0건, Verified Squash [`e8538172`](https://github.com/july-rust/BoardSI/commit/e8538172f7eb8d1559753fc9888371457026fde5), 정확한 `main` Push 8/8 SUCCESS. 기존 **166/128은 A~D·보안·U/T 집계**이며 F 규격과 제품 인수를 혼동하지 않습니다.
 
 <a id="blocked"></a>
 ## 4. 진행 차단·후속 의무
