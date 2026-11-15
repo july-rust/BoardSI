@@ -5,6 +5,9 @@ on:
     branches: [main]
 permissions:
   contents: read
+concurrency:
+  group: f003-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   reference:
     name: Produce Ubuntu cross-OS native fixture
