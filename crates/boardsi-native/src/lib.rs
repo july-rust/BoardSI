@@ -8,8 +8,8 @@ mod storage_validation;
 mod store;
 mod write;
 pub use bsig::{Field, GeometryRecord};
-pub use store::{load, save, LoadedBoard};
 pub use recovery::recover_owned_staging;
+pub use store::{load, save, LoadedBoard};
 
 #[derive(Debug)]
 pub enum NativeError {
