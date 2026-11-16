@@ -916,8 +916,8 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     let mut segments = Vec::new();
     for node in root.children() {
         match node.head()? {
-            "version" | "generator" | "generator_version" | "general" | "paper"
-            | "layers" | "setup" | "embedded_fonts" | "title_block" | "uuid" => {
+            "version" | "generator" | "generator_version" | "general" | "paper" | "layers"
+            | "setup" | "embedded_fonts" | "title_block" | "uuid" => {
                 let name = node.head()?;
                 if !seen_scalars.insert(name.to_owned()) {
                     return Err(err("DUPLICATE_ROOT_FIELD"));
@@ -980,12 +980,18 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     });
     let frame_id = ObjectId::new(&source, ObjectKind::Frame, "kicad-xy-nm", "");
     board.frames.push(CoordinateFrame {
-        meta: meta(&source, ObjectKind::Frame, "kicad-xy-nm", "KiCad9 source XY grid"),
+        meta: meta(
+            &source,
+            ObjectKind::Frame,
+            "kicad-xy-nm",
+            "KiCad9 source XY grid",
+        ),
         unit_label: "KiCad 9 integer nm".into(),
         metres_per_tick: Rational::new(1, 1_000_000_000).map_err(|_| err("BAD_UNIT"))?,
         origin_m: [Rational::integer(0); 2],
         orientation: Orientation::Orthogonal {
-            turn: QuarterTurn::Zero, mirror_x: false,
+            turn: QuarterTurn::Zero,
+            mirror_x: false,
         },
         source_layer_order_reversed: false,
     });
@@ -994,11 +1000,19 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     let mut ordered = inventory.layers.iter().collect::<Vec<_>>();
     // Copper order MUST NOT be numerical KiCad source ordinal order.
     ordered.sort_by_key(|l| {
-        (l.copper_order.is_none(), l.copper_order.unwrap_or(l.ordinal as usize))
+        (
+            l.copper_order.is_none(),
+            l.copper_order.unwrap_or(l.ordinal as usize),
+        )
     });
     for (i, layer) in ordered.iter().enumerate() {
         let source_key = &layer.meta.id.source_object;
-        let lmeta = meta(&source, ObjectKind::Layer, source_key, "KiCad9 layer declaration");
+        let lmeta = meta(
+            &source,
+            ObjectKind::Layer,
+            source_key,
+            "KiCad9 layer declaration",
+        );
         by_layer.insert(layer.canonical_name.clone(), lmeta.id.clone());
         board.stackup.layers.push(Layer {
             meta: lmeta,
@@ -1013,7 +1027,10 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     // Preserve source-declared logical nets but never synthesize a connected
     // graph from equal ordinal names or via span alone.
     let mut net_ids = BTreeMap::<u32, ObjectId>::new();
-    for node in root.children().filter(|node| node.head().ok() == Some("net")) {
+    for node in root
+        .children()
+        .filter(|node| node.head().ok() == Some("net"))
+    {
         let words = node.words()?;
         let number: u32 = words[1].parse().map_err(|_| err("BAD_NET_DECLARATION"))?;
         if number == 0 {
@@ -1022,7 +1039,12 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
             }
             continue;
         }
-        let m = meta(&source, ObjectKind::Net, &format!("net/{number}"), "KiCad9 net declaration");
+        let m = meta(
+            &source,
+            ObjectKind::Net,
+            &format!("net/{number}"),
+            "KiCad9 net declaration",
+        );
         net_ids.insert(number, m.id.clone());
         board.nets.push(Net {
             meta: m,
@@ -1031,52 +1053,78 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
         });
     }
 
-    let mut seen_ids = inventory.vias.iter()
+    let mut seen_ids = inventory
+        .vias
+        .iter()
         .filter_map(|v| v.source_uuid.as_ref().map(|u| u.to_ascii_lowercase()))
         .collect::<BTreeSet<_>>();
     for node in segments {
         let mut fields = BTreeSet::new();
         for child in node.children() {
             let key = child.head()?;
-            if !matches!(key, "start"|"end"|"width"|"layer"|"net"|"uuid"|"tstamp")
-                || !fields.insert(key.to_owned())
+            if !matches!(
+                key,
+                "start" | "end" | "width" | "layer" | "net" | "uuid" | "tstamp"
+            ) || !fields.insert(key.to_owned())
             {
                 return Err(err("UNSUPPORTED_SEGMENT_FIELD"));
             }
         }
         // Opaque flags and optional unsupported properties are NOT silently
         // erased. All segment atoms except its root name are rejected.
-        if node.items.iter().skip(1).any(|x| matches!(x, Item::Text(_))) {
+        if node
+            .items
+            .iter()
+            .skip(1)
+            .any(|x| matches!(x, Item::Text(_)))
+        {
             return Err(err("UNSUPPORTED_SEGMENT_ATOM"));
         }
         let start = arguments(node, "start", 2)?;
         let end = arguments(node, "end", 2)?;
         let width = positive_mm(node.scalar("width")?)?;
-        let layer = by_layer.get(node.scalar("layer")?)
+        let layer = by_layer
+            .get(node.scalar("layer")?)
             .ok_or_else(|| err("UNKNOWN_SEGMENT_LAYER"))?;
-        let actual_layer = board.stackup.layers.iter()
+        let actual_layer = board
+            .stackup
+            .layers
+            .iter()
             .find(|l| &l.meta.id == layer)
             .ok_or_else(|| err("UNKNOWN_SEGMENT_LAYER"))?;
         if actual_layer.kind != LayerKind::Copper {
             return Err(err("NONCOPPER_SEGMENT_LAYER"));
         }
-        let n: u32 = node.scalar("net")?.parse().map_err(|_| err("INVALID_SEGMENT_NET"))?;
+        let n: u32 = node
+            .scalar("net")?
+            .parse()
+            .map_err(|_| err("INVALID_SEGMENT_NET"))?;
         let net = if n == 0 {
             None
         } else {
-            Some(net_ids.get(&n).ok_or_else(|| err("UNKNOWN_SEGMENT_NET"))?.clone())
+            Some(
+                net_ids
+                    .get(&n)
+                    .ok_or_else(|| err("UNKNOWN_SEGMENT_NET"))?
+                    .clone(),
+            )
         };
         let uuid = match (node.child("uuid")?, node.child("tstamp")?) {
             (Some(_), Some(_)) => return Err(err("AMBIGUOUS_SEGMENT_ID")),
             (Some(n), None) => {
                 let words = n.words()?;
-                if words.len()!=2 || !uuid_valid(words[1]) {return Err(err("INVALID_UUID"));}
+                if words.len() != 2 || !uuid_valid(words[1]) {
+                    return Err(err("INVALID_UUID"));
+                }
                 Some(words[1].to_owned())
             }
             (None, Some(n)) => {
                 let words = n.words()?;
-                if words.len()!=2 || words[1].is_empty() || words[1].len()>64
-                    || !words[1].bytes().all(|b| b.is_ascii_hexdigit()) {
+                if words.len() != 2
+                    || words[1].is_empty()
+                    || words[1].len() > 64
+                    || !words[1].bytes().all(|b| b.is_ascii_hexdigit())
+                {
                     return Err(err("INVALID_TSTAMP"));
                 }
                 Some(words[1].to_owned())
@@ -1090,16 +1138,30 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
         }
         let a = [millimetres_to_nm(start[0])?, millimetres_to_nm(start[1])?];
         let b = [millimetres_to_nm(end[0])?, millimetres_to_nm(end[1])?];
-        if a == b {return Err(err("ZERO_LENGTH_SEGMENT"));}
-        let sid = uuid.map(|u| format!("segment/{u}"))
+        if a == b {
+            return Err(err("ZERO_LENGTH_SEGMENT"));
+        }
+        let sid = uuid
+            .map(|u| format!("segment/{u}"))
             .unwrap_or_else(|| format!("segment@byte:{}", node.offset));
         board.traces.push(Trace {
-            meta: meta(&source, ObjectKind::Trace, &sid, "KiCad9 straight copper segment"),
+            meta: meta(
+                &source,
+                ObjectKind::Trace,
+                &sid,
+                "KiCad9 straight copper segment",
+            ),
             layer: layer.clone(),
             net,
             centreline: vec![
-                Point { frame: frame_id.clone(), ticks: a },
-                Point { frame: frame_id.clone(), ticks: b },
+                Point {
+                    frame: frame_id.clone(),
+                    ticks: a,
+                },
+                Point {
+                    frame: frame_id.clone(),
+                    ticks: b,
+                },
             ],
             width_m: Rational::new(i128::from(width), 1_000_000_000)
                 .map_err(|_| err("BAD_SEGMENT_WIDTH"))?,
@@ -1111,51 +1173,85 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     for v in &inventory.vias {
         let id = &v.meta.id.source_object;
         let span = ViaSpan {
-            first_layer: by_layer.get(&v.source_first_layer)
-                .ok_or_else(|| err("UNKNOWN_VIA_LAYER"))?.clone(),
-            last_layer: by_layer.get(&v.source_last_layer)
-                .ok_or_else(|| err("UNKNOWN_VIA_LAYER"))?.clone(),
+            first_layer: by_layer
+                .get(&v.source_first_layer)
+                .ok_or_else(|| err("UNKNOWN_VIA_LAYER"))?
+                .clone(),
+            last_layer: by_layer
+                .get(&v.source_last_layer)
+                .ok_or_else(|| err("UNKNOWN_VIA_LAYER"))?
+                .clone(),
         };
         let padstack_key = format!("{id}/nominal-padstack");
         let drill_key = format!("{id}/nominal-drill");
-        let padstack_meta = meta(&source,ObjectKind::Padstack,&padstack_key,
-            "KiCad9 nominal standard round through via padstack");
-        let drill_meta = meta(&source,ObjectKind::Drill,&drill_key,
-            "KiCad9 nominal plated CAD via drill; no manufacturing verification");
-        let entries = v.envelope_layers.iter().map(|original| {
-            // Each envelope object uses the exact KiCad layer identity.
-            let k = original.source_object.as_str();
-            let lid = ObjectId::new(&source,ObjectKind::Layer,k,"");
-            PadstackLayer {
-                layer: lid,
-                role: PadRole::Conductive,
-                shape: PadShape::Circle {
-                    diameter_m: Rational::new(i128::from(v.diameter_nm),1_000_000_000)
-                        .expect("validated positive diameter"),
-                },
-            }
-        }).collect::<Vec<_>>();
-        board.padstacks.push(Padstack {meta:padstack_meta.clone(), entries});
+        let padstack_meta = meta(
+            &source,
+            ObjectKind::Padstack,
+            &padstack_key,
+            "KiCad9 nominal standard round through via padstack",
+        );
+        let drill_meta = meta(
+            &source,
+            ObjectKind::Drill,
+            &drill_key,
+            "KiCad9 nominal plated CAD via drill; no manufacturing verification",
+        );
+        let entries = v
+            .envelope_layers
+            .iter()
+            .map(|original| {
+                // Each envelope object uses the exact KiCad layer identity.
+                let k = original.source_object.as_str();
+                let lid = ObjectId::new(&source, ObjectKind::Layer, k, "");
+                PadstackLayer {
+                    layer: lid,
+                    role: PadRole::Conductive,
+                    shape: PadShape::Circle {
+                        diameter_m: Rational::new(i128::from(v.diameter_nm), 1_000_000_000)
+                            .expect("validated positive diameter"),
+                    },
+                }
+            })
+            .collect::<Vec<_>>();
+        board.padstacks.push(Padstack {
+            meta: padstack_meta.clone(),
+            entries,
+        });
         board.drills.push(Drill {
-            meta:drill_meta.clone(),
-            diameter_m: Rational::new(i128::from(v.drill_nm),1_000_000_000)
+            meta: drill_meta.clone(),
+            diameter_m: Rational::new(i128::from(v.drill_nm), 1_000_000_000)
                 .map_err(|_| err("INVALID_DRILL"))?,
             // Nominal KiCad CAD via design-intent only; physical plating
             // evidence and connectivity are explicitly NOT_VERIFIED.
-            plated:true, span:span.clone(),
+            plated: true,
+            span: span.clone(),
         });
         board.vias.push(Via {
-            meta:meta(&source,ObjectKind::Via,id,"KiCad9 nominal through via declaration"),
-            position:Point {frame:frame_id.clone(),ticks:v.centre_nm},
-            padstack:padstack_meta.id,
-            drill:drill_meta.id,
-            span,
-            kind:ViaKind::Through,
-            net: if v.net_ordinal == 0 {None} else {
-                Some(net_ids.get(&v.net_ordinal)
-                    .ok_or_else(|| err("UNKNOWN_VIA_NET"))?.clone())
+            meta: meta(
+                &source,
+                ObjectKind::Via,
+                id,
+                "KiCad9 nominal through via declaration",
+            ),
+            position: Point {
+                frame: frame_id.clone(),
+                ticks: v.centre_nm,
             },
-            connected_layers:vec![],
+            padstack: padstack_meta.id,
+            drill: drill_meta.id,
+            span,
+            kind: ViaKind::Through,
+            net: if v.net_ordinal == 0 {
+                None
+            } else {
+                Some(
+                    net_ids
+                        .get(&v.net_ordinal)
+                        .ok_or_else(|| err("UNKNOWN_VIA_NET"))?
+                        .clone(),
+                )
+            },
+            connected_layers: vec![],
         });
     }
     if board.validate().has_errors() {
@@ -1180,15 +1276,21 @@ mod f006_native_tests {
                (layers "F.Cu" "B.Cu") (net 1)
                (uuid "123e4567-e89b-12d3-a456-426614174000")))"#;
         let board = into_native_canonical(source.as_bytes()).unwrap();
-        assert_eq!(board.traces.len(),1);
-        assert_eq!(board.vias.len(),1);
-        assert_eq!(board.traces[0].centreline[0].ticks,[1_123_456,-2_000_001]);
-        assert_eq!(board.traces[0].width_m,
-                   Rational::new(3,20_000).unwrap());
-        assert_eq!(board.stackup.layers.iter().map(|x|x.name.as_str()).collect::<Vec<_>>(),
-            vec!["F.Cu","In1.Cu","In2.Cu","B.Cu"]);
-        assert_eq!(board.vias[0].connected_layers.len(),0);
-        assert_eq!(board.padstacks[0].entries.len(),4);
+        assert_eq!(board.traces.len(), 1);
+        assert_eq!(board.vias.len(), 1);
+        assert_eq!(board.traces[0].centreline[0].ticks, [1_123_456, -2_000_001]);
+        assert_eq!(board.traces[0].width_m, Rational::new(3, 20_000).unwrap());
+        assert_eq!(
+            board
+                .stackup
+                .layers
+                .iter()
+                .map(|x| x.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+        );
+        assert_eq!(board.vias[0].connected_layers.len(), 0);
+        assert_eq!(board.padstacks[0].entries.len(), 4);
         assert!(!board.validate().has_errors());
     }
     #[test]
@@ -1197,9 +1299,29 @@ mod f006_native_tests {
           (layers (0 "F.Cu" signal) (2 "B.Cu" signal)) (net 0 "") (net 1 "CLK")
           (via (at 1 2) (size 0.6) (drill 0.3)
                (layers "F.Cu" "B.Cu") (net 1)))"#;
-        assert!(into_native_canonical(template.replace("(via","(footprint \"X\") (via").as_bytes()).is_err());
-        assert!(into_native_canonical(template.replace("(net 1)))","(net 1) (locked yes)))").as_bytes()).is_err());
-        assert!(into_native_canonical(template.replace("(size 0.6)","(size 0.6) (foo 1)").as_bytes()).is_err());
-        assert!(into_native_canonical(template.replace("(version 20241229)","(version 20280101)").as_bytes()).is_err());
+        assert!(into_native_canonical(
+            template
+                .replace("(via", "(footprint \"X\") (via")
+                .as_bytes()
+        )
+        .is_err());
+        assert!(into_native_canonical(
+            template
+                .replace("(net 1)))", "(net 1) (locked yes)))")
+                .as_bytes()
+        )
+        .is_err());
+        assert!(into_native_canonical(
+            template
+                .replace("(size 0.6)", "(size 0.6) (foo 1)")
+                .as_bytes()
+        )
+        .is_err());
+        assert!(into_native_canonical(
+            template
+                .replace("(version 20241229)", "(version 20280101)")
+                .as_bytes()
+        )
+        .is_err());
     }
 }
