@@ -5,6 +5,10 @@ edition = "2021"
 rust-version = "1.75"
 publish = false
 
+[features]
+# Fault hook only when CI explicitly opts in; default app has no pause hook.
+f0031-qualification = []
+
 [dependencies]
 boardsi-import = { path = "../../crates/boardsi-import" }
 boardsi-native = { path = "../../crates/boardsi-native" }
