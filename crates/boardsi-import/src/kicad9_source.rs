@@ -894,3 +894,501 @@ mod tests {
         );
     }
 }
+
+/// F_006: deliberately bounded KiCad 9 PCB source-to-Canonical adapter.
+///
+/// This accepts only straight copper segments and ordinary *unmodified* via
+/// declarations. KiCad's normal via is a nominal plated CAD feature, not
+/// evidence that the manufactured barrel was actually plated. No contact
+/// evidence or solver readiness is inferred. Unknown board objects FAIL CLOSED.
+pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, ImportError> {
+    use boardsi_model::{
+        BoardKind, BoardModel, CoordinateFrame, Drill, ImportSource, Layer, Net, NetRole,
+        Orientation, PadRole, PadShape, Padstack, PadstackLayer, Point, Property, QuarterTurn,
+        Trace, Via,
+    };
+
+    let inventory = inspect(bytes)?;
+    let text = std::str::from_utf8(bytes).map_err(|_| err("INVALID_UTF8"))?;
+    let root = parse(text)?;
+    if root
+        .items
+        .iter()
+        .skip(1)
+        .any(|item| matches!(item, Item::Text(_)))
+    {
+        return Err(err("F006_UNSUPPORTED_ROOT_ATOM"));
+    }
+    let mut seen_scalars = BTreeSet::new();
+    let mut segments = Vec::new();
+    for node in root.children() {
+        match node.head()? {
+            "version" | "generator" | "generator_version" | "general" | "paper" | "layers"
+            | "setup" | "embedded_fonts" | "title_block" | "uuid" => {
+                let name = node.head()?;
+                if !seen_scalars.insert(name.to_owned()) {
+                    return Err(err("DUPLICATE_ROOT_FIELD"));
+                }
+                // These are ancillary source declarations, not imported PCB
+                // geometry or confirmed material / connectivity evidence.
+            }
+            "net" | "via" => (),
+            "segment" => {
+                if segments.len() >= 10_000 {
+                    return Err(err("SEGMENT_LIMIT"));
+                }
+                segments.push(node);
+            }
+            // Footprint, zone, arc, gr_*, pad and newer track kinds must not be
+            // skipped and falsely called lossless Canonical geometry.
+            _ => return Err(err("UNSUPPORTED_BOARD_OBJECT")),
+        }
+    }
+    if segments.len() + inventory.vias.len() > 128 {
+        return Err(err("F006_QT_PREVIEW_OBJECT_LIMIT"));
+    }
+    // Do not advertise a Qt preview for a geometry whose bounded binary64
+    // projection can collapse or exceed the main Qt viewport envelope.
+    let qt_point = |xy: [i64; 2]| -> Result<(), ImportError> {
+        if xy.iter().any(|v| v.unsigned_abs() > 1_000_000_000_000) {
+            return Err(err("F006_QT_POINT_LIMIT"));
+        }
+        Ok(())
+    };
+    if segments.is_empty() && inventory.vias.is_empty() {
+        return Err(err("EMPTY_SUPPORTED_GEOMETRY"));
+    }
+    // Normal KiCad via uses the source-design plated barrel intent. KiCad
+    // layer pruning, locks and "free" flags are NOT representable in the
+    // current v1 Canonical model; do not erase them.
+    for via in &inventory.vias {
+        if via.kind != ViaKind::Through
+            || via.remove_unused_layers
+            || via.keep_end_layers
+            || via.locked
+            || via.free
+        {
+            return Err(err("UNSUPPORTED_VIA_SEMANTICS"));
+        }
+    }
+
+    let mut source_data = (*inventory.identity).clone();
+    let mut conditions = vec![(
+        "scope".into(),
+        "f006-kicad9-straight-segment-normal-through-via-nominal-source-only".into(),
+    )];
+    // The general board thickness is a nominal design declaration, NOT a
+    // demonstrated layer z/thickness/material stackup. Preserve its exact
+    // integer-nm value in source conditions instead of discarding it.
+    if let Some(general) = root.child("general")? {
+        for declaration in general.children() {
+            if declaration.head()? != "thickness" {
+                return Err(err("F006_GENERAL_FIELD_UNSUPPORTED"));
+            }
+            conditions.push((
+                "general_thickness_nm".into(),
+                positive_mm(general.scalar("thickness")?)?.to_string(),
+            ));
+        }
+    }
+    if let Some(setup) = root.child("setup")? {
+        // Stackup and geometry-affecting design settings would be lost unless
+        // parsed explicitly; never call their omission a lossless conversion.
+        if setup.children().next().is_some() {
+            return Err(err("F006_SETUP_UNSUPPORTED"));
+        }
+    }
+    for layer in &inventory.layers {
+        if let Some(name) = &layer.user_name {
+            conditions.push((
+                format!("layer_user_name/{:03}", layer.ordinal),
+                name.clone(),
+            ));
+        }
+    }
+    conditions.sort_by(|a, b| a.0.cmp(&b.0));
+    source_data.conditions = conditions;
+    let source = Arc::new(source_data);
+    let mut board = BoardModel::empty(BoardKind::Pcb);
+    board.sources.push(ImportSource {
+        id: source.clone(),
+        producer: root.scalar("generator")?.into(),
+        producer_version: SUPPORTED_PCB_VERSION.into(),
+        capability: boardsi_model::ImportCapability {
+            geometry: CapabilityState::Partial,
+            net: CapabilityState::Partial,
+            pin_pad: CapabilityState::Missing,
+            stackup: CapabilityState::Partial,
+            reference: CapabilityState::Missing,
+            model: CapabilityState::Missing,
+            object_coverage: vec![
+                "KiCad9 straight copper segments (source geometry only)".into(),
+                "KiCad9 normal through vias, nominal CAD plated intent; connected copper layers UNKNOWN".into(),
+            ],
+        },
+    });
+    let frame_id = ObjectId::new(&source, ObjectKind::Frame, "kicad-xy-nm", "");
+    board.frames.push(CoordinateFrame {
+        meta: meta(
+            &source,
+            ObjectKind::Frame,
+            "kicad-xy-nm",
+            "KiCad9 source XY grid",
+        ),
+        unit_label: "KiCad 9 integer nm".into(),
+        metres_per_tick: Rational::new(1, 1_000_000_000).map_err(|_| err("BAD_UNIT"))?,
+        origin_m: [Rational::integer(0); 2],
+        orientation: Orientation::Orthogonal {
+            turn: QuarterTurn::Zero,
+            mirror_x: false,
+        },
+        source_layer_order_reversed: false,
+    });
+
+    let mut by_layer = BTreeMap::<String, ObjectId>::new();
+    let mut ordered = inventory.layers.iter().collect::<Vec<_>>();
+    // Copper order MUST NOT be numerical KiCad source ordinal order.
+    ordered.sort_by_key(|l| {
+        (
+            l.copper_order.is_none(),
+            l.copper_order.unwrap_or(l.ordinal as usize),
+        )
+    });
+    for (i, layer) in ordered.iter().enumerate() {
+        let source_key = &layer.meta.id.source_object;
+        let lmeta = meta(
+            &source,
+            ObjectKind::Layer,
+            source_key,
+            "KiCad9 layer declaration",
+        );
+        by_layer.insert(layer.canonical_name.clone(), lmeta.id.clone());
+        board.stackup.layers.push(Layer {
+            meta: lmeta,
+            name: layer.canonical_name.clone(),
+            order: i as u32,
+            kind: layer.kind,
+            z_m: Property::Missing,
+            thickness_m: Property::Missing,
+            material: None,
+        });
+    }
+    // Preserve source-declared logical nets but never synthesize a connected
+    // graph from equal ordinal names or via span alone.
+    let mut net_ids = BTreeMap::<u32, ObjectId>::new();
+    for node in root
+        .children()
+        .filter(|node| node.head().ok() == Some("net"))
+    {
+        let words = node.words()?;
+        let number: u32 = words[1].parse().map_err(|_| err("BAD_NET_DECLARATION"))?;
+        if number == 0 {
+            if !words[2].is_empty() {
+                return Err(err("BAD_ZERO_NET"));
+            }
+            continue;
+        }
+        let m = meta(
+            &source,
+            ObjectKind::Net,
+            &format!("net/{number}"),
+            "KiCad9 net declaration",
+        );
+        net_ids.insert(number, m.id.clone());
+        board.nets.push(Net {
+            meta: m,
+            name: words[2].into(),
+            role: NetRole::Unknown,
+        });
+    }
+
+    let mut seen_ids = inventory
+        .vias
+        .iter()
+        .filter_map(|v| v.source_uuid.as_ref().map(|u| u.to_ascii_lowercase()))
+        .collect::<BTreeSet<_>>();
+    for node in segments {
+        let mut fields = BTreeSet::new();
+        for child in node.children() {
+            let key = child.head()?;
+            if !matches!(
+                key,
+                "start" | "end" | "width" | "layer" | "net" | "uuid" | "tstamp"
+            ) || !fields.insert(key.to_owned())
+            {
+                return Err(err("UNSUPPORTED_SEGMENT_FIELD"));
+            }
+        }
+        // Opaque flags and optional unsupported properties are NOT silently
+        // erased. All segment atoms except its root name are rejected.
+        if node
+            .items
+            .iter()
+            .skip(1)
+            .any(|x| matches!(x, Item::Text(_)))
+        {
+            return Err(err("UNSUPPORTED_SEGMENT_ATOM"));
+        }
+        let start = arguments(node, "start", 2)?;
+        let end = arguments(node, "end", 2)?;
+        let width = positive_mm(node.scalar("width")?)?;
+        let layer = by_layer
+            .get(node.scalar("layer")?)
+            .ok_or_else(|| err("UNKNOWN_SEGMENT_LAYER"))?;
+        let actual_layer = board
+            .stackup
+            .layers
+            .iter()
+            .find(|l| &l.meta.id == layer)
+            .ok_or_else(|| err("UNKNOWN_SEGMENT_LAYER"))?;
+        if actual_layer.kind != LayerKind::Copper {
+            return Err(err("NONCOPPER_SEGMENT_LAYER"));
+        }
+        let n: u32 = node
+            .scalar("net")?
+            .parse()
+            .map_err(|_| err("INVALID_SEGMENT_NET"))?;
+        let net = if n == 0 {
+            None
+        } else {
+            Some(
+                net_ids
+                    .get(&n)
+                    .ok_or_else(|| err("UNKNOWN_SEGMENT_NET"))?
+                    .clone(),
+            )
+        };
+        let uuid = match (node.child("uuid")?, node.child("tstamp")?) {
+            (Some(_), Some(_)) => return Err(err("AMBIGUOUS_SEGMENT_ID")),
+            (Some(n), None) => {
+                let words = n.words()?;
+                if words.len() != 2 || !uuid_valid(words[1]) {
+                    return Err(err("INVALID_UUID"));
+                }
+                Some(words[1].to_owned())
+            }
+            (None, Some(n)) => {
+                let words = n.words()?;
+                if words.len() != 2
+                    || words[1].is_empty()
+                    || words[1].len() > 64
+                    || !words[1].bytes().all(|b| b.is_ascii_hexdigit())
+                {
+                    return Err(err("INVALID_TSTAMP"));
+                }
+                Some(words[1].to_owned())
+            }
+            (None, None) => None,
+        };
+        if let Some(ref key) = uuid {
+            if !seen_ids.insert(key.to_ascii_lowercase()) {
+                return Err(err("DUPLICATE_UUID"));
+            }
+        }
+        let a = [millimetres_to_nm(start[0])?, millimetres_to_nm(start[1])?];
+        let b = [millimetres_to_nm(end[0])?, millimetres_to_nm(end[1])?];
+        if a == b {
+            return Err(err("ZERO_LENGTH_SEGMENT"));
+        }
+        qt_point(a)?;
+        qt_point(b)?;
+        if width > 1_000_000_000 {
+            return Err(err("F006_QT_WIDTH_LIMIT"));
+        }
+        let sid = uuid
+            .map(|u| format!("segment/{u}"))
+            .unwrap_or_else(|| format!("segment@byte:{}", node.offset));
+        board.traces.push(Trace {
+            meta: meta(
+                &source,
+                ObjectKind::Trace,
+                &sid,
+                "KiCad9 straight copper segment",
+            ),
+            layer: layer.clone(),
+            net,
+            centreline: vec![
+                Point {
+                    frame: frame_id.clone(),
+                    ticks: a,
+                },
+                Point {
+                    frame: frame_id.clone(),
+                    ticks: b,
+                },
+            ],
+            width_m: Rational::new(i128::from(width), 1_000_000_000)
+                .map_err(|_| err("BAD_SEGMENT_WIDTH"))?,
+        });
+    }
+    // The source's through-via diameter is nominally present on the copper
+    // layers in the *normal* via padstack. Never equate this with a verified
+    // contact graph, and never claim actual manufacturing proof.
+    for v in &inventory.vias {
+        qt_point(v.centre_nm)?;
+        if v.diameter_nm > 1_000_000_000 {
+            return Err(err("F006_QT_VIA_LIMIT"));
+        }
+        let id = &v.meta.id.source_object;
+        let span = ViaSpan {
+            first_layer: by_layer
+                .get(&v.source_first_layer)
+                .ok_or_else(|| err("UNKNOWN_VIA_LAYER"))?
+                .clone(),
+            last_layer: by_layer
+                .get(&v.source_last_layer)
+                .ok_or_else(|| err("UNKNOWN_VIA_LAYER"))?
+                .clone(),
+        };
+        let padstack_key = format!("{id}/nominal-padstack");
+        let drill_key = format!("{id}/nominal-drill");
+        let padstack_meta = meta(
+            &source,
+            ObjectKind::Padstack,
+            &padstack_key,
+            "KiCad9 nominal standard round through via padstack",
+        );
+        let drill_meta = meta(
+            &source,
+            ObjectKind::Drill,
+            &drill_key,
+            "KiCad9 nominal plated CAD via drill; no manufacturing verification",
+        );
+        let entries = v
+            .envelope_layers
+            .iter()
+            .map(|original| {
+                // Each envelope object uses the exact KiCad layer identity.
+                let k = original.source_object.as_str();
+                let lid = ObjectId::new(&source, ObjectKind::Layer, k, "");
+                PadstackLayer {
+                    layer: lid,
+                    role: PadRole::Conductive,
+                    shape: PadShape::Circle {
+                        diameter_m: Rational::new(i128::from(v.diameter_nm), 1_000_000_000)
+                            .expect("validated positive diameter"),
+                    },
+                }
+            })
+            .collect::<Vec<_>>();
+        board.padstacks.push(Padstack {
+            meta: padstack_meta.clone(),
+            entries,
+        });
+        board.drills.push(Drill {
+            meta: drill_meta.clone(),
+            diameter_m: Rational::new(i128::from(v.drill_nm), 1_000_000_000)
+                .map_err(|_| err("INVALID_DRILL"))?,
+            // Nominal KiCad CAD via design-intent only; physical plating
+            // evidence and connectivity are explicitly NOT_VERIFIED.
+            plated: true,
+            span: span.clone(),
+        });
+        board.vias.push(Via {
+            meta: meta(
+                &source,
+                ObjectKind::Via,
+                id,
+                "KiCad9 nominal through via declaration",
+            ),
+            position: Point {
+                frame: frame_id.clone(),
+                ticks: v.centre_nm,
+            },
+            padstack: padstack_meta.id,
+            drill: drill_meta.id,
+            span,
+            kind: ViaKind::Through,
+            net: if v.net_ordinal == 0 {
+                None
+            } else {
+                Some(
+                    net_ids
+                        .get(&v.net_ordinal)
+                        .ok_or_else(|| err("UNKNOWN_VIA_NET"))?
+                        .clone(),
+                )
+            },
+            connected_layers: vec![],
+        });
+    }
+    if board.validate().has_errors() {
+        return Err(err("INVALID_CANONICAL_BOARD"));
+    }
+    Ok(board)
+}
+
+#[cfg(test)]
+mod f006_native_tests {
+    use super::*;
+    #[test]
+    fn exact_copper_order_segment_and_source_only_via() {
+        let source = r#"(kicad_pcb (version 20241229) (generator "F006")
+          (layers (0 "F.Cu" signal) (2 "B.Cu" signal)
+                  (4 "In1.Cu" signal) (6 "In2.Cu" signal))
+          (net 0 "") (net 1 "CLK")
+          (segment (start 1.123456 -2.000001) (end 3.000001 5)
+                   (width 0.15) (layer "In1.Cu") (net 1)
+                   (uuid "223e4567-e89b-12d3-a456-426614174000"))
+          (via (at 3.000001 5) (size 0.6) (drill 0.3)
+               (layers "F.Cu" "B.Cu") (net 1)
+               (uuid "123e4567-e89b-12d3-a456-426614174000")))"#;
+        let board = into_native_canonical(source.as_bytes()).unwrap();
+        assert_eq!(board.traces.len(), 1);
+        assert_eq!(board.vias.len(), 1);
+        assert_eq!(board.traces[0].centreline[0].ticks, [1_123_456, -2_000_001]);
+        assert_eq!(board.traces[0].width_m, Rational::new(3, 20_000).unwrap());
+        assert_eq!(
+            board
+                .stackup
+                .layers
+                .iter()
+                .map(|x| x.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+        );
+        assert_eq!(board.vias[0].connected_layers.len(), 0);
+        assert_eq!(board.padstacks[0].entries.len(), 4);
+        assert!(!board.validate().has_errors());
+    }
+    #[test]
+    fn unsupported_copper_and_flags_fail_closed() {
+        // Root text atoms are unsupported even though the SOURCE inventory
+        // accepts them for its narrower semantic inspection.
+        let stray = r#"(kicad_pcb extra (version 20241229) (generator "F006")
+          (layers (0 "F.Cu" signal) (2 "B.Cu" signal)) (net 0 "")
+          (via (at 1 2) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (net 0)))"#;
+        assert_eq!(
+            into_native_canonical(stray.as_bytes()).unwrap_err().code,
+            "F006_UNSUPPORTED_ROOT_ATOM"
+        );
+        let template = r#"(kicad_pcb (version 20241229) (generator "F006")
+          (layers (0 "F.Cu" signal) (2 "B.Cu" signal)) (net 0 "") (net 1 "CLK")
+          (via (at 1 2) (size 0.6) (drill 0.3)
+               (layers "F.Cu" "B.Cu") (net 1)))"#;
+        assert!(into_native_canonical(
+            template
+                .replace("(via", "(footprint \"X\") (via")
+                .as_bytes()
+        )
+        .is_err());
+        assert!(into_native_canonical(
+            template
+                .replace("(net 1)))", "(net 1) (locked yes)))")
+                .as_bytes()
+        )
+        .is_err());
+        assert!(into_native_canonical(
+            template
+                .replace("(size 0.6)", "(size 0.6) (foo 1)")
+                .as_bytes()
+        )
+        .is_err());
+        assert!(into_native_canonical(
+            template
+                .replace("(version 20241229)", "(version 20280101)")
+                .as_bytes()
+        )
+        .is_err());
+    }
+}

@@ -56,6 +56,127 @@ fn file_sha256(path: &Path) -> Result<String, String> {
     }
     Ok(format!("{:x}", hasher.finalize()))
 }
+/// Optional F_006 read-only preview for a strictly qualified KiCad source.
+/// No original CAD code, graphics tessellation or electrical connection is
+/// published. Positions are exact source nm; Qt alone handles drawing.
+fn kicad_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, String> {
+    use boardsi_model::{
+        LayerKind, Orientation, PadRole, PadShape, QuarterTurn, Rational, SourceFormat,
+    };
+    if board.sources.len() != 1
+        || !matches!(&board.sources[0].id.format, SourceFormat::KiCad)
+        || !board.sources[0].id.conditions.iter().any(|(k, v)| {
+            k == "scope"
+                && v == "f006-kicad9-straight-segment-normal-through-via-nominal-source-only"
+        })
+    {
+        return Ok(None);
+    }
+    if board.traces.len() + board.vias.len() > 128 || board.frames.len() != 1 {
+        return Err(fail("BSI_KICAD_PREVIEW_UNSUPPORTED"));
+    }
+    let frame = &board.frames[0];
+    if frame.metres_per_tick
+        != Rational::new(1, 1_000_000_000).map_err(|_| fail("BSI_KICAD_PREVIEW_UNIT"))?
+        || frame.origin_m != [Rational::integer(0); 2]
+        || !matches!(
+            &frame.orientation,
+            Orientation::Orthogonal {
+                turn: QuarterTurn::Zero,
+                mirror_x: false
+            }
+        )
+    {
+        return Err(fail("BSI_KICAD_PREVIEW_FRAME"));
+    }
+    let to_nm = |x: Rational| -> Result<i64, String> {
+        let scaled = x
+            .numerator()
+            .checked_mul(1_000_000_000)
+            .ok_or_else(|| fail("BSI_KICAD_PREVIEW_DIMENSION"))?;
+        if scaled % x.denominator() != 0 {
+            return Err(fail("BSI_KICAD_PREVIEW_DIMENSION"));
+        }
+        i64::try_from(scaled / x.denominator()).map_err(|_| fail("BSI_KICAD_PREVIEW_DIMENSION"))
+    };
+    let layers = board
+        .stackup
+        .layers
+        .iter()
+        .filter(|l| l.kind == LayerKind::Copper)
+        .map(|l| (l.meta.id.clone(), l.name.clone(), l.order))
+        .collect::<Vec<_>>();
+    let find_name = |id: &boardsi_model::ObjectId| -> Result<&str, String> {
+        layers
+            .iter()
+            .find(|(layer, _, _)| layer == id)
+            .map(|(_, name, _)| name.as_str())
+            .ok_or_else(|| fail("BSI_KICAD_PREVIEW_LAYER"))
+    };
+    let mut rows = Vec::new();
+    for tr in &board.traces {
+        if tr.centreline.len() != 2 || tr.centreline.iter().any(|p| p.frame != frame.meta.id) {
+            return Err(fail("BSI_KICAD_PREVIEW_TRACE"));
+        }
+        let width = to_nm(tr.width_m)?;
+        if width <= 0 || width > 1_000_000_000 {
+            return Err(fail("BSI_KICAD_PREVIEW_WIDTH"));
+        }
+        rows.push(json!({
+            "kind":"trace","id":tr.meta.id.source_object,
+            "layer":find_name(&tr.layer)?,
+            "a":tr.centreline[0].ticks,"b":tr.centreline[1].ticks,
+            "width_nm":width,
+            "net":tr.net.as_ref().map(|n|n.source_object.as_str())
+        }));
+    }
+    for via in &board.vias {
+        if via.position.frame != frame.meta.id || !via.connected_layers.is_empty() {
+            return Err(fail("BSI_KICAD_PREVIEW_VIA"));
+        }
+        let stack = board
+            .padstacks
+            .iter()
+            .find(|p| p.meta.id == via.padstack)
+            .ok_or_else(|| fail("BSI_KICAD_PREVIEW_VIA"))?;
+        let first = stack
+            .entries
+            .first()
+            .ok_or_else(|| fail("BSI_KICAD_PREVIEW_VIA"))?;
+        let diameter = match &first.shape {
+            PadShape::Circle { diameter_m } => to_nm(*diameter_m)?,
+            _ => return Err(fail("BSI_KICAD_PREVIEW_SHAPE")),
+        };
+        if stack.entries.iter().any(|e|e.role!=PadRole::Conductive
+            || !matches!(&e.shape,PadShape::Circle{diameter_m} if to_nm(*diameter_m).ok()==Some(diameter))) {
+            return Err(fail("BSI_KICAD_PREVIEW_SHAPE"));
+        }
+        let drill = board
+            .drills
+            .iter()
+            .find(|d| d.meta.id == via.drill)
+            .ok_or_else(|| fail("BSI_KICAD_PREVIEW_DRILL"))?;
+        let drill_nm = to_nm(drill.diameter_m)?;
+        if drill_nm <= 0 || drill_nm >= diameter || diameter > 1_000_000_000 {
+            return Err(fail("BSI_KICAD_PREVIEW_DRILL"));
+        }
+        rows.push(json!({
+            "kind":"via","id":via.meta.id.source_object,"layer":"*",
+            "at":via.position.ticks,"diameter_nm":diameter,"drill_nm":drill_nm,
+            "span_first":find_name(&via.span.first_layer)?,
+            "span_last":find_name(&via.span.last_layer)?,
+            "net":via.net.as_ref().map(|n|n.source_object.as_str()),
+            "contact":"NOT_VERIFIED"
+        }));
+    }
+    Ok(Some(json!({
+        "schema":"BSI_KICAD_SOURCE_PREVIEW_V1",
+        "units":"integer-nm","solver_ready":false,
+        "layers":layers.iter().map(|(_,name,order)|json!({"name":name,"order":order})).collect::<Vec<_>>(),
+        "items":rows
+    })))
+}
+
 fn receipt(action: &str, path: &Path, read_only: bool) -> Result<Value, String> {
     let before = file_sha256(path)?;
     let loaded = load(path).map_err(native_error)?;
@@ -64,7 +185,7 @@ fn receipt(action: &str, path: &Path, read_only: bool) -> Result<Value, String> 
         return Err(fail("BSI_SOURCE_CHANGED"));
     }
     let b = loaded.model();
-    Ok(json!({
+    let mut response = json!({
         "protocol":"BSI_NATIVE_FILE_V1",
         "action": action,
         "path": path.to_string_lossy(),
@@ -76,7 +197,12 @@ fn receipt(action: &str, path: &Path, read_only: bool) -> Result<Value, String> 
         "layers": b.stackup.layers.len(), "nets": b.nets.len(),
         "sources": b.sources.len(),
         "geometry_only": true, "physical_si": "NOT_RUN"
-    }))
+    });
+    if let Some(preview) = kicad_preview(b)? {
+        response["source_format"] = json!("KICAD9_SOURCE_SUBSET");
+        response["artwork"] = preview;
+    }
+    Ok(response)
 }
 fn run() -> Result<Value, String> {
     let args: Vec<_> = env::args_os().skip(1).collect();
@@ -134,6 +260,45 @@ fn run() -> Result<Value, String> {
                 .map_err(|_| fail("BSI_SOURCE_CANONICAL"))?;
             save(&target, &board).map_err(native_error)?;
             receipt("save-pads", &target, false)
+        }
+        "save-kicad" if args.len() == 4 => {
+            let source = arg_path(&args, 1)?;
+            let target = arg_path(&args, 2)?;
+            let expected = arg_text(&args, 3)?;
+            if expected.len() != 64 || !expected.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(fail("BSI_SOURCE_SHA_INVALID"));
+            }
+            let expected = expected.to_ascii_lowercase();
+            let meta = fs::metadata(&source).map_err(|_| fail("BSI_SOURCE_MISSING"))?;
+            if !meta.is_file() || meta.len() > 8 * 1024 * 1024 {
+                return Err(fail("BSI_SOURCE_SIZE"));
+            }
+            let bytes = fs::read(&source).map_err(|_| fail("BSI_SOURCE_READ"))?;
+            if format!("{:x}", Sha256::digest(&bytes)) != expected {
+                return Err(fail("BSI_SOURCE_CHANGED"));
+            }
+            let board = boardsi_import::kicad9_source::into_native_canonical(&bytes)
+                .map_err(|e| format!("BSI_KICAD_SOURCE_UNSUPPORTED:{}", e.code))?;
+            // Only a fully revalidated source may replace an existing .bsi.
+            // The same strict importer is applied to the guard path; a source
+            // rewrite that keeps path, size or mtime is still detected.
+            save_guarded(&target, &board, || {
+                let fresh_bytes = fs::read(&source).map_err(|_| NativeError::SourceChanged)?;
+                if format!("{:x}", Sha256::digest(&fresh_bytes)) != expected {
+                    return Err(NativeError::SourceChanged);
+                }
+                let fresh = boardsi_import::kicad9_source::into_native_canonical(&fresh_bytes)
+                    .map_err(|_| NativeError::SourceChanged)?;
+                if !canonical_semantics_equal(&board, &fresh) {
+                    return Err(NativeError::SourceChanged);
+                }
+                Ok(())
+            })
+            .map_err(native_error)?;
+            let mut response = receipt("save-kicad", &target, false)?;
+            response["source_sha256"] = json!(expected);
+            response["source_format"] = json!("KICAD9_SOURCE_SUBSET");
+            Ok(response)
         }
         "save-odb" if args.len() == 5 => {
             let root = arg_path(&args, 1)?;

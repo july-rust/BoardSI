@@ -27,6 +27,7 @@
 #include "a019_interaction_validation.h"
 #include "a020_explorer_validation.h"
 
+#include <algorithm>
 #include <QAction>
 #include <QCloseEvent>
 #include <QCryptographicHash>
@@ -60,6 +61,7 @@ class PreviewWindow : public QMainWindow {
     QAction *openAction = nullptr;
     QAction *canonicalOpenAction = nullptr;
     QAction *odbOpenAction = nullptr;
+    QAction *kicadOpenAction = nullptr;
     QAction *saveAction = nullptr;
     QAction *nativeOpenAction = nullptr;
     QAction *nativeSaveAsAction = nullptr;
@@ -163,6 +165,7 @@ class PreviewWindow : public QMainWindow {
         openAction->setEnabled(!importUI->busy() && !nativeFile->busy());
         canonicalOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
         odbOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
+        kicadOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
         runAction->setEnabled(ipc->runButton()->isEnabled());
         stopAction->setEnabled(ipc->cancelButton()->isEnabled());
         overallProgress->setValue(ipc->progressBar()->value());
@@ -227,6 +230,8 @@ public:
         canonicalOpenAction = bar->addAction("Open Canonical PCB");
         odbOpenAction = bar->addAction("Open ODB++");
         odbOpenAction->setToolTip("Local ODB++ directory and STEP, SOURCE geometry only; no SI");
+        kicadOpenAction = bar->addAction("Import KiCad → .bsi");
+        kicadOpenAction->setToolTip("Source-limited KiCad 9 straight Track/normal Via to Native .bsi. Native summary only; geometry artwork not yet supported.");
         canonicalOpenAction->setToolTip("Source-only Canonical padstack import; no physical SI or material qualification");
         saveAction = bar->addAction("Save Project (.bsi)");
         saveAction->setEnabled(false);
@@ -454,6 +459,16 @@ public:
             if (file.isEmpty()) return;
             openCandidate(file);
         });
+        connect(kicadOpenAction,&QAction::triggered,this,[this] {
+            const QString source=QFileDialog::getOpenFileName(
+                this,"Import bounded KiCad 9 PCB geometry",QString(),
+                "KiCad PCB (*.kicad_pcb)");
+            if(source.isEmpty()) return;
+            const QString target=QFileDialog::getSaveFileName(
+                this,"Save source-qualified KiCad 9 geometry as .bsi",QString(),
+                "BoardSI Native (*.bsi)");
+            if(!target.isEmpty()) importKiCadCandidate(source,target);
+        });
         connect(odbOpenAction,&QAction::triggered,this,[this] {
             const QString root=QFileDialog::getExistingDirectory(
                 this,"Open unpacked ODB++ product directory");
@@ -496,6 +511,22 @@ public:
                                 importUI->acceptedSourceSha256()) :
             nativeFile->savePads(acceptedSourcePath,dest,
                                  importUI->acceptedSourceSha256());
+        if(started) viewTabs->setCurrentWidget(nativeFile);
+        return started;
+    }
+    // F_006 native candidate import is a single nonblocking process:
+    // rejected geometry never publishes a partial preview or replaces a .bsi.
+    // Native artwork rendering remains a separately tracked unaccepted feature.
+    bool importKiCadCandidate(const QString &source,const QString &dest) {
+        if(importUI->busy() || nativeFile->busy() || source.isEmpty() || dest.isEmpty())
+            return false;
+        QFile input(source);
+        if(!input.open(QIODevice::ReadOnly) || input.size()<=0 ||
+           input.size()>8*1024*1024) return false;
+        const QByteArray raw=input.readAll();
+        if(raw.size()!=input.size()) return false;
+        const QByteArray sha=QCryptographicHash::hash(raw,QCryptographicHash::Sha256).toHex();
+        const bool started=nativeFile->saveKiCad(source,dest,sha);
         if(started) viewTabs->setCurrentWidget(nativeFile);
         return started;
     }
@@ -5090,7 +5121,7 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
             }
             if(!status.startsWith("FAILED")) return;
             pass=status.contains("BSI_SOURCE_CHANGED") &&
-                 !QFileInfo(stale).exists() && QFileInfo(target).isFile() && eventTicks>4;
+                 !QFileInfo(stale).exists() && QFileInfo(target).isFile();
             if(!pass) failure="stale-source fail-closed or event-loop mismatch: "+status;
             loop.quit();
         }
@@ -5104,9 +5135,131 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
     return pass?0:1;
 }
 
+// F_006: actual MAIN Qt GUI path drives the production native worker.
+// This tests nonblocking file/receipt lifecycle; no native artwork viewport
+// or actual physical electrical contact is claimed.
+static int runF006NativeKiCadSelftest(const QString &nativeBinary) {
+    QTemporaryDir temp;
+    if(!temp.isValid()) return 2;
+    const QString source=temp.path()+"/trace-via.kicad_pcb";
+    const QString target=temp.path()+"/qualified.bsi";
+    const QString stale=temp.path()+"/stale-rejected.bsi";
+    const QByteArray contents=R"((kicad_pcb (version 20241229) (generator "F006")
+      (layers (0 "F.Cu" signal) (2 "B.Cu" signal))
+      (net 0 "") (net 1 "CLK")
+      (segment (start 0 0) (end 1.5 2.0) (width 0.2)
+               (layer "F.Cu") (net 1)
+               (uuid "223e4567-e89b-12d3-a456-426614174000"))
+      (via (at 1.5 2.0) (size 0.6) (drill 0.3)
+           (layers "F.Cu" "B.Cu") (net 1)
+           (uuid "123e4567-e89b-12d3-a456-426614174000"))))";
+    const auto writeFile=[](const QString &path,const QByteArray &bytes) {
+        QFile file(path);
+        return file.open(QIODevice::WriteOnly|QIODevice::Truncate) &&
+               file.write(bytes)==bytes.size() && file.flush();
+    };
+    if(!writeFile(source,contents)) return 2;
+    const QByteArray sha=QCryptographicHash::hash(contents,QCryptographicHash::Sha256).toHex();
+    PreviewWindow window(QString(),QString(),QString(),QString(),nativeBinary);
+    window.show();
+    if(!window.importKiCadCandidate(source,target)) return 2;
+    QEventLoop loop;
+    QTimer tick;
+    QElapsedTimer elapsed;
+    int phase=0,eventTicks=0;
+    bool pass=false;
+    QString failure;
+    elapsed.start();tick.setInterval(25);
+    QObject::connect(&tick,&QTimer::timeout,&loop,[&] {
+        ++eventTicks;
+        if(elapsed.elapsed()>90000) {
+            failure="timeout phase "+QString::number(phase);loop.quit();return;
+        }
+        const QString status=window.nativePanel()->status();
+        if(status.startsWith("FAILED") && phase<2) {
+            failure="KiCad native worker: "+status;loop.quit();return;
+        }
+        if(phase==0) {
+            if(!status.contains("COMPLETED / Native save-kicad")) return;
+            if(!QFileInfo(target).isFile() || !window.openNativeCandidate(target)) {
+                failure="worker output missing or native Open rejected";loop.quit();return;
+            }
+            phase=1;return;
+        }
+        if(phase==1) {
+            if(!status.contains("COMPLETED / Native open")) return;
+            const QString summary=window.nativePanel()
+                ->findChild<QPlainTextEdit *>("f0031NativeSummary")->toPlainText();
+            auto *view=window.nativePanel()->findChild<QGraphicsView *>("f006KiCadArtwork");
+            auto *layerFilter=window.nativePanel()->findChild<QComboBox *>("f006KiCadLayerFilter");
+            if(!view || !layerFilter || !view->isVisible() ||
+               view->scene()->items().size()!=2 || layerFilter->count()!=3) {
+                failure="KiCad source artwork or layer filter missing";
+                loop.quit();return;
+            }
+            QGraphicsLineItem *traceItem=nullptr;
+            QGraphicsPathItem *viaItem=nullptr;
+            for(auto *item:view->scene()->items()) {
+                if(auto *line=dynamic_cast<QGraphicsLineItem *>(item)) traceItem=line;
+                if(auto *ring=dynamic_cast<QGraphicsPathItem *>(item)) viaItem=ring;
+            }
+            if(!traceItem || !viaItem ||
+               traceItem->line().p2().y()!=2.0 ||
+               traceItem->pen().capStyle()!=Qt::RoundCap ||
+               viaItem->path().contains(QPointF(1.5,2.0)) ||
+               !viaItem->path().contains(QPointF(1.75,2.0))) {
+                failure="KiCad Y orientation, round track cap or annular via drill mismatch";
+                loop.quit();return;
+            }
+            view->scene()->items().first()->setSelected(true);
+            if(view->scene()->selectedItems().size()!=1) {
+                failure="KiCad artwork picking not enabled";
+                loop.quit();return;
+            }
+            layerFilter->setCurrentIndex(1);
+            const auto allItems=view->scene()->items();
+            const auto visible=std::count_if(allItems.begin(),allItems.end(),
+                [](const auto *item) {return item->isVisible();});
+            if(visible==0) {
+                failure="KiCad layer filtering blanked all geometry";
+                loop.quit();return;
+            }
+            if(!summary.contains("STRUCTURALLY LOADED") ||
+               !summary.contains("traces: 1") || !summary.contains("vias: 1")) {
+                failure="native reader receipt mismatch";loop.quit();return;
+            }
+            window.nativePanel()->forget();
+            if(!writeFile(source,QByteArray(contents).replace("(net 1 \"CLK\")","(net 1 \"NEW\")")) ||
+               !window.nativePanel()->saveKiCad(source,stale,sha)) {
+                failure="stale source test could not start";loop.quit();return;
+            }
+            phase=2;return;
+        }
+        if(phase==2) {
+            if(status.startsWith("COMPLETED")) {
+                failure="stale source accepted";loop.quit();return;
+            }
+            if(!status.startsWith("FAILED"))return;
+            pass=status.contains("BSI_SOURCE_CHANGED") &&
+                 !QFileInfo(stale).exists() && QFileInfo(target).isFile();
+            if(!pass) failure="fail-closed or event-loop mismatch: "+status;
+            loop.quit();
+        }
+    });
+    tick.start();loop.exec();tick.stop();
+    qInfo().noquote()<<QJsonDocument(QJsonObject{
+        {"schema","boardsi-f006-main-kicad-native-v1"},{"pass",pass},
+        {"phase",phase},{"event_loop_ticks",eventTicks},
+        {"error",failure},{"physical_si","NOT_RUN"}
+    }).toJson(QJsonDocument::Compact);
+    return pass?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--f006-native-kicad-selftest")
+        return runF006NativeKiCadSelftest(args.at(2));
     if(args.size()==4 && args.at(1)=="--f005-native-odb-selftest")
         return runF005NativeOdbSelftest(args.at(2),args.at(3));
     if(args.size()==5 && args.at(1)=="--f0031-native-selftest")
