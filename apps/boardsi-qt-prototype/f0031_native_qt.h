@@ -98,6 +98,12 @@ class F0031NativePanel final : public QWidget {
             state("FAILED / ODB++ source manifest receipt mismatch");
             return;
         }
+        if(operation_=="save-kicad" &&
+           (receipt.value("source_format").toString()!="KICAD9_SOURCE_SUBSET" ||
+            receipt.value("source_sha256").toString()!=expectedSourceManifest_)) {
+            state("FAILED / KiCad9 source SHA receipt mismatch");
+            return;
+        }
         loaded_=target_;
         acceptedDigest_=receipt.value("sha256").toString();
         readOnly_=receipt.value("read_only").toBool();
@@ -187,6 +193,14 @@ public:
         const bool started=begin("save-odb",target,
             {"save-odb",root,step,target,QString::fromLatin1(manifestSha)});
         if(started) expectedSourceManifest_=QString::fromLatin1(manifestSha);
+        return started;
+    }
+    bool saveKiCad(const QString &source,const QString &target,
+                   const QByteArray &sourceSha) {
+        if(running_ || sourceSha.size()!=64) return false;
+        const bool started=begin("save-kicad",target,
+            {"save-kicad",source,target,QString::fromLatin1(sourceSha)});
+        if(started) expectedSourceManifest_=QString::fromLatin1(sourceSha);
         return started;
     }
     bool saveNative(const QString &target) {
