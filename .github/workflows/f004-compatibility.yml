@@ -1,0 +1,26 @@
+name: F004 Native BSI Compatibility
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  native:
+    name: F004 independent golden / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022, windows-11-arm, macos-15]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.75.0 --profile minimal --component rustfmt
+      - name: Run independent v1 golden and compatibility regressions
+        shell: bash
+        run: |
+          cargo +1.75.0 fmt --all -- --check
+          cargo +1.75.0 test -p boardsi-native --locked --test f004_compatibility --verbose
+          cargo +1.75.0 test -p boardsi-native --locked --test native
