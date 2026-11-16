@@ -1,6 +1,6 @@
 # F_005 — CAD Source → Canonical → Native .bsi → Canonical
 
-> **상태: 구현·기능 인수 PASS / 정확한 main Push CI 최종 정산 대기.**
+> **상태: F_005 범위 한정 `100% COMPLETE` / T01~T12 12/12 PASS.**
 > 최초 인수 근거일: **2026-11-16 KST**. F_005 한정 범위 밖의 CAD 전체 지원과 전기적/SI 검증은 승격하지 않음.
 
 ## 인수 범위
@@ -37,8 +37,8 @@
 - **E_028 교차 포맷 형상 오라클** — [Numerical Core CI](https://github.com/july-rust/BoardSI/actions/runs/43832486519), `e028_cross_format_via_oracle` 5/5 Debug, 5/5 Release.
 - **Native 4 OS 실행 명령**: `cargo +1.75.0 test -p boardsi-native-file --locked --test f005_cad_roundtrip --features f004-qualification`.
 - **Qt 자체 시험**: `boardsi-preview-p0 --f005-native-odb-selftest <odb-qt-import> <native-file-worker>`.
-- **병합 후 main CI**: [정확한 병합 커밋의 Checks](https://github.com/july-rust/BoardSI/commit/fff7882840d9db0eefd6bd32c6039ef68e6d075d/checks). 최종 집계 대기 중이며 PASS로 선기록하지 않음.
+- **병합 후 정확한 main Push CI** — [Verified Squash `fff78828`의 48/48 Checks](https://github.com/july-rust/BoardSI/commit/fff7882840d9db0eefd6bd32c6039ef68e6d075d/checks). **48/48 SUCCESS**, 실패 0. macOS F_004 실행 1건은 Runner 대기 중 취소된 뒤 해당 작업만 재실행해 PASS 확인. 최종 결과로만 48/48 기록.
 
 ## 판정 및 향후 사용 제한
 
-**기능 인수 T01~T12: 12/12 PASS.** 이 12개는 F_005의 *지원 부분집합*에 대한 결함 차단·저장 왕복·Qt 수용성과 기존 회귀를 의미한다. 상용 PCB 전체 변환·실물 기판 전기적 연결성·SI 분석 품질을 보증하지 않는다. `main` Push 검증 완료 후 F_005 체크리스트를 범위 한정 `100% COMPLETE`로 최종 정산한다.
+**F_005 범위 한정 100% COMPLETE — T01~T12 12/12 PASS, 구현 PR 58/58 CI, 정확한 병합 후 main Push 48/48, 독립 코드 리뷰 0건, Verified Squash.** 이 12개는 *지원 부분집합*의 형상 무손실 왕복·Qt 수용성·Staging 시점 원본 변경 거부와 기존 회귀를 의미한다. 상용 PCB 전체 변환·제조상 전기적 연결성·SI 분석 품질을 보증하지 않는다. 별도 문서 정산 PR [#661](https://github.com/july-rust/BoardSI/pull/661)로 마지막 체크리스트를 닫는다.
