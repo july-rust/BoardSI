@@ -6,7 +6,7 @@
 ## 인수 범위
 
 - **PADS V9.4 지원 부분집합**: 실제 PADS 파일 → Canonical → 기존 `save-pads` Writer → 단일 파일 `.bsi` → 독립 Reader → Canonical 의미 비교.
-- **ODB++ SOURCE 한정 Directory/Single STEP 부분집합**: 2~64 Copper Layer, 직선 Trace와 Circle/Rectangle Pad. 공통 `odb_qt_wire::render`는 Qt와 Native에 동일한 fail-closed 허용 조건, 정확한 Rational 치수 제한 및 Qt double 투영 유효성을 적용.
+- **ODB++ SOURCE 한정 Directory/Single STEP 부분집합**: 2~64 Copper Layer라는 내부 Layer 검사와 별개로 **전체 Source 파일 최대 64개**(필수 `matrix/matrix` + 각 Copper Layer의 `features` 파일)를 동시에 만족해야 하므로, 최소 구성에서도 **실제 수용 가능한 Copper Layer는 최대 63개**이다. 기타 Source 파일이 있으면 허용 Layer 수는 더 감소한다. 직선 Trace와 Circle/Rectangle Pad만 허용. 공통 `odb_qt_wire::render`는 Qt와 Native에 동일한 fail-closed 허용 조건, 정확한 Rational 치수 제한 및 Qt double 투영 유효성을 적용.
 - **Source 변경 보호**: 논리 경로+파일 SHA-256 Manifest, 정확한 모델 비교. `save_guarded`가 SQLite Staging·sync·독립 재검증 **후, 기존 목적 파일 교체 바로 전** ODB++ 원본을 재읽어 불일치 시 `BSI_SOURCE_CHANGED`를 반환하며 기존 `.bsi` 보존.
 - **실제 Qt 메인 GUI**: 승인된 ODB++ Root/STEP/Manifest 기반 비차단 `Save Project (.bsi)` → `Open`. 실패·취소·변경된 원본을 최신 승인 데이터로 오인하지 않음.
 - **제외**: 임의 상용 ODB++ 전체 CAD, KiCad/IPC-2581/Gerber의 완전한 Native Import, 제조 수준 Via/접촉·Net 전기적 연속성, RLGC/S-Parameter/SI, 전체 U/T 인증. 기존 E_028의 KiCad/PADS 교차 형상 Oracle은 Native KiCad 승격의 근거가 아님.
@@ -19,7 +19,7 @@
 | T02 | ODB++ 실제 Directory/STEP → `save-odb` Worker | **PASS** |
 | T03 | PADS Canonical → `.bsi` → Canonical 구조 동등성 | **PASS** |
 | T04 | ODB++ Canonical → Native 저장·복원·Save As 의미 동등성 | **PASS** |
-| T05 | 1.5 mm 독립 실측 기준과 정확한 Rational/BSIG 좌표 검증 | **PASS** |
+| T05 | 합성 ODB++ Fixture의 알려진 1.5 mm 좌표를 기준으로 Rational/BSIG 독립 복호화 검증(실측 아님) | **PASS** |
 | T06 | Geometry·Layer·Pad·Net·Frame 전체 필드 의미 비교 + 기존 BSIG 9종 회귀 | **PASS** |
 | T07 | SourceIdentity·SHA-256·Capability·읽기 전용 정책의 Round-Trip | **PASS** |
 | T08 | 독립 Source SHA Manifest / SQLite BSIG Oracle / F_004 Python Golden | **PASS** |
