@@ -100,17 +100,31 @@ fn actual_process_save_open_copy_and_source_sha_guard() {
     assert!(!rejected.status.success());
     assert_eq!(fs::read(&good).unwrap(), original);
     // A different valid design at the same path must not be silently copied.
-    let replace=dir.join("external-replacement.bsi");
-    let update=Command::new(binary()).arg("save-loaded")
-        .arg(&good).arg(&replace).arg(&accepted_digest).output().unwrap();
-    assert!(update.status.success(), "{}", String::from_utf8_lossy(&update.stderr));
+    let replace = dir.join("external-replacement.bsi");
+    let update = Command::new(binary())
+        .arg("save-loaded")
+        .arg(&good)
+        .arg(&replace)
+        .arg(&accepted_digest)
+        .output()
+        .unwrap();
+    assert!(
+        update.status.success(),
+        "{}",
+        String::from_utf8_lossy(&update.stderr)
+    );
     assert_ne!(fs::read(&replace).unwrap(), original);
     fs::remove_file(&good).unwrap();
     fs::rename(&replace, &good).unwrap();
-    let replaced=fs::read(&good).unwrap();
-    let denied=dir.join("must-not-exist.bsi");
-    let stale=Command::new(binary()).arg("save-loaded")
-        .arg(&good).arg(&denied).arg(&accepted_digest).output().unwrap();
+    let replaced = fs::read(&good).unwrap();
+    let denied = dir.join("must-not-exist.bsi");
+    let stale = Command::new(binary())
+        .arg("save-loaded")
+        .arg(&good)
+        .arg(&denied)
+        .arg(&accepted_digest)
+        .output()
+        .unwrap();
     assert!(!stale.status.success());
     assert!(!denied.exists());
     assert_eq!(fs::read(&good).unwrap(), replaced);
