@@ -1,6 +1,6 @@
 //! F_004 cross-OS Golden acceptance against an independent Python/SQLite+BSIG
 //! producer. Run with --ignored AND F004_GOLDEN_PATH from the F004 workflow.
-use boardsi_model::{BoardKind, NetRole, ViaKind};
+use boardsi_model::{BoardKind, NetRole, Property, ViaKind};
 use boardsi_native::{load, migrate_to_current, save};
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
@@ -251,4 +251,54 @@ fn t01_t02_t03_full_nine_kinds_golden_exact_structural_semantics() {
         board.connectivity.edges.is_empty(),
         "no invented electrical proof"
     );
+}
+
+#[test]
+#[ignore = "F004 OS matrix supplies independent frozen material/stackup Golden"]
+fn t03_independent_material_stackup_exact_property_evidence() {
+    let path = PathBuf::from(
+        std::env::var("F004_GOLDEN_MATERIAL_PATH")
+            .expect("F004_GOLDEN_MATERIAL_PATH must exist in OS matrix"),
+    );
+    assert!(path.is_file(), "missing frozen material Golden");
+    assert_eq!(
+        sha_hex(&path),
+        "ba17b4b896a21493b50527ac3caed2275e4e25e957ffc08a8bfbe22ba4273534"
+    );
+    let loaded = load(&path).expect("independent material Golden must load");
+    assert!(!loaded.is_read_only());
+    let board = loaded.model();
+    assert_eq!(board.materials.len(), 2);
+    assert_eq!(board.stackup.layers.len(), 2);
+    assert_eq!(board.materials[0].name, "SYNTHETIC_CU");
+    assert_eq!(board.materials[1].name, "SYNTHETIC_FR4");
+    match &board.materials[0].conductivity_s_per_m {
+        Property::Assumed { value, source } => {
+            assert_eq!(*value, 5.8e7);
+            assert!(source.document.contains("NOT a measurement"));
+        }
+        _ => panic!("synthetic copper conductivity must remain assumed"),
+    }
+    match &board.materials[1].dk {
+        Property::Assumed { value, .. } => assert_eq!(*value, 4.2),
+        _ => panic!("synthetic FR4 Dk must remain assumed"),
+    }
+    match &board.materials[1].df {
+        Property::Assumed { value, .. } => assert_eq!(*value, 0.015),
+        _ => panic!("synthetic FR4 Df must remain assumed"),
+    }
+    assert_eq!(
+        board.stackup.layers[0].material.as_ref(),
+        Some(&board.materials[0].meta.id)
+    );
+    assert_eq!(
+        board.stackup.layers[1].material.as_ref(),
+        Some(&board.materials[1].meta.id)
+    );
+    let z = board.stackup.layers[1].z_m.value().unwrap();
+    assert_eq!((z.numerator(), z.denominator()), (7, 200000));
+    let thickness = board.stackup.layers[1].thickness_m.value().unwrap();
+    assert_eq!((thickness.numerator(), thickness.denominator()), (1, 1000));
+    assert_eq!(board.traces.len(), 1);
+    assert!(board.connectivity.edges.is_empty());
 }
