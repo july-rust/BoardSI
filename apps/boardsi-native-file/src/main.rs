@@ -59,17 +59,24 @@ fn file_sha256(path: &Path) -> Result<String, String> {
 /// Optional F_006 read-only preview for a strictly qualified KiCad source.
 /// No original CAD code, graphics tessellation or electrical connection is
 /// published. Positions are exact source nm; Qt alone handles drawing.
-fn kicad_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, String> {
+fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, String> {
     use boardsi_model::{
         LayerKind, Orientation, PadRole, PadShape, QuarterTurn, Rational, SourceFormat,
     };
-    if board.sources.len() != 1
-        || !matches!(&board.sources[0].id.format, SourceFormat::KiCad)
-        || !board.sources[0].id.conditions.iter().any(|(k, v)| {
+    if board.sources.len() != 1 {
+        return Ok(None);
+    }
+    let is_kicad = matches!(&board.sources[0].id.format, SourceFormat::KiCad)
+        && board.sources[0].id.conditions.iter().any(|(k, v)| {
             k == "scope"
                 && v == "f006-kicad9-straight-segment-normal-through-via-nominal-source-only"
-        })
-    {
+        });
+    let is_ipc = matches!(&board.sources[0].id.format, SourceFormat::Ipc2581)
+        && board.sources[0].id.conditions.iter().any(|(k, v)| {
+            k == "scope"
+                && v == "f007-ipc2581c-inline-round-line-polyline-nm-source-only"
+        });
+    if !is_kicad && !is_ipc {
         return Ok(None);
     }
     if board.traces.len() + board.vias.len() > 128 || board.frames.len() != 1 {
@@ -115,20 +122,25 @@ fn kicad_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, Str
     };
     let mut rows = Vec::new();
     for tr in &board.traces {
-        if tr.centreline.len() != 2 || tr.centreline.iter().any(|p| p.frame != frame.meta.id) {
-            return Err(fail("BSI_KICAD_PREVIEW_TRACE"));
+        if tr.centreline.len() < 2 || tr.centreline.iter().any(|p| p.frame != frame.meta.id) {
+            return Err(fail("BSI_SOURCE_PREVIEW_TRACE"));
         }
         let width = to_nm(tr.width_m)?;
         if width <= 0 || width > 1_000_000_000 {
-            return Err(fail("BSI_KICAD_PREVIEW_WIDTH"));
+            return Err(fail("BSI_SOURCE_PREVIEW_WIDTH"));
         }
-        rows.push(json!({
-            "kind":"trace","id":tr.meta.id.source_object,
-            "layer":find_name(&tr.layer)?,
-            "a":tr.centreline[0].ticks,"b":tr.centreline[1].ticks,
-            "width_nm":width,
-            "net":tr.net.as_ref().map(|n|n.source_object.as_str())
-        }));
+        for (index, pair) in tr.centreline.windows(2).enumerate() {
+            if rows.len() >= 128 {
+                return Err(fail("BSI_SOURCE_PREVIEW_ITEM_LIMIT"));
+            }
+            rows.push(json!({
+                "kind":"trace","id":format!("{}#{}",tr.meta.id.source_object,index),
+                "layer":find_name(&tr.layer)?,
+                "a":pair[0].ticks,"b":pair[1].ticks,
+                "width_nm":width,
+                "net":tr.net.as_ref().map(|n|n.source_object.as_str())
+            }));
+        }
     }
     for via in &board.vias {
         if via.position.frame != frame.meta.id || !via.connected_layers.is_empty() {
@@ -170,7 +182,7 @@ fn kicad_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, Str
         }));
     }
     Ok(Some(json!({
-        "schema":"BSI_KICAD_SOURCE_PREVIEW_V1",
+        "schema":if is_ipc {"BSI_IPC2581_SOURCE_PREVIEW_V1"} else {"BSI_KICAD_SOURCE_PREVIEW_V1"},
         "units":"integer-nm","solver_ready":false,
         "layers":layers.iter().map(|(_,name,order)|json!({"name":name,"order":order})).collect::<Vec<_>>(),
         "items":rows
@@ -198,8 +210,13 @@ fn receipt(action: &str, path: &Path, read_only: bool) -> Result<Value, String> 
         "sources": b.sources.len(),
         "geometry_only": true, "physical_si": "NOT_RUN"
     });
-    if let Some(preview) = kicad_preview(b)? {
-        response["source_format"] = json!("KICAD9_SOURCE_SUBSET");
+    if let Some(preview) = source_preview(b)? {
+        let source_format = if preview["schema"] == "BSI_IPC2581_SOURCE_PREVIEW_V1" {
+            "IPC2581C_SOURCE_SUBSET"
+        } else {
+            "KICAD9_SOURCE_SUBSET"
+        };
+        response["source_format"] = json!(source_format);
         response["artwork"] = preview;
     }
     Ok(response)
@@ -298,6 +315,42 @@ fn run() -> Result<Value, String> {
             let mut response = receipt("save-kicad", &target, false)?;
             response["source_sha256"] = json!(expected);
             response["source_format"] = json!("KICAD9_SOURCE_SUBSET");
+            Ok(response)
+        }
+        "save-ipc2581" if args.len() == 4 => {
+            let source = arg_path(&args, 1)?;
+            let target = arg_path(&args, 2)?;
+            let expected = arg_text(&args, 3)?;
+            if expected.len() != 64 || !expected.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(fail("BSI_SOURCE_SHA_INVALID"));
+            }
+            let expected = expected.to_ascii_lowercase();
+            let meta = fs::metadata(&source).map_err(|_| fail("BSI_SOURCE_MISSING"))?;
+            if !meta.is_file() || meta.len() > 8 * 1024 * 1024 {
+                return Err(fail("BSI_SOURCE_SIZE"));
+            }
+            let bytes = fs::read(&source).map_err(|_| fail("BSI_SOURCE_READ"))?;
+            if format!("{:x}", Sha256::digest(&bytes)) != expected {
+                return Err(fail("BSI_SOURCE_CHANGED"));
+            }
+            let board = boardsi_import::ipc2581c_source::into_native_canonical(&bytes)
+                .map_err(|e| format!("BSI_IPC2581_SOURCE_UNSUPPORTED:{}", e.code))?;
+            save_guarded(&target, &board, || {
+                let fresh_bytes = fs::read(&source).map_err(|_| NativeError::SourceChanged)?;
+                if format!("{:x}", Sha256::digest(&fresh_bytes)) != expected {
+                    return Err(NativeError::SourceChanged);
+                }
+                let fresh = boardsi_import::ipc2581c_source::into_native_canonical(&fresh_bytes)
+                    .map_err(|_| NativeError::SourceChanged)?;
+                if !canonical_semantics_equal(&board, &fresh) {
+                    return Err(NativeError::SourceChanged);
+                }
+                Ok(())
+            })
+            .map_err(native_error)?;
+            let mut response = receipt("save-ipc2581", &target, false)?;
+            response["source_sha256"] = json!(expected);
+            response["source_format"] = json!("IPC2581C_SOURCE_SUBSET");
             Ok(response)
         }
         "save-odb" if args.len() == 5 => {
