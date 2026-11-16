@@ -972,7 +972,6 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
         board.nets.push(Net { meta: m, name: n.net.name.clone(), role: n.net.role });
     }
 
-    let scope = "IPC-2581/Ecad/CadData/Step/";
     let mut layer: Option<ObjectId> = None;
     let mut net: Option<ObjectId> = None;
     let mut current_kind = "";
@@ -1095,7 +1094,6 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
         }
         // A LineDesc may only terminate the exact currently active Feature.
         // Additional unexpected children are rejected by the match above.
-        let _ = scope; // keeps the exact XSD path documented alongside the gate.
     }
     if !pending_points.is_empty() || !current_kind.is_empty() || board.traces.is_empty() {
         return Err(err("F007_INCOMPLETE_OR_EMPTY_GEOMETRY"));
@@ -1137,10 +1135,10 @@ mod f007_native_tests {
         assert_eq!(model.traces[0].centreline[1].ticks, [3_000_000, 5_000_001]);
         assert_eq!(model.traces[1].centreline.len(), 3);
         assert_eq!(model.traces[0].width_m, Rational::new(15, 100_000).unwrap());
-        assert!(model.validate().issues.is_empty() || !model.validate().has_errors());
+        assert!(!model.validate().has_errors());
         assert_eq!(model.sources[0].id.files[0].sha256,
             crate::digest::sha256(input.as_bytes()));
-        assert!(!model.sources[0].capability.model.eq(&CapabilityState::Verified));
+        assert_eq!(model.sources[0].capability.model, CapabilityState::Missing);
     }
     #[test]
     fn units_and_unsupported_geometry_are_closed() {
