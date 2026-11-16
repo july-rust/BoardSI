@@ -62,7 +62,7 @@ fn file_sha256(path: &Path) -> Result<String, String> {
 fn kicad_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, String> {
     use boardsi_model::{LayerKind, Orientation, PadRole, PadShape, QuarterTurn, Rational, SourceFormat};
     if board.sources.len() != 1
-        || !matches!(board.sources[0].id.format, SourceFormat::KiCad)
+        || !matches!(&board.sources[0].id.format, SourceFormat::KiCad)
         || !board.sources[0].id.conditions.iter().any(|(k, v)| {
             k == "scope" && v == "f006-kicad9-straight-segment-normal-through-via-nominal-source-only"
         })
