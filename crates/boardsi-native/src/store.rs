@@ -39,7 +39,7 @@ impl LoadedBoard {
         Ok(self.model)
     }
 }
-fn uuid() -> String {
+pub(crate) fn uuid() -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
