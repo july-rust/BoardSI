@@ -62,6 +62,7 @@ class PreviewWindow : public QMainWindow {
     QAction *canonicalOpenAction = nullptr;
     QAction *odbOpenAction = nullptr;
     QAction *kicadOpenAction = nullptr;
+    QAction *ipc2581OpenAction = nullptr;
     QAction *saveAction = nullptr;
     QAction *nativeOpenAction = nullptr;
     QAction *nativeSaveAsAction = nullptr;
@@ -166,6 +167,7 @@ class PreviewWindow : public QMainWindow {
         canonicalOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
         odbOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
         kicadOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
+        ipc2581OpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
         runAction->setEnabled(ipc->runButton()->isEnabled());
         stopAction->setEnabled(ipc->cancelButton()->isEnabled());
         overallProgress->setValue(ipc->progressBar()->value());
@@ -232,6 +234,8 @@ public:
         odbOpenAction->setToolTip("Local ODB++ directory and STEP, SOURCE geometry only; no SI");
         kicadOpenAction = bar->addAction("Import KiCad → .bsi");
         kicadOpenAction->setToolTip("Source-limited KiCad 9 straight Track/normal Via to Native .bsi. Native summary only; geometry artwork not yet supported.");
+        ipc2581OpenAction = bar->addAction("Import IPC-2581C → .bsi");
+        ipc2581OpenAction->setToolTip("Source-limited inline Line/Polyline only; unsupported geometry fails closed; no SI");
         canonicalOpenAction->setToolTip("Source-only Canonical padstack import; no physical SI or material qualification");
         saveAction = bar->addAction("Save Project (.bsi)");
         saveAction->setEnabled(false);
@@ -469,6 +473,16 @@ public:
                 "BoardSI Native (*.bsi)");
             if(!target.isEmpty()) importKiCadCandidate(source,target);
         });
+        connect(ipc2581OpenAction,&QAction::triggered,this,[this] {
+            const QString source=QFileDialog::getOpenFileName(
+                this,"Import IPC-2581C Source-only copper",QString(),
+                "IPC-2581C XML (*.xml *.ipc2581);;All files (*)");
+            if(source.isEmpty()) return;
+            const QString target=QFileDialog::getSaveFileName(
+                this,"Save IPC-2581C source-qualified geometry as .bsi",QString(),
+                "BoardSI Native (*.bsi)");
+            if(!target.isEmpty()) importIpc2581Candidate(source,target);
+        });
         connect(odbOpenAction,&QAction::triggered,this,[this] {
             const QString root=QFileDialog::getExistingDirectory(
                 this,"Open unpacked ODB++ product directory");
@@ -527,6 +541,19 @@ public:
         if(raw.size()!=input.size()) return false;
         const QByteArray sha=QCryptographicHash::hash(raw,QCryptographicHash::Sha256).toHex();
         const bool started=nativeFile->saveKiCad(source,dest,sha);
+        if(started) viewTabs->setCurrentWidget(nativeFile);
+        return started;
+    }
+    bool importIpc2581Candidate(const QString &source,const QString &dest) {
+        if(importUI->busy() || nativeFile->busy() || source.isEmpty() || dest.isEmpty())
+            return false;
+        QFile input(source);
+        if(!input.open(QIODevice::ReadOnly) || input.size()<=0 ||
+           input.size()>8*1024*1024) return false;
+        const QByteArray raw=input.readAll();
+        if(raw.size()!=input.size()) return false;
+        const QByteArray sha=QCryptographicHash::hash(raw,QCryptographicHash::Sha256).toHex();
+        const bool started=nativeFile->saveIpc2581(source,dest,sha);
         if(started) viewTabs->setCurrentWidget(nativeFile);
         return started;
     }
