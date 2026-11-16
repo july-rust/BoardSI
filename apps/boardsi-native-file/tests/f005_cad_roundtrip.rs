@@ -1,7 +1,7 @@
 //! F_005: real CAD source -> independent native worker -> v1 SQLite -> Canonical.
 //! Synthetic E_021 source contract; no manufactured connectivity or SI claim.
 use boardsi_import::{odb_qt_wire, odb_source, route_preview};
-use boardsi_model::Rational;
+use boardsi_model::{PadShape, Rational};
 use boardsi_native::{canonical_semantics_equal, load};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
@@ -281,5 +281,139 @@ fn f005_pads_source_and_native_reader_semantics_are_identical() {
         &canonical,
         load(&target).unwrap().model()
     ));
+    fs::remove_dir_all(temp).unwrap();
+}
+
+#[test]
+fn f005_shared_gate_rejects_qt_numeric_overflow_and_source_variants() {
+    let temp = temp();
+    let root = temp.join("odb");
+    seed(&root);
+    let valid = odb_source::import_directory(&root, "pcb").unwrap();
+    assert!(odb_qt_wire::render(&valid).is_ok());
+    let target = temp.join("keep.bsi");
+    let accepted = manifest(&root);
+    ok(run(&[
+        std::ffi::OsStr::new("save-odb"),
+        root.as_os_str(),
+        std::ffi::OsStr::new("pcb"),
+        target.as_os_str(),
+        std::ffi::OsStr::new(&accepted),
+    ]));
+    let original = fs::read(&target).unwrap();
+
+    // First, enforce numeric gates on already-valid Canonical models. These
+    // must be rejected by the common Rust gate, not merely by a Qt decoder.
+    let mut too_wide = odb_source::import_directory(&root, "pcb").unwrap();
+    too_wide.traces[0].width_m = Rational::integer(2);
+    assert_eq!(
+        odb_qt_wire::render(&too_wide),
+        Err("E021_QT_DIMENSION_LIMIT")
+    );
+    let mut too_big_pad = odb_source::import_directory(&root, "pcb").unwrap();
+    too_big_pad.padstacks[0].entries[0].shape = PadShape::Circle {
+        diameter_m: Rational::integer(2),
+    };
+    assert_eq!(
+        odb_qt_wire::render(&too_big_pad),
+        Err("E021_QT_DIMENSION_LIMIT")
+    );
+    let mut too_far = odb_source::import_directory(&root, "pcb").unwrap();
+    too_far.frames[0].origin_m[0] = Rational::integer(1001);
+    assert_eq!(
+        odb_qt_wire::render(&too_far),
+        Err("E021_QT_DIMENSION_LIMIT")
+    );
+
+    // Independently verify that newly hashed oversize source files never
+    // overwrite the last-good .bsi (whether importer or shared gate rejects).
+    for source in [
+        FEATURES.replace("$0 r100", "$0 r2000000 M"),
+        FEATURES.replace("rect200x100 M", "rect2000000x100 M"),
+        FEATURES.replace("L 0 0 1.5 0", "L 1000001 0 1.5 0"),
+    ] {
+        seed(&root);
+        file(&root, FILES[1], source.as_bytes());
+        let hash = manifest(&root);
+        let bad = run(&[
+            std::ffi::OsStr::new("save-odb"),
+            root.as_os_str(),
+            std::ffi::OsStr::new("pcb"),
+            target.as_os_str(),
+            std::ffi::OsStr::new(&hash),
+        ]);
+        assert!(
+            !bad.status.success(),
+            "oversized source was accepted: {}",
+            String::from_utf8_lossy(&bad.stdout)
+        );
+        assert_eq!(fs::read(&target).unwrap(), original);
+    }
+    fs::remove_dir_all(temp).unwrap();
+}
+
+#[cfg(feature = "f004-qualification")]
+#[test]
+fn f005_real_source_mutation_during_staging_aborts_before_publish() {
+    use std::{process::Stdio, thread, time::Duration};
+    let temp = temp();
+    let root = temp.join("odb");
+    seed(&root);
+    let target = temp.join("last-good.bsi");
+    let expected = manifest(&root);
+    ok(run(&[
+        std::ffi::OsStr::new("save-odb"),
+        root.as_os_str(),
+        std::ffi::OsStr::new("pcb"),
+        target.as_os_str(),
+        std::ffi::OsStr::new(&expected),
+    ]));
+    let original = fs::read(&target).unwrap();
+
+    let marker = temp.join("before-replace.marker");
+    let resume = marker.with_extension("resume");
+    let mut worker = Command::new(binary())
+        .arg("save-odb")
+        .arg(&root)
+        .arg("pcb")
+        .arg(&target)
+        .arg(&expected)
+        .env("BOARDSI_F003_QUAL_MODE", "pause-until-resume")
+        .env("BOARDSI_F003_QUAL_MARKER", &marker)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    for _ in 0..200 {
+        if marker.exists() {
+            break;
+        }
+        if worker.try_wait().unwrap().is_some() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    if !marker.exists() {
+        let _ = worker.kill();
+        let _ = worker.wait();
+        panic!("native worker never reached the validated staging gate");
+    }
+    // Mutation takes place while the worker has a fully validated staging
+    // SQLite file and has not yet published the replacement.
+    file(
+        &root,
+        FILES[1],
+        FEATURES.replace("1.5 0", "1.8 0").as_bytes(),
+    );
+    fs::write(&resume, b"resume").unwrap();
+    let output = worker.wait_with_output().unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("BSI_SOURCE_CHANGED"),
+        "actual error: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(&target).unwrap(), original);
+    assert!(load(&target).is_ok());
     fs::remove_dir_all(temp).unwrap();
 }
