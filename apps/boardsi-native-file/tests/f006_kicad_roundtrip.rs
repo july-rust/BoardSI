@@ -173,3 +173,63 @@ fn f006_source_hash_and_unsupported_geometry_preserve_last_good_file() {
     assert_eq!(stable, fs::read(&target).unwrap());
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[cfg(feature = "f004-qualification")]
+#[test]
+fn f006_real_source_mutation_during_staging_aborts_before_publish() {
+    use std::{process::Stdio, thread, time::Duration};
+    let dir = temp();
+    let source = dir.join("candidate.kicad_pcb");
+    let target = dir.join("previous.bsi");
+    fs::write(&source, SOURCE).unwrap();
+    let hash = format!("{:x}", Sha256::digest(SOURCE.as_bytes()));
+    assert!(invoke(&[
+        std::ffi::OsStr::new("save-kicad"),
+        source.as_os_str(),
+        target.as_os_str(),
+        std::ffi::OsStr::new(&hash),
+    ])
+    .status
+    .success());
+    let good = fs::read(&target).unwrap();
+    let marker = dir.join("f006-pre-publish.marker");
+    let resume = marker.with_extension("resume");
+    let mut worker = Command::new(env!("CARGO_BIN_EXE_boardsi-native-file"))
+        .arg("save-kicad")
+        .arg(&source)
+        .arg(&target)
+        .arg(&hash)
+        .env("BOARDSI_F003_QUAL_MODE", "pause-until-resume")
+        .env("BOARDSI_F003_QUAL_MARKER", &marker)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    for _ in 0..200 {
+        if marker.exists() || worker.try_wait().unwrap().is_some() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    if !marker.exists() {
+        let _ = worker.kill();
+        let _ = worker.wait();
+        panic!("F006 staged native source guard marker was not reached");
+    }
+    fs::write(
+        &source,
+        SOURCE.replace("(net 1 \"CLK\")", "(net 1 \"MUTATED\")"),
+    )
+    .unwrap();
+    fs::write(resume, b"resume").unwrap();
+    let result = worker.wait_with_output().unwrap();
+    assert!(
+        !result.status.success()
+            && String::from_utf8_lossy(&result.stderr).contains("BSI_SOURCE_CHANGED"),
+        "F006 source changed before publication: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert_eq!(fs::read(&target).unwrap(), good);
+    assert!(load(&target).is_ok());
+    fs::remove_dir_all(dir).unwrap();
+}
