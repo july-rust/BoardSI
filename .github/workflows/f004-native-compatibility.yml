@@ -67,3 +67,21 @@ jobs:
         run: |
           cargo +1.75.0 test -p boardsi-native --locked --verbose
           cargo +1.75.0 test -p boardsi-native --locked --test f004_golden -- --ignored --nocapture
+          cargo +1.75.0 test -p boardsi-native --locked --features f003-qualification --test f004_resilience -- --nocapture
+  enospc:
+    name: F004 actual Linux migration ENOSPC
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install locked Rust
+        run: rustup toolchain install 1.75.0 --profile minimal
+      - name: Force actual tmpfs full and protect target
+        shell: bash
+        run: |
+          set -euo pipefail
+          FS="$RUNNER_TEMP/f004-enospc"
+          mkdir -p "$FS"
+          sudo mount -t tmpfs -o size=16m tmpfs "$FS"
+          trap 'sudo umount "$FS"' EXIT
+          F004_ENOSPC_DIR="$FS" cargo +1.75.0 test --locked -p boardsi-native --features f003-qualification --test f004_resilience actual_tmpfs_enospc_preserves_last_good_migration_target -- --exact --nocapture
