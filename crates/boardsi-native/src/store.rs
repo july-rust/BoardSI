@@ -188,9 +188,7 @@ fn qualification_before_replace() -> Result<()> {
 
 #[cfg(feature = "f003-qualification")]
 fn qualification_during_transaction() -> Result<()> {
-    if std::env::var("BOARDSI_F003_QUAL_MODE").ok().as_deref()
-        != Some("pause-transaction")
-    {
+    if std::env::var("BOARDSI_F003_QUAL_MODE").ok().as_deref() != Some("pause-transaction") {
         return Ok(());
     }
     let marker = std::env::var_os("BOARDSI_F003_QUAL_MARKER")
