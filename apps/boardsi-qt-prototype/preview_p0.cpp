@@ -27,6 +27,7 @@
 #include "a019_interaction_validation.h"
 #include "a020_explorer_validation.h"
 
+#include <algorithm>
 #include <QAction>
 #include <QCloseEvent>
 #include <QCryptographicHash>
@@ -5189,6 +5190,26 @@ static int runF006NativeKiCadSelftest(const QString &nativeBinary) {
             if(!status.contains("COMPLETED / Native open")) return;
             const QString summary=window.nativePanel()
                 ->findChild<QPlainTextEdit *>("f0031NativeSummary")->toPlainText();
+            auto *view=window.nativePanel()->findChild<QGraphicsView *>("f006KiCadArtwork");
+            auto *layerFilter=window.nativePanel()->findChild<QComboBox *>("f006KiCadLayerFilter");
+            if(!view || !layerFilter || !view->isVisible() ||
+               view->scene()->items().size()!=2 || layerFilter->count()!=3) {
+                failure="KiCad source artwork or layer filter missing";
+                loop.quit();return;
+            }
+            view->scene()->items().first()->setSelected(true);
+            if(view->scene()->selectedItems().size()!=1) {
+                failure="KiCad artwork picking not enabled";
+                loop.quit();return;
+            }
+            layerFilter->setCurrentIndex(1);
+            const auto allItems=view->scene()->items();
+            const auto visible=std::count_if(allItems.begin(),allItems.end(),
+                [](const auto *item) {return item->isVisible();});
+            if(visible==0) {
+                failure="KiCad layer filtering blanked all geometry";
+                loop.quit();return;
+            }
             if(!summary.contains("STRUCTURALLY LOADED") ||
                !summary.contains("traces: 1") || !summary.contains("vias: 1")) {
                 failure="native reader receipt mismatch";loop.quit();return;
