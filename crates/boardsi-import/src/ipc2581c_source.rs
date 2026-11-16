@@ -801,7 +801,6 @@ mod tests {
     }
 }
 
-
 // F_007: opt-in strictly bounded native IPC-2581C copper Line/Polyline adapter.
 // XSD: CadHeader.units; CadData.Step.LayerFeature.Set.Features.Line or Polyline,
 // with an inline LineDesc. Any other Step fabrication geometry fails closed.
@@ -828,15 +827,25 @@ fn f007_nm(raw: &str, factor: i128) -> Result<i64, ImportError> {
     {
         return Err(err("F007_BAD_COORDINATE"));
     }
-    let denom = 10_i128.checked_pow(fraction.len() as u32)
+    let denom = 10_i128
+        .checked_pow(fraction.len() as u32)
         .ok_or_else(|| err("F007_COORDINATE_OVERFLOW"))?;
-    let int = if whole.is_empty() { 0 } else {
-        whole.parse::<i128>().map_err(|_| err("F007_COORDINATE_OVERFLOW"))?
+    let int = if whole.is_empty() {
+        0
+    } else {
+        whole
+            .parse::<i128>()
+            .map_err(|_| err("F007_COORDINATE_OVERFLOW"))?
     };
-    let frac = if fraction.is_empty() { 0 } else {
-        fraction.parse::<i128>().map_err(|_| err("F007_COORDINATE_OVERFLOW"))?
+    let frac = if fraction.is_empty() {
+        0
+    } else {
+        fraction
+            .parse::<i128>()
+            .map_err(|_| err("F007_COORDINATE_OVERFLOW"))?
     };
-    let decimal = int.checked_mul(denom)
+    let decimal = int
+        .checked_mul(denom)
         .and_then(|n| n.checked_add(frac))
         .and_then(|n| n.checked_mul(factor))
         .ok_or_else(|| err("F007_COORDINATE_OVERFLOW"))?;
@@ -864,7 +873,9 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     let xml = std::str::from_utf8(bytes).map_err(|_| err("INVALID_UTF8"))?;
     let tags = scan(xml)?;
     let mut headers = tags.iter().filter(|t| t.path == "IPC-2581/Ecad/CadHeader");
-    let header = headers.next().ok_or_else(|| err("F007_MISSING_CAD_UNITS"))?;
+    let header = headers
+        .next()
+        .ok_or_else(|| err("F007_MISSING_CAD_UNITS"))?;
     if headers.next().is_some() {
         return Err(err("F007_DUPLICATE_CAD_HEADER"));
     }
@@ -882,7 +893,10 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     let mut source_data = (*inventory.identity).clone();
     let mut conditions = vec![
         ("selected_step".into(), inventory.selected_step.clone()),
-        ("scope".into(), "f007-ipc2581c-inline-round-line-polyline-nm-source-only".into()),
+        (
+            "scope".into(),
+            "f007-ipc2581c-inline-round-line-polyline-nm-source-only".into(),
+        ),
         ("cad_units".into(), units.into()),
     ];
     for (i, l) in inventory.layers.iter().enumerate() {
@@ -930,8 +944,7 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     board.frames.push(CoordinateFrame {
         meta: frame_meta,
         unit_label: format!("IPC-2581C {units}, exact integer nm"),
-        metres_per_tick: Rational::new(1, 1_000_000_000)
-            .map_err(|_| err("F007_BAD_UNIT"))?,
+        metres_per_tick: Rational::new(1, 1_000_000_000).map_err(|_| err("F007_BAD_UNIT"))?,
         origin_m: [Rational::integer(0); 2],
         orientation: Orientation::Orthogonal {
             turn: QuarterTurn::Zero,
@@ -969,7 +982,11 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
             &format!("{}/LogicalNet/{}", inventory.selected_step, n.net.name),
         );
         nets.insert(n.net.name.clone(), m.id.clone());
-        board.nets.push(Net { meta: m, name: n.net.name.clone(), role: n.net.role });
+        board.nets.push(Net {
+            meta: m,
+            name: n.net.name.clone(),
+            role: n.net.role,
+        });
     }
 
     let mut layer: Option<ObjectId> = None;
@@ -991,8 +1008,8 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
                     return Err(err("F007_UNSUPPORTED_LAYER_FEATURE"));
                 }
                 let name = field(&tag.attrs, "layerRef")?;
-                let (id, kind, polarity) = layers.get(name)
-                    .ok_or_else(|| err("F007_UNKNOWN_LAYER"))?;
+                let (id, kind, polarity) =
+                    layers.get(name).ok_or_else(|| err("F007_UNKNOWN_LAYER"))?;
                 if *kind != LayerKind::Copper || polarity != "POSITIVE" {
                     return Err(err("F007_UNSUPPORTED_LAYER_POLARITY"));
                 }
@@ -1006,9 +1023,15 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
                 {
                     return Err(err("F007_UNSUPPORTED_SET"));
                 }
-                net = tag.attrs.get("net").map(|name| {
-                    nets.get(name).cloned().ok_or_else(|| err("F007_UNKNOWN_NET"))
-                }).transpose()?;
+                net = tag
+                    .attrs
+                    .get("net")
+                    .map(|name| {
+                        nets.get(name)
+                            .cloned()
+                            .ok_or_else(|| err("F007_UNKNOWN_NET"))
+                    })
+                    .transpose()?;
             }
             "Step/LayerFeature/Set/Features" => {
                 if !tag.attrs.is_empty() || layer.is_none() {
@@ -1053,7 +1076,10 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
             | "Step/LayerFeature/Set/Features/Polyline/LineDesc" => {
                 if current_kind.is_empty()
                     || pending_points.len() < 2
-                    || tag.attrs.keys().any(|k| !matches!(k.as_str(), "lineWidth" | "lineEnd" | "lineProperty"))
+                    || tag
+                        .attrs
+                        .keys()
+                        .any(|k| !matches!(k.as_str(), "lineWidth" | "lineEnd" | "lineProperty"))
                     || field(&tag.attrs, "lineEnd")? != "ROUND"
                     || tag.attrs.get("lineProperty").is_some_and(|v| v != "SOLID")
                 {
@@ -1069,11 +1095,18 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
                 if traces >= 128 {
                     return Err(err("F007_QT_TRACE_LIMIT"));
                 }
-                let mut meta = object(&source, ObjectKind::Trace, &format!(
-                    "{}/LayerFeature/{}/Trace/{traces:05}",
-                    inventory.selected_step,
-                    layer.as_ref().ok_or_else(|| err("F007_MISSING_LAYER"))?.source_object,
-                ));
+                let mut meta = object(
+                    &source,
+                    ObjectKind::Trace,
+                    &format!(
+                        "{}/LayerFeature/{}/Trace/{traces:05}",
+                        inventory.selected_step,
+                        layer
+                            .as_ref()
+                            .ok_or_else(|| err("F007_MISSING_LAYER"))?
+                            .source_object,
+                    ),
+                );
                 meta.provenance.source_object_type =
                     format!("IPC-2581C {current_kind} / inline ROUND SOLID LineDesc");
                 meta.provenance.history[0].operation = "exact-source-decimal-to-integer-nm".into();
@@ -1081,9 +1114,13 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
                     meta,
                     layer: layer.clone().ok_or_else(|| err("F007_MISSING_LAYER"))?,
                     net: net.clone(),
-                    centreline: pending_points.drain(..).map(|ticks| Point {
-                        frame: frame_id.clone(), ticks,
-                    }).collect(),
+                    centreline: pending_points
+                        .drain(..)
+                        .map(|ticks| Point {
+                            frame: frame_id.clone(),
+                            ticks,
+                        })
+                        .collect(),
                     width_m: Rational::new(i128::from(width), 1_000_000_000)
                         .map_err(|_| err("F007_BAD_WIDTH"))?,
                 });
@@ -1109,7 +1146,8 @@ mod f007_native_tests {
     use super::*;
 
     fn fixture(geometry: &str, units: &str) -> String {
-        format!(r#"<?xml version="1.0"?>
+        format!(
+            r#"<?xml version="1.0"?>
 <IPC-2581 revision="C" xmlns="http://webstds.ipc.org/2581">
 <Content><LayerRef name="TOP"/><LayerRef name="BOTTOM"/></Content>
 <LogisticHeader/><HistoryRecord/>
@@ -1118,7 +1156,8 @@ mod f007_native_tests {
 <Layer name="BOTTOM" layerFunction="SIGNAL" side="BOTTOM" polarity="POSITIVE"/>
 <Step name="BOARD"><LogicalNet name="SIG"><PinRef componentRef="U1" pin="1"/></LogicalNet>
 <LayerFeature layerRef="TOP"><Set net="SIG">{geometry}</Set></LayerFeature>
-</Step></CadData></Ecad></IPC-2581>"#)
+</Step></CadData></Ecad></IPC-2581>"#
+        )
     }
     #[test]
     fn xsd_inline_line_and_polyline_exact_nm() {
@@ -1136,20 +1175,22 @@ mod f007_native_tests {
         assert_eq!(model.traces[1].centreline.len(), 3);
         assert_eq!(model.traces[0].width_m, Rational::new(15, 100_000).unwrap());
         assert!(!model.validate().has_errors());
-        assert_eq!(model.sources[0].id.files[0].sha256,
-            crate::digest::sha256(input.as_bytes()));
+        assert_eq!(
+            model.sources[0].id.files[0].sha256,
+            crate::digest::sha256(input.as_bytes())
+        );
         assert_eq!(model.sources[0].capability.model, CapabilityState::Missing);
     }
     #[test]
     fn units_and_unsupported_geometry_are_closed() {
         let line = r#"<Features><Line startX="1" startY="2" endX="3" endY="4">
             <LineDesc lineEnd="ROUND" lineWidth="0.1"/></Line></Features>"#;
-        let mm = into_native_canonical(fixture(line,"MILLIMETER").as_bytes()).unwrap();
-        let micron = into_native_canonical(fixture(line,"MICRON").as_bytes()).unwrap();
-        let inch = into_native_canonical(fixture(line,"INCH").as_bytes()).unwrap();
-        assert_eq!(mm.traces[0].centreline[0].ticks[0],1_000_000);
-        assert_eq!(micron.traces[0].centreline[0].ticks[0],1_000);
-        assert_eq!(inch.traces[0].centreline[0].ticks[0],25_400_000);
+        let mm = into_native_canonical(fixture(line, "MILLIMETER").as_bytes()).unwrap();
+        let micron = into_native_canonical(fixture(line, "MICRON").as_bytes()).unwrap();
+        let inch = into_native_canonical(fixture(line, "INCH").as_bytes()).unwrap();
+        assert_eq!(mm.traces[0].centreline[0].ticks[0], 1_000_000);
+        assert_eq!(micron.traces[0].centreline[0].ticks[0], 1_000);
+        assert_eq!(inch.traces[0].centreline[0].ticks[0], 25_400_000);
         for evil in [
             line.replace("lineEnd=\"ROUND\"", "lineEnd=\"SQUARE\""),
             line.replace("<LineDesc", "<LineDescRef"),
@@ -1157,8 +1198,8 @@ mod f007_native_tests {
             format!("{line}<Pad padstackDefRef=\"P\"/>"),
             format!("{line}<Features><Arc/></Features>"),
         ] {
-            assert!(into_native_canonical(fixture(&evil,"MILLIMETER").as_bytes()).is_err());
+            assert!(into_native_canonical(fixture(&evil, "MILLIMETER").as_bytes()).is_err());
         }
-        assert!(into_native_canonical(fixture(line,"MM").as_bytes()).is_err());
+        assert!(into_native_canonical(fixture(line, "MM").as_bytes()).is_err());
     }
 }
