@@ -331,6 +331,20 @@ fn all_nine_kinds_in_one_real_sqlite_file() {
     assert_eq!(read_back.model().outlines.len(), 1);
     assert_eq!(read_back.model().outlines[0].cutouts.len(), 1);
     assert_eq!(read_back.model(), &board);
+    // F004 release Golden: freeze the complete nine-kind Canonical sample.
+    // Keep the ordinary F003 round-trip test unchanged when no destination
+    // was explicitly requested by the independent qualification runner.
+    if let Some(output) = std::env::var_os("F004_FULL_NINE_OUTPUT") {
+        let conn = rusqlite::Connection::open(&pth).unwrap();
+        conn.execute(
+            "UPDATE file_meta SET file_uuid='00000000-0000-4000-8000-000000000009', created_utc='2026-11-16T00:00:00Z', producer='F004 frozen nine-kind reference', producer_version='1'",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+        assert_eq!(load(&pth).unwrap().model(), &board);
+        std::fs::copy(&pth, output).unwrap();
+    }
     std::fs::remove_file(&pth).unwrap();
 }
 
