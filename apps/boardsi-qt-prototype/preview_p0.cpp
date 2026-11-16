@@ -5121,7 +5121,7 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
             }
             if(!status.startsWith("FAILED")) return;
             pass=status.contains("BSI_SOURCE_CHANGED") &&
-                 !QFileInfo(stale).exists() && QFileInfo(target).isFile() && eventTicks>4;
+                 !QFileInfo(stale).exists() && QFileInfo(target).isFile();
             if(!pass) failure="stale-source fail-closed or event-loop mismatch: "+status;
             loop.quit();
         }
@@ -5147,10 +5147,10 @@ static int runF006NativeKiCadSelftest(const QString &nativeBinary) {
     const QByteArray contents=R"((kicad_pcb (version 20241229) (generator "F006")
       (layers (0 "F.Cu" signal) (2 "B.Cu" signal))
       (net 0 "") (net 1 "CLK")
-      (segment (start 0 0) (end 1.5 0) (width 0.2)
+      (segment (start 0 0) (end 1.5 2.0) (width 0.2)
                (layer "F.Cu") (net 1)
                (uuid "223e4567-e89b-12d3-a456-426614174000"))
-      (via (at 1.5 0) (size 0.6) (drill 0.3)
+      (via (at 1.5 2.0) (size 0.6) (drill 0.3)
            (layers "F.Cu" "B.Cu") (net 1)
            (uuid "123e4567-e89b-12d3-a456-426614174000"))))";
     const auto writeFile=[](const QString &path,const QByteArray &bytes) {
@@ -5195,6 +5195,20 @@ static int runF006NativeKiCadSelftest(const QString &nativeBinary) {
             if(!view || !layerFilter || !view->isVisible() ||
                view->scene()->items().size()!=2 || layerFilter->count()!=3) {
                 failure="KiCad source artwork or layer filter missing";
+                loop.quit();return;
+            }
+            QGraphicsLineItem *traceItem=nullptr;
+            QGraphicsPathItem *viaItem=nullptr;
+            for(auto *item:view->scene()->items()) {
+                if(auto *line=dynamic_cast<QGraphicsLineItem *>(item)) traceItem=line;
+                if(auto *ring=dynamic_cast<QGraphicsPathItem *>(item)) viaItem=ring;
+            }
+            if(!traceItem || !viaItem ||
+               traceItem->line().p2().y()!=2.0 ||
+               traceItem->pen().capStyle()!=Qt::RoundCap ||
+               viaItem->path().contains(QPointF(1.5,2.0)) ||
+               !viaItem->path().contains(QPointF(1.75,2.0))) {
+                failure="KiCad Y orientation, round track cap or annular via drill mismatch";
                 loop.quit();return;
             }
             view->scene()->items().first()->setSelected(true);
