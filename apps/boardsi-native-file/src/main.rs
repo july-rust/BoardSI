@@ -57,10 +57,12 @@ fn file_sha256(path: &Path) -> Result<String, String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 /// Optional F_006 read-only preview for a strictly qualified KiCad source.
-//// No original CAD code, graphics tessellation or electrical connection is
+/// No original CAD code, graphics tessellation or electrical connection is
 /// published. Positions are exact source nm; Qt alone handles drawing.
 fn kicad_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, String> {
-    use boardsi_model::{LayerKind, Orientation, PadRole, PadShape, QuarterTurn, Rational, SourceFormat};
+    use boardsi_model::{
+        LayerKind, Orientation, PadRole, PadShape, QuarterTurn, Rational, SourceFormat,
+    };
     if board.sources.len() != 1
         || !matches!(&board.sources[0].id.format, SourceFormat::KiCad)
         || !board.sources[0].id.conditions.iter().any(|(k, v)| {
@@ -78,7 +80,7 @@ fn kicad_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, Str
         != Rational::new(1, 1_000_000_000).map_err(|_| fail("BSI_KICAD_PREVIEW_UNIT"))?
         || frame.origin_m != [Rational::integer(0); 2]
         || !matches!(
-            frame.orientation,
+            &frame.orientation,
             Orientation::Orthogonal {
                 turn: QuarterTurn::Zero,
                 mirror_x: false
