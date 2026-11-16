@@ -264,7 +264,20 @@ fn replace(staging: &Path, dest: &Path) -> Result<()> {
     }
     Ok(())
 }
+/// Preserve existing native Save semantics with no external source dependency.
 pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
+    save_guarded(path, board, || Ok(()))
+}
+
+/// F_005: caller-supplied source consistency check happens *after* SQLite
+/// staging, durability sync, independent reload and fault-injection pause,
+/// immediately before publishing the new file over the last valid design.
+/// A failing callback leaves the prior destination untouched.
+pub fn save_guarded(
+    path: impl AsRef<Path>,
+    board: &BoardModel,
+    pre_publish: impl FnOnce() -> Result<()>,
+) -> Result<()> {
     // A loaded read-only document must never be re-serialized to another path:
     // the Canonical model cannot carry unknown optional payloads or SHA attestations.
     if board.persistence_read_only {
@@ -344,6 +357,7 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
         }
         #[cfg(feature = "f003-qualification")]
         qualification_before_replace()?;
+        pre_publish()?;
         replace(&stage, dest)
     })();
     drop(owner); // Removes the unused stage and releases/removes its marker.
