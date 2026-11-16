@@ -31,6 +31,12 @@ jobs:
           print("F004_ORACLE_SHA256", hashlib.sha256(p.read_bytes()).hexdigest())
           PY
           python3 tools/validation/f004_verify_frozen.py --compare f004-golden/reference-v1.bsi
+          python3 tools/validation/f004_reference_material_fixture.py --output f004-golden/material-v1.bsi
+          python3 - <<'PY'
+          import base64, zlib, pathlib
+          p = pathlib.Path("f004-golden/material-v1.bsi")
+          print("F004_MATERIAL_B85=" + base64.b85encode(zlib.compress(p.read_bytes(), 9)).decode("ascii"))
+          PY
       - name: Generate one-time all-nine-kinds full-schema Golden (Rust Writer)
         shell: bash
         run: |
