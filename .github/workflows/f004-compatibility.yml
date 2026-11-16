@@ -32,3 +32,43 @@ jobs:
           cargo +1.75.0 test -p boardsi-native --locked --test native
           cargo +1.75.0 test -p boardsi-native --locked --lib
           cargo +1.75.0 test -p boardsi-native-file --locked --test f004_migration --features f004-qualification
+  enospc:
+    name: F004 actual Linux ENOSPC migration preservation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build real production file worker
+        shell: bash
+        run: |
+          rustup toolchain install 1.75.0 --profile minimal
+          cargo +1.75.0 build -p boardsi-native-file --locked
+      - name: Force real ENOSPC in separate tmpfs, retain source SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          FS="$RUNNER_TEMP/f004-enospc"
+          mkdir -p "$FS"
+          sudo mount -t tmpfs -o size=4m tmpfs "$FS"
+          trap 'sudo umount "$FS"' EXIT
+          cp schemas/bsi/golden-v1-nine-geometry.bsi "$FS/source.bsi"
+          sha256sum "$FS/source.bsi" | awk '{print $1}' > "$RUNNER_TEMP/f004-original.sha"
+          python3 - "$FS/filler" <<'PY'
+          import sys
+          try:
+              with open(sys.argv[1], "wb") as f:
+                  while True:
+                      f.write(bytes(4096))
+          except OSError as e:
+              assert e.errno == 28, f"expected ENOSPC, got {e}"
+          PY
+          if target/debug/boardsi-native-file migrate-v1 "$FS/source.bsi" "$FS/target.bsi"; then
+            echo "Unexpected migration success on full filesystem" >&2
+            exit 1
+          fi
+          test ! -e "$FS/target.bsi"
+          sha256sum "$FS/source.bsi" | awk '{print $1}' | diff - "$RUNNER_TEMP/f004-original.sha"
+          rm "$FS/filler"
+          target/debug/boardsi-native-file recover "$FS"
+          sha256sum "$FS/source.bsi" | awk '{print $1}' | diff - "$RUNNER_TEMP/f004-original.sha"
+          test ! -e "$FS/target.bsi"
