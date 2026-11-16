@@ -8,6 +8,7 @@ use std::{
     fs,
     path::PathBuf,
     process::Command,
+    sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -21,14 +22,26 @@ const SOURCE: &str = r#"(kicad_pcb (version 20241229) (generator "F006")
   (via (at 3.000001 5) (size 0.6) (drill 0.3)
        (layers "F.Cu" "B.Cu") (net 1)
        (uuid "123e4567-e89b-12d3-a456-426614174000")))"#;
+static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 fn temp() -> PathBuf {
-    let n = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let path = std::env::temp_dir().join(format!("boardsi-f006-{}-{n}", std::process::id()));
-    fs::create_dir(&path).unwrap();
-    path
+    // Windows' wall clock may have a coarser granularity than the parallel
+    // Rust test harness. A monotonic process-local nonce plus an exclusive
+    // create avoids identical PID/timestamp names and stale fixture reuse.
+    for _ in 0..64 {
+        let n = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let serial = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
+        let path =
+            std::env::temp_dir().join(format!("boardsi-f006-{}-{n}-{serial}", std::process::id()));
+        match fs::create_dir(&path) {
+            Ok(()) => return path,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => panic!("F006 temporary test fixture cannot be created: {e}"),
+        }
+    }
+    panic!("F006 unique temporary fixture name exhausted");
 }
 
 fn independent_sqlite_bsig_oracle(path: &std::path::Path, hash: &str) {
@@ -88,6 +101,25 @@ fn hex_lower(bytes: &[u8]) -> String {
         write!(&mut output, "{byte:02x}").unwrap();
     }
     output
+}
+
+#[test]
+fn f006_parallel_temp_names_never_collide() {
+    let mut workers = Vec::new();
+    for _ in 0..24 {
+        workers.push(std::thread::spawn(temp));
+    }
+    let directories = workers
+        .into_iter()
+        .map(|worker| worker.join().unwrap())
+        .collect::<Vec<_>>();
+    let unique = directories
+        .iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(unique.len(), directories.len());
+    for directory in directories {
+        fs::remove_dir_all(directory).unwrap();
+    }
 }
 
 fn invoke(parts: &[&std::ffi::OsStr]) -> std::process::Output {
