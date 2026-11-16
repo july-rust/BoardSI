@@ -993,7 +993,10 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     }
     for layer in &inventory.layers {
         if let Some(name) = &layer.user_name {
-            conditions.push((format!("layer_user_name/{:03}", layer.ordinal), name.clone()));
+            conditions.push((
+                format!("layer_user_name/{:03}", layer.ordinal),
+                name.clone(),
+            ));
         }
     }
     conditions.sort_by(|a, b| a.0.cmp(&b.0));
