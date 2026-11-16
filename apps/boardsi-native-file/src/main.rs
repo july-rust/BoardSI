@@ -43,8 +43,12 @@ fn file_sha256(path: &Path) -> Result<String, String> {
     let mut hasher = Sha256::new();
     let mut block = [0u8; 65536];
     loop {
-        let n = input.read(&mut block).map_err(|_| fail("BSI_SOURCE_READ"))?;
-        if n == 0 { break; }
+        let n = input
+            .read(&mut block)
+            .map_err(|_| fail("BSI_SOURCE_READ"))?;
+        if n == 0 {
+            break;
+        }
         hasher.update(&block[..n]);
     }
     Ok(format!("{:x}", hasher.finalize()))
