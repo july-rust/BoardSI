@@ -172,7 +172,7 @@ jobs:
         run: |
           cmake --version
           clang++ --version
-          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DBOARDSI_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork" -DBOARDSI_CANONICAL_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-canonical-padstack" -DBOARDSI_NATIVE_FILE_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-native-file" -DBOARDSI_F0031_QUALIFICATION=ON
+          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DBOARDSI_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork" -DBOARDSI_CANONICAL_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-canonical-padstack" -DBOARDSI_ODB_QT_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-odb-qt-import" -DBOARDSI_NATIVE_FILE_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-native-file" -DBOARDSI_F0031_QUALIFICATION=ON
           cmake --build build-qt --parallel 2
           file build-qt/boardsi-qt-runtime-validation target/debug/boardsi-worker
       - name: F_003_1 main Qt Native file Save/Open/SaveAs fail-closed qualification
@@ -185,6 +185,17 @@ jobs:
             "$GITHUB_WORKSPACE/target/debug/boardsi-native-file$suffix" \
             "$GITHUB_WORKSPACE/target/debug/boardsi-import-canonical-padstack$suffix" \
             "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc"
+      - name: F_005 actual main Qt ODB++ Native Save/Open and stale-source acceptance
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --f005-native-odb-selftest \
+            "$GITHUB_WORKSPACE/target/debug/boardsi-odb-qt-import$suffix" \
+            "$GITHUB_WORKSPACE/target/debug/boardsi-native-file$suffix"
       - name: F_003_1 real Qt Native cancellation timeout stale-response qualification
         shell: bash
         run: |
