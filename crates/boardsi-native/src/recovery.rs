@@ -73,11 +73,18 @@ fn stage_name(stage: &Path) -> io::Result<String> {
         .file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "staging name"))?;
-    if !name.starts_with(PREFIX)
-        || name.len() > 140
-        || !name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+    // Save generates PID + five UUID chunks + nonce. Reject broad prefix
+    // matches so unrelated user files are never eligible for reclamation.
+    let parts: Vec<_> = name.strip_prefix(PREFIX).unwrap_or("").split('-').collect();
+    let shape = [8usize, 4, 4, 4, 12];
+    if name.len() > 140
+        || parts.len() != 7
+        || parts[0].is_empty()
+        || !parts[0].bytes().all(|b| b.is_ascii_digit())
+        || !parts[6].bytes().all(|b| b.is_ascii_digit())
+        || !parts[1..6].iter().zip(shape).all(|(part, len)| {
+            part.len() == len && part.bytes().all(|b| b.is_ascii_hexdigit())
+        })
     {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "staging name"));
     }
@@ -87,6 +94,34 @@ fn regular_no_link(path: &Path) -> bool {
     fs::symlink_metadata(path)
         .map(|m| m.file_type().is_file())
         .unwrap_or(false)
+}
+/// SQLite may leave rollback journal/WAL/shm companions after a hard kill.
+/// Remove only exact siblings of a verified locked stage, never wildcard paths.
+fn owned_files(stage: &Path) -> [PathBuf; 4] {
+    let suffix = |s: &str| {
+        let mut name = stage.as_os_str().to_os_string();
+        name.push(s);
+        PathBuf::from(name)
+    };
+    [suffix("-journal"), suffix("-wal"), suffix("-shm"), stage.to_path_buf()]
+}
+fn remove_owned_files(stage: &Path) -> io::Result<()> {
+    let owned = owned_files(stage);
+    // Validate all file types before deleting any; suspicious directories or
+    // symlinks are left untouched with the marker for investigation.
+    for path in &owned {
+        if fs::symlink_metadata(path).is_ok() && !regular_no_link(path) {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "unsafe stage companion"));
+        }
+    }
+    for path in &owned {
+        match fs::remove_file(path) {
+            Ok(()) => {},
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {},
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(())
 }
 pub struct StageOwner {
     stage: PathBuf,
@@ -102,14 +137,22 @@ impl StageOwner {
             .read(true)
             .create_new(true)
             .open(&marker)?;
-        if !lock(&file)? {
-            return Err(io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "unexpected owner lock",
-            ));
+        let result = (|| -> io::Result<()> {
+            if !lock(&file)? {
+                return Err(io::Error::new(
+                    io::ErrorKind::WouldBlock,
+                    "unexpected owner lock",
+                ));
+            }
+            file.write_all(format!("{MAGIC}{name}\n").as_bytes())?;
+            file.sync_all()?;
+            Ok(())
+        })();
+        if let Err(e) = result {
+            drop(file);
+            let _ = fs::remove_file(&marker);
+            return Err(e);
         }
-        file.write_all(format!("{MAGIC}{name}\n").as_bytes())?;
-        file.sync_all()?;
         Ok(Self {
             stage: stage.into(),
             marker,
@@ -121,9 +164,12 @@ impl Drop for StageOwner {
     fn drop(&mut self) {
         // After a successful replace the stage no longer exists. After failure
         // remove it while the process still owns its marker lock.
-        let _ = fs::remove_file(&self.stage);
+        let complete = remove_owned_files(&self.stage).is_ok();
         self.file.take();
-        let _ = fs::remove_file(&self.marker);
+        // If any sidecar cannot be removed, leave ownership for a retry.
+        if complete {
+            let _ = fs::remove_file(&self.marker);
+        }
     }
 }
 /// Scan only the supplied directory, never recurse, follow links, or delete
@@ -163,10 +209,7 @@ pub fn recover_owned_staging(dir: &Path) -> io::Result<usize> {
         }
         // Missing stage means the process already replaced the destination,
         // then crashed before cleaning its marker.
-        if stage.exists() && !regular_no_link(&stage) {
-            continue;
-        }
-        if stage.exists() && fs::remove_file(&stage).is_err() {
+        if remove_owned_files(&stage).is_err() {
             continue;
         }
         drop(file);
