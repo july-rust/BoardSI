@@ -18,6 +18,12 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install Rust toolchain
         run: rustup toolchain install 1.75.0 --profile minimal --component rustfmt
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify frozen Golden bytes with independent Python oracle
+        shell: bash
+        run: python tools/validation/test_f004_golden_oracle.py
       - name: Run independent v1 golden and compatibility regressions
         shell: bash
         run: |
