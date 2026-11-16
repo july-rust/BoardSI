@@ -35,7 +35,12 @@ fn hash(p: &Path) -> Vec<u8> {
     Sha256::digest(fs::read(p).unwrap()).to_vec()
 }
 fn sha_hex(p: &Path) -> String {
-    hash(p).iter().map(|b| format!("{b:02x}")).collect()
+    use std::fmt::Write;
+    let mut encoded = String::with_capacity(64);
+    for b in hash(p) {
+        write!(&mut encoded, "{b:02x}").expect("hex encoding");
+    }
+    encoded
 }
 
 #[test]
