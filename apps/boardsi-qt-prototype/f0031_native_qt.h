@@ -1,6 +1,7 @@
 // F_003_1: real native .bsi file QProcess controller, not an artwork decoder.
 // The backend owns the exact Canonical model; no Qt drawing is serialized as .bsi.
 #pragma once
+#include <QBrush>
 #include <QComboBox>
 #include <QGraphicsItem>
 #include <QGraphicsScene>
@@ -101,7 +102,7 @@ class F0031NativePanel final : public QWidget {
             double x=0,y=0;
             if(!number(coords.at(0),x) || !number(coords.at(1),y))
                 return false;
-            p=QPointF(x,y);return true;
+            p=QPointF(x,-y);return true;
         };
         // Build off-scene first, so a malformed item cannot publish a partial
         // artwork. The QGraphicsScene takes item ownership only on success.
@@ -267,7 +268,7 @@ public:
         artworkScene_=new QGraphicsScene(this);
         artworkView_=new QGraphicsView(artworkScene_,this);
         artworkView_->setObjectName("f006KiCadArtwork");
-        artworkView_->setDragMode(QGraphicsView::ScrollHandDrag);
+        artworkView_->setDragMode(QGraphicsView::RubberBandDrag);
         artworkView_->setRenderHint(QPainter::Antialiasing,true);
         artworkLayer_->setVisible(false);
         artworkView_->setVisible(false);
