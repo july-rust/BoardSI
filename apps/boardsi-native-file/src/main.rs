@@ -83,8 +83,7 @@ fn run() -> Result<Value, String> {
     #[cfg(feature = "f0031-qualification")]
     if args.len() == 2
         && arg_text(&args, 0)? == "open"
-        && env::var("BOARDSI_F0031_QUAL_MODE").ok().as_deref()
-            == Some("pause-before-open")
+        && env::var("BOARDSI_F0031_QUAL_MODE").ok().as_deref() == Some("pause-before-open")
     {
         let marker = env::var_os("BOARDSI_F0031_QUAL_MARKER")
             .ok_or_else(|| fail("BSI_QUAL_MARKER_MISSING"))?;
