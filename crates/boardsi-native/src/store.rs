@@ -1,7 +1,7 @@
 //! Only after a complete SQLite and Canonical validation is a board returned.
+use crate::recovery::{recover_owned_staging, StageOwner};
 use crate::{invalid, NativeError, Result};
 use crate::{read, write};
-use crate::recovery::{recover_owned_staging, StageOwner};
 use boardsi_model::BoardModel;
 use rusqlite::{limits::Limit, Connection, OpenFlags};
 use sha2::{Digest, Sha256};
