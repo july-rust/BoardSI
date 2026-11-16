@@ -38,7 +38,9 @@
 | Independent Oracle SHA-256 | `e43f30933c3640141ad583d1d3b91b8416e099bfed089be2fa9671db3bf4c2d7` |
 | Complete v1 nine-kind Golden | `fixtures/bsi/v1/all-nine-v1.bsi.b85` |
 | Nine-kind frozen SHA-256 | `6fcda969a94766b1f25d0f171c1d986965c9d3efef0fdd1950ac093a134eccc9` |
-| Both decoded file sizes | 163840 bytes each |
+| Independent Material/Stackup Golden | `fixtures/bsi/v1/material-v1.bsi.b85` |
+| Material Golden SHA-256 | `ba17b4b896a21493b50527ac3caed2275e4e25e957ffc08a8bfbe22ba4273534` (synthetic values, all `Assumed`) |
+| All three decoded file sizes | 163840 bytes each |
 
 The compressed checked-in fixture must decode to **exactly** the above SHA.
 The independent Oracle also must regenerate the same bytes (rather than
@@ -49,7 +51,10 @@ and object IDs/relationships independently of the Rust writer.
 **Qualification boundary:** The independent Python/SQLite Oracle freezes a minimal
 v1 Trace sample. The complementary immutable all-nine-kind v1 Golden is
 emitted once from the F_003 production Rust nine-kind model and then checked
-by archived bytes/SHA and cross-OS Reader semantics. It is **not** an
+by archived bytes/SHA and cross-OS Reader semantics. A third, independently
+produced SQLite Golden covers explicit material properties, reference evidence
+and exact rational Stackup. All material values are synthetic assumptions,
+not physical measurements. It is **not** an
 independent Python reimplementation of all nine geometry codecs.
 An independent vendor CAD source/accuracy Oracle remains F_005.
 A future formally released format must add new immutable files and migration
@@ -59,9 +64,9 @@ steps **before** release.
 
 | ID | Condition | State |
 | :--- | :--- | :--- |
-| T01 | Two frozen v1 sources + SHAs + independently produced SQL/BSIG Trace Oracle | PENDING |
+| T01 | Three immutable v1 Goldens, SHAs and independent SQL/BSIG/Material Oracle | PENDING |
 | T02 | Rust opens independent Golden | PENDING |
-| T03 | Exact i64/i128, relationships and all 9 geometry kinds | PENDING |
+| T03 | Exact i64/i128, properties/provenance, material/stackup and 9 geometry kinds | PENDING |
 | T04 | Same Golden read by Windows x64/ARM64, macOS ARM64 and Linux x64 | PENDING |
 | T05 | Future schema/minimum_reader version matrix | PENDING |
 | T06 | Unknown required feature rejection | PENDING |
