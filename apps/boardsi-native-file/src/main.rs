@@ -64,48 +64,62 @@ fn kicad_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, Str
     if board.sources.len() != 1
         || !matches!(&board.sources[0].id.format, SourceFormat::KiCad)
         || !board.sources[0].id.conditions.iter().any(|(k, v)| {
-            k == "scope" && v == "f006-kicad9-straight-segment-normal-through-via-nominal-source-only"
+            k == "scope"
+                && v == "f006-kicad9-straight-segment-normal-through-via-nominal-source-only"
         })
     {
         return Ok(None);
     }
-    if board.traces.len()+board.vias.len() > 128 || board.frames.len()!=1 {
+    if board.traces.len() + board.vias.len() > 128 || board.frames.len() != 1 {
         return Err(fail("BSI_KICAD_PREVIEW_UNSUPPORTED"));
     }
     let frame = &board.frames[0];
-    if frame.metres_per_tick != Rational::new(1,1_000_000_000).map_err(|_| fail("BSI_KICAD_PREVIEW_UNIT"))?
+    if frame.metres_per_tick
+        != Rational::new(1, 1_000_000_000).map_err(|_| fail("BSI_KICAD_PREVIEW_UNIT"))?
         || frame.origin_m != [Rational::integer(0); 2]
-        || !matches!(frame.orientation,Orientation::Orthogonal{
-            turn:QuarterTurn::Zero, mirror_x:false
-        })
+        || !matches!(
+            frame.orientation,
+            Orientation::Orthogonal {
+                turn: QuarterTurn::Zero,
+                mirror_x: false
+            }
+        )
     {
         return Err(fail("BSI_KICAD_PREVIEW_FRAME"));
     }
-    let to_nm = |x: Rational| -> Result<i64,String> {
-        let scaled=x.numerator().checked_mul(1_000_000_000)
+    let to_nm = |x: Rational| -> Result<i64, String> {
+        let scaled = x
+            .numerator()
+            .checked_mul(1_000_000_000)
             .ok_or_else(|| fail("BSI_KICAD_PREVIEW_DIMENSION"))?;
         if scaled % x.denominator() != 0 {
             return Err(fail("BSI_KICAD_PREVIEW_DIMENSION"));
         }
-        i64::try_from(scaled / x.denominator())
-            .map_err(|_| fail("BSI_KICAD_PREVIEW_DIMENSION"))
+        i64::try_from(scaled / x.denominator()).map_err(|_| fail("BSI_KICAD_PREVIEW_DIMENSION"))
     };
-    let layers = board.stackup.layers.iter()
-        .filter(|l|l.kind==LayerKind::Copper)
-        .map(|l|(l.meta.id.clone(),l.name.clone(),l.order))
+    let layers = board
+        .stackup
+        .layers
+        .iter()
+        .filter(|l| l.kind == LayerKind::Copper)
+        .map(|l| (l.meta.id.clone(), l.name.clone(), l.order))
         .collect::<Vec<_>>();
-    let find_name = |id:&boardsi_model::ObjectId| -> Result<&str,String> {
-        layers.iter().find(|(layer,_,_)|layer==id)
-            .map(|(_,name,_)|name.as_str())
-            .ok_or_else(||fail("BSI_KICAD_PREVIEW_LAYER"))
+    let find_name = |id: &boardsi_model::ObjectId| -> Result<&str, String> {
+        layers
+            .iter()
+            .find(|(layer, _, _)| layer == id)
+            .map(|(_, name, _)| name.as_str())
+            .ok_or_else(|| fail("BSI_KICAD_PREVIEW_LAYER"))
     };
-    let mut rows=Vec::new();
+    let mut rows = Vec::new();
     for tr in &board.traces {
-        if tr.centreline.len()!=2 || tr.centreline.iter().any(|p|p.frame!=frame.meta.id) {
+        if tr.centreline.len() != 2 || tr.centreline.iter().any(|p| p.frame != frame.meta.id) {
             return Err(fail("BSI_KICAD_PREVIEW_TRACE"));
         }
-        let width=to_nm(tr.width_m)?;
-        if width<=0 || width>1_000_000_000 {return Err(fail("BSI_KICAD_PREVIEW_WIDTH"));}
+        let width = to_nm(tr.width_m)?;
+        if width <= 0 || width > 1_000_000_000 {
+            return Err(fail("BSI_KICAD_PREVIEW_WIDTH"));
+        }
         rows.push(json!({
             "kind":"trace","id":tr.meta.id.source_object,
             "layer":find_name(&tr.layer)?,
@@ -115,15 +129,21 @@ fn kicad_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, Str
         }));
     }
     for via in &board.vias {
-        if via.position.frame!=frame.meta.id || !via.connected_layers.is_empty() {
+        if via.position.frame != frame.meta.id || !via.connected_layers.is_empty() {
             return Err(fail("BSI_KICAD_PREVIEW_VIA"));
         }
-        let stack=board.padstacks.iter().find(|p|p.meta.id==via.padstack)
-            .ok_or_else(||fail("BSI_KICAD_PREVIEW_VIA"))?;
-        let first=stack.entries.first().ok_or_else(||fail("BSI_KICAD_PREVIEW_VIA"))?;
-        let diameter=match &first.shape {
-            PadShape::Circle{diameter_m}=>to_nm(*diameter_m)?,
-            _=>return Err(fail("BSI_KICAD_PREVIEW_SHAPE"))
+        let stack = board
+            .padstacks
+            .iter()
+            .find(|p| p.meta.id == via.padstack)
+            .ok_or_else(|| fail("BSI_KICAD_PREVIEW_VIA"))?;
+        let first = stack
+            .entries
+            .first()
+            .ok_or_else(|| fail("BSI_KICAD_PREVIEW_VIA"))?;
+        let diameter = match &first.shape {
+            PadShape::Circle { diameter_m } => to_nm(*diameter_m)?,
+            _ => return Err(fail("BSI_KICAD_PREVIEW_SHAPE")),
         };
         if stack.entries.iter().any(|e|e.role!=PadRole::Conductive
             || !matches!(&e.shape,PadShape::Circle{diameter_m} if to_nm(*diameter_m).ok()==Some(diameter))) {
@@ -154,7 +174,7 @@ fn receipt(action: &str, path: &Path, read_only: bool) -> Result<Value, String> 
         return Err(fail("BSI_SOURCE_CHANGED"));
     }
     let b = loaded.model();
-    let mut response=json!({
+    let mut response = json!({
         "protocol":"BSI_NATIVE_FILE_V1",
         "action": action,
         "path": path.to_string_lossy(),
@@ -167,9 +187,9 @@ fn receipt(action: &str, path: &Path, read_only: bool) -> Result<Value, String> 
         "sources": b.sources.len(),
         "geometry_only": true, "physical_si": "NOT_RUN"
     });
-    if let Some(preview)=kicad_preview(b)? {
-        response["source_format"]=json!("KICAD9_SOURCE_SUBSET");
-        response["artwork"]=preview;
+    if let Some(preview) = kicad_preview(b)? {
+        response["source_format"] = json!("KICAD9_SOURCE_SUBSET");
+        response["artwork"] = preview;
     }
     Ok(response)
 }
