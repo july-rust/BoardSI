@@ -319,7 +319,8 @@ mod tests {
         let src = unique("readonly-source");
         let dst = unique("readonly-copied");
         crate::save(&src, &BoardModel::empty(BoardKind::Pcb)).unwrap();
-        let mut permissions = fs::metadata(&src).unwrap().permissions();
+        let original_permissions = fs::metadata(&src).unwrap().permissions();
+        let mut permissions = original_permissions.clone();
         permissions.set_readonly(true);
         fs::set_permissions(&src, permissions).unwrap();
         let expected = digest(&src).unwrap();
@@ -327,9 +328,7 @@ mod tests {
         assert!(!receipt.transformed);
         assert_eq!(digest(&dst).unwrap(), expected);
         assert!(!load(&dst).unwrap().is_read_only());
-        let mut permissions = fs::metadata(&src).unwrap().permissions();
-        permissions.set_readonly(false);
-        fs::set_permissions(&src, permissions).unwrap();
+        fs::set_permissions(&src, original_permissions).unwrap();
         fs::remove_file(&src).unwrap();
         fs::remove_file(&dst).unwrap();
     }
