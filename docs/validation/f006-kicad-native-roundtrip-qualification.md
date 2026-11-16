@@ -1,6 +1,6 @@
 # F_006 — KiCad 9 Source → Canonical → Native .bsi → Qt acceptance
 
-> **State: IN PROGRESS / NOT YET ACCEPTED.** Do not infer a PASS from code changes alone. Actual CI, independent review, protected merge and post-merge checks must close this ledger.
+> **State: IMPLEMENTATION MERGED / POST-MERGE `main` CI PENDING.** PR #662 final HEAD 56/56 checks PASS, independent Codex final HEAD no major findings (7/7 review threads resolved), verified Squash `9e68bb59`. Do not mark F_006 100% COMPLETE until exact merged-main checks pass.
 
 ## Scope contract
 
@@ -30,22 +30,26 @@ ctest --test-dir <qt-build-directory> -R qt-f006-main-kicad-native-roundtrip --o
 
 | ID | Gate | Status |
 |:---|:---|:---|
-| T01 | KiCad 9 version + malformed S-expression rejection | PENDING FINAL CI |
-| T02 | 2/4/6/8/32-Cu accurate source order | PENDING FINAL CI |
-| T03 | straight Track exact nm/width/layer/net mapping | PENDING FINAL CI |
-| T04 | through Via nominal geometry, no physical contact invention | PENDING FINAL CI |
-| T05 | exact Canonical → .bsi → Canonical semantic roundtrip | PENDING FINAL CI |
-| T06 | v1 Golden and F_004 backward compatibility | PENDING FINAL CI |
-| T07 | independent SQL/BSIG/Source geometry oracle | NOT_YET_VERIFIED |
-| T08 | unsupported geometry/flags/malformed input fail-closed | PENDING FINAL CI |
-| T09 | SHA source mutation/cancel/lock/ENOSPC preserve old native | PENDING FINAL CI |
-| T10 | main Qt import/save/open/artwork picking/layer filtering | PENDING FINAL CI |
-| T11 | native Rust/Qt Windows x64, ARM64, macOS ARM64, Linux | PENDING FINAL CI |
-| T12 | existing F_001–F_005 + post-merge main regression | PENDING FINAL CI |
+| T01 | KiCad 9 version + malformed S-expression rejection | PASS — KiCad9 version/grammar rejection (E_026 + F_006) |
+| T02 | 2/4/6/8/32-Cu accurate source order | PASS — E_026 2/4/6/8/32 copper inventory + F_006 four-layer Native order |
+| T03 | straight Track exact nm/width/layer/net mapping | PASS — exact integer nm, rational width, Layer/Net and UUID |
+| T04 | through Via nominal geometry, no physical contact invention | PASS — nominal through Via round padstack/drill; no invented contact |
+| T05 | exact Canonical → .bsi → Canonical semantic roundtrip | PASS — real Native save/load semantic equality on four OS |
+| T06 | v1 Golden and F_004 backward compatibility | PASS — F_004 v1 Golden + legacy compatibility on four OS |
+| T07 | independent SQL/BSIG/Source geometry oracle | PASS — raw SQLite/BSIG/SHA independent oracle in F_006 test |
+| T08 | unsupported geometry/flags/malformed input fail-closed | PASS — unsupported footprint/zone/arc/flags malformed input reject |
+| T09 | SHA source mutation/cancel/lock/ENOSPC preserve old native | PASS — real pre-publish source race no-clobber four OS + shared native resilience |
+| T10 | main Qt import/save/open/artwork picking/layer filtering | PASS — actual Main Qt import/save/open/drawn annulus/round track/picking/filter four OS |
+| T11 | native Rust/Qt Windows x64, ARM64, macOS ARM64, Linux | PASS — Linux/Windows x64/Windows ARM64/macOS ARM64 native+Qt |
+| T12 | existing F_001–F_005 + post-merge main regression | PENDING — exact merged main push CI + final checklist |
 
 ## Evidence receipts
 
-- Implementation review candidate: [PR #662](https://github.com/july-rust/BoardSI/pull/662). **Draft until final HEAD CI/review and acceptance.**
-- Prior accepted bounded subset evidence: [F_005](f005-cad-bsi-roundtrip-qualification.md), [E_026](e026-kicad-layer-via-source-qualification.md).
-- **Exact HEAD check runs, independent reviewer findings, protected merge SHA, post-merge main workflow PASS: NOT YET RECORDED.**
-- Evidence date of this ledger is the Git commit date; F_006 first COMPLETE date may only be added after all required gates actually pass.
+- **PR #662**: [implementation and review](https://github.com/july-rust/BoardSI/pull/662), final PR HEAD `9340ecc60b8769728bf1eda4e2861943d1f77ab6` **56/56 GitHub checks SUCCESS**, **15/15 workflows SUCCESS**. Codex independently re-reviewed the exact HEAD with no new major issues; **0 unresolved review threads**.
+- **Protected merge**: [Verified Squash `9e68bb595cace4a33190e61cd817b6b5b64e79ee`](https://github.com/july-rust/BoardSI/commit/9e68bb595cace4a33190e61cd817b6b5b64e79ee), recorded 2026-11-16 KST.
+- **Four OS native and guard**: [F_004 compatibility CI](https://github.com/july-rust/BoardSI/actions/runs/43864065409) — F_006 actual worker golden round-trip + staged-source mutation no-clobber; all 4 OS PASS.
+- **Four OS Qt**: [Qt runtime CI](https://github.com/july-rust/BoardSI/actions/runs/43864064892) — F_006 production Main Qt actual artwork/picking/layer filter/save/open tests PASS on Linux, Windows x64/ARM64, macOS ARM64.
+- **Common regressions**: F_001–F_005 native v1 SQLite/BSIG, existing main Qt IPC, source continuity policies remain unchanged; PR CI verifies no regressions.
+- **Exact merged-main post-merge push**: `9e68bb595cace4a33190e61cd817b6b5b64e79ee` **PENDING**; record actual checks before T12 PASS and first COMPLETE date.
+- Source E_026: [KiCad source fixture/qualification](e026-kicad-layer-via-source-qualification.md). Existing F_005: [CAD native roundtrip](f005-cad-bsi-roundtrip-qualification.md).
+- **Not in F_006 acceptance scope**: full KiCad boards with unsupported source objects, independent physical KiCad GUI export/real PCB fixture, actual plating/contact topology, solver/RLGC/S-parameters, industrial U/T. These remain explicitly **NOT_VERIFIED**, never silently promoted to PASS.
