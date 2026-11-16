@@ -913,9 +913,15 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
                 return Err(err("F007_PINREF_LIMIT"));
             }
             conditions.push((
-                format!("logical_net/{i:03}/pin_ref/{j:04}"),
-                format!("{}|{}", comp.as_deref().unwrap_or(""), pin),
+                format!("logical_net/{i:03}/pin_ref/{j:04}/pin"),
+                pin.clone(),
             ));
+            if let Some(component) = comp {
+                conditions.push((
+                    format!("logical_net/{i:03}/pin_ref/{j:04}/component"),
+                    component.clone(),
+                ));
+            }
         }
     }
     conditions.sort_by(|a, b| a.0.cmp(&b.0));
@@ -994,6 +1000,10 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     let mut current_kind = "";
     let mut pending_points: Vec<[i64; 2]> = Vec::new();
     let mut traces = 0usize;
+    let mut preview_segments = 0usize;
+    let mut poly_begin_seen = false;
+    let mut feature_count = 0usize;
+    let mut entered_features = false;
     for tag in &tags {
         // Unqualified CAD extensions under CadData would be silently dropped.
         // Accept only the exact Source geometry tree qualified below.
@@ -1002,7 +1012,30 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
             None => continue,
         };
         match raw {
-            "Layer" | "Step" | "Step/LogicalNet" | "Step/LogicalNet/PinRef" => {}
+            "Layer" => {
+                if tag.attrs.len() != 4
+                    || tag.attrs.keys().any(|k| {
+                        !matches!(k.as_str(), "name" | "layerFunction" | "side" | "polarity")
+                    })
+                {
+                    return Err(err("F007_UNSUPPORTED_LAYER_ATTRIBUTE"));
+                }
+            }
+            "Step" => {
+                if tag.attrs.len() != 1 {
+                    return Err(err("F007_UNSUPPORTED_STEP_ATTRIBUTE"));
+                }
+            }
+            "Step/LogicalNet" => {
+                if tag.attrs.len() != 1 {
+                    return Err(err("F007_UNSUPPORTED_NET_ATTRIBUTE"));
+                }
+            }
+            "Step/LogicalNet/PinRef" => {
+                if tag.attrs.keys().any(|k| !matches!(k.as_str(), "pin" | "componentRef")) {
+                    return Err(err("F007_UNSUPPORTED_PINREF_ATTRIBUTE"));
+                }
+            }
             "Step/LayerFeature" => {
                 if !pending_points.is_empty() || tag.attrs.len() != 1 {
                     return Err(err("F007_UNSUPPORTED_LAYER_FEATURE"));
@@ -1034,9 +1067,15 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
                     .transpose()?;
             }
             "Step/LayerFeature/Set/Features" => {
-                if !tag.attrs.is_empty() || layer.is_none() {
+                if !tag.attrs.is_empty()
+                    || layer.is_none()
+                    || !current_kind.is_empty()
+                    || (entered_features && feature_count != 1)
+                {
                     return Err(err("F007_UNSUPPORTED_FEATURE_TRANSFORM"));
                 }
+                feature_count = 0;
+                entered_features = true;
             }
             "Step/LayerFeature/Set/Features/Line" => {
                 if !pending_points.is_empty() || tag.attrs.len() != 4 {
@@ -1050,6 +1089,10 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
                     f007_nm(field(&tag.attrs, "endX")?, factor)?,
                     f007_nm(field(&tag.attrs, "endY")?, factor)?,
                 ];
+                if !entered_features || feature_count != 0 {
+                    return Err(err("F007_DUPLICATE_FEATURE"));
+                }
+                feature_count += 1;
                 pending_points = vec![a, b];
                 current_kind = "Line";
             }
@@ -1057,12 +1100,25 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
                 if !pending_points.is_empty() || !tag.attrs.is_empty() {
                     return Err(err("F007_UNSUPPORTED_POLYLINE"));
                 }
+                if !entered_features || feature_count != 0 {
+                    return Err(err("F007_DUPLICATE_FEATURE"));
+                }
+                feature_count += 1;
+                poly_begin_seen = false;
                 current_kind = "Polyline";
             }
             "Step/LayerFeature/Set/Features/Polyline/PolyBegin"
             | "Step/LayerFeature/Set/Features/Polyline/PolyStepSegment" => {
-                if current_kind != "Polyline" || tag.attrs.len() != 2 {
+                let is_begin = tag.path.ends_with("/PolyBegin");
+                if current_kind != "Polyline"
+                    || tag.attrs.len() != 2
+                    || (is_begin && poly_begin_seen)
+                    || (!is_begin && !poly_begin_seen)
+                {
                     return Err(err("F007_UNSUPPORTED_POLYLINE_VERTEX"));
+                }
+                if is_begin {
+                    poly_begin_seen = true;
                 }
                 if pending_points.len() >= 128 {
                     return Err(err("F007_POLYLINE_VERTEX_LIMIT"));
@@ -1092,8 +1148,11 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
                 if width <= 0 || width > 1_000_000_000 {
                     return Err(err("F007_BAD_WIDTH"));
                 }
-                if traces >= 128 {
-                    return Err(err("F007_QT_TRACE_LIMIT"));
+                preview_segments = preview_segments
+                    .checked_add(pending_points.len() - 1)
+                    .ok_or_else(|| err("F007_QT_PREVIEW_LIMIT"))?;
+                if traces >= 128 || preview_segments > 128 {
+                    return Err(err("F007_QT_PREVIEW_LIMIT"));
                 }
                 let mut meta = object(
                     &source,
@@ -1132,7 +1191,11 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
         // A LineDesc may only terminate the exact currently active Feature.
         // Additional unexpected children are rejected by the match above.
     }
-    if !pending_points.is_empty() || !current_kind.is_empty() || board.traces.is_empty() {
+    if !pending_points.is_empty()
+        || !current_kind.is_empty()
+        || board.traces.is_empty()
+        || (entered_features && feature_count != 1)
+    {
         return Err(err("F007_INCOMPLETE_OR_EMPTY_GEOMETRY"));
     }
     if board.validate().has_errors() {
