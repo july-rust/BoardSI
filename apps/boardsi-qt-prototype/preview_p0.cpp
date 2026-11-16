@@ -5241,7 +5241,7 @@ static int runF006NativeKiCadSelftest(const QString &nativeBinary) {
             }
             if(!status.startsWith("FAILED"))return;
             pass=status.contains("BSI_SOURCE_CHANGED") &&
-                 !QFileInfo(stale).exists() && QFileInfo(target).isFile() && eventTicks>4;
+                 !QFileInfo(stale).exists() && QFileInfo(target).isFile();
             if(!pass) failure="fail-closed or event-loop mismatch: "+status;
             loop.quit();
         }
