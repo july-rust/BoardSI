@@ -78,7 +78,7 @@ def generate(output: Path) -> None:
                  "Orthogonal", 0, None, 0, 0),
             )
             conn.execute(
-                "INSERT INTO layers VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO layers VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (2, 0, "L1", "Copper", None, "Missing", None, None,
                  "Missing", None, None),
             )
