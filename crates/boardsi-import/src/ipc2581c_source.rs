@@ -863,7 +863,7 @@ fn f007_nm(raw: &str, factor: i128) -> Result<i64, ImportError> {
 
 pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, ImportError> {
     use boardsi_model::{
-        BoardKind, BoardModel, CoordinateFrame, ImportSource, Layer, Net, Orientation, Point,
+        BoardKind, BoardModel, CoordinateFrame, ImportSource, Layer, Orientation, Point,
         Property, QuarterTurn, Trace,
     };
     let inventory = inspect(bytes)?;
