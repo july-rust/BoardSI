@@ -186,7 +186,7 @@ fn qualification_before_replace() -> Result<()> {
     let Ok(mode) = std::env::var("BOARDSI_F003_QUAL_MODE") else {
         return Ok(());
     };
-    if mode != "pause" && mode != "fail" {
+    if mode != "pause" && mode != "fail" && mode != "pause-until-resume" {
         return Ok(());
     }
     let marker = std::env::var_os("BOARDSI_F003_QUAL_MARKER")
@@ -198,6 +198,20 @@ fn qualification_before_replace() -> Result<()> {
             "F003 qualification injected I/O failure before replace",
         )
         .into());
+    }
+    if mode == "pause-until-resume" {
+        // Test-only deterministic source mutation between staging and
+        // pre-publication validation. Never enabled in production builds.
+        let resume = std::path::Path::new(&std::env::var_os("BOARDSI_F003_QUAL_MARKER")
+            .ok_or_else(|| invalid("qualification marker missing"))?)
+            .with_extension("resume");
+        for _ in 0..500 {
+            if resume.is_file() {
+                return Ok(());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        return Err(invalid("qualification resume timeout"));
     }
     loop {
         std::thread::park_timeout(std::time::Duration::from_millis(100));
