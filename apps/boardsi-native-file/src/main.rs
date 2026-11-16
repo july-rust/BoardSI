@@ -80,6 +80,19 @@ fn run() -> Result<Value, String> {
     if args.is_empty() {
         return Err(fail("BSI_FILE_USAGE"));
     }
+    #[cfg(feature = "f0031-qualification")]
+    if args.len() == 2
+        && arg_text(&args, 0)? == "open"
+        && env::var("BOARDSI_F0031_QUAL_MODE").ok().as_deref() == Some("pause-before-open")
+    {
+        let marker = env::var_os("BOARDSI_F0031_QUAL_MARKER")
+            .ok_or_else(|| fail("BSI_QUAL_MARKER_MISSING"))?;
+        fs::write(marker, b"real-native-file-worker-paused")
+            .map_err(|_| fail("BSI_QUAL_MARKER_WRITE"))?;
+        loop {
+            std::thread::park();
+        }
+    }
     match arg_text(&args, 0)?.as_str() {
         "open" if args.len() == 2 => {
             let path = arg_path(&args, 1)?;

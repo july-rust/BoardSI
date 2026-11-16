@@ -22,6 +22,7 @@ class F0031NativePanel final : public QWidget {
     QByteArray output_, errors_;
     QString binary_, operation_, target_, loaded_, acceptedDigest_;
     bool running_=false, cancelled_=false, readOnly_=true;
+    int timeoutMs_=60000;
     std::function<void()> onChanged_;
     void state(const QString &value) {
         state_->setText(value);
@@ -51,7 +52,7 @@ class F0031NativePanel final : public QWidget {
         }
         running_=true; cancelled_=false; output_.clear(); errors_.clear();
         operation_=operation; target_=target;
-        timeout_.start(60000);
+        timeout_.start(timeoutMs_);
         state("RUNNING / Native "+operation);
         child_.start(binary_,arguments);
         return true;
@@ -150,6 +151,13 @@ public:
     ~F0031NativePanel() override {
         if(child_.state()!=QProcess::NotRunning) child_.kill();
     }
+#ifdef BOARDSI_RUNTIME_TEST
+    // CI only: drive the *real* QProcess timeout state machine faster.
+    void setTimeoutForTest(int milliseconds) {
+        if(!running_ && milliseconds>=20 && milliseconds<=60000)
+            timeoutMs_=milliseconds;
+    }
+#endif
     void setChanged(std::function<void()> cb) {onChanged_=std::move(cb);}
     bool busy() const {return running_;}
     bool hasLoaded() const {return !loaded_.isEmpty();}
