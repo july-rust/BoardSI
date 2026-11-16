@@ -8,6 +8,7 @@
 #include <QGraphicsView>
 #include <QJsonArray>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPen>
 #include <cmath>
 #include <QCoreApplication>
@@ -102,7 +103,7 @@ class F0031NativePanel final : public QWidget {
             double x=0,y=0;
             if(!number(coords.at(0),x) || !number(coords.at(1),y))
                 return false;
-            p=QPointF(x,-y);return true;
+            p=QPointF(x,y);return true;
         };
         // Build off-scene first, so a malformed item cannot publish a partial
         // artwork. The QGraphicsScene takes item ownership only on success.
@@ -126,21 +127,28 @@ class F0031NativePanel final : public QWidget {
                     cleanup();return false;
                 }
                 item=new QGraphicsLineItem(QLineF(a,b));
-                static_cast<QGraphicsLineItem *>(item)->setPen(QPen(Qt::darkCyan,width));
+                QPen pen(Qt::darkCyan,width);
+                pen.setCapStyle(Qt::RoundCap);
+                static_cast<QGraphicsLineItem *>(item)->setPen(pen);
             } else if(kind=="via") {
-                QPointF p;double diameter=0;
+                QPointF p;double diameter=0,drill=0;
                 if(layer!="*" || !point(row.value("at"),p) ||
                    !number(row.value("diameter_nm"),diameter) ||
+                   !number(row.value("drill_nm"),drill) ||
+                   drill<=0 || drill>=diameter ||
                    diameter<=0 || diameter>1000.0 ||
                    !layerNames.contains(row.value("span_first").toString()) ||
                    !layerNames.contains(row.value("span_last").toString())) {
                     cleanup();return false;
                 }
-                auto *ellipse=new QGraphicsEllipseItem(
-                    p.x()-diameter/2,p.y()-diameter/2,diameter,diameter);
-                ellipse->setPen(QPen(Qt::darkYellow,0));
-                ellipse->setBrush(QBrush(Qt::yellow));
-                item=ellipse;
+                QPainterPath ring;
+                ring.setFillRule(Qt::OddEvenFill);
+                ring.addEllipse(p,diameter/2,diameter/2);
+                ring.addEllipse(p,drill/2,drill/2);
+                auto *viaRing=new QGraphicsPathItem(ring);
+                viaRing->setPen(QPen(Qt::darkYellow,0));
+                viaRing->setBrush(QBrush(Qt::yellow));
+                item=viaRing;
             } else {
                 cleanup();return false;
             }
