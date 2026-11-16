@@ -5282,9 +5282,132 @@ static int runF006NativeKiCadSelftest(const QString &nativeBinary) {
     return pass?0:1;
 }
 
+
+// F_007: exercise the actual MAIN Qt widget, not a mock IPC renderer or stub.
+// Only bounded source copper traces; physical connectivity and SI stay NOT_RUN.
+static int runF007NativeIpcSelftest(const QString &nativeBinary) {
+    QTemporaryDir temp;
+    if(!temp.isValid()) return 2;
+    const QString source=temp.path()+"/board.xml";
+    const QString target=temp.path()+"/board.bsi";
+    const QString stale=temp.path()+"/stale.bsi";
+    const QByteArray content=R"(<?xml version="1.0"?>
+<IPC-2581 revision="C" xmlns="http://webstds.ipc.org/2581">
+<Content><LayerRef name="TOP"/><LayerRef name="BOTTOM"/></Content>
+<LogisticHeader/><HistoryRecord/>
+<Ecad><CadHeader units="MILLIMETER"/><CadData>
+<Layer name="TOP" layerFunction="SIGNAL" side="TOP" polarity="POSITIVE"/>
+<Layer name="BOTTOM" layerFunction="SIGNAL" side="BOTTOM" polarity="POSITIVE"/>
+<Step name="BOARD"><LogicalNet name="CLK"><PinRef componentRef="U1" pin="1"/></LogicalNet>
+<LayerFeature layerRef="TOP"><Set net="CLK">
+<Features><Line startX="1.123456" startY="-2" endX="3" endY="5">
+<LineDesc lineEnd="ROUND" lineWidth="0.15"/></Line></Features>
+<Features><Polyline><PolyBegin x="3" y="5"/>
+<PolyStepSegment x="4" y="6"/><PolyStepSegment x="5" y="6"/>
+<LineDesc lineEnd="ROUND" lineWidth="0.2"/></Polyline></Features>
+</Set></LayerFeature></Step></CadData></Ecad></IPC-2581>)";
+    const auto writeFile=[](const QString &path,const QByteArray &bytes) {
+        QFile f(path);
+        return f.open(QIODevice::WriteOnly|QIODevice::Truncate) &&
+               f.write(bytes)==bytes.size() && f.flush();
+    };
+    if(!writeFile(source,content)) return 2;
+    const QByteArray sha=QCryptographicHash::hash(content,QCryptographicHash::Sha256).toHex();
+    PreviewWindow window(QString(),QString(),QString(),QString(),nativeBinary);
+    window.show();
+    if(!window.importIpc2581Candidate(source,target)) return 2;
+    QEventLoop loop;
+    QTimer timer;
+    QElapsedTimer elapsed;
+    int phase=0,ticks=0;
+    QString error;
+    bool pass=false;
+    elapsed.start();
+    timer.setInterval(25);
+    QObject::connect(&timer,&QTimer::timeout,&loop,[&] {
+        ++ticks;
+        if(elapsed.elapsed()>90000) {
+            error="F007 timeout phase "+QString::number(phase);
+            loop.quit();
+            return;
+        }
+        const QString state=window.nativePanel()->status();
+        if(phase<2 && state.startsWith("FAILED")) {
+            error="F007 native worker "+state;
+            loop.quit();
+            return;
+        }
+        if(phase==0) {
+            if(!state.contains("COMPLETED / Native save-ipc2581")) return;
+            if(!QFileInfo(target).isFile() || !window.openNativeCandidate(target)) {
+                error="F007 saved file not present or Open rejected";
+                loop.quit();
+                return;
+            }
+            phase=1;
+        } else if(phase==1) {
+            if(!state.contains("COMPLETED / Native open")) return;
+            auto *view=window.nativePanel()->findChild<QGraphicsView *>("f006KiCadArtwork");
+            auto *filter=window.nativePanel()->findChild<QComboBox *>("f006KiCadLayerFilter");
+            auto *summary=window.nativePanel()->findChild<QPlainTextEdit *>("f0031NativeSummary");
+            if(!view || !view->isVisible() || !filter || !summary ||
+               filter->count()!=3 || view->scene()->items().size()!=3 ||
+               !summary->toPlainText().contains("traces: 2")) {
+                error="F007 Qt source scene or Reader receipt invalid";
+                loop.quit();
+                return;
+            }
+            view->scene()->items().first()->setSelected(true);
+            if(view->scene()->selectedItems().size()!=1) {
+                error="F007 picking unavailable";
+                loop.quit();
+                return;
+            }
+            filter->setCurrentIndex(1);
+            const auto items=view->scene()->items();
+            if(std::count_if(items.begin(),items.end(),
+                [](const auto *item){return item->isVisible();})!=3) {
+                error="F007 layer filtering lost geometry";
+                loop.quit();
+                return;
+            }
+            window.nativePanel()->forget();
+            if(!writeFile(source,QByteArray(content).replace("CLK","CHANGED")) ||
+               !window.nativePanel()->saveIpc2581(source,stale,sha)) {
+                error="F007 stale-source guard failed to start";
+                loop.quit();
+                return;
+            }
+            phase=2;
+        } else if(phase==2) {
+            if(state.startsWith("COMPLETED")) {
+                error="F007 stale source incorrectly accepted";
+                loop.quit();
+                return;
+            }
+            if(!state.startsWith("FAILED")) return;
+            pass=state.contains("BSI_SOURCE_CHANGED") &&
+                 !QFileInfo(stale).exists() && QFileInfo(target).isFile();
+            if(!pass) error="F007 fail-closed receipt invalid: "+state;
+            loop.quit();
+        }
+    });
+    timer.start();
+    loop.exec();
+    timer.stop();
+    qInfo().noquote()<<QJsonDocument(QJsonObject{
+        {"schema","boardsi-f007-main-ipc-native-v1"},
+        {"pass",pass},{"phase",phase},{"event_loop_ticks",ticks},
+        {"error",error},{"physical_si","NOT_RUN"}
+    }).toJson(QJsonDocument::Compact);
+    return pass?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--f007-native-ipc-selftest")
+        return runF007NativeIpcSelftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--f006-native-kicad-selftest")
         return runF006NativeKiCadSelftest(args.at(2));
     if(args.size()==4 && args.at(1)=="--f005-native-odb-selftest")
