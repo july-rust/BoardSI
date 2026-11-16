@@ -911,7 +911,12 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     let inventory = inspect(bytes)?;
     let text = std::str::from_utf8(bytes).map_err(|_| err("INVALID_UTF8"))?;
     let root = parse(text)?;
-    if root.items.iter().skip(1).any(|item| matches!(item, Item::Text(_))) {
+    if root
+        .items
+        .iter()
+        .skip(1)
+        .any(|item| matches!(item, Item::Text(_)))
+    {
         return Err(err("F006_UNSUPPORTED_ROOT_ATOM"));
     }
     let mut seen_scalars = BTreeSet::new();
@@ -1350,11 +1355,13 @@ mod f006_native_tests {
     fn unsupported_copper_and_flags_fail_closed() {
         // Root text atoms are unsupported even though the SOURCE inventory
         // accepts them for its narrower semantic inspection.
-        let stray=r#"(kicad_pcb extra (version 20241229) (generator "F006")
+        let stray = r#"(kicad_pcb extra (version 20241229) (generator "F006")
           (layers (0 "F.Cu" signal) (2 "B.Cu" signal)) (net 0 "")
           (via (at 1 2) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (net 0)))"#;
-        assert_eq!(into_native_canonical(stray.as_bytes()).unwrap_err().code,
-                   "F006_UNSUPPORTED_ROOT_ATOM");
+        assert_eq!(
+            into_native_canonical(stray.as_bytes()).unwrap_err().code,
+            "F006_UNSUPPORTED_ROOT_ATOM"
+        );
         let template = r#"(kicad_pcb (version 20241229) (generator "F006")
           (layers (0 "F.Cu" signal) (2 "B.Cu" signal)) (net 0 "") (net 1 "CLK")
           (via (at 1 2) (size 0.6) (drill 0.3)
