@@ -141,24 +141,47 @@ fn hard_kill_inside_real_sqlite_transaction_cleans_owned_journal() {
     let mut worker = child(&dest, "pause-transaction", &marker);
     let started = Instant::now();
     while !marker.exists() {
-        assert!(worker.try_wait().unwrap().is_none(), "worker crashed before journal gate");
-        assert!(started.elapsed() < Duration::from_secs(40), "transaction gate timeout");
+        assert!(
+            worker.try_wait().unwrap().is_none(),
+            "worker crashed before journal gate"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(40),
+            "transaction gate timeout"
+        );
         std::thread::sleep(Duration::from_millis(30));
     }
-    let live: Vec<_> = stages(worker.id(), &dir).into_iter()
+    let live: Vec<_> = stages(worker.id(), &dir)
+        .into_iter()
         .filter(|p| !p.to_string_lossy().ends_with(".owner"))
         .collect();
-    assert_eq!(live.len(), 2, "SQLite stage and journal expected during transaction");
-    let stage = live.iter().find(|p| !p.to_string_lossy().ends_with("-journal")).unwrap();
-    let journal = live.iter().find(|p| p.to_string_lossy().ends_with("-journal")).unwrap();
+    assert_eq!(
+        live.len(),
+        2,
+        "SQLite stage and journal expected during transaction"
+    );
+    let stage = live
+        .iter()
+        .find(|p| !p.to_string_lossy().ends_with("-journal"))
+        .unwrap();
+    let journal = live
+        .iter()
+        .find(|p| p.to_string_lossy().ends_with("-journal"))
+        .unwrap();
     assert!(stage.exists() && journal.exists());
     assert_eq!(boardsi_native::recover_owned_staging(&dir).unwrap(), 0);
-    assert!(stage.exists() && journal.exists(), "active transaction protected");
+    assert!(
+        stage.exists() && journal.exists(),
+        "active transaction protected"
+    );
     worker.kill().unwrap();
     assert!(!worker.wait().unwrap().success());
     assert_original(&dest, &before);
     assert_eq!(boardsi_native::recover_owned_staging(&dir).unwrap(), 1);
-    assert!(!stage.exists() && !journal.exists(), "staged DB and journal reclaimed");
+    assert!(
+        !stage.exists() && !journal.exists(),
+        "staged DB and journal reclaimed"
+    );
     assert_eq!(boardsi_native::recover_owned_staging(&dir).unwrap(), 0);
     fs::remove_file(&marker).unwrap();
     fs::remove_file(&dest).unwrap();
