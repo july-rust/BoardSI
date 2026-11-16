@@ -91,7 +91,16 @@ fn stage_file(parent: &Path) -> Result<(PathBuf, StageOwner)> {
             uuid(),
             nonce
         ));
-        match OpenOptions::new().write(true).create_new(true).open(&stage) {
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        // A .bsi can be a private PCB design. Never make copied bytes
+        // world-readable through the temporary inode or final hard link.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        match options.open(&stage) {
             Ok(file) => {
                 drop(file);
                 return match StageOwner::acquire(&stage) {
