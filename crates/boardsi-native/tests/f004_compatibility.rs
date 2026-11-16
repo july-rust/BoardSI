@@ -3,6 +3,7 @@
 use boardsi_model::{BoardKind, BoardModel};
 use boardsi_native::{load, save};
 use rusqlite::Connection;
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -44,6 +45,20 @@ fn assert_rejected_unchanged(file: &PathBuf, expected_code: &str) {
     // Save must not overwrite a file that cannot be fully read and preserved.
     assert!(save(file, &BoardModel::empty(BoardKind::Pcb)).is_err());
     assert_eq!(fs::read(file).unwrap(), before, "writer modified source");
+}
+
+#[test]
+fn frozen_binary_v1_golden_sha_and_reader_are_cross_platform() {
+    let bytes = include_bytes!("../../../schemas/bsi/golden-v1-empty.bsi");
+    let expected_sha = include_str!("../../../schemas/bsi/golden-v1-empty.sha256").trim();
+    let actual_sha = format!("{:x}", Sha256::digest(bytes));
+    assert_eq!(actual_sha, expected_sha, "frozen binary bytes changed");
+    let file = temporary("frozen-binary");
+    fs::write(&file, bytes).unwrap();
+    let model = load(&file).expect("read immutable cross-OS v1 SQLite");
+    assert!(!model.is_read_only());
+    assert_eq!(model.model(), &BoardModel::empty(BoardKind::Pcb));
+    fs::remove_file(file).unwrap();
 }
 
 #[test]
