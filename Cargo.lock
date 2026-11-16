@@ -66,6 +66,7 @@ name = "boardsi-native-file"
 version = "0.1.0"
 dependencies = [
  "boardsi-import",
+ "boardsi-model",
  "boardsi-native",
  "rusqlite",
  "serde_json",
