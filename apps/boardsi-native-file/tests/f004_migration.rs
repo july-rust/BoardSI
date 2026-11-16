@@ -105,8 +105,14 @@ fn private_0600_source_never_publishes_world_readable_target() {
     assert!(result.status.success(), "{:?}", result.stderr);
     assert_eq!(fs::read(&source).unwrap(), expected);
     assert_eq!(fs::read(&target).unwrap(), expected);
-    assert_eq!(fs::metadata(&source).unwrap().permissions().mode() & 0o077, 0);
-    assert_eq!(fs::metadata(&target).unwrap().permissions().mode() & 0o077, 0);
+    assert_eq!(
+        fs::metadata(&source).unwrap().permissions().mode() & 0o077,
+        0
+    );
+    assert_eq!(
+        fs::metadata(&target).unwrap().permissions().mode() & 0o077,
+        0
+    );
     fs::remove_dir_all(dir).unwrap();
 }
 
