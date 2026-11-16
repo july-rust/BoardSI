@@ -1083,7 +1083,7 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
         let words = node.words()?;
         let number: u32 = words[1].parse().map_err(|_| err("BAD_NET_DECLARATION"))?;
         if number == 0 {
-            if words[2] != "" {
+            if !words[2].is_empty() {
                 return Err(err("BAD_ZERO_NET"));
             }
             continue;
