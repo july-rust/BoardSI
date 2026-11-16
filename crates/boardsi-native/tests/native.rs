@@ -851,3 +851,32 @@ fn qualification_ten_thousand_geometry_round_trip_with_resource_evidence() {
     );
     std::fs::remove_file(p).unwrap();
 }
+
+// F0031: SQLite WAL can alter the accepted semantic snapshot without touching
+// the main .bsi bytes. v1 is single-file DELETE journaling only.
+#[test]
+fn wal_only_external_change_never_becomes_accepted_native_snapshot() {
+    let p = path("wal-only");
+    let b = fixture();
+    save(&p, &b).unwrap();
+    let before = std::fs::read(&p).unwrap();
+    let db = rusqlite::Connection::open(&p).unwrap();
+    let wal_mode: String = db.pragma_query_value(None, "journal_mode", |r| r.get(0)).unwrap();
+    assert_eq!(wal_mode.to_ascii_lowercase(), "delete");
+    let enabled: String = db.query_row("PRAGMA journal_mode=WAL", [], |r| r.get(0)).unwrap();
+    assert_eq!(enabled.to_ascii_lowercase(), "wal");
+    db.execute_batch("BEGIN IMMEDIATE; UPDATE file_meta SET board_kind='BgaSubstrate' WHERE singleton=1; COMMIT;").unwrap();
+    // Keep the WAL connection open to prevent auto-checkpoint on close.
+    assert_eq!(std::fs::read(&p).unwrap()[18], 2);
+    assert_eq!(std::fs::read(&p).unwrap()[19], 2);
+    assert!(p.with_extension("bsi-wal").exists());
+    assert_eq!(load(&p).err().unwrap().code(), "BSI_INVALID");
+    // Attempted Save As must also be rejected; no unrelated destination created.
+    let dest = path("wal-rejected");
+    let origin = load(&p);
+    assert!(origin.is_err());
+    assert!(!dest.exists());
+    drop(db);
+    let _ = std::fs::remove_file(&p);
+    assert_ne!(std::fs::read(&p).ok(), Some(before));
+}
