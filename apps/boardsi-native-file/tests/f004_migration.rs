@@ -85,6 +85,31 @@ fn exact_byte_copy_and_noop_are_idempotent_and_never_clobber() {
     fs::remove_dir_all(dir).unwrap();
 }
 
+#[cfg(unix)]
+#[test]
+fn private_0600_source_never_publishes_world_readable_target() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = folder("private-mode");
+    let source = source_in(&dir);
+    let target = dir.join("target.bsi");
+    fs::set_permissions(&source, fs::Permissions::from_mode(0o600)).unwrap();
+    let expected = fs::read(&source).unwrap();
+    let result = worker()
+        .args([
+            "migrate-v1",
+            source.to_str().unwrap(),
+            target.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{:?}", result.stderr);
+    assert_eq!(fs::read(&source).unwrap(), expected);
+    assert_eq!(fs::read(&target).unwrap(), expected);
+    assert_eq!(fs::metadata(&source).unwrap().permissions().mode() & 0o077, 0);
+    assert_eq!(fs::metadata(&target).unwrap().permissions().mode() & 0o077, 0);
+    fs::remove_dir_all(dir).unwrap();
+}
+
 #[test]
 fn read_only_source_permissions_do_not_make_stage_unwritable() {
     let dir = folder("read-only-source");
