@@ -74,6 +74,7 @@ class PreviewWindow : public QMainWindow {
     C005ReferenceRiskController *referenceRisk = nullptr;
     QString chosenSourcePath; // pending candidate, never accepted identity
     QString acceptedSourcePath;
+    QString pendingOdbStep, acceptedOdbStep;
     QString acceptedFile;
     QString importResultStatus = "NOT IMPORTED";
     QLabel *properties = nullptr;
@@ -155,7 +156,8 @@ class PreviewWindow : public QMainWindow {
                 !nativeFile->busy() && !importUI->busy() &&
                 importUI->imported()->canonicalMode() &&
                 importUI->acceptedSourceSha256().size()==64 &&
-                acceptedSourcePath.endsWith(".asc",Qt::CaseInsensitive);
+                (importUI->imported()->odbMode() ? !acceptedOdbStep.isEmpty() :
+                    acceptedSourcePath.endsWith(".asc",Qt::CaseInsensitive));
             saveAction->setEnabled(nativeSourceAllowed);
         }
         openAction->setEnabled(!importUI->busy() && !nativeFile->busy());
@@ -228,7 +230,7 @@ public:
         canonicalOpenAction->setToolTip("Source-only Canonical padstack import; no physical SI or material qualification");
         saveAction = bar->addAction("Save Project (.bsi)");
         saveAction->setEnabled(false);
-        saveAction->setToolTip("Native save of verified Canonical PADS subset only");
+        saveAction->setToolTip("Native save of verified Canonical PADS/ODB++ subsets only; SI NOT_RUN");
         nativeOpenAction = bar->addAction("Open .bsi");
         nativeSaveAsAction = bar->addAction("Native Save As");
         nativeCancelAction = bar->addAction("Cancel File");
@@ -347,6 +349,8 @@ public:
                 nativeFile->forget();
                 acceptedSourcePath=canonicalAccepted ?
                     importUI->canonicalAcceptedPath() : chosenSourcePath;
+                acceptedOdbStep=(canonicalAccepted && importUI->imported()->odbMode())
+                    ? pendingOdbStep : QString();
                 acceptedFile=QFileInfo(acceptedSourcePath).fileName();
                 referenceRisk->resetSource(acceptedSourcePath,
                     legacyAccepted ? acceptedSha : QByteArray());
@@ -359,7 +363,7 @@ public:
             } else if(!retainedAccepted &&
                       (state.startsWith("RUNNING") || state.startsWith("FAILED") ||
                        state.startsWith("CANCELLED"))) {
-                acceptedSourcePath.clear();acceptedFile.clear();
+                acceptedSourcePath.clear();acceptedFile.clear();acceptedOdbStep.clear();
                 referenceRisk->resetSource(QString(),QByteArray());
                 stackup->resetForImport(QString(),0);
             }
@@ -426,7 +430,7 @@ public:
 
         connect(saveAction,&QAction::triggered,this,[this] {
             const QString dest=QFileDialog::getSaveFileName(
-                this,"Save verified Canonical PADS subset as Native .bsi",QString(),
+                this,"Save verified Canonical CAD subset as Native .bsi",QString(),
                 "BoardSI Native (*.bsi)");
             if(!dest.isEmpty()) saveNativeCandidate(dest);
         });
@@ -484,10 +488,14 @@ public:
         if(importUI->busy() || nativeFile->busy() || nativeFile->hasLoaded() ||
            !importUI->imported()->canonicalMode() ||
            importUI->acceptedSourceSha256().size()!=64 ||
-           !acceptedSourcePath.endsWith(".asc",Qt::CaseInsensitive))
+           (importUI->imported()->odbMode() ? acceptedOdbStep.isEmpty() :
+            !acceptedSourcePath.endsWith(".asc",Qt::CaseInsensitive)))
             return false;
-        const bool started=nativeFile->savePads(
-            acceptedSourcePath,dest,importUI->acceptedSourceSha256());
+        const bool started=importUI->imported()->odbMode() ?
+            nativeFile->saveOdb(acceptedSourcePath,acceptedOdbStep,dest,
+                                importUI->acceptedSourceSha256()) :
+            nativeFile->savePads(acceptedSourcePath,dest,
+                                 importUI->acceptedSourceSha256());
         if(started) viewTabs->setCurrentWidget(nativeFile);
         return started;
     }
@@ -507,6 +515,7 @@ public:
         }
         chosenFile = QFileInfo(file).fileName();
         chosenSourcePath = file;
+        pendingOdbStep.clear();
         const bool started = importUI->openPath(file);
         if (!started)
             log->appendPlainText("Open PCB: unsupported PADS source or local executable unavailable.");
@@ -517,6 +526,7 @@ public:
         if (importUI->busy() || nativeFile->busy()) return false;
         chosenFile = QFileInfo(file).fileName();
         chosenSourcePath = file;
+        pendingOdbStep.clear();
         const bool started = importUI->openCanonicalPath(file);
         if (!started)
             log->appendPlainText("Open Canonical PCB: rejected or importer unavailable.");
@@ -526,6 +536,7 @@ public:
     bool openOdbCandidate(const QString &root,const QString &step="pcb") {
         if(importUI->busy() || nativeFile->busy())return false;
         chosenFile=QFileInfo(root).fileName();chosenSourcePath=root;
+        pendingOdbStep=step;
         const bool started=importUI->openOdbPath(root,step);
         if(!started)log->appendPlainText("Open ODB++: rejected source or importer unavailable.");
         refreshProperties();
