@@ -895,7 +895,6 @@ mod tests {
     }
 }
 
-
 /// F_006: deliberately bounded KiCad 9 PCB source-to-Canonical adapter.
 ///
 /// This accepts only straight copper segments and ordinary *unmodified* via
