@@ -35,8 +35,10 @@
 | UUID | `00000000-0000-4000-8000-000000000004` |
 | Source | public synthetic `synthetic/golden-v1.asc`; `sha_verified=0` |
 | Geometry | Trace, 2 exact source points; Frame/Layer/Net and explicit Frame reference |
-| Size | 163840 bytes on the independent Ubuntu reference generation |
-| SHA-256 | `e43f30933c3640141ad583d1d3b91b8416e099bfed089be2fa9671db3bf4c2d7` |
+| Independent Oracle SHA-256 | `e43f30933c3640141ad583d1d3b91b8416e099bfed089be2fa9671db3bf4c2d7` |
+| Complete v1 nine-kind Golden | `fixtures/bsi/v1/all-nine-v1.bsi.b85` |
+| Nine-kind frozen SHA-256 | `6fcda969a94766b1f25d0f171c1d986965c9d3efef0fdd1950ac093a134eccc9` |
+| Both decoded file sizes | 163840 bytes each |
 
 The compressed checked-in fixture must decode to **exactly** the above SHA.
 The independent Oracle also must regenerate the same bytes (rather than
@@ -44,10 +46,12 @@ merely generate a mutually compatible but mutable reference). Every OS reads
 the *same* decoded frozen file, and checks exact expected source coordinates
 and object IDs/relationships independently of the Rust writer.
 
-**Important qualification boundary:** this Golden freezes a minimal valid v1
-Trace-based file and the SQL/BSIG byte contract. All nine geometry kinds
-remain covered by existing F_003 Rust regression, not by nine independently
-frozen F_004 files. An independent vendor CAD source/accuracy oracle is F_005.
+**Qualification boundary:** The independent Python/SQLite Oracle freezes a minimal
+v1 Trace sample. The complementary immutable all-nine-kind v1 Golden is
+emitted once from the F_003 production Rust nine-kind model and then checked
+by archived bytes/SHA and cross-OS Reader semantics. It is **not** an
+independent Python reimplementation of all nine geometry codecs.
+An independent vendor CAD source/accuracy Oracle remains F_005.
 A future formally released format must add new immutable files and migration
 steps **before** release.
 
@@ -55,16 +59,16 @@ steps **before** release.
 
 | ID | Condition | State |
 | :--- | :--- | :--- |
-| T01 | Frozen v1 source + SHA + independent SQL/BSIG producer | PENDING |
+| T01 | Two frozen v1 sources + SHAs + independently produced SQL/BSIG Trace Oracle | PENDING |
 | T02 | Rust opens independent Golden | PENDING |
-| T03 | Exact i64, i128 and net/layer/provenance/Trace semantics | PENDING |
+| T03 | Exact i64/i128, relationships and all 9 geometry kinds | PENDING |
 | T04 | Same Golden read by Windows x64/ARM64, macOS ARM64 and Linux x64 | PENDING |
 | T05 | Future schema/minimum_reader version matrix | PENDING |
 | T06 | Unknown required feature rejection | PENDING |
 | T07 | Unknown optional read-only and byte-exact copy | PENDING |
 | T08 | Step registry and test-only 0→1 transition | PENDING |
 | T09 | v1 same-file no-op and repeat copy idempotence | PENDING |
-| T10 | Failed/corrupted migration cannot replace input/destination | PENDING |
+| T10 | Kill, stage recovery, injected failure, lock and ENOSPC protect files | PENDING |
 | T11 | Existing Qt and F0031 worker lifecycle regressions | PENDING |
 | T12 | All required existing PR CI and exact-main CI | PENDING |
 
@@ -72,7 +76,8 @@ steps **before** release.
 
 - Implementation: [PR #657](https://github.com/july-rust/BoardSI/pull/657).
 - Dedicated [F_004 workflow](../../.github/workflows/f004-native-compatibility.yml):
-  independent Python Oracle producer + 4 native Rust golden/migration test jobs.
+  independent Python Oracle + frozen 9-kind producer + 4 native Rust
+  golden/migration/fault jobs + Linux real ENOSPC.
 - F_003_1 cross-OS GUI [qualification](f003-1-native-qt-recovery-qualification.md)
   remains separate and is not automatically upgraded.
 - PR HEAD SHA, precise CI run IDs, independent review outcome, protected Squash,
