@@ -157,7 +157,7 @@ fn run() -> Result<Value, String> {
         "migrate-v1" if args.len() == 3 => {
             let source = arg_path(&args, 1)?;
             let target = arg_path(&args, 2)?;
-            let result = migrate_to_current(&source, &target).map_err(native_error)?;
+            let result = migrate_to_current(source.as_path(), target.as_path()).map_err(native_error)?;
             let mut proof = receipt("migrate-v1", &target, false)?;
             let fields = proof.as_object_mut().expect("JSON object");
             fields.insert("from_schema".into(), json!(result.from_schema));
