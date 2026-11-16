@@ -49,7 +49,7 @@ fn assert_rejected_unchanged(file: &PathBuf, expected_code: &str) {
 fn independent_v1_golden_is_readable_without_writer() {
     let p = independent_golden("baseline");
     let file = fs::read(&p).unwrap();
-    assert_eq!(&file[..16], b"SQLite format 3\\0");
+    assert_eq!(&file[..16], b"SQLite format 3\0");
     let board = load(&p).expect("v1 independent historical reader");
     assert!(!board.is_read_only());
     assert_eq!(board.model(), &BoardModel::empty(BoardKind::Pcb));
@@ -85,7 +85,7 @@ fn optional_payload_is_not_silently_lost() {
     let p = independent_golden("optional");
     mutate(
         &p,
-        "INSERT INTO extensions(name,extension_version,required,opaque_payload) \
+        "INSERT INTO extensions(extension_name,extension_version,required,payload) \
          VALUES('independent-future-vendor',1,0,X'00FFCAFE');",
     );
     let before = fs::read(&p).unwrap();
