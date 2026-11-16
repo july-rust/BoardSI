@@ -82,9 +82,10 @@ fn stage_name(stage: &Path) -> io::Result<String> {
         || parts[0].is_empty()
         || !parts[0].bytes().all(|b| b.is_ascii_digit())
         || !parts[6].bytes().all(|b| b.is_ascii_digit())
-        || !parts[1..6].iter().zip(shape).all(|(part, len)| {
-            part.len() == len && part.bytes().all(|b| b.is_ascii_hexdigit())
-        })
+        || !parts[1..6]
+            .iter()
+            .zip(shape)
+            .all(|(part, len)| part.len() == len && part.bytes().all(|b| b.is_ascii_hexdigit()))
     {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "staging name"));
     }
@@ -103,7 +104,12 @@ fn owned_files(stage: &Path) -> [PathBuf; 4] {
         name.push(s);
         PathBuf::from(name)
     };
-    [suffix("-journal"), suffix("-wal"), suffix("-shm"), stage.to_path_buf()]
+    [
+        suffix("-journal"),
+        suffix("-wal"),
+        suffix("-shm"),
+        stage.to_path_buf(),
+    ]
 }
 fn remove_owned_files(stage: &Path) -> io::Result<()> {
     let owned = owned_files(stage);
@@ -111,13 +117,16 @@ fn remove_owned_files(stage: &Path) -> io::Result<()> {
     // symlinks are left untouched with the marker for investigation.
     for path in &owned {
         if fs::symlink_metadata(path).is_ok() && !regular_no_link(path) {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "unsafe stage companion"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unsafe stage companion",
+            ));
         }
     }
     for path in &owned {
         match fs::remove_file(path) {
-            Ok(()) => {},
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {},
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
             Err(e) => return Err(e),
         }
     }
