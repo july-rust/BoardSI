@@ -16,3 +16,6 @@ boardsi-import = { path = "../../crates/boardsi-import" }
 boardsi-native = { path = "../../crates/boardsi-native" }
 serde_json = "=1.0.114"
 sha2 = "=0.10.8"
+
+[dev-dependencies]
+rusqlite = { version = "=0.30.0", features = ["bundled"] }
