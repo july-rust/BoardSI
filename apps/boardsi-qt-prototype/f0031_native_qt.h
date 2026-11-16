@@ -242,9 +242,9 @@ class F0031NativePanel final : public QWidget {
             counts.join("\n")+"\n\n"+
             (readOnly_ ? "READ ONLY (unpreservable optional extension or evidence)\n" :
                          "Editable native snapshot; Save As requires revalidation\n")+
-            "Canonical data is stored exactly in Rust.\n"
+            "Canonical data is stored exactly in Rust.\n"+
             (kiCadPreview ? "KiCad 9 SOURCE artwork: bounded display/picking only; no electrical contact proof.\n" :
-                            "Native geometry is NOT rendered on this preview tab.\n")
+                            "Native geometry is NOT rendered on this preview tab.\n")+
             "Physical connectivity, manufacturing and SI: NOT_VERIFIED / NOT_RUN");
         state("COMPLETED / Native "+operation_);
     }
