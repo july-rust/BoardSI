@@ -315,6 +315,25 @@ mod tests {
         }
     }
     #[test]
+    fn v1_readonly_input_is_copied_without_propagating_stage_permissions() {
+        let src = unique("readonly-source");
+        let dst = unique("readonly-copied");
+        crate::save(&src, &BoardModel::empty(BoardKind::Pcb)).unwrap();
+        let mut permissions = fs::metadata(&src).unwrap().permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(&src, permissions).unwrap();
+        let expected = digest(&src).unwrap();
+        let receipt = migrate_to_current(&src, &dst).unwrap();
+        assert!(!receipt.transformed);
+        assert_eq!(digest(&dst).unwrap(), expected);
+        assert!(!load(&dst).unwrap().is_read_only());
+        let mut permissions = fs::metadata(&src).unwrap().permissions();
+        permissions.set_readonly(false);
+        fs::set_permissions(&src, permissions).unwrap();
+        fs::remove_file(&src).unwrap();
+        fs::remove_file(&dst).unwrap();
+    }
+    #[test]
     fn broken_migration_keeps_original_and_destination_untouched() {
         fn broken(tx: &Transaction<'_>) -> Result<()> {
             tx.execute("DELETE FROM file_meta", [])?;
