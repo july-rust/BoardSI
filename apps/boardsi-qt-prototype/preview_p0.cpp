@@ -5075,7 +5075,7 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
             if(!status.contains("COMPLETED / Native open")) return;
             if(!window.nativePanel()->findChild<QPlainTextEdit *>("f0031NativeSummary")
                     ->toPlainText().contains("STRUCTURALLY LOADED") ||
-               !writeFile(first,feature.replace("1.5 0","1.8 0"))) {
+               !writeFile(first,QByteArray(feature).replace("1.5 0","1.8 0"))) {
                 failure="native ODB receipt or source mutation failed";loop.quit();return;
             }
             window.nativePanel()->forget();
