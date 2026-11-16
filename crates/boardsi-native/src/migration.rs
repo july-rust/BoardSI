@@ -194,7 +194,14 @@ fn execute(source: &Path, target: &Path, steps: &[Step]) -> Result<MigrationRepo
         }
     };
     let result = (|| -> Result<()> {
-        fs::copy(source, &stage)?;
+        // Preserve the destination staging file's writable permissions. fs::copy
+        // propagates the source read-only mode on some OSes, preventing sync.
+        // The stage is already exclusively created and owner-locked above.
+        let mut input = File::open(source)?;
+        let mut output = OpenOptions::new().write(true).truncate(true).open(&stage)?;
+        std::io::copy(&mut input, &mut output)?;
+        output.sync_all()?;
+        drop(output);
         if fs::metadata(&stage)?.len() > MAX_FILE {
             return Err(invalid("migration file budget"));
         }
