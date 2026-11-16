@@ -8,6 +8,8 @@ publish = false
 [features]
 # Fault hook only when CI explicitly opts in; default app has no pause hook.
 f0031-qualification = []
+# Only CI may pause the production native migration gateway.
+f004-qualification = ["boardsi-native/f003-qualification"]
 
 [dependencies]
 boardsi-import = { path = "../../crates/boardsi-import" }
