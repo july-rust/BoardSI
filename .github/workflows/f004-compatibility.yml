@@ -24,3 +24,5 @@ jobs:
           cargo +1.75.0 fmt --all -- --check
           cargo +1.75.0 test -p boardsi-native --locked --test f004_compatibility --verbose
           cargo +1.75.0 test -p boardsi-native --locked --test native
+          cargo +1.75.0 test -p boardsi-native --locked --lib
+          cargo +1.75.0 test -p boardsi-native-file --locked --test f004_migration --features f004-qualification
