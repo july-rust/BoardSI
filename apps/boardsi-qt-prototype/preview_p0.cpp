@@ -5011,11 +5011,11 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
        !QDir().mkpath(root+"/steps/pcb/layers/sig1") ||
        !QDir().mkpath(root+"/steps/pcb/layers/sig2")) return 2;
     const QByteArray matrix=
-        "STEP {\\nCOL=1\\nNAME=pcb\\n}\\n"
-        "LAYER {\\nROW=1\\nCONTEXT=BOARD\\nTYPE=SIGNAL\\nNAME=sig1\\nPOLARITY=POSITIVE\\n}\\n"
-        "LAYER {\\nROW=2\\nCONTEXT=BOARD\\nTYPE=SIGNAL\\nNAME=sig2\\nPOLARITY=POSITIVE\\n}\\n";
-    const QByteArray feature="UNITS=MM\\nF 2\\n$0 r100\\n$1 rect200x100 M\\n"
-                             "L 0 0 1.5 0 0 P 0\\nP 1.5 0 1 P 0 0\\n";
+        "STEP {\nCOL=1\nNAME=pcb\n}\n"
+        "LAYER {\nROW=1\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=sig1\nPOLARITY=POSITIVE\n}\n"
+        "LAYER {\nROW=2\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=sig2\nPOLARITY=POSITIVE\n}\n";
+    const QByteArray feature="UNITS=MM\nF 2\n$0 r100\n$1 rect200x100 M\n"
+                             "L 0 0 1.5 0 0 P 0\nP 1.5 0 1 P 0 0\n";
     const auto writeFile=[](const QString &path,const QByteArray &bytes) {
         QFile f(path);
         return f.open(QIODevice::WriteOnly|QIODevice::Truncate) &&
