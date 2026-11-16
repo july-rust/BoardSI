@@ -103,6 +103,23 @@ fn hex_lower(bytes: &[u8]) -> String {
     output
 }
 
+#[test]
+fn f006_parallel_temp_names_never_collide() {
+    let mut workers = Vec::new();
+    for _ in 0..24 {
+        workers.push(std::thread::spawn(temp));
+    }
+    let directories = workers
+        .into_iter()
+        .map(|worker| worker.join().unwrap())
+        .collect::<Vec<_>>();
+    let unique = directories.iter().collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(unique.len(), directories.len());
+    for directory in directories {
+        fs::remove_dir_all(directory).unwrap();
+    }
+}
+
 fn invoke(parts: &[&std::ffi::OsStr]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_boardsi-native-file"))
         .args(parts)
