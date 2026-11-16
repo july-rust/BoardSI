@@ -4,8 +4,11 @@ use boardsi_native::{load, recover_owned_staging};
 use rusqlite::Connection;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
+#[cfg(feature = "f004-qualification")]
+use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(feature = "f004-qualification")]
 use std::time::Duration;
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
