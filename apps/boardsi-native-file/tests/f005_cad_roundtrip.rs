@@ -45,7 +45,12 @@ fn seed(root: &Path) {
     }
 }
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    use std::fmt::Write as _;
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(&mut out, "{byte:02x}").expect("string write");
+    }
+    out
 }
 /// Independent Qt E_021 manifest: hex(utf8 logical path)|hex(SHA256 raw bytes)\n.
 fn manifest(root: &Path) -> String {
