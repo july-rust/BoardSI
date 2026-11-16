@@ -69,6 +69,7 @@
 | **F_001** | SQLite 단일 파일·i64/i128 Geometry·52 B BLOB envelope·영구 호환성 계약 | **100% COMPLETE (규격 한정)** · Writer/Reader NOT_RUN | [규격](architecture/f001-bsi-format-contract.md) · [검증](validation/f001-bsi-format-qualification.md) · [PR #647](https://github.com/july-rust/BoardSI/pull/647) |
 | **F_002** | SQLite v1 STRICT DDL·BSIG 9종 byte layout·Native SQLite 검증 | **100% COMPLETE (스키마/규격 한정)** · F_003 Writer/Reader NOT_RUN | [스키마](architecture/f002-bsi-sqlite-schema.md) · [바이너리](architecture/f002-bsi-geometry-binary-layout.md) · [검증](validation/f002-bsi-schema-qualification.md) · [PR #649](https://github.com/july-rust/BoardSI/pull/649) |
 | **F_003** | Native Rust BSIG 9종·SQLite Writer/Reader·정밀 Round-Trip | **CORE COMPLETE** · 강제 종료/ENOSPC/파일 잠금·10k Geometry 검증 PASS · 실제 정전/Qt UI 통합 NOT_RUN | [검증](validation/f003-native-writer-reader-qualification.md) · [구현 #651](https://github.com/july-rust/BoardSI/pull/651) · [복원력 #653](https://github.com/july-rust/BoardSI/pull/653) |
+| **F_003_1** | 메인 Qt Native .bsi Open/Save/Save As·취소 및 OS Lock 기반 Staging/Journal 복구 | **IN_PROGRESS** · PR/플랫폼 CI·독립 리뷰·보호 병합 인수 대기 | [검증 원장](validation/f003-1-native-qt-recovery-qualification.md) · [PR #654](https://github.com/july-rust/BoardSI/pull/654) |
 
 > F_001 **최초 완료일·근거일: 2026-11-15 KST**. PR #647 최종 HEAD `989d3225` CI 8/8, 독립 Codex 0건, Verified Squash [`e8538172`](https://github.com/july-rust/BoardSI/commit/e8538172f7eb8d1559753fc9888371457026fde5), 정확한 `main` Push 8/8 SUCCESS. 기존 **166/128은 A~D·보안·U/T 집계**이며 F 규격과 제품 인수를 혼동하지 않습니다.
 

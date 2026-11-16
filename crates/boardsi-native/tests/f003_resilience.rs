@@ -85,9 +85,11 @@ fn injected_pre_replace_io_failure_preserves_original_and_cleans_stage() {
 }
 #[test]
 fn force_killed_worker_before_replace_preserves_last_good_file() {
-    let dest = path("kill-before-replace");
+    let dir = path("kill-isolated");
+    fs::create_dir(&dir).unwrap();
+    let dest = dir.join("last-good.bsi");
     let before = original(&dest);
-    let marker = path("marker-kill");
+    let marker = dir.join("kill-marker");
     let mut worker = child(&dest, "pause", &marker);
     let start = Instant::now();
     while !marker.exists() {
@@ -100,12 +102,17 @@ fn force_killed_worker_before_replace_preserves_last_good_file() {
         );
         std::thread::sleep(Duration::from_millis(30));
     }
-    let leftovers = stages(worker.id(), dest.parent().unwrap());
+    let leftovers: Vec<_> = stages(worker.id(), dest.parent().unwrap())
+        .into_iter()
+        .filter(|p| !p.to_string_lossy().ends_with(".owner"))
+        .collect();
     assert_eq!(leftovers.len(), 1, "one validated temporary file expected");
     assert!(
         load(&leftovers[0]).is_ok(),
         "temporary DB must be independently readable"
     );
+    assert_eq!(boardsi_native::recover_owned_staging(&dir).unwrap(), 0);
+    assert!(leftovers[0].exists(), "active writer staging protected");
     worker.kill().expect("terminate qualification process");
     let status = worker.wait().unwrap();
     assert!(
@@ -113,11 +120,72 @@ fn force_killed_worker_before_replace_preserves_last_good_file() {
         "forced termination must not report success"
     );
     assert_original(&dest, &before);
+    assert_eq!(
+        boardsi_native::recover_owned_staging(dest.parent().unwrap()).unwrap(),
+        1
+    );
     for stage in leftovers {
-        fs::remove_file(stage).unwrap();
+        assert!(!stage.exists(), "product recovery removes orphan stage");
     }
     fs::remove_file(&marker).unwrap();
     fs::remove_file(&dest).unwrap();
+    fs::remove_dir(&dir).unwrap();
+}
+#[test]
+fn hard_kill_inside_real_sqlite_transaction_cleans_owned_journal() {
+    let dir = path("transaction-isolated");
+    fs::create_dir(&dir).unwrap();
+    let dest = dir.join("last-good.bsi");
+    let before = original(&dest);
+    let marker = dir.join("transaction-started");
+    let mut worker = child(&dest, "pause-transaction", &marker);
+    let started = Instant::now();
+    while !marker.exists() {
+        assert!(
+            worker.try_wait().unwrap().is_none(),
+            "worker crashed before journal gate"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(40),
+            "transaction gate timeout"
+        );
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    let live: Vec<_> = stages(worker.id(), &dir)
+        .into_iter()
+        .filter(|p| !p.to_string_lossy().ends_with(".owner"))
+        .collect();
+    assert_eq!(
+        live.len(),
+        2,
+        "SQLite stage and journal expected during transaction"
+    );
+    let stage = live
+        .iter()
+        .find(|p| !p.to_string_lossy().ends_with("-journal"))
+        .unwrap();
+    let journal = live
+        .iter()
+        .find(|p| p.to_string_lossy().ends_with("-journal"))
+        .unwrap();
+    assert!(stage.exists() && journal.exists());
+    assert_eq!(boardsi_native::recover_owned_staging(&dir).unwrap(), 0);
+    assert!(
+        stage.exists() && journal.exists(),
+        "active transaction protected"
+    );
+    worker.kill().unwrap();
+    assert!(!worker.wait().unwrap().success());
+    assert_original(&dest, &before);
+    assert_eq!(boardsi_native::recover_owned_staging(&dir).unwrap(), 1);
+    assert!(
+        !stage.exists() && !journal.exists(),
+        "staged DB and journal reclaimed"
+    );
+    assert_eq!(boardsi_native::recover_owned_staging(&dir).unwrap(), 0);
+    fs::remove_file(&marker).unwrap();
+    fs::remove_file(&dest).unwrap();
+    fs::remove_dir(&dir).unwrap();
 }
 #[test]
 fn concurrent_sqlite_exclusive_lock_rejects_overwrite_and_preserves_file() {

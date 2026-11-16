@@ -7,6 +7,7 @@
 #include "model_v2.cpp"
 #include "synthetic_artwork.h"
 #include "preview_import.h"
+#include "f0031_native_qt.h"
 #include "b001_stackup_editor.h"
 #include "c005_reference_risk.h"
 #include "d001_pad_endpoint_qt.h"
@@ -60,6 +61,11 @@ class PreviewWindow : public QMainWindow {
     QAction *canonicalOpenAction = nullptr;
     QAction *odbOpenAction = nullptr;
     QAction *saveAction = nullptr;
+    QAction *nativeOpenAction = nullptr;
+    QAction *nativeSaveAsAction = nullptr;
+    QAction *nativeCancelAction = nullptr;
+    F0031NativePanel *nativeFile = nullptr;
+    QTabWidget *viewTabs = nullptr;
     QAction *runAction = nullptr;
     QAction *stopAction = nullptr;
     SyntheticArtworkPanel *artwork = nullptr;
@@ -140,9 +146,21 @@ class PreviewWindow : public QMainWindow {
     }
 
     void refresh() {
-        openAction->setEnabled(!importUI->busy());
-        canonicalOpenAction->setEnabled(!importUI->busy());
-        odbOpenAction->setEnabled(!importUI->busy());
+        if(nativeFile) {
+            nativeOpenAction->setEnabled(!nativeFile->busy() && !importUI->busy());
+            nativeSaveAsAction->setEnabled(!nativeFile->busy() && nativeFile->hasLoaded()
+                                          && !nativeFile->isReadOnly());
+            nativeCancelAction->setEnabled(nativeFile->busy());
+            const bool nativeSourceAllowed=!nativeFile->hasLoaded() &&
+                !nativeFile->busy() && !importUI->busy() &&
+                importUI->imported()->canonicalMode() &&
+                importUI->acceptedSourceSha256().size()==64 &&
+                acceptedSourcePath.endsWith(".asc",Qt::CaseInsensitive);
+            saveAction->setEnabled(nativeSourceAllowed);
+        }
+        openAction->setEnabled(!importUI->busy() && !nativeFile->busy());
+        canonicalOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
+        odbOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
         runAction->setEnabled(ipc->runButton()->isEnabled());
         stopAction->setEnabled(ipc->cancelButton()->isEnabled());
         overallProgress->setValue(ipc->progressBar()->value());
@@ -197,7 +215,8 @@ class PreviewWindow : public QMainWindow {
 
 public:
     PreviewWindow(const QString &workerPath, const QString &firstFrame = QString(),
-                  const QString &secondFrame = QString(), const QString &importBinary = QString()) {
+                  const QString &secondFrame = QString(), const QString &importBinary = QString(),
+                  const QString &nativeBinary = QString()) {
         setObjectName("boardsiPreviewP0");
         setWindowTitle("BoardSI Developer Preview P2-L - PARTIAL IMPORT / NOT PCB SI");
         auto *bar = addToolBar("Preview controls");
@@ -207,9 +226,14 @@ public:
         odbOpenAction = bar->addAction("Open ODB++");
         odbOpenAction->setToolTip("Local ODB++ directory and STEP, SOURCE geometry only; no SI");
         canonicalOpenAction->setToolTip("Source-only Canonical padstack import; no physical SI or material qualification");
-        saveAction = bar->addAction("Save Project");
+        saveAction = bar->addAction("Save Project (.bsi)");
         saveAction->setEnabled(false);
-        saveAction->setToolTip("NOT IMPLEMENTED - project serialization");
+        saveAction->setToolTip("Native save of verified Canonical PADS subset only");
+        nativeOpenAction = bar->addAction("Open .bsi");
+        nativeSaveAsAction = bar->addAction("Native Save As");
+        nativeCancelAction = bar->addAction("Cancel File");
+        nativeSaveAsAction->setEnabled(false);
+        nativeCancelAction->setEnabled(false);
         bar->addSeparator();
         runAction = bar->addAction("Run");
         stopAction = bar->addAction("Stop");
@@ -253,6 +277,10 @@ public:
         resultSummary->setObjectName("previewResults");
         resultSummary->setReadOnly(true);
         tabs->addTab(resultSummary, "Results");
+        nativeFile = new F0031NativePanel(importBinary,nativeBinary,tabs);
+        nativeFile->setObjectName("f0031NativeFilePanel");
+        tabs->addTab(nativeFile,"Native .bsi");
+        viewTabs=tabs;
         stackup = new B001StackupEditor(tabs);
         tabs->addTab(stackup, "Stackup / Reference");
         referenceRisk = new C005ReferenceRiskController(importUI->imported(),importBinary,tabs);
@@ -299,6 +327,10 @@ public:
         validation->setTextFormat(Qt::PlainText);
         validLayout->addWidget(validation);
         rightLayout->addWidget(validBox);
+        nativeFile->setChanged([this] {
+            if(log) log->appendPlainText("Native: "+nativeFile->status());
+            refresh();
+        });
         importUI->setStatusCallback([this](const QString &state) {
             importResultStatus = state;
             const bool legacyAccepted = state.startsWith("PARTIAL");
@@ -312,6 +344,7 @@ public:
                 acceptedSha.size()==64 && importUI->importedLayerCount()>0;
             const bool retainedAccepted=acceptedSha.size()==64;
             if(newAccepted) {
+                nativeFile->forget();
                 acceptedSourcePath=canonicalAccepted ?
                     importUI->canonicalAcceptedPath() : chosenSourcePath;
                 acceptedFile=QFileInfo(acceptedSourcePath).fileName();
@@ -391,6 +424,23 @@ public:
         statusBar()->addWidget(stateSummary, 1);
         statusBar()->addPermanentWidget(overallProgress);
 
+        connect(saveAction,&QAction::triggered,this,[this] {
+            const QString dest=QFileDialog::getSaveFileName(
+                this,"Save verified Canonical PADS subset as Native .bsi",QString(),
+                "BoardSI Native (*.bsi)");
+            if(!dest.isEmpty()) saveNativeCandidate(dest);
+        });
+        connect(nativeOpenAction,&QAction::triggered,this,[this] {
+            const QString src=QFileDialog::getOpenFileName(
+                this,"Open Native BoardSI design",QString(),"BoardSI Native (*.bsi)");
+            if(!src.isEmpty()) openNativeCandidate(src);
+        });
+        connect(nativeSaveAsAction,&QAction::triggered,this,[this] {
+            const QString dest=QFileDialog::getSaveFileName(
+                this,"Native Save As",QString(),"BoardSI Native (*.bsi)");
+            if(!dest.isEmpty()) copyNativeCandidate(dest);
+        });
+        connect(nativeCancelAction,&QAction::triggered,this,[this] {nativeFile->cancel();});
         connect(runAction, &QAction::triggered, this, [this] { ipc->runButton()->click(); });
         connect(stopAction, &QAction::triggered, this, [this] { ipc->cancelButton()->click(); });
         connect(openAction, &QAction::triggered, this, [this] {
@@ -423,9 +473,35 @@ public:
         resize(1240, 780);
     }
 
+    // The main Preview uses the same real native process controller as CI.
+    bool openNativeCandidate(const QString &file) {
+        if(importUI->busy() || nativeFile->busy()) return false;
+        const bool started=nativeFile->open(file);
+        if(started) viewTabs->setCurrentWidget(nativeFile);
+        return started;
+    }
+    bool saveNativeCandidate(const QString &dest) {
+        if(importUI->busy() || nativeFile->busy() || nativeFile->hasLoaded() ||
+           !importUI->imported()->canonicalMode() ||
+           importUI->acceptedSourceSha256().size()!=64 ||
+           !acceptedSourcePath.endsWith(".asc",Qt::CaseInsensitive))
+            return false;
+        const bool started=nativeFile->savePads(
+            acceptedSourcePath,dest,importUI->acceptedSourceSha256());
+        if(started) viewTabs->setCurrentWidget(nativeFile);
+        return started;
+    }
+    bool copyNativeCandidate(const QString &dest) {
+        if(importUI->busy()) return false;
+        const bool started=nativeFile->saveNative(dest);
+        if(started) viewTabs->setCurrentWidget(nativeFile);
+        return started;
+    }
+    F0031NativePanel *nativePanel() const {return nativeFile;}
+
     // Production Open PCB and smoke checks share the same provenance path.
     bool openCandidate(const QString &file) {
-        if (importUI->busy()) {
+        if (importUI->busy() || nativeFile->busy()) {
             log->appendPlainText("Open PCB: import already running; active filename retained.");
             return false;
         }
@@ -438,7 +514,7 @@ public:
         return started;
     }
     bool openCanonicalCandidate(const QString &file) {
-        if (importUI->busy()) return false;
+        if (importUI->busy() || nativeFile->busy()) return false;
         chosenFile = QFileInfo(file).fileName();
         chosenSourcePath = file;
         const bool started = importUI->openCanonicalPath(file);
@@ -448,7 +524,7 @@ public:
         return started;
     }
     bool openOdbCandidate(const QString &root,const QString &step="pcb") {
-        if(importUI->busy())return false;
+        if(importUI->busy() || nativeFile->busy())return false;
         chosenFile=QFileInfo(root).fileName();chosenSourcePath=root;
         const bool started=importUI->openOdbPath(root,step);
         if(!started)log->appendPlainText("Open ODB++: rejected source or importer unavailable.");
@@ -470,6 +546,11 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override {
+        if(nativeFile && nativeFile->busy()) {
+            nativeFile->cancel(); event->ignore();
+            QTimer::singleShot(200,this,[this] {if(isVisible()) close();});
+            return;
+        }
         // Preserve the existing nonblocking Worker close/kill discipline.
         if (importUI && importUI->busy()) {
             importUI->stop(); event->ignore();
@@ -4678,9 +4759,111 @@ static int runE021CrossFormatRetentionSelftest(
 }
 
 
+
+// F_003_1 actual MAIN Preview + QProcess native file smoke. No mock worker.
+// Qt's repeating timer is serviced between source import, save, reload and
+// malformed-file rejection; all operations use the production menu handlers.
+static int runF0031NativeSelftest(const QString &nativeBinary,
+                                  const QString &canonicalBinary,
+                                  const QString &source) {
+    QTemporaryDir directory;
+    if(!directory.isValid()) return 2;
+    const QString original=directory.path()+"/roundtrip.bsi";
+    const QString copy=directory.path()+"/copy.bsi";
+    const QString bad=directory.path()+"/corrupt.bsi";
+    QFile damaged(bad);
+    if(!damaged.open(QIODevice::WriteOnly) ||
+       damaged.write("not a SQLite native design")<=0) return 2;
+    damaged.close();
+    PreviewWindow window(QString(),QString(),QString(),canonicalBinary,nativeBinary);
+    window.show();
+    if(!window.openCanonicalCandidate(source)) return 2;
+    QEventLoop loop;
+    QTimer tick;
+    tick.setInterval(30);
+    QElapsedTimer elapsed;
+    elapsed.start();
+    int phase=0, eventTicks=0;
+    bool success=false;
+    QString failure;
+    QObject::connect(&tick,&QTimer::timeout,&loop,[&] {
+        ++eventTicks;
+        if(elapsed.elapsed()>85000) {
+            failure="timeout at phase "+QString::number(phase);
+            loop.quit();return;
+        }
+        const QString st=window.nativePanel()->status();
+        if(phase==0) {
+            const QString import=window.importPanel()->importStatus();
+            if(import.startsWith("FAILED") || import.startsWith("CANCELLED")) {
+                failure="Canonical import failed: "+import;loop.quit();return;
+            }
+            if(!import.startsWith("CANONICAL SOURCE GEOMETRY")) return;
+            if(!window.saveNativeCandidate(original)) {
+                failure="main Native Save Project handler rejected accepted Canonical";
+                loop.quit();return;
+            }
+            phase=1;return;
+        }
+        if(st.startsWith("FAILED")) {
+            if(phase==4 && window.nativePanel()->loadedPath()==copy) {
+                // Deliberately corrupt file must not destroy accepted .bsi.
+                if(!window.openNativeCandidate(copy)) {
+                    failure="cannot reopen previous valid native after rejected candidate";
+                    loop.quit();return;
+                }
+                phase=5;return;
+            }
+            failure="native operation failed: "+st;loop.quit();return;
+        }
+        if(!st.startsWith("COMPLETED")) return;
+        if(phase==1) {
+            if(!QFileInfo(original).isFile() || !window.openNativeCandidate(original)) {
+                failure="native file missing or main Open rejected";
+                loop.quit();return;
+            }
+            phase=2;return;
+        }
+        if(phase==2) {
+            if(window.nativePanel()->loadedPath()!=original ||
+               !window.nativePanel()->status().contains("open") ||
+               !window.copyNativeCandidate(copy)) {
+                failure="native Open receipt or Save As rejected";
+                loop.quit();return;
+            }
+            phase=3;return;
+        }
+        if(phase==3) {
+            if(!QFileInfo(copy).isFile() || !window.openNativeCandidate(bad)) {
+                failure="Native Save As failed or malformed Open not started";
+                loop.quit();return;
+            }
+            phase=4;return;
+        }
+        if(phase==5) {
+            success=window.nativePanel()->loadedPath()==copy &&
+                    window.nativePanel()->status().contains("open") &&
+                    window.nativePanel()->findChild<QPlainTextEdit *>("f0031NativeSummary")
+                        ->toPlainText().contains("STRUCTURALLY LOADED") &&
+                    eventTicks>4;
+            if(!success)failure="native receipt/event-loop/reload mismatch";
+            loop.quit();
+        }
+    });
+    tick.start();loop.exec();tick.stop();
+    qInfo().noquote() << QJsonDocument(QJsonObject{
+        {"schema","boardsi-f0031-main-native-v1"},
+        {"pass",success},{"phase",phase},{"event_loop_ticks",eventTicks},
+        {"error",failure},{"physical_si","NOT_RUN"}
+    }).toJson(QJsonDocument::Compact);
+    return success ? 0 : 1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==5 && args.at(1)=="--f0031-native-selftest")
+        return runF0031NativeSelftest(args.at(2),args.at(3),args.at(4));
     if(args.size()==5 && args.at(1)=="--e021-crossformat-selftest")
         return runE021CrossFormatRetentionSelftest(args.at(2),args.at(3),args.at(4));
     if(args.size()==4 && args.at(1)=="--e011-stackup-selftest")

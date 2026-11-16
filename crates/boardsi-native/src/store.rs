@@ -1,4 +1,5 @@
 //! Only after a complete SQLite and Canonical validation is a board returned.
+use crate::recovery::{recover_owned_staging, StageOwner};
 use crate::{invalid, NativeError, Result};
 use crate::{read, write};
 use boardsi_model::BoardModel;
@@ -72,6 +73,24 @@ fn preflight(path: &Path) -> Result<()> {
     }
     if u32::from_be_bytes(hdr[68..72].try_into().expect("length")) != APP_ID as u32 {
         return Err(NativeError::NotNative);
+    }
+    // v1 is a completed single-file snapshot (F_002 journal_mode=DELETE).
+    // SQLite header bytes 18/19 = 2 declare WAL write/read mode: its content
+    // can change without changing main-file SHA. Reject rather than flatten
+    // an untracked WAL transaction into a different accepted snapshot.
+    if hdr[18] != 1 || hdr[19] != 1 {
+        return Err(invalid("WAL/unsupported journal mode"));
+    }
+    // Also refuse leftover active WAL/SHM companions, including symlinks.
+    // Never hash only the main DB while SQLite WAL may own newer data.
+    for suffix in ["-wal", "-shm"] {
+        let mut name = path.as_os_str().to_os_string();
+        name.push(suffix);
+        match fs::symlink_metadata(std::path::PathBuf::from(name)) {
+            Ok(_) => return Err(invalid("external WAL sidecar")),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
     }
     Ok(())
 }
@@ -185,6 +204,19 @@ fn qualification_before_replace() -> Result<()> {
     }
 }
 
+#[cfg(feature = "f003-qualification")]
+fn qualification_during_transaction() -> Result<()> {
+    if std::env::var("BOARDSI_F003_QUAL_MODE").ok().as_deref() != Some("pause-transaction") {
+        return Ok(());
+    }
+    let marker = std::env::var_os("BOARDSI_F003_QUAL_MARKER")
+        .ok_or_else(|| invalid("qualification marker missing"))?;
+    fs::write(marker, b"sqlite-transaction-open")?;
+    loop {
+        std::thread::park_timeout(std::time::Duration::from_millis(100));
+    }
+}
+
 fn replace(staging: &Path, dest: &Path) -> Result<()> {
     if dest.exists() {
         #[cfg(windows)]
@@ -252,6 +284,8 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
     if dest.is_dir() {
         return Err(invalid("destination is directory"));
     }
+    // Recover only previously abandoned, independently locked staging pairs.
+    recover_owned_staging(parent)?;
     // Never destroy an existing file with unpreservable optional extensions,
     // unsupported source verification claims, future schema or corruption.
     if dest.exists() {
@@ -279,6 +313,13 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
         }
     }
     let stage = stage.ok_or_else(|| invalid("staging name collision"))?;
+    let owner = match StageOwner::acquire(&stage) {
+        Ok(owner) => owner,
+        Err(e) => {
+            let _ = fs::remove_file(&stage);
+            return Err(e.into());
+        }
+    };
     let result = (|| -> Result<()> {
         let mut conn = Connection::open(&stage)?;
         restrict_connection(&conn);
@@ -287,6 +328,8 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
         conn.pragma_update(None, "synchronous", "FULL")?;
         let tx = conn.transaction()?;
         write::write_board(&tx, board, &uuid())?;
+        #[cfg(feature = "f003-qualification")]
+        qualification_during_transaction()?;
         tx.commit()?;
         check_db(&conn)?;
         conn.close().map_err(|(_, e)| NativeError::Sql(e))?;
@@ -303,8 +346,6 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
         qualification_before_replace()?;
         replace(&stage, dest)
     })();
-    if result.is_err() {
-        let _ = fs::remove_file(&stage);
-    }
+    drop(owner); // Removes the unused stage and releases/removes its marker.
     result
 }
