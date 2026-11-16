@@ -25,6 +25,26 @@ fn id(x: &ObjectId) -> Result<String, &'static str> {
 fn rational(x: Rational) -> String {
     format!("{}:{}", x.numerator(), x.denominator())
 }
+fn qt_dimension_limit(
+    value: Rational,
+    max_abs_metres: i128,
+    require_positive: bool,
+) -> Result<(), &'static str> {
+    // E_021 Qt decoder's double dimension gate is ±1,000,000 mm for
+    // all points and 0 < shape/width <= 1,000 mm. Compare exact rational
+    // metres without rounding to the Qt preview's f64 drawing coordinates.
+    let max = value
+        .denominator()
+        .checked_mul(max_abs_metres)
+        .ok_or("E021_QT_DIMENSION_LIMIT")?;
+    if value.numerator() < -max
+        || value.numerator() > max
+        || (require_positive && value.numerator() <= 0)
+    {
+        return Err("E021_QT_DIMENSION_LIMIT");
+    }
+    Ok(())
+}
 fn exact(board: &BoardModel, p: &Point) -> Result<[String; 2], &'static str> {
     let frame = board
         .frames
@@ -34,6 +54,8 @@ fn exact(board: &BoardModel, p: &Point) -> Result<[String; 2], &'static str> {
     let xy = frame
         .exact_m(p)
         .map_err(|_| "E021_COORDINATE_UNREPRESENTABLE")?;
+    qt_dimension_limit(xy[0], 1000, false)?;
+    qt_dimension_limit(xy[1], 1000, false)?;
     Ok([rational(xy[0]), rational(xy[1])])
 }
 pub fn render(board: &BoardModel) -> Result<String, &'static str> {
@@ -115,6 +137,7 @@ pub fn render(board: &BoardModel) -> Result<String, &'static str> {
         if t.centreline.len() != 2 || !t.width_m.positive() {
             return Err("E021_TRACE_UNSUPPORTED");
         }
+        qt_dimension_limit(t.width_m, 1, true)?;
         let a = exact(board, &t.centreline[0])?;
         let b = exact(board, &t.centreline[1])?;
         let net = t
@@ -165,6 +188,8 @@ pub fn render(board: &BoardModel) -> Result<String, &'static str> {
             }
             _ => return Err("E021_PAD_SHAPE_UNSUPPORTED"),
         };
+        qt_dimension_limit(a, 1, true)?;
+        qt_dimension_limit(b, 1, kind == "RECT")?;
         let xy = exact(board, &p.position)?;
         let net = p
             .net
