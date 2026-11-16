@@ -94,6 +94,15 @@ fn sorted_equal<T: PartialEq>(
     right.sort_by(|x, y| key(x).cmp(key(y)));
     left == right
 }
+/// F_005: compare every persisted Canonical field independent of SQLite row/order.
+/// This proves structural data equivalence only, never manufactured contacts or SI.
+pub fn canonical_semantics_equal(
+    a: &boardsi_model::BoardModel,
+    b: &boardsi_model::BoardModel,
+) -> bool {
+    same_semantics(a, b)
+}
+
 fn same_semantics(a: &boardsi_model::BoardModel, b: &boardsi_model::BoardModel) -> bool {
     if a.kind != b.kind {
         return false;
