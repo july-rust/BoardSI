@@ -30,6 +30,45 @@ fn temp() -> PathBuf {
     fs::create_dir(&path).unwrap();
     path
 }
+
+fn independent_sqlite_bsig_oracle(path:&std::path::Path, hash:&str) {
+    use rusqlite::{Connection,OpenFlags};
+    // Deliberately independent from the BoardSI Native Reader and BSIG
+    // encoder: query raw SQLite and parse little-endian envelope bytes.
+    let db=Connection::open_with_flags(path,OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+    let app:i64=db.pragma_query_value(None,"application_id",|r|r.get(0)).unwrap();
+    let ver:i64=db.pragma_query_value(None,"user_version",|r|r.get(0)).unwrap();
+    assert_eq!((app,ver),(0x42534931,1));
+    let raw_sha:Vec<u8>=db.query_row(
+        "SELECT sha256 FROM source_files WHERE ordinal=0",[],|r|r.get(0)).unwrap();
+    assert_eq!(raw_sha.as_slice(),Sha256::digest(SOURCE.as_bytes()).as_slice());
+    assert_eq!(hex_lower(&raw_sha),hash);
+    let blob:Vec<u8>=db.query_row(
+        "SELECT envelope FROM geometry WHERE geometry_kind=1 LIMIT 1",
+        [],|r|r.get(0)).unwrap();
+    assert!(blob.len()>52 && &blob[0..4]==b"BSIG");
+    assert_eq!(u16::from_le_bytes(blob[4..6].try_into().unwrap()),1);
+    assert_eq!(u16::from_le_bytes(blob[6..8].try_into().unwrap()),1);
+    assert_eq!(u64::from_le_bytes(blob[12..20].try_into().unwrap()) as usize,blob.len()-52);
+    assert_eq!(&blob[20..52],Sha256::digest(&blob[52..]).as_slice());
+    let body=&blob[52..];
+    assert_eq!(u16::from_le_bytes(body[4..6].try_into().unwrap()),1);
+    assert_eq!(u16::from_le_bytes(body[6..8].try_into().unwrap()),7);
+    assert_eq!(u32::from_le_bytes(body[12..16].try_into().unwrap()),2);
+    let read_point=|pos:usize|->(i64,i64) {
+        (i64::from_le_bytes(body[pos+4..pos+12].try_into().unwrap()),
+         i64::from_le_bytes(body[pos+12..pos+20].try_into().unwrap()))
+    };
+    assert_eq!(read_point(16),(1_123_456,-2_000_001));
+    assert_eq!(read_point(36),(3_000_001,5_000_000));
+}
+fn hex_lower(bytes:&[u8])->String {
+    let mut output=String::with_capacity(bytes.len()*2);
+    use std::fmt::Write as _;
+    for byte in bytes {write!(&mut output,"{byte:02x}").unwrap();}
+    output
+}
+
 fn invoke(parts: &[&std::ffi::OsStr]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_boardsi-native-file"))
         .args(parts)
@@ -59,6 +98,7 @@ fn f006_worker_exact_semantic_roundtrip() {
     assert_eq!(receipt["source_format"], "KICAD9_SOURCE_SUBSET");
     assert_eq!(receipt["traces"], 1);
     assert_eq!(receipt["vias"], 1);
+    independent_sqlite_bsig_oracle(&target,&hash);
     let loaded = load(&target).unwrap();
     assert!(canonical_semantics_equal(&original, loaded.model()));
     assert_eq!(
