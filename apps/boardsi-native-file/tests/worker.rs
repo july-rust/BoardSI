@@ -30,7 +30,7 @@ fn actual_process_save_open_copy_and_source_sha_guard() {
     let board = fixture();
     let good = dir.join("source.bsi");
     let next = dir.join("copy.bsi");
-    let hash = format!("{:x}", Sha256::digest(&fs::read(&board).unwrap()));
+    let hash = format!("{:x}", Sha256::digest(fs::read(&board).unwrap()));
     let saved = Command::new(binary())
         .arg("save-pads")
         .arg(&board)
