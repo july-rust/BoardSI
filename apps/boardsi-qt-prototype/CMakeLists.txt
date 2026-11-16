@@ -118,6 +118,13 @@ if(BUILD_TESTING)
       TIMEOUT 150 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
   set(BOARDSI_NATIVE_FILE_WORKER "" CACHE FILEPATH "F_003_1 Rust Native file worker")
+  if(BOARDSI_NATIVE_FILE_WORKER AND BOARDSI_ODB_QT_IMPORTER)
+    add_test(NAME qt-f005-main-odb-native-roundtrip
+      COMMAND boardsi-preview-p0 --f005-native-odb-selftest
+        "${BOARDSI_ODB_QT_IMPORTER}" "${BOARDSI_NATIVE_FILE_WORKER}")
+    set_tests_properties(qt-f005-main-odb-native-roundtrip PROPERTIES
+      TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  endif()
   if(BOARDSI_NATIVE_FILE_WORKER AND BOARDSI_CANONICAL_IMPORTER)
     add_test(NAME qt-f0031-real-native-file-main
       COMMAND boardsi-preview-p0 --f0031-native-selftest

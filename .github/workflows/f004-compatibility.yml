@@ -32,6 +32,7 @@ jobs:
           cargo +1.75.0 test -p boardsi-native --locked --test native
           cargo +1.75.0 test -p boardsi-native --locked --lib
           cargo +1.75.0 test -p boardsi-native-file --locked --test f004_migration --features f004-qualification
+          cargo +1.75.0 test -p boardsi-native-file --locked --test f005_cad_roundtrip --features f004-qualification
   enospc:
     name: F004 actual Linux ENOSPC migration preservation
     runs-on: ubuntu-latest

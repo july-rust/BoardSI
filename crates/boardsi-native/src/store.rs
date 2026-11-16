@@ -186,18 +186,30 @@ fn qualification_before_replace() -> Result<()> {
     let Ok(mode) = std::env::var("BOARDSI_F003_QUAL_MODE") else {
         return Ok(());
     };
-    if mode != "pause" && mode != "fail" {
+    if mode != "pause" && mode != "fail" && mode != "pause-until-resume" {
         return Ok(());
     }
     let marker = std::env::var_os("BOARDSI_F003_QUAL_MARKER")
         .ok_or_else(|| invalid("qualification marker missing"))?;
-    fs::write(marker, b"validated-before-replace")?;
+    fs::write(&marker, b"validated-before-replace")?;
     if mode == "fail" {
         return Err(std::io::Error::new(
             std::io::ErrorKind::Other,
             "F003 qualification injected I/O failure before replace",
         )
         .into());
+    }
+    if mode == "pause-until-resume" {
+        // Test-only deterministic source mutation between staging and
+        // pre-publication validation. Never enabled in production builds.
+        let resume = Path::new(&marker).with_extension("resume");
+        for _ in 0..500 {
+            if resume.is_file() {
+                return Ok(());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        return Err(invalid("qualification resume timeout"));
     }
     loop {
         std::thread::park_timeout(std::time::Duration::from_millis(100));
@@ -264,7 +276,20 @@ fn replace(staging: &Path, dest: &Path) -> Result<()> {
     }
     Ok(())
 }
+/// Preserve existing native Save semantics with no external source dependency.
 pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
+    save_guarded(path, board, || Ok(()))
+}
+
+/// F_005: caller-supplied source consistency check happens *after* SQLite
+/// staging, durability sync, independent reload and fault-injection pause,
+/// immediately before publishing the new file over the last valid design.
+/// A failing callback leaves the prior destination untouched.
+pub fn save_guarded(
+    path: impl AsRef<Path>,
+    board: &BoardModel,
+    pre_publish: impl FnOnce() -> Result<()>,
+) -> Result<()> {
     // A loaded read-only document must never be re-serialized to another path:
     // the Canonical model cannot carry unknown optional payloads or SHA attestations.
     if board.persistence_read_only {
@@ -344,6 +369,7 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
         }
         #[cfg(feature = "f003-qualification")]
         qualification_before_replace()?;
+        pre_publish()?;
         replace(&stage, dest)
     })();
     drop(owner); // Removes the unused stage and releases/removes its marker.

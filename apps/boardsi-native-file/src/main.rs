@@ -1,6 +1,9 @@
 //! F_003_1 local native file worker. One job per process; bounded JSON receipt.
 //! Never use this binary for physical connectivity, geometry display or SI claims.
-use boardsi_native::{load, migrate_to_current, recover_owned_staging, save};
+use boardsi_native::{
+    canonical_semantics_equal, load, migrate_to_current, recover_owned_staging, save, save_guarded,
+    NativeError,
+};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{
@@ -131,6 +134,59 @@ fn run() -> Result<Value, String> {
                 .map_err(|_| fail("BSI_SOURCE_CANONICAL"))?;
             save(&target, &board).map_err(native_error)?;
             receipt("save-pads", &target, false)
+        }
+        "save-odb" if args.len() == 5 => {
+            let root = arg_path(&args, 1)?;
+            let step = arg_text(&args, 2)?;
+            let target = arg_path(&args, 3)?;
+            let expected = arg_text(&args, 4)?;
+            if expected.len() != 64 || !expected.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(fail("BSI_SOURCE_SHA_INVALID"));
+            }
+            let expected = expected.to_ascii_lowercase();
+            // Never create a second ODB parser or quietly skip unsupported copper.
+            // Identical preflight to the real E_021 Qt importer; this also
+            // validates all Source files, their logical paths and exact hashes.
+            let board = boardsi_import::odb_source::import_directory(&root, &step)
+                .map_err(|e| format!("BSI_ODB_SOURCE_UNSUPPORTED:{}", e.code))?;
+            boardsi_import::odb_qt_wire::render(&board)
+                .map_err(|e| format!("BSI_ODB_QT_SUBSET_UNSUPPORTED:{e}"))?;
+            let manifest = |board: &boardsi_model::BoardModel| -> String {
+                let mut hash = Sha256::new();
+                for source in &board.sources[0].id.files {
+                    for b in source.logical_path.as_bytes() {
+                        hash.update(format!("{b:02x}").as_bytes());
+                    }
+                    hash.update(b"|");
+                    for b in &source.sha256 {
+                        hash.update(format!("{b:02x}").as_bytes());
+                    }
+                    hash.update(b"\n");
+                }
+                format!("{:x}", hash.finalize())
+            };
+            let actual = manifest(&board);
+            if actual != expected {
+                return Err(fail("BSI_SOURCE_CHANGED"));
+            }
+            // Re-open the complete SOURCE directory *after* staging has been
+            // committed, synced and independently verified. A changed source
+            // aborts before the original destination is replaced.
+            save_guarded(&target, &board, || {
+                let fresh = boardsi_import::odb_source::import_directory(&root, &step)
+                    .map_err(|_| NativeError::SourceChanged)?;
+                boardsi_import::odb_qt_wire::render(&fresh)
+                    .map_err(|_| NativeError::SourceChanged)?;
+                if manifest(&fresh) != expected || !canonical_semantics_equal(&board, &fresh) {
+                    return Err(NativeError::SourceChanged);
+                }
+                Ok(())
+            })
+            .map_err(native_error)?;
+            let mut response = receipt("save-odb", &target, false)?;
+            response["source_manifest_sha256"] = json!(actual);
+            response["source_format"] = json!("ODB_SOURCE_SUBSET");
+            Ok(response)
         }
         "save-loaded" if args.len() == 4 => {
             let source = arg_path(&args, 1)?;

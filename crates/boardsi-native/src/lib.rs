@@ -11,13 +11,14 @@ mod write;
 pub use bsig::{Field, GeometryRecord};
 pub use migration::{migrate_to_current, MigrationReceipt, CURRENT_SCHEMA};
 pub use recovery::recover_owned_staging;
-pub use store::{load, save, LoadedBoard};
+pub use store::{load, save, save_guarded, LoadedBoard};
 
 #[derive(Debug)]
 pub enum NativeError {
     NotNative,
     FutureSchema,
     UnsupportedRequired,
+    SourceChanged,
     Invalid(&'static str),
     Io(std::io::Error),
     Sql(rusqlite::Error),
@@ -29,6 +30,7 @@ impl NativeError {
             Self::NotNative => "BSI_NOT_NATIVE",
             Self::FutureSchema => "BSI_FUTURE_SCHEMA",
             Self::UnsupportedRequired => "BSI_UNSUPPORTED_REQUIRED",
+            Self::SourceChanged => "BSI_SOURCE_CHANGED",
             _ => "BSI_INVALID",
         }
     }
@@ -94,6 +96,15 @@ fn sorted_equal<T: PartialEq>(
     right.sort_by(|x, y| key(x).cmp(key(y)));
     left == right
 }
+/// F_005: compare every persisted Canonical field independent of SQLite row/order.
+/// This proves structural data equivalence only, never manufactured contacts or SI.
+pub fn canonical_semantics_equal(
+    a: &boardsi_model::BoardModel,
+    b: &boardsi_model::BoardModel,
+) -> bool {
+    a.persistence_read_only == b.persistence_read_only && same_semantics(a, b)
+}
+
 fn same_semantics(a: &boardsi_model::BoardModel, b: &boardsi_model::BoardModel) -> bool {
     if a.kind != b.kind {
         return false;

@@ -20,7 +20,7 @@ class F0031NativePanel final : public QWidget {
     QLabel *state_;
     QPlainTextEdit *summary_;
     QByteArray output_, errors_;
-    QString binary_, operation_, target_, loaded_, acceptedDigest_;
+    QString binary_, operation_, target_, loaded_, acceptedDigest_, expectedSourceManifest_;
     bool running_=false, cancelled_=false, readOnly_=true;
     int timeoutMs_=60000;
     std::function<void()> onChanged_;
@@ -91,6 +91,12 @@ class F0031NativePanel final : public QWidget {
                 state("FAILED / invalid native object counts");
                 return;
             }
+        }
+        if(operation_=="save-odb" &&
+           (receipt.value("source_format").toString()!="ODB_SOURCE_SUBSET" ||
+            receipt.value("source_manifest_sha256").toString()!=expectedSourceManifest_)) {
+            state("FAILED / ODB++ source manifest receipt mismatch");
+            return;
         }
         loaded_=target_;
         acceptedDigest_=receipt.value("sha256").toString();
@@ -174,6 +180,14 @@ public:
     bool savePads(const QString &source,const QString &target,const QByteArray &sha) {
         if(running_ || sha.size()!=64) return false;
         return begin("save-pads",target,{"save-pads",source,target,QString::fromLatin1(sha)});
+    }
+    bool saveOdb(const QString &root,const QString &step,const QString &target,
+                 const QByteArray &manifestSha) {
+        if(running_ || step.isEmpty() || manifestSha.size()!=64) return false;
+        const bool started=begin("save-odb",target,
+            {"save-odb",root,step,target,QString::fromLatin1(manifestSha)});
+        if(started) expectedSourceManifest_=QString::fromLatin1(manifestSha);
+        return started;
     }
     bool saveNative(const QString &target) {
         if(running_ || loaded_.isEmpty() || readOnly_) return false;
