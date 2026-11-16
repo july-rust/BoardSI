@@ -100,6 +100,11 @@ fn run() -> Result<Value, String> {
             if actual != expected.to_ascii_lowercase() {
                 return Err(fail("BSI_SOURCE_CHANGED"));
             }
+            // Apply the SAME strict fabrication and source-coverage gate as
+            // the Qt Canonical importer; route parsing alone could silently
+            // discard unrelated PARTDECAL and manufacturing declarations.
+            boardsi_import::canonical_padstack_ipc::encode_pads_source(&bytes)
+                .map_err(|_| fail("BSI_SOURCE_NOT_ACCEPTED_QT_CANONICAL"))?;
             let parsed = boardsi_import::route_preview::parse_generalized(&bytes)
                 .map_err(|_| fail("BSI_SOURCE_UNSUPPORTED"))?;
             if parsed.skipped != 0 {
