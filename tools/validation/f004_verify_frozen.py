@@ -21,7 +21,7 @@ LENGTH = 163840
 
 def decode(path: Path, sha: str) -> bytes:
     text = "".join(line.strip() for line in path.read_text(encoding="ascii").splitlines()
-                   if line.strip() and not line.startswith("#"))
+                   if line.strip() and not line.startswith("# "))
     binary = zlib.decompress(base64.b85decode(text))
     assert len(binary) == LENGTH, f"Golden length changed: {len(binary)}"
     assert hashlib.sha256(binary).hexdigest() == sha, "Golden SHA-256 mismatch"
