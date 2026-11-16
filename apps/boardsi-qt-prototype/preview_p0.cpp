@@ -60,6 +60,7 @@ class PreviewWindow : public QMainWindow {
     QAction *openAction = nullptr;
     QAction *canonicalOpenAction = nullptr;
     QAction *odbOpenAction = nullptr;
+    QAction *kicadOpenAction = nullptr;
     QAction *saveAction = nullptr;
     QAction *nativeOpenAction = nullptr;
     QAction *nativeSaveAsAction = nullptr;
@@ -163,6 +164,7 @@ class PreviewWindow : public QMainWindow {
         openAction->setEnabled(!importUI->busy() && !nativeFile->busy());
         canonicalOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
         odbOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
+        kicadOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
         runAction->setEnabled(ipc->runButton()->isEnabled());
         stopAction->setEnabled(ipc->cancelButton()->isEnabled());
         overallProgress->setValue(ipc->progressBar()->value());
@@ -227,6 +229,8 @@ public:
         canonicalOpenAction = bar->addAction("Open Canonical PCB");
         odbOpenAction = bar->addAction("Open ODB++");
         odbOpenAction->setToolTip("Local ODB++ directory and STEP, SOURCE geometry only; no SI");
+        kicadOpenAction = bar->addAction("Import KiCad → .bsi");
+        kicadOpenAction->setToolTip("Source-limited KiCad 9 straight Track/normal Via to Native .bsi. Native summary only; geometry artwork not yet supported.");
         canonicalOpenAction->setToolTip("Source-only Canonical padstack import; no physical SI or material qualification");
         saveAction = bar->addAction("Save Project (.bsi)");
         saveAction->setEnabled(false);
@@ -454,6 +458,16 @@ public:
             if (file.isEmpty()) return;
             openCandidate(file);
         });
+        connect(kicadOpenAction,&QAction::triggered,this,[this] {
+            const QString source=QFileDialog::getOpenFileName(
+                this,"Import bounded KiCad 9 PCB geometry",QString(),
+                "KiCad PCB (*.kicad_pcb)");
+            if(source.isEmpty()) return;
+            const QString target=QFileDialog::getSaveFileName(
+                this,"Save source-qualified KiCad 9 geometry as .bsi",QString(),
+                "BoardSI Native (*.bsi)");
+            if(!target.isEmpty()) importKiCadCandidate(source,target);
+        });
         connect(odbOpenAction,&QAction::triggered,this,[this] {
             const QString root=QFileDialog::getExistingDirectory(
                 this,"Open unpacked ODB++ product directory");
@@ -496,6 +510,22 @@ public:
                                 importUI->acceptedSourceSha256()) :
             nativeFile->savePads(acceptedSourcePath,dest,
                                  importUI->acceptedSourceSha256());
+        if(started) viewTabs->setCurrentWidget(nativeFile);
+        return started;
+    }
+    // F_006 native candidate import is a single nonblocking process:
+    // rejected geometry never publishes a partial preview or replaces a .bsi.
+    // Native artwork rendering remains a separately tracked unaccepted feature.
+    bool importKiCadCandidate(const QString &source,const QString &dest) {
+        if(importUI->busy() || nativeFile->busy() || source.isEmpty() || dest.isEmpty())
+            return false;
+        QFile input(source);
+        if(!input.open(QIODevice::ReadOnly) || input.size()<=0 ||
+           input.size()>8*1024*1024) return false;
+        const QByteArray raw=input.readAll();
+        if(raw.size()!=input.size()) return false;
+        const QByteArray sha=QCryptographicHash::hash(raw,QCryptographicHash::Sha256).toHex();
+        const bool started=nativeFile->saveKiCad(source,dest,sha);
         if(started) viewTabs->setCurrentWidget(nativeFile);
         return started;
     }
