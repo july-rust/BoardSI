@@ -95,6 +95,26 @@ fn user_version(path: &Path) -> Result<i64> {
     Ok(version)
 }
 
+/// Real fault-point for subprocess-only qualification; absent in release builds.
+#[cfg(feature = "f003-qualification")]
+fn qualification_before_replace() -> Result<()> {
+    let Ok(mode) = std::env::var("BOARDSI_F004_QUAL_MODE") else {
+        return Ok(());
+    };
+    if mode != "pause" && mode != "fail" {
+        return Ok(());
+    }
+    let marker = std::env::var_os("BOARDSI_F004_QUAL_MARKER")
+        .ok_or_else(|| invalid("F004 qualification marker missing"))?;
+    fs::write(marker, b"migration-stage-validated-before-replace")?;
+    if mode == "fail" {
+        return Err(invalid("injected F004 migration pre-replace failure"));
+    }
+    loop {
+        std::thread::park_timeout(std::time::Duration::from_millis(100));
+    }
+}
+
 /// Copy or migrate to a distinct target without reserializing unknown optional
 /// extensions. Current v1 -> v1 is byte-preserving, NOT an invented migration.
 /// An unsupported historical/future version is refused with no destination write.
@@ -207,6 +227,8 @@ fn execute(source: &Path, target: &Path, steps: &[Step]) -> Result<MigrationRepo
         if digest(source)? != original_sha {
             return Err(invalid("migration source changed"));
         }
+        #[cfg(feature = "f003-qualification")]
+        qualification_before_replace()?;
         replace(&stage, target)
     })();
     drop(owner);
