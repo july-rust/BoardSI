@@ -1,6 +1,6 @@
 //! F_004 cross-OS Golden acceptance against an independent Python/SQLite+BSIG
 //! producer. Run with --ignored AND F004_GOLDEN_PATH from the F004 workflow.
-use boardsi_model::{BoardKind, NetRole};
+use boardsi_model::{BoardKind, NetRole, ViaKind};
 use boardsi_native::{load, migrate_to_current, save};
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
@@ -34,12 +34,16 @@ fn copy_golden(tag: &str) -> PathBuf {
 fn hash(p: &Path) -> Vec<u8> {
     Sha256::digest(fs::read(p).unwrap()).to_vec()
 }
+fn sha_hex(p: &Path) -> String {
+    hash(p).iter().map(|b| format!("{b:02x}")).collect()
+}
 
 #[test]
 #[ignore = "F004 OS matrix provides the immutable independent Golden file"]
 fn t01_t02_t03_independent_golden_v1_semantics() {
     let p = golden();
     let bytes = fs::read(&p).unwrap();
+    assert_eq!(sha_hex(&p), "e43f30933c3640141ad583d1d3b91b8416e099bfed089be2fa9671db3bf4c2d7");
     assert_eq!(&bytes[..16], b"SQLite format 3\0");
     assert_eq!(
         u32::from_be_bytes(bytes[68..72].try_into().unwrap()),
@@ -198,4 +202,40 @@ fn t08_t09_t10_migration_copy_idempotence_and_corruption() {
     assert!(!target.exists());
     assert_eq!(hash(&invalid), before_invalid);
     fs::remove_file(invalid).unwrap();
+}
+
+#[test]
+#[ignore = "F004 OS matrix supplies the frozen nine-kind Golden"]
+fn t01_t02_t03_full_nine_kinds_golden_exact_structural_semantics() {
+    let path = PathBuf::from(std::env::var("F004_GOLDEN_ALL_NINE_PATH")
+        .expect("F004_GOLDEN_ALL_NINE_PATH must exist in F004 native matrix"));
+    assert!(path.is_file(), "missing archived all-nine v1 file");
+    assert_eq!(
+        sha_hex(&path),
+        "6fcda969a94766b1f25d0f171c1d986965c9d3efef0fdd1950ac093a134eccc9"
+    );
+    let loaded = load(path).expect("frozen v1 all-nine must open in future Reader");
+    assert!(!loaded.is_read_only());
+    let board = loaded.model();
+    assert_eq!(board.kind, BoardKind::Pcb);
+    assert_eq!(board.frames.len(), 1);
+    assert_eq!(board.stackup.layers.len(), 2);
+    assert_eq!(board.traces.len(), 1);
+    assert_eq!(board.arcs.len(), 1);
+    assert_eq!(board.areas.len(), 1);
+    assert_eq!(board.areas[0].cutouts.len(), 1);
+    assert_eq!(board.padstacks.len(), 1);
+    assert_eq!(board.padstacks[0].entries.len(), 5);
+    assert_eq!(board.pads.len(), 1);
+    assert_eq!(board.drills.len(), 1);
+    assert_eq!(board.vias.len(), 1);
+    assert_eq!(board.vias[0].kind, ViaKind::Through);
+    assert_eq!(board.vias[0].connected_layers.len(), 2);
+    assert_eq!(board.outlines.len(), 1);
+    assert_eq!(board.outlines[0].cutouts.len(), 1);
+    assert_eq!(board.components.len(), 1);
+    assert_eq!(board.pins.len(), 1);
+    assert_eq!(board.sources.len(), 1);
+    assert_eq!(board.sources[0].id.files[0].sha256, [7u8; 32]);
+    assert!(board.connectivity.edges.is_empty(), "no invented electrical proof");
 }
