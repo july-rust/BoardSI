@@ -64,8 +64,7 @@ fn frozen_binary_v1_golden_sha_and_reader_are_cross_platform() {
 #[test]
 fn frozen_nine_geometry_golden_is_exactly_pinned_and_loadable() {
     let bytes = include_bytes!("../../../schemas/bsi/golden-v1-nine-geometry.bsi");
-    let expected_sha =
-        include_str!("../../../schemas/bsi/golden-v1-nine-geometry.sha256").trim();
+    let expected_sha = include_str!("../../../schemas/bsi/golden-v1-nine-geometry.sha256").trim();
     assert_eq!(format!("{:x}", Sha256::digest(bytes)), expected_sha);
     let path = temporary("nine-geometry");
     fs::write(&path, bytes).unwrap();
