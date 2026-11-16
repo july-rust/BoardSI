@@ -100,7 +100,7 @@ pub fn canonical_semantics_equal(
     a: &boardsi_model::BoardModel,
     b: &boardsi_model::BoardModel,
 ) -> bool {
-    same_semantics(a, b)
+    a.persistence_read_only == b.persistence_read_only && same_semantics(a, b)
 }
 
 fn same_semantics(a: &boardsi_model::BoardModel, b: &boardsi_model::BoardModel) -> bool {
