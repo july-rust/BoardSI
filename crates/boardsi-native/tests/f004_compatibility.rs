@@ -32,7 +32,8 @@ fn independent_golden(case: &str) -> PathBuf {
 
 fn mutate(file: &PathBuf, sql: &str) {
     let conn = Connection::open(file).expect("open a mutation copy");
-    conn.execute_batch(sql).expect("apply syntactically valid mutation");
+    conn.execute_batch(sql)
+        .expect("apply syntactically valid mutation");
 }
 
 fn assert_rejected_unchanged(file: &PathBuf, expected_code: &str) {
@@ -65,10 +66,7 @@ fn independent_v1_golden_is_readable_without_writer() {
 #[test]
 fn v1_minor_future_is_read_only_and_source_bytes_survive() {
     let p = independent_golden("minor");
-    mutate(
-        &p,
-        "UPDATE file_meta SET format_minor=7 WHERE singleton=1;",
-    );
+    mutate(&p, "UPDATE file_meta SET format_minor=7 WHERE singleton=1;");
     let before = fs::read(&p).unwrap();
     let board = load(&p).expect("inspect future optional-only minor");
     assert!(board.is_read_only());
@@ -92,7 +90,8 @@ fn optional_payload_is_not_silently_lost() {
     let loaded = load(&p).expect("optional extension inspection");
     assert!(loaded.is_read_only());
     assert_eq!(
-        loaded.save_as(temporary("optional-output"))
+        loaded
+            .save_as(temporary("optional-output"))
             .err()
             .unwrap()
             .code(),
