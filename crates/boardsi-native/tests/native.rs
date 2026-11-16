@@ -331,6 +331,9 @@ fn all_nine_kinds_in_one_real_sqlite_file() {
     assert_eq!(read_back.model().outlines.len(), 1);
     assert_eq!(read_back.model().outlines[0].cutouts.len(), 1);
     assert_eq!(read_back.model(), &board);
+    if let Ok(golden_target) = std::env::var("F004_RICH_GOLDEN_OUTPUT") {
+        std::fs::copy(&pth, golden_target).expect("freeze F004 rich geometry fixture");
+    }
     std::fs::remove_file(&pth).unwrap();
 }
 

@@ -1,6 +1,6 @@
 //! F_003_1 local native file worker. One job per process; bounded JSON receipt.
 //! Never use this binary for physical connectivity, geometry display or SI claims.
-use boardsi_native::{load, recover_owned_staging, save};
+use boardsi_native::{load, migrate_to_current, recover_owned_staging, save};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{
@@ -153,6 +153,19 @@ fn run() -> Result<Value, String> {
             }
             loaded.save_as(&target).map_err(native_error)?;
             receipt("save-loaded", &target, false)
+        }
+        "migrate-v1" if args.len() == 3 => {
+            let source = arg_path(&args, 1)?;
+            let target = arg_path(&args, 2)?;
+            let result =
+                migrate_to_current(source.as_path(), target.as_path()).map_err(native_error)?;
+            let mut proof = receipt("migrate-v1", &target, false)?;
+            let fields = proof.as_object_mut().expect("JSON object");
+            fields.insert("from_schema".into(), json!(result.from_schema));
+            fields.insert("to_schema".into(), json!(result.to_schema));
+            fields.insert("steps".into(), json!(result.steps));
+            fields.insert("copied".into(), json!(result.copied));
+            Ok(proof)
         }
         "recover" if args.len() == 2 => {
             let dir = arg_path(&args, 1)?;

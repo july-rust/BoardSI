@@ -8,9 +8,14 @@ publish = false
 [features]
 # Fault hook only when CI explicitly opts in; default app has no pause hook.
 f0031-qualification = []
+# Only CI may pause the production native migration gateway.
+f004-qualification = ["boardsi-native/f003-qualification"]
 
 [dependencies]
 boardsi-import = { path = "../../crates/boardsi-import" }
 boardsi-native = { path = "../../crates/boardsi-native" }
 serde_json = "=1.0.114"
 sha2 = "=0.10.8"
+
+[dev-dependencies]
+rusqlite = { version = "=0.30.0", features = ["bundled"] }
