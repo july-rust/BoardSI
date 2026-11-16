@@ -132,6 +132,55 @@ fn run() -> Result<Value, String> {
             save(&target, &board).map_err(native_error)?;
             receipt("save-pads", &target, false)
         }
+        "save-odb" if args.len() == 5 => {
+            let root = arg_path(&args, 1)?;
+            let step = arg_text(&args, 2)?;
+            let target = arg_path(&args, 3)?;
+            let expected = arg_text(&args, 4)?;
+            if expected.len() != 64 || !expected.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(fail("BSI_SOURCE_SHA_INVALID"));
+            }
+            let expected = expected.to_ascii_lowercase();
+            // Never create a second ODB parser or quietly skip unsupported copper.
+            // Identical preflight to the real E_021 Qt importer; this also
+            // validates all Source files, their logical paths and exact hashes.
+            let board = boardsi_import::odb_source::import_directory(&root, &step)
+                .map_err(|e| format!("BSI_ODB_SOURCE_UNSUPPORTED:{}", e.code))?;
+            boardsi_import::odb_qt_wire::render(&board)
+                .map_err(|e| format!("BSI_ODB_QT_SUBSET_UNSUPPORTED:{e}"))?;
+            let manifest = |board: &boardsi_model::BoardModel| -> String {
+                let mut hash = Sha256::new();
+                for source in &board.sources[0].id.files {
+                    for b in source.logical_path.as_bytes() {
+                        hash.update(format!("{b:02x}").as_bytes());
+                    }
+                    hash.update(b"|");
+                    for b in &source.sha256 {
+                        hash.update(format!("{b:02x}").as_bytes());
+                    }
+                    hash.update(b"\n");
+                }
+                format!("{:x}", hash.finalize())
+            };
+            let actual = manifest(&board);
+            if actual != expected {
+                return Err(fail("BSI_SOURCE_CHANGED"));
+            }
+            // Re-read immediately before saving: accepted Qt manifest must
+            // still identify the same complete directory, not just its path.
+            let current = boardsi_import::odb_source::import_directory(&root, &step)
+                .map_err(|e| format!("BSI_ODB_SOURCE_CHANGED:{}", e.code))?;
+            boardsi_import::odb_qt_wire::render(&current)
+                .map_err(|_| fail("BSI_SOURCE_CHANGED"))?;
+            if manifest(&current) != expected {
+                return Err(fail("BSI_SOURCE_CHANGED"));
+            }
+            save(&target, &board).map_err(native_error)?;
+            let mut response = receipt("save-odb", &target, false)?;
+            response["source_manifest_sha256"] = json!(actual);
+            response["source_format"] = json!("ODB_SOURCE_SUBSET");
+            Ok(response)
+        }
         "save-loaded" if args.len() == 4 => {
             let source = arg_path(&args, 1)?;
             let target = arg_path(&args, 2)?;
