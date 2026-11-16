@@ -9,8 +9,8 @@ mod storage_validation;
 mod store;
 mod write;
 pub use bsig::{Field, GeometryRecord};
-pub use recovery::recover_owned_staging;
 pub use migration::{migrate_to_current, MigrationReport};
+pub use recovery::recover_owned_staging;
 pub use store::{load, save, LoadedBoard};
 
 #[derive(Debug)]
