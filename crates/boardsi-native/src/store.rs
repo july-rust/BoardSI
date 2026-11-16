@@ -39,7 +39,7 @@ impl LoadedBoard {
         Ok(self.model)
     }
 }
-fn uuid() -> String {
+pub(crate) fn uuid() -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
@@ -60,7 +60,7 @@ fn uuid() -> String {
         ]))
     )
 }
-fn preflight(path: &Path) -> Result<()> {
+pub(crate) fn preflight(path: &Path) -> Result<()> {
     let meta = fs::metadata(path)?;
     if !meta.is_file() || meta.len() < 100 || meta.len() > MAX_FILE {
         return Err(invalid("file budget/type"));
@@ -217,7 +217,7 @@ fn qualification_during_transaction() -> Result<()> {
     }
 }
 
-fn replace(staging: &Path, dest: &Path) -> Result<()> {
+pub(crate) fn replace(staging: &Path, dest: &Path) -> Result<()> {
     if dest.exists() {
         #[cfg(windows)]
         {
