@@ -1,6 +1,14 @@
 // F_003_1: real native .bsi file QProcess controller, not an artwork decoder.
 // The backend owns the exact Canonical model; no Qt drawing is serialized as .bsi.
 #pragma once
+#include <QComboBox>
+#include <QGraphicsItem>
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <QJsonArray>
+#include <QPainter>
+#include <QPen>
+#include <cmath>
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -19,6 +27,9 @@ class F0031NativePanel final : public QWidget {
     QTimer timeout_;
     QLabel *state_;
     QPlainTextEdit *summary_;
+    QGraphicsScene *artworkScene_;
+    QGraphicsView *artworkView_;
+    QComboBox *artworkLayer_;
     QByteArray output_, errors_;
     QString binary_, operation_, target_, loaded_, acceptedDigest_, expectedSourceManifest_;
     bool running_=false, cancelled_=false, readOnly_=true;
@@ -37,7 +48,7 @@ class F0031NativePanel final : public QWidget {
         QByteArray &buffer=error ? errors_ : output_;
         const QByteArray chunk=error ? child_.readAllStandardError()
                                      : child_.readAllStandardOutput();
-        const qsizetype limit=error ? 512 : 4096;
+        const qsizetype limit=error ? 512 : 65536;
         if(chunk.size()>limit-buffer.size()) {
             stopWithError("BSI_WORKER_OUTPUT_LIMIT");
             return;
@@ -55,6 +66,101 @@ class F0031NativePanel final : public QWidget {
         timeout_.start(timeoutMs_);
         state("RUNNING / Native "+operation);
         child_.start(binary_,arguments);
+        return true;
+    }
+    // Bounded and strictly checked Source-only graphical overview.
+    // A view item is never an electrically connected model or Solver claim.
+    bool showKiCadArtwork(const QJsonObject &body) {
+        if(body.value("schema").toString()!="BSI_KICAD_SOURCE_PREVIEW_V1" ||
+           body.value("units").toString()!="integer-nm" ||
+           body.value("solver_ready").toBool(true) ||
+           !body.value("items").isArray() || !body.value("layers").isArray())
+            return false;
+        const QJsonArray items=body.value("items").toArray();
+        const QJsonArray layers=body.value("layers").toArray();
+        if(items.isEmpty() || items.size()>128 || layers.size()<2 || layers.size()>32)
+            return false;
+        QStringList layerNames;
+        for(const auto &value:layers) {
+            const QString name=value.toObject().value("name").toString();
+            if(name.isEmpty() || layerNames.contains(name))return false;
+            layerNames<<name;
+        }
+        auto number=[](const QJsonValue &value,double &mm)->bool {
+            if(!value.isDouble())return false;
+            const double nm=value.toDouble();
+            if(!std::isfinite(nm) || std::floor(nm)!=nm || std::abs(nm)>1.0e12)
+                return false;
+            mm=nm/1.0e6;
+            return true;
+        };
+        auto point=[&](const QJsonValue &value,QPointF &p)->bool {
+            if(!value.isArray())return false;
+            const auto coords=value.toArray();
+            if(coords.size()!=2)return false;
+            double x=0,y=0;
+            if(!number(coords.at(0),x) || !number(coords.at(1),y))
+                return false;
+            p=QPointF(x,y);return true;
+        };
+        // Build off-scene first, so a malformed item cannot publish a partial
+        // artwork. The QGraphicsScene takes item ownership only on success.
+        QList<QGraphicsItem *> staged;
+        auto cleanup=[&] {qDeleteAll(staged);staged.clear();};
+        for(const auto &value:items) {
+            const auto row=value.toObject();
+            const QString kind=row.value("kind").toString();
+            const QString layer=row.value("layer").toString();
+            const QString id=row.value("id").toString();
+            if(id.isEmpty() || (layer!="*" && !layerNames.contains(layer))) {
+                cleanup();return false;
+            }
+            QGraphicsItem *item=nullptr;
+            if(kind=="trace") {
+                QPointF a,b;double width=0;
+                if(layer=="*" || !point(row.value("a"),a) ||
+                   !point(row.value("b"),b) || a==b ||
+                   !number(row.value("width_nm"),width) ||
+                   width<=0 || width>1000.0) {
+                    cleanup();return false;
+                }
+                item=new QGraphicsLineItem(QLineF(a,b));
+                static_cast<QGraphicsLineItem *>(item)->setPen(QPen(Qt::darkCyan,width));
+            } else if(kind=="via") {
+                QPointF p;double diameter=0;
+                if(layer!="*" || !point(row.value("at"),p) ||
+                   !number(row.value("diameter_nm"),diameter) ||
+                   diameter<=0 || diameter>1000.0 ||
+                   !layerNames.contains(row.value("span_first").toString()) ||
+                   !layerNames.contains(row.value("span_last").toString())) {
+                    cleanup();return false;
+                }
+                auto *ellipse=new QGraphicsEllipseItem(
+                    p.x()-diameter/2,p.y()-diameter/2,diameter,diameter);
+                ellipse->setPen(QPen(Qt::darkYellow,0));
+                ellipse->setBrush(QBrush(Qt::yellow));
+                item=ellipse;
+            } else {
+                cleanup();return false;
+            }
+            item->setData(0,layer);
+            item->setToolTip("KiCad9 SOURCE "+kind+" / "+id+
+              " / Layer "+layer+" / Net "+row.value("net").toString("UNKNOWN")+
+              " / Physical contact NOT_VERIFIED / SI NOT_RUN");
+            item->setFlag(QGraphicsItem::ItemIsSelectable,true);
+            staged.append(item);
+        }
+        artworkScene_->clear();
+        for(auto *item:staged)artworkScene_->addItem(item);
+        artworkLayer_->clear();
+        artworkLayer_->addItem("All copper layers");
+        artworkLayer_->addItems(layerNames);
+        artworkLayer_->setCurrentIndex(0);
+        artworkView_->setVisible(true);
+        artworkLayer_->setVisible(true);
+        artworkView_->fitInView(
+            artworkScene_->itemsBoundingRect().adjusted(-0.4,-0.4,0.4,0.4),
+            Qt::KeepAspectRatio);
         return true;
     }
     void completed(int exitCode, QProcess::ExitStatus exitStatus) {
@@ -104,6 +210,16 @@ class F0031NativePanel final : public QWidget {
             state("FAILED / KiCad9 source SHA receipt mismatch");
             return;
         }
+        const bool kiCadPreview=receipt.value("source_format").toString()=="KICAD9_SOURCE_SUBSET";
+        if(kiCadPreview && !showKiCadArtwork(receipt.value("artwork").toObject())) {
+            state("FAILED / KiCad native preview contract invalid");
+            return;
+        }
+        if(!kiCadPreview) {
+            artworkScene_->clear();
+            artworkLayer_->setVisible(false);
+            artworkView_->setVisible(false);
+        }
         loaded_=target_;
         acceptedDigest_=receipt.value("sha256").toString();
         readOnly_=receipt.value("read_only").toBool();
@@ -118,7 +234,8 @@ class F0031NativePanel final : public QWidget {
             (readOnly_ ? "READ ONLY (unpreservable optional extension or evidence)\n" :
                          "Editable native snapshot; Save As requires revalidation\n")+
             "Canonical data is stored exactly in Rust.\n"
-            "Native geometry is NOT rendered on this preview tab.\n"
+            (kiCadPreview ? "KiCad 9 SOURCE artwork: bounded display/picking only; no electrical contact proof.\n" :
+                            "Native geometry is NOT rendered on this preview tab.\n")
             "Physical connectivity, manufacturing and SI: NOT_VERIFIED / NOT_RUN");
         state("COMPLETED / Native "+operation_);
     }
@@ -145,6 +262,25 @@ public:
         summary_->setPlainText("Native .bsi file not loaded. Only structurally verified models are accepted.\n"
                                "Native geometry artwork viewer is NOT IMPLEMENTED in F_003_1.");
         layout->addWidget(state_); layout->addWidget(summary_,1);
+        artworkLayer_=new QComboBox(this);
+        artworkLayer_->setObjectName("f006KiCadLayerFilter");
+        artworkScene_=new QGraphicsScene(this);
+        artworkView_=new QGraphicsView(artworkScene_,this);
+        artworkView_->setObjectName("f006KiCadArtwork");
+        artworkView_->setDragMode(QGraphicsView::ScrollHandDrag);
+        artworkView_->setRenderHint(QPainter::Antialiasing,true);
+        artworkLayer_->setVisible(false);
+        artworkView_->setVisible(false);
+        layout->addWidget(artworkLayer_);
+        layout->addWidget(artworkView_,3);
+        connect(artworkLayer_,QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this,[this](int index) {
+            const QString selected=index<=0 ? QString() : artworkLayer_->itemText(index);
+            for(auto *item:artworkScene_->items()) {
+                const QString layer=item->data(0).toString();
+                item->setVisible(selected.isEmpty() || layer=="*" || layer==selected);
+            }
+        });
         timeout_.setSingleShot(true);
         connect(&timeout_,&QTimer::timeout,this,[this] {
             if(running_) stopWithError("BSI_WORKER_TIMEOUT");
