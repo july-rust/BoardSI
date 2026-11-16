@@ -871,12 +871,11 @@ fn wal_only_external_change_never_becomes_accepted_native_snapshot() {
     assert_eq!(std::fs::read(&p).unwrap()[19], 2);
     assert!(p.with_extension("bsi-wal").exists());
     assert_eq!(load(&p).err().unwrap().code(), "BSI_INVALID");
-    // Attempted Save As must also be rejected; no unrelated destination created.
-    let dest = path("wal-rejected");
-    let origin = load(&p);
-    assert!(origin.is_err());
-    assert!(!dest.exists());
+    // A live WAL DB must not be overwritten or silently canonicalized.
+    let unchanged = std::fs::read(&p).unwrap();
+    assert!(save(&p, &b).is_err());
+    assert_eq!(std::fs::read(&p).unwrap(), unchanged);
+    assert_ne!(unchanged, before, "WAL header must differ from DELETE snapshot");
     drop(db);
-    let _ = std::fs::remove_file(&p);
-    assert_ne!(std::fs::read(&p).ok(), Some(before));
+    std::fs::remove_file(&p).unwrap();
 }
