@@ -1,6 +1,6 @@
 # F_006 — KiCad 9 Source → Canonical → Native .bsi → Qt acceptance
 
-> **State: IMPLEMENTATION MERGED / POST-MERGE `main` CI PENDING.** PR #662 final HEAD 56/56 checks PASS, independent Codex final HEAD no major findings (7/7 review threads resolved), verified Squash `9e68bb59`. Do not mark F_006 100% COMPLETE until exact merged-main checks pass.
+> **State: IMPLEMENTATION MERGED / POST-MERGE WINDOWS TEST FIX UNDER QUALIFICATION.** PR #662 final HEAD 56/56 checks PASS, independent Codex final HEAD no major findings (7/7 review threads resolved), Verified Squash `9e68bb59`. Initial exact-main push exposed one Windows x64 *parallel test-fixture directory-name collision*; no product-data defect established. Fix + 24-thread concurrency regression are in PR #663. Do not declare F_006 100% COMPLETE until the fix is protected-merged and retested on exact `main`.
 
 ## Scope contract
 
@@ -41,7 +41,7 @@ ctest --test-dir <qt-build-directory> -R qt-f006-main-kicad-native-roundtrip --o
 | T09 | SHA source mutation/cancel/lock/ENOSPC preserve old native | PASS — real pre-publish source race no-clobber four OS + shared native resilience |
 | T10 | main Qt import/save/open/artwork picking/layer filtering | PASS — actual Main Qt import/save/open/drawn annulus/round track/picking/filter four OS |
 | T11 | native Rust/Qt Windows x64, ARM64, macOS ARM64, Linux | PASS — Linux/Windows x64/Windows ARM64/macOS ARM64 native+Qt |
-| T12 | existing F_001–F_005 + post-merge main regression | PENDING — exact merged main push CI + final checklist |
+| T12 | existing F_001–F_005 + post-merge main regression | BLOCKED — initial main Windows x64 `AlreadyExists` test fixture collision; PR #663 fix and subsequent post-merge CI pending |
 
 ## Evidence receipts
 
@@ -50,6 +50,6 @@ ctest --test-dir <qt-build-directory> -R qt-f006-main-kicad-native-roundtrip --o
 - **Four OS native and guard**: [F_004 compatibility CI](https://github.com/july-rust/BoardSI/actions/runs/43864065409) — F_006 actual worker golden round-trip + staged-source mutation no-clobber; all 4 OS PASS.
 - **Four OS Qt**: [Qt runtime CI](https://github.com/july-rust/BoardSI/actions/runs/43864064892) — F_006 production Main Qt actual artwork/picking/layer filter/save/open tests PASS on Linux, Windows x64/ARM64, macOS ARM64.
 - **Common regressions**: F_001–F_005 native v1 SQLite/BSIG, existing main Qt IPC, source continuity policies remain unchanged; PR CI verifies no regressions.
-- **Exact merged-main post-merge push**: `9e68bb595cace4a33190e61cd817b6b5b64e79ee` **PENDING**; record actual checks before T12 PASS and first COMPLETE date.
+- **Initial exact main push**: [F_004 compatibility run #43867948114](https://github.com/july-rust/BoardSI/actions/runs/43867948114) had Windows x64 F_006 integration test failure `AlreadyExists` in `temp()`; the remaining 4-OS F_006 Native/Qt production tests had passed in PR #662. **Root cause:** coarse wall-clock plus PID same path across parallel tests; this is a test fixture race, not confirmed `.bsi` corruption. [Fix PR #663](https://github.com/july-rust/BoardSI/pull/663) uses atomic per-process nonce, exclusive mkdir retry and explicit 24-thread regression. Final fix PR + post-fix `main` CI remains **PENDING**, so T12 and first COMPLETE date are not yet accepted.
 - Source E_026: [KiCad source fixture/qualification](e026-kicad-layer-via-source-qualification.md). Existing F_005: [CAD native roundtrip](f005-cad-bsi-roundtrip-qualification.md).
 - **Not in F_006 acceptance scope**: full KiCad boards with unsupported source objects, independent physical KiCad GUI export/real PCB fixture, actual plating/contact topology, solver/RLGC/S-parameters, industrial U/T. These remain explicitly **NOT_VERIFIED**, never silently promoted to PASS.
