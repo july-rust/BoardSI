@@ -326,7 +326,10 @@ fn f005_shared_gate_rejects_qt_numeric_overflow_and_source_variants() {
     // Keep the Canonical frame unchanged to isolate Qt display precision.
     let mut collapsed = odb_source::import_directory(&root, "pcb").unwrap();
     collapsed.padstacks[0].entries[0].shape = PadShape::Rectangle {
-        size_m: [Rational::new(1, 1_000_000_000_000_000_000_000).unwrap(), Rational::integer(1)],
+        size_m: [
+            Rational::new(1, 1_000_000_000_000_000_000_000).unwrap(),
+            Rational::integer(1),
+        ],
     };
     assert_eq!(
         odb_qt_wire::render(&collapsed),
@@ -339,7 +342,8 @@ fn f005_shared_gate_rejects_qt_numeric_overflow_and_source_variants() {
         FEATURES.replace("$0 r100", "$0 r2000000 M"),
         FEATURES.replace("rect200x100 M", "rect2000000x100 M"),
         FEATURES.replace("L 0 0 1.5 0", "L 1000001 0 1.5 0"),
-        FEATURES.replace("rect200x100 M", "rect0.000000001x100 M")
+        FEATURES
+            .replace("rect200x100 M", "rect0.000000001x100 M")
             .replace("P 1.5 0 1 P 0 0", "P 1000000 0 1 P 0 0"),
     ] {
         seed(&root);
