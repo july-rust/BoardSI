@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{
     env, fs,
+    io::Read,
     path::{Path, PathBuf},
     process::ExitCode,
 };
@@ -31,13 +32,36 @@ fn parent(path: &Path) -> &Path {
 fn native_error(err: boardsi_native::NativeError) -> String {
     format!("{}: {err}", err.code())
 }
+/// Bind an accepted Qt document to exact on-disk bytes, not merely a path.
+/// Run both before and after SQLite load to detect a concurrent replacement.
+fn file_sha256(path: &Path) -> Result<String, String> {
+    let meta = fs::metadata(path).map_err(|_| fail("BSI_SOURCE_MISSING"))?;
+    if !meta.is_file() || meta.len() > 512 * 1024 * 1024 {
+        return Err(fail("BSI_SOURCE_SIZE"));
+    }
+    let mut input = fs::File::open(path).map_err(|_| fail("BSI_SOURCE_READ"))?;
+    let mut hasher = Sha256::new();
+    let mut block = [0u8; 65536];
+    loop {
+        let n = input.read(&mut block).map_err(|_| fail("BSI_SOURCE_READ"))?;
+        if n == 0 { break; }
+        hasher.update(&block[..n]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
 fn receipt(action: &str, path: &Path, read_only: bool) -> Result<Value, String> {
+    let before = file_sha256(path)?;
     let loaded = load(path).map_err(native_error)?;
+    let after = file_sha256(path)?;
+    if before != after {
+        return Err(fail("BSI_SOURCE_CHANGED"));
+    }
     let b = loaded.model();
     Ok(json!({
         "protocol":"BSI_NATIVE_FILE_V1",
         "action": action,
         "path": path.to_string_lossy(),
+        "sha256":before,
         "read_only": read_only || loaded.is_read_only(),
         "traces": b.traces.len(), "arcs": b.arcs.len(), "areas": b.areas.len(),
         "padstacks": b.padstacks.len(), "pads": b.pads.len(),
@@ -86,10 +110,22 @@ fn run() -> Result<Value, String> {
             save(&target, &board).map_err(native_error)?;
             receipt("save-pads", &target, false)
         }
-        "save-loaded" if args.len() == 3 => {
+        "save-loaded" if args.len() == 4 => {
             let source = arg_path(&args, 1)?;
             let target = arg_path(&args, 2)?;
+            let expected = arg_text(&args, 3)?;
+            if expected.len() != 64 || !expected.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(fail("BSI_SOURCE_SHA_INVALID"));
+            }
+            let expected = expected.to_ascii_lowercase();
+            if file_sha256(&source)? != expected {
+                return Err(fail("BSI_SOURCE_CHANGED"));
+            }
             let loaded = load(&source).map_err(native_error)?;
+            // Never accept a different valid board replacing the opened file.
+            if file_sha256(&source)? != expected {
+                return Err(fail("BSI_SOURCE_CHANGED"));
+            }
             if loaded.is_read_only() {
                 return Err(fail("BSI_UNSUPPORTED_REQUIRED"));
             }
