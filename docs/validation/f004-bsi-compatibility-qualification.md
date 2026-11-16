@@ -1,6 +1,6 @@
 # F_004 — Native .bsi Golden / 호환성 / 안전 Migration 검증 원장
 
-> 상태: **구현됨 · 최종 Native CI/독립 리뷰/보호 병합 확인 전** (2026-11-16 KST). 실증 전 PASS나 완료를 선언하지 않는다.
+> 상태: **F_004 100% COMPLETE (v1 Golden·Version Compatibility·Migration 기반 검증 범위 한정)**. 최초 완료일 및 근거일: **2026-11-16 KST**. 정확한 병합 SHA·4 OS CI·main Push·독립 리뷰 확인.
 
 ## Golden 및 교차 검증
 
@@ -38,7 +38,24 @@ SHA는 각 [Manifest](../../schemas/bsi/golden-v1-nine-geometry.sha256)에서 CI
 | T12 | 전체 기존 회귀 | F003/F002, Qt, 수치 엔진 등 PR HEAD 필수 CI, 병합 main CI |
 
 CI: [F004 전용 4OS+ENOSPC](../../.github/workflows/f004-compatibility.yml) · [PR #658](https://github.com/july-rust/BoardSI/pull/658).
-**테스트 통과의 증거는 최종 PR HEAD/병합 main의 실제 GitHub Actions 실행과 Codex 리뷰 결론에서만 확정한다.**
+**테스트 판정은 PR 최종 HEAD와 정확한 병합 main의 GitHub Actions, 독립 Codex 리뷰 결론을 기준으로 확정했다.**
+
+## 최종 인수 영수증 — 2026-11-16 KST
+
+| 인수 항목 | 검증 결과 | 근거 |
+|---|---|---|
+| T01–T12 (F_004 지정 범위) | **12/12 PASS** | 위 표의 검증 자산 및 실제 OS 실행 |
+| Frozen v1 `.bsi` 2개 / 9종 BSIG | **PASS** | 고정 SHA·독립 Python Oracle·Rust Reader |
+| Native 호환성·Migration·강제 종료 | **4/4 OS PASS** | [F_004 전용 CI](https://github.com/july-rust/BoardSI/actions/workflows/f004-compatibility.yml) |
+| 실제 Linux ENOSPC 원본 보존 | **PASS** | 위 F_004 전용 CI의 별도 ENOSPC Job |
+| 최종 PR CI | **57/57 SUCCESS** | [PR #658 검증](https://github.com/july-rust/BoardSI/pull/658/checks), HEAD `ab1bc53d9b19321f3bfc1f1d586cb938e74c5de3` |
+| 독립 Codex 리뷰 | **완료 / 지적 0 / 미해결 0** | [PR #658 리뷰](https://github.com/july-rust/BoardSI/pull/658) |
+| 보호 Squash 병합 | **Verified / SUCCESS** | [main SHA `d594a565e9cc`](https://github.com/july-rust/BoardSI/commit/d594a565e9ccf34de343671ce77be624921a60ea) |
+| 정확한 main Push CI | **48/48 SUCCESS** | [병합 커밋 Checks](https://github.com/july-rust/BoardSI/commit/d594a565e9ccf34de343671ce77be624921a60ea/checks) |
+
+정식 `.bsi`의 물리 스키마는 여전히 **v1 한 개**이다. 따라서 공식 역사적 v2 파일이나 미발행 포맷에 대한 실제 변환을 검증했다고 표시하지 않는다. 독립 Python은 파일·BSIG 정적 문법과 특정 예상 형상을 확인하며, 모든 CAD 원본 또는 전기적 진실성을 증명하지 않는다.
+
+**최종 판정: F_004 100% COMPLETE — v1 호환·Golden·안전 Migration 기반의 F_004 정의 범위 한정.** CAD 소스 변환의 정확성은 F_005에서 별도로 검증한다.
 
 ## 제외·경계
 
