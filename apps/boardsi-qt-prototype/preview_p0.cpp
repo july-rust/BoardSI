@@ -4859,11 +4859,144 @@ static int runF0031NativeSelftest(const QString &nativeBinary,
     return success ? 0 : 1;
 }
 
+// F_003_1 independent lifecycle proof using the actual MAIN Qt controller and
+// an OS process (not a simulated receipt). Rust pause injection requires the
+// explicit f0031-qualification feature; normal production worker lacks it.
+static int runF0031LifecycleSelftest(const QString &nativeBinary,
+                                      const QString &padsSource) {
+    QTemporaryDir directory;
+    if (!directory.isValid()) return 2;
+    const QString accepted = directory.path()+"/accepted.bsi";
+    const QString rejected = directory.path()+"/old-request.bsi";
+    const QString markerCancel = directory.path()+"/pause-cancel.signal";
+    const QString markerTimeout = directory.path()+"/pause-timeout.signal";
+    QFile fixture(padsSource);
+    if(!fixture.open(QIODevice::ReadOnly)) return 2;
+    const QByteArray digest=QCryptographicHash::hash(fixture.readAll(),
+                                    QCryptographicHash::Sha256).toHex();
+    fixture.close();
+    QProcess seed;
+    seed.start(nativeBinary,{"save-pads",padsSource,accepted,QString::fromLatin1(digest)});
+    if(!seed.waitForStarted(15000) || !seed.waitForFinished(30000) ||
+       seed.exitStatus()!=QProcess::NormalExit || seed.exitCode()!=0 ||
+       !QFile::copy(accepted,rejected)) {
+        qCritical().noquote() << "F0031 lifecycle fixture preparation failed:"
+                              << seed.readAllStandardError();
+        return 2;
+    }
+    PreviewWindow window(QString(),QString(),QString(),QString(),nativeBinary);
+    window.show();
+    auto *panel=window.nativePanel();
+    int ticks=0;
+    auto until=[&ticks](const std::function<bool()> &condition,int deadlineMs=12000) {
+        if(condition()) return true;
+        QEventLoop loop;
+        QTimer poll;
+        QElapsedTimer watch;
+        bool passed=false;
+        watch.start();
+        poll.setInterval(20);
+        QObject::connect(&poll,&QTimer::timeout,&loop,[&]{
+            ++ticks;
+            if(condition()) {passed=true;loop.quit();}
+            else if(watch.elapsed()>=deadlineMs) loop.quit();
+        });
+        poll.start();
+        loop.exec();
+        return passed;
+    };
+    QString error;
+    bool cancelOk=false,timeoutOk=false,staleOk=false;
+    const auto clearFault=[]{
+        qunsetenv("BOARDSI_F0031_QUAL_MODE");
+        qunsetenv("BOARDSI_F0031_QUAL_MARKER");
+    };
+    clearFault();
+    if(!window.openNativeCandidate(accepted) ||
+       !until([&] {return !panel->busy() && panel->status().startsWith("COMPLETED");})) {
+        error="baseline Native Open failed";
+    } else {
+        const QString baseline=panel->findChild<QPlainTextEdit *>("f0031NativeSummary")
+                                    ->toPlainText();
+        qputenv("BOARDSI_F0031_QUAL_MODE","pause-before-open");
+        qputenv("BOARDSI_F0031_QUAL_MARKER",QFile::encodeName(markerCancel));
+        if(!window.openNativeCandidate(rejected) ||
+           !until([&] {return QFileInfo::exists(markerCancel);}) ||
+           !panel->busy() ||
+           window.openNativeCandidate(rejected)) {
+            error="actual cancellation worker did not pause or busy request was accepted";
+        } else {
+            const int before=ticks;
+            // Keep Qt's event loop alive with a genuinely paused child process.
+            const bool responsive=until([&]{return ticks>=before+6;},4000);
+            panel->cancel();
+            cancelOk=responsive &&
+                until([&]{return !panel->busy() &&
+                                  panel->status().startsWith("CANCELLED");}) &&
+                panel->loadedPath()==accepted &&
+                panel->findChild<QPlainTextEdit *>("f0031NativeSummary")
+                    ->toPlainText()==baseline;
+            if(!cancelOk) error="cancel lost last-good or blocked Qt event loop";
+        }
+        clearFault();
+        if(error.isEmpty()) {
+            // The cancelled old-request path must never become the accepted
+            // document even after starting a new successful real child.
+            staleOk=window.openNativeCandidate(accepted) &&
+                until([&]{return !panel->busy() &&
+                                    panel->status().startsWith("COMPLETED");}) &&
+                panel->loadedPath()==accepted;
+            if(!staleOk) error="cancelled old request overwrote later Open";
+        }
+        if(error.isEmpty()) {
+            panel->setTimeoutForTest(500);
+            qputenv("BOARDSI_F0031_QUAL_MODE","pause-before-open");
+            qputenv("BOARDSI_F0031_QUAL_MARKER",QFile::encodeName(markerTimeout));
+            if(!window.openNativeCandidate(rejected) ||
+               !until([&]{return QFileInfo::exists(markerTimeout);},4000)) {
+                error="timeout worker never started";
+            } else {
+                timeoutOk=until([&]{return !panel->busy() &&
+                        panel->status().contains("BSI_WORKER_TIMEOUT");},6500) &&
+                    panel->loadedPath()==accepted &&
+                    panel->findChild<QPlainTextEdit *>("f0031NativeSummary")
+                        ->toPlainText()==baseline;
+                if(!timeoutOk) error="timeout failed to terminate child or retain last-good";
+            }
+            clearFault();
+            panel->setTimeoutForTest(60000);
+            if(error.isEmpty()) {
+                // Timeout must not leave a stale QProcess completion that could
+                // be consumed as an acknowledgement of this new successful Open.
+                staleOk=staleOk && window.openNativeCandidate(accepted) &&
+                    until([&]{return !panel->busy() &&
+                                    panel->status().startsWith("COMPLETED");}) &&
+                    panel->loadedPath()==accepted &&
+                    panel->findChild<QPlainTextEdit *>("f0031NativeSummary")
+                        ->toPlainText()==baseline;
+                if(!staleOk) error="timed-out worker result contaminated new Open";
+            }
+        }
+    }
+    clearFault();
+    if(panel->busy()) panel->cancel();
+    const bool passed=error.isEmpty() && cancelOk && timeoutOk && staleOk && ticks>12;
+    qInfo().noquote() << QJsonDocument(QJsonObject{
+        {"schema","boardsi-f0031-native-lifecycle-v1"},
+        {"pass",passed},{"cancel_ok",cancelOk},{"timeout_ok",timeoutOk},
+        {"stale_response_ok",staleOk},{"event_loop_ticks",ticks},
+        {"error",error},{"physical_si","NOT_RUN"}
+    }).toJson(QJsonDocument::Compact);
+    return passed ? 0 : 1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
     if(args.size()==5 && args.at(1)=="--f0031-native-selftest")
         return runF0031NativeSelftest(args.at(2),args.at(3),args.at(4));
+    if(args.size()==4 && args.at(1)=="--f0031-lifecycle-selftest")
+        return runF0031LifecycleSelftest(args.at(2),args.at(3));
     if(args.size()==5 && args.at(1)=="--e021-crossformat-selftest")
         return runE021CrossFormatRetentionSelftest(args.at(2),args.at(3),args.at(4));
     if(args.size()==4 && args.at(1)=="--e011-stackup-selftest")
