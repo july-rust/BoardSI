@@ -45,7 +45,7 @@ fn qt_dimension_limit(
     }
     Ok(())
 }
-fn exact(board: &BoardModel, p: &Point) -> Result<[String; 2], &'static str> {
+fn exact_components(board: &BoardModel, p: &Point) -> Result<[Rational; 2], &'static str> {
     let frame = board
         .frames
         .iter()
@@ -56,7 +56,63 @@ fn exact(board: &BoardModel, p: &Point) -> Result<[String; 2], &'static str> {
         .map_err(|_| "E021_COORDINATE_UNREPRESENTABLE")?;
     qt_dimension_limit(xy[0], 1000, false)?;
     qt_dimension_limit(xy[1], 1000, false)?;
+    Ok(xy)
+}
+fn exact(board: &BoardModel, p: &Point) -> Result<[String; 2], &'static str> {
+    let xy = exact_components(board, p)?;
     Ok([rational(xy[0]), rational(xy[1])])
+}
+fn qt_mm(value: Rational) -> f64 {
+    (value.numerator() as f64 / value.denominator() as f64) * 1000.0
+}
+fn qt_noncollapsed_span(start: f64, extent: f64) -> bool {
+    start.is_finite() && extent.is_finite() && extent > 0.0 && (start + extent) > start
+}
+fn qt_pad_projectable(
+    board: &BoardModel,
+    p: &Point,
+    kind: &str,
+    size_a: Rational,
+    size_b: Rational,
+) -> Result<(), &'static str> {
+    // Qt E_021 constructs QRectF(x-a/2,-y-b/2,a,b) or an ellipse with
+    // radius a/2. Their final bounding box must have nonzero double width
+    // and height. This is a display feasibility gate, not coordinate rounding
+    // or a replacement for lossless Canonical geometry.
+    let xy = exact_components(board, p)?;
+    let cx = qt_mm(xy[0]);
+    let cy = -qt_mm(xy[1]);
+    let a = qt_mm(size_a);
+    let b = if kind == "CIRCLE" { a } else { qt_mm(size_b) };
+    let left = cx - a / 2.0;
+    let top = cy - b / 2.0;
+    let x_visible = qt_noncollapsed_span(left, a);
+    let y_visible = qt_noncollapsed_span(top, b);
+    if !x_visible || !y_visible {
+        return Err("E021_QT_PROJECTION_COLLAPSED");
+    }
+    Ok(())
+}
+fn qt_trace_projectable(
+    board: &BoardModel,
+    start: &Point,
+    end: &Point,
+    width_m: Rational,
+) -> Result<(), &'static str> {
+    let a = exact_components(board, start)?;
+    let b = exact_components(board, end)?;
+    let x1 = qt_mm(a[0]);
+    let y1 = -qt_mm(a[1]);
+    let x2 = qt_mm(b[0]);
+    let y2 = -qt_mm(b[1]);
+    let w = qt_mm(width_m);
+    if (x1 == x2 && y1 == y2)
+        || !qt_noncollapsed_span(x1.min(x2) - w / 2.0, x1.max(x2) - x1.min(x2) + w)
+        || !qt_noncollapsed_span(y1.min(y2) - w / 2.0, y1.max(y2) - y1.min(y2) + w)
+    {
+        return Err("E021_QT_PROJECTION_COLLAPSED");
+    }
+    Ok(())
 }
 pub fn render(board: &BoardModel) -> Result<String, &'static str> {
     if board.validate().has_errors() || board.sources.len() != 1 {
@@ -138,6 +194,7 @@ pub fn render(board: &BoardModel) -> Result<String, &'static str> {
             return Err("E021_TRACE_UNSUPPORTED");
         }
         qt_dimension_limit(t.width_m, 1, true)?;
+        qt_trace_projectable(board, &t.centreline[0], &t.centreline[1], t.width_m)?;
         let a = exact(board, &t.centreline[0])?;
         let b = exact(board, &t.centreline[1])?;
         let net = t
@@ -190,6 +247,7 @@ pub fn render(board: &BoardModel) -> Result<String, &'static str> {
         };
         qt_dimension_limit(a, 1, true)?;
         qt_dimension_limit(b, 1, kind == "RECT")?;
+        qt_pad_projectable(board, &p.position, kind, a, b)?;
         let xy = exact(board, &p.position)?;
         let net = p
             .net
