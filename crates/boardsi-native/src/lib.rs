@@ -11,13 +11,14 @@ mod write;
 pub use bsig::{Field, GeometryRecord};
 pub use migration::{migrate_to_current, MigrationReceipt, CURRENT_SCHEMA};
 pub use recovery::recover_owned_staging;
-pub use store::{load, save, LoadedBoard};
+pub use store::{load, save, save_guarded, LoadedBoard};
 
 #[derive(Debug)]
 pub enum NativeError {
     NotNative,
     FutureSchema,
     UnsupportedRequired,
+    SourceChanged,
     Invalid(&'static str),
     Io(std::io::Error),
     Sql(rusqlite::Error),
@@ -29,6 +30,7 @@ impl NativeError {
             Self::NotNative => "BSI_NOT_NATIVE",
             Self::FutureSchema => "BSI_FUTURE_SCHEMA",
             Self::UnsupportedRequired => "BSI_UNSUPPORTED_REQUIRED",
+            Self::SourceChanged => "BSI_SOURCE_CHANGED",
             _ => "BSI_INVALID",
         }
     }
