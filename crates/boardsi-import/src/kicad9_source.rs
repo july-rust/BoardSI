@@ -906,7 +906,7 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     use boardsi_model::{
         BoardKind, BoardModel, CoordinateFrame, Drill, ImportSource, Layer, Net, NetRole,
         Orientation, PadRole, PadShape, Padstack, PadstackLayer, Point, Property, QuarterTurn,
-        Stackup, Trace, Via,
+        Trace, Via,
     };
 
     let inventory = inspect(bytes)?;
