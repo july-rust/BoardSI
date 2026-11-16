@@ -167,7 +167,8 @@ fn run() -> Result<Value, String> {
                     return Err(NativeError::SourceChanged);
                 }
                 Ok(())
-            }).map_err(native_error)?;
+            })
+            .map_err(native_error)?;
             let mut response = receipt("save-kicad", &target, false)?;
             response["source_sha256"] = json!(expected);
             response["source_format"] = json!("KICAD9_SOURCE_SUBSET");
