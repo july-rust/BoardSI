@@ -93,7 +93,11 @@ fn read_only_source_permissions_do_not_make_stage_unwritable() {
     readonly.set_readonly(true);
     fs::set_permissions(&source, readonly).unwrap();
     let result = worker()
-        .args(["migrate-v1", source.to_str().unwrap(), target.to_str().unwrap()])
+        .args([
+            "migrate-v1",
+            source.to_str().unwrap(),
+            target.to_str().unwrap(),
+        ])
         .output()
         .unwrap();
     fs::set_permissions(&source, permissions).unwrap();
