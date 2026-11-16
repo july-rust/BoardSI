@@ -73,8 +73,7 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
         });
     let is_ipc = matches!(&board.sources[0].id.format, SourceFormat::Ipc2581)
         && board.sources[0].id.conditions.iter().any(|(k, v)| {
-            k == "scope"
-                && v == "f007-ipc2581c-inline-round-line-polyline-nm-source-only"
+            k == "scope" && v == "f007-ipc2581c-inline-round-line-polyline-nm-source-only"
         });
     if !is_kicad && !is_ipc {
         return Ok(None);
