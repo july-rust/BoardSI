@@ -12,7 +12,10 @@ fn unique(label: &str) -> PathBuf {
     std::env::temp_dir().join(format!(
         "boardsi-f004-resilience-{}-{}-{label}.bsi",
         std::process::id(),
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
     ))
 }
 fn fixture(p: &Path, kind: BoardKind) -> Vec<u8> {
@@ -21,10 +24,16 @@ fn fixture(p: &Path, kind: BoardKind) -> Vec<u8> {
 }
 fn children_stage(pid: u32, dir: &Path) -> Vec<PathBuf> {
     let prefix = format!(".bsi-staging-{pid}-");
-    fs::read_dir(dir).unwrap().filter_map(|e| {
-        let e = e.ok()?;
-        e.file_name().to_str()?.starts_with(&prefix).then_some(e.path())
-    }).collect()
+    fs::read_dir(dir)
+        .unwrap()
+        .filter_map(|e| {
+            let e = e.ok()?;
+            e.file_name()
+                .to_str()?
+                .starts_with(&prefix)
+                .then_some(e.path())
+        })
+        .collect()
 }
 fn child(src: &Path, dst: &Path, mode: &str, marker: &Path) -> Child {
     Command::new(std::env::current_exe().unwrap())
@@ -33,7 +42,8 @@ fn child(src: &Path, dst: &Path, mode: &str, marker: &Path) -> Child {
         .env("BOARDSI_F004_DEST", dst)
         .env("BOARDSI_F004_QUAL_MODE", mode)
         .env("BOARDSI_F004_QUAL_MARKER", marker)
-        .spawn().unwrap()
+        .spawn()
+        .unwrap()
 }
 #[test]
 #[ignore]
@@ -54,12 +64,23 @@ fn process_kill_preserves_both_files_and_recovers_orphan() {
     let mut worker = child(&src, &dst, "pause", &marker);
     let start = Instant::now();
     while !marker.exists() {
-        assert!(worker.try_wait().unwrap().is_none(), "migration child exited early");
-        assert!(start.elapsed() < Duration::from_secs(40), "migration stage timeout");
+        assert!(
+            worker.try_wait().unwrap().is_none(),
+            "migration child exited early"
+        );
+        assert!(
+            start.elapsed() < Duration::from_secs(40),
+            "migration stage timeout"
+        );
         std::thread::sleep(Duration::from_millis(30));
     }
     let live = children_stage(worker.id(), &dir);
-    assert_eq!(live.iter().filter(|p| !p.to_string_lossy().ends_with(".owner")).count(), 1);
+    assert_eq!(
+        live.iter()
+            .filter(|p| !p.to_string_lossy().ends_with(".owner"))
+            .count(),
+        1
+    );
     assert_eq!(recover_owned_staging(&dir).unwrap(), 0, "active owner lock");
     worker.kill().unwrap();
     assert!(!worker.wait().unwrap().success());
@@ -67,7 +88,11 @@ fn process_kill_preserves_both_files_and_recovers_orphan() {
     assert_eq!(fs::read(&dst).unwrap(), original_dst);
     assert_eq!(recover_owned_staging(&dir).unwrap(), 1, "orphan cleanup");
     assert!(children_stage(worker.id(), &dir).is_empty());
-    assert_eq!(recover_owned_staging(&dir).unwrap(), 0, "idempotent cleanup");
+    assert_eq!(
+        recover_owned_staging(&dir).unwrap(),
+        0,
+        "idempotent cleanup"
+    );
     assert!(load(&dst).is_ok(), "last-good target must remain readable");
     fs::remove_file(src).unwrap();
     fs::remove_file(dst).unwrap();
@@ -85,7 +110,10 @@ fn injected_failure_cleans_stage_without_replacing_existing() {
     let marker = dir.join("fail-marker");
     let mut worker = child(&src, &dst, "fail", &marker);
     assert!(!worker.wait().unwrap().success());
-    assert!(marker.exists(), "failure was reached after independent validation");
+    assert!(
+        marker.exists(),
+        "failure was reached after independent validation"
+    );
     assert!(children_stage(worker.id(), &dir).is_empty());
     assert_eq!(fs::read(&src).unwrap(), source);
     assert_eq!(fs::read(&dst).unwrap(), dest);
@@ -128,9 +156,13 @@ fn actual_tmpfs_enospc_preserves_last_good_migration_target() {
         .args(["bs=1048576", "count=32", "conv=fsync"])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .status().unwrap();
+        .status()
+        .unwrap();
     assert!(!status.success(), "tiny tmpfs must actually fill");
-    assert!(migrate_to_current(&src, &dest).is_err(), "disk-full migration must fail");
+    assert!(
+        migrate_to_current(&src, &dest).is_err(),
+        "disk-full migration must fail"
+    );
     assert_eq!(fs::read(&dest).unwrap(), before);
     assert!(load(&dest).is_ok());
     fs::remove_file(filler).unwrap();
