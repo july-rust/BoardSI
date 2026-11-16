@@ -118,7 +118,7 @@ fn native_ipc_source_exact_save_open_oracle_and_stale_guard() {
     assert_eq!(raw_sha, Sha256::digest(SOURCE.as_bytes()).as_slice());
     let blob: Vec<u8> = db
         .query_row(
-            "SELECT envelope FROM geometry WHERE geometry_kind=1 ORDER BY geometry_id LIMIT 1",
+            "SELECT envelope FROM geometry WHERE geometry_kind=1 LIMIT 1",
             [],
             |row| row.get(0),
         )
