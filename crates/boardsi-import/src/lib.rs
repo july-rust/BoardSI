@@ -235,6 +235,8 @@ mod odb_gzip;
 // E_022 opt-in ODB++ SOURCE-only local copper contact and design graph qualification.
 pub mod odb_local_graph;
 pub mod odb_source;
+// F_005 shared Qt/Native ODB++ partial-geometry qualification gate.
+pub mod odb_qt_wire;
 pub mod odb_stackup;
 mod odb_step_repeat;
 mod odb_surface;
