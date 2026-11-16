@@ -10,20 +10,50 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
+    sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 
 fn binary() -> &'static str {
     env!("CARGO_BIN_EXE_boardsi-native-file")
 }
+static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 fn temp() -> PathBuf {
-    let n = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let p = std::env::temp_dir().join(format!("boardsi-f005-{}-{n}", std::process::id()));
-    fs::create_dir(&p).unwrap();
-    p
+    // Windows/macOS wall-clock resolution may be coarser than Rust's parallel
+    // test execution. Each fixture must be unique even within the same PID
+    // and timestamp, without erasing another test's existing directory.
+    for _ in 0..64 {
+        let n = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let serial = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
+        let p =
+            std::env::temp_dir().join(format!("boardsi-f005-{}-{n}-{serial}", std::process::id()));
+        match fs::create_dir(&p) {
+            Ok(()) => return p,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => panic!("F005 fixture creation failed: {e}"),
+        }
+    }
+    panic!("F005 unique test fixture path exhausted");
+}
+#[test]
+fn f005_parallel_temporary_fixture_names_do_not_collide() {
+    let workers = (0..24)
+        .map(|_| std::thread::spawn(temp))
+        .collect::<Vec<_>>();
+    let directories = workers
+        .into_iter()
+        .map(|thread| thread.join().unwrap())
+        .collect::<Vec<_>>();
+    let unique = directories
+        .iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(unique.len(), directories.len());
+    for dir in directories {
+        fs::remove_dir_all(dir).unwrap();
+    }
 }
 fn file(root: &Path, path: &str, data: &[u8]) {
     let full = root.join(path);
