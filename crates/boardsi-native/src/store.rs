@@ -74,6 +74,24 @@ fn preflight(path: &Path) -> Result<()> {
     if u32::from_be_bytes(hdr[68..72].try_into().expect("length")) != APP_ID as u32 {
         return Err(NativeError::NotNative);
     }
+    // v1 is a completed single-file snapshot (F_002 journal_mode=DELETE).
+    // SQLite header bytes 18/19 = 2 declare WAL write/read mode: its content
+    // can change without changing main-file SHA. Reject rather than flatten
+    // an untracked WAL transaction into a different accepted snapshot.
+    if hdr[18] != 1 || hdr[19] != 1 {
+        return Err(invalid("WAL/unsupported journal mode"));
+    }
+    // Also refuse leftover active WAL/SHM companions, including symlinks.
+    // Never hash only the main DB while SQLite WAL may own newer data.
+    for suffix in ["-wal", "-shm"] {
+        let mut name = path.as_os_str().to_os_string();
+        name.push(suffix);
+        match fs::symlink_metadata(std::path::PathBuf::from(name)) {
+            Ok(_) => return Err(invalid("external WAL sidecar")),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
     Ok(())
 }
 
