@@ -14,6 +14,8 @@ GOLDEN = ROOT / "fixtures/bsi/v1/reference-v1.bsi.b85"
 GOLDEN_SHA = "e43f30933c3640141ad583d1d3b91b8416e099bfed089be2fa9671db3bf4c2d7"
 NINE = ROOT / "fixtures/bsi/v1/all-nine-v1.bsi.b85"
 NINE_SHA = "6fcda969a94766b1f25d0f171c1d986965c9d3efef0fdd1950ac093a134eccc9"
+MATERIAL = ROOT / "fixtures/bsi/v1/material-v1.bsi.b85"
+MATERIAL_SHA = "ba17b4b896a21493b50527ac3caed2275e4e25e957ffc08a8bfbe22ba4273534"
 LENGTH = 163840
 
 
@@ -28,14 +30,20 @@ def decode(path: Path, sha: str) -> bytes:
     return binary
 
 
-def verify(path: Path, source: Path, sha: str, nine: bool) -> None:
+def verify(path: Path, source: Path, sha: str, nine: bool, material: bool = False) -> None:
     known = decode(source, sha)
     assert path.read_bytes() == known, "generator output diverged from frozen Golden"
     with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
         assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
-        if nine:
+        if material:
+            assert conn.execute("SELECT COUNT(*) FROM materials").fetchone()[0] == 2
+            assert conn.execute("SELECT COUNT(*) FROM layers").fetchone()[0] == 2
+            assert conn.execute("SELECT COUNT(*) FROM material_properties WHERE status='Assumed'").fetchone()[0] == 4
+            assert conn.execute("SELECT COUNT(*) FROM layer_property_sources").fetchone()[0] == 4
+            assert conn.execute("SELECT COUNT(*) FROM geometry").fetchone()[0] == 1
+        elif nine:
             kinds = {kind for (kind,) in conn.execute("SELECT geometry_kind FROM geometry")}
             assert kinds == set(range(1, 10)), f"missing geometry kind(s): {kinds}"
             assert conn.execute("SELECT COUNT(*) FROM geometry").fetchone()[0] >= 9
@@ -50,7 +58,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--compare", type=Path, required=True)
     parser.add_argument("--compare-full", type=Path)
+    parser.add_argument("--compare-material", type=Path)
     args = parser.parse_args()
     verify(args.compare, GOLDEN, GOLDEN_SHA, False)
     if args.compare_full is not None:
         verify(args.compare_full, NINE, NINE_SHA, True)
+
+    if args.compare_material is not None:
+        verify(args.compare_material, MATERIAL, MATERIAL_SHA, False, material=True)
