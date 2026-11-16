@@ -191,7 +191,7 @@ fn qualification_before_replace() -> Result<()> {
     }
     let marker = std::env::var_os("BOARDSI_F003_QUAL_MARKER")
         .ok_or_else(|| invalid("qualification marker missing"))?;
-    fs::write(marker, b"validated-before-replace")?;
+    fs::write(&marker, b"validated-before-replace")?;
     if mode == "fail" {
         return Err(std::io::Error::new(
             std::io::ErrorKind::Other,
@@ -202,9 +202,7 @@ fn qualification_before_replace() -> Result<()> {
     if mode == "pause-until-resume" {
         // Test-only deterministic source mutation between staging and
         // pre-publication validation. Never enabled in production builds.
-        let resume = std::path::Path::new(&std::env::var_os("BOARDSI_F003_QUAL_MARKER")
-            .ok_or_else(|| invalid("qualification marker missing"))?)
-            .with_extension("resume");
+        let resume = Path::new(&marker).with_extension("resume");
         for _ in 0..500 {
             if resume.is_file() {
                 return Ok(());
