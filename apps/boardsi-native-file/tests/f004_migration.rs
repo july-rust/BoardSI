@@ -83,6 +83,28 @@ fn exact_byte_copy_and_noop_are_idempotent_and_never_clobber() {
 }
 
 #[test]
+fn read_only_source_permissions_do_not_make_stage_unwritable() {
+    let dir = folder("read-only-source");
+    let source = source_in(&dir);
+    let target = dir.join("target.bsi");
+    let original = fs::read(&source).unwrap();
+    let permissions = fs::metadata(&source).unwrap().permissions();
+    let mut readonly = permissions.clone();
+    readonly.set_readonly(true);
+    fs::set_permissions(&source, readonly).unwrap();
+    let result = worker()
+        .args(["migrate-v1", source.to_str().unwrap(), target.to_str().unwrap()])
+        .output()
+        .unwrap();
+    fs::set_permissions(&source, permissions).unwrap();
+    assert!(result.status.success(), "{:?}", result.stderr);
+    assert_eq!(fs::read(&source).unwrap(), original);
+    assert_eq!(fs::read(&target).unwrap(), original);
+    assert_eq!(recover_owned_staging(&dir).unwrap(), 0);
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn unknown_optional_and_invalid_v1_cannot_be_migrated() {
     let dir = folder("readonly");
     let source = source_in(&dir);
