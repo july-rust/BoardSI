@@ -29,6 +29,8 @@ jobs:
               assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
               assert c.execute("SELECT COUNT(*) FROM geometry").fetchone()[0] == 1
           print("F004_ORACLE_SHA256", hashlib.sha256(p.read_bytes()).hexdigest())
+          import base64, zlib
+          print("F004_FROZEN_B85=" + base64.b85encode(zlib.compress(p.read_bytes(), 9)).decode("ascii"))
           PY
       - uses: actions/upload-artifact@v4
         with:
