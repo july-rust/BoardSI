@@ -800,3 +800,367 @@ mod tests {
         );
     }
 }
+
+
+// F_007: opt-in strictly bounded native IPC-2581C copper Line/Polyline adapter.
+// XSD: CadHeader.units; CadData.Step.LayerFeature.Set.Features.Line or Polyline,
+// with an inline LineDesc. Any other Step fabrication geometry fails closed.
+// This is SOURCE artwork, never manufactured connectivity, stackup, or SI.
+fn f007_nm(raw: &str, factor: i128) -> Result<i64, ImportError> {
+    if raw.is_empty() || raw.len() > 40 {
+        return Err(err("F007_BAD_COORDINATE"));
+    }
+    let (negative, unsigned) = if let Some(s) = raw.strip_prefix('-') {
+        (true, s)
+    } else if let Some(s) = raw.strip_prefix('+') {
+        (false, s)
+    } else {
+        (false, raw)
+    };
+    let mut parts = unsigned.split('.');
+    let whole = parts.next().unwrap_or("");
+    let fraction = parts.next().unwrap_or("");
+    if parts.next().is_some()
+        || (whole.is_empty() && fraction.is_empty())
+        || (!whole.is_empty() && !whole.bytes().all(|b| b.is_ascii_digit()))
+        || (!fraction.is_empty() && !fraction.bytes().all(|b| b.is_ascii_digit()))
+        || fraction.len() > 18
+    {
+        return Err(err("F007_BAD_COORDINATE"));
+    }
+    let denom = 10_i128.checked_pow(fraction.len() as u32)
+        .ok_or_else(|| err("F007_COORDINATE_OVERFLOW"))?;
+    let int = if whole.is_empty() { 0 } else {
+        whole.parse::<i128>().map_err(|_| err("F007_COORDINATE_OVERFLOW"))?
+    };
+    let frac = if fraction.is_empty() { 0 } else {
+        fraction.parse::<i128>().map_err(|_| err("F007_COORDINATE_OVERFLOW"))?
+    };
+    let decimal = int.checked_mul(denom)
+        .and_then(|n| n.checked_add(frac))
+        .and_then(|n| n.checked_mul(factor))
+        .ok_or_else(|| err("F007_COORDINATE_OVERFLOW"))?;
+    if decimal % denom != 0 {
+        return Err(err("F007_SUB_NM_UNREPRESENTABLE"));
+    }
+    let nm = decimal / denom;
+    let nm = if negative { -nm } else { nm };
+    let value = i64::try_from(nm).map_err(|_| err("F007_COORDINATE_OVERFLOW"))?;
+    if value.unsigned_abs() > 1_000_000_000_000 {
+        return Err(err("F007_QT_COORDINATE_LIMIT"));
+    }
+    Ok(value)
+}
+
+pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, ImportError> {
+    use boardsi_model::{
+        BoardKind, BoardModel, CoordinateFrame, ImportSource, Layer, Net, Orientation, Point,
+        Property, QuarterTurn, Trace,
+    };
+    let inventory = inspect(bytes)?;
+    if inventory.layers.len() > 64 || inventory.nets.len() > 128 {
+        return Err(err("F007_NATIVE_INVENTORY_LIMIT"));
+    }
+    let xml = std::str::from_utf8(bytes).map_err(|_| err("INVALID_UTF8"))?;
+    let tags = scan(xml)?;
+    let mut headers = tags.iter().filter(|t| t.path == "IPC-2581/Ecad/CadHeader");
+    let header = headers.next().ok_or_else(|| err("F007_MISSING_CAD_UNITS"))?;
+    if headers.next().is_some() {
+        return Err(err("F007_DUPLICATE_CAD_HEADER"));
+    }
+    let units = field(&header.attrs, "units")?;
+    let factor: i128 = match units {
+        "MILLIMETER" => 1_000_000,
+        "MICRON" => 1_000,
+        "INCH" => 25_400_000,
+        _ => return Err(err("F007_UNSUPPORTED_CAD_UNIT")),
+    };
+    if header.attrs.len() != 1 {
+        return Err(err("F007_UNSUPPORTED_CAD_HEADER_ATTRIBUTE"));
+    }
+
+    let mut source_data = (*inventory.identity).clone();
+    let mut conditions = vec![
+        ("selected_step".into(), inventory.selected_step.clone()),
+        ("scope".into(), "f007-ipc2581c-inline-round-line-polyline-nm-source-only".into()),
+        ("cad_units".into(), units.into()),
+    ];
+    for (i, l) in inventory.layers.iter().enumerate() {
+        conditions.push((format!("layer/{i:03}/name"), l.name.clone()));
+        conditions.push((format!("layer/{i:03}/function"), l.layer_function.clone()));
+        conditions.push((format!("layer/{i:03}/side"), l.side.clone()));
+        conditions.push((format!("layer/{i:03}/polarity"), l.polarity.clone()));
+    }
+    let mut pin_count = 0usize;
+    for (i, n) in inventory.nets.iter().enumerate() {
+        for (j, (comp, pin)) in n.pin_refs.iter().enumerate() {
+            pin_count += 1;
+            if pin_count > 512 {
+                return Err(err("F007_PINREF_LIMIT"));
+            }
+            conditions.push((
+                format!("logical_net/{i:03}/pin_ref/{j:04}"),
+                format!("{}|{}", comp.as_deref().unwrap_or(""), pin),
+            ));
+        }
+    }
+    conditions.sort_by(|a, b| a.0.cmp(&b.0));
+    source_data.conditions = conditions;
+    let source = Arc::new(source_data);
+    let mut board = BoardModel::empty(BoardKind::Pcb);
+    board.sources.push(ImportSource {
+        id: source.clone(),
+        producer: "IPC-2581C Source".into(),
+        producer_version: "C".into(),
+        capability: ImportCapability {
+            geometry: CapabilityState::Partial,
+            net: CapabilityState::Partial,
+            pin_pad: CapabilityState::Missing,
+            stackup: CapabilityState::Partial,
+            reference: CapabilityState::Missing,
+            model: CapabilityState::Missing,
+            object_coverage: vec![
+                "IPC-2581C inline round-ended solid Line/straight Polyline SOURCE artwork".into(),
+                "No pads/vias, physical net graph, material stackup or SI".into(),
+            ],
+        },
+    });
+    let frame_meta = object(&source, ObjectKind::Frame, "ipc2581c-xy-nm");
+    let frame_id = frame_meta.id.clone();
+    board.frames.push(CoordinateFrame {
+        meta: frame_meta,
+        unit_label: format!("IPC-2581C {units}, exact integer nm"),
+        metres_per_tick: Rational::new(1, 1_000_000_000)
+            .map_err(|_| err("F007_BAD_UNIT"))?,
+        origin_m: [Rational::integer(0); 2],
+        orientation: Orientation::Orthogonal {
+            turn: QuarterTurn::Zero,
+            mirror_x: false,
+        },
+        source_layer_order_reversed: false,
+    });
+
+    let mut layers = BTreeMap::<String, (ObjectId, LayerKind, String)>::new();
+    let mut copper_count = 0usize;
+    for (index, l) in inventory.layers.iter().enumerate() {
+        let m = object(&source, ObjectKind::Layer, &l.name);
+        if l.kind == LayerKind::Copper {
+            copper_count += 1;
+        }
+        layers.insert(l.name.clone(), (m.id.clone(), l.kind, l.polarity.clone()));
+        board.stackup.layers.push(Layer {
+            meta: m,
+            name: l.name.clone(),
+            order: index as u32, // source declaration order; physical z still MISSING
+            kind: l.kind,
+            z_m: Property::Missing,
+            thickness_m: Property::Missing,
+            material: None,
+        });
+    }
+    if copper_count < 2 {
+        return Err(err("F007_COPPER_LAYER_LIMIT"));
+    }
+    let mut nets = BTreeMap::<String, ObjectId>::new();
+    for n in &inventory.nets {
+        let m = object(
+            &source,
+            ObjectKind::Net,
+            &format!("{}/LogicalNet/{}", inventory.selected_step, n.net.name),
+        );
+        nets.insert(n.net.name.clone(), m.id.clone());
+        board.nets.push(Net { meta: m, name: n.net.name.clone(), role: n.net.role });
+    }
+
+    let scope = "IPC-2581/Ecad/CadData/Step/";
+    let mut layer: Option<ObjectId> = None;
+    let mut net: Option<ObjectId> = None;
+    let mut current_kind = "";
+    let mut pending_points: Vec<[i64; 2]> = Vec::new();
+    let mut traces = 0usize;
+    for tag in &tags {
+        // Unqualified CAD extensions under CadData would be silently dropped.
+        // Accept only the exact Source geometry tree qualified below.
+        let raw = match tag.path.strip_prefix("IPC-2581/Ecad/CadData/") {
+            Some(raw) => raw,
+            None => continue,
+        };
+        match raw {
+            "Layer" | "Step" | "Step/LogicalNet" | "Step/LogicalNet/PinRef" => {}
+            "Step/LayerFeature" => {
+                if !pending_points.is_empty() || tag.attrs.len() != 1 {
+                    return Err(err("F007_UNSUPPORTED_LAYER_FEATURE"));
+                }
+                let name = field(&tag.attrs, "layerRef")?;
+                let (id, kind, polarity) = layers.get(name)
+                    .ok_or_else(|| err("F007_UNKNOWN_LAYER"))?;
+                if *kind != LayerKind::Copper || polarity != "POSITIVE" {
+                    return Err(err("F007_UNSUPPORTED_LAYER_POLARITY"));
+                }
+                layer = Some(id.clone());
+                net = None;
+            }
+            "Step/LayerFeature/Set" => {
+                if !pending_points.is_empty()
+                    || tag.attrs.keys().any(|k| k != "net" && k != "polarity")
+                    || tag.attrs.get("polarity").is_some_and(|v| v != "POSITIVE")
+                {
+                    return Err(err("F007_UNSUPPORTED_SET"));
+                }
+                net = tag.attrs.get("net").map(|name| {
+                    nets.get(name).cloned().ok_or_else(|| err("F007_UNKNOWN_NET"))
+                }).transpose()?;
+            }
+            "Step/LayerFeature/Set/Features" => {
+                if !tag.attrs.is_empty() || layer.is_none() {
+                    return Err(err("F007_UNSUPPORTED_FEATURE_TRANSFORM"));
+                }
+            }
+            "Step/LayerFeature/Set/Features/Line" => {
+                if !pending_points.is_empty() || tag.attrs.len() != 4 {
+                    return Err(err("F007_UNSUPPORTED_LINE"));
+                }
+                let a = [
+                    f007_nm(field(&tag.attrs, "startX")?, factor)?,
+                    f007_nm(field(&tag.attrs, "startY")?, factor)?,
+                ];
+                let b = [
+                    f007_nm(field(&tag.attrs, "endX")?, factor)?,
+                    f007_nm(field(&tag.attrs, "endY")?, factor)?,
+                ];
+                pending_points = vec![a, b];
+                current_kind = "Line";
+            }
+            "Step/LayerFeature/Set/Features/Polyline" => {
+                if !pending_points.is_empty() || !tag.attrs.is_empty() {
+                    return Err(err("F007_UNSUPPORTED_POLYLINE"));
+                }
+                current_kind = "Polyline";
+            }
+            "Step/LayerFeature/Set/Features/Polyline/PolyBegin"
+            | "Step/LayerFeature/Set/Features/Polyline/PolyStepSegment" => {
+                if current_kind != "Polyline" || tag.attrs.len() != 2 {
+                    return Err(err("F007_UNSUPPORTED_POLYLINE_VERTEX"));
+                }
+                if pending_points.len() >= 128 {
+                    return Err(err("F007_POLYLINE_VERTEX_LIMIT"));
+                }
+                pending_points.push([
+                    f007_nm(field(&tag.attrs, "x")?, factor)?,
+                    f007_nm(field(&tag.attrs, "y")?, factor)?,
+                ]);
+            }
+            "Step/LayerFeature/Set/Features/Line/LineDesc"
+            | "Step/LayerFeature/Set/Features/Polyline/LineDesc" => {
+                if current_kind.is_empty()
+                    || pending_points.len() < 2
+                    || tag.attrs.keys().any(|k| !matches!(k.as_str(), "lineWidth" | "lineEnd" | "lineProperty"))
+                    || field(&tag.attrs, "lineEnd")? != "ROUND"
+                    || tag.attrs.get("lineProperty").is_some_and(|v| v != "SOLID")
+                {
+                    return Err(err("F007_UNSUPPORTED_LINE_DESCRIPTION"));
+                }
+                if pending_points.windows(2).any(|w| w[0] == w[1]) {
+                    return Err(err("F007_ZERO_LENGTH_SEGMENT"));
+                }
+                let width = f007_nm(field(&tag.attrs, "lineWidth")?, factor)?;
+                if width <= 0 || width > 1_000_000_000 {
+                    return Err(err("F007_BAD_WIDTH"));
+                }
+                if traces >= 128 {
+                    return Err(err("F007_QT_TRACE_LIMIT"));
+                }
+                let mut meta = object(&source, ObjectKind::Trace, &format!(
+                    "{}/LayerFeature/{}/Trace/{traces:05}",
+                    inventory.selected_step,
+                    layer.as_ref().ok_or_else(|| err("F007_MISSING_LAYER"))?.source_object,
+                ));
+                meta.provenance.source_object_type =
+                    format!("IPC-2581C {current_kind} / inline ROUND SOLID LineDesc");
+                meta.provenance.history[0].operation = "exact-source-decimal-to-integer-nm".into();
+                board.traces.push(Trace {
+                    meta,
+                    layer: layer.clone().ok_or_else(|| err("F007_MISSING_LAYER"))?,
+                    net: net.clone(),
+                    centreline: pending_points.drain(..).map(|ticks| Point {
+                        frame: frame_id.clone(), ticks,
+                    }).collect(),
+                    width_m: Rational::new(i128::from(width), 1_000_000_000)
+                        .map_err(|_| err("F007_BAD_WIDTH"))?,
+                });
+                traces += 1;
+                current_kind = "";
+            }
+            _ => return Err(err("F007_UNSUPPORTED_CADDATA_GEOMETRY")),
+        }
+        // A LineDesc may only terminate the exact currently active Feature.
+        // Additional unexpected children are rejected by the match above.
+        let _ = scope; // keeps the exact XSD path documented alongside the gate.
+    }
+    if !pending_points.is_empty() || !current_kind.is_empty() || board.traces.is_empty() {
+        return Err(err("F007_INCOMPLETE_OR_EMPTY_GEOMETRY"));
+    }
+    if board.validate().has_errors() {
+        return Err(err("F007_INVALID_CANONICAL"));
+    }
+    Ok(board)
+}
+
+#[cfg(test)]
+mod f007_native_tests {
+    use super::*;
+
+    fn fixture(geometry: &str, units: &str) -> String {
+        format!(r#"<?xml version="1.0"?>
+<IPC-2581 revision="C" xmlns="http://webstds.ipc.org/2581">
+<Content><LayerRef name="TOP"/><LayerRef name="BOTTOM"/></Content>
+<LogisticHeader/><HistoryRecord/>
+<Ecad><CadHeader units="{units}"/><CadData>
+<Layer name="TOP" layerFunction="SIGNAL" side="TOP" polarity="POSITIVE"/>
+<Layer name="BOTTOM" layerFunction="SIGNAL" side="BOTTOM" polarity="POSITIVE"/>
+<Step name="BOARD"><LogicalNet name="SIG"><PinRef componentRef="U1" pin="1"/></LogicalNet>
+<LayerFeature layerRef="TOP"><Set net="SIG">{geometry}</Set></LayerFeature>
+</Step></CadData></Ecad></IPC-2581>"#)
+    }
+    #[test]
+    fn xsd_inline_line_and_polyline_exact_nm() {
+        let geometry = r#"<Features><Line startX="1.123456" startY="-2"
+            endX="3" endY="5.000001"><LineDesc lineEnd="ROUND" lineWidth="0.15"
+            lineProperty="SOLID"/></Line></Features>
+            <Features><Polyline><PolyBegin x="3" y="5.000001"/>
+            <PolyStepSegment x="4" y="6"/><PolyStepSegment x="5" y="6"/>
+            <LineDesc lineEnd="ROUND" lineWidth="0.2"/></Polyline></Features>"#;
+        let input = fixture(geometry, "MILLIMETER");
+        let model = into_native_canonical(input.as_bytes()).unwrap();
+        assert_eq!(model.traces.len(), 2);
+        assert_eq!(model.traces[0].centreline[0].ticks, [1_123_456, -2_000_000]);
+        assert_eq!(model.traces[0].centreline[1].ticks, [3_000_000, 5_000_001]);
+        assert_eq!(model.traces[1].centreline.len(), 3);
+        assert_eq!(model.traces[0].width_m, Rational::new(15, 100_000).unwrap());
+        assert!(model.validate().issues.is_empty() || !model.validate().has_errors());
+        assert_eq!(model.sources[0].id.files[0].sha256,
+            crate::digest::sha256(input.as_bytes()));
+        assert!(!model.sources[0].capability.model.eq(&CapabilityState::Verified));
+    }
+    #[test]
+    fn units_and_unsupported_geometry_are_closed() {
+        let line = r#"<Features><Line startX="1" startY="2" endX="3" endY="4">
+            <LineDesc lineEnd="ROUND" lineWidth="0.1"/></Line></Features>"#;
+        let mm = into_native_canonical(fixture(line,"MILLIMETER").as_bytes()).unwrap();
+        let micron = into_native_canonical(fixture(line,"MICRON").as_bytes()).unwrap();
+        let inch = into_native_canonical(fixture(line,"INCH").as_bytes()).unwrap();
+        assert_eq!(mm.traces[0].centreline[0].ticks[0],1_000_000);
+        assert_eq!(micron.traces[0].centreline[0].ticks[0],1_000);
+        assert_eq!(inch.traces[0].centreline[0].ticks[0],25_400_000);
+        for evil in [
+            line.replace("lineEnd=\"ROUND\"", "lineEnd=\"SQUARE\""),
+            line.replace("<LineDesc", "<LineDescRef"),
+            line.replace("startX=\"1\"", "startX=\"1.0000000001\""),
+            format!("{line}<Pad padstackDefRef=\"P\"/>"),
+            format!("{line}<Features><Arc/></Features>"),
+        ] {
+            assert!(into_native_canonical(fixture(&evil,"MILLIMETER").as_bytes()).is_err());
+        }
+        assert!(into_native_canonical(fixture(line,"MM").as_bytes()).is_err());
+    }
+}
