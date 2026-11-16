@@ -135,6 +135,44 @@ fn run() -> Result<Value, String> {
             save(&target, &board).map_err(native_error)?;
             receipt("save-pads", &target, false)
         }
+        "save-kicad" if args.len() == 4 => {
+            let source = arg_path(&args, 1)?;
+            let target = arg_path(&args, 2)?;
+            let expected = arg_text(&args, 3)?;
+            if expected.len() != 64 || !expected.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(fail("BSI_SOURCE_SHA_INVALID"));
+            }
+            let expected = expected.to_ascii_lowercase();
+            let meta = fs::metadata(&source).map_err(|_| fail("BSI_SOURCE_MISSING"))?;
+            if !meta.is_file() || meta.len() > 8 * 1024 * 1024 {
+                return Err(fail("BSI_SOURCE_SIZE"));
+            }
+            let bytes = fs::read(&source).map_err(|_| fail("BSI_SOURCE_READ"))?;
+            if format!("{:x}", Sha256::digest(&bytes)) != expected {
+                return Err(fail("BSI_SOURCE_CHANGED"));
+            }
+            let board = boardsi_import::kicad9_source::into_native_canonical(&bytes)
+                .map_err(|e| format!("BSI_KICAD_SOURCE_UNSUPPORTED:{}", e.code))?;
+            // Only a fully revalidated source may replace an existing .bsi.
+            // The same strict importer is applied to the guard path; a source
+            // rewrite that keeps path, size or mtime is still detected.
+            save_guarded(&target, &board, || {
+                let fresh_bytes = fs::read(&source).map_err(|_| NativeError::SourceChanged)?;
+                if format!("{:x}", Sha256::digest(&fresh_bytes)) != expected {
+                    return Err(NativeError::SourceChanged);
+                }
+                let fresh = boardsi_import::kicad9_source::into_native_canonical(&fresh_bytes)
+                    .map_err(|_| NativeError::SourceChanged)?;
+                if !canonical_semantics_equal(&board, &fresh) {
+                    return Err(NativeError::SourceChanged);
+                }
+                Ok(())
+            }).map_err(native_error)?;
+            let mut response = receipt("save-kicad", &target, false)?;
+            response["source_sha256"] = json!(expected);
+            response["source_format"] = json!("KICAD9_SOURCE_SUBSET");
+            Ok(response)
+        }
         "save-odb" if args.len() == 5 => {
             let root = arg_path(&args, 1)?;
             let step = arg_text(&args, 2)?;
