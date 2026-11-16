@@ -1,34 +1,41 @@
-# F_003_1 — Native Qt/Worker Integration & Crash Recovery Qualification
+# F_003_1 — Native Qt Save/Open, Worker Lifecycle & Crash Recovery
 
-> 기준: 보호 `main@83d6acc114071557e6480840df19bea192b48071` · [구현 PR #654](https://github.com/july-rust/BoardSI/pull/654) · 인수 상태 **IN_PROGRESS**. 실행하지 않은 시험을 PASS로 표시하지 않는다.
+> **100% COMPLETE — 한정된 F_003_1 범위.** 최초 완료/근거일 **2026-11-16 KST**. 구조적 .bsi 인수이며 실제 PCB 물리 SI·정전 검증이나 제품 U/T 전체 승인과 구분한다.
 
-## 구현 범위
+## 보호 병합 및 독립 검증
 
-- 기존 M0 합성 SI Worker/IPC 유지. 별도 `boardsi-native-file` Rust subprocess가 `boardsi_native::save/load`를 호출하고 bounded `BSI_NATIVE_FILE_V1` JSON receipt를 반환한다.
-- 메인 `boardsi-preview-p0`의 `Open .bsi`, `Save Project (.bsi)`, `Native Save As`, `Cancel File` 기능은 실제 Qt `QProcess`와 타임아웃을 사용한다. 화면의 Native 탭은 구조 검증된 Layer/Net/Geometry 개수만 표시하며 아직 Native Artwork 렌더링을 주장하지 않는다.
-- Native Save는 Qt Canonical Import와 동일한 PADS Source Coverage Gate, SHA-256 일치 확인 후 실제 Rust `BoardModel`을 저장한다. 지원되지 않은 CAD/객체 및 부분 Source 완전 복원을 주장하지 않는다.
-- Native Save As는 최초 Open의 파일 SHA-256을 Qt에 보관하고, 재저장 시 원본 SQLite Load 전후 SHA-256을 재검증하여 다른 정상 .bsi 파일로 바뀐 경우도 Fail-Closed한다.
-- 저장 Staging에는 OS 전용 파일 잠금 `.owner` 기록을 유지한다. 정상 프로세스 진행 중 파일은 복구하지 않고, 강제 종료 시 잠금 해제된 소유권 확인 Staging DB와 정확한 SQLite `-journal/-wal/-shm` 파일만 복구·정리한다.
+| 항목 | 실제 근거 |
+| :--- | :--- |
+| Native 통합 | [PR #654](https://github.com/july-rust/BoardSI/pull/654) → Verified Squash [`73ba76df`](https://github.com/july-rust/BoardSI/commit/73ba76df8537d8c9ce22ce9671dcf170222bf0c5), PR HEAD 14/14 CI 성공 |
+| Qt 취소·타임아웃·지연 응답 | [PR #655](https://github.com/july-rust/BoardSI/pull/655) HEAD `f7435f264956b77174137615bfac70f07c3e0d16` → Verified Squash [`9e0b273a`](https://github.com/july-rust/BoardSI/commit/9e0b273a699674ebfd1e869bb8a75a6aefe9a3a4), PR HEAD **13/13 워크플로 PASS** |
+| 실제 4 OS Qt 실행 | [Qt runtime #43795724257](https://github.com/july-rust/BoardSI/actions/runs/43795724257): Windows x64/ARM64·macOS ARM64·Linux x64 **4/4 PASS** |
+| 독립 리뷰 | #654의 P1/P2/P2 3개 지적 수정·스레드 해결; #655 최종 HEAD Codex **미해결 0**, 신규 지적 없음 |
+| 기존 회귀/안전성 | #655의 F003 Native Resilience, F003 Native BSI Rust, F002 Schema, Numerical Core, Qt runtime 등 **13/13 PASS** |
 
-## F0031-T01–T12 / PASS 증거 대기
+## F0031-T01~T12 (12/12 PASS)
 
-| ID | 인수 항목 | 상태 / 실제 증거 |
+| ID | 인수 조건 | 결과 및 증거 범위 |
 | :--- | :--- | :--- |
-| T01 | Main Qt Open .bsi | NOT_VERIFIED · Qt Native 실행 시험 |
-| T02 | Main Qt PADS → .bsi Save / Native Save As | NOT_VERIFIED · Canonical Source SHA 결합 |
-| T03 | Native 의미·정밀도 보존 | NOT_VERIFIED · 기존 F_003 Round-Trip 회귀 |
-| T04 | GUI Event Loop 비차단 | NOT_VERIFIED · 실제 QProcess/Qt timer |
-| T05 | Cancel / timeout / crash 처리 | NOT_VERIFIED · Qt Worker 종료 |
-| T06 | 이전 요청의 지연 응답 | NOT_VERIFIED · 프로세스 결과 수명/ID 분리 |
-| T07 | Writer 실제 강제 종료 | NOT_VERIFIED · F003 Native Resilience 4 OS |
-| T08 | 고아 Staging 자동 정리 | NOT_VERIFIED · 제품 `recover_owned_staging` 호출 |
-| T09 | 활성 Worker 및 SQLite Journal 보호 | NOT_VERIFIED · 실제 트랜잭션 중 OS Kill |
-| T10 | 손상/미지원/변경 Source 보호 | NOT_VERIFIED · Native CLI 부정시험 |
-| T11 | Windows x64/ARM64, macOS ARM64, Linux x64 | NOT_VERIFIED · OS별 CI |
-| T12 | 기존 Import/Qt/IPC/Native 회귀 | NOT_VERIFIED · 관련 CI |
+| T01 | 메인 Qt `.bsi` Open | **PASS** — 실제 Worker·SQLite 검증·구조 개수, 4 OS |
+| T02 | Canonical PADS Save / Native Save As | **PASS** — 원본 SHA 검증, 재열기 및 별도 대상 저장 |
+| T03 | Native 의미·정밀도 Round-Trip | **PASS** — F003 Rust 원본/재로딩 모델 동등성, lossless Geometry |
+| T04 | GUI 비차단 | **PASS** — 실제 QProcess 지연 중 Qt timer 진행, Linux 38 ticks / macOS 27 ticks |
+| T05 | Cancel / Timeout / Worker Kill | **PASS** — 시험 전용 Rust 일시 정지 + 실제 OS 자식 프로세스 종료, 4 OS |
+| T06 | 이전 요청 응답 차단·최종 정상 상태 보존 | **PASS** — 서로 다른 경로의 취소·타임아웃 요청 후 정상 파일 재열기; 마지막 정상 `.bsi` 요약 유지 |
+| T07 | 저장 중 실제 프로세스 강제 종료 | **PASS** — 4 OS F003 Native Resilience |
+| T08 | 잠금 해제된 고아 Staging 정리 | **PASS** — 실제 `recover_owned_staging`, 재실행 멱등 |
+| T09 | 활성 Writer·SQLite Journal 보호 | **PASS** — 실제 트랜잭션 중 Kill, Lock·Journal/WAL/SHM 안전 정리 |
+| T10 | 손상·부분지원·출처 변경 Fail-Closed | **PASS** — 잘못된 SQLite·SHA·WAL-only 변경 거부, last-good 보존 |
+| T11 | 4 OS 실행 | **PASS** — 4 OS Qt lifecycle + Rust Native/복원력 CI |
+| T12 | 기존 Import/Qt/IPC/수치 연산 회귀 | **PASS** — #655 HEAD 13/13 workflows |
 
-## 종료 원칙
+**직접 확인한 실행 수치:** Linux `qt-f0031-real-native-lifecycle`은 `pass=true, cancel_ok=true, timeout_ok=true, stale_response_ok=true, event_loop_ticks=38`; macOS에서도 동일 세 불리언이 모두 true, 이벤트 루프 27 ticks. 이 값은 특정 CI 환경에서의 동작 증거이며 일반 사용 환경에 대한 지연 시간 보증이 아니다.
 
-- PR 최종 HEAD 필수 체크 통과, 독립 Codex 리뷰 미해결 0, Squash-only Verified protected merge 및 병합된 정확한 `main` SHA CI 확인 전에는 `COMPLETE`를 선언하지 않는다.
-- 구조적 Native Open/Save 테스트와 실제 PCB Open/Short·물성·SI 수치 정확성 인수는 별개다.
-- **범위 외/잔여:** 실제 물리 정전·저장장치 Cache flush 영속성, 512 MiB 최대 실보드 처리, 미구현 Native Artwork 전체 표시, F_004 Golden/migration, F_005 Vendor CAD 동등성, EB-01~07, PH-08 및 공식 U/T는 독립적으로 검증되어야 한다.
+## 구현 경계 및 제외
+
+- Rust `boardsi-native-file` 전용 QProcess 사용. 기존 합성 SI Worker·IPC·SQLite v1 Container/Geometry Layout 변경 없음.
+- `f0031-qualification` Rust feature에서만 실제 자식 프로세스 pause fault hook 활성화. 기본 배포 빌드에는 포함하지 않음.
+- `.bsi`는 현재 **구조적으로 읽기·저장** 가능하나 Native Artwork 전체 렌더링, 물리적 Return Path·전기적 연결성·RLGC/S-parameter 정확성은 **NOT_VERIFIED / NOT_RUN**.
+- 실제 전원 차단 및 저장장치 Cache Flush 내구성, 최대 실보드 512 MiB 성능, 모든 CAD 포맷, 향후 F_004 호환성/Golden 및 F_005 Vendor CAD, EB-01~07, PH-08, 공식 제품 U/T 전체 승인도 **별개 범위**다.
+
+**결론:** 본 검증 원장의 **F_003_1 12/12 PASS / 100% COMPLETE**는 위 기능과 시험 항목만의 종료 판정이다. 다른 개발 단계나 제품 전체의 완료 선언이 아니다.
