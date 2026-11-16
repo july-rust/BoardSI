@@ -151,7 +151,10 @@ fn kicad_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, Str
             || !matches!(&e.shape,PadShape::Circle{diameter_m} if to_nm(*diameter_m).ok()==Some(diameter))) {
             return Err(fail("BSI_KICAD_PREVIEW_SHAPE"));
         }
-        let drill = board.drills.iter().find(|d| d.meta.id == via.drill)
+        let drill = board
+            .drills
+            .iter()
+            .find(|d| d.meta.id == via.drill)
             .ok_or_else(|| fail("BSI_KICAD_PREVIEW_DRILL"))?;
         let drill_nm = to_nm(drill.diameter_m)?;
         if drill_nm <= 0 || drill_nm >= diameter || diameter > 1_000_000_000 {
