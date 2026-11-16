@@ -5,6 +5,7 @@ use boardsi_model::Rational;
 use boardsi_native::{canonical_semantics_equal, load};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use rusqlite::{Connection,OpenFlags};
 use std::{fs, path::{Path,PathBuf}, process::Command, time::{SystemTime,UNIX_EPOCH}};
 
 fn binary() -> &'static str { env!("CARGO_BIN_EXE_boardsi-native-file") }
@@ -44,6 +45,41 @@ fn ok(output: std::process::Output) -> Value {
     assert!(output.status.success(),"{}",String::from_utf8_lossy(&output.stderr));
     serde_json::from_slice(&output.stdout).expect("JSON worker receipt")
 }
+// Deliberately independent of boardsi_native BSIG encoder/decoder/SQL read code.
+fn independent_sqlite_oracle(path: &Path, root: &Path) {
+    let db=Connection::open_with_flags(path,OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+    let app:i64=db.pragma_query_value(None,"application_id",|r|r.get(0)).unwrap();
+    let schema:i64=db.pragma_query_value(None,"user_version",|r|r.get(0)).unwrap();
+    assert_eq!((app,schema),(0x42534931,1));
+    let mut stmt=db.prepare("SELECT logical_path,sha256 FROM source_files ORDER BY ordinal").unwrap();
+    let files:Vec<(String,Vec<u8>)>=stmt.query_map([],|row|Ok((row.get(0)?,row.get(1)?)))
+        .unwrap().map(Result::unwrap).collect();
+    assert_eq!(files.len(),FILES.len());
+    for (i,(path,sha)) in files.iter().enumerate() {
+        assert_eq!(path,FILES[i]);
+        assert_eq!(sha.as_slice(),&Sha256::digest(fs::read(root.join(path)).unwrap())[..]);
+    }
+    let data:Vec<u8>=db.query_row("SELECT envelope FROM geometry WHERE geometry_kind=1 LIMIT 1",
+        [],|r|r.get(0)).unwrap();
+    assert!(data.len()>52 && &data[..4]==b"BSIG");
+    let ver=u16::from_le_bytes(data[4..6].try_into().unwrap());
+    let kind=u16::from_le_bytes(data[6..8].try_into().unwrap());
+    assert_eq!((ver,kind),(1,1));
+    assert_eq!(u64::from_le_bytes(data[12..20].try_into().unwrap()) as usize,data.len()-52);
+    assert_eq!(&Sha256::digest(&data[52..])[..],&data[20..52]);
+    // Trace TLV #1, type=7: count u32 and two points(frame ref,u64 x,u64 y).
+    let p=&data[52..];
+    assert_eq!(u16::from_le_bytes(p[4..6].try_into().unwrap()),1);
+    assert_eq!(u16::from_le_bytes(p[6..8].try_into().unwrap()),7);
+    assert_eq!(u32::from_le_bytes(p[12..16].try_into().unwrap()),2);
+    let point=|start:usize| -> (i64,i64) {
+        (i64::from_le_bytes(p[start+4..start+12].try_into().unwrap()),
+         i64::from_le_bytes(p[start+12..start+20].try_into().unwrap()))
+    };
+    assert_eq!(point(16),(0,0));
+    assert_eq!(point(36),(1_500_000_000,0));
+}
+
 #[test]
 fn f005_odb_actual_worker_exact_round_trip_and_independent_source_oracle() {
     let temp=temp();
@@ -69,6 +105,7 @@ fn f005_odb_actual_worker_exact_round_trip_and_independent_source_oracle() {
     assert_eq!(receipt["physical_si"],"NOT_RUN");
     assert_eq!(receipt["traces"],2);
     assert_eq!(receipt["pads"],2);
+    independent_sqlite_oracle(&native,&root);
     let loaded=load(&native).unwrap();
     assert!(!loaded.is_read_only());
     assert!(canonical_semantics_equal(&model,loaded.model()),
