@@ -5001,9 +5001,114 @@ static int runF0031LifecycleSelftest(const QString &nativeBinary,
     return passed ? 0 : 1;
 }
 
+// F_005: real MAIN Qt ODB import -> source-bound native Save -> Open,
+// then stale-source Save rejection. Uses the E_021 bounded synthetic subset.
+static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nativeBinary) {
+    QTemporaryDir temp;
+    if(!temp.isValid()) return 2;
+    const QString root=temp.path()+"/odb";
+    if(!QDir().mkpath(root+"/matrix") ||
+       !QDir().mkpath(root+"/steps/pcb/layers/sig1") ||
+       !QDir().mkpath(root+"/steps/pcb/layers/sig2")) return 2;
+    const QByteArray matrix=
+        "STEP {\\nCOL=1\\nNAME=pcb\\n}\\n"
+        "LAYER {\\nROW=1\\nCONTEXT=BOARD\\nTYPE=SIGNAL\\nNAME=sig1\\nPOLARITY=POSITIVE\\n}\\n"
+        "LAYER {\\nROW=2\\nCONTEXT=BOARD\\nTYPE=SIGNAL\\nNAME=sig2\\nPOLARITY=POSITIVE\\n}\\n";
+    const QByteArray feature="UNITS=MM\\nF 2\\n$0 r100\\n$1 rect200x100 M\\n"
+                             "L 0 0 1.5 0 0 P 0\\nP 1.5 0 1 P 0 0\\n";
+    const auto writeFile=[](const QString &path,const QByteArray &bytes) {
+        QFile f(path);
+        return f.open(QIODevice::WriteOnly|QIODevice::Truncate) &&
+               f.write(bytes)==bytes.size() && f.flush();
+    };
+    const QString first=root+"/steps/pcb/layers/sig1/features";
+    if(!writeFile(root+"/matrix/matrix",matrix) ||
+       !writeFile(first,feature) ||
+       !writeFile(root+"/steps/pcb/layers/sig2/features",feature)) return 2;
+    const QString target=temp.path()+"/roundtrip.bsi";
+    const QString stale=temp.path()+"/must-not-create.bsi";
+    PreviewWindow window(QString(),QString(),QString(),odbBinary,nativeBinary);
+    window.importPanel()->setOdbImporterBinaryForTest(odbBinary);
+    window.show();
+    if(!window.openOdbCandidate(root,"pcb")) return 2;
+    QEventLoop loop;
+    QTimer tick;
+    QElapsedTimer elapsed;
+    int phase=0, eventTicks=0;
+    bool pass=false;
+    QString failure;
+    elapsed.start();
+    tick.setInterval(25);
+    QObject::connect(&tick,&QTimer::timeout,&loop,[&] {
+        ++eventTicks;
+        if(elapsed.elapsed()>85000) {
+            failure="timeout at phase "+QString::number(phase);loop.quit();return;
+        }
+        const QString status=window.nativePanel()->status();
+        if(phase==0) {
+            const QString source=window.importPanel()->importStatus();
+            if(source.startsWith("FAILED") || source.startsWith("CANCELLED")) {
+                failure="source import failed: "+source;loop.quit();return;
+            }
+            if(!source.startsWith("CANONICAL SOURCE GEOMETRY")) return;
+            if(!window.importPanel()->imported()->odbMode() ||
+               window.importPanel()->acceptedSourceSha256().size()!=64 ||
+               !window.saveNativeCandidate(target)) {
+                failure="main Qt Save rejected accepted ODB";loop.quit();return;
+            }
+            phase=1;return;
+        }
+        if(phase==1) {
+            if(status.startsWith("FAILED")) {
+                failure="ODB Native save failed: "+status;loop.quit();return;
+            }
+            if(!status.contains("COMPLETED / Native save-odb")) return;
+            if(!QFileInfo(target).isFile() || !window.openNativeCandidate(target)) {
+                failure="native ODB file missing or Open rejected";loop.quit();return;
+            }
+            phase=2;return;
+        }
+        if(phase==2) {
+            if(status.startsWith("FAILED")) {
+                failure="native ODB Open failed: "+status;loop.quit();return;
+            }
+            if(!status.contains("COMPLETED / Native open")) return;
+            if(!window.nativePanel()->findChild<QPlainTextEdit *>("f0031NativeSummary")
+                    ->toPlainText().contains("STRUCTURALLY LOADED") ||
+               !writeFile(first,feature.replace("1.5 0","1.8 0"))) {
+                failure="native ODB receipt or source mutation failed";loop.quit();return;
+            }
+            window.nativePanel()->forget();
+            if(!window.saveNativeCandidate(stale)) {
+                failure="cannot start stale-source test";loop.quit();return;
+            }
+            phase=3;return;
+        }
+        if(phase==3) {
+            if(status.startsWith("COMPLETED")) {
+                failure="stale source wrongly accepted";loop.quit();return;
+            }
+            if(!status.startsWith("FAILED")) return;
+            pass=status.contains("BSI_SOURCE_CHANGED") &&
+                 !QFileInfo(stale).exists() && QFileInfo(target).isFile() && eventTicks>4;
+            if(!pass) failure="stale-source fail-closed or event-loop mismatch: "+status;
+            loop.quit();
+        }
+    });
+    tick.start();loop.exec();tick.stop();
+    qInfo().noquote()<<QJsonDocument(QJsonObject{
+        {"schema","boardsi-f005-main-odb-native-v1"},{"pass",pass},
+        {"phase",phase},{"event_loop_ticks",eventTicks},
+        {"error",failure},{"physical_si","NOT_RUN"}
+    }).toJson(QJsonDocument::Compact);
+    return pass?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==4 && args.at(1)=="--f005-native-odb-selftest")
+        return runF005NativeOdbSelftest(args.at(2),args.at(3));
     if(args.size()==5 && args.at(1)=="--f0031-native-selftest")
         return runF0031NativeSelftest(args.at(2),args.at(3),args.at(4));
     if(args.size()==4 && args.at(1)=="--f0031-lifecycle-selftest")
