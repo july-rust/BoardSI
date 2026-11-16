@@ -5134,9 +5134,97 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
     return pass?0:1;
 }
 
+// F_006: actual MAIN Qt GUI path drives the production native worker.
+// This tests nonblocking file/receipt lifecycle; no native artwork viewport
+// or actual physical electrical contact is claimed.
+static int runF006NativeKiCadSelftest(const QString &nativeBinary) {
+    QTemporaryDir temp;
+    if(!temp.isValid()) return 2;
+    const QString source=temp.path()+"/trace-via.kicad_pcb";
+    const QString target=temp.path()+"/qualified.bsi";
+    const QString stale=temp.path()+"/stale-rejected.bsi";
+    const QByteArray contents=R"((kicad_pcb (version 20241229) (generator "F006")
+      (layers (0 "F.Cu" signal) (2 "B.Cu" signal))
+      (net 0 "") (net 1 "CLK")
+      (segment (start 0 0) (end 1.5 0) (width 0.2)
+               (layer "F.Cu") (net 1)
+               (uuid "223e4567-e89b-12d3-a456-426614174000"))
+      (via (at 1.5 0) (size 0.6) (drill 0.3)
+           (layers "F.Cu" "B.Cu") (net 1)
+           (uuid "123e4567-e89b-12d3-a456-426614174000"))))";
+    const auto writeFile=[](const QString &path,const QByteArray &bytes) {
+        QFile file(path);
+        return file.open(QIODevice::WriteOnly|QIODevice::Truncate) &&
+               file.write(bytes)==bytes.size() && file.flush();
+    };
+    if(!writeFile(source,contents)) return 2;
+    const QByteArray sha=QCryptographicHash::hash(contents,QCryptographicHash::Sha256).toHex();
+    PreviewWindow window(QString(),QString(),QString(),QString(),nativeBinary);
+    window.show();
+    if(!window.importKiCadCandidate(source,target)) return 2;
+    QEventLoop loop;
+    QTimer tick;
+    QElapsedTimer elapsed;
+    int phase=0,eventTicks=0;
+    bool pass=false;
+    QString failure;
+    elapsed.start();tick.setInterval(25);
+    QObject::connect(&tick,&QTimer::timeout,&loop,[&] {
+        ++eventTicks;
+        if(elapsed.elapsed()>90000) {
+            failure="timeout phase "+QString::number(phase);loop.quit();return;
+        }
+        const QString status=window.nativePanel()->status();
+        if(status.startsWith("FAILED") && phase<2) {
+            failure="KiCad native worker: "+status;loop.quit();return;
+        }
+        if(phase==0) {
+            if(!status.contains("COMPLETED / Native save-kicad")) return;
+            if(!QFileInfo(target).isFile() || !window.openNativeCandidate(target)) {
+                failure="worker output missing or native Open rejected";loop.quit();return;
+            }
+            phase=1;return;
+        }
+        if(phase==1) {
+            if(!status.contains("COMPLETED / Native open")) return;
+            const QString summary=window.nativePanel()
+                ->findChild<QPlainTextEdit *>("f0031NativeSummary")->toPlainText();
+            if(!summary.contains("STRUCTURALLY LOADED") ||
+               !summary.contains("traces: 1") || !summary.contains("vias: 1")) {
+                failure="native reader receipt mismatch";loop.quit();return;
+            }
+            window.nativePanel()->forget();
+            if(!writeFile(source,QByteArray(contents).replace("(net 1 \"CLK\")","(net 1 \"NEW\")")) ||
+               !window.nativePanel()->saveKiCad(source,stale,sha)) {
+                failure="stale source test could not start";loop.quit();return;
+            }
+            phase=2;return;
+        }
+        if(phase==2) {
+            if(status.startsWith("COMPLETED")) {
+                failure="stale source accepted";loop.quit();return;
+            }
+            if(!status.startsWith("FAILED"))return;
+            pass=status.contains("BSI_SOURCE_CHANGED") &&
+                 !QFileInfo(stale).exists() && QFileInfo(target).isFile() && eventTicks>4;
+            if(!pass) failure="fail-closed or event-loop mismatch: "+status;
+            loop.quit();
+        }
+    });
+    tick.start();loop.exec();tick.stop();
+    qInfo().noquote()<<QJsonDocument(QJsonObject{
+        {"schema","boardsi-f006-main-kicad-native-v1"},{"pass",pass},
+        {"phase",phase},{"event_loop_ticks",eventTicks},
+        {"error",failure},{"physical_si","NOT_RUN"}
+    }).toJson(QJsonDocument::Compact);
+    return pass?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--f006-native-kicad-selftest")
+        return runF006NativeKiCadSelftest(args.at(2));
     if(args.size()==4 && args.at(1)=="--f005-native-odb-selftest")
         return runF005NativeOdbSelftest(args.at(2),args.at(3));
     if(args.size()==5 && args.at(1)=="--f0031-native-selftest")
