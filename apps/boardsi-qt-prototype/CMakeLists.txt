@@ -119,6 +119,11 @@ if(BUILD_TESTING)
   endif()
   set(BOARDSI_NATIVE_FILE_WORKER "" CACHE FILEPATH "F_003_1 Rust Native file worker")
   if(BOARDSI_NATIVE_FILE_WORKER)
+    add_test(NAME qt-f007-main-ipc-native-roundtrip
+      COMMAND boardsi-preview-p0 --f007-native-ipc-selftest
+        "${BOARDSI_NATIVE_FILE_WORKER}")
+    set_tests_properties(qt-f007-main-ipc-native-roundtrip PROPERTIES
+      TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     add_test(NAME qt-f006-main-kicad-native-roundtrip
       COMMAND boardsi-preview-p0 --f006-native-kicad-selftest
         "${BOARDSI_NATIVE_FILE_WORKER}")
