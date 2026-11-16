@@ -33,8 +33,8 @@ fn temp() -> PathBuf {
             .unwrap()
             .as_nanos();
         let serial = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir()
-            .join(format!("boardsi-f006-{}-{n}-{serial}", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("boardsi-f006-{}-{n}-{serial}", std::process::id()));
         match fs::create_dir(&path) {
             Ok(()) => return path,
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
@@ -113,7 +113,9 @@ fn f006_parallel_temp_names_never_collide() {
         .into_iter()
         .map(|worker| worker.join().unwrap())
         .collect::<Vec<_>>();
-    let unique = directories.iter().collect::<std::collections::BTreeSet<_>>();
+    let unique = directories
+        .iter()
+        .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(unique.len(), directories.len());
     for directory in directories {
         fs::remove_dir_all(directory).unwrap();
