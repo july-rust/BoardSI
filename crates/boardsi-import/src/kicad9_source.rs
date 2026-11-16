@@ -937,6 +937,17 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
             _ => return Err(err("UNSUPPORTED_BOARD_OBJECT")),
         }
     }
+    if segments.len() + inventory.vias.len() > 128 {
+        return Err(err("F006_QT_PREVIEW_OBJECT_LIMIT"));
+    }
+    // Do not advertise a Qt preview for a geometry whose bounded binary64
+    // projection can collapse or exceed the main Qt viewport envelope.
+    let qt_point = |xy: [i64; 2]| -> Result<(), ImportError> {
+        if xy.iter().any(|v| v.unsigned_abs() > 1_000_000_000_000) {
+            return Err(err("F006_QT_POINT_LIMIT"));
+        }
+        Ok(())
+    };
     if segments.is_empty() && inventory.vias.is_empty() {
         return Err(err("EMPTY_SUPPORTED_GEOMETRY"));
     }
@@ -955,15 +966,43 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     }
 
     let mut source_data = (*inventory.identity).clone();
-    source_data.conditions = vec![(
+    let mut conditions = vec![(
         "scope".into(),
         "f006-kicad9-straight-segment-normal-through-via-nominal-source-only".into(),
     )];
+    // The general board thickness is a nominal design declaration, NOT a
+    // demonstrated layer z/thickness/material stackup. Preserve its exact
+    // integer-nm value in source conditions instead of discarding it.
+    if let Some(general) = root.child("general")? {
+        for declaration in general.children() {
+            if declaration.head()? != "thickness" {
+                return Err(err("F006_GENERAL_FIELD_UNSUPPORTED"));
+            }
+            conditions.push((
+                "general_thickness_nm".into(),
+                positive_mm(general.scalar("thickness")?)?.to_string(),
+            ));
+        }
+    }
+    if let Some(setup) = root.child("setup")? {
+        // Stackup and geometry-affecting design settings would be lost unless
+        // parsed explicitly; never call their omission a lossless conversion.
+        if setup.children().next().is_some() {
+            return Err(err("F006_SETUP_UNSUPPORTED"));
+        }
+    }
+    for layer in &inventory.layers {
+        if let Some(name) = &layer.user_name {
+            conditions.push((format!("layer_user_name/{:03}", layer.ordinal), name.clone()));
+        }
+    }
+    conditions.sort_by(|a, b| a.0.cmp(&b.0));
+    source_data.conditions = conditions;
     let source = Arc::new(source_data);
     let mut board = BoardModel::empty(BoardKind::Pcb);
     board.sources.push(ImportSource {
         id: source.clone(),
-        producer: "KiCad 9 SOURCE partial native importer".into(),
+        producer: root.scalar("generator")?.into(),
         producer_version: SUPPORTED_PCB_VERSION.into(),
         capability: boardsi_model::ImportCapability {
             geometry: CapabilityState::Partial,
@@ -1141,6 +1180,11 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
         if a == b {
             return Err(err("ZERO_LENGTH_SEGMENT"));
         }
+        qt_point(a)?;
+        qt_point(b)?;
+        if width > 1_000_000_000 {
+            return Err(err("F006_QT_WIDTH_LIMIT"));
+        }
         let sid = uuid
             .map(|u| format!("segment/{u}"))
             .unwrap_or_else(|| format!("segment@byte:{}", node.offset));
@@ -1171,6 +1215,10 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     // layers in the *normal* via padstack. Never equate this with a verified
     // contact graph, and never claim actual manufacturing proof.
     for v in &inventory.vias {
+        qt_point(v.centre_nm)?;
+        if v.diameter_nm > 1_000_000_000 {
+            return Err(err("F006_QT_VIA_LIMIT"));
+        }
         let id = &v.meta.id.source_object;
         let span = ViaSpan {
             first_layer: by_layer
