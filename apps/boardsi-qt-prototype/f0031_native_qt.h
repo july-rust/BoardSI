@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -19,7 +20,7 @@ class F0031NativePanel final : public QWidget {
     QLabel *state_;
     QPlainTextEdit *summary_;
     QByteArray output_, errors_;
-    QString binary_, operation_, target_, loaded_;
+    QString binary_, operation_, target_, loaded_, acceptedDigest_;
     bool running_=false, cancelled_=false, readOnly_=true;
     std::function<void()> onChanged_;
     void state(const QString &value) {
@@ -77,7 +78,9 @@ class F0031NativePanel final : public QWidget {
            receipt.value("path").toString()!=target_ ||
            receipt.value("physical_si").toString()!="NOT_RUN" ||
            !receipt.value("geometry_only").toBool(false) ||
-           !receipt.value("read_only").isBool()) {
+           !receipt.value("read_only").isBool() ||
+           !QRegularExpression("^[0-9a-f]{64}$")
+                .match(receipt.value("sha256").toString()).hasMatch()) {
             state("FAILED / invalid native worker receipt");
             return;
         }
@@ -89,6 +92,7 @@ class F0031NativePanel final : public QWidget {
             }
         }
         loaded_=target_;
+        acceptedDigest_=receipt.value("sha256").toString();
         readOnly_=receipt.value("read_only").toBool();
         QStringList counts;
         for(const auto &name:{"layers","nets","sources","traces","arcs","areas","pads","vias","drills"})
@@ -153,7 +157,7 @@ public:
     QString loadedPath() const {return loaded_;}
     QString status() const {return state_->text();}
     void forget() {
-        if(!running_) {loaded_.clear();readOnly_=true;state("IDLE / source import selected");}
+        if(!running_) {loaded_.clear();acceptedDigest_.clear();readOnly_=true;state("IDLE / source import selected");}
     }
     bool open(const QString &file) {
         if(running_) return false;
@@ -165,7 +169,7 @@ public:
     }
     bool saveNative(const QString &target) {
         if(running_ || loaded_.isEmpty() || readOnly_) return false;
-        return begin("save-loaded",target,{"save-loaded",loaded_,target});
+        return begin("save-loaded",target,{"save-loaded",loaded_,target,acceptedDigest_});
     }
     void cancel() {
         if(!running_) return;
