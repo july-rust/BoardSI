@@ -61,7 +61,7 @@ jobs:
           "$QT_PREFIX/bin/qmake" -query QT_VERSION
           cmake --version
           g++ --version
-          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DCMAKE_BUILD_TYPE=Release -DBOARDSI_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork" -DBOARDSI_CANONICAL_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-canonical-padstack" -DBOARDSI_NATIVE_FILE_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-native-file" -DBOARDSI_CANONICAL_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-canonical-padstack" -DBOARDSI_ODB_QT_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-odb-qt-import" -DBOARDSI_NATIVE_FILE_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-native-file -DBOARDSI_F0031_QUALIFICATION=ON"
+          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DCMAKE_BUILD_TYPE=Release -DBOARDSI_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork" -DBOARDSI_CANONICAL_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-canonical-padstack" -DBOARDSI_NATIVE_FILE_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-native-file" -DBOARDSI_CANONICAL_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-canonical-padstack" -DBOARDSI_ODB_QT_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-odb-qt-import" -DBOARDSI_NATIVE_FILE_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-native-file" -DBOARDSI_F0031_QUALIFICATION=ON
           cmake --build build-qt --parallel 2
       - name: Run real QApplication and independent Worker
         env:
@@ -172,7 +172,7 @@ jobs:
         run: |
           cmake --version
           clang++ --version
-          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DBOARDSI_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork" -DBOARDSI_CANONICAL_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-canonical-padstack" -DBOARDSI_NATIVE_FILE_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-native-file -DBOARDSI_F0031_QUALIFICATION=ON"
+          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DBOARDSI_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-artwork" -DBOARDSI_CANONICAL_IMPORTER="$GITHUB_WORKSPACE/target/debug/boardsi-import-canonical-padstack" -DBOARDSI_NATIVE_FILE_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-native-file" -DBOARDSI_F0031_QUALIFICATION=ON
           cmake --build build-qt --parallel 2
           file build-qt/boardsi-qt-runtime-validation target/debug/boardsi-worker
       - name: F_003_1 main Qt Native file Save/Open/SaveAs fail-closed qualification
@@ -831,7 +831,7 @@ jobs:
         if: ${{ runner.os == 'macOS' }}
         shell: bash
         run: |
-          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker -DBOARDSI_F0031_QUALIFICATION=ON"
+          cmake -S apps/boardsi-qt-prototype -B build-qt -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DBOARDSI_WORKER="$GITHUB_WORKSPACE/target/debug/boardsi-worker" -DBOARDSI_F0031_QUALIFICATION=ON
           cmake --build build-qt --parallel 2
           grep -q '^Qt6Quick_DIR:' build-qt/CMakeCache.txt
       - name: Validate A_014 Qt Quick in real P2-E imported Artwork Viewer
