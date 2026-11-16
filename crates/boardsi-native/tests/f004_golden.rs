@@ -43,7 +43,10 @@ fn sha_hex(p: &Path) -> String {
 fn t01_t02_t03_independent_golden_v1_semantics() {
     let p = golden();
     let bytes = fs::read(&p).unwrap();
-    assert_eq!(sha_hex(&p), "e43f30933c3640141ad583d1d3b91b8416e099bfed089be2fa9671db3bf4c2d7");
+    assert_eq!(
+        sha_hex(&p),
+        "e43f30933c3640141ad583d1d3b91b8416e099bfed089be2fa9671db3bf4c2d7"
+    );
     assert_eq!(&bytes[..16], b"SQLite format 3\0");
     assert_eq!(
         u32::from_be_bytes(bytes[68..72].try_into().unwrap()),
@@ -207,8 +210,10 @@ fn t08_t09_t10_migration_copy_idempotence_and_corruption() {
 #[test]
 #[ignore = "F004 OS matrix supplies the frozen nine-kind Golden"]
 fn t01_t02_t03_full_nine_kinds_golden_exact_structural_semantics() {
-    let path = PathBuf::from(std::env::var("F004_GOLDEN_ALL_NINE_PATH")
-        .expect("F004_GOLDEN_ALL_NINE_PATH must exist in F004 native matrix"));
+    let path = PathBuf::from(
+        std::env::var("F004_GOLDEN_ALL_NINE_PATH")
+            .expect("F004_GOLDEN_ALL_NINE_PATH must exist in F004 native matrix"),
+    );
     assert!(path.is_file(), "missing archived all-nine v1 file");
     assert_eq!(
         sha_hex(&path),
@@ -237,5 +242,8 @@ fn t01_t02_t03_full_nine_kinds_golden_exact_structural_semantics() {
     assert_eq!(board.pins.len(), 1);
     assert_eq!(board.sources.len(), 1);
     assert_eq!(board.sources[0].id.files[0].sha256, [7u8; 32]);
-    assert!(board.connectivity.edges.is_empty(), "no invented electrical proof");
+    assert!(
+        board.connectivity.edges.is_empty(),
+        "no invented electrical proof"
+    );
 }
