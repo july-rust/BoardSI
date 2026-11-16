@@ -32,11 +32,7 @@ jobs:
           PY
           python3 tools/validation/f004_verify_frozen.py --compare f004-golden/reference-v1.bsi
           python3 tools/validation/f004_reference_material_fixture.py --output f004-golden/material-v1.bsi
-          python3 - <<'PY'
-          import base64, zlib, pathlib
-          p = pathlib.Path("f004-golden/material-v1.bsi")
-          print("F004_MATERIAL_B85=" + base64.b85encode(zlib.compress(p.read_bytes(), 9)).decode("ascii"))
-          PY
+          python3 tools/validation/f004_verify_frozen.py --compare f004-golden/reference-v1.bsi --compare-material f004-golden/material-v1.bsi
       - name: Generate one-time all-nine-kinds full-schema Golden (Rust Writer)
         shell: bash
         run: |
@@ -49,7 +45,7 @@ jobs:
           content = p.read_bytes()
           print(f"F004_ALL_NINE_SHA256={hashlib.sha256(content).hexdigest()} bytes={len(content)}")
           PY
-          python3 tools/validation/f004_verify_frozen.py --compare f004-golden/reference-v1.bsi --compare-full f004-golden/all-nine-v1.bsi
+          python3 tools/validation/f004_verify_frozen.py --compare f004-golden/reference-v1.bsi --compare-full f004-golden/all-nine-v1.bsi --compare-material f004-golden/material-v1.bsi
       - uses: actions/upload-artifact@v4
         with:
           name: f004-v1-independent-oracle
@@ -68,6 +64,7 @@ jobs:
     env:
       F004_GOLDEN_PATH: ${{ github.workspace }}/f004-golden/reference-v1.bsi
       F004_GOLDEN_ALL_NINE_PATH: ${{ github.workspace }}/f004-golden/all-nine-v1.bsi
+      F004_GOLDEN_MATERIAL_PATH: ${{ github.workspace }}/f004-golden/material-v1.bsi
     steps:
       - uses: actions/checkout@v5
       - name: Install project toolchain
@@ -81,6 +78,7 @@ jobs:
         run: |
           test -s f004-golden/reference-v1.bsi
           test -s f004-golden/all-nine-v1.bsi
+          test -s f004-golden/material-v1.bsi
           cargo +1.75.0 fmt --all -- --check
           cargo fetch --locked
       - name: Rust Native cross-OS and F004 independent acceptance
