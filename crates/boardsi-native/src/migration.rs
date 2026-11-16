@@ -139,7 +139,10 @@ fn test_before_publish() -> Result<()> {
 /// Unknown optional/read-only documents are not implicitly upgraded.
 /// When a future schema is released, register and independently test its
 /// sequential transform before enabling any nonidentity conversion.
-pub fn migrate_to_current(source: impl AsRef<Path>, target: impl AsRef<Path>) -> Result<MigrationReceipt> {
+pub fn migrate_to_current(
+    source: impl AsRef<Path>,
+    target: impl AsRef<Path>,
+) -> Result<MigrationReceipt> {
     let source = source.as_ref();
     let target = target.as_ref();
     if source.extension().and_then(|x| x.to_str()) != Some("bsi")
@@ -174,8 +177,12 @@ pub fn migrate_to_current(source: impl AsRef<Path>, target: impl AsRef<Path>) ->
     if !parent.is_dir() {
         return Err(invalid("migration target parent not found"));
     }
-    if fs::canonicalize(source.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| Path::new(".")))?
-        == fs::canonicalize(parent)?
+    if fs::canonicalize(
+        source
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new(".")),
+    )? == fs::canonicalize(parent)?
         && source.file_name() == target.file_name()
     {
         return Err(invalid("migration cannot overwrite source"));
@@ -241,8 +248,16 @@ mod tests {
     #[test]
     fn registry_is_ordered_strict_and_fails_closed() {
         let registered = [
-            MigrationStep { from: 1, to: 2, transform: add_one },
-            MigrationStep { from: 2, to: 3, transform: add_one },
+            MigrationStep {
+                from: 1,
+                to: 2,
+                transform: add_one,
+            },
+            MigrationStep {
+                from: 2,
+                to: 3,
+                transform: add_one,
+            },
         ];
         assert_eq!(plan(1, 3, &registered).unwrap().len(), 2);
         assert!(plan(1, 4, &registered).is_err());
@@ -257,20 +272,42 @@ mod tests {
         let mut conn = Connection::open_in_memory().unwrap();
         conn.execute_batch("CREATE TABLE migration_counter(value INTEGER NOT NULL); INSERT INTO migration_counter VALUES(0);").unwrap();
         let failing = [
-            MigrationStep { from: 1, to: 2, transform: add_one },
-            MigrationStep { from: 2, to: 3, transform: error_step },
+            MigrationStep {
+                from: 1,
+                to: 2,
+                transform: add_one,
+            },
+            MigrationStep {
+                from: 2,
+                to: 3,
+                transform: error_step,
+            },
         ];
         assert!(apply_steps(&mut conn, &failing).is_err());
-        let value: i64 = conn.query_row("SELECT value FROM migration_counter", [], |r| r.get(0)).unwrap();
+        let value: i64 = conn
+            .query_row("SELECT value FROM migration_counter", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(value, 0);
         let valid = [
-            MigrationStep { from: 1, to: 2, transform: add_one },
-            MigrationStep { from: 2, to: 3, transform: add_one },
+            MigrationStep {
+                from: 1,
+                to: 2,
+                transform: add_one,
+            },
+            MigrationStep {
+                from: 2,
+                to: 3,
+                transform: add_one,
+            },
         ];
         apply_steps(&mut conn, &valid).unwrap();
-        let value: i64 = conn.query_row("SELECT value FROM migration_counter", [], |r| r.get(0)).unwrap();
+        let value: i64 = conn
+            .query_row("SELECT value FROM migration_counter", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(value, 2);
-        let schema: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0)).unwrap();
+        let schema: i64 = conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
         assert_eq!(schema, 3);
     }
 }

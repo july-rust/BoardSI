@@ -23,7 +23,11 @@ fn folder(label: &str) -> PathBuf {
 }
 fn source_in(folder: &Path) -> PathBuf {
     let path = folder.join("source.bsi");
-    fs::write(&path, include_bytes!("../../../schemas/bsi/golden-v1-empty.bsi")).unwrap();
+    fs::write(
+        &path,
+        include_bytes!("../../../schemas/bsi/golden-v1-empty.bsi"),
+    )
+    .unwrap();
     path
 }
 fn worker() -> Command {
@@ -37,23 +41,38 @@ fn exact_byte_copy_and_noop_are_idempotent_and_never_clobber() {
     let target = dir.join("copy.bsi");
     let original = fs::read(&source).unwrap();
     let self_report = worker()
-        .args(["migrate-v1", source.to_str().unwrap(), source.to_str().unwrap()])
+        .args([
+            "migrate-v1",
+            source.to_str().unwrap(),
+            source.to_str().unwrap(),
+        ])
         .output()
         .unwrap();
     assert!(self_report.status.success(), "{:?}", self_report.stderr);
     assert!(String::from_utf8_lossy(&self_report.stdout).contains("\"copied\":false"));
     let first = worker()
-        .args(["migrate-v1", source.to_str().unwrap(), target.to_str().unwrap()])
+        .args([
+            "migrate-v1",
+            source.to_str().unwrap(),
+            target.to_str().unwrap(),
+        ])
         .output()
         .unwrap();
     assert!(first.status.success(), "{:?}", first.stderr);
     assert!(String::from_utf8_lossy(&first.stdout).contains("\"steps\":0"));
     assert_eq!(fs::read(&source).unwrap(), original);
     assert_eq!(fs::read(&target).unwrap(), original);
-    assert_eq!(load(&target).unwrap().model(), load(&source).unwrap().model());
+    assert_eq!(
+        load(&target).unwrap().model(),
+        load(&source).unwrap().model()
+    );
 
     let second = worker()
-        .args(["migrate-v1", source.to_str().unwrap(), target.to_str().unwrap()])
+        .args([
+            "migrate-v1",
+            source.to_str().unwrap(),
+            target.to_str().unwrap(),
+        ])
         .output()
         .unwrap();
     assert!(!second.status.success(), "must refuse existing destination");
@@ -77,7 +96,11 @@ fn unknown_optional_and_invalid_v1_cannot_be_migrated() {
     drop(conn);
     let before = fs::read(&source).unwrap();
     let result = worker()
-        .args(["migrate-v1", source.to_str().unwrap(), target.to_str().unwrap()])
+        .args([
+            "migrate-v1",
+            source.to_str().unwrap(),
+            target.to_str().unwrap(),
+        ])
         .output()
         .unwrap();
     assert!(!result.status.success());
@@ -88,7 +111,11 @@ fn unknown_optional_and_invalid_v1_cannot_be_migrated() {
     drop(conn);
     let future = fs::read(&source).unwrap();
     let result = worker()
-        .args(["migrate-v1", source.to_str().unwrap(), target.to_str().unwrap()])
+        .args([
+            "migrate-v1",
+            source.to_str().unwrap(),
+            target.to_str().unwrap(),
+        ])
         .output()
         .unwrap();
     assert!(!result.status.success());
@@ -106,7 +133,11 @@ fn injected_io_failure_preserves_source_and_does_not_publish() {
     let marker = dir.join("fault-marker");
     let before = fs::read(&source).unwrap();
     let output = worker()
-        .args(["migrate-v1", source.to_str().unwrap(), target.to_str().unwrap()])
+        .args([
+            "migrate-v1",
+            source.to_str().unwrap(),
+            target.to_str().unwrap(),
+        ])
         .env("BOARDSI_F004_QUAL_MODE", "fail")
         .env("BOARDSI_F004_QUAL_MARKER", &marker)
         .output()
@@ -128,7 +159,11 @@ fn actual_worker_kill_leaves_recoverable_locked_staging_and_source_intact() {
     let marker = dir.join("pause-marker");
     let before = fs::read(&source).unwrap();
     let mut child = worker()
-        .args(["migrate-v1", source.to_str().unwrap(), target.to_str().unwrap()])
+        .args([
+            "migrate-v1",
+            source.to_str().unwrap(),
+            target.to_str().unwrap(),
+        ])
         .env("BOARDSI_F004_QUAL_MODE", "pause")
         .env("BOARDSI_F004_QUAL_MARKER", &marker)
         .stdin(Stdio::null())
@@ -149,13 +184,20 @@ fn actual_worker_kill_leaves_recoverable_locked_staging_and_source_intact() {
     }
     child.kill().unwrap();
     child.wait().unwrap();
-    assert!(reached, "migration did not reach validated staging faultpoint");
+    assert!(
+        reached,
+        "migration did not reach validated staging faultpoint"
+    );
     assert!(!target.exists());
     assert_eq!(fs::read(&source).unwrap(), before);
     assert_eq!(recover_owned_staging(&dir).unwrap(), 1);
     assert_eq!(recover_owned_staging(&dir).unwrap(), 0);
     let normal = worker()
-        .args(["migrate-v1", source.to_str().unwrap(), target.to_str().unwrap()])
+        .args([
+            "migrate-v1",
+            source.to_str().unwrap(),
+            target.to_str().unwrap(),
+        ])
         .output()
         .unwrap();
     assert!(normal.status.success(), "{:?}", normal.stderr);
