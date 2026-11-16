@@ -191,7 +191,13 @@ pub fn migrate_to_current(
     let prior_sha = digest_file(source)?;
     let (stage, owner) = stage_file(parent)?;
     let result = (|| -> Result<()> {
-        fs::copy(source, &stage)?;
+        // Do not inherit a read-only source's filesystem attributes onto the
+        // writable staging inode. The source itself is always opened read-only.
+        let mut input = File::open(source)?;
+        let mut output = OpenOptions::new().write(true).truncate(true).open(&stage)?;
+        std::io::copy(&mut input, &mut output)?;
+        output.sync_all()?;
+        drop(output);
         if digest_file(&stage)? != prior_sha || digest_file(source)? != prior_sha {
             return Err(invalid("source changed during migration copy"));
         }
