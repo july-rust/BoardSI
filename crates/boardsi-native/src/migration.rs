@@ -15,7 +15,7 @@ const APP_ID: i64 = 0x42534931;
 
 type Apply = for<'a> fn(&Transaction<'a>) -> Result<()>;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Step {
     from: i64,
     to: i64,
