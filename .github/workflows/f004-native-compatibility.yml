@@ -31,10 +31,23 @@ jobs:
           print("F004_ORACLE_SHA256", hashlib.sha256(p.read_bytes()).hexdigest())
           PY
           python3 tools/validation/f004_verify_frozen.py --compare f004-golden/reference-v1.bsi
+      - name: Generate one-time all-nine-kinds full-schema Golden (Rust Writer)
+        shell: bash
+        run: |
+          rustup toolchain install 1.75.0 --profile minimal
+          F004_FULL_NINE_OUTPUT="${{ github.workspace }}/f004-golden/all-nine-v1.bsi" cargo +1.75.0 test -p boardsi-native --locked --test native all_nine_kinds_in_one_real_sqlite_file -- --exact
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, hashlib, zlib
+          p = Path("f004-golden/all-nine-v1.bsi")
+          content = p.read_bytes()
+          print(f"F004_ALL_NINE_SHA256={hashlib.sha256(content).hexdigest()} bytes={len(content)}")
+          print("F004_ALL_NINE_B85=" + base64.b85encode(zlib.compress(content, 9)).decode("ascii"))
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: f004-v1-independent-oracle
-          path: f004-golden/reference-v1.bsi
+          path: f004-golden/*.bsi
           retention-days: 30
           if-no-files-found: error
   native:
