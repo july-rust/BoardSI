@@ -32,7 +32,10 @@ struct TempDir(PathBuf);
 impl TempDir {
     fn new() -> Self {
         for _ in 0..128 {
-            let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
             let serial = NONCE.fetch_add(1, Ordering::Relaxed);
             let dir = std::env::temp_dir().join(format!(
                 "boardsi-f007-{}-{nanos}-{serial}",
@@ -70,7 +73,12 @@ fn native_ipc_source_exact_save_open_oracle_and_stale_guard() {
     let expected = into_native_canonical(SOURCE.as_bytes()).unwrap();
     assert_eq!(expected.traces.len(), 2);
     let save = Command::new(worker())
-        .args(["save-ipc2581", source.to_str().unwrap(), target.to_str().unwrap(), &sha])
+        .args([
+            "save-ipc2581",
+            source.to_str().unwrap(),
+            target.to_str().unwrap(),
+            &sha,
+        ])
         .output()
         .unwrap();
     assert!(
@@ -101,7 +109,11 @@ fn native_ipc_source_exact_save_open_oracle_and_stale_guard() {
     use rusqlite::{Connection, OpenFlags};
     let db = Connection::open_with_flags(&target, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
     let raw_sha: Vec<u8> = db
-        .query_row("SELECT sha256 FROM source_files WHERE ordinal=0", [], |row| row.get(0))
+        .query_row(
+            "SELECT sha256 FROM source_files WHERE ordinal=0",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert_eq!(raw_sha, Sha256::digest(SOURCE.as_bytes()).as_slice());
     let blob: Vec<u8> = db
@@ -118,13 +130,21 @@ fn native_ipc_source_exact_save_open_oracle_and_stale_guard() {
     // Detect an actual on-disk mutation, and never publish the stale target.
     fs::write(&source, SOURCE.replace("SIG", "CHANGED")).unwrap();
     let stale = Command::new(worker())
-        .args(["save-ipc2581", source.to_str().unwrap(), invalid.to_str().unwrap(), &sha])
+        .args([
+            "save-ipc2581",
+            source.to_str().unwrap(),
+            invalid.to_str().unwrap(),
+            &sha,
+        ])
         .output()
         .unwrap();
     assert!(!stale.status.success());
     assert!(String::from_utf8_lossy(&stale.stderr).contains("BSI_SOURCE_CHANGED"));
     assert!(!invalid.exists());
-    assert!(canonical_semantics_equal(&expected, load(&target).unwrap().model()));
+    assert!(canonical_semantics_equal(
+        &expected,
+        load(&target).unwrap().model()
+    ));
 }
 
 #[test]
@@ -135,7 +155,12 @@ fn native_rejects_unsupported_geometry_without_clobber() {
     fs::write(&source, SOURCE).unwrap();
     let sha = format!("{:x}", Sha256::digest(SOURCE.as_bytes()));
     let ok = Command::new(worker())
-        .args(["save-ipc2581", source.to_str().unwrap(), target.to_str().unwrap(), &sha])
+        .args([
+            "save-ipc2581",
+            source.to_str().unwrap(),
+            target.to_str().unwrap(),
+            &sha,
+        ])
         .output()
         .unwrap();
     assert!(ok.status.success());
