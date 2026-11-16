@@ -62,6 +62,33 @@ fn frozen_binary_v1_golden_sha_and_reader_are_cross_platform() {
 }
 
 #[test]
+fn frozen_nine_geometry_golden_is_exactly_pinned_and_loadable() {
+    let bytes = include_bytes!("../../../schemas/bsi/golden-v1-nine-geometry.bsi");
+    let expected_sha =
+        include_str!("../../../schemas/bsi/golden-v1-nine-geometry.sha256").trim();
+    assert_eq!(format!("{:x}", Sha256::digest(bytes)), expected_sha);
+    let path = temporary("nine-geometry");
+    fs::write(&path, bytes).unwrap();
+    let loaded = load(&path).expect("decode historical rich geometry Golden");
+    assert!(!loaded.is_read_only());
+    let board = loaded.model();
+    assert_eq!(board.traces.len(), 1);
+    assert_eq!(board.arcs.len(), 1);
+    assert_eq!(board.areas.len(), 1);
+    assert_eq!(board.areas[0].cutouts.len(), 1);
+    assert_eq!(board.padstacks.len(), 1);
+    assert_eq!(board.pads.len(), 1);
+    assert_eq!(board.vias.len(), 1);
+    assert_eq!(board.drills.len(), 1);
+    assert_eq!(board.outlines.len(), 1);
+    assert_eq!(board.outlines[0].cutouts.len(), 1);
+    assert_eq!(board.stackup.layers.len(), 2);
+    assert_eq!(board.components.len(), 1);
+    assert_eq!(board.pins.len(), 1);
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn independent_v1_golden_is_readable_without_writer() {
     let p = independent_golden("baseline");
     let file = fs::read(&p).unwrap();
