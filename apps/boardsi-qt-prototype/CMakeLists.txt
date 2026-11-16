@@ -125,6 +125,14 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
     set_tests_properties(qt-f0031-real-native-file-main PROPERTIES
       TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    if(BOARDSI_F0031_QUALIFICATION)
+      add_test(NAME qt-f0031-real-native-lifecycle
+        COMMAND boardsi-preview-p0 --f0031-lifecycle-selftest
+          "${BOARDSI_NATIVE_FILE_WORKER}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
+      set_tests_properties(qt-f0031-real-native-lifecycle PROPERTIES
+        TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endif()
   endif()
   set(BOARDSI_CANONICAL_IMPORTER "" CACHE FILEPATH "Optional D_056_04 Rust Canonical IPC CLI")
   if(BOARDSI_CANONICAL_IMPORTER)
