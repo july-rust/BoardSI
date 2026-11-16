@@ -186,6 +186,21 @@ fn qualification_before_replace() -> Result<()> {
     }
 }
 
+#[cfg(feature = "f003-qualification")]
+fn qualification_during_transaction() -> Result<()> {
+    if std::env::var("BOARDSI_F003_QUAL_MODE").ok().as_deref()
+        != Some("pause-transaction")
+    {
+        return Ok(());
+    }
+    let marker = std::env::var_os("BOARDSI_F003_QUAL_MARKER")
+        .ok_or_else(|| invalid("qualification marker missing"))?;
+    fs::write(marker, b"sqlite-transaction-open")?;
+    loop {
+        std::thread::park_timeout(std::time::Duration::from_millis(100));
+    }
+}
+
 fn replace(staging: &Path, dest: &Path) -> Result<()> {
     if dest.exists() {
         #[cfg(windows)]
@@ -297,6 +312,8 @@ pub fn save(path: impl AsRef<Path>, board: &BoardModel) -> Result<()> {
         conn.pragma_update(None, "synchronous", "FULL")?;
         let tx = conn.transaction()?;
         write::write_board(&tx, board, &uuid())?;
+        #[cfg(feature = "f003-qualification")]
+        qualification_during_transaction()?;
         tx.commit()?;
         check_db(&conn)?;
         conn.close().map_err(|(_, e)| NativeError::Sql(e))?;
