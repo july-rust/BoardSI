@@ -863,8 +863,8 @@ fn f007_nm(raw: &str, factor: i128) -> Result<i64, ImportError> {
 
 pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, ImportError> {
     use boardsi_model::{
-        BoardKind, BoardModel, CoordinateFrame, ImportSource, Layer, Orientation, Point,
-        Property, QuarterTurn, Trace,
+        BoardKind, BoardModel, CoordinateFrame, ImportSource, Layer, Orientation, Point, Property,
+        QuarterTurn, Trace,
     };
     let inventory = inspect(bytes)?;
     if inventory.layers.len() > 64 || inventory.nets.len() > 128 {
@@ -977,7 +977,7 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
             material: None,
         });
     }
-    if copper_count < 2 {
+    if !(2..=32).contains(&copper_count) {
         return Err(err("F007_COPPER_LAYER_LIMIT"));
     }
     let mut nets = BTreeMap::<String, ObjectId>::new();
@@ -1032,7 +1032,11 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
                 }
             }
             "Step/LogicalNet/PinRef" => {
-                if tag.attrs.keys().any(|k| !matches!(k.as_str(), "pin" | "componentRef")) {
+                if tag
+                    .attrs
+                    .keys()
+                    .any(|k| !matches!(k.as_str(), "pin" | "componentRef"))
+                {
                     return Err(err("F007_UNSUPPORTED_PINREF_ATTRIBUTE"));
                 }
             }
