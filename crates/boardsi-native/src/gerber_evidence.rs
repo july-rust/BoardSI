@@ -82,6 +82,28 @@ impl GerberDrillEvidence {
         {
             return Err(invalid("F008 source/geometry provenance"));
         }
+        // Source-qualified positive D03 circular flashes cannot silently
+        // become an AntiPad, a rectangle, or a different Copper layer in a
+        // modified native file. Such a change is not this required extension.
+        use boardsi_model::{LayerKind, PadRole, PadShape};
+        let layer = &board.stackup.layers[0];
+        if layer.kind != LayerKind::Copper
+            || board.padstacks.is_empty()
+            || board.padstacks.iter().any(|stack| {
+                stack.entries.len() != 1
+                    || stack.entries[0].layer != layer.meta.id
+                    || stack.entries[0].role != PadRole::Conductive
+                    || !matches!(
+                        &stack.entries[0].shape,
+                        PadShape::Circle { diameter_m }
+                            if diameter_m.numerator() > 0
+                                && diameter_m.numerator() <= diameter_m.denominator()
+                    )
+                    || !board.pads.iter().any(|pad| pad.padstack == stack.meta.id)
+            })
+        {
+            return Err(invalid("F008 unsupported positive flash geometry"));
+        }
         // F_008 stores raw integer-nm pad ticks. A valid but transformed
         // CoordinateFrame would otherwise make Qt flash/drill overlay incorrect.
         use boardsi_model::{Orientation, QuarterTurn, Rational};
