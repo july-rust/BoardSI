@@ -547,6 +547,178 @@ pub fn inspect_pair(gerber: &[u8], drill: &[u8]) -> Result<PairInventory, Import
     })
 }
 
+/// F_008: exact SOURCE flash geometry only. Drill hits are deliberately NOT
+/// mapped to Canonical Drill/Via because plating and layer span are unknown.
+/// Native Writer persists drill observations in a versioned required extension.
+pub fn into_native_canonical_from_pair(
+    pair: &PairInventory,
+) -> Result<boardsi_model::BoardModel, ImportError> {
+    use boardsi_model::{
+        BoardKind, BoardModel, CoordinateFrame, ImportSource, Layer, Orientation, Pad, PadRole,
+        PadShape, Padstack, PadstackLayer, Point, Property, QuarterTurn,
+    };
+    if pair.artwork.flashes.is_empty()
+        || pair.artwork.flashes.len() > 128
+        || pair.drill.holes.is_empty()
+        || pair.drill.holes.len() > 128
+    {
+        return Err(fail("F008_QT_PREVIEW_LIMIT", 0));
+    }
+    let mut g = (*pair.artwork.identity).clone();
+    g.conditions = vec![
+        (
+            "scope".into(),
+            "f008-gerber-x2-flash-excellon-source-only".into(),
+        ),
+        (
+            "layer_source_level".into(),
+            pair.artwork.layer.source_level.to_string(),
+        ),
+        (
+            "layer_source_position".into(),
+            pair.artwork.layer.source_position.clone(),
+        ),
+    ];
+    g.conditions.sort_by(|a, b| a.0.cmp(&b.0));
+    let gerber = Arc::new(g);
+    let mut d = (*pair.drill.identity).clone();
+    d.conditions = vec![
+        (
+            "scope".into(),
+            "f008-gerber-x2-flash-excellon-source-only".into(),
+        ),
+        ("alignment".into(), "NOT_VERIFIED".into()),
+        ("plating".into(), "UNKNOWN".into()),
+        ("layer_span".into(), "UNKNOWN".into()),
+    ];
+    d.conditions.sort_by(|a, b| a.0.cmp(&b.0));
+    let drill = Arc::new(d);
+    let mut board = BoardModel::empty(BoardKind::Pcb);
+    board.sources.push(ImportSource {
+        id: gerber.clone(),
+        producer: "Gerber X2 SOURCE".into(),
+        producer_version: "X2".into(),
+        capability: partial_capability("F008 circular D03 flash; no verified net or SI"),
+    });
+    board.sources.push(ImportSource {
+        id: drill,
+        producer: "Excellon SOURCE".into(),
+        producer_version: "METRIC decimal".into(),
+        capability: partial_capability("F008 round drill observations; plating/span unknown"),
+    });
+    let fmeta = meta(
+        &gerber,
+        ObjectKind::Frame,
+        "gerber-xy-nm",
+        "Gerber X2 source XY",
+    );
+    let fid = fmeta.id.clone();
+    board.frames.push(CoordinateFrame {
+        meta: fmeta,
+        unit_label: "Gerber X2 exact integer nm".into(),
+        metres_per_tick: Rational::new(1, 1_000_000_000).map_err(|_| fail("F008_BAD_UNIT", 0))?,
+        origin_m: [Rational::integer(0); 2],
+        orientation: Orientation::Orthogonal {
+            turn: QuarterTurn::Zero,
+            mirror_x: false,
+        },
+        source_layer_order_reversed: false,
+    });
+    let layer_name = format!(
+        "Gerber L{} {}",
+        pair.artwork.layer.source_level, pair.artwork.layer.source_position
+    );
+    let lm = meta(
+        &gerber,
+        ObjectKind::Layer,
+        &format!(
+            "X2:Copper:L{}:{}",
+            pair.artwork.layer.source_level, pair.artwork.layer.source_position
+        ),
+        "Gerber X2 Copper layer",
+    );
+    let lid = lm.id.clone();
+    board.stackup.layers.push(Layer {
+        meta: lm,
+        name: layer_name,
+        order: 0,
+        kind: boardsi_model::LayerKind::Copper,
+        z_m: Property::Missing,
+        thickness_m: Property::Missing,
+        material: None,
+    });
+    let mut aperture_stack = std::collections::BTreeMap::<u32, (ObjectId, i64)>::new();
+    for flash in &pair.artwork.flashes {
+        if flash.diameter_nm <= 0
+            || flash.diameter_nm > 1_000_000_000
+            || flash
+                .centre_nm
+                .iter()
+                .any(|v| v.unsigned_abs() > 1_000_000_000_000)
+        {
+            return Err(fail("F008_QT_GEOMETRY_LIMIT", flash.source_offset));
+        }
+        let shape = PadShape::Circle {
+            diameter_m: Rational::new(i128::from(flash.diameter_nm), 1_000_000_000)
+                .map_err(|_| fail("F008_BAD_DIAMETER", flash.source_offset))?,
+        };
+        let sid = if let Some((sid, diameter)) = aperture_stack.get(&flash.aperture_id) {
+            if *diameter != flash.diameter_nm {
+                return Err(fail("F008_APERTURE_DIAMETER_CONFLICT", flash.source_offset));
+            }
+            sid.clone()
+        } else {
+            let sm = meta(
+                &gerber,
+                ObjectKind::Padstack,
+                &format!("aperture:{}", flash.aperture_id),
+                "Gerber X2 circular aperture",
+            );
+            let id = sm.id.clone();
+            board.padstacks.push(Padstack {
+                meta: sm,
+                entries: vec![PadstackLayer {
+                    layer: lid.clone(),
+                    role: PadRole::Conductive,
+                    shape,
+                }],
+            });
+            aperture_stack.insert(flash.aperture_id, (id.clone(), flash.diameter_nm));
+            id
+        };
+        board.pads.push(Pad {
+            meta: meta(
+                &gerber,
+                ObjectKind::Pad,
+                &flash.meta.id.source_object,
+                "Gerber X2 D03 circular flash",
+            ),
+            position: Point {
+                frame: fid.clone(),
+                ticks: flash.centre_nm,
+            },
+            orientation: Orientation::Orthogonal {
+                turn: QuarterTurn::Zero,
+                mirror_x: false,
+            },
+            padstack: sid,
+            net: None,
+        });
+    }
+    if board.validate().has_errors() {
+        return Err(fail("F008_CANONICAL_INVALID", 0));
+    }
+    Ok(board)
+}
+
+/// Both source files must pass their strict independent source-only parsers.
+pub fn into_native_canonical(
+    gerber: &[u8],
+    drill: &[u8],
+) -> Result<boardsi_model::BoardModel, ImportError> {
+    let pair = inspect_pair(gerber, drill)?;
+    into_native_canonical_from_pair(&pair)
+}
 #[cfg(test)]
 mod tests {
     use super::*;

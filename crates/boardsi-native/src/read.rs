@@ -1,6 +1,7 @@
 //! Hardened SQL reader. Referential checks are independent of FK constraints.
 use crate::bsig::GeometryRecord;
 use crate::encoding::{decode, from_rational, from_sql_orientation, reference_dict, Decoded};
+use crate::gerber_evidence::{GerberDrillEvidence, EXT_NAME, EXT_VERSION};
 use crate::shared::*;
 use crate::store::LoadedBoard;
 use crate::{invalid, NativeError, Result};
@@ -1015,16 +1016,14 @@ pub(crate) fn read_board(conn: &Connection) -> Result<LoadedBoard> {
     // Unknown later minor format revisions may carry semantics this reader cannot emit.
     // Preserve the original file: permit inspection, but forbid lossy reserialization.
     let mut read_only = *minor > 0;
-    for table in ["features", "extensions"] {
-        let sql = if table == "features" {
-            "SELECT required FROM features"
-        } else {
-            "SELECT required FROM extensions"
-        };
-        let mut stmt = conn.prepare(sql)?;
+    // Unknown required semantics are never silently ignored. F_008 is the
+    // first recognized required extension; it is decoded after board load.
+    let mut drill_payload: Option<Vec<u8>> = None;
+    {
+        let mut stmt = conn.prepare("SELECT required FROM features")?;
         let mut rows = stmt.query([])?;
-        while let Some(r) = rows.next()? {
-            let required: i64 = r.get(0)?;
+        while let Some(row) = rows.next()? {
+            let required: i64 = row.get(0)?;
             if required == 1 {
                 return Err(NativeError::UnsupportedRequired);
             }
@@ -1032,6 +1031,28 @@ pub(crate) fn read_board(conn: &Connection) -> Result<LoadedBoard> {
                 return Err(invalid("invalid feature flag"));
             }
             read_only = true;
+        }
+    }
+    {
+        let mut stmt = conn
+            .prepare("SELECT extension_name,extension_version,required,payload FROM extensions")?;
+        let mut rows = stmt.query([])?;
+        while let Some(row) = rows.next()? {
+            let name: String = row.get(0)?;
+            let version: i64 = row.get(1)?;
+            let required: i64 = row.get(2)?;
+            if required != 0 && required != 1 {
+                return Err(invalid("invalid extension flag"));
+            }
+            if name == EXT_NAME && version == EXT_VERSION && required == 1 {
+                if drill_payload.replace(row.get(3)?).is_some() {
+                    return Err(invalid("duplicate F008 extension"));
+                }
+            } else if required == 1 {
+                return Err(NativeError::UnsupportedRequired);
+            } else {
+                read_only = true;
+            }
         }
     }
     let board_kind = match kind.as_str() {
@@ -1061,6 +1082,22 @@ pub(crate) fn read_board(conn: &Connection) -> Result<LoadedBoard> {
     if !crate::storage_valid(&model) {
         return Err(invalid("canonical model invalid"));
     }
+    let drill_evidence = drill_payload
+        .as_deref()
+        .map(|payload| GerberDrillEvidence::decode(payload, &model))
+        .transpose()?;
+    let f008_scope = model.sources.iter().any(|s| {
+        s.id.conditions
+            .iter()
+            .any(|(k, v)| k == "scope" && v == "f008-gerber-x2-flash-excellon-source-only")
+    });
+    if f008_scope != drill_evidence.is_some() {
+        return Err(invalid("F008 missing/orphan required evidence"));
+    }
     model.persistence_read_only = read_only;
-    Ok(LoadedBoard { model, read_only })
+    Ok(LoadedBoard {
+        model,
+        read_only,
+        drill_evidence,
+    })
 }

@@ -1,8 +1,10 @@
 //! Only after a complete SQLite and Canonical validation is a board returned.
+use crate::gerber_evidence::{GerberDrillEvidence, EXT_NAME, EXT_VERSION};
 use crate::recovery::{recover_owned_staging, StageOwner};
 use crate::{invalid, NativeError, Result};
 use crate::{read, write};
 use boardsi_model::BoardModel;
+use rusqlite::params;
 use rusqlite::{limits::Limit, Connection, OpenFlags};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
@@ -17,10 +19,14 @@ pub struct LoadedBoard {
     pub(crate) model: BoardModel,
     /// Unknown optional or source-verified evidence must not be lost by native Save As.
     pub(crate) read_only: bool,
+    pub(crate) drill_evidence: Option<GerberDrillEvidence>,
 }
 impl LoadedBoard {
     pub fn model(&self) -> &BoardModel {
         &self.model
+    }
+    pub fn drill_evidence(&self) -> Option<&GerberDrillEvidence> {
+        self.drill_evidence.as_ref()
     }
     pub fn is_read_only(&self) -> bool {
         self.read_only
@@ -30,10 +36,11 @@ impl LoadedBoard {
         if self.read_only {
             return Err(NativeError::UnsupportedRequired);
         }
-        save(path, &self.model)
+        save_with_drill_evidence_guarded(path, &self.model, self.drill_evidence.as_ref(), || Ok(()))
     }
     pub fn into_editable(self) -> Result<BoardModel> {
-        if self.read_only {
+        if self.read_only || self.drill_evidence.is_some() {
+            // A plain BoardModel cannot carry the required F_008 evidence.
             return Err(NativeError::UnsupportedRequired);
         }
         Ok(self.model)
@@ -290,6 +297,19 @@ pub fn save_guarded(
     board: &BoardModel,
     pre_publish: impl FnOnce() -> Result<()>,
 ) -> Result<()> {
+    save_with_drill_evidence_guarded(path, board, None, pre_publish)
+}
+
+/// F_008: preserve typed required drill evidence on Native save and Save As.
+pub fn save_with_drill_evidence_guarded(
+    path: impl AsRef<Path>,
+    board: &BoardModel,
+    drill_evidence: Option<&GerberDrillEvidence>,
+    pre_publish: impl FnOnce() -> Result<()>,
+) -> Result<()> {
+    if let Some(evidence) = drill_evidence {
+        evidence.check(board)?;
+    }
     // A loaded read-only document must never be re-serialized to another path:
     // the Canonical model cannot carry unknown optional payloads or SHA attestations.
     if board.persistence_read_only {
@@ -315,7 +335,9 @@ pub fn save_guarded(
     // unsupported source verification claims, future schema or corruption.
     if dest.exists() {
         let existing = load(dest)?;
-        if existing.read_only {
+        if existing.read_only || (existing.drill_evidence.is_some() && drill_evidence.is_none()) {
+            // Never overwrite a Gerber+Drill native file with a model that
+            // cannot preserve its required unverified manufacturing evidence.
             return Err(NativeError::UnsupportedRequired);
         }
     }
@@ -353,6 +375,11 @@ pub fn save_guarded(
         conn.pragma_update(None, "synchronous", "FULL")?;
         let tx = conn.transaction()?;
         write::write_board(&tx, board, &uuid())?;
+        if let Some(evidence) = drill_evidence {
+            let payload = evidence.encode(board)?;
+            tx.execute("INSERT INTO extensions(extension_name,extension_version,required,payload) VALUES(?,?,1,?)",
+                params![EXT_NAME, EXT_VERSION, payload])?;
+        }
         #[cfg(feature = "f003-qualification")]
         qualification_during_transaction()?;
         tx.commit()?;
@@ -364,7 +391,10 @@ pub fn save_guarded(
         }
         // Fully independent read verifies byte grammar, object graph and semantic invariants.
         let restored = load(&stage)?;
-        if restored.read_only || !crate::same_semantics(&restored.model, board) {
+        if restored.read_only
+            || restored.drill_evidence.as_ref() != drill_evidence
+            || !crate::same_semantics(&restored.model, board)
+        {
             return Err(invalid("native round-trip semantics mismatch"));
         }
         #[cfg(feature = "f003-qualification")]
