@@ -1298,5 +1298,20 @@ mod f007_native_tests {
             assert!(into_native_canonical(fixture(&evil, "MILLIMETER").as_bytes()).is_err());
         }
         assert!(into_native_canonical(fixture(line, "MM").as_bytes()).is_err());
+        let valid = fixture(line, "MILLIMETER");
+        for rejected in [
+            valid.replace("<Datum x=\"0\" y=\"0\"/>", ""),
+            valid.replace(
+                "<Datum x=\"0\" y=\"0\"/>",
+                "<Datum x=\"0.01\" y=\"0\"/>",
+            ),
+            valid.replace(
+                "<Datum x=\"0\" y=\"0\"/>",
+                "<Datum x=\"0\" y=\"0\"/><Datum x=\"0\" y=\"0\"/>",
+            ),
+            valid.replace("TOP", "*"),
+        ] {
+            assert!(into_native_canonical(rejected.as_bytes()).is_err());
+        }
     }
 }
