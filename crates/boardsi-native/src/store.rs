@@ -39,7 +39,8 @@ impl LoadedBoard {
         save_with_drill_evidence_guarded(path, &self.model, self.drill_evidence.as_ref(), || Ok(()))
     }
     pub fn into_editable(self) -> Result<BoardModel> {
-        if self.read_only {
+        if self.read_only || self.drill_evidence.is_some() {
+            // A plain BoardModel cannot carry the required F_008 evidence.
             return Err(NativeError::UnsupportedRequired);
         }
         Ok(self.model)
@@ -334,7 +335,10 @@ pub fn save_with_drill_evidence_guarded(
     // unsupported source verification claims, future schema or corruption.
     if dest.exists() {
         let existing = load(dest)?;
-        if existing.read_only {
+        if existing.read_only ||
+            (existing.drill_evidence.is_some() && drill_evidence.is_none()) {
+            // Never overwrite a Gerber+Drill native file with a model that
+            // cannot preserve its required unverified manufacturing evidence.
             return Err(NativeError::UnsupportedRequired);
         }
     }
