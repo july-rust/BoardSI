@@ -647,7 +647,7 @@ pub fn into_native_canonical_from_pair(
         thickness_m: Property::Missing,
         material: None,
     });
-    let mut aperture_stack = std::collections::BTreeMap::new();
+    let mut aperture_stack = std::collections::BTreeMap::<u32, (ObjectId, i64)>::new();
     for flash in &pair.artwork.flashes {
         if flash.diameter_nm <= 0
             || flash.diameter_nm > 1_000_000_000
