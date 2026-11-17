@@ -889,6 +889,25 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     if header.attrs.len() != 1 {
         return Err(err("F007_UNSUPPORTED_CAD_HEADER_ATTRIBUTE"));
     }
+    // RevC StepType contains one mandatory Datum. Only the zero-origin
+    // subset can be represented without asserting an unverified transform.
+    let mut datum_tags = tags
+        .iter()
+        .filter(|tag| tag.path == "IPC-2581/Ecad/CadData/Step/Datum");
+    let datum = datum_tags.next().ok_or_else(|| err("F007_MISSING_DATUM"))?;
+    if datum_tags.next().is_some() {
+        return Err(err("F007_DUPLICATE_DATUM"));
+    }
+    if datum.attrs.len() != 2
+        || datum.attrs.keys().any(|name| name != "x" && name != "y")
+    {
+        return Err(err("F007_UNSUPPORTED_DATUM"));
+    }
+    let datum_x = field(&datum.attrs, "x")?;
+    let datum_y = field(&datum.attrs, "y")?;
+    if f007_nm(datum_x, factor)? != 0 || f007_nm(datum_y, factor)? != 0 {
+        return Err(err("F007_UNSUPPORTED_NONZERO_DATUM"));
+    }
 
     let mut source_data = (*inventory.identity).clone();
     let mut conditions = vec![
@@ -898,6 +917,8 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
             "f007-ipc2581c-inline-round-line-polyline-nm-source-only".into(),
         ),
         ("cad_units".into(), units.into()),
+        ("datum/x_source".into(), datum_x.into()),
+        ("datum/y_source".into(), datum_y.into()),
     ];
     for (i, l) in inventory.layers.iter().enumerate() {
         conditions.push((format!("layer/{i:03}/name"), l.name.clone()));
@@ -907,6 +928,7 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     }
     let mut pin_count = 0usize;
     for (i, n) in inventory.nets.iter().enumerate() {
+        conditions.push((format!("logical_net/{i:03}/name"), n.net.name.clone()));
         for (j, (comp, pin)) in n.pin_refs.iter().enumerate() {
             pin_count += 1;
             if pin_count > 512 {
@@ -962,6 +984,9 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     let mut layers = BTreeMap::<String, (ObjectId, LayerKind, String)>::new();
     let mut copper_count = 0usize;
     for (index, l) in inventory.layers.iter().enumerate() {
+        if l.kind == LayerKind::Copper && l.name == "*" {
+            return Err(err("F007_QT_RESERVED_LAYER_SENTINEL"));
+        }
         let m = object(&source, ObjectKind::Layer, &l.name);
         if l.kind == LayerKind::Copper {
             copper_count += 1;
@@ -1012,6 +1037,11 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
             None => continue,
         };
         match raw {
+            "Step/Datum" => {
+                if tag.attrs.len() != 2 {
+                    return Err(err("F007_UNSUPPORTED_DATUM"));
+                }
+            }
             "Layer" => {
                 if tag.attrs.len() != 4
                     || tag.attrs.keys().any(|k| {
@@ -1221,7 +1251,7 @@ mod f007_native_tests {
 <Ecad><CadHeader units="{units}"/><CadData>
 <Layer name="TOP" layerFunction="SIGNAL" side="TOP" polarity="POSITIVE"/>
 <Layer name="BOTTOM" layerFunction="SIGNAL" side="BOTTOM" polarity="POSITIVE"/>
-<Step name="BOARD"><LogicalNet name="SIG"><PinRef componentRef="U1" pin="1"/></LogicalNet>
+<Step name="BOARD"><Datum x="0" y="0"/><LogicalNet name="SIG"><PinRef componentRef="U1" pin="1"/></LogicalNet>
 <LayerFeature layerRef="TOP"><Set net="SIG">{geometry}</Set></LayerFeature>
 </Step></CadData></Ecad></IPC-2581>"#
         )
