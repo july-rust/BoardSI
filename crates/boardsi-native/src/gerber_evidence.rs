@@ -33,6 +33,13 @@ impl GerberDrillEvidence {
             || board.stackup.layers.len() != 1
             || board.pads.is_empty()
             || board.pads.len() > 128
+            || board.pads.len() + self.holes.len() > 128
+            || board.kind != boardsi_model::BoardKind::Pcb
+            || !board.materials.is_empty()
+            || !board.nets.is_empty()
+            || !board.components.is_empty()
+            || !board.pins.is_empty()
+            || !board.outlines.is_empty()
             || !board.traces.is_empty()
             || !board.arcs.is_empty()
             || !board.areas.is_empty()
@@ -88,6 +95,9 @@ impl GerberDrillEvidence {
         use boardsi_model::{LayerKind, PadRole, PadShape};
         let layer = &board.stackup.layers[0];
         if layer.kind != LayerKind::Copper
+            || !matches!(&layer.z_m, boardsi_model::Property::Missing)
+            || !matches!(&layer.thickness_m, boardsi_model::Property::Missing)
+            || layer.material.is_some()
             || board.padstacks.is_empty()
             || board.padstacks.iter().any(|stack| {
                 stack.entries.len() != 1
@@ -124,7 +134,11 @@ impl GerberDrillEvidence {
                 }
             )
             || board.pads.iter().any(|p| {
-                p.position.frame != frame.meta.id
+                p.position
+                    .ticks
+                    .iter()
+                    .any(|v| v.unsigned_abs() > 1_000_000_000_000)
+                    || p.position.frame != frame.meta.id
                     || !matches!(
                         &p.orientation,
                         Orientation::Orthogonal {
