@@ -116,16 +116,56 @@ fn native_ipc_source_exact_save_open_oracle_and_stale_guard() {
         )
         .unwrap();
     assert_eq!(raw_sha, Sha256::digest(SOURCE.as_bytes()).as_slice());
-    let blob: Vec<u8> = db
-        .query_row(
-            "SELECT envelope FROM geometry WHERE geometry_kind=1 LIMIT 1",
-            [],
-            |row| row.get(0),
-        )
+    // Independently enumerate and decode the complete v1 BSIG PointList
+    // bytes. No BoardSI Reader, encoder, or Canonical geometry helper is used.
+    let mut statement = db
+        .prepare("SELECT envelope FROM geometry WHERE geometry_kind=1")
         .unwrap();
-    assert_eq!(&blob[0..4], b"BSIG");
-    assert_eq!(u16::from_le_bytes([blob[4], blob[5]]), 1);
-    assert_eq!(&blob[20..52], Sha256::digest(&blob[52..]).as_slice());
+    let blobs = statement
+        .query_map([], |row| row.get::<_, Vec<u8>>(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect::<Vec<_>>();
+    assert_eq!(blobs.len(), 2);
+    let mut observed = Vec::<Vec<[i64; 2]>>::new();
+    for blob in blobs {
+        assert!(blob.len() > 52);
+        assert_eq!(&blob[0..4], b"BSIG");
+        assert_eq!(u16::from_le_bytes(blob[4..6].try_into().unwrap()), 1);
+        assert_eq!(u16::from_le_bytes(blob[6..8].try_into().unwrap()), 1);
+        assert_eq!(u64::from_le_bytes(blob[12..20].try_into().unwrap()) as usize, blob.len() - 52);
+        assert_eq!(&blob[20..52], Sha256::digest(&blob[52..]).as_slice());
+        let body = &blob[52..];
+        assert_eq!(u16::from_le_bytes(body[0..2].try_into().unwrap()), 1);
+        assert_eq!(u16::from_le_bytes(body[4..6].try_into().unwrap()), 1);
+        assert_eq!(u16::from_le_bytes(body[6..8].try_into().unwrap()), 7);
+        let count = u32::from_le_bytes(body[12..16].try_into().unwrap()) as usize;
+        assert!((2..=128).contains(&count));
+        let byte_len = u32::from_le_bytes(body[8..12].try_into().unwrap()) as usize;
+        assert_eq!(byte_len, 4 + count * 20);
+        let points = (0..count)
+            .map(|i| {
+                let offset = 16 + 20 * i;
+                assert_eq!(u32::from_le_bytes(body[offset..offset + 4].try_into().unwrap()), 0);
+                [
+                    i64::from_le_bytes(body[offset + 4..offset + 12].try_into().unwrap()),
+                    i64::from_le_bytes(body[offset + 12..offset + 20].try_into().unwrap()),
+                ]
+            })
+            .collect::<Vec<_>>();
+        observed.push(points);
+    }
+    observed.sort();
+    let mut golden = vec![
+        vec![[1_123_456, -2_000_001], [3_000_000, 5_000_000]],
+        vec![
+            [3_000_000, 5_000_000],
+            [4_000_000, 6_000_000],
+            [5_000_000, 6_000_000],
+        ],
+    ];
+    golden.sort();
+    assert_eq!(observed, golden);
 
     // Detect an actual on-disk mutation, and never publish the stale target.
     fs::write(&source, SOURCE.replace("SIG", "CHANGED")).unwrap();
