@@ -206,6 +206,16 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --f006-native-kicad-selftest \
             "$GITHUB_WORKSPACE/target/debug/boardsi-native-file$suffix"
+      - name: F_007 actual main Qt IPC-2581C Native Save/Open and source-only artwork
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --f007-native-ipc-selftest \
+            "$GITHUB_WORKSPACE/target/debug/boardsi-native-file$suffix"
       - name: F_003_1 real Qt Native cancellation timeout stale-response qualification
         shell: bash
         run: |

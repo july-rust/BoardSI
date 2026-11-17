@@ -73,7 +73,9 @@ class F0031NativePanel final : public QWidget {
     // Bounded and strictly checked Source-only graphical overview.
     // A view item is never an electrically connected model or Solver claim.
     bool showKiCadArtwork(const QJsonObject &body) {
-        if(body.value("schema").toString()!="BSI_KICAD_SOURCE_PREVIEW_V1" ||
+        const QString schema=body.value("schema").toString();
+        if((schema!="BSI_KICAD_SOURCE_PREVIEW_V1" &&
+            schema!="BSI_IPC2581_SOURCE_PREVIEW_V1") ||
            body.value("units").toString()!="integer-nm" ||
            body.value("solver_ready").toBool(true) ||
            !body.value("items").isArray() || !body.value("layers").isArray())
@@ -153,7 +155,9 @@ class F0031NativePanel final : public QWidget {
                 cleanup();return false;
             }
             item->setData(0,layer);
-            item->setToolTip("KiCad9 SOURCE "+kind+" / "+id+
+            const QString sourceName=schema=="BSI_IPC2581_SOURCE_PREVIEW_V1"
+                ? QStringLiteral("IPC-2581C") : QStringLiteral("KiCad9");
+            item->setToolTip(sourceName+" SOURCE "+kind+" / "+id+
               " / Layer "+layer+" / Net "+row.value("net").toString("UNKNOWN")+
               " / Physical contact NOT_VERIFIED / SI NOT_RUN");
             item->setFlag(QGraphicsItem::ItemIsSelectable,true);
@@ -219,12 +223,20 @@ class F0031NativePanel final : public QWidget {
             state("FAILED / KiCad9 source SHA receipt mismatch");
             return;
         }
-        const bool kiCadPreview=receipt.value("source_format").toString()=="KICAD9_SOURCE_SUBSET";
-        if(kiCadPreview && !showKiCadArtwork(receipt.value("artwork").toObject())) {
-            state("FAILED / KiCad native preview contract invalid");
+        if(operation_=="save-ipc2581" &&
+           (receipt.value("source_format").toString()!="IPC2581C_SOURCE_SUBSET" ||
+            receipt.value("source_sha256").toString()!=expectedSourceManifest_)) {
+            state("FAILED / IPC-2581C source SHA receipt mismatch");
             return;
         }
-        if(!kiCadPreview) {
+        const QString sourceFormat=receipt.value("source_format").toString();
+        const bool sourcePreview=sourceFormat=="KICAD9_SOURCE_SUBSET" ||
+                                 sourceFormat=="IPC2581C_SOURCE_SUBSET";
+        if(sourcePreview && !showKiCadArtwork(receipt.value("artwork").toObject())) {
+            state("FAILED / native source preview contract invalid");
+            return;
+        }
+        if(!sourcePreview) {
             artworkScene_->clear();
             artworkLayer_->setVisible(false);
             artworkView_->setVisible(false);
@@ -243,7 +255,7 @@ class F0031NativePanel final : public QWidget {
             (readOnly_ ? "READ ONLY (unpreservable optional extension or evidence)\n" :
                          "Editable native snapshot; Save As requires revalidation\n")+
             "Canonical data is stored exactly in Rust.\n"+
-            (kiCadPreview ? "KiCad 9 SOURCE artwork: bounded display/picking only; no electrical contact proof.\n" :
+            (sourcePreview ? "SOURCE artwork: bounded display/picking only; no electrical contact proof.\n" :
                             "Native geometry is NOT rendered on this preview tab.\n")+
             "Physical connectivity, manufacturing and SI: NOT_VERIFIED / NOT_RUN");
         state("COMPLETED / Native "+operation_);
@@ -345,6 +357,14 @@ public:
         if(running_ || sourceSha.size()!=64) return false;
         const bool started=begin("save-kicad",target,
             {"save-kicad",source,target,QString::fromLatin1(sourceSha)});
+        if(started) expectedSourceManifest_=QString::fromLatin1(sourceSha);
+        return started;
+    }
+    bool saveIpc2581(const QString &source,const QString &target,
+                     const QByteArray &sourceSha) {
+        if(running_ || sourceSha.size()!=64) return false;
+        const bool started=begin("save-ipc2581",target,
+            {"save-ipc2581",source,target,QString::fromLatin1(sourceSha)});
         if(started) expectedSourceManifest_=QString::fromLatin1(sourceSha);
         return started;
     }
