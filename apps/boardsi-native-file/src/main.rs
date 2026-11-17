@@ -334,6 +334,17 @@ fn run() -> Result<Value, String> {
             }
             let board = boardsi_import::ipc2581c_source::into_native_canonical(&bytes)
                 .map_err(|e| format!("BSI_IPC2581_SOURCE_UNSUPPORTED:{}", e.code))?;
+            // Qualify the exact Qt preview *before* publishing a new .bsi.
+            // A bounded-source file that cannot be represented in the 64 KiB
+            // QProcess receipt must never produce a successful file write
+            // followed by a misleading worker failure.
+            let preview = source_preview(&board)?
+                .ok_or_else(|| fail("BSI_IPC2581_PREVIEW_UNAVAILABLE"))?;
+            let preview_bytes = serde_json::to_vec(&preview)
+                .map_err(|_| fail("BSI_IPC2581_PREVIEW_ENCODING"))?;
+            if preview_bytes.len() > 48 * 1024 {
+                return Err(fail("BSI_IPC2581_PREVIEW_SIZE"));
+            }
             save_guarded(&target, &board, || {
                 let fresh_bytes = fs::read(&source).map_err(|_| NativeError::SourceChanged)?;
                 if format!("{:x}", Sha256::digest(&fresh_bytes)) != expected {
