@@ -155,7 +155,9 @@ class F0031NativePanel final : public QWidget {
                 cleanup();return false;
             }
             item->setData(0,layer);
-            item->setToolTip("KiCad9 SOURCE "+kind+" / "+id+
+            const QString sourceName=schema=="BSI_IPC2581_SOURCE_PREVIEW_V1"
+                ? QStringLiteral("IPC-2581C") : QStringLiteral("KiCad9");
+            item->setToolTip(sourceName+" SOURCE "+kind+" / "+id+
               " / Layer "+layer+" / Net "+row.value("net").toString("UNKNOWN")+
               " / Physical contact NOT_VERIFIED / SI NOT_RUN");
             item->setFlag(QGraphicsItem::ItemIsSelectable,true);
