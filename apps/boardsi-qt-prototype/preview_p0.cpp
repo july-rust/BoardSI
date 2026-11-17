@@ -5499,7 +5499,9 @@ static int runF008NativeGerberDrillSelftest(const QString &nativeBinary) {
             phase=1;
         }else if(phase==1){
             if(!status.contains("COMPLETED / Native open"))return;
-            if(!write(drill,D.replace("0.300","0.400")) ||
+            QByteArray changedDrill=D;
+            changedDrill.replace("0.300","0.400");
+            if(!write(drill,changedDrill) ||
                !window.importGerberDrillCandidate(gerber,drill,stale)){
                 error="F008 stale-source check unavailable";loop.quit();return;
             }
