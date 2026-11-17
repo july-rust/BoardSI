@@ -85,20 +85,32 @@ impl GerberDrillEvidence {
         // F_008 stores raw integer-nm pad ticks. A valid but transformed
         // CoordinateFrame would otherwise make Qt flash/drill overlay incorrect.
         use boardsi_model::{Orientation, QuarterTurn, Rational};
-        let frame = board.frames.first().ok_or_else(|| invalid("F008 missing frame"))?;
-        let nm = Rational::new(1, 1_000_000_000)
-            .map_err(|_| invalid("F008 unit definition"))?;
+        let frame = board
+            .frames
+            .first()
+            .ok_or_else(|| invalid("F008 missing frame"))?;
+        let nm = Rational::new(1, 1_000_000_000).map_err(|_| invalid("F008 unit definition"))?;
         if board.frames.len() != 1
             || frame.meta.id.source.as_ref() != gerber.id.as_ref()
             || frame.metres_per_tick != nm
             || frame.origin_m != [Rational::integer(0); 2]
-            || !matches!(&frame.orientation, Orientation::Orthogonal {
-                turn: QuarterTurn::Zero, mirror_x: false
+            || !matches!(
+                &frame.orientation,
+                Orientation::Orthogonal {
+                    turn: QuarterTurn::Zero,
+                    mirror_x: false
+                }
+            )
+            || board.pads.iter().any(|p| {
+                p.position.frame != frame.meta.id
+                    || !matches!(
+                        &p.orientation,
+                        Orientation::Orthogonal {
+                            turn: QuarterTurn::Zero,
+                            mirror_x: false
+                        }
+                    )
             })
-            || board.pads.iter().any(|p| p.position.frame != frame.meta.id ||
-                !matches!(&p.orientation, Orientation::Orthogonal {
-                    turn: QuarterTurn::Zero, mirror_x: false
-                }))
         {
             return Err(invalid("F008 unsupported coordinate frame/transform"));
         }
