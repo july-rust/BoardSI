@@ -5456,6 +5456,8 @@ static int runF008NativeGerberDrillSelftest(const QString &nativeBinary) {
             file.write(data)==data.size() && file.flush();
     };
     if(!write(gerber,G) || !write(drill,D))return 2;
+    const QByteArray gsha=QCryptographicHash::hash(G,QCryptographicHash::Sha256).toHex();
+    const QByteArray dsha=QCryptographicHash::hash(D,QCryptographicHash::Sha256).toHex();
     PreviewWindow window(QString(),QString(),QString(),QString(),nativeBinary);
     window.show();
     if(!window.importGerberDrillCandidate(gerber,drill,target))return 2;
@@ -5502,7 +5504,7 @@ static int runF008NativeGerberDrillSelftest(const QString &nativeBinary) {
             QByteArray changedDrill=D;
             changedDrill.replace("0.300","0.400");
             if(!write(drill,changedDrill) ||
-               !window.importGerberDrillCandidate(gerber,drill,stale)){
+               !window.nativePanel()->saveGerberDrill(gerber,drill,stale,gsha,dsha)){
                 error="F008 stale-source check unavailable";loop.quit();return;
             }
             phase=2;
