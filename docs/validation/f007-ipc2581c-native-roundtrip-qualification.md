@@ -1,59 +1,48 @@
-# F_007 — IPC-2581C source Copper to Native .bsi to Main Qt
+# F_007 — IPC-2581C Source Copper → Native `.bsi` → Main Qt
 
-> **IMPLEMENTED ON FEATURE BRANCH / NOT YET ACCEPTED.** No completion claim before exact-HEAD CI, 4-OS runtime, independent review, protected Squash and main Push receipts.
+**Status (2026-11-17 KST): IMPLEMENTATION + PR ACCEPTANCE COMPLETE / post-merge Push CI evidence NOT_OBSERVED.**
+The original F_007 implementation was Squash-merged as PR [#666](https://github.com/july-rust/BoardSI/pull/666) after **15/15 PR workflow successes** at exact HEAD `75572a6a509872083cb133499ec9d2bbad1ff146`.
+Merged commit: [`c847132dd1078873c370edc75294ac4d8f51169f`](https://github.com/july-rust/BoardSI/commit/c847132dd1078873c370edc75294ac4d8f51169f).
+`main` source file blob SHA matches the accepted final PR code; GitHub reported `merged=true`.
 
-## Bounded acceptance contract
+## Strict source-only contract
 
-The existing E_025 parser is a bounded source inventory, not an IPC-2581C full XSD validator. F_007 adds a stricter opt-in Native Canonical adapter.
+F_007 reuses E_025's bounded IPC Revision C Source inventory and F_003 Native SQLite **v1** Writer/Reader; it does **not** change v1 BSIG envelopes, schema, or old Golden fixtures. The opt-in adapter covers declared positive Copper LayerFeature/Set/Features/Line and straight Polyline, with inline ROUND/SOLID LineDesc, source Decimal → checked integer nm, bounded layer/net/PinRef metadata and source SHA-256. The required RevC Step Datum is accepted only at exact zero origin; missing, duplicate or nonzero Datum fails closed. Per-Net PinRef parent names are preserved even when source LogicalNets are not sorted. A Copper layer named `*` is rejected before save because Qt reserves that sentinel.
 
-Normative geometry reference:
-- https://www.ipc2581.com/ipc-2581-revc-test-cases/
-- https://webstds.ipc.org/2581/
-- https://docs.rs/crate/ipc2581/0.3.3/source/IPC-2581C.xsd
+Unsupported fabrication Pad, Via, Drill, Arc, Polygon, Location, Xform, negative polarity, external LineDescRef, unrecognized CadData geometry, manufacturing physical evidence and out-of-range/sub-nm coordinates fail closed rather than silently disappear. Layer declaration order is **not** proven physical z; logical net names are **not** an electrical connection graph. Full IPC XSD conformance, vendor-qualified specimens, actual barrel/plating, SI readiness and electrical RLGC/S-parameter acceptance remain **outside this F_007 source-only contract**.
 
-Supported subset: CadHeader units MILLIMETER/MICRON/INCH, LayerFeature/Set/Features/Line or straight Polyline, inline LineDesc with ROUND lineEnd and SOLID lineProperty (or absent), positive Copper Layer and optional declared LogicalNet. Source decimal coordinates and widths are converted with checked integer arithmetic to exact nm; sub-nm, overflow, malformed and out-of-range inputs fail closed. Source SHA, Layer metadata, CAD unit and bounded PinRefs are preserved in SourceIdentity.
+**Standard/schema background:** [IPC-2581 test cases](https://www.ipc2581.com/ipc-2581-revc-test-cases/) · [RevC XSD](https://docs.rs/crate/ipc2581/0.3.3/source/IPC-2581C.xsd).
 
-Unsupported Pad, Via, Drill, Arc, Polygon, Location, Xform, negative polarity, LineDescRef, manufacturing semantics and unrecognized CadData geometry are rejected rather than discarded. The source Layer declaration order is NOT verified physical z. Neither logical net names nor round-ended traces establish physical conductivity.
+## Executed evidence — final PR HEAD
 
-Existing SQLite v1 / BSIG Writer/Reader and guarded staging are reused. New Native CLI 'save-ipc2581' verifies the source SHA before parsing and before publish. The actual main Qt application adds a nonblocking import/save action and a source-only bounded artwork preview with layer filtering/picking.
-
-**Outside F_007 scope**: full IPC XSD, external vendor fixture, all fabrication objects, electrical graph, confirmed plating, RLGC/S-parameters, manufacturing and product U/T acceptance.
-
-## T01–T12 acceptance — awaiting actual run
-
-| ID | Gate | State |
+| Gate | Result | Actual evidence |
 | --- | --- | --- |
-| T01 | Revision C, malformed XML and exact subset | NOT_VERIFIED |
-| T02 | Layer and Net refs | NOT_VERIFIED |
-| T03 | straight Line / Polyline Copper | NOT_VERIFIED |
-| T04 | precise coordinate, width and unit transforms | NOT_VERIFIED |
-| T05 | Native Canonical semantic roundtrip | NOT_VERIFIED |
-| T06 | F_004 v1 Golden compatibility | NOT_VERIFIED |
-| T07 | independent SQL/BSIG/SHA check | NOT_VERIFIED |
-| T08 | unsupported geometry and malicious XML rejection | NOT_VERIFIED |
-| T09 | source SHA guard, cancel, crash, lock, ENOSPC | NOT_VERIFIED |
-| T10 | real main Qt import, artwork, picking, save/open | NOT_VERIFIED |
-| T11 | four native OS and Qt executions | NOT_VERIFIED |
-| T12 | prior F_001–F_006 regression and post-merge main | NOT_VERIFIED |
+| T01 RevC safe bounded XML and mandatory Datum | **PASS (supported subset)** | `ipc2581c_source::f007_native_tests`; Rust 1.75 CI |
+| T02 Layer, Net and original PinRef-parent linkage | **PASS** | native nonalphabetical Net Z/A round-trip regression |
+| T03 exact straight Line / Polyline Copper | **PASS** | source fixture, Canonical traces, actual Qt artwork |
+| T04 checked nm and MILLIMETER/MICRON/INCH | **PASS** | integer unit and unsupported geometry negative tests |
+| T05 Native v1 semantics round-trip | **PASS** | `f007_ipc2581c_roundtrip` (3/3) |
+| T06 frozen F_004 legacy v1 Goldens | **PASS** | [F004 4 OS](https://github.com/july-rust/BoardSI/actions/runs/43990895101) |
+| T07 independent raw SQLite / BSIG / SHA and exact vertices | **PASS** | independent SQL + BSIG PointList byte parser regression |
+| T08 rejected unsupported/CAD geometry retains last good `.bsi` | **PASS (tested subset)** | importer negative tests and native no-clobber test |
+| T09 stale SHA guard, crash, kill, lock/ENOSPC resilience | **PASS (covered cases)** | [F003 resilience](https://github.com/july-rust/BoardSI/actions/runs/43990895133) and native tests |
+| T10 real main Qt Save/Open/Artwork/picking/filters | **PASS** | [Qt actual native four-platform jobs](https://github.com/july-rust/BoardSI/actions/runs/43990894855) |
+| T11 Win x64/ARM64, macOS ARM64, Linux x64 | **PASS** | F004, Qt runtime, [F003 native](https://github.com/july-rust/BoardSI/actions/runs/43990895034) |
+| T12 prior F_001–F_006 and post-merge status | **PR PASS / main SOURCE VERIFIED / Push CI NOT_OBSERVED** | [15/15 PR checks](https://github.com/july-rust/BoardSI/pull/666/checks); merged SHA above |
 
-## Reproduction
+**Independent review receipt:** Codex reviewed PR #666 and opened P1 mandatory RevC Datum plus P2 net PinRef identity and Qt reserved `*` layer findings. All three received substantive source/tests corrections, replies and `is_resolved=true`; final exact-HEAD Codex re-review did not produce a separate review receipt, so no claim is made that it did.
 
-    cargo +1.75.0 fmt --all -- --check
-    cargo +1.75.0 clippy --locked --workspace --all-targets -- -D warnings
-    cargo +1.75.0 test -p boardsi-import --locked f007_native_tests
-    cargo +1.75.0 test -p boardsi-native-file --locked --test f007_ipc2581c_roundtrip
-    cargo +1.75.0 test --locked --workspace
-    ctest --test-dir build-qt -R qt-f007-main-ipc-native-roundtrip --output-on-failure
+**Critical evidence boundary:** The connected GitHub workflow listing exposes PR-triggered runs, not the exact merged-`main` **Push-triggered** job list. The verified PR check suite and `main` code match prove pre-merge qualification and deployment of the same source code, **not** a separately observed Push CI pass. GitHub Squash merge succeeded; a separate cryptographic `verification.verified` field was also not exposed by the available commit response.
 
-Native/Qt four-OS workflows are in .github/workflows/f004-compatibility.yml and .github/workflows/qt-runtime.yml. Results must be recorded only from actual CI runs.
+## Reproduction (Rust 1.75 / actual Qt)
 
-## Evidence receipts
+```bash
+cargo +1.75.0 fmt --all -- --check
+cargo +1.75.0 clippy --locked --workspace --all-targets -- -D warnings
+cargo +1.75.0 test -p boardsi-import --locked f007_native_tests
+cargo +1.75.0 test -p boardsi-native-file --locked --test f007_ipc2581c_roundtrip
+cargo +1.75.0 test --locked --workspace
+ctest --test-dir build-qt -R qt-f007-main-ipc-native-roundtrip --output-on-failure
+```
 
-- PR HEAD: PENDING
-- 4-OS Rust and Qt: NOT_VERIFIED
-- Independent code review: NOT_VERIFIED
-- PR required checks: NOT_VERIFIED
-- Protected Verified Squash SHA: NOT_VERIFIED
-- Exact merged-main Push: NOT_VERIFIED
-
-Parent format and physical connectivity issues remain open: #23, #532 and #520. Never commit confidential PCB fixtures.
+Workflows: `.github/workflows/f004-compatibility.yml`, `.github/workflows/qt-runtime.yml`, plus the remaining PR gate matrix. Confidential PCB sources were not committed. Broader format/physical acceptance remains tracked under #23, #532 and #520.
