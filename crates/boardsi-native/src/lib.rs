@@ -1,6 +1,7 @@
 //! BoardSI native .bsi v1; all load paths are read-only and fail-closed.
 mod bsig;
 mod encoding;
+mod gerber_evidence;
 mod migration;
 mod read;
 mod recovery;
@@ -9,9 +10,10 @@ mod storage_validation;
 mod store;
 mod write;
 pub use bsig::{Field, GeometryRecord};
+pub use gerber_evidence::{DrillObservation, GerberDrillEvidence};
 pub use migration::{migrate_to_current, MigrationReceipt, CURRENT_SCHEMA};
 pub use recovery::recover_owned_staging;
-pub use store::{load, save, save_guarded, LoadedBoard};
+pub use store::{load, save, save_guarded, save_with_drill_evidence_guarded, LoadedBoard};
 
 #[derive(Debug)]
 pub enum NativeError {
