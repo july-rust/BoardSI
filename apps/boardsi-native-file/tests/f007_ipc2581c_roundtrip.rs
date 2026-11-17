@@ -252,7 +252,11 @@ fn native_non_alphabetical_net_pinrefs_keep_parent_identity() {
         ])
         .output()
         .unwrap();
-    assert!(saved.status.success(), "{}", String::from_utf8_lossy(&saved.stderr));
+    assert!(
+        saved.status.success(),
+        "{}",
+        String::from_utf8_lossy(&saved.stderr)
+    );
     let loaded = load(&target).unwrap();
     assert!(canonical_semantics_equal(&expected, loaded.model()));
     let conditions = &loaded.model().sources[0].id.conditions;
@@ -266,6 +270,10 @@ fn native_non_alphabetical_net_pinrefs_keep_parent_identity() {
     ] {
         assert!(conditions.iter().any(|(k, v)| k == key && v == value));
     }
-    assert!(conditions.iter().any(|(k, v)| k == "datum/x_source" && v == "0"));
-    assert!(conditions.iter().any(|(k, v)| k == "datum/y_source" && v == "0"));
+    assert!(conditions
+        .iter()
+        .any(|(k, v)| k == "datum/x_source" && v == "0"));
+    assert!(conditions
+        .iter()
+        .any(|(k, v)| k == "datum/y_source" && v == "0"));
 }
