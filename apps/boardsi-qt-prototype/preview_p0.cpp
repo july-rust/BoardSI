@@ -63,6 +63,7 @@ class PreviewWindow : public QMainWindow {
     QAction *odbOpenAction = nullptr;
     QAction *kicadOpenAction = nullptr;
     QAction *ipc2581OpenAction = nullptr;
+    QAction *gerberDrillOpenAction = nullptr;
     QAction *saveAction = nullptr;
     QAction *nativeOpenAction = nullptr;
     QAction *nativeSaveAsAction = nullptr;
@@ -168,6 +169,7 @@ class PreviewWindow : public QMainWindow {
         odbOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
         kicadOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
         ipc2581OpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
+        gerberDrillOpenAction->setEnabled(!importUI->busy() && !nativeFile->busy());
         runAction->setEnabled(ipc->runButton()->isEnabled());
         stopAction->setEnabled(ipc->cancelButton()->isEnabled());
         overallProgress->setValue(ipc->progressBar()->value());
@@ -236,6 +238,8 @@ public:
         kicadOpenAction->setToolTip("Source-limited KiCad 9 straight Track/normal Via to Native .bsi. Native summary only; geometry artwork not yet supported.");
         ipc2581OpenAction = bar->addAction("Import IPC-2581C → .bsi");
         ipc2581OpenAction->setToolTip("Source-limited inline Line/Polyline only; unsupported geometry fails closed; no SI");
+        gerberDrillOpenAction = bar->addAction("Import Gerber X2 + Drill → .bsi");
+        gerberDrillOpenAction->setToolTip("One X2 circular-flash layer + one METRIC Excellon file; source only, plating and connectivity unknown");
         canonicalOpenAction->setToolTip("Source-only Canonical padstack import; no physical SI or material qualification");
         saveAction = bar->addAction("Save Project (.bsi)");
         saveAction->setEnabled(false);
@@ -483,6 +487,20 @@ public:
                 "BoardSI Native (*.bsi)");
             if(!target.isEmpty()) importIpc2581Candidate(source,target);
         });
+        connect(gerberDrillOpenAction,&QAction::triggered,this,[this] {
+            const QString gerber=QFileDialog::getOpenFileName(
+                this,"Import supported Gerber X2 Copper Flash file",QString(),
+                "Gerber X2 (*.gbr *.ger *.gtl *.gbl);;All files (*)");
+            if(gerber.isEmpty())return;
+            const QString drill=QFileDialog::getOpenFileName(
+                this,"Select matching Excellon Drill file (alignment unverified)",
+                QFileInfo(gerber).absolutePath(),"Excellon (*.drl *.xln *.txt);;All files (*)");
+            if(drill.isEmpty())return;
+            const QString target=QFileDialog::getSaveFileName(
+                this,"Save Gerber/Excellon Source observations as .bsi",QString(),
+                "BoardSI Native (*.bsi)");
+            if(!target.isEmpty()) importGerberDrillCandidate(gerber,drill,target);
+        });
         connect(odbOpenAction,&QAction::triggered,this,[this] {
             const QString root=QFileDialog::getExistingDirectory(
                 this,"Open unpacked ODB++ product directory");
@@ -555,6 +573,24 @@ public:
         const QByteArray sha=QCryptographicHash::hash(raw,QCryptographicHash::Sha256).toHex();
         const bool started=nativeFile->saveIpc2581(source,dest,sha);
         if(started) viewTabs->setCurrentWidget(nativeFile);
+        return started;
+    }
+    bool importGerberDrillCandidate(const QString &gerber,const QString &drill,
+                                    const QString &dest) {
+        if(importUI->busy() || nativeFile->busy() || gerber.isEmpty() ||
+           drill.isEmpty() || dest.isEmpty())return false;
+        auto sourceHash=[](const QString &path)->QByteArray {
+            QFile f(path);
+            if(!f.open(QIODevice::ReadOnly) || f.size()<=0 || f.size()>8*1024*1024)
+                return QByteArray();
+            const QByteArray bytes=f.readAll();
+            if(bytes.size()!=f.size())return QByteArray();
+            return QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex();
+        };
+        const QByteArray gsha=sourceHash(gerber),dsha=sourceHash(drill);
+        if(gsha.size()!=64 || dsha.size()!=64)return false;
+        const bool started=nativeFile->saveGerberDrill(gerber,drill,dest,gsha,dsha);
+        if(started)viewTabs->setCurrentWidget(nativeFile);
         return started;
     }
     bool copyNativeCandidate(const QString &dest) {
