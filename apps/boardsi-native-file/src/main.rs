@@ -188,7 +188,6 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
     })))
 }
 
-
 // F_008: SOURCE-only flashes plus independent Excellon observations. The
 // preview is derived from the just-read native .bsi, never from unsaved input.
 fn gerber_source_preview(
@@ -196,34 +195,44 @@ fn gerber_source_preview(
     evidence: &GerberDrillEvidence,
 ) -> Result<Value, String> {
     use boardsi_model::{PadShape, Rational};
-    if board.stackup.layers.len()!=1 || board.pads.len()+evidence.holes.len()>128 {
+    if board.stackup.layers.len() != 1 || board.pads.len() + evidence.holes.len() > 128 {
         return Err(fail("BSI_F008_PREVIEW_LIMIT"));
     }
     let layer = &board.stackup.layers[0];
-    let to_nm = |r: Rational| -> Result<i64,String> {
-        let n = r.numerator().checked_mul(1_000_000_000)
+    let to_nm = |r: Rational| -> Result<i64, String> {
+        let n = r
+            .numerator()
+            .checked_mul(1_000_000_000)
             .ok_or_else(|| fail("BSI_F008_PREVIEW_DIMENSION"))?;
-        if n % r.denominator()!=0 {
+        if n % r.denominator() != 0 {
             return Err(fail("BSI_F008_PREVIEW_DIMENSION"));
         }
-        i64::try_from(n / r.denominator()).map_err(|_|fail("BSI_F008_PREVIEW_DIMENSION"))
+        i64::try_from(n / r.denominator()).map_err(|_| fail("BSI_F008_PREVIEW_DIMENSION"))
     };
-    let mut items=Vec::new();
+    let mut items = Vec::new();
     for pad in &board.pads {
-        if pad.net.is_some() || !matches!(&pad.orientation,
-            boardsi_model::Orientation::Orthogonal{
-                turn:boardsi_model::QuarterTurn::Zero,mirror_x:false
-            }) {
+        if pad.net.is_some()
+            || !matches!(
+                &pad.orientation,
+                boardsi_model::Orientation::Orthogonal {
+                    turn: boardsi_model::QuarterTurn::Zero,
+                    mirror_x: false
+                }
+            )
+        {
             return Err(fail("BSI_F008_PREVIEW_PAD"));
         }
-        let stack = board.padstacks.iter().find(|s|s.meta.id==pad.padstack)
-            .ok_or_else(||fail("BSI_F008_PREVIEW_PADSTACK"))?;
-        if stack.entries.len()!=1 || stack.entries[0].layer!=layer.meta.id {
+        let stack = board
+            .padstacks
+            .iter()
+            .find(|s| s.meta.id == pad.padstack)
+            .ok_or_else(|| fail("BSI_F008_PREVIEW_PADSTACK"))?;
+        if stack.entries.len() != 1 || stack.entries[0].layer != layer.meta.id {
             return Err(fail("BSI_F008_PREVIEW_PADSTACK"));
         }
-        let diameter=match &stack.entries[0].shape {
-            PadShape::Circle{diameter_m}=>to_nm(*diameter_m)?,
-            _=>return Err(fail("BSI_F008_PREVIEW_SHAPE")),
+        let diameter = match &stack.entries[0].shape {
+            PadShape::Circle { diameter_m } => to_nm(*diameter_m)?,
+            _ => return Err(fail("BSI_F008_PREVIEW_SHAPE")),
         };
         items.push(json!({
             "kind":"flash","id":pad.meta.id.source_object,
@@ -231,7 +240,7 @@ fn gerber_source_preview(
             "net":"UNKNOWN","contact":"NOT_VERIFIED"
         }));
     }
-    for (index,h) in evidence.holes.iter().enumerate() {
+    for (index, h) in evidence.holes.iter().enumerate() {
         items.push(json!({
             "kind":"drill-source","id":format!("drill-{}-{}",h.tool_id,index),
             "layer":"*","at":h.centre_nm,"diameter_nm":h.diameter_nm,
@@ -432,66 +441,90 @@ fn run() -> Result<Value, String> {
             let target = arg_path(&args, 3)?;
             let gerber_sha = arg_text(&args, 4)?;
             let drill_sha = arg_text(&args, 5)?;
-            let valid_sha = |s:&str| s.len()==64 && s.bytes().all(|b|b.is_ascii_hexdigit());
+            let valid_sha = |s: &str| s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit());
             if !valid_sha(&gerber_sha) || !valid_sha(&drill_sha) {
                 return Err(fail("BSI_SOURCE_SHA_INVALID"));
             }
-            let gerber_sha=gerber_sha.to_ascii_lowercase();
-            let drill_sha=drill_sha.to_ascii_lowercase();
-            let read_source=|path:&Path| -> Result<Vec<u8>,String> {
-                let meta=fs::metadata(path).map_err(|_|fail("BSI_SOURCE_MISSING"))?;
-                if !meta.is_file() || meta.len()>8*1024*1024 {
+            let gerber_sha = gerber_sha.to_ascii_lowercase();
+            let drill_sha = drill_sha.to_ascii_lowercase();
+            let read_source = |path: &Path| -> Result<Vec<u8>, String> {
+                let meta = fs::metadata(path).map_err(|_| fail("BSI_SOURCE_MISSING"))?;
+                if !meta.is_file() || meta.len() > 8 * 1024 * 1024 {
                     return Err(fail("BSI_SOURCE_SIZE"));
                 }
-                fs::read(path).map_err(|_|fail("BSI_SOURCE_READ"))
+                fs::read(path).map_err(|_| fail("BSI_SOURCE_READ"))
             };
-            let gerber_bytes=read_source(&gerber)?;
-            let drill_bytes=read_source(&drill)?;
-            let sha=|bytes:&[u8]|format!("{:x}",Sha256::digest(bytes));
-            if sha(&gerber_bytes)!=gerber_sha || sha(&drill_bytes)!=drill_sha {
+            let gerber_bytes = read_source(&gerber)?;
+            let drill_bytes = read_source(&drill)?;
+            let sha = |bytes: &[u8]| format!("{:x}", Sha256::digest(bytes));
+            if sha(&gerber_bytes) != gerber_sha || sha(&drill_bytes) != drill_sha {
                 return Err(fail("BSI_SOURCE_CHANGED"));
             }
-            let pair=boardsi_import::gerber_excellon_source::inspect_pair(
-                &gerber_bytes,&drill_bytes
-            ).map_err(|e|format!("BSI_F008_SOURCE_UNSUPPORTED:{}",e.code))?;
-            let board=boardsi_import::gerber_excellon_source::into_native_canonical_from_pair(&pair)
-                .map_err(|e|format!("BSI_F008_CANONICAL_UNSUPPORTED:{}",e.code))?;
-            let evidence=GerberDrillEvidence {
-                drill_sha256:pair.drill.identity.files[0].sha256,
-                holes:pair.drill.holes.iter().map(|h|DrillObservation{
-                    centre_nm:h.centre_nm,diameter_nm:h.diameter_nm,
-                    tool_id:h.tool_id,source_offset:h.source_offset as u64
-                }).collect()
+            let pair =
+                boardsi_import::gerber_excellon_source::inspect_pair(&gerber_bytes, &drill_bytes)
+                    .map_err(|e| format!("BSI_F008_SOURCE_UNSUPPORTED:{}", e.code))?;
+            let board =
+                boardsi_import::gerber_excellon_source::into_native_canonical_from_pair(&pair)
+                    .map_err(|e| format!("BSI_F008_CANONICAL_UNSUPPORTED:{}", e.code))?;
+            let evidence = GerberDrillEvidence {
+                drill_sha256: pair.drill.identity.files[0].sha256,
+                holes: pair
+                    .drill
+                    .holes
+                    .iter()
+                    .map(|h| DrillObservation {
+                        centre_nm: h.centre_nm,
+                        diameter_nm: h.diameter_nm,
+                        tool_id: h.tool_id,
+                        source_offset: h.source_offset as u64,
+                    })
+                    .collect(),
             };
-            let preview=gerber_source_preview(&board,&evidence)?;
-            if serde_json::to_vec(&preview).map_err(|_|fail("BSI_F008_PREVIEW_ENCODING"))?.len()>48*1024 {
+            let preview = gerber_source_preview(&board, &evidence)?;
+            if serde_json::to_vec(&preview)
+                .map_err(|_| fail("BSI_F008_PREVIEW_ENCODING"))?
+                .len()
+                > 48 * 1024
+            {
                 return Err(fail("BSI_F008_PREVIEW_SIZE"));
             }
-            save_with_drill_evidence_guarded(&target,&board,Some(&evidence),||{
-                let fresh_g=read_source(&gerber).map_err(|_|NativeError::SourceChanged)?;
-                let fresh_d=read_source(&drill).map_err(|_|NativeError::SourceChanged)?;
-                if sha(&fresh_g)!=gerber_sha || sha(&fresh_d)!=drill_sha {
+            save_with_drill_evidence_guarded(&target, &board, Some(&evidence), || {
+                let fresh_g = read_source(&gerber).map_err(|_| NativeError::SourceChanged)?;
+                let fresh_d = read_source(&drill).map_err(|_| NativeError::SourceChanged)?;
+                if sha(&fresh_g) != gerber_sha || sha(&fresh_d) != drill_sha {
                     return Err(NativeError::SourceChanged);
                 }
-                let fresh_pair=boardsi_import::gerber_excellon_source::inspect_pair(&fresh_g,&fresh_d)
-                    .map_err(|_|NativeError::SourceChanged)?;
-                let fresh=boardsi_import::gerber_excellon_source::into_native_canonical_from_pair(&fresh_pair)
-                    .map_err(|_|NativeError::SourceChanged)?;
-                let fresh_evidence=GerberDrillEvidence {
-                    drill_sha256:fresh_pair.drill.identity.files[0].sha256,
-                    holes:fresh_pair.drill.holes.iter().map(|h|DrillObservation {
-                        centre_nm:h.centre_nm,diameter_nm:h.diameter_nm,
-                        tool_id:h.tool_id,source_offset:h.source_offset as u64
-                    }).collect()
+                let fresh_pair =
+                    boardsi_import::gerber_excellon_source::inspect_pair(&fresh_g, &fresh_d)
+                        .map_err(|_| NativeError::SourceChanged)?;
+                let fresh =
+                    boardsi_import::gerber_excellon_source::into_native_canonical_from_pair(
+                        &fresh_pair,
+                    )
+                    .map_err(|_| NativeError::SourceChanged)?;
+                let fresh_evidence = GerberDrillEvidence {
+                    drill_sha256: fresh_pair.drill.identity.files[0].sha256,
+                    holes: fresh_pair
+                        .drill
+                        .holes
+                        .iter()
+                        .map(|h| DrillObservation {
+                            centre_nm: h.centre_nm,
+                            diameter_nm: h.diameter_nm,
+                            tool_id: h.tool_id,
+                            source_offset: h.source_offset as u64,
+                        })
+                        .collect(),
                 };
-                if !canonical_semantics_equal(&board,&fresh) || evidence!=fresh_evidence {
+                if !canonical_semantics_equal(&board, &fresh) || evidence != fresh_evidence {
                     return Err(NativeError::SourceChanged);
                 }
                 Ok(())
-            }).map_err(native_error)?;
-            let mut result=receipt("save-gerber-drill",&target,false)?;
-            result["source_sha256"]=json!(gerber_sha);
-            result["drill_sha256"]=json!(drill_sha);
+            })
+            .map_err(native_error)?;
+            let mut result = receipt("save-gerber-drill", &target, false)?;
+            result["source_sha256"] = json!(gerber_sha);
+            result["drill_sha256"] = json!(drill_sha);
             Ok(result)
         }
         "save-odb" if args.len() == 5 => {
