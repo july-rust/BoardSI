@@ -898,9 +898,7 @@ pub fn into_native_canonical(bytes: &[u8]) -> Result<boardsi_model::BoardModel, 
     if datum_tags.next().is_some() {
         return Err(err("F007_DUPLICATE_DATUM"));
     }
-    if datum.attrs.len() != 2
-        || datum.attrs.keys().any(|name| name != "x" && name != "y")
-    {
+    if datum.attrs.len() != 2 || datum.attrs.keys().any(|name| name != "x" && name != "y") {
         return Err(err("F007_UNSUPPORTED_DATUM"));
     }
     let datum_x = field(&datum.attrs, "x")?;
@@ -1301,10 +1299,7 @@ mod f007_native_tests {
         let valid = fixture(line, "MILLIMETER");
         for rejected in [
             valid.replace("<Datum x=\"0\" y=\"0\"/>", ""),
-            valid.replace(
-                "<Datum x=\"0\" y=\"0\"/>",
-                "<Datum x=\"0.01\" y=\"0\"/>",
-            ),
+            valid.replace("<Datum x=\"0\" y=\"0\"/>", "<Datum x=\"0.01\" y=\"0\"/>"),
             valid.replace(
                 "<Datum x=\"0\" y=\"0\"/>",
                 "<Datum x=\"0\" y=\"0\"/><Datum x=\"0\" y=\"0\"/>",
