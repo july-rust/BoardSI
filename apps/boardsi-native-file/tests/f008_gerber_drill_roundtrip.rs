@@ -128,27 +128,45 @@ fn f008_native_roundtrip_exact_sql_extension_and_save_as() {
         .unwrap();
     assert_eq!(geom_count, 2);
     // Independently decode the Pad BSIG Point TLV; no Native Reader/helpers.
-    let pad_blob: Vec<u8> = conn.query_row(
-        "SELECT envelope FROM geometry WHERE geometry_kind=6",
-        [], |r| r.get(0),
-    ).unwrap();
+    let pad_blob: Vec<u8> = conn
+        .query_row(
+            "SELECT envelope FROM geometry WHERE geometry_kind=6",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
     assert_eq!(&pad_blob[0..4], b"BSIG");
     assert_eq!(u16::from_le_bytes(pad_blob[6..8].try_into().unwrap()), 6);
-    assert_eq!(&pad_blob[20..52], Sha256::digest(&pad_blob[52..]).as_slice());
+    assert_eq!(
+        &pad_blob[20..52],
+        Sha256::digest(&pad_blob[52..]).as_slice()
+    );
     let pad = &pad_blob[52..];
     assert_eq!(u16::from_le_bytes(pad[0..2].try_into().unwrap()), 1);
     assert_eq!(u16::from_le_bytes(pad[4..6].try_into().unwrap()), 1);
     assert_eq!(u16::from_le_bytes(pad[6..8].try_into().unwrap()), 6);
     assert_eq!(u32::from_le_bytes(pad[8..12].try_into().unwrap()), 20);
-    assert_eq!(i64::from_le_bytes(pad[16..24].try_into().unwrap()), 12_345_678);
-    assert_eq!(i64::from_le_bytes(pad[24..32].try_into().unwrap()), 2_000_000);
+    assert_eq!(
+        i64::from_le_bytes(pad[16..24].try_into().unwrap()),
+        12_345_678
+    );
+    assert_eq!(
+        i64::from_le_bytes(pad[24..32].try_into().unwrap()),
+        2_000_000
+    );
     // Independently inspect Padstack Circle Rational128: 0.600000 mm = 3/5000 m.
-    let stack_blob: Vec<u8> = conn.query_row(
-        "SELECT envelope FROM geometry WHERE geometry_kind=5",
-        [], |r| r.get(0),
-    ).unwrap();
+    let stack_blob: Vec<u8> = conn
+        .query_row(
+            "SELECT envelope FROM geometry WHERE geometry_kind=5",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
     assert_eq!(&stack_blob[0..4], b"BSIG");
-    assert_eq!(&stack_blob[20..52], Sha256::digest(&stack_blob[52..]).as_slice());
+    assert_eq!(
+        &stack_blob[20..52],
+        Sha256::digest(&stack_blob[52..]).as_slice()
+    );
     let stack = &stack_blob[52..];
     assert_eq!(u16::from_le_bytes(stack[4..6].try_into().unwrap()), 1);
     assert_eq!(u16::from_le_bytes(stack[6..8].try_into().unwrap()), 11);
@@ -246,11 +264,18 @@ fn f008_malformed_source_frame_fails_before_qt_preview() {
     let gs = hex(GERBER.as_bytes());
     let ds = hex(DRILL.as_bytes());
     assert!(invoke(&[
-        "save-gerber-drill", g.to_str().unwrap(), d.to_str().unwrap(),
-        b.to_str().unwrap(), &gs, &ds
-    ]).status.success());
+        "save-gerber-drill",
+        g.to_str().unwrap(),
+        d.to_str().unwrap(),
+        b.to_str().unwrap(),
+        &gs,
+        &ds
+    ])
+    .status
+    .success());
     let conn = Connection::open(&b).unwrap();
-    conn.execute("UPDATE coordinate_frames SET quarter_turn=1", []).unwrap();
+    conn.execute("UPDATE coordinate_frames SET quarter_turn=1", [])
+        .unwrap();
     drop(conn);
     // A structurally valid rotated frame cannot be rendered as raw nm XY.
     assert!(load(&b).is_err());
