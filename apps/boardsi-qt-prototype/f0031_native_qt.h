@@ -33,7 +33,7 @@ class F0031NativePanel final : public QWidget {
     QGraphicsView *artworkView_;
     QComboBox *artworkLayer_;
     QByteArray output_, errors_;
-    QString binary_, operation_, target_, loaded_, acceptedDigest_, expectedSourceManifest_;
+    QString binary_, operation_, target_, loaded_, acceptedDigest_, expectedSourceManifest_, expectedDrillSha_;
     bool running_=false, cancelled_=false, readOnly_=true;
     int timeoutMs_=60000;
     std::function<void()> onChanged_;
@@ -75,14 +75,17 @@ class F0031NativePanel final : public QWidget {
     bool showKiCadArtwork(const QJsonObject &body) {
         const QString schema=body.value("schema").toString();
         if((schema!="BSI_KICAD_SOURCE_PREVIEW_V1" &&
-            schema!="BSI_IPC2581_SOURCE_PREVIEW_V1") ||
+            schema!="BSI_IPC2581_SOURCE_PREVIEW_V1" &&
+            schema!="BSI_GERBER_DRILL_SOURCE_PREVIEW_V1") ||
            body.value("units").toString()!="integer-nm" ||
            body.value("solver_ready").toBool(true) ||
            !body.value("items").isArray() || !body.value("layers").isArray())
             return false;
         const QJsonArray items=body.value("items").toArray();
         const QJsonArray layers=body.value("layers").toArray();
-        if(items.isEmpty() || items.size()>128 || layers.size()<2 || layers.size()>32)
+        if(items.isEmpty() || items.size()>128 ||
+           layers.size()<(schema=="BSI_GERBER_DRILL_SOURCE_PREVIEW_V1" ? 1 : 2) ||
+           layers.size()>32)
             return false;
         QStringList layerNames;
         for(const auto &value:layers) {
@@ -151,12 +154,33 @@ class F0031NativePanel final : public QWidget {
                 viaRing->setPen(QPen(Qt::darkYellow,0));
                 viaRing->setBrush(QBrush(Qt::yellow));
                 item=viaRing;
+            } else if(kind=="flash" || kind=="drill-source") {
+                QPointF p;double diameter=0;
+                if(!point(row.value("at"),p) ||
+                   !number(row.value("diameter_nm"),diameter) ||
+                   diameter<=0 || diameter>1000.0 ||
+                   (kind=="flash" && layer=="*") ||
+                   (kind=="drill-source" &&
+                     (layer!="*" ||
+                      row.value("plating").toString()!="UNKNOWN" ||
+                      row.value("layer_span").toString()!="UNKNOWN" ||
+                      row.value("alignment").toString()!="NOT_VERIFIED" ||
+                      row.value("tool_id").toInt()<=0))) {
+                    cleanup();return false;
+                }
+                auto *circle=new QGraphicsEllipseItem(
+                    p.x()-diameter/2,p.y()-diameter/2,diameter,diameter);
+                circle->setPen(QPen(kind=="flash" ? Qt::darkCyan : Qt::darkGray,0));
+                circle->setBrush(kind=="flash" ? QBrush(Qt::cyan) : QBrush(Qt::NoBrush));
+                item=circle;
             } else {
                 cleanup();return false;
             }
             item->setData(0,layer);
             const QString sourceName=schema=="BSI_IPC2581_SOURCE_PREVIEW_V1"
-                ? QStringLiteral("IPC-2581C") : QStringLiteral("KiCad9");
+                ? QStringLiteral("IPC-2581C") :
+                schema=="BSI_GERBER_DRILL_SOURCE_PREVIEW_V1"
+                ? QStringLiteral("Gerber/Excellon") : QStringLiteral("KiCad9");
             item->setToolTip(sourceName+" SOURCE "+kind+" / "+id+
               " / Layer "+layer+" / Net "+row.value("net").toString("UNKNOWN")+
               " / Physical contact NOT_VERIFIED / SI NOT_RUN");
@@ -229,9 +253,17 @@ class F0031NativePanel final : public QWidget {
             state("FAILED / IPC-2581C source SHA receipt mismatch");
             return;
         }
+        if(operation_=="save-gerber-drill" &&
+           (receipt.value("source_format").toString()!="GERBER_X2_EXCELLON_SOURCE_SUBSET" ||
+            receipt.value("source_sha256").toString()!=expectedSourceManifest_ ||
+            receipt.value("drill_sha256").toString()!=expectedDrillSha_)) {
+            state("FAILED / Gerber/Excellon source SHA receipt mismatch");
+            return;
+        }
         const QString sourceFormat=receipt.value("source_format").toString();
         const bool sourcePreview=sourceFormat=="KICAD9_SOURCE_SUBSET" ||
-                                 sourceFormat=="IPC2581C_SOURCE_SUBSET";
+                                 sourceFormat=="IPC2581C_SOURCE_SUBSET" ||
+                                 sourceFormat=="GERBER_X2_EXCELLON_SOURCE_SUBSET";
         if(sourcePreview && !showKiCadArtwork(receipt.value("artwork").toObject())) {
             state("FAILED / native source preview contract invalid");
             return;
@@ -366,6 +398,19 @@ public:
         const bool started=begin("save-ipc2581",target,
             {"save-ipc2581",source,target,QString::fromLatin1(sourceSha)});
         if(started) expectedSourceManifest_=QString::fromLatin1(sourceSha);
+        return started;
+    }
+    bool saveGerberDrill(const QString &gerber,const QString &drill,
+                         const QString &target,const QByteArray &gerberSha,
+                         const QByteArray &drillSha) {
+        if(running_ || gerberSha.size()!=64 || drillSha.size()!=64) return false;
+        const bool started=begin("save-gerber-drill",target,
+            {"save-gerber-drill",gerber,drill,target,QString::fromLatin1(gerberSha),
+             QString::fromLatin1(drillSha)});
+        if(started) {
+            expectedSourceManifest_=QString::fromLatin1(gerberSha);
+            expectedDrillSha_=QString::fromLatin1(drillSha);
+        }
         return started;
     }
     bool saveNative(const QString &target) {
