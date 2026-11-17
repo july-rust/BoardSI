@@ -286,28 +286,36 @@ fn f008_malformed_source_frame_fails_before_qt_preview() {
 #[test]
 fn f008_altered_flash_role_or_shape_cannot_claim_positive_gerber() {
     use boardsi_model::{PadRole, PadShape, Rational};
-    let pair=boardsi_import::gerber_excellon_source::inspect_pair(
-        GERBER.as_bytes(),DRILL.as_bytes()).unwrap();
-    let mut board=into_native_canonical(GERBER.as_bytes(),DRILL.as_bytes()).unwrap();
-    let evidence=GerberDrillEvidence {
-        drill_sha256:pair.drill.identity.files[0].sha256,
-        holes:pair.drill.holes.iter().map(|h| DrillObservation {
-            centre_nm:h.centre_nm,
-            diameter_nm:h.diameter_nm,
-            tool_id:h.tool_id,
-            source_offset:h.source_offset as u64
-        }).collect(),
+    let pair = boardsi_import::gerber_excellon_source::inspect_pair(
+        GERBER.as_bytes(),
+        DRILL.as_bytes(),
+    )
+    .unwrap();
+    let mut board = into_native_canonical(GERBER.as_bytes(), DRILL.as_bytes()).unwrap();
+    let evidence = GerberDrillEvidence {
+        drill_sha256: pair.drill.identity.files[0].sha256,
+        holes: pair
+            .drill
+            .holes
+            .iter()
+            .map(|h| DrillObservation {
+                centre_nm: h.centre_nm,
+                diameter_nm: h.diameter_nm,
+                tool_id: h.tool_id,
+                source_offset: h.source_offset as u64,
+            })
+            .collect(),
     };
     assert!(evidence.check(&board).is_ok());
-    board.padstacks[0].entries[0].role=PadRole::AntiPad;
+    board.padstacks[0].entries[0].role = PadRole::AntiPad;
     assert!(evidence.check(&board).is_err());
-    board.padstacks[0].entries[0].role=PadRole::Conductive;
-    board.padstacks[0].entries[0].shape=PadShape::Rectangle {
-        size_m:[Rational::integer(1);2]
+    board.padstacks[0].entries[0].role = PadRole::Conductive;
+    board.padstacks[0].entries[0].shape = PadShape::Rectangle {
+        size_m: [Rational::integer(1); 2],
     };
     assert!(evidence.check(&board).is_err());
-    board.padstacks[0].entries[0].shape=PadShape::Circle {
-        diameter_m:Rational::integer(2)
+    board.padstacks[0].entries[0].shape = PadShape::Circle {
+        diameter_m: Rational::integer(2),
     };
     assert!(evidence.check(&board).is_err());
 }
