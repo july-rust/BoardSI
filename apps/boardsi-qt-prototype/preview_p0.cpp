@@ -5449,7 +5449,7 @@ static int runF008NativeGerberDrillSelftest(const QString &nativeBinary) {
     const QString target=dir.path()+"/roundtrip.bsi";
     const QString stale=dir.path()+"/stale.bsi";
     const QByteArray G="%FSLAX36Y36*%\n%MOMM*%\n%TF.FileFunction,Copper,L1,Top*%\n%ADD10C,0.600*%\n%LPD*%\nD10*\nX012345678Y002000000D03*\nM02*\n";
-    const QByteArray D="M48\nMETRIC\nT01C0.300\n%\nT01\nX12.345678Y2.000000\nM30\n";
+    const QByteArray D="M48\nMETRIC\nT2147483648C0.300\n%\nT2147483648\nX12.345678Y2.000000\nM30\n";
     auto write=[](const QString &path,const QByteArray &data) {
         QFile file(path);
         return file.open(QIODevice::WriteOnly|QIODevice::Truncate) &&
