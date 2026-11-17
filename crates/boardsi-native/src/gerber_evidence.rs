@@ -46,7 +46,7 @@ impl GerberDrillEvidence {
         let gerber = board
             .sources
             .iter()
-            .find(|s| matches!(s.id.format, SourceFormat::Gerber))
+            .find(|s| matches!(&s.id.format, SourceFormat::Gerber))
             .ok_or_else(|| invalid("F008 missing Gerber source"))?;
         let drill = board
             .sources
