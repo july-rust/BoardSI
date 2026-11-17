@@ -18,7 +18,7 @@ const SOURCE: &str = r#"<?xml version="1.0"?>
 <Ecad><CadHeader units="MILLIMETER"/><CadData>
 <Layer name="TOP" layerFunction="SIGNAL" side="TOP" polarity="POSITIVE"/>
 <Layer name="BOTTOM" layerFunction="SIGNAL" side="BOTTOM" polarity="POSITIVE"/>
-<Step name="BOARD"><LogicalNet name="SIG"><PinRef componentRef="U1" pin="1"/></LogicalNet>
+<Step name="BOARD"><Datum x="0" y="0"/><LogicalNet name="SIG"><PinRef componentRef="U1" pin="1"/></LogicalNet>
 <LayerFeature layerRef="TOP"><Set net="SIG">
 <Features><Line startX="1.123456" startY="-2.000001" endX="3" endY="5">
 <LineDesc lineEnd="ROUND" lineProperty="SOLID" lineWidth="0.15"/></Line></Features>
@@ -226,4 +226,46 @@ fn native_rejects_unsupported_geometry_without_clobber() {
     assert!(!rejected.status.success());
     assert!(String::from_utf8_lossy(&rejected.stderr).contains("BSI_IPC2581_SOURCE_UNSUPPORTED"));
     assert_eq!(before, fs::read(&target).unwrap());
+}
+
+#[test]
+fn native_non_alphabetical_net_pinrefs_keep_parent_identity() {
+    let tmp = TempDir::new();
+    let source = tmp.0.join("net-order.xml");
+    let target = tmp.0.join("net-order.bsi");
+    let input = SOURCE
+        .replace(
+            "<LogicalNet name=\"SIG\"><PinRef componentRef=\"U1\" pin=\"1\"/></LogicalNet>",
+            "<LogicalNet name=\"Z\"><PinRef componentRef=\"UZ\" pin=\"9\"/></LogicalNet><LogicalNet name=\"A\"><PinRef componentRef=\"UA\" pin=\"2\"/></LogicalNet>",
+        )
+        .replace("net=\"SIG\"", "net=\"Z\"");
+    assert_ne!(input, SOURCE);
+    fs::write(&source, &input).unwrap();
+    let expected = into_native_canonical(input.as_bytes()).unwrap();
+    let hash = format!("{:x}", Sha256::digest(input.as_bytes()));
+    let saved = Command::new(worker())
+        .args([
+            "save-ipc2581",
+            source.to_str().unwrap(),
+            target.to_str().unwrap(),
+            &hash,
+        ])
+        .output()
+        .unwrap();
+    assert!(saved.status.success(), "{}", String::from_utf8_lossy(&saved.stderr));
+    let loaded = load(&target).unwrap();
+    assert!(canonical_semantics_equal(&expected, loaded.model()));
+    let conditions = &loaded.model().sources[0].id.conditions;
+    for (key, value) in [
+        ("logical_net/000/name", "Z"),
+        ("logical_net/000/pin_ref/0000/pin", "9"),
+        ("logical_net/000/pin_ref/0000/component", "UZ"),
+        ("logical_net/001/name", "A"),
+        ("logical_net/001/pin_ref/0000/pin", "2"),
+        ("logical_net/001/pin_ref/0000/component", "UA"),
+    ] {
+        assert!(conditions.iter().any(|(k, v)| k == key && v == value));
+    }
+    assert!(conditions.iter().any(|(k, v)| k == "datum/x_source" && v == "0"));
+    assert!(conditions.iter().any(|(k, v)| k == "datum/y_source" && v == "0"));
 }
