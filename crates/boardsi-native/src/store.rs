@@ -1,10 +1,10 @@
 //! Only after a complete SQLite and Canonical validation is a board returned.
+use crate::gerber_evidence::{GerberDrillEvidence, EXT_NAME, EXT_VERSION};
 use crate::recovery::{recover_owned_staging, StageOwner};
 use crate::{invalid, NativeError, Result};
 use crate::{read, write};
-use crate::gerber_evidence::{GerberDrillEvidence, EXT_NAME, EXT_VERSION};
-use rusqlite::params;
 use boardsi_model::BoardModel;
+use rusqlite::params;
 use rusqlite::{limits::Limit, Connection, OpenFlags};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
@@ -388,8 +388,10 @@ pub fn save_with_drill_evidence_guarded(
         }
         // Fully independent read verifies byte grammar, object graph and semantic invariants.
         let restored = load(&stage)?;
-        if restored.read_only || restored.drill_evidence.as_ref() != drill_evidence
-            || !crate::same_semantics(&restored.model, board) {
+        if restored.read_only
+            || restored.drill_evidence.as_ref() != drill_evidence
+            || !crate::same_semantics(&restored.model, board)
+        {
             return Err(invalid("native round-trip semantics mismatch"));
         }
         #[cfg(feature = "f003-qualification")]
