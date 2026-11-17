@@ -286,11 +286,9 @@ fn f008_malformed_source_frame_fails_before_qt_preview() {
 #[test]
 fn f008_altered_flash_role_or_shape_cannot_claim_positive_gerber() {
     use boardsi_model::{PadRole, PadShape, Rational};
-    let pair = boardsi_import::gerber_excellon_source::inspect_pair(
-        GERBER.as_bytes(),
-        DRILL.as_bytes(),
-    )
-    .unwrap();
+    let pair =
+        boardsi_import::gerber_excellon_source::inspect_pair(GERBER.as_bytes(), DRILL.as_bytes())
+            .unwrap();
     let mut board = into_native_canonical(GERBER.as_bytes(), DRILL.as_bytes()).unwrap();
     let evidence = GerberDrillEvidence {
         drill_sha256: pair.drill.identity.files[0].sha256,
