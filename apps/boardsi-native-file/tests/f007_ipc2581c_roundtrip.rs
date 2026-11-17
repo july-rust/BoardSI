@@ -133,7 +133,10 @@ fn native_ipc_source_exact_save_open_oracle_and_stale_guard() {
         assert_eq!(&blob[0..4], b"BSIG");
         assert_eq!(u16::from_le_bytes(blob[4..6].try_into().unwrap()), 1);
         assert_eq!(u16::from_le_bytes(blob[6..8].try_into().unwrap()), 1);
-        assert_eq!(u64::from_le_bytes(blob[12..20].try_into().unwrap()) as usize, blob.len() - 52);
+        assert_eq!(
+            u64::from_le_bytes(blob[12..20].try_into().unwrap()) as usize,
+            blob.len() - 52
+        );
         assert_eq!(&blob[20..52], Sha256::digest(&blob[52..]).as_slice());
         let body = &blob[52..];
         assert_eq!(u16::from_le_bytes(body[0..2].try_into().unwrap()), 1);
@@ -146,7 +149,10 @@ fn native_ipc_source_exact_save_open_oracle_and_stale_guard() {
         let points = (0..count)
             .map(|i| {
                 let offset = 16 + 20 * i;
-                assert_eq!(u32::from_le_bytes(body[offset..offset + 4].try_into().unwrap()), 0);
+                assert_eq!(
+                    u32::from_le_bytes(body[offset..offset + 4].try_into().unwrap()),
+                    0
+                );
                 [
                     i64::from_le_bytes(body[offset + 4..offset + 12].try_into().unwrap()),
                     i64::from_le_bytes(body[offset + 12..offset + 20].try_into().unwrap()),
