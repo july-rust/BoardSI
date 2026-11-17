@@ -165,7 +165,12 @@ class F0031NativePanel final : public QWidget {
                       row.value("plating").toString()!="UNKNOWN" ||
                       row.value("layer_span").toString()!="UNKNOWN" ||
                       row.value("alignment").toString()!="NOT_VERIFIED" ||
-                      row.value("tool_id").toInt()<=0))) {
+                      (!row.value("tool_id").isDouble() ||
+                       !std::isfinite(row.value("tool_id").toDouble()) ||
+                       std::floor(row.value("tool_id").toDouble())!=
+                           row.value("tool_id").toDouble() ||
+                       row.value("tool_id").toDouble()<1.0 ||
+                       row.value("tool_id").toDouble()>4294967295.0)))) {
                     cleanup();return false;
                 }
                 auto *circle=new QGraphicsEllipseItem(
