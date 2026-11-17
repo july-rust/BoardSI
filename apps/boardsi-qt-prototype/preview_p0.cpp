@@ -5439,9 +5439,97 @@ static int runF007NativeIpcSelftest(const QString &nativeBinary) {
     return pass?0:1;
 }
 
+
+// F_008: real Main Qt Worker + source-only copper/drill scene, no SI proof.
+static int runF008NativeGerberDrillSelftest(const QString &nativeBinary) {
+    QTemporaryDir dir;
+    if(!dir.isValid())return 2;
+    const QString gerber=dir.path()+"/top.gbr";
+    const QString drill=dir.path()+"/holes.drl";
+    const QString target=dir.path()+"/roundtrip.bsi";
+    const QString stale=dir.path()+"/stale.bsi";
+    const QByteArray G="%FSLAX36Y36*%\n%MOMM*%\n%TF.FileFunction,Copper,L1,Top*%\n%ADD10C,0.600*%\n%LPD*%\nD10*\nX012345678Y002000000D03*\nM02*\n";
+    const QByteArray D="M48\nMETRIC\nT01C0.300\n%\nT01\nX12.345678Y2.000000\nM30\n";
+    auto write=[](const QString &path,const QByteArray &data) {
+        QFile file(path);
+        return file.open(QIODevice::WriteOnly|QIODevice::Truncate) &&
+            file.write(data)==data.size() && file.flush();
+    };
+    if(!write(gerber,G) || !write(drill,D))return 2;
+    PreviewWindow window(QString(),QString(),QString(),QString(),nativeBinary);
+    window.show();
+    if(!window.importGerberDrillCandidate(gerber,drill,target))return 2;
+    int phase=0,ticks=0;
+    bool pass=false;
+    QString error;
+    QElapsedTimer elapsed;elapsed.start();
+    QEventLoop loop;QTimer timer;timer.setInterval(25);
+    QObject::connect(&timer,&QTimer::timeout,&loop,[&] {
+        ++ticks;
+        if(elapsed.elapsed()>90000) {
+            error="F008 timeout";loop.quit();return;
+        }
+        const QString status=window.nativePanel()->status();
+        if(phase!=2 && status.startsWith("FAILED")) {
+            error=status;loop.quit();return;
+        }
+        if(phase==0) {
+            if(!status.contains("COMPLETED / Native save-gerber-drill"))return;
+            auto *view=window.nativePanel()->findChild<QGraphicsView *>("f006KiCadArtwork");
+            auto *filter=window.nativePanel()->findChild<QComboBox *>("f006KiCadLayerFilter");
+            if(!view || !filter || !view->scene() || view->scene()->items().size()!=2 ||
+               filter->count()!=2 || !view->isVisible()) {
+                error="F008 artwork or layer filter not shown";loop.quit();return;
+            }
+            for(auto *item:view->scene()->items()) {
+                if(!(item->flags() & QGraphicsItem::ItemIsSelectable) ||
+                   !item->toolTip().contains("NOT_VERIFIED")) {
+                    error="F008 scene picking/source status missing";loop.quit();return;
+                }
+            }
+            filter->setCurrentIndex(1);
+            if(view->scene()->items().size()!=2 ||
+               !view->scene()->items().at(0)->isVisible() ||
+               !view->scene()->items().at(1)->isVisible()) {
+                error="F008 layer filter lost source-only drill";loop.quit();return;
+            }
+            if(!window.openNativeCandidate(target)){
+                error="F008 native reopen did not start";loop.quit();return;
+            }
+            phase=1;
+        }else if(phase==1){
+            if(!status.contains("COMPLETED / Native open"))return;
+            if(!write(drill,D.replace("0.300","0.400")) ||
+               !window.importGerberDrillCandidate(gerber,drill,stale)){
+                error="F008 stale-source check unavailable";loop.quit();return;
+            }
+            phase=2;
+        }else{
+            if(status.startsWith("COMPLETED")){
+                error="F008 stale source accepted";loop.quit();return;
+            }
+            if(!status.startsWith("FAILED"))return;
+            pass=status.contains("BSI_SOURCE_CHANGED") &&
+                QFileInfo(target).isFile() && !QFileInfo(stale).exists() &&
+                ticks>=3;
+            if(!pass)error="F008 stale check failed: "+status;
+            loop.quit();
+        }
+    });
+    timer.start();loop.exec();timer.stop();
+    qInfo().noquote()<<QJsonDocument(QJsonObject{
+        {"schema","boardsi-f008-main-gerber-drill-native-v1"},
+        {"pass",pass},{"phase",phase},{"event_loop_ticks",ticks},
+        {"error",error},{"physical_si","NOT_RUN"}
+    }).toJson(QJsonDocument::Compact);
+    return pass?0:1;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--f008-native-gerber-drill-selftest")
+        return runF008NativeGerberDrillSelftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--f007-native-ipc-selftest")
         return runF007NativeIpcSelftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--f006-native-kicad-selftest")
