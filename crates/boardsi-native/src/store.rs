@@ -335,8 +335,7 @@ pub fn save_with_drill_evidence_guarded(
     // unsupported source verification claims, future schema or corruption.
     if dest.exists() {
         let existing = load(dest)?;
-        if existing.read_only ||
-            (existing.drill_evidence.is_some() && drill_evidence.is_none()) {
+        if existing.read_only || (existing.drill_evidence.is_some() && drill_evidence.is_none()) {
             // Never overwrite a Gerber+Drill native file with a model that
             // cannot preserve its required unverified manufacturing evidence.
             return Err(NativeError::UnsupportedRequired);
