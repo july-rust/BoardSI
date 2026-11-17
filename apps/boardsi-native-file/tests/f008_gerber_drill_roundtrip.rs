@@ -234,3 +234,26 @@ fn f008_corrupt_required_extension_fails_closed() {
     drop(conn);
     assert!(load(&b).is_err());
 }
+
+#[test]
+fn f008_malformed_source_frame_fails_before_qt_preview() {
+    let dir = TempDir::new();
+    let g = dir.0.join("top.gbr");
+    let d = dir.0.join("drill.drl");
+    let b = dir.0.join("native.bsi");
+    fs::write(&g, GERBER).unwrap();
+    fs::write(&d, DRILL).unwrap();
+    let gs = hex(GERBER.as_bytes());
+    let ds = hex(DRILL.as_bytes());
+    assert!(invoke(&[
+        "save-gerber-drill", g.to_str().unwrap(), d.to_str().unwrap(),
+        b.to_str().unwrap(), &gs, &ds
+    ]).status.success());
+    let conn = Connection::open(&b).unwrap();
+    conn.execute("UPDATE coordinate_frames SET quarter_turn=1", []).unwrap();
+    drop(conn);
+    // A structurally valid rotated frame cannot be rendered as raw nm XY.
+    assert!(load(&b).is_err());
+    let opened = invoke(&["open", b.to_str().unwrap()]);
+    assert!(!opened.status.success());
+}
