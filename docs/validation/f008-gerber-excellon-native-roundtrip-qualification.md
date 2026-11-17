@@ -1,6 +1,6 @@
 # F_008 — Gerber X2 + Excellon Source Evidence → Native `.bsi` → Main Qt
 
-**Evidence date: 2026-11-17 KST. Status: implementation protected Squash-merged; exact merged-`main` Push CI verification pending.** This document is the F_008 single validation ledger, not evidence of full fabrication, global connectivity, or SI acceptance.
+**First completion/evidence date: 2026-11-17 KST. Status: F_008 `100% COMPLETE` (defined Gerber X2 D03 flash + Excellon source-evidence subset only), including exact-final-HEAD independent Codex re-review, protected Squash merges, and verified post-merge `main` CI.** This document is the F_008 single validation ledger, not evidence of full fabrication, global connectivity, or SI acceptance.
 
 ## Strict source-only contract
 
@@ -19,14 +19,17 @@
 | T08–T09 | Mutation, malformed input, required-extension corruption and source guards | PR CI PASS (covered cases) |
 | T10 | Actual Main Qt artwork, picking/filter, save/open and failure propagation | PR Qt CI PASS (four OS jobs) |
 | T11 | Linux x64, Windows x64/ARM64 and macOS ARM64 native/Qt | PR CI PASS (four OS) |
-| T12 | Prior F stages, protected merge and exact main Push CI | Protected merge PASS; main Push CI **pending independent verification** |
+| T12 | Prior F stages, protected merge and exact `main` Push CI | **PASS** — implementation PR 15/15, merged final `main` 12/12 workflows SUCCESS; 28 jobs SUCCESS and 16 intentional docs-only SKIP; real F003/F004/SQLite cross-OS checks PASS |
 
 ## Immutable implementation evidence
 
 - [Implementation PR #668](https://github.com/july-rust/BoardSI/pull/668): final reviewed code HEAD `85d546282bf66094d44dbe48e5434f75ed3d6615`, **15/15 PR-triggered workflows SUCCESS**.
-- Three independent Codex findings were addressed and all three inline review threads resolved. **Final exact-HEAD Codex re-review is NOT_VERIFIED**: subsequent `@codex review` requests returned quota errors, not a successful independent re-review. Preserve those failures; previous successful reviews do not prove a clean review of the final HEAD.
-- [Protected Squash merge `8a45d5ce641029651509026390db651990225fb0`](https://github.com/july-rust/BoardSI/commit/8a45d5ce641029651509026390db651990225fb0): GitHub reported `merged=true` for PR #668 with expected HEAD precondition. **Cryptographic signature verification field remains unobserved** unless separately fetched.
-- Exact merged-`main` Push-triggered workflow runs were observed to be queued/in progress on 2026-11-17 KST. Do not declare their success without checking each completed conclusion on the exact merge SHA.
+- **Final exact-HEAD independent Codex re-review COMPLETED (2026-11-17 02:43:43 UTC)**: [Codex review receipt](https://github.com/july-rust/BoardSI/pull/668#issuecomment-6936389372) explicitly names `85d546282b`; the [machine-readable review summary](https://github.com/july-rust/BoardSI/pull/668#issuecomment-6935113160) records `code_review.commit_sha=85d546282bf66094d44dbe48e5434f75ed3d6615`, `status=completed`, `has_any_findings=false`, `has_unresolved_findings=false`. Original 3 P1/P2 findings were fixed, all 3 inline review threads resolved. Earlier separate quota-exhaustion messages were real historical attempts **before the later successful completed review**; retain them as history, not as the current F_008 gate state.
+- [Protected Squash merge `8a45d5ce641029651509026390db651990225fb0`](https://github.com/july-rust/BoardSI/commit/8a45d5ce641029651509026390db651990225fb0): GitHub reported `merged=true` for PR #668 with expected HEAD precondition; REST commit verification reported `verified=true`, `reason=valid`, exactly one parent.
+- [Documentation reconciliation PR #669](https://github.com/july-rust/BoardSI/pull/669): **12/12 PR workflows SUCCESS**; protected, signed Verified Squash merged as [`3d749b11c6f7124bc7c03d71efb7a51f3a5ff8af`](https://github.com/july-rust/BoardSI/commit/3d749b11c6f7124bc7c03d71efb7a51f3a5ff8af), exactly one parent.
+- **Exact post-merge `main` Push** for `3d749b11c6f7124bc7c03d71efb7a51f3a5ff8af`: **12/12 workflows SUCCESS**, **28 job successes**, **16 intentional docs-only skips**, **0 failures** ([F003 native](https://github.com/july-rust/BoardSI/actions/runs/44006022537), [F004 compatibility](https://github.com/july-rust/BoardSI/actions/runs/44006022599), [F003 resilience](https://github.com/july-rust/BoardSI/actions/runs/44006022705), [Qt runtime](https://github.com/july-rust/BoardSI/actions/runs/44006022635), [Numerical](https://github.com/july-rust/BoardSI/actions/runs/44006022766), [PR #669 final receipt](https://github.com/july-rust/BoardSI/pull/669#issuecomment-6936625253)).
+- The **actual four-OS Qt and source tests** were exercised on F_008 code PR #668 final exact HEAD; docs-only `main` Push intentionally skipped four Qt runtime jobs and does **not** count as a second four-OS execution. Earlier code merge `8a45d5ce` Push ended with 10 successful workflows and 2 cancelled when the later docs merge took precedence; the latest final `main` pass and the exact source PR pass are the authoritative bounded acceptance evidence.
+- **F_008 closure = T01–T12 (12/12 PASS), supported source-only scope.** No inference of independent vendor PCB, electrical plated-via connectivity, multi-layer production data, actual material stackup, RLGC/S-parameters or formal product U/T acceptance.
 
 ## Reproduction
 
