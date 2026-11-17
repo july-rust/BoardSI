@@ -338,10 +338,10 @@ fn run() -> Result<Value, String> {
             // A bounded-source file that cannot be represented in the 64 KiB
             // QProcess receipt must never produce a successful file write
             // followed by a misleading worker failure.
-            let preview = source_preview(&board)?
-                .ok_or_else(|| fail("BSI_IPC2581_PREVIEW_UNAVAILABLE"))?;
-            let preview_bytes = serde_json::to_vec(&preview)
-                .map_err(|_| fail("BSI_IPC2581_PREVIEW_ENCODING"))?;
+            let preview =
+                source_preview(&board)?.ok_or_else(|| fail("BSI_IPC2581_PREVIEW_UNAVAILABLE"))?;
+            let preview_bytes =
+                serde_json::to_vec(&preview).map_err(|_| fail("BSI_IPC2581_PREVIEW_ENCODING"))?;
             if preview_bytes.len() > 48 * 1024 {
                 return Err(fail("BSI_IPC2581_PREVIEW_SIZE"));
             }
