@@ -5298,7 +5298,7 @@ static int runF007NativeIpcSelftest(const QString &nativeBinary) {
 <Ecad><CadHeader units="MILLIMETER"/><CadData>
 <Layer name="TOP" layerFunction="SIGNAL" side="TOP" polarity="POSITIVE"/>
 <Layer name="BOTTOM" layerFunction="SIGNAL" side="BOTTOM" polarity="POSITIVE"/>
-<Step name="BOARD"><LogicalNet name="CLK"><PinRef componentRef="U1" pin="1"/></LogicalNet>
+<Step name="BOARD"><Datum x="0" y="0"/><LogicalNet name="CLK"><PinRef componentRef="U1" pin="1"/></LogicalNet>
 <LayerFeature layerRef="TOP"><Set net="CLK">
 <Features><Line startX="1.123456" startY="-2" endX="3" endY="5">
 <LineDesc lineEnd="ROUND" lineWidth="0.15"/></Line></Features>
