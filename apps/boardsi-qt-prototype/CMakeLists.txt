@@ -151,6 +151,12 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
     set_tests_properties(qt-f009-pads-native-artwork-replay PROPERTIES
       TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    add_test(NAME qt-f009-pads-single-copper-native-replay
+      COMMAND boardsi-preview-p0 --f0031-native-selftest
+        "${BOARDSI_NATIVE_FILE_WORKER}" "${BOARDSI_CANONICAL_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/f009_pads_one_copper_layer.asc")
+    set_tests_properties(qt-f009-pads-single-copper-native-replay PROPERTIES
+      TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
   if(BOARDSI_NATIVE_FILE_WORKER AND BOARDSI_ODB_QT_IMPORTER)
     add_test(NAME qt-f005-main-odb-native-roundtrip
