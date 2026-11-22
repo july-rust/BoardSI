@@ -99,7 +99,7 @@ pub(crate) fn render(board: &BoardModel) -> Result<(&'static str, Value), &'stat
         .filter(|l| l.kind == LayerKind::Copper)
         .collect::<Vec<_>>();
     layers.sort_by_key(|l| l.order);
-    if layers.is_empty() || layers.len() > MAX_LAYERS {
+    if layers.len() < 2 || layers.len() > MAX_LAYERS {
         return Err("BSI_F009_LAYER_LIMIT");
     }
     if layers
