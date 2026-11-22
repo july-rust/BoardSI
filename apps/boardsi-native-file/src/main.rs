@@ -1,6 +1,7 @@
-mod f009_native_artwork;
 //! F_003_1 local native file worker. One job per process; bounded JSON receipt.
 //! Never use this binary for physical connectivity, geometry display or SI claims.
+mod f009_native_artwork;
+
 use boardsi_native::{
     canonical_semantics_equal, load, migrate_to_current, recover_owned_staging, save, save_guarded,
     save_with_drill_evidence_guarded, DrillObservation, GerberDrillEvidence, NativeError,
