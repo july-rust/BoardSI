@@ -395,7 +395,7 @@ fn f009_one_layer_native_file_loadable_but_artwork_not_rendered() {
     let scratch = temp();
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../crates/boardsi-import/tests/fixtures/f009_pads_one_copper_layer.asc");
-    let bytes = fs::read(&fixture).unwrap();
+    let bytes = fs::read(fixture).unwrap();
     let parsed = route_preview::parse_generalized(&bytes).unwrap();
     let board = route_preview::into_canonical(&bytes, &parsed).unwrap();
     assert!(!board.validate().has_errors());
