@@ -4937,8 +4937,21 @@ static int runF0031NativeSelftest(const QString &nativeBinary,
         if(phase==2) {
             auto *scene=window.nativePanel()->findChild<QGraphicsView *>("f006KiCadArtwork");
             auto *layers=window.nativePanel()->findChild<QComboBox *>("f006KiCadLayerFilter");
+            bool selectionAndFilter=false;
+            if(scene && scene->scene() && layers && scene->scene()->items().size()==3) {
+                auto *pick=scene->scene()->items().first();
+                pick->setSelected(true);
+                const bool selected=pick->isSelected();
+                layers->setCurrentIndex(1);
+                int visible=0;
+                for(auto *item:scene->scene()->items())
+                    if(item->isVisible()) ++visible;
+                layers->setCurrentIndex(0);
+                selectionAndFilter=selected && visible==2;
+            }
             if(window.nativePanel()->loadedPath()!=original ||
                !window.nativePanel()->status().contains("open") ||
+               !selectionAndFilter ||
                !scene || !scene->scene() || scene->scene()->items().size()!=3 ||
                !layers || layers->count()!=5 ||
                !window.nativePanel()->findChild<QPlainTextEdit *>("f0031NativeSummary")
@@ -5186,14 +5199,25 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
             auto *view=window.nativePanel()->findChild<QGraphicsView *>("f006KiCadArtwork");
             auto *layers=window.nativePanel()->findChild<QComboBox *>("f006KiCadLayerFilter");
             int rectangles=0;
-            if(view && view->scene()) {
+            bool selectionAndFilter=false;
+            if(view && view->scene() && layers) {
                 for(auto *item:view->scene()->items())
                     if(item->type()==QGraphicsRectItem::Type) ++rectangles;
+                auto *pick=view->scene()->items().first();
+                pick->setSelected(true);
+                const bool selected=pick->isSelected();
+                layers->setCurrentIndex(1);
+                int visible=0;
+                for(auto *item:view->scene()->items())
+                    if(item->isVisible()) ++visible;
+                layers->setCurrentIndex(0);
+                selectionAndFilter=selected && visible==2;
             }
             if(!window.nativePanel()->findChild<QPlainTextEdit *>("f0031NativeSummary")
                     ->toPlainText().contains("STRUCTURALLY LOADED") ||
                !view || !view->scene() || view->scene()->items().size()!=4 ||
-               rectangles!=2 || !layers || layers->count()!=3 ||
+               rectangles!=2 || !selectionAndFilter ||
+               !layers || layers->count()!=3 ||
                !QDir().rename(hiddenSource,root) ||
                !writeFile(first,QByteArray(feature).replace("1.5 0","1.8 0"))) {
                 failure="native ODB Artwork/Layer or source restore failed";loop.quit();return;
