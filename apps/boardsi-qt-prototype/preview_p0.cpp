@@ -4880,9 +4880,13 @@ static int runF0031NativeSelftest(const QString &nativeBinary,
     if(!damaged.open(QIODevice::WriteOnly) ||
        damaged.write("not a SQLite native design")<=0) return 2;
     damaged.close();
+    // F_009: source disappears after Native Save; subsequent Open must be
+    // exclusively driven by .bsi Reader, never by the original CAD file.
+    const QString localSource=directory.path()+"/import-source.asc";
+    if(!QFile::copy(source,localSource))return 2;
     PreviewWindow window(QString(),QString(),QString(),canonicalBinary,nativeBinary);
     window.show();
-    if(!window.openCanonicalCandidate(source)) return 2;
+    if(!window.openCanonicalCandidate(localSource)) return 2;
     QEventLoop loop;
     QTimer tick;
     tick.setInterval(30);
@@ -4923,17 +4927,24 @@ static int runF0031NativeSelftest(const QString &nativeBinary,
         }
         if(!st.startsWith("COMPLETED")) return;
         if(phase==1) {
-            if(!QFileInfo(original).isFile() || !window.openNativeCandidate(original)) {
-                failure="native file missing or main Open rejected";
+            if(!QFileInfo(original).isFile() || !QFile::remove(localSource) ||
+               !window.openNativeCandidate(original)) {
+                failure="native file missing or source-independent Open rejected";
                 loop.quit();return;
             }
             phase=2;return;
         }
         if(phase==2) {
+            auto *scene=window.nativePanel()->findChild<QGraphicsView *>("f006KiCadArtwork");
+            auto *layers=window.nativePanel()->findChild<QComboBox *>("f006KiCadLayerFilter");
             if(window.nativePanel()->loadedPath()!=original ||
                !window.nativePanel()->status().contains("open") ||
+               !scene || !scene->scene() || scene->scene()->items().size()!=3 ||
+               !layers || layers->count()!=5 ||
+               !window.nativePanel()->findChild<QPlainTextEdit *>("f0031NativeSummary")
+                      ->toPlainText().contains("SOURCE artwork") ||
                !window.copyNativeCandidate(copy)) {
-                failure="native Open receipt or Save As rejected";
+                failure="PADS native artwork/Layer/Save As rejected";
                 loop.quit();return;
             }
             phase=3;return;
@@ -4946,10 +4957,12 @@ static int runF0031NativeSelftest(const QString &nativeBinary,
             phase=4;return;
         }
         if(phase==5) {
+            auto *view=window.nativePanel()->findChild<QGraphicsView *>("f006KiCadArtwork");
             success=window.nativePanel()->loadedPath()==copy &&
                     window.nativePanel()->status().contains("open") &&
                     window.nativePanel()->findChild<QPlainTextEdit *>("f0031NativeSummary")
                         ->toPlainText().contains("STRUCTURALLY LOADED") &&
+                    view && view->scene() && view->scene()->items().size()==3 &&
                     eventTicks>4;
             if(!success)failure="native receipt/event-loop/reload mismatch";
             loop.quit();
@@ -5121,6 +5134,7 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
        !writeFile(root+"/steps/pcb/layers/sig2/features",feature)) return 2;
     const QString target=temp.path()+"/roundtrip.bsi";
     const QString stale=temp.path()+"/must-not-create.bsi";
+    const QString hiddenSource=temp.path()+"/odb-source-unavailable";
     PreviewWindow window(QString(),QString(),QString(),odbBinary,nativeBinary);
     window.importPanel()->setOdbImporterBinaryForTest(odbBinary);
     window.show();
@@ -5157,8 +5171,10 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
                 failure="ODB Native save failed: "+status;loop.quit();return;
             }
             if(!status.contains("COMPLETED / Native save-odb")) return;
-            if(!QFileInfo(target).isFile() || !window.openNativeCandidate(target)) {
-                failure="native ODB file missing or Open rejected";loop.quit();return;
+            if(!QFileInfo(target).isFile() ||
+               !QDir().rename(root,hiddenSource) ||
+               !window.openNativeCandidate(target)) {
+                failure="source-free native ODB Open rejected";loop.quit();return;
             }
             phase=2;return;
         }
@@ -5167,10 +5183,20 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
                 failure="native ODB Open failed: "+status;loop.quit();return;
             }
             if(!status.contains("COMPLETED / Native open")) return;
+            auto *view=window.nativePanel()->findChild<QGraphicsView *>("f006KiCadArtwork");
+            auto *layers=window.nativePanel()->findChild<QComboBox *>("f006KiCadLayerFilter");
+            int rectangles=0;
+            if(view && view->scene()) {
+                for(auto *item:view->scene()->items())
+                    if(item->type()==QGraphicsRectItem::Type) ++rectangles;
+            }
             if(!window.nativePanel()->findChild<QPlainTextEdit *>("f0031NativeSummary")
                     ->toPlainText().contains("STRUCTURALLY LOADED") ||
+               !view || !view->scene() || view->scene()->items().size()!=4 ||
+               rectangles!=2 || !layers || layers->count()!=3 ||
+               !QDir().rename(hiddenSource,root) ||
                !writeFile(first,QByteArray(feature).replace("1.5 0","1.8 0"))) {
-                failure="native ODB receipt or source mutation failed";loop.quit();return;
+                failure="native ODB Artwork/Layer or source restore failed";loop.quit();return;
             }
             window.nativePanel()->forget();
             if(!window.saveNativeCandidate(stale)) {
