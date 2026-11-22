@@ -43,7 +43,10 @@ fn point_nm(board: &BoardModel, point: &Point) -> Result<[i64; 2], &'static str>
             Rational::new(1, 1_000_000_000).map_err(|_| "BSI_F009_FRAME")?,
         )
         .map_err(|_| "BSI_F009_FRAME_UNREPRESENTABLE")?;
-    if coords.iter().any(|n| *n < -MAX_COORD_NM || *n > MAX_COORD_NM) {
+    if coords
+        .iter()
+        .any(|n| *n < -MAX_COORD_NM || *n > MAX_COORD_NM)
+    {
         return Err("BSI_F009_COORD_LIMIT");
     }
     Ok(coords)
@@ -102,9 +105,7 @@ pub(crate) fn render(board: &BoardModel) -> Result<(&'static str, Value), &'stat
     if layers
         .iter()
         .any(|l| l.name.is_empty() || l.name == "*" || l.name == "All copper layers")
-        || layers
-            .windows(2)
-            .any(|pair| pair[0].name == pair[1].name)
+        || layers.windows(2).any(|pair| pair[0].name == pair[1].name)
     {
         return Err("BSI_F009_LAYER_NAME");
     }
