@@ -1,3 +1,4 @@
+mod f009_native_artwork;
 //! F_003_1 local native file worker. One job per process; bounded JSON receipt.
 //! Never use this binary for physical connectivity, geometry display or SI claims.
 use boardsi_native::{
@@ -281,6 +282,33 @@ fn receipt(action: &str, path: &Path, read_only: bool) -> Result<Value, String> 
         response["source_format"] = json!("GERBER_X2_EXCELLON_SOURCE_SUBSET");
         response["artwork"] = preview;
         response["drill_observations"] = json!(evidence.holes.len());
+    } else if b.sources.len() == 1
+        && matches!(
+            b.sources[0].id.format,
+            boardsi_model::SourceFormat::PadsAsc | boardsi_model::SourceFormat::Odb
+        )
+    {
+        let source_format = match b.sources[0].id.format {
+            boardsi_model::SourceFormat::PadsAsc => "PADS_V94_SOURCE_SUBSET",
+            _ => "ODB_SOURCE_SUBSET",
+        };
+        response["source_format"] = json!(source_format);
+        match f009_native_artwork::render(b) {
+            Ok((qualified_format, preview)) if qualified_format == source_format => {
+                response["artwork"] = preview;
+                response["artwork_status"] = json!("RENDERABLE");
+            }
+            Ok(_) => {
+                response["artwork_status"] = json!("NOT_RENDERED");
+                response["artwork_reason"] = json!("BSI_F009_SOURCE_FORMAT_MISMATCH");
+            }
+            Err(reason) => {
+                // A valid .bsi remains structurally loadable even when the
+                // bounded Qt representation cannot render every CAD primitive.
+                response["artwork_status"] = json!("NOT_RENDERED");
+                response["artwork_reason"] = json!(reason);
+            }
+        }
     } else if let Some(preview) = source_preview(b)? {
         let source_format = if preview["schema"] == "BSI_IPC2581_SOURCE_PREVIEW_V1" {
             "IPC2581C_SOURCE_SUBSET"
