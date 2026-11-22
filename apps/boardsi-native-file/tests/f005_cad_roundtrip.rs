@@ -339,13 +339,21 @@ fn f005_pads_source_and_native_reader_semantics_are_identical() {
     let reopened = ok(run(&[std::ffi::OsStr::new("open"), target.as_os_str()]));
     assert_eq!(reopened["source_format"], "PADS_V94_SOURCE_SUBSET");
     assert_eq!(reopened["artwork_status"], "RENDERABLE");
-    assert_eq!(reopened["artwork"]["schema"], "BSI_F009_NATIVE_CAD_PREVIEW_V1");
+    assert_eq!(
+        reopened["artwork"]["schema"],
+        "BSI_F009_NATIVE_CAD_PREVIEW_V1"
+    );
     assert_eq!(reopened["artwork"]["solver_ready"], false);
-    assert_eq!(reopened["artwork"]["items"].as_array().unwrap().len(),
-               canonical.traces.len()+canonical.vias.len());
+    assert_eq!(
+        reopened["artwork"]["items"].as_array().unwrap().len(),
+        canonical.traces.len() + canonical.vias.len()
+    );
     assert_eq!(reopened["artwork"]["layers"].as_array().unwrap().len(), 4);
-    assert!(reopened["artwork"]["items"].as_array().unwrap().iter()
-           .any(|x| x["kind"]=="via" && x["contact"]=="NOT_VERIFIED"));
+    assert!(reopened["artwork"]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|x| x["kind"] == "via" && x["contact"] == "NOT_VERIFIED"));
     fs::remove_dir_all(temp).unwrap();
 }
 
