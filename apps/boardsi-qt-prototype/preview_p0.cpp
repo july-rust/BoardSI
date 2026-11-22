@@ -4940,8 +4940,17 @@ static int runF0031NativeSelftest(const QString &nativeBinary,
             auto *scene=window.nativePanel()->findChild<QGraphicsView *>("f006KiCadArtwork");
             auto *layers=window.nativePanel()->findChild<QComboBox *>("f006KiCadLayerFilter");
             bool selectionAndFilter=false;
+            bool sourceOrientation=false;
             if(scene && scene->scene() && layers &&
                scene->scene()->items().size()==expectedItems) {
+                for(auto *item:scene->scene()->items()) {
+                    if(item->type()==QGraphicsLineItem::Type) {
+                        const QLineF line=static_cast<QGraphicsLineItem *>(item)->line();
+                        if(std::abs(line.y1()+0.0508)<1.0e-9 &&
+                           std::abs(line.y2()+0.0508)<1.0e-9)
+                            sourceOrientation=true;
+                    }
+                }
                 auto *pick=scene->scene()->items().first();
                 pick->setSelected(true);
                 const bool selected=pick->isSelected();
@@ -4967,7 +4976,7 @@ static int runF0031NativeSelftest(const QString &nativeBinary,
             }
             if(window.nativePanel()->loadedPath()!=original ||
                !window.nativePanel()->status().contains("open") ||
-               !selectionAndFilter ||
+               !selectionAndFilter || !sourceOrientation ||
                !scene || !scene->scene() || scene->scene()->items().size()!=expectedItems ||
                !layers || layers->count()!=expectedFilterItems ||
                !window.nativePanel()->findChild<QPlainTextEdit *>("f0031NativeSummary")
@@ -5151,8 +5160,10 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
         "STEP {\nCOL=1\nNAME=pcb\n}\n"
         "LAYER {\nROW=1\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=sig1\nPOLARITY=POSITIVE\n}\n"
         "LAYER {\nROW=2\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=sig2\nPOLARITY=POSITIVE\n}\n";
+    // Deliberately asymmetric Y: compare Native replay against the
+    // existing ODB source-to-Qt convention (positive board Y => negative Qt Y).
     const QByteArray feature="UNITS=MM\nF 2\n$0 r100\n$1 rect200x100 M\n"
-                             "L 0 0 1.5 0 0 P 0\nP 1.5 0 1 P 0 0\n";
+                             "L 0 0 1.5 0.75 0 P 0\nP 1.5 0.75 1 P 0 0\n";
     const auto writeFile=[](const QString &path,const QByteArray &bytes) {
         QFile f(path);
         return f.open(QIODevice::WriteOnly|QIODevice::Truncate) &&
@@ -5217,9 +5228,19 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
             auto *layers=window.nativePanel()->findChild<QComboBox *>("f006KiCadLayerFilter");
             int rectangles=0;
             bool selectionAndFilter=false;
+            bool sourceOrientation=false;
             if(view && view->scene() && layers && !view->scene()->items().isEmpty()) {
-                for(auto *item:view->scene()->items())
+                for(auto *item:view->scene()->items()) {
                     if(item->type()==QGraphicsRectItem::Type) ++rectangles;
+                    if(item->type()==QGraphicsLineItem::Type) {
+                        const QLineF line=static_cast<QGraphicsLineItem *>(item)->line();
+                        if(std::abs(line.p1().x())<1.0e-9 &&
+                           std::abs(line.p1().y())<1.0e-9 &&
+                           std::abs(line.p2().x()-1.5)<1.0e-9 &&
+                           std::abs(line.p2().y()+0.75)<1.0e-9)
+                            sourceOrientation=true;
+                    }
+                }
                 auto *pick=view->scene()->items().first();
                 pick->setSelected(true);
                 const bool selected=pick->isSelected();
@@ -5233,7 +5254,7 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
             if(!window.nativePanel()->findChild<QPlainTextEdit *>("f0031NativeSummary")
                     ->toPlainText().contains("STRUCTURALLY LOADED") ||
                !view || !view->scene() || view->scene()->items().size()!=4 ||
-               rectangles!=2 || !selectionAndFilter ||
+               rectangles!=2 || !selectionAndFilter || !sourceOrientation ||
                !layers || layers->count()!=3 ||
                !QDir().rename(hiddenSource,root) ||
                !writeFile(first,QByteArray(feature).replace("1.5 0","1.8 0"))) {
