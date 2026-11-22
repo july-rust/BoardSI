@@ -252,6 +252,33 @@ fn f005_odb_actual_worker_exact_round_trip_and_independent_source_oracle() {
     fs::remove_dir_all(temp).unwrap();
 }
 #[test]
+fn f009_unrenderable_but_valid_native_file_stays_structurally_loaded() {
+    use boardsi_model::{Orientation, QuarterTurn};
+    let scratch = temp();
+    let root = scratch.join("odb");
+    seed(&root);
+    let mut model = odb_source::import_directory(&root, "pcb").unwrap();
+    model.pads[0].orientation = Orientation::Orthogonal {
+        turn: QuarterTurn::One,
+        mirror_x: false,
+    };
+    let native = scratch.join("valid-rotated-pad.bsi");
+    boardsi_native::save(&native, &model).unwrap();
+    fs::remove_dir_all(root).unwrap();
+    let response = ok(run(&[std::ffi::OsStr::new("open"), native.as_os_str()]));
+    assert_eq!(response["action"], "open");
+    assert_eq!(response["source_format"], "ODB_SOURCE_SUBSET");
+    assert_eq!(response["artwork_status"], "NOT_RENDERED");
+    assert_eq!(response["artwork_reason"], "BSI_F009_PAD_ORIENTATION");
+    assert!(response.get("artwork").is_none());
+    assert!(canonical_semantics_equal(
+        &model,
+        load(&native).unwrap().model()
+    ));
+    fs::remove_dir_all(scratch).unwrap();
+}
+
+#[test]
 fn f005_odb_stale_manifest_bad_step_and_unsupported_feature_preserve_last_good() {
     let temp = temp();
     let root = temp.join("odb");
