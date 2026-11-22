@@ -165,9 +165,9 @@ pub(crate) fn render(board: &BoardModel) -> Result<(&'static str, Value), &'stat
         items.push(row);
     }
     for via in &board.vias {
-        if !via.connected_layers.is_empty() {
-            return Err("BSI_F009_VIA_ELECTRICAL_PROOF_UNSUPPORTED");
-        }
+        // Native models may already contain source-local connectivity evidence.
+        // Rendering the source-defined copper NEVER promotes that evidence to
+        // manufactured/verified physical contact or solver readiness.
         let stack = board
             .padstacks
             .iter()
@@ -188,6 +188,39 @@ pub(crate) fn render(board: &BoardModel) -> Result<(&'static str, Value), &'stat
         }) {
             return Err("BSI_F009_VIA_LAYER_SHAPE_UNSUPPORTED");
         }
+        let first_order = board
+            .stackup
+            .layers
+            .iter()
+            .find(|l| l.meta.id == via.span.first_layer)
+            .ok_or("BSI_F009_VIA_SPAN_LAYER")?
+            .order;
+        let last_order = board
+            .stackup
+            .layers
+            .iter()
+            .find(|l| l.meta.id == via.span.last_layer)
+            .ok_or("BSI_F009_VIA_SPAN_LAYER")?
+            .order;
+        if first_order > last_order {
+            return Err("BSI_F009_VIA_SPAN_ORDER");
+        }
+        let mut pad_layers = Vec::new();
+        for entry in &stack.entries {
+            let layer = board
+                .stackup
+                .layers
+                .iter()
+                .find(|l| l.meta.id == entry.layer && l.kind == LayerKind::Copper)
+                .ok_or("BSI_F009_VIA_COPPER_LAYER")?;
+            if layer.order < first_order
+                || layer.order > last_order
+                || pad_layers.contains(&layer.name.as_str())
+            {
+                return Err("BSI_F009_VIA_LAYER_INVENTORY");
+            }
+            pad_layers.push(layer.name.as_str());
+        }
         let drill = board
             .drills
             .iter()
@@ -204,7 +237,7 @@ pub(crate) fn render(board: &BoardModel) -> Result<(&'static str, Value), &'stat
             "diameter_nm": diameter, "drill_nm": drill_nm,
             "span_first": name(board, &via.span.first_layer)?,
             "span_last": name(board, &via.span.last_layer)?,
-            "contact": "NOT_VERIFIED"
+            "pad_layers": pad_layers, "contact": "NOT_VERIFIED"
         }));
     }
     let layers = layers
