@@ -5200,7 +5200,7 @@ static int runF005NativeOdbSelftest(const QString &odbBinary,const QString &nati
             auto *layers=window.nativePanel()->findChild<QComboBox *>("f006KiCadLayerFilter");
             int rectangles=0;
             bool selectionAndFilter=false;
-            if(view && view->scene() && layers) {
+            if(view && view->scene() && layers && !view->scene()->items().isEmpty()) {
                 for(auto *item:view->scene()->items())
                     if(item->type()==QGraphicsRectItem::Type) ++rectangles;
                 auto *pick=view->scene()->items().first();
