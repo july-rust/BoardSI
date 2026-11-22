@@ -43,7 +43,7 @@ fn point_nm(board: &BoardModel, point: &Point) -> Result<[i64; 2], &'static str>
             Rational::new(1, 1_000_000_000).map_err(|_| "BSI_F009_FRAME")?,
         )
         .map_err(|_| "BSI_F009_FRAME_UNREPRESENTABLE")?;
-    if coords.iter().any(|n| n.abs() > MAX_COORD_NM) {
+    if coords.iter().any(|n| *n < -MAX_COORD_NM || *n > MAX_COORD_NM) {
         return Err("BSI_F009_COORD_LIMIT");
     }
     Ok(coords)
