@@ -1,6 +1,6 @@
 # F_009 — PADS/ODB++ Native `.bsi` Source-Free Artwork Replay
 
-**Implementation and PR acceptance: COMPLETE · 2026-11-23 KST. Stage final acceptance: PENDING exact merged-`main` Push CI receipt.** The F_009 result applies only to the explicitly supported F_005 PADS V9.4 / ODB++ Native Artwork subset, not to full fabrication, connectivity or SI qualification.
+**First confirmed completion/evidence date: 2026-11-23 KST. Status: F_009 `100% COMPLETE` (strict F_005-supported PADS V9.4 / bounded ODB++ Native Artwork scope only).** Implementation, final-HEAD independent Codex, protected Verified Squash merges, and exact final merged-`main` Push CI have all been observed. The F_009 result applies only to the explicitly supported F_005 PADS V9.4 / ODB++ Native Artwork subset, not to full fabrication, connectivity or SI qualification.
 
 ## Immutable contract and delivered capability
 
@@ -26,7 +26,7 @@
 | T09 | Native Save As and reopened Artwork after source removal | **PR Rust/Qt PASS** |
 | T10 | Existing Worker kill/cancel/timeout/stale-response and Qt responsiveness | **PR F003 Resilience/Qt PASS** |
 | T11 | Linux x64, Windows x64, Windows ARM64, macOS ARM64 Native + actual Qt | **PR 4-OS PASS** |
-| T12 | Previous F_001–F_008 regressions, exact-HEAD Codex, protected Squash and merged-`main` Push | **PR/Review/Merge PASS; post-`main` Push NOT_VERIFIED** |
+| T12 | Previous F_001–F_008 regressions, exact-HEAD Codex, protected Squash and merged-`main` Push | **PASS — PR/Review/Verified Squash and final `main` Push 12/12 SUCCESS** |
 
 This is the F_009 **local subset** ledger, not a product-wide U01–U48/T01–T54 completion claim.
 
@@ -35,10 +35,14 @@ This is the F_009 **local subset** ledger, not a product-wide U01–U48/T01–T5
 - [Implementation PR #671](https://github.com/july-rust/BoardSI/pull/671): final implementation HEAD `922a2d74a8202a83cbce49c0ddf149e2eea6448b`, **14/14 PR workflows SUCCESS**; zero failed/cancelled/pending.
 - Exact-final-HEAD independent Codex review: `status=completed`, `commit_sha=922a2d74a8202a83cbce49c0ddf149e2eea6448b`, `has_any_findings=false`, `has_unresolved_findings=false`; all historical review threads resolved.
 - [Qt runtime](https://github.com/july-rust/BoardSI/actions/runs/45001707265): Linux x64, native Windows x64/ARM64, native macOS ARM64 **all SUCCESS**. [Numerical core](https://github.com/july-rust/BoardSI/actions/runs/45001707398) and [F_004 compatibility](https://github.com/july-rust/BoardSI/actions/runs/45001707197): all 4-OS jobs SUCCESS. Native/FEM/Resilience and other PR workflows likewise SUCCESS.
-- [Protected Squash implementation merge](https://github.com/july-rust/BoardSI/commit/bb53860c27108dcb14016aed77818988e50230b0): `bb53860c27108dcb14016aed77818988e50230b0`, GitHub `merged=true` for PR #671, **2026-11-23 08:12 KST**. Merge-signature verification and exact merged-`main` Push CI must be independently observed before being claimed.
-- Documentation reconciliation uses a single checklist row and this ledger; no rewriting historic F_001–F_008 entries.
+- [Protected Squash implementation merge](https://github.com/july-rust/BoardSI/commit/bb53860c27108dcb14016aed77818988e50230b0): `bb53860c27108dcb14016aed77818988e50230b0`, GitHub `merged=true` for PR #671, **2026-11-23 08:12 KST**. GitHub REST commit verification `verified=true`, `reason=valid`, exactly **one parent**.
+- [Protected Squash documentation merge PR #672](https://github.com/july-rust/BoardSI/pull/672): **12/12 PR workflows SUCCESS**, final-HEAD Codex `completed`, findings 0; merged as [3be162daacc23bc80cfc9393d6dcce4c1fe94f00](https://github.com/july-rust/BoardSI/commit/3be162daacc23bc80cfc9393d6dcce4c1fe94f00). GitHub REST commit verification `verified=true`, `reason=valid`, **one parent**. Documentation reconciliation uses a single checklist row and this ledger; no rewriting historic F_001–F_008 entries.
 
-## Pending final close gate
+## Independently verified final `main` Push gate — PASS
 
-- **Exact merged-main Push workflows for `bb53860c27108dcb14016aed77818988e50230b0`: NOT_VERIFIED (none returned by commit-scoped workflow lookup when checked).**
-- **Final F_009 overall status: NOT_COMPLETE solely while the mandatory post-merge `main` receipt is unverified.** It must not be reinterpreted as failure of the verified 14/14 implementation PR checks; likewise PR checks must not be relabeled as post-merge evidence.
+- **Exact GitHub Actions `push` event, `branch=main`, `head_sha=3be162daacc23bc80cfc9393d6dcce4c1fe94f00`: 12/12 workflow runs `completed/success`**. Start **2026-11-23 08:20:10 KST**. Evidence: [official Actions runs filtered by exact SHA](https://github.com/july-rust/BoardSI/actions?query=branch%3Amain+event%3Apush) and GitHub REST `GET /repos/july-rust/BoardSI/actions/runs?head_sha=3be162daacc23bc80cfc9393d6dcce4c1fe94f00&event=push&per_page=100`; API returned `total_count=12`.
+- Across those exact 12 runs: **28 successful jobs, 16 intentional documentation-only skipped jobs, 0 failures, 0 cancellations, 0 pending**. The jobs skipped by the documentation-only classifier include additional Qt/Numerical execution; **four-OS real Qt/Numerical PASS comes from code implementation PR #671**, while F_003 Native/F_004 compatibility and F_003 Resilience independently **ran and passed all four OS on final `main`**.
+- Direct final-`main` run evidence: [F003 Native Rust](https://github.com/july-rust/BoardSI/actions/runs/45082691347), [F004 Golden Compatibility](https://github.com/july-rust/BoardSI/actions/runs/45082691461), [F003 Resilience](https://github.com/july-rust/BoardSI/actions/runs/45082691614), [Qt documentation-only classification](https://github.com/july-rust/BoardSI/actions/runs/45082691371), [Numerical documentation-only classification](https://github.com/july-rust/BoardSI/actions/runs/45082691352), [planning documents](https://github.com/july-rust/BoardSI/actions/runs/45082691368).
+- Historical exact implementation merge SHA `bb53860c` also triggered a `main` Push suite, but some workflows were cancelled by newer `main` due to Actions concurrency. **Do not mislabel those superseded historical runs as PASS**; the **later complete and green** final documentation merge SHA `3be162da` supplies the required exact merged-`main` validation.
+- **Final F_009 Stage verdict: `100% COMPLETE`, restricted supported F_005 Source-to-Native Artwork replay scope.** No manufactured contact, electrical extraction, global copper topology, formal product U/T or full CAD-dialect acceptance is inferred.
+
