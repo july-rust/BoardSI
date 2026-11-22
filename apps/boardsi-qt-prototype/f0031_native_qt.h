@@ -109,7 +109,11 @@ class F0031NativePanel final : public QWidget {
             double x=0,y=0;
             if(!number(coords.at(0),x) || !number(coords.at(1),y))
                 return false;
-            p=QPointF(x,y);return true;
+            // The Native model stores board-space Y positive upward.
+            // The existing PADS/ODB source artwork maps it to Qt screen Y
+            // negative upward. Preserve the same handedness on Native Open.
+            p=QPointF(x,schema=="BSI_F009_NATIVE_CAD_PREVIEW_V1" ? -y : y);
+            return true;
         };
         // Build off-scene first, so a malformed item cannot publish a partial
         // artwork. The QGraphicsScene takes item ownership only on success.
