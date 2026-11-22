@@ -380,8 +380,37 @@ fn f005_pads_source_and_native_reader_semantics_are_identical() {
         .as_array()
         .unwrap()
         .iter()
-        .any(|x| x["kind"] == "via" && x["contact"] == "NOT_VERIFIED"));
+        .any(|x| x["kind"] == "via"
+            && x["contact"] == "NOT_VERIFIED"
+            && x["pad_layers"] == serde_json::json!(["Top", "Bottom"])
+            && x["solver_ready"].is_null()));
     fs::remove_dir_all(temp).unwrap();
+}
+
+#[test]
+fn f009_single_copper_layer_pads_source_free_reopen() {
+    let scratch = temp();
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../crates/boardsi-import/tests/fixtures/f009_pads_one_copper_layer.asc");
+    let source = scratch.join("single-source.asc");
+    fs::copy(fixture, &source).unwrap();
+    let expected = hex(&Sha256::digest(fs::read(&source).unwrap()));
+    let target = scratch.join("single.bsi");
+    let saved = ok(run(&[
+        std::ffi::OsStr::new("save-pads"),
+        source.as_os_str(),
+        target.as_os_str(),
+        std::ffi::OsStr::new(&expected),
+    ]));
+    assert_eq!(saved["source_format"], "PADS_V94_SOURCE_SUBSET");
+    fs::remove_file(source).unwrap();
+    let reopened = ok(run(&[std::ffi::OsStr::new("open"), target.as_os_str()]));
+    assert_eq!(reopened["artwork_status"], "RENDERABLE");
+    assert_eq!(reopened["artwork"]["layers"].as_array().unwrap().len(), 1);
+    assert_eq!(reopened["artwork"]["items"].as_array().unwrap().len(), 2);
+    assert_eq!(reopened["artwork"]["solver_ready"], false);
+    assert_eq!(reopened["physical_si"], "NOT_RUN");
+    fs::remove_dir_all(scratch).unwrap();
 }
 
 #[test]
