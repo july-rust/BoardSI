@@ -654,10 +654,49 @@ fn run() -> Result<Value, String> {
         _ => Err(fail("BSI_FILE_USAGE")),
     }
 }
+/// Check the *entire* serialized worker receipt at the final publish boundary,
+/// after action-specific fields were added. Qt bounds stdout at 65,536 bytes.
+/// Native structural load must still succeed when derived preview is too big.
+fn bound_f009_receipt(mut value: Value) -> Value {
+    let is_f009 = matches!(
+        value["source_format"].as_str(),
+        Some("PADS_V94_SOURCE_SUBSET" | "ODB_SOURCE_SUBSET")
+    ) && value["artwork_status"] == "RENDERABLE";
+    if is_f009 && value.to_string().len() >= 60_000 {
+        if let Some(map) = value.as_object_mut() {
+            map.remove("artwork");
+        }
+        value["artwork_status"] = json!("NOT_RENDERED");
+        value["artwork_reason"] = json!("BSI_F009_PREVIEW_OUTPUT_LIMIT");
+    }
+    value
+}
+
+#[cfg(test)]
+mod f009_receipt_tests {
+    use super::*;
+    #[test]
+    fn bounded_worker_output_preserves_valid_structural_open() {
+        let oversized = json!({
+            "protocol": "BSI_NATIVE_FILE_V1", "action": "open",
+            "source_format": "ODB_SOURCE_SUBSET", "artwork_status": "RENDERABLE",
+            "geometry_only": true, "physical_si": "NOT_RUN",
+            "artwork": {"items": "x".repeat(70_000)}
+        });
+        let bounded = bound_f009_receipt(oversized);
+        assert_eq!(bounded["action"], "open");
+        assert_eq!(bounded["geometry_only"], true);
+        assert_eq!(bounded["artwork_status"], "NOT_RENDERED");
+        assert_eq!(bounded["artwork_reason"], "BSI_F009_PREVIEW_OUTPUT_LIMIT");
+        assert!(bounded.get("artwork").is_none());
+        assert!(bounded.to_string().len() < 60_000);
+    }
+}
+
 fn main() -> ExitCode {
     match run() {
         Ok(value) => {
-            println!("{}", value);
+            println!("{}", bound_f009_receipt(value));
             ExitCode::SUCCESS
         }
         Err(code) => {
