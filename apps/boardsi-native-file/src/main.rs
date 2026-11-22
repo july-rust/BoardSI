@@ -672,6 +672,19 @@ fn bound_f009_receipt(mut value: Value) -> Value {
     value
 }
 
+fn main() -> ExitCode {
+    match run() {
+        Ok(value) => {
+            println!("{}", bound_f009_receipt(value));
+            ExitCode::SUCCESS
+        }
+        Err(code) => {
+            eprintln!("{code}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
 #[cfg(test)]
 mod f009_receipt_tests {
     use super::*;
@@ -690,18 +703,5 @@ mod f009_receipt_tests {
         assert_eq!(bounded["artwork_reason"], "BSI_F009_PREVIEW_OUTPUT_LIMIT");
         assert!(bounded.get("artwork").is_none());
         assert!(bounded.to_string().len() < 60_000);
-    }
-}
-
-fn main() -> ExitCode {
-    match run() {
-        Ok(value) => {
-            println!("{}", bound_f009_receipt(value));
-            ExitCode::SUCCESS
-        }
-        Err(code) => {
-            eprintln!("{code}");
-            ExitCode::FAILURE
-        }
     }
 }
