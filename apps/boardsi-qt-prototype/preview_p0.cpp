@@ -4946,8 +4946,8 @@ static int runF0031NativeSelftest(const QString &nativeBinary,
                 for(auto *item:scene->scene()->items()) {
                     if(item->type()==QGraphicsLineItem::Type) {
                         const QLineF line=static_cast<QGraphicsLineItem *>(item)->line();
-                        if(std::abs(line.y1()+0.0508)<1.0e-9 &&
-                           std::abs(line.y2()+0.0508)<1.0e-9)
+                        if(std::abs(line.y1()+5.08)<1.0e-9 &&
+                           std::abs(line.y2()+5.08)<1.0e-9)
                             sourceOrientation=true;
                     }
                 }
