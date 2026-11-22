@@ -135,6 +135,23 @@ if(BUILD_TESTING)
     set_tests_properties(qt-f006-main-kicad-native-roundtrip PROPERTIES
       TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
+  # F_009 extends both existing full Main Qt lifecycle smoke tests with
+  # native source-free replay and actual scene geometry/Layer assertions.
+  if(BOARDSI_NATIVE_FILE_WORKER AND BOARDSI_ODB_QT_IMPORTER)
+    add_test(NAME qt-f009-odb-native-artwork-replay
+      COMMAND boardsi-preview-p0 --f005-native-odb-selftest
+        "${BOARDSI_ODB_QT_IMPORTER}" "${BOARDSI_NATIVE_FILE_WORKER}")
+    set_tests_properties(qt-f009-odb-native-artwork-replay PROPERTIES
+      TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  endif()
+  if(BOARDSI_NATIVE_FILE_WORKER AND BOARDSI_CANONICAL_IMPORTER)
+    add_test(NAME qt-f009-pads-native-artwork-replay
+      COMMAND boardsi-preview-p0 --f0031-native-selftest
+        "${BOARDSI_NATIVE_FILE_WORKER}" "${BOARDSI_CANONICAL_IMPORTER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
+    set_tests_properties(qt-f009-pads-native-artwork-replay PROPERTIES
+      TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  endif()
   if(BOARDSI_NATIVE_FILE_WORKER AND BOARDSI_ODB_QT_IMPORTER)
     add_test(NAME qt-f005-main-odb-native-roundtrip
       COMMAND boardsi-preview-p0 --f005-native-odb-selftest
