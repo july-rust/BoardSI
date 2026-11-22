@@ -4946,8 +4946,21 @@ static int runF0031NativeSelftest(const QString &nativeBinary,
                 int visible=0;
                 for(auto *item:scene->scene()->items())
                     if(item->isVisible()) ++visible;
+                QGraphicsItem *via=nullptr;
+                for(auto *item:scene->scene()->items())
+                    if(item->data(0).toString()=="*")via=item;
+                bool inventoryCorrect=via &&
+                    via->data(1).toStringList().contains("Top") &&
+                    via->data(1).toStringList().contains("Bottom") &&
+                    !via->data(1).toStringList().contains("Inner 2");
+                if(inventoryCorrect) {
+                    layers->setCurrentIndex(2);
+                    inventoryCorrect=!via->isVisible();
+                    layers->setCurrentIndex(4);
+                    inventoryCorrect=inventoryCorrect && via->isVisible();
+                }
                 layers->setCurrentIndex(0);
-                selectionAndFilter=selected && visible==2;
+                selectionAndFilter=selected && visible==2 && inventoryCorrect;
             }
             if(window.nativePanel()->loadedPath()!=original ||
                !window.nativePanel()->status().contains("open") ||
