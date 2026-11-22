@@ -76,7 +76,8 @@ class F0031NativePanel final : public QWidget {
         const QString schema=body.value("schema").toString();
         if((schema!="BSI_KICAD_SOURCE_PREVIEW_V1" &&
             schema!="BSI_IPC2581_SOURCE_PREVIEW_V1" &&
-            schema!="BSI_GERBER_DRILL_SOURCE_PREVIEW_V1") ||
+            schema!="BSI_GERBER_DRILL_SOURCE_PREVIEW_V1" &&
+            schema!="BSI_F009_NATIVE_CAD_PREVIEW_V1") ||
            body.value("units").toString()!="integer-nm" ||
            body.value("solver_ready").toBool(true) ||
            !body.value("items").isArray() || !body.value("layers").isArray())
@@ -154,6 +155,19 @@ class F0031NativePanel final : public QWidget {
                 viaRing->setPen(QPen(Qt::darkYellow,0));
                 viaRing->setBrush(QBrush(Qt::yellow));
                 item=viaRing;
+            } else if(kind=="rectangle") {
+                QPointF p;double width=0,height=0;
+                if(layer=="*" || !point(row.value("at"),p) ||
+                   !number(row.value("width_nm"),width) ||
+                   !number(row.value("height_nm"),height) ||
+                   width<=0 || height<=0 || width>1000.0 || height>1000.0) {
+                    cleanup();return false;
+                }
+                auto *rect=new QGraphicsRectItem(
+                    p.x()-width/2,p.y()-height/2,width,height);
+                rect->setPen(QPen(Qt::darkCyan,0));
+                rect->setBrush(QBrush(Qt::cyan));
+                item=rect;
             } else if(kind=="flash" || kind=="drill-source") {
                 QPointF p;double diameter=0;
                 if(!point(row.value("at"),p) ||
@@ -185,7 +199,9 @@ class F0031NativePanel final : public QWidget {
             const QString sourceName=schema=="BSI_IPC2581_SOURCE_PREVIEW_V1"
                 ? QStringLiteral("IPC-2581C") :
                 schema=="BSI_GERBER_DRILL_SOURCE_PREVIEW_V1"
-                ? QStringLiteral("Gerber/Excellon") : QStringLiteral("KiCad9");
+                ? QStringLiteral("Gerber/Excellon") :
+                schema=="BSI_F009_NATIVE_CAD_PREVIEW_V1"
+                ? QStringLiteral("PADS/ODB Native") : QStringLiteral("KiCad9");
             item->setToolTip(sourceName+" SOURCE "+kind+" / "+id+
               " / Layer "+layer+" / Net "+row.value("net").toString("UNKNOWN")+
               " / Physical contact NOT_VERIFIED / SI NOT_RUN");
@@ -266,9 +282,22 @@ class F0031NativePanel final : public QWidget {
             return;
         }
         const QString sourceFormat=receipt.value("source_format").toString();
+        const bool f009Native=sourceFormat=="PADS_V94_SOURCE_SUBSET" ||
+                              sourceFormat=="ODB_SOURCE_SUBSET";
+        const QString artworkStatus=receipt.value("artwork_status").toString();
+        const QString artworkReason=receipt.value("artwork_reason").toString();
+        if(f009Native &&
+           ((artworkStatus!="RENDERABLE" && artworkStatus!="NOT_RENDERED") ||
+            (artworkStatus=="NOT_RENDERED" &&
+             (!artworkReason.startsWith("BSI_F009_") ||
+              receipt.contains("artwork"))))) {
+            state("FAILED / invalid native CAD artwork receipt");
+            return;
+        }
         const bool sourcePreview=sourceFormat=="KICAD9_SOURCE_SUBSET" ||
                                  sourceFormat=="IPC2581C_SOURCE_SUBSET" ||
-                                 sourceFormat=="GERBER_X2_EXCELLON_SOURCE_SUBSET";
+                                 sourceFormat=="GERBER_X2_EXCELLON_SOURCE_SUBSET" ||
+                                 (f009Native && artworkStatus=="RENDERABLE");
         if(sourcePreview && !showKiCadArtwork(receipt.value("artwork").toObject())) {
             state("FAILED / native source preview contract invalid");
             return;
@@ -293,6 +322,7 @@ class F0031NativePanel final : public QWidget {
                          "Editable native snapshot; Save As requires revalidation\n")+
             "Canonical data is stored exactly in Rust.\n"+
             (sourcePreview ? "SOURCE artwork: bounded display/picking only; no electrical contact proof.\n" :
+               f009Native ? "ARTWORK NOT_RENDERED / "+artworkReason+"\n" :
                             "Native geometry is NOT rendered on this preview tab.\n")+
             "Physical connectivity, manufacturing and SI: NOT_VERIFIED / NOT_RUN");
         state("COMPLETED / Native "+operation_);
