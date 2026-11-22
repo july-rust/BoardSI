@@ -109,7 +109,9 @@ jobs:
     if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Native Windows ARM64
     runs-on: windows-11-arm
-    timeout-minutes: 10
+    # Full offline workspace debug + release plus stress takes over 10 minutes
+    # on the cold native ARM64 runner; retain the exact same test coverage.
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash

@@ -214,8 +214,26 @@ fn f005_odb_actual_worker_exact_round_trip_and_independent_source_oracle() {
         canonical_semantics_equal(&model, loaded.model()),
         "all SourceIdentity, frame rational, net, padstack, geometry and capability fields"
     );
+    // F_009 independently checks exact fixture coordinates in the Native
+    // receipt, not geometry obtained from the original Source again.
+    let renamed = temp.join("odb-source-unavailable");
+    fs::rename(&root, renamed).unwrap();
     let reopened = ok(run(&[std::ffi::OsStr::new("open"), native.as_os_str()]));
     assert_eq!(reopened["sha256"], receipt["sha256"]);
+    assert_eq!(reopened["source_format"], "ODB_SOURCE_SUBSET");
+    assert_eq!(reopened["artwork_status"], "RENDERABLE");
+    let artwork = &reopened["artwork"];
+    assert_eq!(artwork["schema"], "BSI_F009_NATIVE_CAD_PREVIEW_V1");
+    assert_eq!(artwork["solver_ready"], false);
+    assert_eq!(artwork["items"].as_array().unwrap().len(), 4);
+    assert_eq!(artwork["layers"].as_array().unwrap().len(), 2);
+    assert_eq!(artwork["items"][0]["kind"], "trace");
+    assert_eq!(artwork["items"][0]["a"], serde_json::json!([0, 0]));
+    assert_eq!(artwork["items"][0]["b"], serde_json::json!([1_500_000, 0]));
+    assert_eq!(artwork["items"][1]["kind"], "trace");
+    assert_eq!(artwork["items"][2]["kind"], "rectangle");
+    assert_eq!(artwork["items"][2]["width_nm"], 200_000);
+    assert_eq!(artwork["items"][2]["height_nm"], 100_000);
     let copy = temp.join("copy.bsi");
     let sha = reopened["sha256"].as_str().unwrap();
     ok(run(&[
@@ -228,8 +246,38 @@ fn f005_odb_actual_worker_exact_round_trip_and_independent_source_oracle() {
         &model,
         load(&copy).unwrap().model()
     ));
+    let copy_receipt = ok(run(&[std::ffi::OsStr::new("open"), copy.as_os_str()]));
+    assert_eq!(copy_receipt["artwork"], reopened["artwork"]);
+    assert_eq!(copy_receipt["artwork_status"], "RENDERABLE");
     fs::remove_dir_all(temp).unwrap();
 }
+#[test]
+fn f009_unrenderable_but_valid_native_file_stays_structurally_loaded() {
+    use boardsi_model::{Orientation, QuarterTurn};
+    let scratch = temp();
+    let root = scratch.join("odb");
+    seed(&root);
+    let mut model = odb_source::import_directory(&root, "pcb").unwrap();
+    model.pads[0].orientation = Orientation::Orthogonal {
+        turn: QuarterTurn::One,
+        mirror_x: false,
+    };
+    let native = scratch.join("valid-rotated-pad.bsi");
+    boardsi_native::save(&native, &model).unwrap();
+    fs::remove_dir_all(root).unwrap();
+    let response = ok(run(&[std::ffi::OsStr::new("open"), native.as_os_str()]));
+    assert_eq!(response["action"], "open");
+    assert_eq!(response["source_format"], "ODB_SOURCE_SUBSET");
+    assert_eq!(response["artwork_status"], "NOT_RENDERED");
+    assert_eq!(response["artwork_reason"], "BSI_F009_PAD_ORIENTATION");
+    assert!(response.get("artwork").is_none());
+    assert!(canonical_semantics_equal(
+        &model,
+        load(&native).unwrap().model()
+    ));
+    fs::remove_dir_all(scratch).unwrap();
+}
+
 #[test]
 fn f005_odb_stale_manifest_bad_step_and_unsupported_feature_preserve_last_good() {
     let temp = temp();
@@ -292,8 +340,10 @@ fn f005_odb_stale_manifest_bad_step_and_unsupported_feature_preserve_last_good()
 #[test]
 fn f005_pads_source_and_native_reader_semantics_are_identical() {
     let temp = temp();
-    let src = Path::new(env!("CARGO_MANIFEST_DIR"))
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc");
+    let src = temp.join("original-pads.asc");
+    fs::copy(fixture, &src).unwrap();
     let bytes = fs::read(&src).unwrap();
     let hash = hex(&Sha256::digest(&bytes));
     let parsed = route_preview::parse_generalized(&bytes).unwrap();
@@ -311,9 +361,59 @@ fn f005_pads_source_and_native_reader_semantics_are_identical() {
         &canonical,
         load(&target).unwrap().model()
     ));
+    // No source file exists when the Native reader creates artwork.
+    fs::remove_file(&src).unwrap();
+    let reopened = ok(run(&[std::ffi::OsStr::new("open"), target.as_os_str()]));
+    assert_eq!(reopened["source_format"], "PADS_V94_SOURCE_SUBSET");
+    assert_eq!(reopened["artwork_status"], "RENDERABLE");
+    assert_eq!(
+        reopened["artwork"]["schema"],
+        "BSI_F009_NATIVE_CAD_PREVIEW_V1"
+    );
+    assert_eq!(reopened["artwork"]["solver_ready"], false);
+    assert_eq!(
+        reopened["artwork"]["items"].as_array().unwrap().len(),
+        canonical.traces.len() + canonical.vias.len()
+    );
+    assert_eq!(reopened["artwork"]["layers"].as_array().unwrap().len(), 4);
+    assert!(reopened["artwork"]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|x| x["kind"] == "via"
+            && x["contact"] == "NOT_VERIFIED"
+            && x["pad_layers"] == serde_json::json!(["Top", "Bottom"])
+            && x["solver_ready"].is_null()));
     fs::remove_dir_all(temp).unwrap();
 }
 
+#[test]
+fn f009_one_layer_native_file_loadable_but_artwork_not_rendered() {
+    // F_005's Qt/source IPC rejects single-copper PADS; do not widen its
+    // source import contract. Native structural Open must still be independent
+    // of bounded Qt preview rules when a valid legacy Canonical board exists.
+    let scratch = temp();
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../crates/boardsi-import/tests/fixtures/f009_pads_one_copper_layer.asc");
+    let bytes = fs::read(fixture).unwrap();
+    let parsed = route_preview::parse_generalized(&bytes).unwrap();
+    let board = route_preview::into_canonical(&bytes, &parsed).unwrap();
+    assert!(!board.validate().has_errors());
+    assert_eq!(board.stackup.layers.len(), 1);
+    let target = scratch.join("native-single-layer.bsi");
+    boardsi_native::save(&target, &board).unwrap();
+    let reopened = ok(run(&[std::ffi::OsStr::new("open"), target.as_os_str()]));
+    assert_eq!(reopened["source_format"], "PADS_V94_SOURCE_SUBSET");
+    assert_eq!(reopened["artwork_status"], "NOT_RENDERED");
+    assert_eq!(reopened["artwork_reason"], "BSI_F009_LAYER_LIMIT");
+    assert!(reopened.get("artwork").is_none());
+    assert_eq!(reopened["physical_si"], "NOT_RUN");
+    assert!(canonical_semantics_equal(
+        &board,
+        load(&target).unwrap().model()
+    ));
+    fs::remove_dir_all(scratch).unwrap();
+}
 #[test]
 fn f005_shared_gate_rejects_qt_numeric_overflow_and_source_variants() {
     let temp = temp();
