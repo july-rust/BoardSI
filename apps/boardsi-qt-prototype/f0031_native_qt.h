@@ -85,7 +85,8 @@ class F0031NativePanel final : public QWidget {
         const QJsonArray items=body.value("items").toArray();
         const QJsonArray layers=body.value("layers").toArray();
         if(items.isEmpty() || items.size()>128 ||
-           layers.size()<(schema=="BSI_GERBER_DRILL_SOURCE_PREVIEW_V1" ? 1 : 2) ||
+           layers.size()<((schema=="BSI_GERBER_DRILL_SOURCE_PREVIEW_V1" ||
+                           schema=="BSI_F009_NATIVE_CAD_PREVIEW_V1") ? 1 : 2) ||
            layers.size()>32)
             return false;
         QStringList layerNames;
@@ -196,6 +197,27 @@ class F0031NativePanel final : public QWidget {
                 cleanup();return false;
             }
             item->setData(0,layer);
+            if(schema=="BSI_F009_NATIVE_CAD_PREVIEW_V1" && kind=="via") {
+                // Via annulus exists ONLY on explicit native Padstack copper
+                // layers. Source-layer spans or logical net names are not proof
+                // of a pad on every inner layer.
+                if(!row.value("pad_layers").isArray()) {
+                    delete item;cleanup();return false;
+                }
+                QStringList pads;
+                for(const auto &v:row.value("pad_layers").toArray()) {
+                    const QString entry=v.toString();
+                    if(entry.isEmpty() || !layerNames.contains(entry) ||
+                       pads.contains(entry)) {
+                        delete item;cleanup();return false;
+                    }
+                    pads<<entry;
+                }
+                if(pads.isEmpty()) {
+                    delete item;cleanup();return false;
+                }
+                item->setData(1,pads);
+            }
             const QString sourceName=schema=="BSI_IPC2581_SOURCE_PREVIEW_V1"
                 ? QStringLiteral("IPC-2581C") :
                 schema=="BSI_GERBER_DRILL_SOURCE_PREVIEW_V1"
@@ -366,7 +388,10 @@ public:
             const QString selected=index<=0 ? QString() : artworkLayer_->itemText(index);
             for(auto *item:artworkScene_->items()) {
                 const QString layer=item->data(0).toString();
-                item->setVisible(selected.isEmpty() || layer=="*" || layer==selected);
+                const QStringList padLayers=item->data(1).toStringList();
+                item->setVisible(selected.isEmpty() || layer==selected ||
+                    (layer=="*" &&
+                     (padLayers.isEmpty() || padLayers.contains(selected))));
             }
         });
         timeout_.setSingleShot(true);
