@@ -4884,12 +4884,8 @@ static int runF0031NativeSelftest(const QString &nativeBinary,
     // exclusively driven by .bsi Reader, never by the original CAD file.
     const QString localSource=directory.path()+"/import-source.asc";
     if(!QFile::copy(source,localSource))return 2;
-    QFile sourceFile(localSource);
-    if(!sourceFile.open(QIODevice::ReadOnly))return 2;
-    const bool oneLayer=sourceFile.readAll().contains("MAXLAYER 1");
-    sourceFile.close();
-    const int expectedItems=oneLayer?2:3;
-    const int expectedFilterItems=oneLayer?2:5;
+    const int expectedItems=3;
+    const int expectedFilterItems=5;
     PreviewWindow window(QString(),QString(),QString(),canonicalBinary,nativeBinary);
     window.show();
     if(!window.openCanonicalCandidate(localSource)) return 2;
@@ -4953,21 +4949,18 @@ static int runF0031NativeSelftest(const QString &nativeBinary,
                 int visible=0;
                 for(auto *item:scene->scene()->items())
                     if(item->isVisible()) ++visible;
-                bool inventoryCorrect=oneLayer;
-                if(!oneLayer) {
-                    QGraphicsItem *via=nullptr;
-                    for(auto *item:scene->scene()->items())
-                        if(item->data(0).toString()=="*")via=item;
-                    inventoryCorrect=via &&
-                        via->data(1).toStringList().contains("Top") &&
-                        via->data(1).toStringList().contains("Bottom") &&
-                        !via->data(1).toStringList().contains("Inner 2");
-                    if(inventoryCorrect) {
-                        layers->setCurrentIndex(2);
-                        inventoryCorrect=!via->isVisible();
-                        layers->setCurrentIndex(4);
-                        inventoryCorrect=inventoryCorrect && via->isVisible();
-                    }
+                QGraphicsItem *via=nullptr;
+                for(auto *item:scene->scene()->items())
+                    if(item->data(0).toString()=="*")via=item;
+                bool inventoryCorrect=via &&
+                    via->data(1).toStringList().contains("Top") &&
+                    via->data(1).toStringList().contains("Bottom") &&
+                    !via->data(1).toStringList().contains("Inner 2");
+                if(inventoryCorrect) {
+                    layers->setCurrentIndex(2);
+                    inventoryCorrect=!via->isVisible();
+                    layers->setCurrentIndex(4);
+                    inventoryCorrect=inventoryCorrect && via->isVisible();
                 }
                 layers->setCurrentIndex(0);
                 selectionAndFilter=selected && visible==2 && inventoryCorrect;
