@@ -217,7 +217,7 @@ fn f005_odb_actual_worker_exact_round_trip_and_independent_source_oracle() {
     // F_009 independently checks exact fixture coordinates in the Native
     // receipt, not geometry obtained from the original Source again.
     let renamed = temp.join("odb-source-unavailable");
-    fs::rename(&root, &renamed).unwrap();
+    fs::rename(&root, renamed).unwrap();
     let reopened = ok(run(&[std::ffi::OsStr::new("open"), native.as_os_str()]));
     assert_eq!(reopened["sha256"], receipt["sha256"]);
     assert_eq!(reopened["source_format"], "ODB_SOURCE_SUBSET");
@@ -388,31 +388,32 @@ fn f005_pads_source_and_native_reader_semantics_are_identical() {
 }
 
 #[test]
-fn f009_single_copper_layer_pads_source_free_reopen() {
+fn f009_one_layer_native_file_loadable_but_artwork_not_rendered() {
+    // F_005's Qt/source IPC rejects single-copper PADS; do not widen its
+    // source import contract. Native structural Open must still be independent
+    // of bounded Qt preview rules when a valid legacy Canonical board exists.
     let scratch = temp();
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../crates/boardsi-import/tests/fixtures/f009_pads_one_copper_layer.asc");
-    let source = scratch.join("single-source.asc");
-    fs::copy(fixture, &source).unwrap();
-    let expected = hex(&Sha256::digest(fs::read(&source).unwrap()));
-    let target = scratch.join("single.bsi");
-    let saved = ok(run(&[
-        std::ffi::OsStr::new("save-pads"),
-        source.as_os_str(),
-        target.as_os_str(),
-        std::ffi::OsStr::new(&expected),
-    ]));
-    assert_eq!(saved["source_format"], "PADS_V94_SOURCE_SUBSET");
-    fs::remove_file(source).unwrap();
+    let bytes = fs::read(&fixture).unwrap();
+    let parsed = route_preview::parse_generalized(&bytes).unwrap();
+    let board = route_preview::into_canonical(&bytes, &parsed).unwrap();
+    assert!(!board.validate().has_errors());
+    assert_eq!(board.stackup.layers.len(), 1);
+    let target = scratch.join("native-single-layer.bsi");
+    boardsi_native::save(&target, &board).unwrap();
     let reopened = ok(run(&[std::ffi::OsStr::new("open"), target.as_os_str()]));
-    assert_eq!(reopened["artwork_status"], "RENDERABLE");
-    assert_eq!(reopened["artwork"]["layers"].as_array().unwrap().len(), 1);
-    assert_eq!(reopened["artwork"]["items"].as_array().unwrap().len(), 2);
-    assert_eq!(reopened["artwork"]["solver_ready"], false);
+    assert_eq!(reopened["source_format"], "PADS_V94_SOURCE_SUBSET");
+    assert_eq!(reopened["artwork_status"], "NOT_RENDERED");
+    assert_eq!(reopened["artwork_reason"], "BSI_F009_LAYER_LIMIT");
+    assert!(reopened.get("artwork").is_none());
     assert_eq!(reopened["physical_si"], "NOT_RUN");
+    assert!(canonical_semantics_equal(
+        &board,
+        load(&target).unwrap().model()
+    ));
     fs::remove_dir_all(scratch).unwrap();
 }
-
 #[test]
 fn f005_shared_gate_rejects_qt_numeric_overflow_and_source_variants() {
     let temp = temp();
