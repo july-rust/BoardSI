@@ -85,8 +85,7 @@ class F0031NativePanel final : public QWidget {
         const QJsonArray items=body.value("items").toArray();
         const QJsonArray layers=body.value("layers").toArray();
         if(items.isEmpty() || items.size()>128 ||
-           layers.size()<((schema=="BSI_GERBER_DRILL_SOURCE_PREVIEW_V1" ||
-                           schema=="BSI_F009_NATIVE_CAD_PREVIEW_V1") ? 1 : 2) ||
+           layers.size()<(schema=="BSI_GERBER_DRILL_SOURCE_PREVIEW_V1" ? 1 : 2) ||
            layers.size()>32)
             return false;
         QStringList layerNames;
