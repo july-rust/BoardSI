@@ -226,6 +226,16 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --f007-native-ipc-selftest \
             "$GITHUB_WORKSPACE/target/debug/boardsi-native-file$suffix"
+      - name: F_011 large Native artwork and malformed stream qualification
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --f011-large-artwork-selftest \
+            "$GITHUB_WORKSPACE/target/debug/boardsi-native-file$suffix"
       - name: F_010 five-format source-free Native artwork switch and Save As
         shell: bash
         env:
