@@ -459,6 +459,55 @@ fn run() -> Result<Value, String> {
             std::thread::park();
         }
     }
+    // CI-only deterministic Native fixture, not a CAD parser expansion or
+    // vendor-source claim. The source adapter supplies a small valid template;
+    // synthetic copies deliberately exercise the persistence/display path.
+    #[cfg(feature = "f0031-qualification")]
+    if args.len() == 3 && arg_text(&args, 0)? == "f011-seed" {
+        let path = arg_path(&args, 1)?;
+        let count: usize = arg_text(&args, 2)?
+            .parse()
+            .map_err(|_| fail("BSI_F011_FIXTURE_COUNT"))?;
+        if !(1..=100_000).contains(&count) {
+            return Err(fail("BSI_F011_FIXTURE_COUNT"));
+        }
+        let template = br#"(kicad_pcb (version 20241229) (generator "F011 synthetic fixture")
+          (layers (0 "F.Cu" signal) (2 "B.Cu" signal))
+          (net 0 "") (net 1 "CLK")
+          (segment (start 0 0) (end 0.25 0) (width 0.1)
+           (layer "F.Cu") (net 1)
+           (uuid "223e4567-e89b-12d3-a456-426614174000")))"#;
+        let mut board = boardsi_import::kicad9_source::into_native_canonical(template)
+            .map_err(|e| format!("BSI_F011_FIXTURE_TEMPLATE:{}", e.code))?;
+        let trace = board
+            .traces
+            .pop()
+            .ok_or_else(|| fail("BSI_F011_FIXTURE_TEMPLATE"))?;
+        let back = board
+            .stackup
+            .layers
+            .iter()
+            .find(|l| l.name == "B.Cu")
+            .ok_or_else(|| fail("BSI_F011_FIXTURE_LAYER"))?
+            .meta
+            .id
+            .clone();
+        for i in 0..count {
+            let mut item = trace.clone();
+            item.meta.id.source_object = format!("f011-synthetic-{i}");
+            item.meta.provenance.source_object_type = "F011 synthetic test trace".into();
+            if i % 2 == 1 {
+                item.layer = back.clone();
+            }
+            let x = (i % 100) as i64 * 1_000_000;
+            let y = (i / 100) as i64 * 1_000_000;
+            item.centreline[0].ticks = [x, y];
+            item.centreline[1].ticks = [x + 250_000, y];
+            board.traces.push(item);
+        }
+        save(&path, &board).map_err(native_error)?;
+        return receipt("f011-seed", &path, false);
+    }
     match arg_text(&args, 0)?.as_str() {
         "open" if args.len() == 2 => {
             let path = arg_path(&args, 1)?;
