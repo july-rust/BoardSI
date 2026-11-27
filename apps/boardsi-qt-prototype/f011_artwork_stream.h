@@ -93,6 +93,8 @@ public:
         }
         return true;
     }
+    qsizetype bytesReceived() const {return bytes_;}
+    int batchesReceived() const {return sequence_;}
     bool finish(QJsonObject &receipt) {
         if(failed_ || !began_ || !ended_ || !pending_.isEmpty())return reject();
         receipt=receipt_;
