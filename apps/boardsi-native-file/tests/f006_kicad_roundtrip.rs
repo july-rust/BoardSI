@@ -290,3 +290,22 @@ fn f006_real_source_mutation_during_staging_aborts_before_publish() {
     assert!(load(&target).is_ok());
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn f010_kicad_valid_native_sub_nm_width_is_not_rendered() {
+    let dir = temp();
+    let target = dir.join("unrenderable.bsi");
+    let mut board = into_native_canonical(SOURCE.as_bytes()).unwrap();
+    board.traces[0].width_m = Rational::new(1, 2_000_000_000).unwrap();
+    boardsi_native::save(&target, &board).unwrap();
+    assert!(canonical_semantics_equal(
+        &board,
+        load(&target).unwrap().model()
+    ));
+    let output = invoke(&[std::ffi::OsStr::new("open"), target.as_os_str()]);
+    assert!(output.status.success());
+    let receipt: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(receipt["artwork_status"], "NOT_RENDERED");
+    assert!(receipt.get("artwork").is_none());
+    fs::remove_dir_all(dir).unwrap();
+}

@@ -226,6 +226,17 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --f007-native-ipc-selftest \
             "$GITHUB_WORKSPACE/target/debug/boardsi-native-file$suffix"
+      - name: F_010 five-format source-free Native artwork switch and Save As
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --f010-cross-format-selftest \
+            "$GITHUB_WORKSPACE/target/debug/boardsi-native-file$suffix" \
+            "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc"
       - name: F_003_1 real Qt Native cancellation timeout stale-response qualification
         shell: bash
         run: |

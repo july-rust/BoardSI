@@ -325,3 +325,41 @@ fn f008_altered_flash_role_or_shape_cannot_claim_positive_gerber() {
     };
     assert!(evidence.check(&board).is_err());
 }
+
+#[test]
+fn f010_gerber_valid_native_sub_nm_flash_is_not_rendered() {
+    use boardsi_model::{PadShape, Rational};
+    let dir = TempDir::new();
+    let target = dir.0.join("limited.bsi");
+    let pair =
+        boardsi_import::gerber_excellon_source::inspect_pair(GERBER.as_bytes(), DRILL.as_bytes())
+            .unwrap();
+    let mut board = into_native_canonical(GERBER.as_bytes(), DRILL.as_bytes()).unwrap();
+    let evidence = GerberDrillEvidence {
+        drill_sha256: pair.drill.identity.files[0].sha256,
+        holes: pair
+            .drill
+            .holes
+            .iter()
+            .map(|h| DrillObservation {
+                centre_nm: h.centre_nm,
+                diameter_nm: h.diameter_nm,
+                tool_id: h.tool_id,
+                source_offset: h.source_offset as u64,
+            })
+            .collect(),
+    };
+    board.padstacks[0].entries[0].shape = PadShape::Circle {
+        diameter_m: Rational::new(1, 2_000_000_000).unwrap(),
+    };
+    boardsi_native::save_with_drill_evidence_guarded(&target, &board, Some(&evidence), || Ok(()))
+        .unwrap();
+    let loaded = load(&target).unwrap();
+    assert!(canonical_semantics_equal(&board, loaded.model()));
+    assert_eq!(loaded.drill_evidence(), Some(&evidence));
+    let output = invoke(&["open", target.to_str().unwrap()]);
+    assert!(output.status.success());
+    let receipt: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(receipt["artwork_status"], "NOT_RENDERED");
+    assert!(receipt.get("artwork").is_none());
+}

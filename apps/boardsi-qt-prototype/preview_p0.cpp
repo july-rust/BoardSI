@@ -5620,9 +5620,174 @@ static int runF008NativeGerberDrillSelftest(const QString &nativeBinary) {
     return pass?0:1;
 }
 
+
+// F_010: seed with real workers, remove every source, and reopen in a fresh
+// production PreviewWindow. Native geometry is not an electrical SI claim.
+static int runF010CrossFormatSelftest(const QString &nativeBinary,const QString &padsFixture) {
+    QTemporaryDir dir;
+    if(!dir.isValid())return 2;
+    const QString root=dir.path();
+    const auto sha=[](const QByteArray &bytes) {
+        return QString::fromLatin1(QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex());
+    };
+    const auto write=[](const QString &path,const QByteArray &bytes) {
+        QFile f(path);
+        return f.open(QIODevice::WriteOnly|QIODevice::Truncate) &&
+            f.write(bytes)==bytes.size() && f.flush();
+    };
+    const auto seed=[&](const QStringList &args,const QString &status) {
+        QProcess worker;
+        worker.start(nativeBinary,args);
+        if(!worker.waitForStarted(15000) || !worker.waitForFinished(30000) ||
+           worker.exitStatus()!=QProcess::NormalExit || worker.exitCode()!=0) {
+            qWarning().noquote()<<"F010 fixture seed failed"<<args.first()<<worker.readAllStandardError();
+            return false;
+        }
+        const auto receipt=QJsonDocument::fromJson(worker.readAllStandardOutput()).object();
+        return receipt.value("artwork_status").toString()==status;
+    };
+    const QString pads=root+"/source.asc",odb=root+"/odb",ki=root+"/source.kicad_pcb",
+        ipc=root+"/source.xml",gerber=root+"/top.gbr",drill=root+"/holes.drl",
+        p=root+"/pads.bsi",o=root+"/odb.bsi",k=root+"/kicad.bsi",
+        i=root+"/ipc.bsi",g=root+"/gerber.bsi",limited=root+"/limited.bsi",
+        bad=root+"/bad.bsi";
+    QFile padFile(padsFixture);
+    if(!padFile.open(QIODevice::ReadOnly))return 2;
+    const QByteArray padsBytes=padFile.readAll();
+    padFile.close();
+    const QByteArray matrix="STEP {\nCOL=1\nNAME=pcb\n}\n"
+        "LAYER {\nROW=1\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=sig1\nPOLARITY=POSITIVE\n}\n"
+        "LAYER {\nROW=2\nCONTEXT=BOARD\nTYPE=SIGNAL\nNAME=sig2\nPOLARITY=POSITIVE\n}\n";
+    const QByteArray feature="UNITS=MM\nF 2\n$0 r100\n$1 rect200x100 M\n"
+        "L 0 0 1.5 0.75 0 P 0\nP 1.5 0.75 1 P 0 0\n";
+    const QStringList paths={"matrix/matrix","steps/pcb/layers/sig1/features",
+        "steps/pcb/layers/sig2/features"};
+    QByteArray manifest;
+    for(int n=0;n<paths.size();++n) {
+        const QString path=odb+"/"+paths.at(n);
+        const QByteArray bytes=n==0?matrix:feature;
+        if(!QDir().mkpath(QFileInfo(path).absolutePath()) || !write(path,bytes))return 2;
+        manifest+=paths.at(n).toUtf8().toHex()+"|"+sha(bytes).toLatin1()+"\n";
+    }
+    const QByteArray K=R"((kicad_pcb (version 20241229) (generator "F006")
+      (layers (0 "F.Cu" signal) (2 "B.Cu" signal))
+      (net 0 "") (net 1 "CLK")
+      (segment (start 0 0) (end 1.5 2.0) (width 0.2)
+               (layer "F.Cu") (net 1)
+               (uuid "223e4567-e89b-12d3-a456-426614174000"))
+      (via (at 1.5 2.0) (size 0.6) (drill 0.3)
+           (layers "F.Cu" "B.Cu") (net 1)
+           (uuid "123e4567-e89b-12d3-a456-426614174000"))))";
+    const QByteArray I=R"(<?xml version="1.0"?>
+<IPC-2581 revision="C" xmlns="http://webstds.ipc.org/2581">
+<Content><LayerRef name="TOP"/><LayerRef name="BOTTOM"/></Content>
+<LogisticHeader/><HistoryRecord/>
+<Ecad><CadHeader units="MILLIMETER"/><CadData>
+<Layer name="TOP" layerFunction="SIGNAL" side="TOP" polarity="POSITIVE"/>
+<Layer name="BOTTOM" layerFunction="SIGNAL" side="BOTTOM" polarity="POSITIVE"/>
+<Step name="BOARD"><Datum x="0" y="0"/><LogicalNet name="CLK"><PinRef componentRef="U1" pin="1"/></LogicalNet>
+<LayerFeature layerRef="TOP"><Set net="CLK">
+<Features><Line startX="1.123456" startY="-2" endX="3" endY="5">
+<LineDesc lineEnd="ROUND" lineWidth="0.15"/></Line></Features>
+<Features><Polyline><PolyBegin x="3" y="5"/>
+<PolyStepSegment x="4" y="6"/><PolyStepSegment x="5" y="6"/>
+<LineDesc lineEnd="ROUND" lineWidth="0.2"/></Polyline></Features>
+</Set></LayerFeature></Step></CadData></Ecad></IPC-2581>)";
+    const QByteArray G="%FSLAX36Y36*%\n%MOMM*%\n%TF.FileFunction,Copper,L1,Top*%\n%ADD10C,0.600*%\n%LPD*%\nD10*\nX012345678Y002000000D03*\nM02*\n";
+    const QByteArray D="M48\nMETRIC\nT2147483648C0.300\n%\nT2147483648\nX12.345678Y2.000000\nM30\n";
+    // Valid source name collides only with the Qt layer-selector label.
+    const QByteArray L=QByteArray(I).replace("name=\"TOP\"","name=\"All copper layers\"")
+        .replace("layerRef=\"TOP\"","layerRef=\"All copper layers\"");
+    if(!write(pads,padsBytes) || !write(ki,K) || !write(ipc,I) ||
+       !write(gerber,G) || !write(drill,D) || !write(bad,"not SQLite"))return 2;
+    if(!seed({"save-pads",pads,p,sha(padsBytes)},"RENDERABLE") ||
+       !seed({"save-odb",odb,"pcb",o,sha(manifest)},"RENDERABLE") ||
+       !seed({"save-kicad",ki,k,sha(K)},"RENDERABLE") ||
+       !seed({"save-ipc2581",ipc,i,sha(I)},"RENDERABLE") ||
+       !seed({"save-gerber-drill",gerber,drill,g,sha(G),sha(D)},"RENDERABLE") ||
+       !write(ipc,L) || !seed({"save-ipc2581",ipc,limited,sha(L)},"NOT_RENDERED"))return 2;
+    if(!QDir(odb).removeRecursively())return 2;
+    for(const auto &path:{pads,ki,ipc,gerber,drill})if(!QFile::remove(path))return 2;
+
+    PreviewWindow window(QString(),QString(),QString(),QString(),nativeBinary);
+    window.show();
+    auto *panel=window.nativePanel();
+    auto *view=panel->findChild<QGraphicsView *>("f006KiCadArtwork");
+    auto *filter=panel->findChild<QComboBox *>("f006KiCadLayerFilter");
+    auto *summary=panel->findChild<QPlainTextEdit *>("f0031NativeSummary");
+    if(!view || !filter || !summary)return 2;
+    int ticks=0;
+    auto finish=[&](bool expectSuccess) {
+        QEventLoop loop;
+        QTimer timer;
+        QElapsedTimer elapsed;elapsed.start();timer.setInterval(20);
+        QObject::connect(&timer,&QTimer::timeout,&loop,[&] {
+            ++ticks;
+            if(!panel->busy() || elapsed.elapsed()>15000)loop.quit();
+        });
+        if(panel->busy()) {timer.start();loop.exec();timer.stop();}
+        return !panel->busy() &&
+            panel->status().startsWith(expectSuccess?"COMPLETED":"FAILED");
+    };
+    const QStringList natives={p,o,k,i,g};
+    const QStringList sourceNames={"PADS/ODB Native","PADS/ODB Native","KiCad9","IPC-2581C","Gerber/Excellon"};
+    const QList<int> counts={3,4,2,3,2};
+    const QList<int> layerCounts={5,3,3,3,2};
+    const auto check=[&](int n,const QString &path) {
+        if(panel->loadedPath()!=path || !view->isVisible() ||
+           !filter->isVisible() || filter->count()!=layerCounts.at(n) ||
+           view->scene()->items().size()!=counts.at(n) ||
+           !summary->toPlainText().contains("STRUCTURALLY LOADED"))return false;
+        for(auto *item:view->scene()->items())
+            if(!item->toolTip().startsWith(sourceNames.at(n)+" SOURCE ") ||
+               !item->isVisible() || !(item->flags() & QGraphicsItem::ItemIsSelectable))return false;
+        view->scene()->items().first()->setSelected(true);
+        if(view->scene()->selectedItems().size()!=1)return false;
+        filter->setCurrentIndex(1);
+        const auto items=view->scene()->items();
+        if(std::none_of(items.begin(),items.end(),[](const auto *item){return item->isVisible();}))
+            return false;
+        filter->setCurrentIndex(0);
+        return true;
+    };
+    for(int n=0;n<natives.size();++n) {
+        const QString copy=root+QString("/copy-%1.bsi").arg(n);
+        if(!window.openNativeCandidate(natives.at(n)) || !finish(true) ||
+           !check(n,natives.at(n)) || !window.copyNativeCandidate(copy) ||
+           !finish(true) || !window.openNativeCandidate(copy) ||
+           !finish(true) || !check(n,copy)) {
+            qWarning().noquote()<<"F010 switch or Save As failure"<<n<<panel->status();
+            return 1;
+        }
+    }
+    const QString last=panel->loadedPath();
+    const QString lastSummary=summary->toPlainText();
+    if(!window.openNativeCandidate(bad) || !finish(false) ||
+       panel->loadedPath()!=last || summary->toPlainText()!=lastSummary ||
+       view->scene()->items().size()!=2)return 1;
+    if(!window.openNativeCandidate(limited) || !finish(true) ||
+       panel->loadedPath()!=limited || view->isVisible() || filter->isVisible() ||
+       !view->scene()->items().isEmpty() ||
+       !summary->toPlainText().contains("ARTWORK NOT_RENDERED"))return 1;
+    const QString limitedCopy=root+"/limited-copy.bsi";
+    if(!window.copyNativeCandidate(limitedCopy) || !finish(true) ||
+       !window.openNativeCandidate(limitedCopy) || !finish(true) ||
+       !summary->toPlainText().contains("ARTWORK NOT_RENDERED") ||
+       !view->scene()->items().isEmpty() ||
+       !window.openNativeCandidate(p) || !finish(true) || !check(0,p))return 1;
+    qInfo().noquote()<<QJsonDocument(QJsonObject{
+        {"schema","boardsi-f010-cross-format-main-native-v1"},
+        {"pass",true},{"formats",5},{"event_loop_ticks",ticks},
+        {"source_absent",true},{"not_rendered_open",true},{"physical_si","NOT_RUN"}
+    }).toJson(QJsonDocument::Compact);
+    return 0;
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==4 && args.at(1)=="--f010-cross-format-selftest")
+        return runF010CrossFormatSelftest(args.at(2),args.at(3));
     if(args.size()==3 && args.at(1)=="--f008-native-gerber-drill-selftest")
         return runF008NativeGerberDrillSelftest(args.at(2));
     if(args.size()==3 && args.at(1)=="--f007-native-ipc-selftest")

@@ -119,6 +119,12 @@ if(BUILD_TESTING)
   endif()
   set(BOARDSI_NATIVE_FILE_WORKER "" CACHE FILEPATH "F_003_1 Rust Native file worker")
   if(BOARDSI_NATIVE_FILE_WORKER)
+    add_test(NAME qt-f010-cross-format-source-free-native-artwork
+      COMMAND boardsi-preview-p0 --f010-cross-format-selftest
+        "${BOARDSI_NATIVE_FILE_WORKER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
+    set_tests_properties(qt-f010-cross-format-source-free-native-artwork PROPERTIES
+      TIMEOUT 180 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     add_test(NAME qt-f008-main-gerber-drill-native-roundtrip
       COMMAND boardsi-preview-p0 --f008-native-gerber-drill-selftest
         "${BOARDSI_NATIVE_FILE_WORKER}")
