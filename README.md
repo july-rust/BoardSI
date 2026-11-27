@@ -2,9 +2,9 @@
 
 **Lightweight PCB & BGA Substrate Signal Integrity Program**
 
-BoardSI aims to make **offline, resource-conscious PCB signal-integrity review** practical: import layout data, inspect copper and stackup, identify signal paths and reference nets, configure ports, and eventually calculate validated RLGC, impedance and S-parameters. The design uses a **format-neutral Canonical Board Model**, a Rust core and a Qt desktop UI. **ODB++ is one planned input format, not the internal data model.**
+BoardSI aims to make **offline, resource-conscious PCB signal-integrity review** practical: import layout data, inspect copper and stackup, identify signal paths and reference nets, configure ports, and eventually calculate validated RLGC, impedance and S-parameters. The design uses a **format-neutral Canonical Board Model**, a Rust core and a Qt desktop UI. **ODB++ is one supported restricted input format, not the internal data model.**
 
-> **Current status — 2026-11-07 KST: Developer Preview / partial functionality.** The repository contains native Rust/Qt prototypes, a **restricted PADS PowerPCB V9.4 MILS source subset** and synthetic artwork/geometry qualification. It is **not** a production PADS converter, complete electrical PCB connectivity analyzer, shipping installer or physically validated PCB SI solver. [What is actually verified?](docs/development-checklist.md)
+> **Current status — 2026-11-27 KST: Developer Preview / partial functionality.** The native Rust/Qt `.bsi` v1 Reader/Writer and restricted five-format source-free Artwork replay have passed F_010 implementation and merged-main qualification on four OS. See the [F_010 evidence](docs/validation/f010-native-cross-format-artwork-qualification.md). This is not a production CAD converter, complete electrical PCB connectivity analyzer, shipping installer or physically validated PCB SI solver. [What is actually verified?](docs/development-checklist.md)
 
 [**Documentation hub / 문서 시작**](docs/README.md) · [Developer Quickstart](docs/developer-quickstart.md) · [Specification v1.0](docs/specification/BoardSI_Development_Spec_v1.0.md) · [Development checklist](docs/development-checklist.md) · [Validation](docs/validation/README.md)
 
@@ -12,7 +12,7 @@ BoardSI aims to make **offline, resource-conscious PCB signal-integrity review**
 
 | Area | Implemented and scope-tested today | Not yet product-qualified |
 | :--- | :--- | :--- |
-| **Import & Artwork** | Restricted V9.4-MILS PADS SOURCE parser, selected straight/arc traces, pads, vias and copper geometry, native Qt Artwork Preview, public synthetic fixtures | Complete PADS/vendor exports, ODB++, IPC-2581 and other planned importers, lossless full-board normalization |
+| **Import & Artwork** | Restricted PADS V9.4-MILS, bounded ODB++, KiCad 9 straight tracks/normal through vias, IPC-2581C inline Line/Polyline, Gerber X2 circular D03 flashes + decimal metric Excellon drill observations; Native `.bsi` v1 source-free Qt Artwork for supported subsets | Full CAD dialects/vendor exports, full-board normalization, unrestricted geometry/render capacity, independent vendor equivalence |
 | **Copper contact** | Source-local finite-width trace-to-trace and off-centre trace-to-Via conductive annulus / circular, square, rectangular SMD-pad **geometry candidates** ([D_054/D_055 evidence](docs/validation/d054-d055-general-trace-contact-qualification.md)) | Proven whole-board electrical Open/Short, thermal/pour/plating completeness, new-candidate integration into the actual Qt global connectivity graph |
 | **Execution** | Rust Canonical integrity model, isolated Worker IPC, Qt Widgets and optional GPU-first artwork backends; native regression evidence on supported platforms | Complete Import→Port→Solver→Results user journey, resilience/packaging/clean-system redistributable release |
 | **Numerics** | Mathematical **supplied scalar** RLGC→uniform 2-port S; research-only restricted PEC/lossless 2D FEM coupons | Accurate board-geometry→frequency-dependent physical RLGC, multiconductor coupling, 30 GHz PCB validation, final Touchstone workflow |
@@ -43,7 +43,9 @@ The last command reports **local copper-area candidates only**, not electrical n
 
 | Path | Responsibility |
 | :--- | :--- |
-| `crates/boardsi-import/` | PADS signature, restricted source parsing, geometry/provenance and local contact candidates |
+| `crates/boardsi-import/` | Restricted CAD source parsing, geometry/provenance and local contact candidates |
+| `crates/boardsi-native/` | SQLite v1 / BSIG Native Reader, Writer and compatibility |
+| `apps/boardsi-native-file/` | Native file Worker and bounded source-free Artwork receipts |
 | `crates/boardsi-model/` | Shared Canonical Board Model and structural validation |
 | `crates/boardsi-numerics/` | Supplied scalar RLGC and single-ended 2-port mathematics |
 | `crates/boardsi-ipc/` | Versioned local Worker IPC contracts |
