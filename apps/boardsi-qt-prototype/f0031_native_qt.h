@@ -85,6 +85,9 @@ class F0031NativePanel final : public QWidget {
     qsizetype renderIndex_=0;
     QStringList pendingLayers_;
     bool transportFailed_=false;
+#ifdef BOARDSI_RUNTIME_TEST
+    bool holdRenderForTest_=false;
+#endif
     QLabel *state_;
     QPlainTextEdit *summary_;
     QGraphicsScene *artworkScene_;
@@ -342,6 +345,9 @@ class F0031NativePanel final : public QWidget {
             stopWithError("BSI_F011_ARTWORK_INVALID");return;
         }
         if(renderIndex_<pendingItems_.size()) {
+#ifdef BOARDSI_RUNTIME_TEST
+            if(holdRenderForTest_)return;
+#endif
             renderTimer_.start(0);
             return;
         }
@@ -580,6 +586,9 @@ public:
         if(child_.state()!=QProcess::NotRunning) child_.kill();
     }
 #ifdef BOARDSI_RUNTIME_TEST
+    void holdRenderForTest(bool hold) {if(!running_)holdRenderForTest_=hold;}
+    qsizetype stagedCountForTest() const {return stagedScene_?renderIndex_:0;}
+    qint64 workerPidForTest() const {return child_.processId();}
     qint64 workerMsForTest() const {return workerMs_;}
     qint64 sceneMsForTest() const {return sceneMs_;}
     qsizetype streamBytesForTest() const {return streamBytes_;}
