@@ -18,6 +18,9 @@
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QProcess>
+#include <QProcessEnvironment>
+#include <QUuid>
+#include "f011_artwork_stream.h"
 #include <QRegularExpression>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -26,13 +29,20 @@
 
 class F0031NativePanel final : public QWidget {
     QProcess child_;
-    QTimer timeout_;
+    QTimer timeout_, renderTimer_;
+    F011ArtworkStream stream_;
+    QGraphicsScene *stagedScene_=nullptr;
+    QJsonObject pendingReceipt_;
+    QJsonArray pendingItems_;
+    qsizetype renderIndex_=0;
+    QStringList pendingLayers_;
+    bool transportFailed_=false;
     QLabel *state_;
     QPlainTextEdit *summary_;
     QGraphicsScene *artworkScene_;
     QGraphicsView *artworkView_;
     QComboBox *artworkLayer_;
-    QByteArray output_, errors_;
+    QByteArray errors_;
     QString binary_, operation_, target_, loaded_, acceptedDigest_, expectedSourceManifest_, expectedDrillSha_;
     bool running_=false, cancelled_=false, readOnly_=true;
     int timeoutMs_=60000;
@@ -41,21 +51,39 @@ class F0031NativePanel final : public QWidget {
         state_->setText(value);
         if (onChanged_) onChanged_();
     }
+    void discardRender() {
+        renderTimer_.stop();
+        if(stagedScene_) {
+            delete stagedScene_;
+            stagedScene_=nullptr;
+        }
+        pendingReceipt_=QJsonObject();pendingItems_=QJsonArray();
+        pendingLayers_.clear();renderIndex_=0;
+    }
     void stopWithError(const QString &value) {
         if (!running_) return;
         errors_=value.toUtf8().left(256);
-        child_.kill();
+        transportFailed_=true;
+        if(stagedScene_) {
+            discardRender();timeout_.stop();running_=false;
+            state("FAILED / "+value);
+        } else {
+            child_.kill();
+        }
     }
     void collect(bool error) {
-        QByteArray &buffer=error ? errors_ : output_;
         const QByteArray chunk=error ? child_.readAllStandardError()
                                      : child_.readAllStandardOutput();
-        const qsizetype limit=error ? 512 : 65536;
-        if(chunk.size()>limit-buffer.size()) {
-            stopWithError("BSI_WORKER_OUTPUT_LIMIT");
-            return;
+        if(transportFailed_)return;
+        if(error) {
+            if(chunk.size()>512-errors_.size()) {
+                stopWithError("BSI_WORKER_OUTPUT_LIMIT");
+                return;
+            }
+            errors_+=chunk;
+        } else if(!stream_.feed(chunk)) {
+            stopWithError("BSI_F011_STREAM_INVALID");
         }
-        buffer+=chunk;
     }
     bool begin(const QString &operation, const QString &target,
                const QStringList &arguments) {
@@ -63,7 +91,12 @@ class F0031NativePanel final : public QWidget {
             state("FAILED / native file worker unavailable or busy");
             return false;
         }
-        running_=true; cancelled_=false; output_.clear(); errors_.clear();
+        running_=true; cancelled_=false; transportFailed_=false; errors_.clear();
+        QString token=QUuid::createUuid().toString(QUuid::Id128);
+        stream_.reset(token);
+        auto environment=QProcessEnvironment::systemEnvironment();
+        environment.insert("BOARDSI_ARTWORK_REQUEST",token);
+        child_.setProcessEnvironment(environment);
         operation_=operation; target_=target;
         timeout_.start(timeoutMs_);
         state("RUNNING / Native "+operation);
@@ -72,7 +105,7 @@ class F0031NativePanel final : public QWidget {
     }
     // Bounded and strictly checked Source-only graphical overview.
     // A view item is never an electrically connected model or Solver claim.
-    bool showKiCadArtwork(const QJsonObject &body) {
+    bool appendArtwork(const QJsonObject &body,QGraphicsScene *scene,QStringList &acceptedLayers) {
         const QString schema=body.value("schema").toString();
         if((schema!="BSI_KICAD_SOURCE_PREVIEW_V1" &&
             schema!="BSI_IPC2581_SOURCE_PREVIEW_V1" &&
@@ -234,18 +267,47 @@ class F0031NativePanel final : public QWidget {
             item->setFlag(QGraphicsItem::ItemIsSelectable,true);
             staged.append(item);
         }
-        artworkScene_->clear();
-        for(auto *item:staged)artworkScene_->addItem(item);
+        if(!acceptedLayers.isEmpty() && acceptedLayers!=layerNames) {
+            cleanup();return false;
+        }
+        acceptedLayers=layerNames;
+        for(auto *item:staged)scene->addItem(item);
+        return true;
+    }
+    void renderNext() {
+        if(!running_ || !stagedScene_)return;
+        // One bounded batch of scene work per Qt event-loop turn. The old
+        // document is untouched until every geometry item has been accepted.
+        auto artwork=pendingReceipt_.value("artwork").toObject();
+        QJsonArray batch;
+        const auto end=qMin(renderIndex_+qsizetype(128),pendingItems_.size());
+        while(renderIndex_<end)batch.append(pendingItems_.at(renderIndex_++));
+        artwork.insert("items",batch);
+        if(!appendArtwork(artwork,stagedScene_,pendingLayers_)) {
+            stopWithError("BSI_F011_ARTWORK_INVALID");return;
+        }
+        if(renderIndex_<pendingItems_.size()) {
+            renderTimer_.start(0);
+            return;
+        }
+        timeout_.stop();
+        auto *old=artworkScene_;
+        artworkScene_=stagedScene_;stagedScene_=nullptr;
+        artworkView_->setScene(artworkScene_);
+        old->deleteLater();
         artworkLayer_->clear();
         artworkLayer_->addItem("All copper layers");
-        artworkLayer_->addItems(layerNames);
+        artworkLayer_->addItems(pendingLayers_);
         artworkLayer_->setCurrentIndex(0);
         artworkView_->setVisible(true);
         artworkLayer_->setVisible(true);
         artworkView_->fitInView(
             artworkScene_->itemsBoundingRect().adjusted(-0.4,-0.4,0.4,0.4),
             Qt::KeepAspectRatio);
-        return true;
+        const auto receipt=pendingReceipt_;
+        discardRender();
+        running_=false;
+        publishReceipt(receipt,true);
     }
     void completed(int exitCode, QProcess::ExitStatus exitStatus) {
         if(!running_) return;
@@ -256,14 +318,12 @@ class F0031NativePanel final : public QWidget {
             state("CANCELLED / outcome unconfirmed; re-open target to verify");
             return;
         }
-        if(exitStatus!=QProcess::NormalExit || exitCode!=0) {
+        if(transportFailed_ || exitStatus!=QProcess::NormalExit || exitCode!=0) {
             state("FAILED / "+QString::fromUtf8(errors_).trimmed().left(256));
             return;
         }
-        QJsonParseError error;
-        const auto document=QJsonDocument::fromJson(output_.trimmed(),&error);
-        const auto receipt=document.object();
-        if(error.error!=QJsonParseError::NoError || !document.isObject() ||
+        QJsonObject receipt;
+        if(!stream_.finish(receipt) ||
            receipt.value("protocol").toString()!="BSI_NATIVE_FILE_V1" ||
            receipt.value("action").toString()!=operation_ ||
            receipt.value("path").toString()!=target_ ||
@@ -333,15 +393,32 @@ class F0031NativePanel final : public QWidget {
             return;
         }
         const bool sourcePreview=knownArtwork && artworkStatus=="RENDERABLE";
-        if(sourcePreview && !showKiCadArtwork(receipt.value("artwork").toObject())) {
-            state("FAILED / native source preview contract invalid");
+        if(sourcePreview) {
+            auto artwork=receipt.value("artwork").toObject();
+            pendingItems_=artwork.take("items").toArray();
+            if(pendingItems_.isEmpty() || pendingItems_.size()>10000) {
+                state("FAILED / invalid native artwork size");
+                return;
+            }
+            receipt.insert("artwork",artwork);
+            pendingReceipt_=receipt;
+            renderIndex_=0;pendingLayers_.clear();
+            stagedScene_=new QGraphicsScene(this);
+            stream_.reset(QString());
+            running_=true;
+            timeout_.start(timeoutMs_);
+            renderTimer_.start(0);
             return;
         }
-        if(!sourcePreview) {
-            artworkScene_->clear();
-            artworkLayer_->setVisible(false);
-            artworkView_->setVisible(false);
-        }
+        stream_.reset(QString());
+        artworkScene_->clear();
+        artworkLayer_->setVisible(false);
+        artworkView_->setVisible(false);
+        publishReceipt(receipt,false);
+    }
+    void publishReceipt(const QJsonObject &receipt,bool sourcePreview) {
+        const bool knownArtwork=receipt.contains("artwork_status");
+        const auto artworkReason=receipt.value("artwork_reason").toString();
         loaded_=target_;
         acceptedDigest_=receipt.value("sha256").toString();
         readOnly_=receipt.value("read_only").toBool();
@@ -407,6 +484,8 @@ public:
                      (padLayers.isEmpty() || padLayers.contains(selected))));
             }
         });
+        renderTimer_.setSingleShot(true);
+        connect(&renderTimer_,&QTimer::timeout,this,[this]{renderNext();});
         timeout_.setSingleShot(true);
         connect(&timeout_,&QTimer::timeout,this,[this] {
             if(running_) stopWithError("BSI_WORKER_TIMEOUT");
@@ -501,6 +580,11 @@ public:
         if(!running_) return;
         cancelled_=true;
         timeout_.stop();
-        child_.kill();
+        if(stagedScene_) {
+            discardRender();running_=false;
+            state("CANCELLED / artwork not published; re-open target to verify");
+        } else {
+            child_.kill();
+        }
     }
 };
