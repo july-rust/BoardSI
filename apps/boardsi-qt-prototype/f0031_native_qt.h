@@ -315,15 +315,19 @@ class F0031NativePanel final : public QWidget {
         collect(false); collect(true);
         running_=false;
         if(cancelled_) {
+            stream_.reset(QString());
             state("CANCELLED / outcome unconfirmed; re-open target to verify");
             return;
         }
         if(transportFailed_ || exitStatus!=QProcess::NormalExit || exitCode!=0) {
+            stream_.reset(QString());
             state("FAILED / "+QString::fromUtf8(errors_).trimmed().left(256));
             return;
         }
         QJsonObject receipt;
-        if(!stream_.finish(receipt) ||
+        const bool streamValid=stream_.finish(receipt);
+        stream_.reset(QString());
+        if(!streamValid ||
            receipt.value("protocol").toString()!="BSI_NATIVE_FILE_V1" ||
            receipt.value("action").toString()!=operation_ ||
            receipt.value("path").toString()!=target_ ||
@@ -397,6 +401,7 @@ class F0031NativePanel final : public QWidget {
             auto artwork=receipt.value("artwork").toObject();
             pendingItems_=artwork.take("items").toArray();
             if(pendingItems_.isEmpty() || pendingItems_.size()>10000) {
+                pendingItems_=QJsonArray();
                 state("FAILED / invalid native artwork size");
                 return;
             }
@@ -460,7 +465,7 @@ public:
         summary_->setObjectName("f0031NativeSummary");
         summary_->setReadOnly(true);
         summary_->setPlainText("Native .bsi file not loaded. Only structurally verified models are accepted.\n"
-                               "Native geometry artwork viewer is NOT IMPLEMENTED in F_003_1.");
+                               "Supported Native geometry has bounded Artwork rendering; SI NOT_RUN.");
         layout->addWidget(state_); layout->addWidget(summary_,1);
         artworkLayer_=new QComboBox(this);
         artworkLayer_->setObjectName("f006KiCadLayerFilter");
