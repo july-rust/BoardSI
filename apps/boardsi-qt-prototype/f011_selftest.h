@@ -1,5 +1,7 @@
 // Actual Main Qt and Native Worker qualification; no mock GUI or CAD claim.
 #pragma once
+#include <QVector>
+#include <QPair>
 
 static bool f011StreamNegativeSelftest() {
     const QString token="0123456789abcdef0123456789abcdef";
@@ -50,7 +52,8 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
     auto *view=panel->findChild<QGraphicsView *>("f006KiCadArtwork");
     auto *filter=panel->findChild<QComboBox *>("f006KiCadLayerFilter");
     auto *summary=panel->findChild<QPlainTextEdit *>("f0031NativeSummary");
-    if(!view || !filter || !summary)return 2;
+    auto *fit=panel->findChild<QPushButton *>("f011NativeFit");
+    if(!view || !filter || !summary || !fit)return 2;
     auto finish=[&](qint64 &elapsedMs,qint64 &maxGap) {
         QEventLoop loop;
         QTimer timer;
@@ -116,7 +119,33 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         auto *picked=view->scene()->itemAt(QPointF(0.125,0),QTransform());
         if(!picked || !picked->toolTip().contains("f011-synthetic-0#0 /"))return false;
         picked->setSelected(true);
-        return view->scene()->selectedItems().size()==1;
+        if(view->scene()->selectedItems().size()!=1 || !fit->isVisible())return false;
+        const auto before=view->transform().m11();
+        const QPoint local(80,80);
+        const QPoint global=view->viewport()->mapToGlobal(local);
+        for(int n=0;n<6;++n) {
+            QWheelEvent wheel(QPointF(local),QPointF(global),QPoint(),QPoint(0,120),
+                Qt::NoButton,Qt::NoModifier,Qt::NoScrollPhase,false);
+            QCoreApplication::sendEvent(view->viewport(),&wheel);
+        }
+        const auto zoomed=view->transform().m11();
+        if(!(zoomed>before))return false;
+        auto *bar=view->horizontalScrollBar();
+        if(bar->maximum()<=bar->minimum()+20)return false;
+        bar->setValue(bar->minimum()+(bar->maximum()-bar->minimum())/2);
+        const int offset=bar->value();
+        QMouseEvent press(QEvent::MouseButtonPress,QPointF(local),QPointF(global),
+            Qt::MiddleButton,Qt::MiddleButton,Qt::NoModifier);
+        QMouseEvent move(QEvent::MouseMove,QPointF(local+QPoint(10,0)),
+            QPointF(global+QPoint(10,0)),Qt::NoButton,Qt::MiddleButton,Qt::NoModifier);
+        QMouseEvent release(QEvent::MouseButtonRelease,QPointF(local+QPoint(10,0)),
+            QPointF(global+QPoint(10,0)),Qt::MiddleButton,Qt::NoButton,Qt::NoModifier);
+        QCoreApplication::sendEvent(view->viewport(),&press);
+        QCoreApplication::sendEvent(view->viewport(),&move);
+        QCoreApplication::sendEvent(view->viewport(),&release);
+        if(bar->value()>=offset)return false;
+        fit->click();
+        return view->transform().m11()<zoomed;
     };
     const QList<QPair<int,bool>> cases={{128,false},{129,false},{1000,false},
         {10000,false},{10000,true},{10001,false},{100000,false}};
@@ -150,10 +179,25 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
             if(!inspect(count,mixed))return 1;
         } else if(view->isVisible() || !view->scene()->items().isEmpty() ||
                   !summary->toPlainText().contains("ARTWORK NOT_RENDERED"))return 1;
+        qint64 peak=boardSiPeakResidentBytes();
+#ifdef Q_OS_LINUX
+        QFile status("/proc/self/status");
+        if(status.open(QIODevice::ReadOnly)) {
+            const auto match=QRegularExpression("VmHWM:\\s+(\\d+)\\s+kB")
+                .match(QString::fromLatin1(status.readAll()));
+            if(match.hasMatch())peak=match.captured(1).toLongLong()*1024;
+        }
+#endif
         qInfo().noquote()<<QJsonDocument(QJsonObject{
             {"schema","boardsi-f011-large-artwork-v1"},{"count",count},
             {"rendered",count<=10000},{"mixed",mixed},
             {"open_ms",elapsed},{"max_timer_gap_ms",gap},
+            {"worker_and_transfer_ms",panel->workerMsForTest()},
+            {"scene_ms",panel->sceneMsForTest()},
+            {"stream_bytes",qint64(panel->streamBytesForTest())},
+            {"batch_count",panel->streamBatchesForTest()},
+            {"qt_process_peak_rss_bytes",peak},
+            {"host_arch",QSysInfo::currentCpuArchitecture()},
             {"source_absent",true},{"physical_si","NOT_RUN"}}).toJson(QJsonDocument::Compact);
         if(count==10000) {
             const auto copy=dir.filePath(mixed?"mixed-copy.bsi":"copy.bsi");
@@ -161,6 +205,16 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
             if(!window.copyNativeCandidate(copy) || !finish(elapsed,gap) ||
                !window.openNativeCandidate(copy) || !finish(elapsed,gap) ||
                !inspect(count,mixed))return 1;
+            // Close and reopen the same native snapshot; assert no stale
+            // scene objects or identity survive the explicit close.
+            for(int repeat=0;repeat<2;++repeat) {
+                panel->forget();
+                if(panel->hasLoaded() || !view->scene()->items().isEmpty() ||
+                   view->isVisible())return 1;
+                elapsed=0;gap=0;
+                if(!window.openNativeCandidate(copy) || !finish(elapsed,gap) ||
+                   !inspect(count,mixed))return 1;
+            }
         }
     }
     qInfo().noquote()<<"F011 actual Main Qt large artwork and stream negative cases PASS";
