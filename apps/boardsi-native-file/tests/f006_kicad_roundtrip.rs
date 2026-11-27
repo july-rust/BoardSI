@@ -171,7 +171,10 @@ fn f006_worker_exact_semantic_roundtrip() {
     assert!(replay_copy.status.success());
     let copy_receipt: serde_json::Value = serde_json::from_slice(&replay_copy.stdout).unwrap();
     assert_eq!(replay["artwork"], copy_receipt["artwork"]);
-    assert!(canonical_semantics_equal(&original, load(&copy).unwrap().model()));
+    assert!(canonical_semantics_equal(
+        &original,
+        load(&copy).unwrap().model()
+    ));
     let hash = format!("{:x}", Sha256::digest(SOURCE.as_bytes()));
     independent_sqlite_bsig_oracle(&target, &hash);
     let loaded = load(&target).unwrap();

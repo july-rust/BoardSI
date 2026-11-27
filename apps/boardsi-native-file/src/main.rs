@@ -89,7 +89,10 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
         || !board.components.is_empty()
         || !board.pins.is_empty()
         || (is_ipc && !board.vias.is_empty())
-        || board.drills.iter().any(|d| !board.vias.iter().any(|v| v.drill == d.meta.id))
+        || board
+            .drills
+            .iter()
+            .any(|d| !board.vias.iter().any(|v| v.drill == d.meta.id))
     {
         return Err(fail("BSI_KICAD_PREVIEW_UNSUPPORTED"));
     }
@@ -343,7 +346,8 @@ fn preview_bounds(preview: Value) -> Result<Value, String> {
                     && row["pad_layers"].as_array().is_some_and(|ls| {
                         !ls.is_empty()
                             && ls.iter().all(|v| {
-                                v.as_str().is_some_and(|n| names.contains(n) && pads.insert(n))
+                                v.as_str()
+                                    .is_some_and(|n| names.contains(n) && pads.insert(n))
                             })
                     })
             }
