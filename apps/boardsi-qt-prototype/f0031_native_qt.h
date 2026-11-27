@@ -6,6 +6,11 @@
 #include <QGraphicsItem>
 #include <QGraphicsScene>
 #include <QGraphicsView>
+#include <QElapsedTimer>
+#include <QMouseEvent>
+#include <QPushButton>
+#include <QScrollBar>
+#include <QWheelEvent>
 #include <QJsonArray>
 #include <QPainter>
 #include <QPainterPath>
@@ -27,6 +32,49 @@
 #include <QWidget>
 #include <functional>
 
+// Keep the existing QGraphicsView selection semantics. Wheel zoom and middle
+// drag pan operate only on the display transform, never native coordinates.
+class F011NativeArtworkView final : public QGraphicsView {
+    bool panning_=false;
+    QPoint last_;
+protected:
+    void wheelEvent(QWheelEvent *event) override {
+        const int delta=event->angleDelta().y();
+        if(delta==0) {QGraphicsView::wheelEvent(event);return;}
+        const double factor=std::pow(1.2,double(delta)/120.0);
+        const double next=transform().m11()*factor;
+        if(std::isfinite(next) && next>=1e-6 && next<=1e6)scale(factor,factor);
+        event->accept();
+    }
+    void mousePressEvent(QMouseEvent *event) override {
+        if(event->button()!=Qt::MiddleButton) {
+            QGraphicsView::mousePressEvent(event);return;
+        }
+        panning_=true;last_=event->position().toPoint();
+        viewport()->setCursor(Qt::ClosedHandCursor);
+        event->accept();
+    }
+    void mouseMoveEvent(QMouseEvent *event) override {
+        if(!panning_) {QGraphicsView::mouseMoveEvent(event);return;}
+        const QPoint now=event->position().toPoint();
+        const QPoint delta=now-last_;last_=now;
+        horizontalScrollBar()->setValue(horizontalScrollBar()->value()-delta.x());
+        verticalScrollBar()->setValue(verticalScrollBar()->value()-delta.y());
+        event->accept();
+    }
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if(panning_ && event->button()==Qt::MiddleButton) {
+            panning_=false;viewport()->unsetCursor();event->accept();return;
+        }
+        QGraphicsView::mouseReleaseEvent(event);
+    }
+public:
+    explicit F011NativeArtworkView(QGraphicsScene *scene,QWidget *parent)
+        : QGraphicsView(scene,parent) {
+        setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
+    }
+};
+
 class F0031NativePanel final : public QWidget {
     QProcess child_;
     QTimer timeout_, renderTimer_;
@@ -42,6 +90,11 @@ class F0031NativePanel final : public QWidget {
     QGraphicsScene *artworkScene_;
     QGraphicsView *artworkView_;
     QComboBox *artworkLayer_;
+    QPushButton *artworkFit_;
+    QElapsedTimer phaseClock_;
+    qint64 workerMs_=0, sceneMs_=0;
+    qsizetype streamBytes_=0;
+    int streamBatches_=0;
     QByteArray errors_;
     QString binary_, operation_, target_, loaded_, acceptedDigest_, expectedSourceManifest_, expectedDrillSha_;
     bool running_=false, cancelled_=false, readOnly_=true;
@@ -98,6 +151,8 @@ class F0031NativePanel final : public QWidget {
         environment.insert("BOARDSI_ARTWORK_REQUEST",token);
         child_.setProcessEnvironment(environment);
         operation_=operation; target_=target;
+        workerMs_=0;sceneMs_=0;streamBytes_=0;streamBatches_=0;
+        phaseClock_.start();
         timeout_.start(timeoutMs_);
         state("RUNNING / Native "+operation);
         child_.start(binary_,arguments);
@@ -301,9 +356,9 @@ class F0031NativePanel final : public QWidget {
         artworkLayer_->setCurrentIndex(0);
         artworkView_->setVisible(true);
         artworkLayer_->setVisible(true);
-        artworkView_->fitInView(
-            artworkScene_->itemsBoundingRect().adjusted(-0.4,-0.4,0.4,0.4),
-            Qt::KeepAspectRatio);
+        artworkFit_->setVisible(true);
+        fitArtwork();
+        sceneMs_=phaseClock_.elapsed();
         const auto receipt=pendingReceipt_;
         discardRender();
         running_=false;
@@ -326,6 +381,8 @@ class F0031NativePanel final : public QWidget {
         }
         QJsonObject receipt;
         const bool streamValid=stream_.finish(receipt);
+        workerMs_=phaseClock_.elapsed();
+        streamBytes_=stream_.bytesReceived();streamBatches_=stream_.batchesReceived();
         stream_.reset(QString());
         if(!streamValid ||
            receipt.value("protocol").toString()!="BSI_NATIVE_FILE_V1" ||
@@ -411,6 +468,7 @@ class F0031NativePanel final : public QWidget {
             stagedScene_=new QGraphicsScene(this);
             stream_.reset(QString());
             running_=true;
+            phaseClock_.restart();
             timeout_.start(timeoutMs_);
             renderTimer_.start(0);
             return;
@@ -419,7 +477,14 @@ class F0031NativePanel final : public QWidget {
         artworkScene_->clear();
         artworkLayer_->setVisible(false);
         artworkView_->setVisible(false);
+        artworkFit_->setVisible(false);
         publishReceipt(receipt,false);
+    }
+    void fitArtwork() {
+        if(artworkScene_->items().isEmpty())return;
+        artworkView_->fitInView(
+            artworkScene_->itemsBoundingRect().adjusted(-0.4,-0.4,0.4,0.4),
+            Qt::KeepAspectRatio);
     }
     void publishReceipt(const QJsonObject &receipt,bool sourcePreview) {
         const bool knownArtwork=receipt.contains("artwork_status");
@@ -470,13 +535,18 @@ public:
         artworkLayer_=new QComboBox(this);
         artworkLayer_->setObjectName("f006KiCadLayerFilter");
         artworkScene_=new QGraphicsScene(this);
-        artworkView_=new QGraphicsView(artworkScene_,this);
+        artworkView_=new F011NativeArtworkView(artworkScene_,this);
         artworkView_->setObjectName("f006KiCadArtwork");
         artworkView_->setDragMode(QGraphicsView::RubberBandDrag);
         artworkView_->setRenderHint(QPainter::Antialiasing,true);
         artworkLayer_->setVisible(false);
         artworkView_->setVisible(false);
+        artworkFit_=new QPushButton("Fit to View",this);
+        artworkFit_->setObjectName("f011NativeFit");
+        artworkFit_->setVisible(false);
+        connect(artworkFit_,&QPushButton::clicked,this,[this]{fitArtwork();});
         layout->addWidget(artworkLayer_);
+        layout->addWidget(artworkFit_);
         layout->addWidget(artworkView_,3);
         connect(artworkLayer_,QOverload<int>::of(&QComboBox::currentIndexChanged),
                 this,[this](int index) {
@@ -510,6 +580,10 @@ public:
         if(child_.state()!=QProcess::NotRunning) child_.kill();
     }
 #ifdef BOARDSI_RUNTIME_TEST
+    qint64 workerMsForTest() const {return workerMs_;}
+    qint64 sceneMsForTest() const {return sceneMs_;}
+    qsizetype streamBytesForTest() const {return streamBytes_;}
+    int streamBatchesForTest() const {return streamBatches_;}
     // CI only: drive the *real* QProcess timeout state machine faster.
     void setTimeoutForTest(int milliseconds) {
         if(!running_ && milliseconds>=20 && milliseconds<=60000)
@@ -528,6 +602,7 @@ public:
             artworkScene_->clear();
             artworkLayer_->setVisible(false);
             artworkView_->setVisible(false);
+            artworkFit_->setVisible(false);
             summary_->setPlainText("Native .bsi file not loaded.");
             state("IDLE / source import selected");
         }
