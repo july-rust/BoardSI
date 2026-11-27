@@ -66,17 +66,36 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         elapsedMs=elapsed.elapsed();
         return !panel->busy() && panel->status().startsWith("COMPLETED");
     };
-    const auto inspect=[&](int count) {
+    const auto inspect=[&](int count,bool mixed) {
         if(!view->isVisible() || filter->count()!=3 ||
            view->scene()->items().size()!=count)return false;
         QVector<bool> seen(count,false);
         for(auto *graphics:view->scene()->items()) {
+            if(!(graphics->flags() & QGraphicsItem::ItemIsSelectable))return false;
+            if(const auto *ring=qgraphicsitem_cast<QGraphicsPathItem *>(graphics)) {
+                if(!mixed)return false;
+                const auto box=ring->path().boundingRect();
+                const auto x=qRound(box.center().x()),y=qRound(box.center().y());
+                const auto i=y*100+x;
+                if(i<0 || i>=count || i%2!=1 || x<0 || x>=100 || seen.at(i) ||
+                   qAbs(box.center().x()-x)>1e-9 || qAbs(box.center().y()-y)>1e-9 ||
+                   qAbs(box.width()-0.6)>1e-9 || qAbs(box.height()-0.6)>1e-9 ||
+                   ring->path().contains(QPointF(x,y)) ||
+                   !ring->path().contains(QPointF(x+0.225,y)) ||
+                   ring->data(0).toString()!="*" ||
+                   !ring->data(1).toStringList().contains("F.Cu") ||
+                   !ring->data(1).toStringList().contains("B.Cu") ||
+                   !ring->toolTip().contains(QString("f011-synthetic-%1 /").arg(i)))
+                    return false;
+                seen[i]=true;
+                continue;
+            }
             const auto *line=qgraphicsitem_cast<QGraphicsLineItem *>(graphics);
-            if(!line || !(line->flags() & QGraphicsItem::ItemIsSelectable))return false;
+            if(!line)return false;
             const auto p=line->line();
             const auto x=qRound(p.x1()),y=qRound(p.y1());
             const auto i=y*100+x;
-            if(i<0 || i>=count || x<0 || x>=100 || seen.at(i) ||
+            if(i<0 || i>=count || x<0 || x>=100 || seen.at(i) || (mixed && i%2!=0) ||
                qAbs(p.x1()-x)>1e-9 || qAbs(p.y1()-y)>1e-9 ||
                qAbs(p.x2()-x-0.25)>1e-9 || qAbs(p.y2()-y)>1e-9 ||
                qAbs(line->pen().widthF()-0.1)>1e-9 ||
@@ -88,27 +107,38 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         filter->setCurrentIndex(filter->findText("F.Cu"));
         int visible=0;
         for(auto *item:view->scene()->items())if(item->isVisible())++visible;
-        if(visible!=(count+1)/2)return false;
+        if(visible!=(mixed?count:(count+1)/2))return false;
+        filter->setCurrentIndex(filter->findText("B.Cu"));
+        visible=0;
+        for(auto *item:view->scene()->items())if(item->isVisible())++visible;
+        if(visible!=count/2)return false;
         filter->setCurrentIndex(0);
         auto *picked=view->scene()->itemAt(QPointF(0.125,0),QTransform());
         if(!picked || !picked->toolTip().contains("f011-synthetic-0#0 /"))return false;
         picked->setSelected(true);
         return view->scene()->selectedItems().size()==1;
     };
-    for(const int count:{128,129,1000,10000,10001}) {
-        const auto file=dir.filePath(QString("fixture-%1.bsi").arg(count));
+    const QList<QPair<int,bool>> cases={{128,false},{129,false},{1000,false},
+        {10000,false},{10000,true},{10001,false},{100000,false}};
+    for(const auto &entry:cases) {
+        const int count=entry.first;
+        const bool mixed=entry.second;
+        const auto file=dir.filePath(QString("fixture-%1-%2.bsi").arg(count).arg(mixed?1:0));
         QProcess seed;
         auto env=QProcessEnvironment::systemEnvironment();
         env.remove("BOARDSI_ARTWORK_REQUEST");
         seed.setProcessEnvironment(env);
-        seed.start(nativeBinary,{"f011-seed",file,QString::number(count)});
+        QStringList arguments={"f011-seed",file,QString::number(count)};
+        if(mixed)arguments<<"mixed";
+        seed.start(nativeBinary,arguments);
         if(!seed.waitForStarted(15000) || !seed.waitForFinished(120000) ||
            seed.exitStatus()!=QProcess::NormalExit || seed.exitCode()!=0) {
             qWarning().noquote()<<"F011 fixture seed"<<count<<seed.readAllStandardError();
             return 1;
         }
         const auto legacy=QJsonDocument::fromJson(seed.readAllStandardOutput()).object();
-        if(legacy.value("traces").toInt()!=count ||
+        if(legacy.value("traces").toInt()!=(mixed?(count+1)/2:count) ||
+           legacy.value("vias").toInt()!=(mixed?count/2:0) ||
            (count>128 && legacy.value("artwork_status").toString()!="NOT_RENDERED"))
             return 1;
         qint64 elapsed=0,gap=0;
@@ -117,19 +147,20 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
             qWarning().noquote()<<"F011 open"<<count<<panel->status();return 1;
         }
         if(count<=10000) {
-            if(!inspect(count))return 1;
+            if(!inspect(count,mixed))return 1;
         } else if(view->isVisible() || !view->scene()->items().isEmpty() ||
                   !summary->toPlainText().contains("ARTWORK NOT_RENDERED"))return 1;
         qInfo().noquote()<<QJsonDocument(QJsonObject{
             {"schema","boardsi-f011-large-artwork-v1"},{"count",count},
-            {"rendered",count<=10000},{"open_ms",elapsed},{"max_timer_gap_ms",gap},
+            {"rendered",count<=10000},{"mixed",mixed},
+            {"open_ms",elapsed},{"max_timer_gap_ms",gap},
             {"source_absent",true},{"physical_si","NOT_RUN"}}).toJson(QJsonDocument::Compact);
         if(count==10000) {
-            const auto copy=dir.filePath("copy.bsi");
+            const auto copy=dir.filePath(mixed?"mixed-copy.bsi":"copy.bsi");
             elapsed=0;gap=0;
             if(!window.copyNativeCandidate(copy) || !finish(elapsed,gap) ||
                !window.openNativeCandidate(copy) || !finish(elapsed,gap) ||
-               !inspect(count))return 1;
+               !inspect(count,mixed))return 1;
         }
     }
     qInfo().noquote()<<"F011 actual Main Qt large artwork and stream negative cases PASS";
