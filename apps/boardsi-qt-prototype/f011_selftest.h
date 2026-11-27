@@ -2,6 +2,38 @@
 #pragma once
 #include <QVector>
 #include <QPair>
+#if defined(Q_OS_MACOS)
+#include <libproc.h>
+#include <sys/proc_info.h>
+#endif
+
+// Samples are lower bounds on the live worker peak, not a claim that no
+// higher transient allocation occurred. Windows/Linux expose OS high-water
+// values when the worker still exists; macOS samples current resident bytes.
+static qint64 f011WorkerResidentSample(qint64 pid) {
+    if(pid<=0)return -1;
+#ifdef Q_OS_WIN
+    HANDLE process=OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ,FALSE,DWORD(pid));
+    if(!process)return -1;
+    PROCESS_MEMORY_COUNTERS counters{};
+    counters.cb=sizeof(counters);
+    const bool ok=GetProcessMemoryInfo(process,&counters,sizeof(counters));
+    CloseHandle(process);
+    return ok?qint64(counters.PeakWorkingSetSize):-1;
+#elif defined(Q_OS_MACOS)
+    struct proc_taskinfo info{};
+    const int result=proc_pidinfo(int(pid),PROC_PIDTASKINFO,0,&info,sizeof(info));
+    return result==sizeof(info)?qint64(info.pti_resident_size):-1;
+#elif defined(Q_OS_LINUX)
+    QFile status(QString("/proc/%1/status").arg(pid));
+    if(status.open(QIODevice::ReadOnly)) {
+        const auto match=QRegularExpression("VmHWM:\\s+(\\d+)\\s+kB")
+            .match(QString::fromLatin1(status.readAll()));
+        if(match.hasMatch())return match.captured(1).toLongLong()*1024;
+    }
+#endif
+    return -1;
+}
 
 static bool f011StreamNegativeSelftest() {
     const QString token="0123456789abcdef0123456789abcdef";
@@ -54,7 +86,9 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
     auto *summary=panel->findChild<QPlainTextEdit *>("f0031NativeSummary");
     auto *fit=panel->findChild<QPushButton *>("f011NativeFit");
     if(!view || !filter || !summary || !fit)return 2;
+    qint64 workerRss=-1;
     auto finish=[&](qint64 &elapsedMs,qint64 &maxGap) {
+        workerRss=-1;
         QEventLoop loop;
         QTimer timer;
         QElapsedTimer elapsed;elapsed.start();
@@ -63,6 +97,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         QObject::connect(&timer,&QTimer::timeout,&loop,[&] {
             const auto now=elapsed.elapsed();
             maxGap=qMax(maxGap,now-last);last=now;
+            workerRss=qMax(workerRss,f011WorkerResidentSample(panel->workerPidForTest()));
             if(!panel->busy() || now>120000)loop.quit();
         });
         if(panel->busy()) {timer.start();loop.exec();timer.stop();}
@@ -197,9 +232,35 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
             {"stream_bytes",qint64(panel->streamBytesForTest())},
             {"batch_count",panel->streamBatchesForTest()},
             {"qt_process_peak_rss_bytes",peak},
+            {"worker_sampled_peak_rss_bytes",workerRss},
+            {"worker_rss_scope","sampled while process alive; -1 means unavailable"},
             {"host_arch",QSysInfo::currentCpuArchitecture()},
             {"source_absent",true},{"physical_si","NOT_RUN"}}).toJson(QJsonDocument::Compact);
         if(count==10000) {
+            // Hold the *actual* renderer after its first batch while keeping
+            // the prior scene visible, then cancel via the production slot.
+            const QString oldPath=panel->loadedPath();
+            auto *oldScene=view->scene();
+            panel->holdRenderForTest(true);
+            if(!window.openNativeCandidate(file))return 1;
+            QEventLoop cancelLoop;
+            QTimer poll;
+            QElapsedTimer cancelClock;cancelClock.start();
+            bool cancelled=false;
+            poll.setInterval(5);
+            QObject::connect(&poll,&QTimer::timeout,&cancelLoop,[&]{
+                if(panel->stagedCountForTest()>0) {
+                    if(view->scene()==oldScene && panel->loadedPath()==oldPath) {
+                        panel->cancel();cancelled=panel->status().startsWith("CANCELLED");
+                    }
+                    cancelLoop.quit();
+                } else if(!panel->busy() || cancelClock.elapsed()>60000)cancelLoop.quit();
+            });
+            poll.start();cancelLoop.exec();poll.stop();
+            if(panel->busy())panel->cancel();
+            panel->holdRenderForTest(false);
+            if(!cancelled || panel->busy() || panel->loadedPath()!=oldPath ||
+               view->scene()!=oldScene || view->scene()->items().size()!=count)return 1;
             const auto copy=dir.filePath(mixed?"mixed-copy.bsi":"copy.bsi");
             elapsed=0;gap=0;
             if(!window.copyNativeCandidate(copy) || !finish(elapsed,gap) ||
