@@ -95,6 +95,7 @@ fn native_ipc_source_exact_save_open_oracle_and_stale_guard() {
     let loaded = load(&target).unwrap();
     assert!(canonical_semantics_equal(&expected, loaded.model()));
     assert!(!loaded.is_read_only());
+    fs::remove_file(&source).unwrap();
     let open = Command::new(worker())
         .args(["open", target.to_str().unwrap()])
         .output()
@@ -102,6 +103,7 @@ fn native_ipc_source_exact_save_open_oracle_and_stale_guard() {
     assert!(open.status.success());
     let read: serde_json::Value = serde_json::from_slice(&open.stdout).unwrap();
     assert_eq!(read["source_format"], "IPC2581C_SOURCE_SUBSET");
+    assert_eq!(read["artwork_status"], "RENDERABLE");
     assert_eq!(read["artwork"]["items"].as_array().unwrap().len(), 3);
     assert_eq!(read["artwork"]["units"], "integer-nm");
 

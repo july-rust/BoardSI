@@ -151,6 +151,28 @@ fn f006_worker_exact_semantic_roundtrip() {
     assert_eq!(receipt["source_format"], "KICAD9_SOURCE_SUBSET");
     assert_eq!(receipt["traces"], 1);
     assert_eq!(receipt["vias"], 1);
+    assert_eq!(receipt["artwork_status"], "RENDERABLE");
+    fs::remove_file(&source).unwrap();
+    let reopened = invoke(&[std::ffi::OsStr::new("open"), target.as_os_str()]);
+    assert!(reopened.status.success());
+    let replay: serde_json::Value = serde_json::from_slice(&reopened.stdout).unwrap();
+    assert_eq!(replay["artwork_status"], "RENDERABLE");
+    assert_eq!(receipt["artwork"], replay["artwork"]);
+    let copy = dir.join("copy.bsi");
+    let hash = format!("{:x}", Sha256::digest(fs::read(&target).unwrap()));
+    let saved_as = invoke(&[
+        std::ffi::OsStr::new("save-loaded"),
+        target.as_os_str(),
+        copy.as_os_str(),
+        std::ffi::OsStr::new(&hash),
+    ]);
+    assert!(saved_as.status.success());
+    let replay_copy = invoke(&[std::ffi::OsStr::new("open"), copy.as_os_str()]);
+    assert!(replay_copy.status.success());
+    let copy_receipt: serde_json::Value = serde_json::from_slice(&replay_copy.stdout).unwrap();
+    assert_eq!(replay["artwork"], copy_receipt["artwork"]);
+    assert!(canonical_semantics_equal(&original, load(&copy).unwrap().model()));
+    let hash = format!("{:x}", Sha256::digest(SOURCE.as_bytes()));
     independent_sqlite_bsig_oracle(&target, &hash);
     let loaded = load(&target).unwrap();
     assert!(canonical_semantics_equal(&original, loaded.model()));

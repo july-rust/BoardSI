@@ -86,10 +86,14 @@ fn f008_native_roundtrip_exact_sql_extension_and_save_as() {
     assert_eq!(holes[0].diameter_nm, 300_000);
     assert_eq!(holes[0].tool_id, 1);
     assert!(holes[0].source_offset > 0);
+    fs::remove_file(g).unwrap();
+    fs::remove_file(d).unwrap();
     let opened = invoke(&["open", b]);
     assert!(opened.status.success());
     let open: serde_json::Value = serde_json::from_slice(&opened.stdout).unwrap();
     assert_eq!(open["source_format"], "GERBER_X2_EXCELLON_SOURCE_SUBSET");
+    assert_eq!(open["artwork_status"], "RENDERABLE");
+    assert_eq!(receipt["artwork"], open["artwork"]);
     assert_eq!(open["artwork"]["items"].as_array().unwrap().len(), 2);
     assert_eq!(open["artwork"]["alignment_verified"], false);
     // Independent SQL and byte layout inspection; no Native Reader helpers.
@@ -182,6 +186,10 @@ fn f008_native_roundtrip_exact_sql_extension_and_save_as() {
         "{}",
         String::from_utf8_lossy(&copied.stderr)
     );
+    let reopened_copy = invoke(&["open", copy]);
+    assert!(reopened_copy.status.success());
+    let copy_receipt: serde_json::Value = serde_json::from_slice(&reopened_copy.stdout).unwrap();
+    assert_eq!(open["artwork"], copy_receipt["artwork"]);
     let orig = load(b).unwrap();
     let clone = load(copy).unwrap();
     assert_eq!(orig.drill_evidence(), clone.drill_evidence());

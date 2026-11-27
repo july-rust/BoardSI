@@ -5332,8 +5332,9 @@ static int runF006NativeKiCadSelftest(const QString &nativeBinary) {
         }
         if(phase==0) {
             if(!status.contains("COMPLETED / Native save-kicad")) return;
-            if(!QFileInfo(target).isFile() || !window.openNativeCandidate(target)) {
-                failure="worker output missing or native Open rejected";loop.quit();return;
+            if(!QFileInfo(target).isFile() || !QFile::remove(source) ||
+               !window.openNativeCandidate(target)) {
+                failure="worker output missing, source removal or native Open rejected";loop.quit();return;
             }
             phase=1;return;
         }
@@ -5463,8 +5464,9 @@ static int runF007NativeIpcSelftest(const QString &nativeBinary) {
         }
         if(phase==0) {
             if(!state.contains("COMPLETED / Native save-ipc2581")) return;
-            if(!QFileInfo(target).isFile() || !window.openNativeCandidate(target)) {
-                error="F007 saved file not present or Open rejected";
+            if(!QFileInfo(target).isFile() || !QFile::remove(source) ||
+               !window.openNativeCandidate(target)) {
+                error="F007 saved file not present, source removal or Open rejected";
                 loop.quit();
                 return;
             }
@@ -5583,15 +5585,16 @@ static int runF008NativeGerberDrillSelftest(const QString &nativeBinary) {
                !view->scene()->items().at(1)->isVisible()) {
                 error="F008 layer filter lost source-only drill";loop.quit();return;
             }
-            if(!window.openNativeCandidate(target)){
-                error="F008 native reopen did not start";loop.quit();return;
+            if(!QFile::remove(gerber) || !QFile::remove(drill) ||
+               !window.openNativeCandidate(target)){
+                error="F008 source removal or native reopen failed";loop.quit();return;
             }
             phase=1;
         }else if(phase==1){
             if(!status.contains("COMPLETED / Native open"))return;
             QByteArray changedDrill=D;
             changedDrill.replace("0.300","0.400");
-            if(!write(drill,changedDrill) ||
+            if(!write(gerber,G) || !write(drill,changedDrill) ||
                !window.nativePanel()->saveGerberDrill(gerber,drill,stale,gsha,dsha)){
                 error="F008 stale-source check unavailable";loop.quit();return;
             }
