@@ -151,6 +151,31 @@ fn f006_worker_exact_semantic_roundtrip() {
     assert_eq!(receipt["source_format"], "KICAD9_SOURCE_SUBSET");
     assert_eq!(receipt["traces"], 1);
     assert_eq!(receipt["vias"], 1);
+    assert_eq!(receipt["artwork_status"], "RENDERABLE");
+    fs::remove_file(&source).unwrap();
+    let reopened = invoke(&[std::ffi::OsStr::new("open"), target.as_os_str()]);
+    assert!(reopened.status.success());
+    let replay: serde_json::Value = serde_json::from_slice(&reopened.stdout).unwrap();
+    assert_eq!(replay["artwork_status"], "RENDERABLE");
+    assert_eq!(receipt["artwork"], replay["artwork"]);
+    let copy = dir.join("copy.bsi");
+    let hash = format!("{:x}", Sha256::digest(fs::read(&target).unwrap()));
+    let saved_as = invoke(&[
+        std::ffi::OsStr::new("save-loaded"),
+        target.as_os_str(),
+        copy.as_os_str(),
+        std::ffi::OsStr::new(&hash),
+    ]);
+    assert!(saved_as.status.success());
+    let replay_copy = invoke(&[std::ffi::OsStr::new("open"), copy.as_os_str()]);
+    assert!(replay_copy.status.success());
+    let copy_receipt: serde_json::Value = serde_json::from_slice(&replay_copy.stdout).unwrap();
+    assert_eq!(replay["artwork"], copy_receipt["artwork"]);
+    assert!(canonical_semantics_equal(
+        &original,
+        load(&copy).unwrap().model()
+    ));
+    let hash = format!("{:x}", Sha256::digest(SOURCE.as_bytes()));
     independent_sqlite_bsig_oracle(&target, &hash);
     let loaded = load(&target).unwrap();
     assert!(canonical_semantics_equal(&original, loaded.model()));
@@ -263,5 +288,24 @@ fn f006_real_source_mutation_during_staging_aborts_before_publish() {
     );
     assert_eq!(fs::read(&target).unwrap(), good);
     assert!(load(&target).is_ok());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn f010_kicad_valid_native_sub_nm_width_is_not_rendered() {
+    let dir = temp();
+    let target = dir.join("unrenderable.bsi");
+    let mut board = into_native_canonical(SOURCE.as_bytes()).unwrap();
+    board.traces[0].width_m = Rational::new(1, 2_000_000_000).unwrap();
+    boardsi_native::save(&target, &board).unwrap();
+    assert!(canonical_semantics_equal(
+        &board,
+        load(&target).unwrap().model()
+    ));
+    let output = invoke(&[std::ffi::OsStr::new("open"), target.as_os_str()]);
+    assert!(output.status.success());
+    let receipt: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(receipt["artwork_status"], "NOT_RENDERED");
+    assert!(receipt.get("artwork").is_none());
     fs::remove_dir_all(dir).unwrap();
 }

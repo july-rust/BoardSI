@@ -86,10 +86,14 @@ fn f008_native_roundtrip_exact_sql_extension_and_save_as() {
     assert_eq!(holes[0].diameter_nm, 300_000);
     assert_eq!(holes[0].tool_id, 1);
     assert!(holes[0].source_offset > 0);
+    fs::remove_file(g).unwrap();
+    fs::remove_file(d).unwrap();
     let opened = invoke(&["open", b]);
     assert!(opened.status.success());
     let open: serde_json::Value = serde_json::from_slice(&opened.stdout).unwrap();
     assert_eq!(open["source_format"], "GERBER_X2_EXCELLON_SOURCE_SUBSET");
+    assert_eq!(open["artwork_status"], "RENDERABLE");
+    assert_eq!(receipt["artwork"], open["artwork"]);
     assert_eq!(open["artwork"]["items"].as_array().unwrap().len(), 2);
     assert_eq!(open["artwork"]["alignment_verified"], false);
     // Independent SQL and byte layout inspection; no Native Reader helpers.
@@ -182,6 +186,10 @@ fn f008_native_roundtrip_exact_sql_extension_and_save_as() {
         "{}",
         String::from_utf8_lossy(&copied.stderr)
     );
+    let reopened_copy = invoke(&["open", copy]);
+    assert!(reopened_copy.status.success());
+    let copy_receipt: serde_json::Value = serde_json::from_slice(&reopened_copy.stdout).unwrap();
+    assert_eq!(open["artwork"], copy_receipt["artwork"]);
     let orig = load(b).unwrap();
     let clone = load(copy).unwrap();
     assert_eq!(orig.drill_evidence(), clone.drill_evidence());
@@ -316,4 +324,42 @@ fn f008_altered_flash_role_or_shape_cannot_claim_positive_gerber() {
         diameter_m: Rational::integer(2),
     };
     assert!(evidence.check(&board).is_err());
+}
+
+#[test]
+fn f010_gerber_valid_native_sub_nm_flash_is_not_rendered() {
+    use boardsi_model::{PadShape, Rational};
+    let dir = TempDir::new();
+    let target = dir.0.join("limited.bsi");
+    let pair =
+        boardsi_import::gerber_excellon_source::inspect_pair(GERBER.as_bytes(), DRILL.as_bytes())
+            .unwrap();
+    let mut board = into_native_canonical(GERBER.as_bytes(), DRILL.as_bytes()).unwrap();
+    let evidence = GerberDrillEvidence {
+        drill_sha256: pair.drill.identity.files[0].sha256,
+        holes: pair
+            .drill
+            .holes
+            .iter()
+            .map(|h| DrillObservation {
+                centre_nm: h.centre_nm,
+                diameter_nm: h.diameter_nm,
+                tool_id: h.tool_id,
+                source_offset: h.source_offset as u64,
+            })
+            .collect(),
+    };
+    board.padstacks[0].entries[0].shape = PadShape::Circle {
+        diameter_m: Rational::new(1, 2_000_000_000).unwrap(),
+    };
+    boardsi_native::save_with_drill_evidence_guarded(&target, &board, Some(&evidence), || Ok(()))
+        .unwrap();
+    let loaded = load(&target).unwrap();
+    assert!(canonical_semantics_equal(&board, loaded.model()));
+    assert_eq!(loaded.drill_evidence(), Some(&evidence));
+    let output = invoke(&["open", target.to_str().unwrap()]);
+    assert!(output.status.success());
+    let receipt: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(receipt["artwork_status"], "NOT_RENDERED");
+    assert!(receipt.get("artwork").is_none());
 }

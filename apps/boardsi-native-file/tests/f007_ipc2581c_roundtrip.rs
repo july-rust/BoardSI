@@ -95,6 +95,7 @@ fn native_ipc_source_exact_save_open_oracle_and_stale_guard() {
     let loaded = load(&target).unwrap();
     assert!(canonical_semantics_equal(&expected, loaded.model()));
     assert!(!loaded.is_read_only());
+    fs::remove_file(&source).unwrap();
     let open = Command::new(worker())
         .args(["open", target.to_str().unwrap()])
         .output()
@@ -102,8 +103,33 @@ fn native_ipc_source_exact_save_open_oracle_and_stale_guard() {
     assert!(open.status.success());
     let read: serde_json::Value = serde_json::from_slice(&open.stdout).unwrap();
     assert_eq!(read["source_format"], "IPC2581C_SOURCE_SUBSET");
+    assert_eq!(read["artwork_status"], "RENDERABLE");
     assert_eq!(read["artwork"]["items"].as_array().unwrap().len(), 3);
     assert_eq!(read["artwork"]["units"], "integer-nm");
+    assert_eq!(read["artwork"], receipt["artwork"]);
+    let copy = tmp.0.join("copy.bsi");
+    let digest = format!("{:x}", Sha256::digest(fs::read(&target).unwrap()));
+    let saved_as = Command::new(worker())
+        .args([
+            "save-loaded",
+            target.to_str().unwrap(),
+            copy.to_str().unwrap(),
+            &digest,
+        ])
+        .output()
+        .unwrap();
+    assert!(saved_as.status.success());
+    let reopened = Command::new(worker())
+        .args(["open", copy.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(reopened.status.success());
+    let replay: serde_json::Value = serde_json::from_slice(&reopened.stdout).unwrap();
+    assert_eq!(read["artwork"], replay["artwork"]);
+    assert!(canonical_semantics_equal(
+        &expected,
+        load(&copy).unwrap().model()
+    ));
 
     // Independent SQL/BSIG format inspection; do not reuse Rust native Reader.
     use rusqlite::{Connection, OpenFlags};
@@ -276,4 +302,42 @@ fn native_non_alphabetical_net_pinrefs_keep_parent_identity() {
     assert!(conditions
         .iter()
         .any(|(k, v)| k == "datum/y_source" && v == "0"));
+}
+
+#[test]
+fn f010_ipc_valid_native_reserved_display_name_is_not_rendered() {
+    let tmp = TempDir::new();
+    let source = tmp.0.join("limited.xml");
+    let target = tmp.0.join("limited.bsi");
+    let input = SOURCE
+        .replace("name=\"TOP\"", "name=\"All copper layers\"")
+        .replace("layerRef=\"TOP\"", "layerRef=\"All copper layers\"");
+    let expected = into_native_canonical(input.as_bytes()).unwrap();
+    fs::write(&source, &input).unwrap();
+    let sha = format!("{:x}", Sha256::digest(input.as_bytes()));
+    let saved = Command::new(worker())
+        .args([
+            "save-ipc2581",
+            source.to_str().unwrap(),
+            target.to_str().unwrap(),
+            &sha,
+        ])
+        .output()
+        .unwrap();
+    assert!(saved.status.success());
+    let receipt: serde_json::Value = serde_json::from_slice(&saved.stdout).unwrap();
+    assert_eq!(receipt["artwork_status"], "NOT_RENDERED");
+    assert!(receipt.get("artwork").is_none());
+    fs::remove_file(&source).unwrap();
+    let reopened = Command::new(worker())
+        .args(["open", target.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(reopened.status.success());
+    let read: serde_json::Value = serde_json::from_slice(&reopened.stdout).unwrap();
+    assert_eq!(read["artwork_status"], "NOT_RENDERED");
+    assert!(canonical_semantics_equal(
+        &expected,
+        load(&target).unwrap().model()
+    ));
 }

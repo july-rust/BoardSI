@@ -80,7 +80,20 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
     if !is_kicad && !is_ipc {
         return Ok(None);
     }
-    if board.traces.len() + board.vias.len() > 128 || board.frames.len() != 1 {
+    if board.traces.len() + board.vias.len() > 128
+        || board.frames.len() != 1
+        || !board.arcs.is_empty()
+        || !board.areas.is_empty()
+        || !board.outlines.is_empty()
+        || !board.pads.is_empty()
+        || !board.components.is_empty()
+        || !board.pins.is_empty()
+        || (is_ipc && !board.vias.is_empty())
+        || board
+            .drills
+            .iter()
+            .any(|d| !board.vias.iter().any(|v| v.drill == d.meta.id))
+    {
         return Err(fail("BSI_KICAD_PREVIEW_UNSUPPORTED"));
     }
     let frame = &board.frames[0];
@@ -107,13 +120,14 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
         }
         i64::try_from(scaled / x.denominator()).map_err(|_| fail("BSI_KICAD_PREVIEW_DIMENSION"))
     };
-    let layers = board
+    let mut layers = board
         .stackup
         .layers
         .iter()
         .filter(|l| l.kind == LayerKind::Copper)
         .map(|l| (l.meta.id.clone(), l.name.clone(), l.order))
         .collect::<Vec<_>>();
+    layers.sort_by_key(|l| l.2);
     let find_name = |id: &boardsi_model::ObjectId| -> Result<&str, String> {
         layers
             .iter()
@@ -173,11 +187,20 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
         if drill_nm <= 0 || drill_nm >= diameter || diameter > 1_000_000_000 {
             return Err(fail("BSI_KICAD_PREVIEW_DRILL"));
         }
+        if rows.len() >= 128 {
+            return Err(fail("BSI_SOURCE_PREVIEW_ITEM_LIMIT"));
+        }
+        let pad_layers = stack
+            .entries
+            .iter()
+            .map(|entry| find_name(&entry.layer))
+            .collect::<Result<Vec<_>, _>>()?;
         rows.push(json!({
             "kind":"via","id":via.meta.id.source_object,"layer":"*",
             "at":via.position.ticks,"diameter_nm":diameter,"drill_nm":drill_nm,
             "span_first":find_name(&via.span.first_layer)?,
             "span_last":find_name(&via.span.last_layer)?,
+            "pad_layers":pad_layers,
             "net":via.net.as_ref().map(|n|n.source_object.as_str()),
             "contact":"NOT_VERIFIED"
         }));
@@ -257,6 +280,111 @@ fn gerber_source_preview(
     }))
 }
 
+// F_010: apply the same bounds as the actual Qt renderer to every derived
+// preview. These bounds never restrict the Native Reader or persistence.
+fn preview_bounds(preview: Value) -> Result<Value, String> {
+    let invalid = || fail("BSI_F010_PREVIEW_UNREPRESENTABLE");
+    let items = preview["items"].as_array().ok_or_else(invalid)?;
+    let layers = preview["layers"].as_array().ok_or_else(invalid)?;
+    let gerber = preview["schema"] == "BSI_GERBER_DRILL_SOURCE_PREVIEW_V1";
+    if items.is_empty()
+        || items.len() > 128
+        || layers.len() < if gerber { 1 } else { 2 }
+        || layers.len() > 32
+    {
+        return Err(invalid());
+    }
+    let mut names = std::collections::BTreeSet::new();
+    for layer in layers {
+        let name = layer["name"].as_str().ok_or_else(invalid)?;
+        if name.is_empty() || name == "*" || name == "All copper layers" || !names.insert(name) {
+            return Err(invalid());
+        }
+    }
+    let point = |p: &Value| {
+        p.as_array().is_some_and(|xy| {
+            xy.len() == 2
+                && xy.iter().all(|v| {
+                    v.as_i64()
+                        .is_some_and(|n| (-1_000_000_000_000..=1_000_000_000_000).contains(&n))
+                })
+        })
+    };
+    let size = |v: &Value| v.as_i64().is_some_and(|n| (1..=1_000_000_000).contains(&n));
+    for row in items {
+        let layer = row["layer"].as_str().ok_or_else(invalid)?;
+        if row["id"].as_str().map_or(true, str::is_empty)
+            || (layer != "*" && !names.contains(layer))
+        {
+            return Err(invalid());
+        }
+        let valid = match row["kind"].as_str() {
+            Some("trace") => {
+                layer != "*"
+                    && point(&row["a"])
+                    && point(&row["b"])
+                    && row["a"] != row["b"]
+                    && size(&row["width_nm"])
+            }
+            Some("rectangle") => {
+                layer != "*"
+                    && point(&row["at"])
+                    && size(&row["width_nm"])
+                    && size(&row["height_nm"])
+            }
+            Some("flash") => layer != "*" && point(&row["at"]) && size(&row["diameter_nm"]),
+            Some("via") => {
+                let mut pads = std::collections::BTreeSet::new();
+                layer == "*"
+                    && point(&row["at"])
+                    && size(&row["diameter_nm"])
+                    && size(&row["drill_nm"])
+                    && row["drill_nm"].as_i64() < row["diameter_nm"].as_i64()
+                    && ["span_first", "span_last"]
+                        .iter()
+                        .all(|key| row[*key].as_str().is_some_and(|n| names.contains(n)))
+                    && row["pad_layers"].as_array().is_some_and(|ls| {
+                        !ls.is_empty()
+                            && ls.iter().all(|v| {
+                                v.as_str()
+                                    .is_some_and(|n| names.contains(n) && pads.insert(n))
+                            })
+                    })
+            }
+            Some("drill-source") => {
+                gerber
+                    && layer == "*"
+                    && point(&row["at"])
+                    && size(&row["diameter_nm"])
+                    && row["plating"] == "UNKNOWN"
+                    && row["layer_span"] == "UNKNOWN"
+                    && row["alignment"] == "NOT_VERIFIED"
+                    && row["tool_id"]
+                        .as_u64()
+                        .is_some_and(|n| (1..=u64::from(u32::MAX)).contains(&n))
+            }
+            _ => false,
+        };
+        if !valid {
+            return Err(invalid());
+        }
+    }
+    Ok(preview)
+}
+
+fn set_artwork(response: &mut Value, preview: Result<Value, String>) {
+    match preview.and_then(preview_bounds) {
+        Ok(artwork) => {
+            response["artwork_status"] = json!("RENDERABLE");
+            response["artwork"] = artwork;
+        }
+        Err(reason) => {
+            response["artwork_status"] = json!("NOT_RENDERED");
+            response["artwork_reason"] = json!(reason);
+        }
+    }
+}
+
 fn receipt(action: &str, path: &Path, read_only: bool) -> Result<Value, String> {
     let before = file_sha256(path)?;
     let loaded = load(path).map_err(native_error)?;
@@ -279,45 +407,33 @@ fn receipt(action: &str, path: &Path, read_only: bool) -> Result<Value, String> 
         "geometry_only": true, "physical_si": "NOT_RUN"
     });
     if let Some(evidence) = loaded.drill_evidence() {
-        let preview = gerber_source_preview(b, evidence)?;
         response["source_format"] = json!("GERBER_X2_EXCELLON_SOURCE_SUBSET");
-        response["artwork"] = preview;
         response["drill_observations"] = json!(evidence.holes.len());
-    } else if b.sources.len() == 1
-        && matches!(
-            b.sources[0].id.format,
-            boardsi_model::SourceFormat::PadsAsc | boardsi_model::SourceFormat::Odb
-        )
-    {
-        let source_format = match b.sources[0].id.format {
-            boardsi_model::SourceFormat::PadsAsc => "PADS_V94_SOURCE_SUBSET",
-            _ => "ODB_SOURCE_SUBSET",
+        set_artwork(&mut response, gerber_source_preview(b, evidence));
+    } else if b.sources.len() == 1 {
+        use boardsi_model::SourceFormat;
+        let format = match b.sources[0].id.format {
+            SourceFormat::PadsAsc => "PADS_V94_SOURCE_SUBSET",
+            SourceFormat::Odb => "ODB_SOURCE_SUBSET",
+            SourceFormat::KiCad => "KICAD9_SOURCE_SUBSET",
+            SourceFormat::Ipc2581 => "IPC2581C_SOURCE_SUBSET",
+            _ => return Ok(response),
         };
-        response["source_format"] = json!(source_format);
-        match f009_native_artwork::render(b) {
-            Ok((qualified_format, preview)) if qualified_format == source_format => {
-                response["artwork"] = preview;
-                response["artwork_status"] = json!("RENDERABLE");
-            }
-            Ok(_) => {
-                response["artwork_status"] = json!("NOT_RENDERED");
-                response["artwork_reason"] = json!("BSI_F009_SOURCE_FORMAT_MISMATCH");
-            }
-            Err(reason) => {
-                // A valid .bsi remains structurally loadable even when the
-                // bounded Qt representation cannot render every CAD primitive.
-                response["artwork_status"] = json!("NOT_RENDERED");
-                response["artwork_reason"] = json!(reason);
-            }
-        }
-    } else if let Some(preview) = source_preview(b)? {
-        let source_format = if preview["schema"] == "BSI_IPC2581_SOURCE_PREVIEW_V1" {
-            "IPC2581C_SOURCE_SUBSET"
-        } else {
-            "KICAD9_SOURCE_SUBSET"
+        response["source_format"] = json!(format);
+        let preview = match b.sources[0].id.format {
+            SourceFormat::PadsAsc | SourceFormat::Odb => f009_native_artwork::render(b)
+                .map_err(str::to_owned)
+                .and_then(|(qualified_format, artwork)| {
+                    if qualified_format == format {
+                        Ok(artwork)
+                    } else {
+                        Err(fail("BSI_F009_SOURCE_FORMAT_MISMATCH"))
+                    }
+                }),
+            _ => source_preview(b)
+                .and_then(|artwork| artwork.ok_or_else(|| fail("BSI_F010_PREVIEW_SCOPE"))),
         };
-        response["source_format"] = json!(source_format);
-        response["artwork"] = preview;
+        set_artwork(&mut response, preview);
     }
     Ok(response)
 }
@@ -435,17 +551,7 @@ fn run() -> Result<Value, String> {
             }
             let board = boardsi_import::ipc2581c_source::into_native_canonical(&bytes)
                 .map_err(|e| format!("BSI_IPC2581_SOURCE_UNSUPPORTED:{}", e.code))?;
-            // Qualify the exact Qt preview *before* publishing a new .bsi.
-            // A bounded-source file that cannot be represented in the 64 KiB
-            // QProcess receipt must never produce a successful file write
-            // followed by a misleading worker failure.
-            let preview =
-                source_preview(&board)?.ok_or_else(|| fail("BSI_IPC2581_PREVIEW_UNAVAILABLE"))?;
-            let preview_bytes =
-                serde_json::to_vec(&preview).map_err(|_| fail("BSI_IPC2581_PREVIEW_ENCODING"))?;
-            if preview_bytes.len() > 48 * 1024 {
-                return Err(fail("BSI_IPC2581_PREVIEW_SIZE"));
-            }
+            // Display limits do not gate a structurally valid Native save.
             save_guarded(&target, &board, || {
                 let fresh_bytes = fs::read(&source).map_err(|_| NativeError::SourceChanged)?;
                 if format!("{:x}", Sha256::digest(&fresh_bytes)) != expected {
@@ -509,14 +615,6 @@ fn run() -> Result<Value, String> {
                     })
                     .collect(),
             };
-            let preview = gerber_source_preview(&board, &evidence)?;
-            if serde_json::to_vec(&preview)
-                .map_err(|_| fail("BSI_F008_PREVIEW_ENCODING"))?
-                .len()
-                > 48 * 1024
-            {
-                return Err(fail("BSI_F008_PREVIEW_SIZE"));
-            }
             save_with_drill_evidence_guarded(&target, &board, Some(&evidence), || {
                 let fresh_g = read_source(&gerber).map_err(|_| NativeError::SourceChanged)?;
                 let fresh_d = read_source(&drill).map_err(|_| NativeError::SourceChanged)?;
@@ -657,17 +755,21 @@ fn run() -> Result<Value, String> {
 /// Check the *entire* serialized worker receipt at the final publish boundary,
 /// after action-specific fields were added. Qt bounds stdout at 65,536 bytes.
 /// Native structural load must still succeed when derived preview is too big.
-fn bound_f009_receipt(mut value: Value) -> Value {
+fn bound_artwork_receipt(mut value: Value) -> Value {
     let is_f009 = matches!(
         value["source_format"].as_str(),
         Some("PADS_V94_SOURCE_SUBSET" | "ODB_SOURCE_SUBSET")
     ) && value["artwork_status"] == "RENDERABLE";
-    if is_f009 && value.to_string().len() >= 60_000 {
+    if value["artwork_status"] == "RENDERABLE" && value.to_string().len() >= 60_000 {
         if let Some(map) = value.as_object_mut() {
             map.remove("artwork");
         }
         value["artwork_status"] = json!("NOT_RENDERED");
-        value["artwork_reason"] = json!("BSI_F009_PREVIEW_OUTPUT_LIMIT");
+        value["artwork_reason"] = json!(if is_f009 {
+            "BSI_F009_PREVIEW_OUTPUT_LIMIT"
+        } else {
+            "BSI_F010_PREVIEW_OUTPUT_LIMIT"
+        });
     }
     value
 }
@@ -675,7 +777,7 @@ fn bound_f009_receipt(mut value: Value) -> Value {
 fn main() -> ExitCode {
     match run() {
         Ok(value) => {
-            println!("{}", bound_f009_receipt(value));
+            println!("{}", bound_artwork_receipt(value));
             ExitCode::SUCCESS
         }
         Err(code) => {
@@ -696,12 +798,52 @@ mod f009_receipt_tests {
             "geometry_only": true, "physical_si": "NOT_RUN",
             "artwork": {"items": "x".repeat(70_000)}
         });
-        let bounded = bound_f009_receipt(oversized);
+        let bounded = bound_artwork_receipt(oversized);
         assert_eq!(bounded["action"], "open");
         assert_eq!(bounded["geometry_only"], true);
         assert_eq!(bounded["artwork_status"], "NOT_RENDERED");
         assert_eq!(bounded["artwork_reason"], "BSI_F009_PREVIEW_OUTPUT_LIMIT");
         assert!(bounded.get("artwork").is_none());
         assert!(bounded.to_string().len() < 60_000);
+    }
+
+    #[test]
+    fn all_f010_formats_share_full_receipt_limit() {
+        for format in [
+            "PADS_V94_SOURCE_SUBSET",
+            "ODB_SOURCE_SUBSET",
+            "KICAD9_SOURCE_SUBSET",
+            "IPC2581C_SOURCE_SUBSET",
+            "GERBER_X2_EXCELLON_SOURCE_SUBSET",
+        ] {
+            let receipt = json!({
+                "action":"save-loaded","source_format":format,
+                "artwork_status":"RENDERABLE","artwork":{"items":"x".repeat(70_000)},
+                "sha256":"digest","geometry_only":true
+            });
+            let bounded = bound_artwork_receipt(receipt);
+            assert_eq!(bounded["artwork_status"], "NOT_RENDERED");
+            assert_eq!(bounded["sha256"], "digest");
+            assert!(bounded.get("artwork").is_none());
+        }
+    }
+
+    #[test]
+    fn preview_limits_do_not_publish_partial_artwork() {
+        let preview = json!({
+            "schema":"BSI_KICAD_SOURCE_PREVIEW_V1",
+            "layers":[{"name":"F.Cu"},{"name":"B.Cu"}],
+            "items":[{"kind":"trace","id":"a","layer":"F.Cu",
+                "a":[0,0],"b":[1,1],"width_nm":100}]
+        });
+        assert!(preview_bounds(preview.clone()).is_ok());
+        for b in [json!([0, 0]), json!([1_000_000_000_001_i64, 0])] {
+            let mut invalid = preview.clone();
+            invalid["items"][0]["b"] = b;
+            let mut receipt = json!({"geometry_only":true});
+            set_artwork(&mut receipt, Ok(invalid));
+            assert_eq!(receipt["artwork_status"], "NOT_RENDERED");
+            assert!(receipt.get("artwork").is_none());
+        }
     }
 }

@@ -91,7 +91,8 @@ class F0031NativePanel final : public QWidget {
         QStringList layerNames;
         for(const auto &value:layers) {
             const QString name=value.toObject().value("name").toString();
-            if(name.isEmpty() || layerNames.contains(name))return false;
+            if(name.isEmpty() || name=="*" || name=="All copper layers" ||
+               layerNames.contains(name))return false;
             layerNames<<name;
         }
         auto number=[](const QJsonValue &value,double &mm)->bool {
@@ -200,7 +201,7 @@ class F0031NativePanel final : public QWidget {
                 cleanup();return false;
             }
             item->setData(0,layer);
-            if(schema=="BSI_F009_NATIVE_CAD_PREVIEW_V1" && kind=="via") {
+            if(kind=="via") {
                 // Via annulus exists ONLY on explicit native Padstack copper
                 // layers. Source-layer spans or logical net names are not proof
                 // of a pad on every inner layer.
@@ -309,20 +310,29 @@ class F0031NativePanel final : public QWidget {
         const QString sourceFormat=receipt.value("source_format").toString();
         const bool f009Native=sourceFormat=="PADS_V94_SOURCE_SUBSET" ||
                               sourceFormat=="ODB_SOURCE_SUBSET";
+        const QString expectedSchema=f009Native ? "BSI_F009_NATIVE_CAD_PREVIEW_V1" :
+            sourceFormat=="KICAD9_SOURCE_SUBSET" ? "BSI_KICAD_SOURCE_PREVIEW_V1" :
+            sourceFormat=="IPC2581C_SOURCE_SUBSET" ? "BSI_IPC2581_SOURCE_PREVIEW_V1" :
+            sourceFormat=="GERBER_X2_EXCELLON_SOURCE_SUBSET" ? "BSI_GERBER_DRILL_SOURCE_PREVIEW_V1" :
+            QString();
+        const bool knownArtwork=!expectedSchema.isEmpty();
         const QString artworkStatus=receipt.value("artwork_status").toString();
         const QString artworkReason=receipt.value("artwork_reason").toString();
-        if(f009Native &&
-           ((artworkStatus!="RENDERABLE" && artworkStatus!="NOT_RENDERED") ||
-            (artworkStatus=="NOT_RENDERED" &&
-             (!artworkReason.startsWith("BSI_F009_") ||
-              receipt.contains("artwork"))))) {
+        if((knownArtwork &&
+            ((artworkStatus!="RENDERABLE" && artworkStatus!="NOT_RENDERED") ||
+             (artworkStatus=="NOT_RENDERED" &&
+              (!artworkReason.startsWith("BSI_") || receipt.contains("artwork"))) ||
+             (artworkStatus=="RENDERABLE" &&
+              (!receipt.value("artwork").isObject() ||
+               receipt.value("artwork").toObject().value("schema").toString()!=expectedSchema ||
+               receipt.contains("artwork_reason"))))) ||
+           (!knownArtwork && (receipt.contains("artwork") ||
+                             receipt.contains("artwork_status") ||
+                             receipt.contains("artwork_reason")))) {
             state("FAILED / invalid native CAD artwork receipt");
             return;
         }
-        const bool sourcePreview=sourceFormat=="KICAD9_SOURCE_SUBSET" ||
-                                 sourceFormat=="IPC2581C_SOURCE_SUBSET" ||
-                                 sourceFormat=="GERBER_X2_EXCELLON_SOURCE_SUBSET" ||
-                                 (f009Native && artworkStatus=="RENDERABLE");
+        const bool sourcePreview=knownArtwork && artworkStatus=="RENDERABLE";
         if(sourcePreview && !showKiCadArtwork(receipt.value("artwork").toObject())) {
             state("FAILED / native source preview contract invalid");
             return;
@@ -347,7 +357,7 @@ class F0031NativePanel final : public QWidget {
                          "Editable native snapshot; Save As requires revalidation\n")+
             "Canonical data is stored exactly in Rust.\n"+
             (sourcePreview ? "SOURCE artwork: bounded display/picking only; no electrical contact proof.\n" :
-               f009Native ? "ARTWORK NOT_RENDERED / "+artworkReason+"\n" :
+               knownArtwork ? "ARTWORK NOT_RENDERED / "+artworkReason+"\n" :
                             "Native geometry is NOT rendered on this preview tab.\n")+
             "Physical connectivity, manufacturing and SI: NOT_VERIFIED / NOT_RUN");
         state("COMPLETED / Native "+operation_);
@@ -429,7 +439,14 @@ public:
     QString loadedPath() const {return loaded_;}
     QString status() const {return state_->text();}
     void forget() {
-        if(!running_) {loaded_.clear();acceptedDigest_.clear();readOnly_=true;state("IDLE / source import selected");}
+        if(!running_) {
+            loaded_.clear();acceptedDigest_.clear();readOnly_=true;
+            artworkScene_->clear();
+            artworkLayer_->setVisible(false);
+            artworkView_->setVisible(false);
+            summary_->setPlainText("Native .bsi file not loaded.");
+            state("IDLE / source import selected");
+        }
     }
     bool open(const QString &file) {
         if(running_) return false;
