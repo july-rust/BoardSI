@@ -82,6 +82,11 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
         return Ok(None);
     }
     let max_items = f011_artwork_stream::item_limit();
+    let referenced_drills = board
+        .vias
+        .iter()
+        .map(|via| &via.drill)
+        .collect::<std::collections::BTreeSet<_>>();
     if board.traces.len() + board.vias.len() > max_items
         || board.frames.len() != 1
         || !board.arcs.is_empty()
@@ -94,7 +99,7 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
         || board
             .drills
             .iter()
-            .any(|d| !board.vias.iter().any(|v| v.drill == d.meta.id))
+            .any(|d| !referenced_drills.contains(&d.meta.id))
     {
         return Err(fail("BSI_KICAD_PREVIEW_UNSUPPORTED"));
     }
@@ -159,14 +164,22 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
             }));
         }
     }
+    let padstacks = board
+        .padstacks
+        .iter()
+        .map(|p| (&p.meta.id, p))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let drills = board
+        .drills
+        .iter()
+        .map(|d| (&d.meta.id, d))
+        .collect::<std::collections::BTreeMap<_, _>>();
     for via in &board.vias {
         if via.position.frame != frame.meta.id || !via.connected_layers.is_empty() {
             return Err(fail("BSI_KICAD_PREVIEW_VIA"));
         }
-        let stack = board
-            .padstacks
-            .iter()
-            .find(|p| p.meta.id == via.padstack)
+        let stack = padstacks
+            .get(&via.padstack)
             .ok_or_else(|| fail("BSI_KICAD_PREVIEW_VIA"))?;
         let first = stack
             .entries
@@ -180,10 +193,8 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
             || !matches!(&e.shape,PadShape::Circle{diameter_m} if to_nm(*diameter_m).ok()==Some(diameter))) {
             return Err(fail("BSI_KICAD_PREVIEW_SHAPE"));
         }
-        let drill = board
-            .drills
-            .iter()
-            .find(|d| d.meta.id == via.drill)
+        let drill = drills
+            .get(&via.drill)
             .ok_or_else(|| fail("BSI_KICAD_PREVIEW_DRILL"))?;
         let drill_nm = to_nm(drill.diameter_m)?;
         if drill_nm <= 0 || drill_nm >= diameter || diameter > 1_000_000_000 {
@@ -463,7 +474,7 @@ fn run() -> Result<Value, String> {
     // vendor-source claim. The source adapter supplies a small valid template;
     // synthetic copies deliberately exercise the persistence/display path.
     #[cfg(feature = "f0031-qualification")]
-    if args.len() == 3 && arg_text(&args, 0)? == "f011-seed" {
+    if (args.len() == 3 || args.len() == 4) && arg_text(&args, 0)? == "f011-seed" {
         let path = arg_path(&args, 1)?;
         let count: usize = arg_text(&args, 2)?
             .parse()
@@ -471,12 +482,22 @@ fn run() -> Result<Value, String> {
         if !(1..=100_000).contains(&count) {
             return Err(fail("BSI_F011_FIXTURE_COUNT"));
         }
+        let mixed = if args.len() == 4 {
+            if arg_text(&args, 3)? != "mixed" {
+                return Err(fail("BSI_F011_FIXTURE_KIND"));
+            }
+            true
+        } else {
+            false
+        };
         let template = br#"(kicad_pcb (version 20241229) (generator "F011 synthetic fixture")
           (layers (0 "F.Cu" signal) (2 "B.Cu" signal))
           (net 0 "") (net 1 "CLK")
           (segment (start 0 0) (end 0.25 0) (width 0.1)
            (layer "F.Cu") (net 1)
-           (uuid "223e4567-e89b-12d3-a456-426614174000")))"#;
+           (uuid "223e4567-e89b-12d3-a456-426614174000"))
+          (via (at 0 1) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (net 1)
+           (uuid "123e4567-e89b-12d3-a456-426614174000")))"#;
         let mut board = boardsi_import::kicad9_source::into_native_canonical(template)
             .map_err(|e| format!("BSI_F011_FIXTURE_TEMPLATE:{}", e.code))?;
         let trace = board
@@ -492,15 +513,38 @@ fn run() -> Result<Value, String> {
             .meta
             .id
             .clone();
+        let via = board
+            .vias
+            .pop()
+            .ok_or_else(|| fail("BSI_F011_FIXTURE_TEMPLATE"))?;
+        let drill = board
+            .drills
+            .pop()
+            .ok_or_else(|| fail("BSI_F011_FIXTURE_TEMPLATE"))?;
+        if !mixed {
+            board.padstacks.clear();
+        }
         for i in 0..count {
+            let x = (i % 100) as i64 * 1_000_000;
+            let y = (i / 100) as i64 * 1_000_000;
+            if mixed && i % 2 == 1 {
+                let mut item = via.clone();
+                let mut hole = drill.clone();
+                item.meta.id.source_object = format!("f011-synthetic-{i}");
+                item.meta.provenance.source_object_type = "F011 synthetic test via".into();
+                hole.meta.id.source_object = format!("f011-synthetic-drill-{i}");
+                item.drill = hole.meta.id.clone();
+                item.position.ticks = [x, y];
+                board.drills.push(hole);
+                board.vias.push(item);
+                continue;
+            }
             let mut item = trace.clone();
             item.meta.id.source_object = format!("f011-synthetic-{i}");
             item.meta.provenance.source_object_type = "F011 synthetic test trace".into();
             if i % 2 == 1 {
                 item.layer = back.clone();
             }
-            let x = (i % 100) as i64 * 1_000_000;
-            let y = (i / 100) as i64 * 1_000_000;
             item.centreline[0].ticks = [x, y];
             item.centreline[1].ticks = [x + 250_000, y];
             board.traces.push(item);
