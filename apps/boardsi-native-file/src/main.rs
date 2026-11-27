@@ -1,6 +1,7 @@
 //! F_003_1 local native file worker. One job per process; bounded JSON receipt.
 //! Never use this binary for physical connectivity, geometry display or SI claims.
 mod f009_native_artwork;
+mod f011_artwork_stream;
 
 use boardsi_native::{
     canonical_semantics_equal, load, migrate_to_current, recover_owned_staging, save, save_guarded,
@@ -80,7 +81,8 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
     if !is_kicad && !is_ipc {
         return Ok(None);
     }
-    if board.traces.len() + board.vias.len() > 128
+    let max_items = f011_artwork_stream::item_limit();
+    if board.traces.len() + board.vias.len() > max_items
         || board.frames.len() != 1
         || !board.arcs.is_empty()
         || !board.areas.is_empty()
@@ -145,7 +147,7 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
             return Err(fail("BSI_SOURCE_PREVIEW_WIDTH"));
         }
         for (index, pair) in tr.centreline.windows(2).enumerate() {
-            if rows.len() >= 128 {
+            if rows.len() >= max_items {
                 return Err(fail("BSI_SOURCE_PREVIEW_ITEM_LIMIT"));
             }
             rows.push(json!({
@@ -187,7 +189,7 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
         if drill_nm <= 0 || drill_nm >= diameter || diameter > 1_000_000_000 {
             return Err(fail("BSI_KICAD_PREVIEW_DRILL"));
         }
-        if rows.len() >= 128 {
+        if rows.len() >= max_items {
             return Err(fail("BSI_SOURCE_PREVIEW_ITEM_LIMIT"));
         }
         let pad_layers = stack
@@ -220,7 +222,9 @@ fn gerber_source_preview(
     evidence: &GerberDrillEvidence,
 ) -> Result<Value, String> {
     use boardsi_model::{PadShape, Rational};
-    if board.stackup.layers.len() != 1 || board.pads.len() + evidence.holes.len() > 128 {
+    if board.stackup.layers.len() != 1
+        || board.pads.len() + evidence.holes.len() > f011_artwork_stream::item_limit()
+    {
         return Err(fail("BSI_F008_PREVIEW_LIMIT"));
     }
     let layer = &board.stackup.layers[0];
@@ -288,7 +292,7 @@ fn preview_bounds(preview: Value) -> Result<Value, String> {
     let layers = preview["layers"].as_array().ok_or_else(invalid)?;
     let gerber = preview["schema"] == "BSI_GERBER_DRILL_SOURCE_PREVIEW_V1";
     if items.is_empty()
-        || items.len() > 128
+        || items.len() > f011_artwork_stream::item_limit()
         || layers.len() < if gerber { 1 } else { 2 }
         || layers.len() > 32
     {
@@ -775,9 +779,25 @@ fn bound_artwork_receipt(mut value: Value) -> Value {
 }
 
 fn main() -> ExitCode {
+    let request = match f011_artwork_stream::request() {
+        Ok(request) => request,
+        Err(code) => {
+            eprintln!("{code}");
+            return ExitCode::FAILURE;
+        }
+    };
     match run() {
         Ok(value) => {
-            println!("{}", bound_artwork_receipt(value));
+            if let Some(token) = request {
+                if let Err(code) =
+                    f011_artwork_stream::write_receipt(value, &token, std::io::stdout().lock())
+                {
+                    eprintln!("{code}");
+                    return ExitCode::FAILURE;
+                }
+            } else {
+                println!("{}", bound_artwork_receipt(value));
+            }
             ExitCode::SUCCESS
         }
         Err(code) => {
