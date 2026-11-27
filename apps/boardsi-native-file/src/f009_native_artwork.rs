@@ -7,7 +7,6 @@ use boardsi_model::{
 };
 use serde_json::{json, Value};
 
-const MAX_ITEMS: usize = 128;
 const MAX_LAYERS: usize = 32;
 const MAX_COORD_NM: i64 = 1_000_000_000_000;
 const MAX_SIZE_NM: i64 = 1_000_000_000;
@@ -88,7 +87,7 @@ pub(crate) fn render(board: &BoardModel) -> Result<(&'static str, Value), &'stat
         return Err("BSI_F009_UNRENDERED_GEOMETRY_KIND");
     }
     if board.traces.len() + board.pads.len() + board.vias.len() == 0
-        || board.traces.len() + board.pads.len() + board.vias.len() > MAX_ITEMS
+        || board.traces.len() + board.pads.len() + board.vias.len() > crate::f011_artwork_stream::item_limit()
     {
         return Err("BSI_F009_ITEM_LIMIT");
     }
