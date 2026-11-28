@@ -26,6 +26,7 @@
 #include <QProcessEnvironment>
 #include <QUuid>
 #include "f011_artwork_stream.h"
+#include "f012_inspector.h"
 #include <QRegularExpression>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -94,6 +95,7 @@ class F0031NativePanel final : public QWidget {
     QGraphicsView *artworkView_;
     QComboBox *artworkLayer_;
     QPushButton *artworkFit_;
+    F012Inspector *inspector_=nullptr;
     QElapsedTimer phaseClock_;
     qint64 workerMs_=0, sceneMs_=0;
     qsizetype streamBytes_=0;
@@ -105,6 +107,7 @@ class F0031NativePanel final : public QWidget {
     std::function<void()> onChanged_;
     void state(const QString &value) {
         state_->setText(value);
+        if(inspector_)inspector_->suspend(running_);
         if (onChanged_) onChanged_();
     }
     void discardRender() {
@@ -497,6 +500,7 @@ class F0031NativePanel final : public QWidget {
         const auto artworkReason=receipt.value("artwork_reason").toString();
         loaded_=target_;
         acceptedDigest_=receipt.value("sha256").toString();
+        inspector_->setDocument(loaded_,acceptedDigest_);
         readOnly_=receipt.value("read_only").toBool();
         QStringList counts;
         for(const auto &name:{"layers","nets","sources","traces","arcs","areas","pads","vias","drills"})
@@ -554,6 +558,13 @@ public:
         layout->addWidget(artworkLayer_);
         layout->addWidget(artworkFit_);
         layout->addWidget(artworkView_,3);
+        auto *inspectToggle=new QPushButton("Native Board Inspector",this);
+        inspectToggle->setCheckable(true);
+        inspector_=new F012Inspector(binary_,this);
+        inspector_->setVisible(false);
+        layout->addWidget(inspectToggle);
+        layout->addWidget(inspector_,2);
+        connect(inspectToggle,&QPushButton::toggled,inspector_,&QWidget::setVisible);
         connect(artworkLayer_,QOverload<int>::of(&QComboBox::currentIndexChanged),
                 this,[this](int index) {
             const QString selected=index<=0 ? QString() : artworkLayer_->itemText(index);
@@ -608,6 +619,7 @@ public:
     void forget() {
         if(!running_) {
             loaded_.clear();acceptedDigest_.clear();readOnly_=true;
+            inspector_->setDocument(QString(),QString());
             artworkScene_->clear();
             artworkLayer_->setVisible(false);
             artworkView_->setVisible(false);
