@@ -1,6 +1,6 @@
 # F_011 — Large Native Artwork, bounded resource usage and performance
 
-**Status: IMPLEMENTATION CANDIDATE / QUALIFICATION PENDING.** Baseline main `246551ac133eef333b3a10d44850cd705231d82d`. [Implementation PR #676](https://github.com/july-rust/BoardSI/pull/676). Code and test definitions are not observed execution evidence. No merge or product U/T claim.
+**Status: implementation, exact PR HEAD qualification and protected code merge COMPLETE within the supported subset.** Baseline main `246551ac133eef333b3a10d44850cd705231d82d`. [Implementation PR #676](https://github.com/july-rust/BoardSI/pull/676) is merged. Final exact code-main and documentation-main Push acceptance is recorded in a separate final receipt on PR #676; do not infer that acceptance from this document alone. No product U/T claim.
 
 ## Implementation scope
 
@@ -16,21 +16,53 @@
 
 | Gate | Evidence required | Current |
 |---|---|---|
-| T01 | Five-format and Golden regressions | NOT_OBSERVED |
-| T02 | 128/129 boundary, legacy and framed output | NOT_OBSERVED |
-| T03 | Actual Main Qt 1k/10k, trace-only and mixed trace/via | NOT_OBSERVED |
-| T04 | Independent expected grid/width/layer/ID/annulus checks, canonical round-trip | NOT_OBSERVED |
-| T05 | Actual wheel zoom, middle drag, Fit, Picking, Layer filter | NOT_OBSERVED |
-| T06 | Native source-free Open, Save As, reopen, close/reopen | NOT_OBSERVED |
-| T07 | Malformed frame, missing/duplicate batch, sequence, token, digest, trailing and size errors | NOT_OBSERVED |
-| T08 | Real Worker lifecycle regression and staged-render cancellation retaining old scene | NOT_OBSERVED |
-| T09 | Repeated opens/closes, worker sampled RSS and Qt peak RSS; leak/resource interpretation | NOT_OBSERVED |
-| T10 | 100,000 structural stress and explicit NOT_RENDERED; measured phase times, payload, batch count and event loop gap | NOT_OBSERVED |
-| T11 | Actual four-OS Native and Main Qt; mandatory regression | NOT_OBSERVED |
-| T12 | Exact final HEAD CI and independent Codex, protected merge, exact code-main and document-main Push | NOT_OBSERVED |
+| T01 | Five-format and Golden regressions | PASS — F010 five-format Qt and F004 independent Golden regression |
+| T02 | 128/129 boundary, legacy and framed output | PASS — 128/129 and three paired legacy/framed comparisons per OS |
+| T03 | Actual Main Qt 1k/10k, trace-only and mixed trace/via | PASS — actual 1k/10k trace-only and mixed on four OS |
+| T04 | Independent expected grid/width/layer/ID/annulus checks, canonical round-trip | PASS — synthetic independent grid/width/layer/source ID and annulus oracle; Native Save As and reopen |
+| T05 | Actual wheel zoom, middle drag, Fit, Picking, Layer filter | PASS — actual wheel, middle-drag, Fit, picking and filter |
+| T06 | Native source-free Open, Save As, reopen, close/reopen | PASS — source-free Save As, reopen, repeated close/open |
+| T07 | Malformed frame, missing/duplicate batch, sequence, token, digest, trailing and size errors | PASS — bounded malformed stream rejection suite |
+| T08 | Real Worker lifecycle regression and staged-render cancellation retaining old scene | PASS — existing lifecycle suite plus actual staged cancellation retaining prior scene |
+| T09 | Repeated opens/closes, worker sampled RSS and Qt peak RSS; leak/resource interpretation | PASS (bounded exercise) — zero closed-scene items, current RSS samples; not long-duration leak certification |
+| T10 | 100,000 structural stress and explicit NOT_RENDERED; measured phase times, payload, batch count and event loop gap | PASS — 100k structural open with NOT_RENDERED, measured phase/bytes/batches/timer |
+| T11 | Actual four-OS Native and Main Qt; mandatory regression | PASS — four OS actual Native and Qt regression |
+| T12 | Exact final HEAD CI and independent Codex, protected merge, exact code-main and document-main Push | PARTIAL — exact PR HEAD CI and Codex, protected verified merge complete; exact code-main and document-main Push final receipt required |
 
-## Measurement limitations and outstanding gates
+## Final PR evidence (2026-11-28 KST)
 
-The test receipt records end-to-end Open, worker+transfer and scene phase times, sampled timer gaps, payload bytes/batches, Qt process peak RSS and live worker RSS samples. A sampled live high-water value is a lower bound; macOS is sampled current RSS, Windows/Linux may expose OS high-water while the child is alive, -1 means unavailable. No claim of exact worker lifetime peak, controlled A/B speedup, UI latency acceptance, measured memory-leak bound, actual GPU qualification or completed physical SI until evidence exists. Compare with original 128-object policy only under identical conditions; 10,000 is the proposed supported display ceiling, not a measured product limit. Preserve existing timing thresholds and disclose failures.
+- Exact final HEAD `1d6ac0a7cf6c39d7a30de04ef1a070702f83ef89`: **14/14 PR workflows and 55/55 check runs SUCCESS**. Independent [Codex review](https://github.com/july-rust/BoardSI/pull/676#issuecomment-7229943729) completed with zero findings/unresolved; review threads zero. The merge-message check count 52 was an undercount, corrected in the PR receipt using REST's 55 returned successful check runs.
+- [Qt runtime](https://github.com/july-rust/BoardSI/actions/runs/46092652053): all four jobs succeeded; actual checkout SHA verified before build, and each exact-head JSON validated and uploaded. [Linux x64 job](https://github.com/july-rust/BoardSI/actions/runs/46092652053/job/140816955118) / [Windows x64](https://github.com/july-rust/BoardSI/actions/runs/46092652053/job/140816955076) / [Windows ARM64](https://github.com/july-rust/BoardSI/actions/runs/46092652053/job/140816955116) / [macOS ARM64](https://github.com/july-rust/BoardSI/actions/runs/46092652053/job/140816955130). Artifact IDs respectively 15242272374, 15242194092, 15242915910, 15242420249; non-expired at verification. GitHub artifact retention applies; this ledger preserves selected results beyond retention.
+- [Numerical core](https://github.com/july-rust/BoardSI/actions/runs/46092652045), [F004 compatibility](https://github.com/july-rust/BoardSI/actions/runs/46092651883), [F003 Native Rust](https://github.com/july-rust/BoardSI/actions/runs/46092651966), [F003 resilience](https://github.com/july-rust/BoardSI/actions/runs/46092652004) succeeded. Existing F007 historical main Push remains unobserved; no retrospective promotion.
+- [Protected verified Squash](https://github.com/july-rust/BoardSI/commit/560f0d47e4482b63b689cc2caf4c88d6a0c16c4a): GitHub merged=true, verified=true, single parent `246551ac133eef333b3a10d44850cd705231d82d`; main protected=true; exact PR and merged commit tree `2638603741e50011b8956dbfd9470e8cff6ee96e` identical.
 
-The final ledger must contain actual CI jobs/logs, per-platform measurement values, exact final review SHA, verified protected merge and exact main Push. Do not promote this candidate or modify historical F007 post-merge evidence, EB gates or product U/T statuses. Use a single checklist row and a final PR receipt.
+## Actual measurements, final PR HEAD
+
+| Case (Open ms) | Linux x64 | Windows x64 | Windows ARM64 | macOS ARM64 |
+|---|---:|---:|---:|---:|
+| 128 trace | 50 | 98 | 126 | 57 |
+| 129 trace | 50 | 96 | 123 | 64 |
+| 1,000 trace | 222 | 393 | 485 | 260 |
+| 10,000 trace | 2351 | 4078 | 4845 | 2310 |
+| 10,000 mixed trace/via | 4342 | 6817 | 8089 | 4673 |
+| 10,001 structural NOT_RENDERED | 1703 | 3031 | 3677 | 2202 |
+| 100,000 structural NOT_RENDERED | 17591 | 30782 | 38433 | 18325 |
+
+| Resource / transport metric | Linux x64 | Windows x64 | Windows ARM64 | macOS ARM64 |
+|---|---:|---:|---:|---:|
+| 10k mixed Qt peak RSS bytes | 134299648 | 118280192 | 131563520 | 155271168 |
+| 10k mixed Worker sampled peak RSS bytes | 55001088 | 50266112 | 60325888 | 61259776 |
+| 10k mixed max timer gap ms | 110 | 115 | 79 | 82 |
+| 10k mixed stream bytes | 1834760 | 1834795 | 1834795 | 1834812 |
+| 10k mixed batch count | 79 | 79 | 79 | 79 |
+| 100k Worker sampled peak RSS bytes | 290287616 | 280719360 | 301588480 | 329564160 |
+| 128 legacy / framed median ms | 43 / 47 | 82 / 84 | 114 / 114 | 54 / 50 |
+| 128 legacy / framed bytes | 16889 / 17327 | 16924 / 17362 | 16924 / 17362 | 16941 / 17379 |
+| Mixed closed RSS bytes, repeat 1 / 2 | 113242112 / 113242112 | 46895104 / 45977600 | 147574784 / 101306368 | 167903232 / 162365440 |
+| Mixed reopened RSS bytes, repeat 1 / 2 | 113242112 / 113242112 | 94085120 / 93716480 | 101306368 / 98238464 | 162365440 / 163807232 |
+
+All 12 paired legacy/framed comparisons reconstruct exactly equal receipts (438-byte overhead, about 2.6%). Observed median changes are small and mixed in direction; no claim of an old-versus-new full GUI speedup. All 16 repeated-close samples (four per OS, two per composition) recorded zero remaining scene items. RSS can retain allocator/Qt caches; two repetitions per composition do not prove absence of long-term leakage. Worker sample is a lower bound, particularly macOS current RSS. Timer intervals are observations, not a separate product latency guarantee. The 10k supported rendering policy and 100k structural limit exercise are synthetic qualification, not unrestricted real-board capacity, GPU performance, manufacturing/electrical contact or physical SI certification.
+
+## Final administrative receipt
+
+The final exact code-main Push for `560f0d47e4482b63b689cc2caf4c88d6a0c16c4a` and the final documentation PR's exact HEAD CI/Codex, verified protected Squash and exact documentation-main Push must all be verified. Record counts, resulting SHA and verdict in one final comment on [PR #676](https://github.com/july-rust/BoardSI/pull/676) so the ledger does not recursively reference its future SHA. This document records T12 as partial until that receipt exists. The main branch and documentation status must not be advanced ahead of confirmed CI. Preserve all existing EB gates and product U/T statuses.
