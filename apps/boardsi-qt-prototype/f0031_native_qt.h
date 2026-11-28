@@ -98,6 +98,7 @@ class F0031NativePanel final : public QWidget {
     QPushButton *artworkFit_;
     F012Inspector *inspector_=nullptr;
     QPushButton *inspectToggle_=nullptr;
+    QMetaObject::Connection inspectorPicking_;
     QElapsedTimer phaseClock_;
     qint64 workerMs_=0, sceneMs_=0;
     qsizetype streamBytes_=0;
@@ -359,6 +360,7 @@ class F0031NativePanel final : public QWidget {
             return;
         }
         timeout_.stop();
+        QObject::disconnect(inspectorPicking_);
         auto *old=artworkScene_;
         artworkScene_=stagedScene_;stagedScene_=nullptr;
         artworkView_->setScene(artworkScene_);
@@ -496,12 +498,11 @@ class F0031NativePanel final : public QWidget {
     }
     void connectInspectorPicking() {
         auto *scene=artworkScene_;
-        connect(scene,&QGraphicsScene::selectionChanged,this,[this,scene] {
+        inspectorPicking_=connect(scene,&QGraphicsScene::selectionChanged,this,[this,scene] {
             if(scene!=artworkScene_ || running_ || !inspector_ || !inspectToggle_->isChecked())return;
             const auto selected=scene->selectedItems();
-            if(selected.size()!=1)return;
-            const auto ref=selected.front()->data(2).value<QJsonObject>();
-            if(!ref.isEmpty())inspector_->inspectSelection(ref);
+            const auto ref=selected.size()==1?selected.front()->data(2).value<QJsonObject>():QJsonObject();
+            inspector_->inspectSelection(ref);
         });
     }
     void fitArtwork() {
@@ -580,6 +581,9 @@ public:
         layout->addWidget(inspectToggle_);
         layout->addWidget(inspector_,2);
         connect(inspectToggle_,&QPushButton::toggled,inspector_,&QWidget::setVisible);
+        connect(inspectToggle_,&QPushButton::toggled,this,[this](bool visible){
+            if(!visible)inspector_->cancelSelection();
+        });
         connect(artworkLayer_,QOverload<int>::of(&QComboBox::currentIndexChanged),
                 this,[this](int index) {
             const QString selected=index<=0 ? QString() : artworkLayer_->itemText(index);
@@ -609,6 +613,8 @@ public:
         });
     }
     ~F0031NativePanel() override {
+        QObject::disconnect(inspectorPicking_);
+        QObject::disconnect(&child_,nullptr,this,nullptr);
         if(child_.state()!=QProcess::NotRunning) child_.kill();
     }
 #ifdef BOARDSI_RUNTIME_TEST

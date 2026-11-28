@@ -3,6 +3,16 @@
 use boardsi_model::{BoardModel, ObjectId, ObjectMeta, Point, Property, Rational};
 use serde_json::{json, Value};
 
+fn sha_hex(bytes: &[u8; 32]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut result = String::with_capacity(64);
+    for &byte in bytes {
+        result.push(char::from(HEX[usize::from(byte >> 4)]));
+        result.push(char::from(HEX[usize::from(byte & 15)]));
+    }
+    result
+}
+
 const MAX_PAGE: usize = 128;
 const MAX_BYTES: usize = 60_000;
 const MAX_ROW: usize = 32_000;
@@ -142,7 +152,7 @@ pub(super) fn query(
                    "format_version": s.id.format_version, "importer_version": s.id.importer_version,
                    "producer": s.producer, "producer_version": s.producer_version,
                    "files": s.id.files.iter().map(|f| json!({"logical_path": f.logical_path,
-                       "stored_sha256": f.sha256.iter().map(|x| format!("{x:02x}")).collect::<String>()})).collect::<Vec<_>>(),
+                       "stored_sha256": sha_hex(&f.sha256)})).collect::<Vec<_>>(),
                    "conditions": s.id.conditions, "capability": {
                        "geometry": format!("{:?}", s.capability.geometry),
                        "net": format!("{:?}", s.capability.net),

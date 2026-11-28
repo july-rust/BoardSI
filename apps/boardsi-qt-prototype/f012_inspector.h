@@ -20,7 +20,8 @@ class F012Inspector final : public QWidget {
     QTimer timeout_;
     QString binary_, path_, digest_, request_, category_;
     QByteArray output_;
-    QJsonObject selection_;
+    QJsonObject selection_, pendingSelection_;
+    bool completing_=false;
     QComboBox *categoryBox_;
     QPlainTextEdit *details_;
     QPushButton *query_, *next_, *cancel_;
@@ -28,7 +29,7 @@ class F012Inspector final : public QWidget {
     int offset_=0, nextOffset_=-1;
     bool valid_=false, suspended_=false;
     void controls() {
-        const bool busy=worker_.state()!=QProcess::NotRunning;
+        const bool busy=worker_.state()!=QProcess::NotRunning || completing_ || !pendingSelection_.isEmpty();
         const bool available=!path_.isEmpty() && !suspended_ && !busy;
         categoryBox_->setEnabled(available);
         query_->setEnabled(available);
@@ -56,7 +57,7 @@ class F012Inspector final : public QWidget {
         nextOffset_=-1;
         category_=categoryBox_->currentData().toString();
         request_=QUuid::createUuid().toString(QUuid::Id128);
-        valid_=true;
+        valid_=true;completing_=true;
         details_->clear();
         status_->setText("RUNNING / validating native snapshot");
         auto env=QProcessEnvironment::systemEnvironment();
@@ -71,11 +72,12 @@ class F012Inspector final : public QWidget {
         controls();
     }
     void finish(int code,QProcess::ExitStatus exit) {
+        completing_=false;
         collect();
         timeout_.stop();
         const bool accepted=valid_;
         valid_=false;
-        if(!accepted) {controls();return;}
+        if(!accepted) {startPendingSelection();controls();return;}
         QJsonParseError error;
         const auto doc=QJsonDocument::fromJson(output_,&error);
         const auto result=doc.object();
@@ -109,6 +111,17 @@ class F012Inspector final : public QWidget {
                          .arg(size?offset_+1:offset_).arg(end).arg(total));
         controls();
     }
+    void startPendingSelection() {
+        if(completing_ || worker_.state()!=QProcess::NotRunning ||
+           pendingSelection_.isEmpty() || suspended_ || path_.isEmpty())return;
+        const auto ref=pendingSelection_;
+        pendingSelection_=QJsonObject();
+        const int boxIndex=categoryBox_->findData(ref.value("category").toString());
+        const int index=ref.value("index").toInt(-1);
+        if(boxIndex<0 || index<0)return;
+        categoryBox_->setCurrentIndex(boxIndex);
+        startPage(index,ref);
+    }
 public:
     explicit F012Inspector(const QString &binary,QWidget *parent=nullptr)
         : QWidget(parent),binary_(binary) {
@@ -139,6 +152,7 @@ public:
         connect(query_,&QPushButton::clicked,this,[this]{startPage(0);});
         connect(next_,&QPushButton::clicked,this,[this]{if(nextOffset_>=0)startPage(nextOffset_);});
         connect(cancel_,&QPushButton::clicked,this,[this]{
+            pendingSelection_=QJsonObject();
             status_->setText("CANCELLED / inspection");invalidate();controls();
         });
         connect(&worker_,&QProcess::readyReadStandardOutput,this,[this]{collect();});
@@ -150,12 +164,15 @@ public:
                 this,[this](int code,QProcess::ExitStatus why){finish(code,why);});
         connect(&worker_,&QProcess::stateChanged,this,[this](QProcess::ProcessState){controls();});
         connect(&worker_,&QProcess::errorOccurred,this,[this](QProcess::ProcessError why){
-            if(why==QProcess::FailedToStart && valid_) {
+            if(why==QProcess::FailedToStart) {
+                completing_=false;
+                pendingSelection_=QJsonObject();
                 invalidate();status_->setText("FAILED / inspection worker unavailable");controls();
             }
         });
         timeout_.setSingleShot(true);
         connect(&timeout_,&QTimer::timeout,this,[this]{
+            pendingSelection_=QJsonObject();
             status_->setText("FAILED / inspection timeout");invalidate();controls();
         });
         controls();
@@ -165,15 +182,29 @@ public:
         invalidate();
     }
     void inspectSelection(const QJsonObject &selection) {
-        if(path_.isEmpty() || suspended_ || worker_.state()!=QProcess::NotRunning)return;
+        if(path_.isEmpty() || suspended_)return;
+        // Every selection transition invalidates any superseded selection result,
+        // including an empty or multi-selection. Keep at most the newest request.
+        pendingSelection_=QJsonObject();
+        nextOffset_=-1;details_->clear();
         const auto category=selection.value("category").toString();
         const int index=selection.value("index").toInt(-1);
-        const int boxIndex=categoryBox_->findData(category);
-        if(index<0 || boxIndex<0)return;
-        categoryBox_->setCurrentIndex(boxIndex);
-        startPage(index,selection);
+        if(index>=0 && categoryBox_->findData(category)>=0)
+            pendingSelection_=selection;
+        status_->setText(pendingSelection_.isEmpty()?"No single supported object selected":
+                         "RUNNING / latest artwork selection");
+        if(completing_ || worker_.state()!=QProcess::NotRunning)invalidate();
+        startPendingSelection();
+        controls();
+    }
+    void cancelSelection() {
+        pendingSelection_=QJsonObject();
+        nextOffset_=-1;details_->clear();
+        invalidate();
+        status_->setText("Inspection selection cleared");controls();
     }
     void setDocument(const QString &path,const QString &digest) {
+        pendingSelection_=QJsonObject();
         invalidate();path_=path;digest_=digest;nextOffset_=-1;
         details_->clear();
         status_->setText(path.isEmpty()?"No accepted Native document":
@@ -182,7 +213,8 @@ public:
     }
     void suspend(bool suspended) {
         suspended_=suspended;
-        if(suspended && valid_) {
+        if(suspended && (valid_ || !pendingSelection_.isEmpty())) {
+            pendingSelection_=QJsonObject();
             invalidate();nextOffset_=-1;
             status_->setText("Inspection cancelled during Native operation");
         }
