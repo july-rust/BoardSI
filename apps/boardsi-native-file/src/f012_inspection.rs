@@ -57,8 +57,16 @@ fn length_m(board: &BoardModel, points: &[Point]) -> Option<f64> {
         let b = board.frames.iter().find(|f| f.meta.id == pair[1].frame)?;
         let x = a.exact_m(&pair[0]).ok()?;
         let y = b.exact_m(&pair[1]).ok()?;
-        let dx = y[0].checked_add(x[0].checked_neg().ok()?).ok()?.to_f64().ok()?;
-        let dy = y[1].checked_add(x[1].checked_neg().ok()?).ok()?.to_f64().ok()?;
+        let dx = y[0]
+            .checked_add(x[0].checked_neg().ok()?)
+            .ok()?
+            .to_f64()
+            .ok()?;
+        let dy = y[1]
+            .checked_add(x[1].checked_neg().ok()?)
+            .ok()?
+            .to_f64()
+            .ok()?;
         length += dx.hypot(dy);
     }
     length.is_finite().then_some(length)
@@ -88,7 +96,9 @@ fn pad_shape(shape: &PadShape) -> Value {
         } => {
             json!({"kind":"Thermal","round":round,"centre_size_m":rational(*centre_size_m),"outer_size_m":rational(*outer_size_m),"spoke_width_m":rational(*spoke_width_m),"first_spoke_degrees":first_spoke_degrees,"spoke_count":spoke_count})
         }
-        PadShape::Custom(boundary) => json!({"kind":"Custom","segment_count":boundary.segments.len()}),
+        PadShape::Custom(boundary) => {
+            json!({"kind":"Custom","segment_count":boundary.segments.len()})
+        }
     }
 }
 
@@ -209,7 +219,11 @@ pub(super) fn query(
             |f| json!({"logical_path":f.logical_path,"stored_sha256":sha_hex(&f.sha256),"source_reopened":false}),
         ),
         "source-conditions" => bounded_page(
-            &b.sources.get(nested()?).ok_or("BSI_F012_PARENT")?.id.conditions,
+            &b.sources
+                .get(nested()?)
+                .ok_or("BSI_F012_PARENT")?
+                .id
+                .conditions,
             offset,
             limit,
             |c| json!({"key":c.0,"value":c.1}),
@@ -312,9 +326,12 @@ pub(super) fn query(
                    "centre": point(b, &a.centre), "start": point(b, &a.start),
                    "end": point(b, &a.end), "clockwise": a.clockwise})
         }),
-        "padstacks" => bounded_page(&b.padstacks, offset, limit, |p| {
-            json!({"meta":meta(b,&p.meta),"entry_count":p.entries.len()})
-        }),
+        "padstacks" => bounded_page(
+            &b.padstacks,
+            offset,
+            limit,
+            |p| json!({"meta":meta(b,&p.meta),"entry_count":p.entries.len()}),
+        ),
         "pads" => bounded_page(&b.pads, offset, limit, |p| {
             json!({"meta": meta(b, &p.meta), "position": point(b, &p.position),
                    "padstack": id(b, &p.padstack), "orientation": format!("{:?}", p.orientation),
