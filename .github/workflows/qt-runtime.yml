@@ -67,6 +67,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
           BOARDSI_STACKUP_VALIDATOR: ${{ github.workspace }}/target/debug/boardsi-stackup-config
+          BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           ulimit -c 0
           export LD_LIBRARY_PATH="$QT_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -76,6 +77,10 @@ jobs:
         run: |
           if test -f build-qt/qt-runtime-results.json; then cat build-qt/qt-runtime-results.json; fi
           if test -f build-qt/Testing/Temporary/LastTest.log; then cat build-qt/Testing/Temporary/LastTest.log; fi
+      - name: Verify F_011 durable qualification receipt
+        run: |
+          cat build-qt/qt-f011-qualification.json
+          python3 .github/scripts/verify_f011_receipt.py build-qt/qt-f011-qualification.json "${{ github.event.pull_request.head.sha || github.sha }}"
       - name: Execute xcb desktop backend with software display
         env:
           BOARDSI_EXPECTED_QT_ARCH: x86_64
@@ -230,12 +235,17 @@ jobs:
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
+          QT_FORCE_STDERR_LOGGING: '1'
+          BOARDSI_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           cd build-qt
           suffix=''
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          rm -f qt-f011-qualification.json
           ./boardsi-preview-p0$suffix --f011-large-artwork-selftest \
             "$GITHUB_WORKSPACE/target/debug/boardsi-native-file$suffix"
+          cat qt-f011-qualification.json
+          python "$GITHUB_WORKSPACE/.github/scripts/verify_f011_receipt.py" qt-f011-qualification.json "$BOARDSI_SOURCE_HEAD_SHA"
       - name: F_010 five-format source-free Native artwork switch and Save As
         shell: bash
         env:
@@ -1218,7 +1228,9 @@ jobs:
     if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Qt native Windows ARM64
     runs-on: windows-11-arm
-    timeout-minutes: 20
+    # F011 adds an observed multi-minute 100k fixture and lifecycle suite.
+    # Only the aggregate CI job budget grows; runtime/test limits are unchanged.
+    timeout-minutes: 30
     env:
       BOARDSI_CI_NAME: Windows ARM64
       BOARDSI_CI_RUNNER: windows-11-arm

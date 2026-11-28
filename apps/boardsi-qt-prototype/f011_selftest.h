@@ -2,6 +2,7 @@
 #pragma once
 #include <QVector>
 #include <QPair>
+#include <QSaveFile>
 #if defined(Q_OS_MACOS)
 #include <libproc.h>
 #include <sys/proc_info.h>
@@ -10,7 +11,7 @@
 // Samples are lower bounds on the live worker peak, not a claim that no
 // higher transient allocation occurred. Windows/Linux expose OS high-water
 // values when the worker still exists; macOS samples current resident bytes.
-static qint64 f011WorkerResidentSample(qint64 pid) {
+static qint64 f011ResidentSample(qint64 pid,bool highWater=true) {
     if(pid<=0)return -1;
 #ifdef Q_OS_WIN
     HANDLE process=OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ,FALSE,DWORD(pid));
@@ -19,20 +20,23 @@ static qint64 f011WorkerResidentSample(qint64 pid) {
     counters.cb=sizeof(counters);
     const bool ok=GetProcessMemoryInfo(process,&counters,sizeof(counters));
     CloseHandle(process);
-    return ok?qint64(counters.PeakWorkingSetSize):-1;
+    return ok?qint64(highWater?counters.PeakWorkingSetSize:counters.WorkingSetSize):-1;
 #elif defined(Q_OS_MACOS)
+    Q_UNUSED(highWater);
     struct proc_taskinfo info{};
     const int result=proc_pidinfo(int(pid),PROC_PIDTASKINFO,0,&info,sizeof(info));
     return result==sizeof(info)?qint64(info.pti_resident_size):-1;
 #elif defined(Q_OS_LINUX)
     QFile status(QString("/proc/%1/status").arg(pid));
     if(status.open(QIODevice::ReadOnly)) {
-        const auto match=QRegularExpression("VmHWM:\\s+(\\d+)\\s+kB")
+        const auto match=QRegularExpression(
+            highWater?"VmHWM:\\s+(\\d+)\\s+kB":"VmRSS:\\s+(\\d+)\\s+kB")
             .match(QString::fromLatin1(status.readAll()));
         if(match.hasMatch())return match.captured(1).toLongLong()*1024;
     }
     return -1;
 #else
+    Q_UNUSED(highWater);
     return -1;
 #endif
 }
@@ -88,6 +92,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
     auto *summary=panel->findChild<QPlainTextEdit *>("f0031NativeSummary");
     auto *fit=panel->findChild<QPushButton *>("f011NativeFit");
     if(!view || !filter || !summary || !fit)return 2;
+    QJsonArray measurements,transportAB,closeSamples;
     qint64 workerRss=-1;
     auto finish=[&](qint64 &elapsedMs,qint64 &maxGap) {
         workerRss=-1;
@@ -99,7 +104,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         QObject::connect(&timer,&QTimer::timeout,&loop,[&] {
             const auto now=elapsed.elapsed();
             maxGap=qMax(maxGap,now-last);last=now;
-            workerRss=qMax(workerRss,f011WorkerResidentSample(panel->workerPidForTest()));
+            workerRss=qMax(workerRss,f011ResidentSample(panel->workerPidForTest()));
             if(!panel->busy() || now>120000)loop.quit();
         });
         if(panel->busy()) {timer.start();loop.exec();timer.stop();}
@@ -208,6 +213,45 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
            legacy.value("vias").toInt()!=(mixed?count/2:0) ||
            (count>128 && legacy.value("artwork_status").toString()!="NOT_RENDERED"))
             return 1;
+        if(count==128) {
+            // Controlled same-binary, same-file transport A/B: alternate order,
+            // three pairs. Legacy and reconstructed framed receipts must agree
+            // exactly. This does not claim an old-vs-new GUI speedup.
+            const QString token="0123456789abcdef0123456789abcdef";
+            for(int repeat=0;repeat<3;++repeat) {
+                QJsonObject receipts[2];
+                qint64 times[2]={0,0},sizes[2]={0,0};
+                for(int order=0;order<2;++order) {
+                    const int mode=(order+repeat)%2;
+                    QProcess worker;
+                    auto e=QProcessEnvironment::systemEnvironment();
+                    e.remove("BOARDSI_ARTWORK_REQUEST");
+                    if(mode==1)e.insert("BOARDSI_ARTWORK_REQUEST",token);
+                    worker.setProcessEnvironment(e);
+                    QElapsedTimer clock;clock.start();
+                    worker.start(nativeBinary,{"open",file});
+                    if(!worker.waitForStarted(15000) || !worker.waitForFinished(60000) ||
+                       worker.exitStatus()!=QProcess::NormalExit || worker.exitCode()!=0)return 1;
+                    const auto bytes=worker.readAllStandardOutput();
+                    times[mode]=clock.elapsed();sizes[mode]=bytes.size();
+                    if(mode==0) {
+                        QJsonParseError parse;
+                        const auto doc=QJsonDocument::fromJson(bytes,&parse);
+                        if(parse.error!=QJsonParseError::NoError || !doc.isObject())return 1;
+                        receipts[mode]=doc.object();
+                    } else {
+                        F011ArtworkStream decoder;decoder.reset(token);
+                        if(!decoder.feed(bytes) || !decoder.finish(receipts[mode]))return 1;
+                    }
+                }
+                if(receipts[0]!=receipts[1] ||
+                   receipts[0].value("artwork_status").toString()!="RENDERABLE")return 1;
+                transportAB.append(QJsonObject{{"repeat",repeat+1},
+                    {"legacy_ms",times[0]},{"framed_ms",times[1]},
+                    {"legacy_bytes",sizes[0]},{"framed_bytes",sizes[1]},
+                    {"exact_receipt_equal",true}});
+            }
+        }
         qint64 elapsed=0,gap=0;
         if(!window.openNativeCandidate(file) || !finish(elapsed,gap) ||
            panel->loadedPath()!=file) {
@@ -219,14 +263,9 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
                   !summary->toPlainText().contains("ARTWORK NOT_RENDERED"))return 1;
         qint64 peak=boardSiPeakResidentBytes();
 #ifdef Q_OS_LINUX
-        QFile status("/proc/self/status");
-        if(status.open(QIODevice::ReadOnly)) {
-            const auto match=QRegularExpression("VmHWM:\\s+(\\d+)\\s+kB")
-                .match(QString::fromLatin1(status.readAll()));
-            if(match.hasMatch())peak=match.captured(1).toLongLong()*1024;
-        }
+        peak=f011ResidentSample(QCoreApplication::applicationPid());
 #endif
-        qInfo().noquote()<<QJsonDocument(QJsonObject{
+        const QJsonObject measurement{
             {"schema","boardsi-f011-large-artwork-v1"},{"count",count},
             {"rendered",count<=10000},{"mixed",mixed},
             {"open_ms",elapsed},{"max_timer_gap_ms",gap},
@@ -238,7 +277,9 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
             {"worker_sampled_peak_rss_bytes",workerRss},
             {"worker_rss_scope","sampled while process alive; -1 means unavailable"},
             {"host_arch",QSysInfo::currentCpuArchitecture()},
-            {"source_absent",true},{"physical_si","NOT_RUN"}}).toJson(QJsonDocument::Compact);
+            {"source_absent",true},{"physical_si","NOT_RUN"}};
+        measurements.append(measurement);
+        qInfo().noquote()<<QJsonDocument(measurement).toJson(QJsonDocument::Compact);
         if(count==10000) {
             // Hold the *actual* renderer after its first batch while keeping
             // the prior scene visible, then cancel via the production slot.
@@ -275,12 +316,28 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
                 panel->forget();
                 if(panel->hasLoaded() || !view->scene()->items().isEmpty() ||
                    view->isVisible())return 1;
+                QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+                const auto closedRss=f011ResidentSample(QCoreApplication::applicationPid(),false);
                 elapsed=0;gap=0;
                 if(!window.openNativeCandidate(copy) || !finish(elapsed,gap) ||
                    !inspect(count,mixed))return 1;
+                closeSamples.append(QJsonObject{{"mixed",mixed},{"repeat",repeat+1},
+                    {"closed_scene_items",0},{"closed_resident_bytes",closedRss},
+                    {"reopen_resident_bytes",f011ResidentSample(QCoreApplication::applicationPid(),false)},
+                    {"reopen_ms",elapsed},{"max_timer_gap_ms",gap}});
             }
         }
     }
+    const QJsonObject evidence{{"schema","boardsi-f011-qualification-v1"},{"pass",true},
+        {"host_arch",QSysInfo::currentCpuArchitecture()},
+        {"host_os",QSysInfo::productType()},
+        {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
+        {"cases",measurements},{"transport_ab",transportAB},{"close_reopen",closeSamples},
+        {"physical_si","NOT_RUN"}};
+    QSaveFile proof("qt-f011-qualification.json");
+    const auto encoded=QJsonDocument(evidence).toJson(QJsonDocument::Indented);
+    if(!proof.open(QIODevice::WriteOnly) || proof.write(encoded)!=encoded.size() ||
+       !proof.commit())return 1;
     qInfo().noquote()<<"F011 actual Main Qt large artwork and stream negative cases PASS";
     return 0;
 }
