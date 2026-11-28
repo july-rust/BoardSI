@@ -110,7 +110,7 @@ pub(crate) fn render(board: &BoardModel) -> Result<(&'static str, Value), &'stat
         return Err("BSI_F009_LAYER_NAME");
     }
     let mut items = Vec::new();
-    for trace in &board.traces {
+    for (index, trace) in board.traces.iter().enumerate() {
         if trace.centreline.len() != 2 {
             return Err("BSI_F009_TRACE_SHAPE");
         }
@@ -122,12 +122,13 @@ pub(crate) fn render(board: &BoardModel) -> Result<(&'static str, Value), &'stat
         }
         items.push(json!({
             "kind": "trace", "id": trace.meta.id.source_object,
+            "inspection_ref": crate::f012_inspection::artwork_ref(board,"traces",index,&trace.meta.id),
             "layer": name(board, &trace.layer)?,
             "net": net(trace.net.as_ref()), "a": a, "b": b, "width_nm": width,
             "contact": "NOT_VERIFIED"
         }));
     }
-    for pad in &board.pads {
+    for (index, pad) in board.pads.iter().enumerate() {
         if !matches!(
             pad.orientation,
             Orientation::Orthogonal {
@@ -149,7 +150,7 @@ pub(crate) fn render(board: &BoardModel) -> Result<(&'static str, Value), &'stat
         let at = point_nm(board, &pad.position)?;
         let layer = name(board, &entry.layer)?;
         let common = (pad.meta.id.source_object.as_str(), net(pad.net.as_ref()));
-        let row = match &entry.shape {
+        let mut row = match &entry.shape {
             PadShape::Circle { diameter_m } => json!({
                 "kind": "flash", "id": common.0, "layer": layer, "net": common.1,
                 "at": at, "diameter_nm": size_nm(*diameter_m)?,
@@ -162,9 +163,11 @@ pub(crate) fn render(board: &BoardModel) -> Result<(&'static str, Value), &'stat
             }),
             _ => return Err("BSI_F009_PAD_SHAPE_UNSUPPORTED"),
         };
+        row["inspection_ref"] =
+            crate::f012_inspection::artwork_ref(board, "pads", index, &pad.meta.id);
         items.push(row);
     }
-    for via in &board.vias {
+    for (index, via) in board.vias.iter().enumerate() {
         // Native models may already contain source-local connectivity evidence.
         // Rendering the source-defined copper NEVER promotes that evidence to
         // manufactured/verified physical contact or solver readiness.
@@ -232,6 +235,7 @@ pub(crate) fn render(board: &BoardModel) -> Result<(&'static str, Value), &'stat
         }
         items.push(json!({
             "kind": "via", "id": via.meta.id.source_object,
+            "inspection_ref": crate::f012_inspection::artwork_ref(board,"vias",index,&via.meta.id),
             "layer": "*", "net": net(via.net.as_ref()),
             "at": point_nm(board, &via.position)?,
             "diameter_nm": diameter, "drill_nm": drill_nm,

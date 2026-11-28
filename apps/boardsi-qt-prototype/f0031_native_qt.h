@@ -26,10 +26,12 @@
 #include <QProcessEnvironment>
 #include <QUuid>
 #include "f011_artwork_stream.h"
+#include "f012_inspector.h"
 #include <QRegularExpression>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QVariant>
 #include <functional>
 
 // Keep the existing QGraphicsView selection semantics. Wheel zoom and middle
@@ -94,6 +96,10 @@ class F0031NativePanel final : public QWidget {
     QGraphicsView *artworkView_;
     QComboBox *artworkLayer_;
     QPushButton *artworkFit_;
+    F012Inspector *inspector_=nullptr;
+    QPushButton *inspectToggle_=nullptr;
+    QMetaObject::Connection inspectorPicking_;
+    bool inspectorSuspended_=false;
     QElapsedTimer phaseClock_;
     qint64 workerMs_=0, sceneMs_=0;
     qsizetype streamBytes_=0;
@@ -105,6 +111,12 @@ class F0031NativePanel final : public QWidget {
     std::function<void()> onChanged_;
     void state(const QString &value) {
         state_->setText(value);
+        if(inspector_) {
+            const bool resumed=inspectorSuspended_ && !running_;
+            inspectorSuspended_=running_;
+            inspector_->suspend(running_);
+            if(resumed)syncInspectorPicking();
+        }
         if (onChanged_) onChanged_();
     }
     void discardRender() {
@@ -292,6 +304,8 @@ class F0031NativePanel final : public QWidget {
                 cleanup();return false;
             }
             item->setData(0,layer);
+            if(row.value("inspection_ref").isObject())
+                item->setData(2,QVariant(row.value("inspection_ref").toObject()));
             if(kind=="via") {
                 // Via annulus exists ONLY on explicit native Padstack copper
                 // layers. Source-layer spans or logical net names are not proof
@@ -352,9 +366,11 @@ class F0031NativePanel final : public QWidget {
             return;
         }
         timeout_.stop();
+        QObject::disconnect(inspectorPicking_);
         auto *old=artworkScene_;
         artworkScene_=stagedScene_;stagedScene_=nullptr;
         artworkView_->setScene(artworkScene_);
+        connectInspectorPicking();
         old->deleteLater();
         artworkLayer_->clear();
         artworkLayer_->addItem("All copper layers");
@@ -486,6 +502,19 @@ class F0031NativePanel final : public QWidget {
         artworkFit_->setVisible(false);
         publishReceipt(receipt,false);
     }
+    void syncInspectorPicking() {
+        if(running_ || !inspector_ || !inspectToggle_ || !inspectToggle_->isChecked() || loaded_.isEmpty())return;
+        const auto selected=artworkScene_->selectedItems();
+        const auto ref=selected.size()==1 && selected.front()->isVisible()
+            ?selected.front()->data(2).value<QJsonObject>():QJsonObject();
+        inspector_->inspectSelection(ref);
+    }
+    void connectInspectorPicking() {
+        auto *scene=artworkScene_;
+        inspectorPicking_=connect(scene,&QGraphicsScene::selectionChanged,this,[this,scene] {
+            if(scene==artworkScene_)syncInspectorPicking();
+        });
+    }
     void fitArtwork() {
         if(artworkScene_->items().isEmpty())return;
         artworkView_->fitInView(
@@ -497,6 +526,7 @@ class F0031NativePanel final : public QWidget {
         const auto artworkReason=receipt.value("artwork_reason").toString();
         loaded_=target_;
         acceptedDigest_=receipt.value("sha256").toString();
+        inspector_->setDocument(loaded_,acceptedDigest_);
         readOnly_=receipt.value("read_only").toBool();
         QStringList counts;
         for(const auto &name:{"layers","nets","sources","traces","arcs","areas","pads","vias","drills"})
@@ -554,6 +584,18 @@ public:
         layout->addWidget(artworkLayer_);
         layout->addWidget(artworkFit_);
         layout->addWidget(artworkView_,3);
+        inspectToggle_=new QPushButton("Native Board Inspector",this);
+        inspectToggle_->setCheckable(true);
+        inspectToggle_->setObjectName("f012InspectorToggle");
+        inspector_=new F012Inspector(binary_,this);
+        inspector_->setVisible(false);
+        layout->addWidget(inspectToggle_);
+        layout->addWidget(inspector_,2);
+        connect(inspectToggle_,&QPushButton::toggled,inspector_,&QWidget::setVisible);
+        connect(inspectToggle_,&QPushButton::toggled,this,[this](bool visible){
+            if(!visible)inspector_->cancelSelection();
+            else syncInspectorPicking();
+        });
         connect(artworkLayer_,QOverload<int>::of(&QComboBox::currentIndexChanged),
                 this,[this](int index) {
             const QString selected=index<=0 ? QString() : artworkLayer_->itemText(index);
@@ -564,6 +606,7 @@ public:
                     (layer=="*" &&
                      (padLayers.isEmpty() || padLayers.contains(selected))));
             }
+            if(!artworkScene_->selectedItems().isEmpty())syncInspectorPicking();
         });
         renderTimer_.setSingleShot(true);
         connect(&renderTimer_,&QTimer::timeout,this,[this]{renderNext();});
@@ -583,6 +626,8 @@ public:
         });
     }
     ~F0031NativePanel() override {
+        QObject::disconnect(inspectorPicking_);
+        QObject::disconnect(&child_,nullptr,this,nullptr);
         if(child_.state()!=QProcess::NotRunning) child_.kill();
     }
 #ifdef BOARDSI_RUNTIME_TEST
@@ -608,6 +653,7 @@ public:
     void forget() {
         if(!running_) {
             loaded_.clear();acceptedDigest_.clear();readOnly_=true;
+            inspector_->setDocument(QString(),QString());
             artworkScene_->clear();
             artworkLayer_->setVisible(false);
             artworkView_->setVisible(false);

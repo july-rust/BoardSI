@@ -5623,7 +5623,7 @@ static int runF008NativeGerberDrillSelftest(const QString &nativeBinary) {
 
 // F_010: seed with real workers, remove every source, and reopen in a fresh
 // production PreviewWindow. Native geometry is not an electrical SI claim.
-static int runF010CrossFormatSelftest(const QString &nativeBinary,const QString &padsFixture) {
+static int runF010CrossFormatSelftest(const QString &nativeBinary,const QString &padsFixture,bool inspectNative=false) {
     QTemporaryDir dir;
     if(!dir.isValid())return 2;
     const QString root=dir.path();
@@ -5729,10 +5729,144 @@ static int runF010CrossFormatSelftest(const QString &nativeBinary,const QString 
         return !panel->busy() &&
             panel->status().startsWith(expectSuccess?"COMPLETED":"FAILED");
     };
+    const QList<int> layerCounts={5,3,3,3,2};
+    auto *toggle=panel->findChild<QPushButton *>("f012InspectorToggle");
+    auto *category=panel->findChild<QComboBox *>("f012InspectionCategory");
+    auto *query=panel->findChild<QPushButton *>("f012InspectionQuery");
+    auto *status=panel->findChild<QLabel *>("f012InspectionStatus");
+    auto *details=panel->findChild<QPlainTextEdit *>("f012InspectionDetails");
+    auto *fields=panel->findChild<QTreeWidget *>("f012InspectionFields");
+    if(inspectNative && (!toggle || !category || !query || !status || !details || !fields))return 2;
+    auto waitInspection=[&](bool expectPage) {
+        QEventLoop loop;
+        QTimer timer;
+        QElapsedTimer elapsed;elapsed.start();timer.setInterval(10);
+        QObject::connect(&timer,&QTimer::timeout,&loop,[&]{
+            if(query->isEnabled() || elapsed.elapsed()>20000)loop.quit();
+        });
+        if(!query->isEnabled()) {timer.start();loop.exec();timer.stop();}
+        return query->isEnabled() && (!expectPage ||
+            (status->text().startsWith("Native snapshot /") &&
+             fields->topLevelItemCount()>0));
+    };
+    auto rows=[&]{return QJsonDocument::fromJson(details->toPlainText().toUtf8()).array();};
+    auto inspectPage=[&](const QString &name) {
+        view->scene()->clearSelection();
+        if(!waitInspection(false))return false;
+        category->setCurrentIndex(category->findData(name));
+        query->click();
+        return waitInspection(true);
+    };
+    auto inspectPicked=[&](QGraphicsItem *item) {
+        const auto ref=item->data(2).value<QJsonObject>();
+        if(ref.isEmpty())return false;
+        view->scene()->clearSelection();
+        item->setSelected(true);
+        if(!waitInspection(true))return false;
+        const auto page=rows();
+        if(page.size()!=1)return false;
+        const auto row=page.first().toObject();
+        if(ref.value("category")=="drill-observations")
+            return row.value("source_offset")==ref.value("source_offset") &&
+                row.value("tool_id")==ref.value("tool_id");
+        return row.value("meta").toObject().value("id")==ref.value("id");
+    };
+    auto qualifyInspection=[&](int n,const QString &path) {
+        if(!inspectNative)return true;
+        QFile file(path);
+        if(!file.open(QIODevice::ReadOnly))return false;
+        const auto before=sha(file.readAll());file.close();
+        if(!toggle->isChecked())toggle->click();
+        if(!inspectPage("board"))return false;
+        const auto board=rows().first().toObject();
+        if(board.value("schema").toInt()!=1 || board.value("sources").toInt()<1 ||
+           board.value("layers").toInt()!=layerCounts.at(n)-1)return false;
+        if(!inspectPage("sources"))return false;
+        const auto sourceRows=rows();
+        QStringList hashes;
+        for(const auto &source:sourceRows) {
+            if(source.toObject().value("source_reopened")!=false)return false;
+            for(const auto &entry:source.toObject().value("files").toArray())
+                hashes<<entry.toObject().value("stored_sha256").toString();
+        }
+        const QStringList expected=n==0?QStringList{sha(padsBytes)}:
+            n==1?QStringList{sha(matrix),sha(feature)}:
+            n==2?QStringList{sha(K)}:n==3?QStringList{sha(I)}:QStringList{sha(G),sha(D)};
+        for(const auto &digest:expected)if(!hashes.contains(digest))return false;
+        // Independent source values from fixtures above, not the renderer's
+        // receipt. Distinguish absent physical evidence from a stored value.
+        auto exactDimension=[](const QJsonValue &value,qint64 numerator,qint64 denominator) {
+            const auto object=value.toObject();
+            return object.value("numerator").toString()==QString::number(numerator) &&
+                   object.value("denominator").toString()==QString::number(denominator);
+        };
+        if(n!=4) {
+            if(!inspectPage("traces"))return false;
+            const auto traces=rows();
+            const QList<QPair<qint64,qint64>> widths=n==0?QList<QPair<qint64,qint64>>{{127,500000}}:
+                n==1?QList<QPair<qint64,qint64>>{{1,10000}}:
+                n==2?QList<QPair<qint64,qint64>>{{1,5000}}:
+                      QList<QPair<qint64,qint64>>{{3,20000},{1,5000}};
+            for(const auto &width:widths) {
+                bool found=false;
+                for(const auto &trace:traces)
+                    if(exactDimension(trace.toObject().value("width_m"),width.first,width.second))found=true;
+                if(!found)return false;
+            }
+        }
+        if(n==0 || n==2) {
+            if(!inspectPage("drills"))return false;
+            const auto holes=rows();
+            bool found=false;
+            for(const auto &hole:holes)
+                if(exactDimension(hole.toObject().value("diameter_m"),n==0?381:3,n==0?1000000:10000))found=true;
+            if(!found)return false;
+        }
+        if(n==4) {
+            if(!inspectPage("drill-observations"))return false;
+            const auto hole=rows().first().toObject();
+            if(hole.value("diameter_nm")!="300000" ||
+               hole.value("centre_nm").toArray()!=QJsonArray{"12345678","2000000"} ||
+               hole.value("plating")!="UNKNOWN")return false;
+        }
+        const auto items=view->scene()->items();
+        for(auto *item:items)if(!inspectPicked(item))return false;
+        // Two picks in the same event-loop turn: only the last may publish.
+        if(items.size()>1) {
+            view->scene()->clearSelection();
+            items.first()->setSelected(true);
+            view->scene()->clearSelection();
+            items.last()->setSelected(true);
+            if(!waitInspection(true))return false;
+            const auto ref=items.last()->data(2).value<QJsonObject>();
+            const auto row=rows().first().toObject();
+            if(ref.value("category")=="drill-observations") {
+                if(row.value("source_offset")!=ref.value("source_offset"))return false;
+            } else if(row.value("meta").toObject().value("id")!=ref.value("id"))return false;
+        }
+        // Native open failure with old scene retained: suspended inspection
+        // must follow the selection made while the failed open is in flight.
+        if(items.size()>1) {
+            if(!window.openNativeCandidate(bad))return false;
+            view->scene()->clearSelection();
+            items.first()->setSelected(true);
+            if(!finish(false) || panel->loadedPath()!=path || !waitInspection(true))return false;
+            const auto ref=items.first()->data(2).value<QJsonObject>();
+            const auto row=rows().first().toObject();
+            if(ref.value("category")=="drill-observations") {
+                if(row.value("source_offset")!=ref.value("source_offset"))return false;
+            } else if(row.value("meta").toObject().value("id")!=ref.value("id"))return false;
+            view->scene()->clearSelection();
+            if(!waitInspection(false) || !details->toPlainText().isEmpty() ||
+               fields->topLevelItemCount()!=0)return false;
+        }
+        if(!file.open(QIODevice::ReadOnly) || sha(file.readAll())!=before)return false;
+        toggle->click();
+        return true;
+    };
     const QStringList natives={p,o,k,i,g};
     const QStringList sourceNames={"PADS/ODB Native","PADS/ODB Native","KiCad9","IPC-2581C","Gerber/Excellon"};
     const QList<int> counts={3,4,2,3,2};
-    const QList<int> layerCounts={5,3,3,3,2};
     const auto check=[&](int n,const QString &path) {
         if(panel->loadedPath()!=path || !view->isVisible() ||
            !filter->isVisible() || filter->count()!=layerCounts.at(n) ||
@@ -5753,9 +5887,10 @@ static int runF010CrossFormatSelftest(const QString &nativeBinary,const QString 
     for(int n=0;n<natives.size();++n) {
         const QString copy=root+QString("/copy-%1.bsi").arg(n);
         if(!window.openNativeCandidate(natives.at(n)) || !finish(true) ||
-           !check(n,natives.at(n)) || !window.copyNativeCandidate(copy) ||
+           !check(n,natives.at(n)) || !qualifyInspection(n,natives.at(n)) ||
+           !window.copyNativeCandidate(copy) ||
            !finish(true) || !window.openNativeCandidate(copy) ||
-           !finish(true) || !check(n,copy)) {
+           !finish(true) || !check(n,copy) || !qualifyInspection(n,copy)) {
             qWarning().noquote()<<"F010 switch or Save As failure"<<n<<panel->status();
             return 1;
         }
@@ -5769,6 +5904,12 @@ static int runF010CrossFormatSelftest(const QString &nativeBinary,const QString 
        panel->loadedPath()!=limited || view->isVisible() || filter->isVisible() ||
        !view->scene()->items().isEmpty() ||
        !summary->toPlainText().contains("ARTWORK NOT_RENDERED"))return 1;
+    if(inspectNative) {
+        toggle->click();
+        if(!inspectPage("board") || rows().first().toObject().value("traces").toInt()<1)return 1;
+        if(!inspectPage("layers"))return 1;
+        toggle->click();
+    }
     const QString limitedCopy=root+"/limited-copy.bsi";
     if(!window.copyNativeCandidate(limitedCopy) || !finish(true) ||
        !window.openNativeCandidate(limitedCopy) || !finish(true) ||
@@ -5776,7 +5917,9 @@ static int runF010CrossFormatSelftest(const QString &nativeBinary,const QString 
        !view->scene()->items().isEmpty() ||
        !window.openNativeCandidate(p) || !finish(true) || !check(0,p))return 1;
     qInfo().noquote()<<QJsonDocument(QJsonObject{
-        {"schema","boardsi-f010-cross-format-main-native-v1"},
+        {"schema",inspectNative?"boardsi-f012-cross-format-main-inspection-v1":
+                               "boardsi-f010-cross-format-main-native-v1"},
+        {"inspection_tested",inspectNative},
         {"pass",true},{"formats",5},{"event_loop_ticks",ticks},
         {"source_absent",true},{"not_rendered_open",true},{"physical_si","NOT_RUN"}
     }).toJson(QJsonDocument::Compact);
@@ -5790,6 +5933,8 @@ int main(int argc, char **argv) {
     const QStringList args = app.arguments();
     if(args.size()==3 && args.at(1)=="--f011-large-artwork-selftest")
         return runF011LargeArtworkSelftest(args.at(2));
+    if(args.size()==4 && args.at(1)=="--f012-cross-format-selftest")
+        return runF010CrossFormatSelftest(args.at(2),args.at(3),true);
     if(args.size()==4 && args.at(1)=="--f010-cross-format-selftest")
         return runF010CrossFormatSelftest(args.at(2),args.at(3));
     if(args.size()==3 && args.at(1)=="--f008-native-gerber-drill-selftest")

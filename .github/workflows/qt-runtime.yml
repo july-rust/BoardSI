@@ -291,6 +291,17 @@ jobs:
           ./boardsi-preview-p0$suffix --f010-cross-format-selftest \
             "$GITHUB_WORKSPACE/target/debug/boardsi-native-file$suffix" \
             "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc"
+      - name: F_012 five-format source-free Main Qt inspection and picking
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          ./boardsi-preview-p0$suffix --f012-cross-format-selftest \
+            "$GITHUB_WORKSPACE/target/debug/boardsi-native-file$suffix" \
+            "$GITHUB_WORKSPACE/crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc"
       - name: F_003_1 real Qt Native cancellation timeout stale-response qualification
         shell: bash
         run: |

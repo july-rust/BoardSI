@@ -92,7 +92,16 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
     auto *summary=panel->findChild<QPlainTextEdit *>("f0031NativeSummary");
     auto *fit=panel->findChild<QPushButton *>("f011NativeFit");
     if(!view || !filter || !summary || !fit)return 2;
-    QJsonArray measurements,transportAB,closeSamples;
+    auto *toggle=panel->findChild<QPushButton *>("f012InspectorToggle");
+    auto *category=panel->findChild<QComboBox *>("f012InspectionCategory");
+    auto *query=panel->findChild<QPushButton *>("f012InspectionQuery");
+    auto *offset=panel->findChild<QSpinBox *>("f012InspectionOffset");
+    auto *status=panel->findChild<QLabel *>("f012InspectionStatus");
+    auto *raw=panel->findChild<QPlainTextEdit *>("f012InspectionDetails");
+    auto *inspector=static_cast<F012Inspector *>(category?category->parentWidget():nullptr);
+    if(!toggle || !category || !query || !offset || !status || !raw || !inspector)return 2;
+    QJsonArray measurements,transportAB,closeSamples,inspectionMeasurements;
+    QJsonObject inspectionLifecycle;
     qint64 workerRss=-1;
     auto finish=[&](qint64 &elapsedMs,qint64 &maxGap) {
         workerRss=-1;
@@ -280,6 +289,172 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
             {"source_absent",true},{"physical_si","NOT_RUN"}};
         measurements.append(measurement);
         qInfo().noquote()<<QJsonDocument(measurement).toJson(QJsonDocument::Compact);
+        if(!mixed) {
+            // F012 alternative to a retained model: fresh read-only Worker per
+            // query. Fixed pre-run bounds derived from F011 runner timings:
+            // <=10k: 20 s; larger structural board: 60 s; event gap <=500 ms,
+            // reply <60k bytes, sampled Worker RSS <=1 GiB, Qt peak <=1 GiB.
+            // Compare initial / near-tail / repeat query on identical bytes.
+            view->scene()->clearSelection();
+            toggle->click();
+            category->setCurrentIndex(category->findData("traces"));
+            QFile snapshot(file);
+            if(!snapshot.open(QIODevice::ReadOnly))return 1;
+            const auto digest=QCryptographicHash::hash(snapshot.readAll(),QCryptographicHash::Sha256);
+            snapshot.close();
+            // Native Writer assigns object IDs in structural ObjectId order;
+            // source_object is a string, so 127 is not the final lexical ID.
+            // Build an independent expected sequence from the fixture names.
+            QStringList expectedIds;
+            expectedIds.reserve(count);
+            for(int i=0;i<count;++i)expectedIds<<QString("f011-synthetic-%1").arg(i);
+            std::sort(expectedIds.begin(),expectedIds.end());
+            QJsonArray firstPage;
+            int sample=0;
+            for(int start:{0,qMax(0,count-1),0}) {
+                offset->setValue(start);
+                if(!query->isEnabled())return 1;
+                QElapsedTimer clock;clock.start();
+                qint64 last=0,inspectionGap=0,sampledRss=-1;
+                QEventLoop loop;
+                QTimer poll;poll.setInterval(10);
+                QObject::connect(&poll,&QTimer::timeout,&loop,[&] {
+                    const auto now=clock.elapsed();
+                    inspectionGap=qMax(inspectionGap,now-last);last=now;
+                    sampledRss=qMax(sampledRss,f011ResidentSample(inspector->inspectionWorkerPidForTest()));
+                    if(query->isEnabled() || now>65000)loop.quit();
+                });
+                query->click();
+                if(!query->isEnabled()) {poll.start();loop.exec();poll.stop();}
+                const auto page=QJsonDocument::fromJson(raw->toPlainText().toUtf8()).array();
+                const auto elapsedMs=clock.elapsed();
+                const auto qtRss=f011ResidentSample(QCoreApplication::applicationPid());
+                const auto bytes=inspector->inspectionBytesForTest();
+                bool exactPage=true;
+                for(qsizetype n=0;n<page.size();++n) {
+                    const auto row=page.at(n).toObject();
+                    const auto identity=row.value("meta").toObject().value("id").toObject()
+                        .value("source_object").toString();
+                    bool ok=false;
+                    const auto index=identity.mid(QString("f011-synthetic-").size()).toInt(&ok);
+                    const auto ticks=row.value("start").toObject().value("ticks").toArray();
+                    const auto end=row.value("end").toObject().value("ticks").toArray();
+                    if(start+n>=expectedIds.size() || identity!=expectedIds.at(start+n) || !ok ||
+                       ticks.size()!=2 || end.size()!=2 ||
+                       ticks.at(0).toString()!=QString::number(qint64(index%100)*1000000) ||
+                       ticks.at(1).toString()!=QString::number(qint64(index/100)*1000000) ||
+                       end.at(0).toString()!=QString::number(qint64(index%100)*1000000+250000) ||
+                       end.at(1)!=ticks.at(1))exactPage=false;
+                }
+                if(sample==0)firstPage=page;
+                if(sample==2 && page!=firstPage)exactPage=false;
+                ++sample;
+                if(!query->isEnabled() || !status->text().startsWith("Native snapshot /") ||
+                   page.isEmpty() || page.size()>128 || (start==count-1 && page.size()!=1) ||
+                   !exactPage ||
+                   bytes<=0 || bytes>=60000 || elapsedMs>(count<=10000?20000:60000) ||
+                   inspectionGap>500 || sampledRss>1073741824 || qtRss<=0 || qtRss>1073741824 ||
+                   (count>=10000 && sampledRss<=0)) {
+                    qWarning().noquote()<<"F012 bounded query failure"<<count<<start<<status->text()
+                       <<elapsedMs<<inspectionGap<<bytes<<sampledRss<<qtRss
+                       <<"exactPage"<<exactPage<<"rows"<<page.size();return 1;
+                }
+                const QJsonObject record{{"count",count},{"offset",start},
+                    {"page_ms",elapsedMs},{"max_timer_gap_ms",inspectionGap},
+                    {"response_bytes",qint64(bytes)},{"rows",page.size()},
+                    {"worker_sampled_peak_rss_bytes",sampledRss},{"qt_peak_or_sampled_rss_bytes",qtRss},
+                    {"mode","fresh-read-only-worker"},{"physical_si","NOT_RUN"}};
+                inspectionMeasurements.append(record);
+                qInfo().noquote()<<QJsonDocument(record).toJson(QJsonDocument::Compact);
+            }
+            if(!snapshot.open(QIODevice::ReadOnly) ||
+               QCryptographicHash::hash(snapshot.readAll(),QCryptographicHash::Sha256)!=digest)return 1;
+            snapshot.close();
+            if(count==128) {
+                auto *cancel=panel->findChild<QPushButton *>("f012InspectionCancel");
+                auto *fields=panel->findChild<QTreeWidget *>("f012InspectionFields");
+                if(!cancel || !fields)return 1;
+                const auto baseline=summary->toPlainText();
+                auto *scene=view->scene();
+                const auto until=[&](const std::function<bool()> &condition,int limit=12000) {
+                    if(condition())return true;
+                    QEventLoop loop;QTimer poll;QElapsedTimer elapsed;elapsed.start();
+                    poll.setInterval(10);
+                    QObject::connect(&poll,&QTimer::timeout,&loop,[&]{
+                        if(condition() || elapsed.elapsed()>=limit)loop.quit();
+                    });
+                    poll.start();loop.exec();return condition();
+                };
+                const auto clearFault=[]{
+                    qunsetenv("BOARDSI_F012_QUAL_MODE");qunsetenv("BOARDSI_F012_QUAL_MARKER");
+                };
+                const auto sameDocument=[&]{
+                    return panel->loadedPath()==file && summary->toPlainText()==baseline &&
+                        view->scene()==scene && scene->items().size()==128;
+                };
+                const auto emptyDetails=[&]{return raw->toPlainText().isEmpty() &&
+                    fields->topLevelItemCount()==0;};
+                const auto retry=[&] {
+                    if(!query->isEnabled())return false;
+                    query->click();
+                    return until([&]{return query->isEnabled();}) &&
+                        status->text().startsWith("Native snapshot /") && !emptyDetails() &&
+                        sameDocument();
+                };
+                const auto pause=[&](const QString &tag) {
+                    const auto marker=dir.filePath("f012-"+tag+".signal");
+                    QFile::remove(marker);
+                    qputenv("BOARDSI_F012_QUAL_MODE","pause-before-inspect");
+                    qputenv("BOARDSI_F012_QUAL_MARKER",QFile::encodeName(marker));
+                    query->click();
+                    const bool ok=until([&]{return QFileInfo::exists(marker);},5000) &&
+                        inspector->inspectionWorkerPidForTest()>0 && cancel->isEnabled() &&
+                        emptyDetails();
+                    clearFault();
+                    return ok;
+                };
+                if(!pause("cancel"))return 1;
+                cancel->click();
+                if(!until([&]{return query->isEnabled();}) ||
+                   !status->text().startsWith("CANCELLED") || !emptyDetails() ||
+                   !sameDocument() || !retry())return 1;
+                inspectionLifecycle["cancel"]=true;
+                inspector->setInspectionTimeoutForTest(2500);
+                if(!pause("timeout") || !until([&]{return query->isEnabled();},6000) ||
+                   !status->text().contains("inspection timeout") || !emptyDetails() ||
+                   !sameDocument())return 1;
+                inspector->setInspectionTimeoutForTest(60000);
+                if(!retry())return 1;
+                inspectionLifecycle["timeout"]=true;
+                if(!pause("crash"))return 1;
+                inspector->killInspectionWorkerForTest();
+                if(!until([&]{return query->isEnabled();}) ||
+                   !status->text().startsWith("FAILED") || !emptyDetails() ||
+                   !sameDocument() || !retry())return 1;
+                inspectionLifecycle["crash"]=true;
+                if(!pause("close"))return 1;
+                panel->forget();
+                if(!until([&]{return inspector->inspectionIdleForTest();}) ||
+                   panel->hasLoaded() || query->isEnabled() || !emptyDetails() ||
+                   !view->scene()->items().isEmpty())return 1;
+                if(!window.openNativeCandidate(file) || !finish(elapsed,gap) ||
+                   panel->loadedPath()!=file)return 1;
+                if(!toggle->isChecked())toggle->click();
+                view->scene()->clearSelection();
+                if(!until([&]{return query->isEnabled();}))return 1;
+                category->setCurrentIndex(category->findData("traces"));
+                query->click();
+                if(!until([&]{return query->isEnabled();}) ||
+                   !status->text().startsWith("Native snapshot /") || emptyDetails())return 1;
+                inspectionLifecycle["close_reopen"]=true;
+                if(!snapshot.open(QIODevice::ReadOnly) ||
+                   QCryptographicHash::hash(snapshot.readAll(),QCryptographicHash::Sha256)!=digest)return 1;
+                snapshot.close();
+                inspectionLifecycle["unchanged_sha"]=true;
+                qInfo().noquote()<<QJsonDocument(inspectionLifecycle).toJson(QJsonDocument::Compact);
+            }
+            if(toggle->isChecked())toggle->click();
+        }
         if(count==10000) {
             // Hold the *actual* renderer after its first batch while keeping
             // the prior scene visible, then cancel via the production slot.
@@ -333,6 +508,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         {"host_os",QSysInfo::productType()},
         {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
         {"cases",measurements},{"transport_ab",transportAB},{"close_reopen",closeSamples},
+        {"f012_inspection",inspectionMeasurements},{"f012_lifecycle",inspectionLifecycle},
         {"physical_si","NOT_RUN"}};
     QSaveFile proof("qt-f011-qualification.json");
     const auto encoded=QJsonDocument(evidence).toJson(QJsonDocument::Indented);
