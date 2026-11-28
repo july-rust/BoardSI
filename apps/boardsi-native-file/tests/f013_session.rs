@@ -85,11 +85,9 @@ fn persistent_native_session_reuses_snapshot_and_rejects_wrong_identity() {
     writeln!(input, "{query}").unwrap();
     input.flush().unwrap();
     let nets = receive();
-    let conn = rusqlite::Connection::open_with_flags(
-        &native,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    )
-    .unwrap();
+    let conn =
+        rusqlite::Connection::open_with_flags(&native, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .unwrap();
     let net_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM nets", [], |row| row.get(0))
         .unwrap();
