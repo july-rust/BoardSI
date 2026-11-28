@@ -301,6 +301,15 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
             if(!snapshot.open(QIODevice::ReadOnly))return 1;
             const auto digest=QCryptographicHash::hash(snapshot.readAll(),QCryptographicHash::Sha256);
             snapshot.close();
+            // Native Writer assigns object IDs in structural ObjectId order;
+            // source_object is a string, so 127 is not the final lexical ID.
+            // Build an independent expected sequence from the fixture names.
+            QStringList expectedIds;
+            expectedIds.reserve(count);
+            for(int i=0;i<count;++i)expectedIds<<QString("f011-synthetic-%1").arg(i);
+            std::sort(expectedIds.begin(),expectedIds.end());
+            QJsonArray firstPage;
+            int sample=0;
             for(int start:{0,qMax(0,count-1),0}) {
                 offset->setValue(start);
                 if(!query->isEnabled())return 1;
@@ -320,15 +329,34 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
                 const auto elapsedMs=clock.elapsed();
                 const auto qtRss=f011ResidentSample(QCoreApplication::applicationPid());
                 const auto bytes=inspector->inspectionBytesForTest();
+                bool exactPage=true;
+                for(qsizetype n=0;n<page.size();++n) {
+                    const auto row=page.at(n).toObject();
+                    const auto identity=row.value("meta").toObject().value("id").toObject()
+                        .value("source_object").toString();
+                    bool ok=false;
+                    const auto index=identity.mid(QString("f011-synthetic-").size()).toInt(&ok);
+                    const auto ticks=row.value("start").toObject().value("ticks").toArray();
+                    const auto end=row.value("end").toObject().value("ticks").toArray();
+                    if(start+n>=expectedIds.size() || identity!=expectedIds.at(start+n) || !ok ||
+                       ticks.size()!=2 || end.size()!=2 ||
+                       ticks.at(0).toString()!=QString::number(qint64(index%100)*1000000) ||
+                       ticks.at(1).toString()!=QString::number(qint64(index/100)*1000000) ||
+                       end.at(0).toString()!=QString::number(qint64(index%100)*1000000+250000) ||
+                       end.at(1)!=ticks.at(1))exactPage=false;
+                }
+                if(sample==0)firstPage=page;
+                if(sample==2 && page!=firstPage)exactPage=false;
+                ++sample;
                 if(!query->isEnabled() || !status->text().startsWith("Native snapshot /") ||
                    page.isEmpty() || page.size()>128 || (start==count-1 && page.size()!=1) ||
-                   page.first().toObject().value("meta").toObject().value("id").toObject()
-                      .value("source_object").toString()!=QString("f011-synthetic-%1").arg(start) ||
+                   !exactPage ||
                    bytes<=0 || bytes>=60000 || elapsedMs>(count<=10000?20000:60000) ||
                    inspectionGap>500 || sampledRss>1073741824 || qtRss<=0 || qtRss>1073741824 ||
                    (count>=10000 && sampledRss<=0)) {
                     qWarning().noquote()<<"F012 bounded query failure"<<count<<start<<status->text()
-                       <<elapsedMs<<inspectionGap<<bytes<<sampledRss<<qtRss;return 1;
+                       <<elapsedMs<<inspectionGap<<bytes<<sampledRss<<qtRss
+                       <<"exactPage"<<exactPage<<"rows"<<page.size();return 1;
                 }
                 const QJsonObject record{{"count",count},{"offset",start},
                     {"page_ms",elapsedMs},{"max_timer_gap_ms",inspectionGap},
