@@ -31,6 +31,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QVariant>
 #include <functional>
 
 // Keep the existing QGraphicsView selection semantics. Wheel zoom and middle
@@ -96,6 +97,7 @@ class F0031NativePanel final : public QWidget {
     QComboBox *artworkLayer_;
     QPushButton *artworkFit_;
     F012Inspector *inspector_=nullptr;
+    QPushButton *inspectToggle_=nullptr;
     QElapsedTimer phaseClock_;
     qint64 workerMs_=0, sceneMs_=0;
     qsizetype streamBytes_=0;
@@ -295,6 +297,8 @@ class F0031NativePanel final : public QWidget {
                 cleanup();return false;
             }
             item->setData(0,layer);
+            if(row.value("inspection_ref").isObject())
+                item->setData(2,QVariant(row.value("inspection_ref").toObject()));
             if(kind=="via") {
                 // Via annulus exists ONLY on explicit native Padstack copper
                 // layers. Source-layer spans or logical net names are not proof
@@ -358,6 +362,7 @@ class F0031NativePanel final : public QWidget {
         auto *old=artworkScene_;
         artworkScene_=stagedScene_;stagedScene_=nullptr;
         artworkView_->setScene(artworkScene_);
+        connectInspectorPicking();
         old->deleteLater();
         artworkLayer_->clear();
         artworkLayer_->addItem("All copper layers");
@@ -489,6 +494,16 @@ class F0031NativePanel final : public QWidget {
         artworkFit_->setVisible(false);
         publishReceipt(receipt,false);
     }
+    void connectInspectorPicking() {
+        auto *scene=artworkScene_;
+        connect(scene,&QGraphicsScene::selectionChanged,this,[this,scene] {
+            if(scene!=artworkScene_ || running_ || !inspector_ || !inspectToggle_->isChecked())return;
+            const auto selected=scene->selectedItems();
+            if(selected.size()!=1)return;
+            const auto ref=selected.front()->data(2).value<QJsonObject>();
+            if(!ref.isEmpty())inspector_->inspectSelection(ref);
+        });
+    }
     void fitArtwork() {
         if(artworkScene_->items().isEmpty())return;
         artworkView_->fitInView(
@@ -558,13 +573,13 @@ public:
         layout->addWidget(artworkLayer_);
         layout->addWidget(artworkFit_);
         layout->addWidget(artworkView_,3);
-        auto *inspectToggle=new QPushButton("Native Board Inspector",this);
-        inspectToggle->setCheckable(true);
+        inspectToggle_=new QPushButton("Native Board Inspector",this);
+        inspectToggle_->setCheckable(true);
         inspector_=new F012Inspector(binary_,this);
         inspector_->setVisible(false);
-        layout->addWidget(inspectToggle);
+        layout->addWidget(inspectToggle_);
         layout->addWidget(inspector_,2);
-        connect(inspectToggle,&QPushButton::toggled,inspector_,&QWidget::setVisible);
+        connect(inspectToggle_,&QPushButton::toggled,inspector_,&QWidget::setVisible);
         connect(artworkLayer_,QOverload<int>::of(&QComboBox::currentIndexChanged),
                 this,[this](int index) {
             const QString selected=index<=0 ? QString() : artworkLayer_->itemText(index);

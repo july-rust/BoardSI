@@ -20,6 +20,7 @@ class F012Inspector final : public QWidget {
     QTimer timeout_;
     QString binary_, path_, digest_, request_, category_;
     QByteArray output_;
+    QJsonObject selection_;
     QComboBox *categoryBox_;
     QPlainTextEdit *details_;
     QPushButton *query_, *next_, *cancel_;
@@ -47,10 +48,11 @@ class F012Inspector final : public QWidget {
             invalidate();
         } else output_+=chunk;
     }
-    void startPage(int offset) {
+    void startPage(int offset,const QJsonObject &selection=QJsonObject()) {
         if(path_.isEmpty() || suspended_ || worker_.state()!=QProcess::NotRunning)return;
         output_.clear();
         offset_=offset;
+        selection_=selection;
         nextOffset_=-1;
         category_=categoryBox_->currentData().toString();
         request_=QUuid::createUuid().toString(QUuid::Id128);
@@ -61,8 +63,11 @@ class F012Inspector final : public QWidget {
         env.remove("BOARDSI_ARTWORK_REQUEST");
         worker_.setProcessEnvironment(env);
         timeout_.start(60000);
-        worker_.start(binary_,{"inspect",path_,digest_,request_,category_,
-                              QString::number(offset_),"128"});
+        QStringList args={"inspect",path_,digest_,request_,category_,
+                          QString::number(offset_),selection.isEmpty()?"128":"1"};
+        if(!selection.isEmpty())
+            args.append(QString::fromUtf8(QJsonDocument(selection).toJson(QJsonDocument::Compact)));
+        worker_.start(binary_,args);
         controls();
     }
     void finish(int code,QProcess::ExitStatus exit) {
@@ -84,7 +89,9 @@ class F012Inspector final : public QWidget {
            result.value("request")!=request_ || result.value("sha256")!=digest_ ||
            result.value("category")!=category_ || result.value("offset").toInt(-1)!=offset_ ||
            result.value("physical_si")!="NOT_RUN" || result.value("physical_contact")!="NOT_VERIFIED" ||
-           !rows.isArray() || size>128 || total<end ||
+           (selection_.isEmpty() ? !result.value("selection").isNull() :
+              result.value("selection").toObject()!=selection_) ||
+           !rows.isArray() || size>(selection_.isEmpty()?128:1) || total<end ||
            (end<total && (size==0 || next.toInt(-1)!=end)) ||
            (end==total && !next.isNull())) {
             status_->setText("FAILED / native inspection receipt rejected");
@@ -96,7 +103,7 @@ class F012Inspector final : public QWidget {
                 controls();return;
             }
         }
-        nextOffset_=end<total?end:-1;
+        nextOffset_=selection_.isEmpty() && end<total?end:-1;
         details_->setPlainText(QString::fromUtf8(QJsonDocument(rows.toArray()).toJson(QJsonDocument::Indented)));
         status_->setText(QString("Native snapshot / %1–%2 of %3 / physical SI NOT_RUN")
                          .arg(size?offset_+1:offset_).arg(end).arg(total));
@@ -153,7 +160,19 @@ public:
         });
         controls();
     }
-    ~F012Inspector() override {invalidate();}
+    ~F012Inspector() override {
+        QObject::disconnect(&worker_,nullptr,this,nullptr);
+        invalidate();
+    }
+    void inspectSelection(const QJsonObject &selection) {
+        if(path_.isEmpty() || suspended_ || worker_.state()!=QProcess::NotRunning)return;
+        const auto category=selection.value("category").toString();
+        const int index=selection.value("index").toInt(-1);
+        const int boxIndex=categoryBox_->findData(category);
+        if(index<0 || boxIndex<0)return;
+        categoryBox_->setCurrentIndex(boxIndex);
+        startPage(index,selection);
+    }
     void setDocument(const QString &path,const QString &digest) {
         invalidate();path_=path;digest_=digest;nextOffset_=-1;
         details_->clear();

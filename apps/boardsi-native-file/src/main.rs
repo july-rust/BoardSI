@@ -144,7 +144,7 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
             .ok_or_else(|| fail("BSI_KICAD_PREVIEW_LAYER"))
     };
     let mut rows = Vec::new();
-    for tr in &board.traces {
+    for (trace_index, tr) in board.traces.iter().enumerate() {
         if tr.centreline.len() < 2 || tr.centreline.iter().any(|p| p.frame != frame.meta.id) {
             return Err(fail("BSI_SOURCE_PREVIEW_TRACE"));
         }
@@ -158,6 +158,7 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
             }
             rows.push(json!({
                 "kind":"trace","id":format!("{}#{}",tr.meta.id.source_object,index),
+                "inspection_ref":f012_inspection::artwork_ref(board,"traces",trace_index,&tr.meta.id),
                 "layer":find_name(&tr.layer)?,
                 "a":pair[0].ticks,"b":pair[1].ticks,
                 "width_nm":width,
@@ -175,7 +176,7 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
         .iter()
         .map(|d| (&d.meta.id, d))
         .collect::<std::collections::BTreeMap<_, _>>();
-    for via in &board.vias {
+    for (via_index, via) in board.vias.iter().enumerate() {
         if via.position.frame != frame.meta.id || !via.connected_layers.is_empty() {
             return Err(fail("BSI_KICAD_PREVIEW_VIA"));
         }
@@ -211,6 +212,7 @@ fn source_preview(board: &boardsi_model::BoardModel) -> Result<Option<Value>, St
             .collect::<Result<Vec<_>, _>>()?;
         rows.push(json!({
             "kind":"via","id":via.meta.id.source_object,"layer":"*",
+            "inspection_ref":f012_inspection::artwork_ref(board,"vias",via_index,&via.meta.id),
             "at":via.position.ticks,"diameter_nm":diameter,"drill_nm":drill_nm,
             "span_first":find_name(&via.span.first_layer)?,
             "span_last":find_name(&via.span.last_layer)?,
@@ -251,7 +253,7 @@ fn gerber_source_preview(
         i64::try_from(n / r.denominator()).map_err(|_| fail("BSI_F008_PREVIEW_DIMENSION"))
     };
     let mut items = Vec::new();
-    for pad in &board.pads {
+    for (pad_index, pad) in board.pads.iter().enumerate() {
         if pad.net.is_some()
             || !matches!(
                 &pad.orientation,
@@ -277,6 +279,7 @@ fn gerber_source_preview(
         };
         items.push(json!({
             "kind":"flash","id":pad.meta.id.source_object,
+            "inspection_ref":f012_inspection::artwork_ref(board,"pads",pad_index,&pad.meta.id),
             "layer":layer.name,"at":pad.position.ticks,"diameter_nm":diameter,
             "net":"UNKNOWN","contact":"NOT_VERIFIED"
         }));
@@ -284,6 +287,8 @@ fn gerber_source_preview(
     for (index, h) in evidence.holes.iter().enumerate() {
         items.push(json!({
             "kind":"drill-source","id":format!("drill-{}-{}",h.tool_id,index),
+            "inspection_ref":{"category":"drill-observations","index":index,
+                "source_offset":h.source_offset.to_string(),"tool_id":h.tool_id},
             "layer":"*","at":h.centre_nm,"diameter_nm":h.diameter_nm,
             "tool_id":h.tool_id,"source_offset":h.source_offset,
             "plating":"UNKNOWN","layer_span":"UNKNOWN","alignment":"NOT_VERIFIED"
@@ -554,14 +559,15 @@ fn run() -> Result<Value, String> {
         return receipt("f011-seed", &path, false);
     }
     match arg_text(&args, 0)?.as_str() {
-        "inspect" if args.len() == 7 => {
+        "inspect" if args.len() == 7 || args.len() == 8 => {
             let path = arg_path(&args, 1)?;
             let digest = arg_text(&args, 2)?;
             let request = arg_text(&args, 3)?;
             let category = arg_text(&args, 4)?;
             let offset = arg_text(&args, 5)?.parse().map_err(|_| fail("BSI_F012_OFFSET"))?;
             let limit = arg_text(&args, 6)?.parse().map_err(|_| fail("BSI_F012_LIMIT"))?;
-            f012_inspection::query(&path, &digest, &request, &category, offset, limit)
+            let selection = if args.len() == 8 { Some(arg_text(&args, 7)?) } else { None };
+            f012_inspection::query(&path, &digest, &request, &category, offset, limit, selection.as_deref())
         }
         "open" if args.len() == 2 => {
             let path = arg_path(&args, 1)?;

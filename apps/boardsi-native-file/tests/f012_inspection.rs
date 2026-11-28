@@ -42,6 +42,16 @@ fn source_free_snapshot_inspection_is_read_only_and_exact() {
     assert_eq!(reply["rows"][0]["width_m"]["denominator"], "10000");
     assert_eq!(reply["rows"][0]["end"]["ticks"][0], "250000");
     assert_eq!(reply["physical_si"], "NOT_RUN");
+    let mut selection = serde_json::json!({"category":"traces","index":0,
+        "id":reply["rows"][0]["meta"]["id"]});
+    let pick = |selection: &Value| {
+        Command::new(bin).arg("inspect").arg(&native)
+            .args([digest.as_str(),token,"traces","0","1"])
+            .arg(selection.to_string()).env_remove("BOARDSI_ARTWORK_REQUEST").output().unwrap()
+    };
+    assert!(pick(&selection).status.success());
+    selection["id"]["part"] = serde_json::json!("not-the-canonical-part");
+    assert!(!pick(&selection).status.success());
     let result = query("sources", "0", "1", &digest);
     assert!(result.status.success());
     let reply: Value = serde_json::from_slice(&result.stdout).unwrap();

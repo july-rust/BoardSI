@@ -20,6 +20,15 @@ fn id(board: &BoardModel, value: &ObjectId) -> Value {
            "source_object": value.source_object, "part": value.part})
 }
 
+pub(super) fn artwork_ref(
+    board: &BoardModel,
+    category: &str,
+    index: usize,
+    object: &ObjectId,
+) -> Value {
+    json!({"category": category, "index": index, "id": id(board, object)})
+}
+
 fn meta(board: &BoardModel, value: &ObjectMeta) -> Value {
     json!({"id": id(board, &value.id),
            "source_object_type": value.provenance.source_object_type,
@@ -83,6 +92,7 @@ pub(super) fn query(
     category: &str,
     offset: usize,
     limit: usize,
+    selection: Option<&str>,
 ) -> Result<Value, String> {
     if digest.len() != 64 || !digest.bytes().all(|b| b.is_ascii_hexdigit())
         || request.len() != 32 || !request.bytes().all(|b| b.is_ascii_hexdigit())
@@ -95,6 +105,21 @@ pub(super) fn query(
     }
     let loaded = boardsi_native::load(path).map_err(super::native_error)?;
     let b = loaded.model();
+    let selection = selection
+        .map(|raw| {
+            if raw.len() > 16_000 {
+                return Err("BSI_F012_SELECTION_LIMIT".to_string());
+            }
+            serde_json::from_str::<Value>(raw).map_err(|_| "BSI_F012_SELECTION_INVALID".to_string())
+        })
+        .transpose()?;
+    if let Some(reference) = &selection {
+        if reference["category"] != category || reference["index"].as_u64() != Some(offset as u64)
+            || limit != 1
+        {
+            return Err("BSI_F012_SELECTION_INVALID".into());
+        }
+    }
     let page = match category {
         "board" => bounded_page(&[()], offset, limit, |_| {
             json!({"kind": format!("{:?}", b.kind), "schema": 1,
@@ -205,11 +230,25 @@ pub(super) fn query(
         _ => return Err("BSI_F012_CATEGORY".into()),
     }?;
     let (total, rows) = page;
+    if let Some(reference) = &selection {
+        let row = rows.first().ok_or("BSI_F012_SELECTION_MISSING")?;
+        if category == "drill-observations" {
+            if reference["source_offset"].as_str().is_none()
+                || reference["source_offset"] != row["source_offset"]
+                || reference["tool_id"] != row["tool_id"]
+            {
+                return Err("BSI_F012_SELECTION_MISMATCH".into());
+            }
+        } else if !reference["id"].is_object() || reference["id"] != row["meta"]["id"] {
+            return Err("BSI_F012_SELECTION_MISMATCH".into());
+        }
+    }
     let next = offset + rows.len();
     let result = json!({
         "protocol": "BSI_NATIVE_INSPECT_V1", "request": request,
         "sha256": digest, "category": category, "offset": offset,
         "total": total, "next": if next < total { Some(next) } else { None },
+        "selection": selection,
         "rows": rows, "physical_si": "NOT_RUN", "physical_contact": "NOT_VERIFIED"
     });
     if result.to_string().len() >= MAX_BYTES {
