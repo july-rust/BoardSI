@@ -236,7 +236,9 @@ pub(super) fn query(
         }
     }
     let (section, parent, child) = if let Some((section, raw)) = category.split_once(':') {
-        let (raw, child) = raw.split_once(':').map_or((raw, None), |(p, c)| (p, Some(c)));
+        let (raw, child) = raw
+            .split_once(':')
+            .map_or((raw, None), |(p, c)| (p, Some(c)));
         let parent = raw.parse::<usize>().map_err(|_| "BSI_F012_PARENT")?;
         let child = child
             .map(|c| c.parse::<usize>().map_err(|_| "BSI_F012_PARENT"))
@@ -249,7 +251,10 @@ pub(super) fn query(
         (category, None, None)
     };
     if child.is_some()
-        != matches!(section, "area-cutout-segments" | "outline-cutout-segments" | "custom-pad-segments")
+        != matches!(
+            section,
+            "area-cutout-segments" | "outline-cutout-segments" | "custom-pad-segments"
+        )
     {
         return Err("BSI_F012_PARENT".into());
     }
@@ -315,18 +320,35 @@ pub(super) fn query(
             limit,
             |e| json!({"layer":id(b,&e.layer),"role":format!("{:?}",e.role),"shape":pad_shape(&e.shape)}),
         ),
-        "area-segments" | "outline-segments" | "area-cutout-segments" | "outline-cutout-segments" | "custom-pad-segments" => {
+        "area-segments"
+        | "outline-segments"
+        | "area-cutout-segments"
+        | "outline-cutout-segments"
+        | "custom-pad-segments" => {
             let index = nested()?;
             let boundary = match section {
                 "area-segments" => b.areas.get(index).map(|v| &v.outer),
                 "outline-segments" => b.outlines.get(index).map(|v| &v.outer),
-                "area-cutout-segments" => b.areas.get(index).and_then(|v| v.cutouts.get(child?)).map(|v| &v.boundary),
-                "outline-cutout-segments" => b.outlines.get(index).and_then(|v| v.cutouts.get(child?)).map(|v| &v.boundary),
-                _ => b.padstacks.get(index).and_then(|v| v.entries.get(child?)).and_then(|v| match &v.shape {
-                    PadShape::Custom(boundary) => Some(boundary),
-                    _ => None,
-                }),
-            }.ok_or("BSI_F012_PARENT")?;
+                "area-cutout-segments" => b
+                    .areas
+                    .get(index)
+                    .and_then(|v| v.cutouts.get(child?))
+                    .map(|v| &v.boundary),
+                "outline-cutout-segments" => b
+                    .outlines
+                    .get(index)
+                    .and_then(|v| v.cutouts.get(child?))
+                    .map(|v| &v.boundary),
+                _ => b
+                    .padstacks
+                    .get(index)
+                    .and_then(|v| v.entries.get(child?))
+                    .and_then(|v| match &v.shape {
+                        PadShape::Custom(boundary) => Some(boundary),
+                        _ => None,
+                    }),
+            }
+            .ok_or("BSI_F012_PARENT")?;
             bounded_page(&boundary.segments, offset, limit, |v| segment(b, v))
         }
         "area-cutouts" | "outline-cutouts" => {
@@ -335,14 +357,18 @@ pub(super) fn query(
                 b.areas.get(index).map(|v| &v.cutouts)
             } else {
                 b.outlines.get(index).map(|v| &v.cutouts)
-            }.ok_or("BSI_F012_PARENT")?;
-            bounded_page(cutouts, offset, limit, |v| {
-                json!({"meta":meta(b,&v.meta),"segment_count":v.boundary.segments.len()})
-            })
+            }
+            .ok_or("BSI_F012_PARENT")?;
+            bounded_page(
+                cutouts,
+                offset,
+                limit,
+                |v| json!({"meta":meta(b,&v.meta),"segment_count":v.boundary.segments.len()}),
+            )
         }
-        "trace-history" | "via-history" | "pad-history" | "layer-history" | "material-history" |
-        "arc-history" | "area-history" | "net-history" | "frame-history" | "drill-history" |
-        "padstack-history" | "component-history" | "pin-history" | "outline-history" => {
+        "trace-history" | "via-history" | "pad-history" | "layer-history" | "material-history"
+        | "arc-history" | "area-history" | "net-history" | "frame-history" | "drill-history"
+        | "padstack-history" | "component-history" | "pin-history" | "outline-history" => {
             let index = nested()?;
             let object = match section {
                 "trace-history" => b.traces.get(index).map(|v| &v.meta),
