@@ -218,6 +218,31 @@ pub(super) fn query(
         return Err("BSI_SOURCE_CHANGED".into());
     }
     let loaded = boardsi_native::load(path).map_err(super::native_error)?;
+    let result = query_loaded(&loaded, digest, request, category, offset, limit, selection)?;
+    if super::file_sha256(path)? != digest {
+        return Err("BSI_SOURCE_CHANGED".into());
+    }
+    Ok(result)
+}
+
+/// Query the already-validated, immutable model without opening a CAD or Native file.
+pub(super) fn query_loaded(
+    loaded: &boardsi_native::LoadedBoard,
+    digest: &str,
+    request: &str,
+    category: &str,
+    offset: usize,
+    limit: usize,
+    selection: Option<&str>,
+) -> Result<Value, String> {
+    if digest.len() != 64
+        || !digest.bytes().all(|b| b.is_ascii_hexdigit())
+        || request.len() != 32
+        || !request.bytes().all(|b| b.is_ascii_hexdigit())
+        || !(1..=MAX_PAGE).contains(&limit)
+    {
+        return Err("BSI_F012_QUERY_INVALID".into());
+    }
     let b = loaded.model();
     let selection = selection
         .map(|raw| {
@@ -552,9 +577,6 @@ pub(super) fn query(
     });
     if result.to_string().len() >= MAX_BYTES {
         return Err("BSI_F012_OUTPUT_LIMIT".into());
-    }
-    if super::file_sha256(path)? != digest {
-        return Err("BSI_SOURCE_CHANGED".into());
     }
     Ok(result)
 }

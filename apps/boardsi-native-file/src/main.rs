@@ -3,6 +3,7 @@
 mod f009_native_artwork;
 mod f011_artwork_stream;
 mod f012_inspection;
+mod f013_session;
 
 use boardsi_native::{
     canonical_semantics_equal, load, migrate_to_current, recover_owned_staging, save, save_guarded,
@@ -917,6 +918,16 @@ fn bound_artwork_receipt(mut value: Value) -> Value {
 }
 
 fn main() -> ExitCode {
+    let args: Vec<_> = env::args_os().skip(1).collect();
+    if args.first().and_then(|v| v.to_str()) == Some("inspect-session") {
+        return match f013_session::run(&args) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(code) => {
+                eprintln!("{code}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     let request = match f011_artwork_stream::request() {
         Ok(request) => request,
         Err(code) => {
