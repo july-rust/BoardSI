@@ -150,6 +150,16 @@ pub(super) fn run(args: &[OsString]) -> Result<(), String> {
     if !token(digest, 64) || !token(session, 32) {
         return Err("BSI_F013_IDENTITY".into());
     }
+    #[cfg(feature = "f0031-qualification")]
+    if std::env::var("BOARDSI_F012_QUAL_MODE").ok().as_deref() == Some("pause-before-inspect") {
+        let marker = std::env::var_os("BOARDSI_F012_QUAL_MARKER")
+            .ok_or("BSI_QUAL_MARKER_MISSING")?;
+        fs::write(marker, b"real-native-inspection-worker-paused")
+            .map_err(|_| "BSI_QUAL_MARKER_WRITE")?;
+        loop {
+            std::thread::park();
+        }
+    }
     let initial = stamp(path)?;
     if super::file_sha256(path)? != digest {
         return Err("BSI_SOURCE_CHANGED".into());

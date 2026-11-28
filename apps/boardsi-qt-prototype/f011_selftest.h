@@ -290,8 +290,8 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         measurements.append(measurement);
         qInfo().noquote()<<QJsonDocument(measurement).toJson(QJsonDocument::Compact);
         if(!mixed) {
-            // F012 alternative to a retained model: fresh read-only Worker per
-            // query. Fixed pre-run bounds derived from F011 runner timings:
+            // F013 uses a retained read-only Worker. Preserve F012's historical
+            // cold-query bounds and check that subsequent queries reuse its PID:
             // <=10k: 20 s; larger structural board: 60 s; event gap <=500 ms,
             // reply <60k bytes, sampled Worker RSS <=1 GiB, Qt peak <=1 GiB.
             // Compare initial / near-tail / repeat query on identical bytes.
@@ -311,6 +311,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
             std::sort(expectedIds.begin(),expectedIds.end());
             QJsonArray firstPage;
             int sample=0;
+            qint64 sessionPid=0;
             for(int start:{0,qMax(0,count-1),0}) {
                 offset->setValue(start);
                 if(!query->isEnabled())return 1;
@@ -346,7 +347,10 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
                        end.at(0).toString()!=QString::number(qint64(index%100)*1000000+250000) ||
                        end.at(1)!=ticks.at(1))exactPage=false;
                 }
-                if(sample==0)firstPage=page;
+                if(sample==0) {
+                    firstPage=page;sessionPid=inspector->inspectionWorkerPidForTest();
+                }
+                if(sessionPid<=0 || inspector->inspectionWorkerPidForTest()!=sessionPid)return 1;
                 if(sample==2 && page!=firstPage)exactPage=false;
                 ++sample;
                 if(!query->isEnabled() || !status->text().startsWith("Native snapshot /") ||
@@ -363,7 +367,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
                     {"page_ms",elapsedMs},{"max_timer_gap_ms",inspectionGap},
                     {"response_bytes",qint64(bytes)},{"rows",page.size()},
                     {"worker_sampled_peak_rss_bytes",sampledRss},{"qt_peak_or_sampled_rss_bytes",qtRss},
-                    {"mode","fresh-read-only-worker"},{"physical_si","NOT_RUN"}};
+                    {"mode","persistent-read-only-worker"},{"session_pid",sessionPid},{"physical_si","NOT_RUN"}};
                 inspectionMeasurements.append(record);
                 qInfo().noquote()<<QJsonDocument(record).toJson(QJsonDocument::Compact);
             }

@@ -39,7 +39,8 @@ def main() -> None:
             (count, offset) for count in counts for offset in (0, count - 1, 0)
         ], records
         for c in records:
-            assert c["mode"] == "fresh-read-only-worker" and c["physical_si"] == "NOT_RUN", c
+            assert c["mode"] == "persistent-read-only-worker" and c["physical_si"] == "NOT_RUN", c
+            assert c["session_pid"] > 0, c
             assert 0 < c["response_bytes"] < 60000 and 1 <= c["rows"] <= 128, c
             assert c["rows"] == 1 if c["offset"] == c["count"] - 1 else True, c
             assert 0 <= c["page_ms"] <= (20000 if c["count"] <= 10000 else 60000), c
@@ -48,11 +49,13 @@ def main() -> None:
             assert -1 <= c["worker_sampled_peak_rss_bytes"] <= 1073741824, c
             if c["count"] >= 10000:
                 assert c["worker_sampled_peak_rss_bytes"] > 0, c
+        for i in range(0, len(records), 3):
+            assert len({c["session_pid"] for c in records[i:i + 3]}) == 1, records
         assert data["f012_lifecycle"] == {
             "cancel": True, "timeout": True, "crash": True,
             "close_reopen": True, "unchanged_sha": True,
         }, data
-        print("F012 bounded fresh-worker query and actual lifecycle measurements verified")
+        print("F013 persistent-worker regression and actual lifecycle measurements verified")
     print("F011 exact-head durable qualification receipt verified")
 
 
