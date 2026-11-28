@@ -66,11 +66,28 @@ fn length_m(board: &BoardModel, points: &[Point]) -> Option<f64> {
 
 fn pad_shape(shape: &PadShape) -> Value {
     match shape {
-        PadShape::Circle { diameter_m } => json!({"kind":"Circle","diameter_m":rational(*diameter_m)}),
-        PadShape::Rectangle { size_m } => json!({"kind":"Rectangle","size_m":[rational(size_m[0]),rational(size_m[1])]}),
-        PadShape::Annulus { outer_diameter_m, inner_diameter_m } => json!({"kind":"Annulus","outer_diameter_m":rational(*outer_diameter_m),"inner_diameter_m":rational(*inner_diameter_m)}),
-        PadShape::Thermal { round, centre_size_m, outer_size_m, spoke_width_m, first_spoke_degrees, spoke_count } =>
-            json!({"kind":"Thermal","round":round,"centre_size_m":rational(*centre_size_m),"outer_size_m":rational(*outer_size_m),"spoke_width_m":rational(*spoke_width_m),"first_spoke_degrees":first_spoke_degrees,"spoke_count":spoke_count}),
+        PadShape::Circle { diameter_m } => {
+            json!({"kind":"Circle","diameter_m":rational(*diameter_m)})
+        }
+        PadShape::Rectangle { size_m } => {
+            json!({"kind":"Rectangle","size_m":[rational(size_m[0]),rational(size_m[1])]})
+        }
+        PadShape::Annulus {
+            outer_diameter_m,
+            inner_diameter_m,
+        } => {
+            json!({"kind":"Annulus","outer_diameter_m":rational(*outer_diameter_m),"inner_diameter_m":rational(*inner_diameter_m)})
+        }
+        PadShape::Thermal {
+            round,
+            centre_size_m,
+            outer_size_m,
+            spoke_width_m,
+            first_spoke_degrees,
+            spoke_count,
+        } => {
+            json!({"kind":"Thermal","round":round,"centre_size_m":rational(*centre_size_m),"outer_size_m":rational(*outer_size_m),"spoke_width_m":rational(*spoke_width_m),"first_spoke_degrees":first_spoke_degrees,"spoke_count":spoke_count})
+        }
         PadShape::Custom(boundary) => json!({"kind":"Custom","segment_count":boundary.segments.len()}),
     }
 }
@@ -167,28 +184,46 @@ pub(super) fn query(
     } else {
         (category, None)
     };
-    if parent.is_some() && !matches!(section, "source-files" | "source-conditions" | "trace-points" | "padstack-entries" | "trace-history" | "via-history" | "pad-history" | "layer-history" | "material-history") {
+    if parent.is_some()
+        && !matches!(
+            section,
+            "source-files"
+                | "source-conditions"
+                | "trace-points"
+                | "padstack-entries"
+                | "trace-history"
+                | "via-history"
+                | "pad-history"
+                | "layer-history"
+                | "material-history"
+        )
+    {
         return Err("BSI_F012_CATEGORY".into());
     }
     let nested = || parent.ok_or("BSI_F012_PARENT");
     let page = match section {
         "source-files" => bounded_page(
             &b.sources.get(nested()?).ok_or("BSI_F012_PARENT")?.id.files,
-            offset, limit,
+            offset,
+            limit,
             |f| json!({"logical_path":f.logical_path,"stored_sha256":sha_hex(&f.sha256),"source_reopened":false}),
         ),
         "source-conditions" => bounded_page(
             &b.sources.get(nested()?).ok_or("BSI_F012_PARENT")?.id.conditions,
-            offset, limit,
+            offset,
+            limit,
             |c| json!({"key":c.0,"value":c.1}),
         ),
         "trace-points" => bounded_page(
             &b.traces.get(nested()?).ok_or("BSI_F012_PARENT")?.centreline,
-            offset, limit, |p| point(b,p),
+            offset,
+            limit,
+            |p| point(b, p),
         ),
         "padstack-entries" => bounded_page(
             &b.padstacks.get(nested()?).ok_or("BSI_F012_PARENT")?.entries,
-            offset, limit,
+            offset,
+            limit,
             |e| json!({"layer":id(b,&e.layer),"role":format!("{:?}",e.role),"shape":pad_shape(&e.shape)}),
         ),
         "trace-history" | "via-history" | "pad-history" | "layer-history" | "material-history" => {
@@ -199,11 +234,13 @@ pub(super) fn query(
                 "pad-history" => b.pads.get(index).map(|v| &v.meta),
                 "layer-history" => b.stackup.layers.get(index).map(|v| &v.meta),
                 _ => b.materials.get(index).map(|v| &v.meta),
-            }.ok_or("BSI_F012_PARENT")?;
-            bounded_page(&object.provenance.history,offset,limit,|h|
+            }
+            .ok_or("BSI_F012_PARENT")?;
+            bounded_page(&object.provenance.history, offset, limit, |h| {
                 json!({"operation":h.operation,"quality":format!("{:?}",h.quality),
-                       "max_error_m":h.max_error_m.map(rational),"note":h.note}))
-        },
+                       "max_error_m":h.max_error_m.map(rational),"note":h.note})
+            })
+        }
         "board" => bounded_page(&[()], offset, limit, |_| {
             json!({"kind": format!("{:?}", b.kind), "schema": 1,
                    "read_only": loaded.is_read_only(),

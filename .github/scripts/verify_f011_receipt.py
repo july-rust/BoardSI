@@ -30,6 +30,25 @@ def main() -> None:
         (False, 1), (False, 2), (True, 1), (True, 2)
     ], data
     assert all(c["closed_scene_items"] == 0 for c in closed), data
+    # F012 shares the same actual Main Qt fixture and exact-head receipt.
+    records = data["f012_inspection"]
+    assert records, data
+    if records:
+        counts = [128, 129, 1000, 10000, 10001, 100000]
+        assert [(c["count"], c["offset"]) for c in records] == [
+            (count, offset) for count in counts for offset in (0, count - 1, 0)
+        ], records
+        for c in records:
+            assert c["mode"] == "fresh-read-only-worker" and c["physical_si"] == "NOT_RUN", c
+            assert 0 < c["response_bytes"] < 60000 and 1 <= c["rows"] <= 128, c
+            assert c["rows"] == 1 if c["offset"] == c["count"] - 1 else True, c
+            assert 0 <= c["page_ms"] <= (20000 if c["count"] <= 10000 else 60000), c
+            assert 0 <= c["max_timer_gap_ms"] <= 500, c
+            assert 0 < c["qt_peak_or_sampled_rss_bytes"] <= 1073741824, c
+            assert -1 <= c["worker_sampled_peak_rss_bytes"] <= 1073741824, c
+            if c["count"] >= 10000:
+                assert c["worker_sampled_peak_rss_bytes"] > 0, c
+        print("F012 bounded fresh-worker query measurements verified")
     print("F011 exact-head durable qualification receipt verified")
 
 

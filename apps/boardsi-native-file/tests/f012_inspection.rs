@@ -67,6 +67,18 @@ fn source_free_snapshot_inspection_is_read_only_and_exact() {
     assert_eq!(reply["rows"][0]["width_m"]["denominator"], "10000");
     assert_eq!(reply["rows"][0]["end"]["ticks"][0], "250000");
     assert_eq!(reply["physical_si"], "NOT_RUN");
+    let length = reply["rows"][0]["geometric_length_m_approx"]
+        .as_f64()
+        .unwrap();
+    assert!((length - 0.00025).abs() < 1e-15);
+    let points = query("trace-points:0", "1", "1", &digest);
+    assert!(points.status.success());
+    let points: Value = serde_json::from_slice(&points.stdout).unwrap();
+    assert_eq!(points["total"], 2);
+    assert_eq!(points["rows"][0]["ticks"][0], "250000");
+    assert!(points["next"].is_null());
+    assert!(!query("trace-points:1", "0", "1", &digest).status.success());
+    assert!(!query("trace-points", "0", "1", &digest).status.success());
     let mut selection = serde_json::json!({"category":"traces","index":0,
     "id":reply["rows"][0]["meta"]["id"]});
     let pick = |selection: &Value| {
@@ -87,6 +99,11 @@ fn source_free_snapshot_inspection_is_read_only_and_exact() {
     let reply: Value = serde_json::from_slice(&result.stdout).unwrap();
     assert_eq!(reply["rows"][0]["files"][0]["stored_sha256"], source_sha);
     assert_eq!(reply["rows"][0]["source_reopened"], false);
+    let files = query("source-files:0", "0", "1", &digest);
+    assert!(files.status.success());
+    let files: Value = serde_json::from_slice(&files.stdout).unwrap();
+    assert_eq!(files["rows"][0]["stored_sha256"], source_sha);
+    assert!(!query("sources:0", "0", "1", &digest).status.success());
     assert!(!query("traces", "0", "129", &digest).status.success());
     assert!(!query("traces", "2", "1", &digest).status.success());
     assert!(!query("traces", "0", "1", &"0".repeat(64)).status.success());

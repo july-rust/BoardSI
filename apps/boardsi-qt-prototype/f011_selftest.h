@@ -325,7 +325,8 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
                    page.first().toObject().value("meta").toObject().value("id").toObject()
                       .value("source_object").toString()!=QString("f011-synthetic-%1").arg(start) ||
                    bytes<=0 || bytes>=60000 || elapsedMs>(count<=10000?20000:60000) ||
-                   inspectionGap>500 || sampledRss>1073741824 || qtRss>1073741824) {
+                   inspectionGap>500 || sampledRss>1073741824 || qtRss<=0 || qtRss>1073741824 ||
+                   (count>=10000 && sampledRss<=0)) {
                     qWarning().noquote()<<"F012 bounded query failure"<<count<<start<<status->text()
                        <<elapsedMs<<inspectionGap<<bytes<<sampledRss<<qtRss;return 1;
                 }
