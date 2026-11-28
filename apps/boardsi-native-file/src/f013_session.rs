@@ -76,7 +76,11 @@ impl<'a> ObjectIndex<'a> {
             ($category:literal, $items:expr) => {
                 for (i, object) in $items.iter().enumerate() {
                     if let Some(net) = &object.net {
-                        add_member(&mut nets, net, ($category, i, &object.meta.id, "stored_net"))?;
+                        add_member(
+                            &mut nets,
+                            net,
+                            ($category, i, &object.meta.id, "stored_net"),
+                        )?;
                     }
                 }
             };
@@ -163,7 +167,13 @@ impl<'a> ObjectIndex<'a> {
         let (map, identity) = if section == "net-members" {
             (
                 &self.nets,
-                &self.board.nets.get(parent).ok_or("BSI_F013_PARENT")?.meta.id,
+                &self
+                    .board
+                    .nets
+                    .get(parent)
+                    .ok_or("BSI_F013_PARENT")?
+                    .meta
+                    .id,
             )
         } else {
             (
@@ -186,7 +196,8 @@ impl<'a> ObjectIndex<'a> {
         let mut rows = Vec::new();
         for (category, index, id, basis) in members.iter().skip(offset).take(limit) {
             let reference = super::f012_inspection::artwork_ref(self.board, category, *index, id);
-            let row = json!({"reference":reference,"basis":basis,"physical_contact":"NOT_VERIFIED"});
+            let row =
+                json!({"reference":reference,"basis":basis,"physical_contact":"NOT_VERIFIED"});
             let size = row.to_string().len() + 1;
             if size > 32_000 {
                 return Err("BSI_F013_ROW_LIMIT".into());
@@ -296,8 +307,8 @@ pub(super) fn run(args: &[OsString]) -> Result<(), String> {
     }
     #[cfg(feature = "f0031-qualification")]
     if std::env::var("BOARDSI_F012_QUAL_MODE").ok().as_deref() == Some("pause-before-inspect") {
-        let marker = std::env::var_os("BOARDSI_F012_QUAL_MARKER")
-            .ok_or("BSI_QUAL_MARKER_MISSING")?;
+        let marker =
+            std::env::var_os("BOARDSI_F012_QUAL_MARKER").ok_or("BSI_QUAL_MARKER_MISSING")?;
         fs::write(marker, b"real-native-inspection-worker-paused")
             .map_err(|_| "BSI_QUAL_MARKER_WRITE")?;
         loop {
@@ -321,9 +332,7 @@ pub(super) fn run(args: &[OsString]) -> Result<(), String> {
             "sha256":digest,"indexed_objects":index.entries.len(),"native_loads":1}),
     )?;
     while let Some(frame) = read_frame(&mut input)? {
-        if frame["protocol"] != PROTOCOL
-            || frame["session"] != session
-            || frame["sha256"] != digest
+        if frame["protocol"] != PROTOCOL || frame["session"] != session || frame["sha256"] != digest
         {
             return Err("BSI_F013_IDENTITY".into());
         }
