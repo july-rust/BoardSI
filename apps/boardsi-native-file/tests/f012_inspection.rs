@@ -120,7 +120,10 @@ fn frozen_geometry_and_independent_stackup_oracle() {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let dir = std::env::temp_dir().join(format!("boardsi-f012-oracle-{}-{nanos}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!(
+        "boardsi-f012-oracle-{}-{nanos}",
+        std::process::id()
+    ));
     fs::create_dir(&dir).unwrap();
     let path = dir.join("golden.bsi");
     let bytes = include_bytes!("../../../schemas/bsi/golden-v1-nine-geometry.bsi");
@@ -157,8 +160,12 @@ fn frozen_geometry_and_independent_stackup_oracle() {
         value
     };
     let inspect = |category: &str| page(&path, category, "0", "128");
-    let rational = |n: i128, d: i128| json!({"numerator":n.to_string(),"denominator":d.to_string()});
-    assert_eq!(inspect("board")["rows"][0]["stackup_total_thickness_m"]["state"], "UNAVAILABLE");
+    let rational =
+        |n: i128, d: i128| json!({"numerator":n.to_string(),"denominator":d.to_string()});
+    assert_eq!(
+        inspect("board")["rows"][0]["stackup_total_thickness_m"]["state"],
+        "UNAVAILABLE"
+    );
     let arc = inspect("arcs");
     assert_eq!(arc["rows"][0]["centre"]["ticks"], json!(["3000", "3000"]));
     assert_eq!(arc["rows"][0]["start"]["ticks"], json!(["4000", "3000"]));
@@ -173,34 +180,58 @@ fn frozen_geometry_and_independent_stackup_oracle() {
     assert_eq!(hole["rows"][0]["start"]["ticks"], json!(["1000", "1000"]));
     assert_eq!(hole["rows"][0]["end"]["ticks"], json!(["2000", "1000"]));
     let outline = inspect("outline-segments:0");
-    assert_eq!(outline["rows"][0]["start"]["ticks"], json!(["-1000", "-1000"]));
-    assert_eq!(outline["rows"][0]["end"]["ticks"], json!(["15000", "-1000"]));
+    assert_eq!(
+        outline["rows"][0]["start"]["ticks"],
+        json!(["-1000", "-1000"])
+    );
+    assert_eq!(
+        outline["rows"][0]["end"]["ticks"],
+        json!(["15000", "-1000"])
+    );
     let outline_hole = inspect("outline-cutout-segments:0:0");
-    assert_eq!(outline_hole["rows"][0]["start"]["ticks"], json!(["5000", "5000"]));
+    assert_eq!(
+        outline_hole["rows"][0]["start"]["ticks"],
+        json!(["5000", "5000"])
+    );
     let stack = inspect("padstack-entries:0");
     let shapes = stack["rows"].as_array().unwrap();
     assert_eq!(shapes.len(), 5);
-    let shape = |kind: &str| {
-        &shapes.iter().find(|r| r["shape"]["kind"] == kind).unwrap()["shape"]
-    };
+    let shape = |kind: &str| &shapes.iter().find(|r| r["shape"]["kind"] == kind).unwrap()["shape"];
     assert_eq!(shape("Circle")["diameter_m"], rational(1, 10000));
-    assert_eq!(shape("Rectangle")["size_m"], json!([rational(1, 10000), rational(1, 5000)]));
+    assert_eq!(
+        shape("Rectangle")["size_m"],
+        json!([rational(1, 10000), rational(1, 5000)])
+    );
     assert_eq!(shape("Annulus")["inner_diameter_m"], rational(1, 10000));
     assert_eq!(shape("Annulus")["outer_diameter_m"], rational(1, 5000));
     assert_eq!(shape("Thermal")["spoke_count"], 4);
     assert_eq!(shape("Thermal")["first_spoke_degrees"], 45);
-    let custom_index = shapes.iter().position(|r| r["shape"]["kind"] == "Custom").unwrap();
+    let custom_index = shapes
+        .iter()
+        .position(|r| r["shape"]["kind"] == "Custom")
+        .unwrap();
     let custom = inspect(&format!("custom-pad-segments:0:{custom_index}"));
     assert_eq!(custom["total"], 4);
     assert_eq!(custom["rows"][0]["end"]["ticks"], json!(["100", "0"]));
     let via = inspect("vias");
     assert_eq!(via["rows"][0]["position"]["ticks"], json!(["8000", "8000"]));
-    assert_eq!(via["rows"][0]["drill_details"]["diameter_m"], rational(1, 20000));
+    assert_eq!(
+        via["rows"][0]["drill_details"]["diameter_m"],
+        rational(1, 20000)
+    );
     assert_eq!(via["rows"][0]["drill_details"]["stored_plated"], true);
-    assert_eq!(via["rows"][0]["stored_connected_layers"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        via["rows"][0]["stored_connected_layers"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
     assert_eq!(inspect("pins")["rows"][0]["number"], "1");
     assert_eq!(inspect("components")["rows"][0]["reference"], "U1");
-    assert!(!run(&path, "area-cutout-segments:0:99", "0", "1").status.success());
+    assert!(!run(&path, "area-cutout-segments:0:99", "0", "1")
+        .status
+        .success());
     assert!(!run(&path, "area-segments:0:0", "0", "1").status.success());
     assert_eq!(fs::read(&path).unwrap(), bytes);
 
@@ -209,10 +240,22 @@ fn frozen_geometry_and_independent_stackup_oracle() {
     let sql_path = dir.join("independent-sql.bsi");
     fs::copy(&path, &sql_path).unwrap();
     let conn = Connection::open(&sql_path).unwrap();
-    let source: i64 = conn.query_row("SELECT id FROM source_identity", [], |r| r.get(0)).unwrap();
-    let material_id: i64 = conn.query_row("SELECT MAX(id)+1 FROM objects", [], |r| r.get(0)).unwrap();
-    conn.execute("INSERT INTO objects VALUES(?,?,'Material','independent-material','','fixture')", params![material_id,source]).unwrap();
-    conn.execute("INSERT INTO materials VALUES(?,'Independent dielectric')", [material_id]).unwrap();
+    let source: i64 = conn
+        .query_row("SELECT id FROM source_identity", [], |r| r.get(0))
+        .unwrap();
+    let material_id: i64 = conn
+        .query_row("SELECT MAX(id)+1 FROM objects", [], |r| r.get(0))
+        .unwrap();
+    conn.execute(
+        "INSERT INTO objects VALUES(?,?,'Material','independent-material','','fixture')",
+        params![material_id, source],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO materials VALUES(?,'Independent dielectric')",
+        [material_id],
+    )
+    .unwrap();
     for (key, state, value) in [("Dk", "Confirmed", 4.4_f64), ("Df", "Assumed", 0.015_f64)] {
         conn.execute("INSERT INTO material_properties(material_id,property_key,status,value_blob,document,revision,method,reference_frequency_hz,temperature_c) VALUES(?,?,?,?,'oracle','A','declared',1000000000,23)",
             params![material_id,key,state,value.to_le_bytes().to_vec()]).unwrap();
@@ -220,7 +263,13 @@ fn frozen_geometry_and_independent_stackup_oracle() {
     for key in ["Conductivity", "ValidBand"] {
         conn.execute("INSERT INTO material_properties(material_id,property_key,status) VALUES(?,?,'Missing')", params![material_id,key]).unwrap();
     }
-    let layer_ids: Vec<i64> = conn.prepare("SELECT object_id FROM layers ORDER BY layer_order").unwrap().query_map([], |r| r.get(0)).unwrap().collect::<Result<_,_>>().unwrap();
+    let layer_ids: Vec<i64> = conn
+        .prepare("SELECT object_id FROM layers ORDER BY layer_order")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
     for (index, layer) in layer_ids.iter().enumerate() {
         let z_num = index as i128;
         let z_den = if index == 0 { 1_i128 } else { 10000_i128 };
@@ -230,23 +279,48 @@ fn frozen_geometry_and_independent_stackup_oracle() {
             conn.execute("INSERT INTO layer_property_sources(layer_id,property_key,document,revision,method) VALUES(?,?,'oracle','A','declared')", params![layer,key]).unwrap();
         }
     }
-    let trace_id: i64 = conn.query_row("SELECT id FROM objects WHERE kind='Trace'", [], |r| r.get(0)).unwrap();
+    let trace_id: i64 = conn
+        .query_row("SELECT id FROM objects WHERE kind='Trace'", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
     conn.execute("INSERT INTO conversion_history(object_id,ordinal,operation,quality,note) VALUES(?,0,'independent-step','Exact','retained note')", [trace_id]).unwrap();
     drop(conn);
     let before = fs::read(&sql_path).unwrap();
     let total = page(&sql_path, "board", "0", "1");
-    assert_eq!(total["rows"][0]["stackup_total_thickness_m"]["state"], "ASSUMED");
-    assert_eq!(total["rows"][0]["stackup_total_thickness_m"]["value"], rational(1, 5000));
+    assert_eq!(
+        total["rows"][0]["stackup_total_thickness_m"]["state"],
+        "ASSUMED"
+    );
+    assert_eq!(
+        total["rows"][0]["stackup_total_thickness_m"]["value"],
+        rational(1, 5000)
+    );
     let material = page(&sql_path, "materials", "0", "1");
     assert_eq!(material["rows"][0]["dk"]["value"], 4.4);
     assert_eq!(material["rows"][0]["dk"]["state"], "CONFIRMED");
     assert_eq!(material["rows"][0]["df"]["value"], 0.015);
     assert_eq!(material["rows"][0]["df"]["state"], "ASSUMED");
-    assert_eq!(material["rows"][0]["df"]["source"]["frequency_hz"], 1_000_000_000.0);
-    assert_eq!(material["rows"][0]["conductivity_s_per_m"]["state"], "MISSING");
-    assert_eq!(page(&sql_path, "trace-history:0", "0", "1")["rows"][0]["note"], "retained note");
+    assert_eq!(
+        material["rows"][0]["df"]["source"]["frequency_hz"],
+        1_000_000_000.0
+    );
+    assert_eq!(
+        material["rows"][0]["conductivity_s_per_m"]["state"],
+        "MISSING"
+    );
+    assert_eq!(
+        page(&sql_path, "trace-history:0", "0", "1")["rows"][0]["note"],
+        "retained note"
+    );
     let conn = Connection::open_with_flags(&sql_path, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
-    let raw: Vec<u8> = conn.query_row("SELECT value_blob FROM material_properties WHERE property_key='Dk'", [], |r| r.get(0)).unwrap();
+    let raw: Vec<u8> = conn
+        .query_row(
+            "SELECT value_blob FROM material_properties WHERE property_key='Dk'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
     assert_eq!(f64::from_le_bytes(raw.try_into().unwrap()), 4.4);
     drop(conn);
     assert_eq!(fs::read(&sql_path).unwrap(), before);
