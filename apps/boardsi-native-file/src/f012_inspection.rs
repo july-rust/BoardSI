@@ -1,6 +1,8 @@
 //! F_012 read-only, snapshot-bound Native inspection pages.
 //! The existing Native Reader remains the sole structural authority.
-use boardsi_model::{BoardModel, ObjectId, ObjectMeta, PadShape, Point, Property, Rational};
+use boardsi_model::{
+    BoardModel, BoundarySegment, ObjectId, ObjectMeta, PadShape, Point, Property, Rational,
+};
 use serde_json::{json, Value};
 
 fn sha_hex(bytes: &[u8; 32]) -> String {
@@ -48,6 +50,54 @@ fn meta(board: &BoardModel, value: &ObjectMeta) -> Value {
 fn point(board: &BoardModel, value: &Point) -> Value {
     json!({"frame": id(board, &value.frame),
            "ticks": [value.ticks[0].to_string(), value.ticks[1].to_string()]})
+}
+
+// Do not manufacture a total from an incomplete or merely ordered stackup.
+fn total_thickness(board: &BoardModel) -> Value {
+    let calculate = || -> Option<(Rational, bool)> {
+        let mut layers: Vec<_> = board.stackup.layers.iter().collect();
+        layers.sort_by_key(|layer| layer.order);
+        let first = *layers.first()?.z_m.value()?;
+        let mut end = first;
+        let mut assumed = false;
+        for layer in layers {
+            let z = *layer.z_m.value()?;
+            let thickness = *layer.thickness_m.value()?;
+            if z != end || !thickness.positive() {
+                return None;
+            }
+            assumed |= matches!(layer.z_m, Property::Assumed { .. })
+                || matches!(layer.thickness_m, Property::Assumed { .. });
+            end = z.checked_add(thickness).ok()?;
+        }
+        Some((end.checked_add(first.checked_neg().ok()?).ok()?, assumed))
+    };
+    match calculate() {
+        Some((value, assumed)) => {
+            json!({"state":if assumed {"ASSUMED"} else {"CONFIRMED"},
+                "value":rational(value),"basis":"derived from contiguous stored layer faces; not a measurement"})
+        }
+        None => {
+            json!({"state":"UNAVAILABLE","reason":"missing, noncontiguous or nonrepresentable layer dimensions"})
+        }
+    }
+}
+
+fn segment(board: &BoardModel, value: &BoundarySegment) -> Value {
+    match value {
+        BoundarySegment::Line { start, end } => {
+            json!({"kind":"Line","start":point(board,start),"end":point(board,end)})
+        }
+        BoundarySegment::Arc {
+            centre,
+            start,
+            end,
+            clockwise,
+        } => {
+            json!({"kind":"Arc","centre":point(board,centre),"start":point(board,start),
+                   "end":point(board,end),"clockwise":clockwise})
+        }
+    }
 }
 
 fn length_m(board: &BoardModel, points: &[Point]) -> Option<f64> {
@@ -185,15 +235,24 @@ pub(super) fn query(
             return Err("BSI_F012_SELECTION_INVALID".into());
         }
     }
-    let (section, parent) = if let Some((section, raw)) = category.split_once(':') {
+    let (section, parent, child) = if let Some((section, raw)) = category.split_once(':') {
+        let (raw, child) = raw.split_once(':').map_or((raw, None), |(p, c)| (p, Some(c)));
         let parent = raw.parse::<usize>().map_err(|_| "BSI_F012_PARENT")?;
+        let child = child
+            .map(|c| c.parse::<usize>().map_err(|_| "BSI_F012_PARENT"))
+            .transpose()?;
         if selection.is_some() {
             return Err("BSI_F012_SELECTION_INVALID".into());
         }
-        (section, Some(parent))
+        (section, Some(parent), child)
     } else {
-        (category, None)
+        (category, None, None)
     };
+    if child.is_some()
+        != matches!(section, "area-cutout-segments" | "outline-cutout-segments" | "custom-pad-segments")
+    {
+        return Err("BSI_F012_PARENT".into());
+    }
     if parent.is_some()
         && !matches!(
             section,
@@ -206,6 +265,22 @@ pub(super) fn query(
                 | "pad-history"
                 | "layer-history"
                 | "material-history"
+                | "arc-history"
+                | "area-history"
+                | "net-history"
+                | "frame-history"
+                | "drill-history"
+                | "padstack-history"
+                | "component-history"
+                | "pin-history"
+                | "outline-history"
+                | "area-segments"
+                | "outline-segments"
+                | "area-cutouts"
+                | "outline-cutouts"
+                | "area-cutout-segments"
+                | "outline-cutout-segments"
+                | "custom-pad-segments"
         )
     {
         return Err("BSI_F012_CATEGORY".into());
@@ -240,14 +315,50 @@ pub(super) fn query(
             limit,
             |e| json!({"layer":id(b,&e.layer),"role":format!("{:?}",e.role),"shape":pad_shape(&e.shape)}),
         ),
-        "trace-history" | "via-history" | "pad-history" | "layer-history" | "material-history" => {
+        "area-segments" | "outline-segments" | "area-cutout-segments" | "outline-cutout-segments" | "custom-pad-segments" => {
+            let index = nested()?;
+            let boundary = match section {
+                "area-segments" => b.areas.get(index).map(|v| &v.outer),
+                "outline-segments" => b.outlines.get(index).map(|v| &v.outer),
+                "area-cutout-segments" => b.areas.get(index).and_then(|v| v.cutouts.get(child?)).map(|v| &v.boundary),
+                "outline-cutout-segments" => b.outlines.get(index).and_then(|v| v.cutouts.get(child?)).map(|v| &v.boundary),
+                _ => b.padstacks.get(index).and_then(|v| v.entries.get(child?)).and_then(|v| match &v.shape {
+                    PadShape::Custom(boundary) => Some(boundary),
+                    _ => None,
+                }),
+            }.ok_or("BSI_F012_PARENT")?;
+            bounded_page(&boundary.segments, offset, limit, |v| segment(b, v))
+        }
+        "area-cutouts" | "outline-cutouts" => {
+            let index = nested()?;
+            let cutouts = if section == "area-cutouts" {
+                b.areas.get(index).map(|v| &v.cutouts)
+            } else {
+                b.outlines.get(index).map(|v| &v.cutouts)
+            }.ok_or("BSI_F012_PARENT")?;
+            bounded_page(cutouts, offset, limit, |v| {
+                json!({"meta":meta(b,&v.meta),"segment_count":v.boundary.segments.len()})
+            })
+        }
+        "trace-history" | "via-history" | "pad-history" | "layer-history" | "material-history" |
+        "arc-history" | "area-history" | "net-history" | "frame-history" | "drill-history" |
+        "padstack-history" | "component-history" | "pin-history" | "outline-history" => {
             let index = nested()?;
             let object = match section {
                 "trace-history" => b.traces.get(index).map(|v| &v.meta),
                 "via-history" => b.vias.get(index).map(|v| &v.meta),
                 "pad-history" => b.pads.get(index).map(|v| &v.meta),
                 "layer-history" => b.stackup.layers.get(index).map(|v| &v.meta),
-                _ => b.materials.get(index).map(|v| &v.meta),
+                "material-history" => b.materials.get(index).map(|v| &v.meta),
+                "arc-history" => b.arcs.get(index).map(|v| &v.meta),
+                "area-history" => b.areas.get(index).map(|v| &v.meta),
+                "net-history" => b.nets.get(index).map(|v| &v.meta),
+                "frame-history" => b.frames.get(index).map(|v| &v.meta),
+                "drill-history" => b.drills.get(index).map(|v| &v.meta),
+                "padstack-history" => b.padstacks.get(index).map(|v| &v.meta),
+                "component-history" => b.components.get(index).map(|v| &v.meta),
+                "pin-history" => b.pins.get(index).map(|v| &v.meta),
+                _ => b.outlines.get(index).map(|v| &v.meta),
             }
             .ok_or("BSI_F012_PARENT")?;
             bounded_page(&object.provenance.history, offset, limit, |h| {
@@ -258,6 +369,7 @@ pub(super) fn query(
         "board" => bounded_page(&[()], offset, limit, |_| {
             json!({"kind": format!("{:?}", b.kind), "schema": 1,
                    "read_only": loaded.is_read_only(),
+                   "stackup_total_thickness_m": total_thickness(b),
                    "layers": b.stackup.layers.len(), "materials": b.materials.len(),
                    "nets": b.nets.len(), "components": b.components.len(),
                    "pins": b.pins.len(), "frames": b.frames.len(),
@@ -309,7 +421,8 @@ pub(super) fn query(
             json!({"meta": meta(b, &f.meta), "unit_label": f.unit_label,
                    "metres_per_tick": rational(f.metres_per_tick),
                    "origin_m": [rational(f.origin_m[0]), rational(f.origin_m[1])],
-                   "orientation": format!("{:?}", f.orientation)})
+                   "orientation": format!("{:?}", f.orientation),
+                   "source_layer_order_reversed":f.source_layer_order_reversed})
         }),
         "traces" => bounded_page(&b.traces, offset, limit, |t| {
             json!({"meta": meta(b, &t.meta), "layer": id(b, &t.layer),
@@ -341,6 +454,8 @@ pub(super) fn query(
             json!({"meta": meta(b, &v.meta), "position": point(b, &v.position),
                    "padstack": id(b, &v.padstack), "drill": id(b, &v.drill),
                    "kind": format!("{:?}", v.kind), "net": v.net.as_ref().map(|n| id(b, n)),
+                   "drill_details":b.drills.iter().find(|d|d.meta.id==v.drill).map(|d|
+                        json!({"diameter_m":rational(d.diameter_m),"stored_plated":d.plated})),
                    "first_layer": id(b, &v.span.first_layer),
                    "last_layer": id(b, &v.span.last_layer),
                    "stored_connected_layers": v.connected_layers.iter().map(|l| id(b, l)).collect::<Vec<_>>()})
@@ -356,6 +471,12 @@ pub(super) fn query(
                    "net": a.net.as_ref().map(|n| id(b, n)),
                    "outer_segments": a.outer.segments.len(), "cutouts": a.cutouts.len()})
         }),
+        "outlines" => bounded_page(
+            &b.outlines,
+            offset,
+            limit,
+            |o| json!({"meta":meta(b,&o.meta),"outer_segments":o.outer.segments.len(),"cutouts":o.cutouts.len()}),
+        ),
         "components" => bounded_page(&b.components, offset, limit, |c| {
             json!({"meta": meta(b, &c.meta), "reference": c.reference,
                    "position": point(b, &c.placement.position), "bottom_side": c.placement.bottom_side,

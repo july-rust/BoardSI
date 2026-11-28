@@ -5793,6 +5793,42 @@ static int runF010CrossFormatSelftest(const QString &nativeBinary,const QString 
             n==1?QStringList{sha(matrix),sha(feature)}:
             n==2?QStringList{sha(K)}:n==3?QStringList{sha(I)}:QStringList{sha(G),sha(D)};
         for(const auto &digest:expected)if(!hashes.contains(digest))return false;
+        // Independent source values from fixtures above, not the renderer's
+        // receipt. Distinguish absent physical evidence from a stored value.
+        auto exactDimension=[](const QJsonValue &value,qint64 numerator,qint64 denominator) {
+            const auto object=value.toObject();
+            return object.value("numerator").toString()==QString::number(numerator) &&
+                   object.value("denominator").toString()==QString::number(denominator);
+        };
+        if(n!=4) {
+            if(!inspectPage("traces"))return false;
+            const auto traces=rows();
+            const QList<QPair<qint64,qint64>> widths=n==0?QList<QPair<qint64,qint64>>{{127,500000}}:
+                n==1?QList<QPair<qint64,qint64>>{{1,10000}}:
+                n==2?QList<QPair<qint64,qint64>>{{1,5000}}:
+                      QList<QPair<qint64,qint64>>{{3,20000},{1,5000}};
+            for(const auto &width:widths) {
+                bool found=false;
+                for(const auto &trace:traces)
+                    if(exactDimension(trace.toObject().value("width_m"),width.first,width.second))found=true;
+                if(!found)return false;
+            }
+        }
+        if(n==0 || n==2) {
+            if(!inspectPage("drills"))return false;
+            const auto holes=rows();
+            bool found=false;
+            for(const auto &hole:holes)
+                if(exactDimension(hole.toObject().value("diameter_m"),n==0?381:3,n==0?1000000:10000))found=true;
+            if(!found)return false;
+        }
+        if(n==4) {
+            if(!inspectPage("drill-observations"))return false;
+            const auto hole=rows().first().toObject();
+            if(hole.value("diameter_nm")!="300000" ||
+               hole.value("centre_nm").toArray()!=QJsonArray{"12345678","2000000"} ||
+               hole.value("plating")!="UNKNOWN")return false;
+        }
         const auto items=view->scene()->items();
         for(auto *item:items)if(!inspectPicked(item))return false;
         // Two picks in the same event-loop turn: only the last may publish.
@@ -5807,6 +5843,22 @@ static int runF010CrossFormatSelftest(const QString &nativeBinary,const QString 
             if(ref.value("category")=="drill-observations") {
                 if(row.value("source_offset")!=ref.value("source_offset"))return false;
             } else if(row.value("meta").toObject().value("id")!=ref.value("id"))return false;
+        }
+        // Native open failure with old scene retained: suspended inspection
+        // must follow the selection made while the failed open is in flight.
+        if(items.size()>1) {
+            if(!window.openNativeCandidate(bad))return false;
+            view->scene()->clearSelection();
+            items.first()->setSelected(true);
+            if(!finish(false) || panel->loadedPath()!=path || !waitInspection(true))return false;
+            const auto ref=items.first()->data(2).value<QJsonObject>();
+            const auto row=rows().first().toObject();
+            if(ref.value("category")=="drill-observations") {
+                if(row.value("source_offset")!=ref.value("source_offset"))return false;
+            } else if(row.value("meta").toObject().value("id")!=ref.value("id"))return false;
+            view->scene()->clearSelection();
+            if(!waitInspection(false) || !details->toPlainText().isEmpty() ||
+               fields->topLevelItemCount()!=0)return false;
         }
         if(!file.open(QIODevice::ReadOnly) || sha(file.readAll())!=before)return false;
         toggle->click();

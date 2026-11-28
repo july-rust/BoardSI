@@ -28,7 +28,7 @@ class F012Inspector final : public QWidget {
     QComboBox *categoryBox_;
     QPlainTextEdit *details_;
     QTreeWidget *fields_;
-    QSpinBox *parentIndex_, *startIndex_;
+    QSpinBox *parentIndex_, *childIndex_, *startIndex_;
     QPushButton *query_, *next_, *cancel_;
     QLabel *status_;
     int offset_=0, nextOffset_=-1;
@@ -79,6 +79,7 @@ class F012Inspector final : public QWidget {
         categoryBox_->setEnabled(available);
         const bool nested=categoryBox_->currentData().toString().endsWith(":");
         parentIndex_->setEnabled(available && nested);
+        childIndex_->setEnabled(available && categoryBox_->currentData().toString().endsWith("::"));
         startIndex_->setEnabled(available);
         query_->setEnabled(available);
         next_->setEnabled(available && nextOffset_>=0);
@@ -104,7 +105,10 @@ class F012Inspector final : public QWidget {
         selection_=selection;
         nextOffset_=-1;
         category_=categoryBox_->currentData().toString();
-        if(category_.endsWith(":"))category_+=QString::number(parentIndex_->value());
+        if(category_.endsWith("::")) {
+            category_.chop(1);
+            category_+=QString::number(parentIndex_->value())+":"+QString::number(childIndex_->value());
+        } else if(category_.endsWith(":"))category_+=QString::number(parentIndex_->value());
         request_=QUuid::createUuid().toString(QUuid::Id128);
         valid_=true;completing_=true;
         clearDetails();
@@ -182,7 +186,11 @@ public:
                                       "traces","arcs","pads","vias","drills","areas",
                                       "components","pins","drill-observations","padstacks",
                                       "source-files:","source-conditions:","trace-points:","padstack-entries:",
-                                      "trace-history:","via-history:","pad-history:","layer-history:","material-history:"};
+                                      "trace-history:","via-history:","pad-history:","layer-history:","material-history:",
+                                      "outlines","arc-history:","area-history:","net-history:","frame-history:",
+                                      "drill-history:","padstack-history:","component-history:","pin-history:","outline-history:",
+                                      "area-segments:","outline-segments:","area-cutouts:","outline-cutouts:",
+                                      "area-cutout-segments::","outline-cutout-segments::","custom-pad-segments::"};
         for(const auto &category:categories)categoryBox_->addItem(category,category);
         query_=new QPushButton("Inspect / First page",this);
         query_->setObjectName("f012InspectionQuery");
@@ -191,6 +199,9 @@ public:
         parentIndex_=new QSpinBox(this);
         parentIndex_->setObjectName("f012InspectionParent");
         parentIndex_->setRange(0,1000000);
+        childIndex_=new QSpinBox(this);
+        childIndex_->setObjectName("f012InspectionChild");
+        childIndex_->setRange(0,1000000);
         startIndex_=new QSpinBox(this);
         startIndex_->setObjectName("f012InspectionOffset");
         startIndex_->setRange(0,1000000);
@@ -212,7 +223,8 @@ public:
         bar->addWidget(categoryBox_);bar->addWidget(query_);
         bar->addWidget(next_);bar->addWidget(cancel_);
         auto *indices=new QHBoxLayout;
-        indices->addWidget(new QLabel("Parent index",this));indices->addWidget(parentIndex_);
+        indices->addWidget(new QLabel("Parent",this));indices->addWidget(parentIndex_);
+        indices->addWidget(new QLabel("Child",this));indices->addWidget(childIndex_);
         indices->addWidget(new QLabel("Start index",this));indices->addWidget(startIndex_);
         indices->addStretch();
         layout->addLayout(bar);layout->addLayout(indices);layout->addWidget(status_);layout->addWidget(tabs);
@@ -225,6 +237,7 @@ public:
             nextOffset_=-1;clearDetails();controls();
         };
         connect(parentIndex_,QOverload<int>::of(&QSpinBox::valueChanged),this,resetPage);
+        connect(childIndex_,QOverload<int>::of(&QSpinBox::valueChanged),this,resetPage);
         connect(startIndex_,QOverload<int>::of(&QSpinBox::valueChanged),this,resetPage);
         connect(query_,&QPushButton::clicked,this,[this]{startPage(startIndex_->value());});
         connect(next_,&QPushButton::clicked,this,[this]{if(nextOffset_>=0)startPage(nextOffset_);});
