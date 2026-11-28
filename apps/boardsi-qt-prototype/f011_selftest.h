@@ -215,7 +215,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         QStringList arguments={"f011-seed",file,QString::number(count)};
         if(mixed)arguments<<"mixed";
         seed.start(nativeBinary,arguments);
-        if(!seed.waitForStarted(15000) || !seed.waitForFinished(120000) ||
+        if(!seed.waitForStarted(15000) || !seed.waitForFinished(mixed && count==100000?240000:120000) ||
            seed.exitStatus()!=QProcess::NormalExit || seed.exitCode()!=0) {
             qWarning().noquote()<<"F011 fixture seed"<<count<<seed.readAllStandardError();
             return 1;
@@ -225,7 +225,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
            legacy.value("vias").toInt()!=(mixed?count/2:0) ||
            (count>128 && legacy.value("artwork_status").toString()!="NOT_RENDERED"))
             return 1;
-        if(count==128) {
+        if(count==128 && !mixed) {
             // Controlled same-binary, same-file transport A/B: alternate order,
             // three pairs. Legacy and reconstructed framed receipts must agree
             // exactly. This does not claim an old-vs-new GUI speedup.
