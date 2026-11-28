@@ -13,6 +13,7 @@ def main() -> None:
     expected = [
         (128, False), (129, False), (1000, False),
         (10000, False), (10000, True), (10001, False), (100000, False),
+        (128, True), (129, True), (1000, True), (10001, True), (100000, True),
     ]
     assert [(c["count"], c["mixed"]) for c in cases] == expected, data
     for c in cases:
@@ -60,7 +61,15 @@ def main() -> None:
     assert [(r["count"], r["samples"]) for r in performance] == [
         (128, 1000), (1000, 100), (10000, 100), (100000, 100),
     ], performance
-    for r in performance:
+    mixed = data["f013_mixed"]
+    assert [(r["count"], r["samples"]) for r in mixed] == [
+        (n, 100) for n in (10000, 128, 129, 1000, 10001, 100000)
+    ], mixed
+    for r in mixed:
+        assert r["mixed"] is True and r["exact_oracle"] is True, r
+        assert r["traces"] == (r["count"] + 1) // 2, r
+        assert r["vias"] == r["drills"] == r["count"] // 2, r
+    for r in performance + mixed:
         timings = sorted(r["warm_ms"])
         n = r["samples"]
         assert len(timings) == n and all(t >= 0 for t in timings), r
