@@ -16,6 +16,7 @@
 #include <QSpinBox>
 #include <QTreeWidget>
 #include <QUuid>
+#include <QVariant>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -74,7 +75,7 @@ class F012Inspector final : public QWidget {
             item->setText(0,QString("%1 #%2").arg(category_).arg(offset_+i));
             item->setText(1,row.value("name").toString());
             if(row.value("reference").isObject())
-                item->setData(0,Qt::UserRole,row.value("reference").toObject());
+                item->setData(0,Qt::UserRole,QVariant::fromValue(row.value("reference").toObject()));
             for(auto it=row.constBegin();it!=row.constEnd();++it)appendField(item,it.key(),it.value());
             if(rows.size()==1)item->setExpanded(true);
         }

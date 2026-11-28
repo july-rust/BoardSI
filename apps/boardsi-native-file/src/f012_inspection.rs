@@ -4,6 +4,9 @@ use boardsi_model::{
     BoardModel, BoundarySegment, ObjectId, ObjectMeta, PadShape, Point, Property, Rational,
 };
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
+
+pub(super) type ObjectPositions<'a> = BTreeMap<&'a ObjectId, (&'static str, usize)>;
 
 fn sha_hex(bytes: &[u8; 32]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
@@ -100,11 +103,22 @@ fn segment(board: &BoardModel, value: &BoundarySegment) -> Value {
     }
 }
 
-fn length_m(board: &BoardModel, points: &[Point]) -> Option<f64> {
+fn length_m(
+    board: &BoardModel,
+    positions: Option<&ObjectPositions<'_>>,
+    points: &[Point],
+) -> Option<f64> {
+    let frame = |id: &ObjectId| match positions {
+        Some(index) => index
+            .get(id)
+            .filter(|(category, _)| *category == "frames")
+            .and_then(|(_, index)| board.frames.get(*index)),
+        None => board.frames.iter().find(|f| f.meta.id == *id),
+    };
     let mut length = 0.0;
     for pair in points.windows(2) {
-        let a = board.frames.iter().find(|f| f.meta.id == pair[0].frame)?;
-        let b = board.frames.iter().find(|f| f.meta.id == pair[1].frame)?;
+        let a = frame(&pair[0].frame)?;
+        let b = frame(&pair[1].frame)?;
         let x = a.exact_m(&pair[0]).ok()?;
         let y = b.exact_m(&pair[1]).ok()?;
         let dx = y[0]
@@ -218,7 +232,15 @@ pub(super) fn query(
         return Err("BSI_SOURCE_CHANGED".into());
     }
     let loaded = boardsi_native::load(path).map_err(super::native_error)?;
-    let result = query_loaded(&loaded, digest, request, category, offset, limit, selection)?;
+    let result = query_loaded(
+        (&loaded, None),
+        digest,
+        request,
+        category,
+        offset,
+        limit,
+        selection,
+    )?;
     if super::file_sha256(path)? != digest {
         return Err("BSI_SOURCE_CHANGED".into());
     }
@@ -227,7 +249,7 @@ pub(super) fn query(
 
 /// Query the already-validated, immutable model without opening a CAD or Native file.
 pub(super) fn query_loaded(
-    loaded: &boardsi_native::LoadedBoard,
+    snapshot: (&boardsi_native::LoadedBoard, Option<&ObjectPositions<'_>>),
     digest: &str,
     request: &str,
     category: &str,
@@ -243,6 +265,7 @@ pub(super) fn query_loaded(
     {
         return Err("BSI_F012_QUERY_INVALID".into());
     }
+    let (loaded, positions) = snapshot;
     let b = loaded.model();
     let selection = selection
         .map(|raw| {
@@ -479,7 +502,7 @@ pub(super) fn query_loaded(
             json!({"meta": meta(b, &t.meta), "layer": id(b, &t.layer),
                    "net": t.net.as_ref().map(|v| id(b, v)), "width_m": rational(t.width_m),
                    "point_count": t.centreline.len(),
-                   "geometric_length_m_approx": length_m(b,&t.centreline),
+                   "geometric_length_m_approx": length_m(b,positions,&t.centreline),
                    "length_basis":"polyline centreline only; binary64 approximation; not electrical length",
                    "start": t.centreline.first().map(|v| point(b, v)),
                    "end": t.centreline.last().map(|v| point(b, v))})
@@ -505,8 +528,12 @@ pub(super) fn query_loaded(
             json!({"meta": meta(b, &v.meta), "position": point(b, &v.position),
                    "padstack": id(b, &v.padstack), "drill": id(b, &v.drill),
                    "kind": format!("{:?}", v.kind), "net": v.net.as_ref().map(|n| id(b, n)),
-                   "drill_details":b.drills.iter().find(|d|d.meta.id==v.drill).map(|d|
-                        json!({"diameter_m":rational(d.diameter_m),"stored_plated":d.plated})),
+                   "drill_details":match positions {
+                       Some(index) => index.get(&v.drill)
+                           .filter(|(category,_)| *category=="drills")
+                           .and_then(|(_,i)| b.drills.get(*i)),
+                       None => b.drills.iter().find(|d|d.meta.id==v.drill),
+                   }.map(|d|json!({"diameter_m":rational(d.diameter_m),"stored_plated":d.plated})),
                    "first_layer": id(b, &v.span.first_layer),
                    "last_layer": id(b, &v.span.last_layer),
                    "stored_connected_layers": v.connected_layers.iter().map(|l| id(b, l)).collect::<Vec<_>>()})

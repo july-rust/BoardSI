@@ -25,7 +25,7 @@ fn token(value: &str, size: usize) -> bool {
 // no geometry or provenance is copied into the index.
 struct ObjectIndex<'a> {
     board: &'a BoardModel,
-    entries: BTreeMap<&'a ObjectId, (&'static str, usize)>,
+    entries: super::f012_inspection::ObjectPositions<'a>,
     nets: BTreeMap<&'a ObjectId, Vec<Membership<'a>>>,
     layers: BTreeMap<&'a ObjectId, Vec<Membership<'a>>>,
 }
@@ -468,8 +468,8 @@ pub(super) fn run(args: &[OsString]) -> Result<(), String> {
     let mut output = io::stdout().lock();
     let artwork_start = std::time::Instant::now();
     if open {
-        let artwork_token = super::f011_artwork_stream::request()?
-            .ok_or("BSI_F013_ARTWORK_TOKEN")?;
+        let artwork_token =
+            super::f011_artwork_stream::request()?.ok_or("BSI_F013_ARTWORK_TOKEN")?;
         let receipt = super::receipt_loaded("open", path, &digest, &loaded, false)?;
         super::f011_artwork_stream::write_receipt(receipt, &artwork_token, &mut output)?;
         if stamp(path)? != initial {
@@ -539,7 +539,7 @@ pub(super) fn run(args: &[OsString]) -> Result<(), String> {
                 "selection":null,"rows":rows,"physical_si":"NOT_RUN","physical_contact":"NOT_VERIFIED"})
         } else {
             super::f012_inspection::query_loaded(
-                &loaded,
+                (&loaded, Some(&index.entries)),
                 &digest,
                 request,
                 category,
@@ -557,4 +557,26 @@ pub(super) fn run(args: &[OsString]) -> Result<(), String> {
         send(&mut output, &result)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bounded_frames_reject_truncated_oversized_and_malformed_input() {
+        let mut empty = io::Cursor::new(Vec::<u8>::new());
+        assert!(read_frame(&mut empty).unwrap().is_none());
+        for bytes in [
+            b"{}".to_vec(),
+            b"{not-json}\n".to_vec(),
+            vec![b'x'; MAX_REQUEST + 1],
+        ] {
+            assert!(read_frame(&mut io::Cursor::new(bytes)).is_err());
+        }
+        let mut two = io::Cursor::new(b"{}\n{}\n");
+        assert_eq!(read_frame(&mut two).unwrap(), Some(json!({})));
+        assert_eq!(read_frame(&mut two).unwrap(), Some(json!({})));
+        assert!(read_frame(&mut two).unwrap().is_none());
+    }
 }

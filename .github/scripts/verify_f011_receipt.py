@@ -69,15 +69,22 @@ def main() -> None:
         assert r["p95_ms"] <= (100 if r["count"] <= 1000 else 250 if r["count"] <= 10000 else 500), r
         assert r["count"] != 100000 or r["maximum_ms"] <= 1000, r
         assert r["cold_open_ms"] <= (20000 if r["count"] <= 10000 else 60000), r
-        assert r["max_timer_gap_ms"] <= 100, r
+        assert r["max_timer_gap_ms"] <= 100 and r["cold_open_timer_gap_ms"] <= 100, r
         assert 0 < r["worker_sampled_rss_bytes"] <= 1073741824, r
         assert 0 < r["qt_peak_or_sampled_rss_bytes"] <= 1073741824, r
         assert 0 < r["max_response_bytes"] < 60000, r
         assert r["session_pid"] > 0 and r["native_loads"] == 1, r
-        assert r["stale_publications"] == 0 and r["physical_si"] == "NOT_RUN", r
+        assert r["physical_si"] == "NOT_RUN", r
     assert data["f013_stress"] == {
         "rapid_selections": 100, "close_reopen": 20, "closed_worker_count": 0,
+        "burst_publications": 1, "stale_publications": 0,
     }, data["f013_stress"]
+    ab = data["f013_ab"]
+    assert [(r["count"], r["offset"]) for r in ab] == [
+        (n, offset) for n in (1000, 10000, 100000) for offset in (0, n - 1, 0)
+    ], ab
+    assert all(r["exact_rows_equal"] and r["fresh_worker_cli_ms"] >= 0
+               and r["persistent_qt_page_ms"] >= 0 for r in ab), ab
     print("F013 exact-head cold/warm and lifecycle receipt verified")
     print("F011 exact-head durable qualification receipt verified")
 

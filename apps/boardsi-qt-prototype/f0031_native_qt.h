@@ -24,6 +24,7 @@
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QPointer>
 #include <QUuid>
 #include "f011_artwork_stream.h"
 #include "f012_inspector.h"
@@ -79,6 +80,7 @@ public:
 
 class F0031NativePanel final : public QWidget {
     QProcess *child_=nullptr;
+    QList<QPointer<QProcess>> retiredChildren_;
     bool persistentOpen_=false, openReadyAccepted_=false, launchPending_=false;
     quint64 launchGeneration_=0;
     QByteArray openFrame_;
@@ -236,7 +238,12 @@ class F0031NativePanel final : public QWidget {
     }
     void launchWhenReady(const QStringList &arguments,quint64 generation) {
         if(!running_ || !launchPending_ || generation!=launchGeneration_)return;
-        if(inspector_->workerStopping()) {
+        bool retiring=false;
+        for(auto it=retiredChildren_.begin();it!=retiredChildren_.end();) {
+            if(it->isNull() || (*it)->state()==QProcess::NotRunning)it=retiredChildren_.erase(it);
+            else {retiring=true;++it;}
+        }
+        if(inspector_->workerStopping() || retiring) {
             QTimer::singleShot(5,this,[this,arguments,generation]{
                 launchWhenReady(arguments,generation);
             });
@@ -650,6 +657,7 @@ class F0031NativePanel final : public QWidget {
         auto *old=child_;
         QObject::disconnect(old,nullptr,this,nullptr);
         if(old->state()!=QProcess::NotRunning) {
+            retiredChildren_.append(QPointer<QProcess>(old));
             connect(old,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
                     old,&QObject::deleteLater);
             old->kill();

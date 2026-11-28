@@ -101,7 +101,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
     auto *raw=panel->findChild<QPlainTextEdit *>("f012InspectionDetails");
     auto *inspector=static_cast<F012Inspector *>(category?category->parentWidget():nullptr);
     if(!toggle || !category || !query || !offset || !parentIndex || !status || !raw || !inspector)return 2;
-    QJsonArray measurements,transportAB,closeSamples,inspectionMeasurements,f013Performance;
+    QJsonArray measurements,transportAB,closeSamples,inspectionMeasurements,f013Performance,f013AB;
     QJsonObject f013Stress;
     QJsonObject inspectionLifecycle;
     qint64 workerRss=-1;
@@ -382,6 +382,26 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
                     {"mode","persistent-read-only-worker"},{"session_pid",sessionPid},{"physical_si","NOT_RUN"}};
                 inspectionMeasurements.append(record);
                 qInfo().noquote()<<QJsonDocument(record).toJson(QJsonDocument::Compact);
+                // Controlled same-run A/B on the original F012 query set.
+                // Fresh is worker-only; warm includes Qt publication.
+                if(count==1000 || count==10000 || count==100000) {
+                    QProcess fresh;
+                    auto environment=QProcessEnvironment::systemEnvironment();
+                    environment.remove("BOARDSI_ARTWORK_REQUEST");
+                    fresh.setProcessEnvironment(environment);
+                    QElapsedTimer freshClock;freshClock.start();
+                    fresh.start(nativeBinary,{"inspect",file,QString::fromLatin1(digest.toHex()),
+                        "0123456789abcdef0123456789abcdef","traces",QString::number(start),"128"});
+                    if(!fresh.waitForStarted(15000) || !fresh.waitForFinished(60000) ||
+                       fresh.exitStatus()!=QProcess::NormalExit || fresh.exitCode()!=0)return 1;
+                    const auto freshMs=freshClock.elapsed();
+                    const auto oldPage=QJsonDocument::fromJson(fresh.readAllStandardOutput()).object()
+                        .value("rows").toArray();
+                    if(oldPage!=page)return 1;
+                    f013AB.append(QJsonObject{{"count",count},{"offset",start},
+                        {"fresh_worker_cli_ms",freshMs},{"persistent_qt_page_ms",elapsedMs},
+                        {"exact_rows_equal",true}});
+                }
             }
             if(sessionPid!=initialPid)return 1;
             if(count==128 || count==1000 || count==10000 || count==100000) {
@@ -446,10 +466,10 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
                     {"native_loads",openSession.value("native_loads")},
                     {"load_ms",openSession.value("load_ms")},{"index_ms",openSession.value("index_ms")},
                     {"integrity_ms",openSession.value("integrity_ms")},{"artwork_ms",openSession.value("artwork_ms")},
-                    {"stale_publications",0},{"physical_si","NOT_RUN"}};
+                    {"physical_si","NOT_RUN"}};
                 qInfo().noquote()<<QJsonDocument(perf).toJson(QJsonDocument::Compact);
                 if(p95>limit || (count==100000 && maximum>1000) || maxGap>100 ||
-                   maxWorker>1073741824 || maxQt>1073741824)return 1;
+                   gap>100 || maxWorker>1073741824 || maxQt>1073741824)return 1;
                 f013Performance.append(perf);
                 category->setCurrentIndex(category->findData("traces"));offset->setValue(0);
             }
@@ -543,6 +563,16 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
                 // final full identity and ensure the worker is still the same.
                 const auto burstPid=inspector->inspectionWorkerPidForTest();
                 QJsonObject lastRef;
+                int stalePublications=0,publications=0;
+                bool burstFinished=false;
+                const auto observed=QObject::connect(raw,&QPlainTextEdit::textChanged,raw,[&]{
+                    const auto rows=QJsonDocument::fromJson(raw->toPlainText().toUtf8()).array();
+                    if(rows.isEmpty())return;
+                    ++publications;
+                    if(!burstFinished || rows.size()!=1 ||
+                       rows.at(0).toObject().value("meta").toObject().value("id")!=lastRef.value("id"))
+                        ++stalePublications;
+                });
                 const auto items=view->scene()->items();
                 for(int i=0;i<100;++i) {
                     view->scene()->clearSelection();
@@ -550,13 +580,18 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
                     item->setSelected(true);
                     lastRef=item->data(2).value<QJsonObject>();
                 }
-                if(lastRef.isEmpty() || !until([&]{return query->isEnabled();}) ||
+                burstFinished=true;
+                const bool burstReady=until([&]{return query->isEnabled();});
+                QObject::disconnect(observed);
+                if(lastRef.isEmpty() || !burstReady || publications!=1 || stalePublications!=0 ||
                    inspector->inspectionWorkerPidForTest()!=burstPid)return 1;
                 const auto finalPage=QJsonDocument::fromJson(raw->toPlainText().toUtf8()).array();
                 if(finalPage.size()!=1 ||
                    finalPage.at(0).toObject().value("meta").toObject().value("id")!=lastRef.value("id"))
                     return 1;
                 f013Stress["rapid_selections"]=100;
+                f013Stress["burst_publications"]=publications;
+                f013Stress["stale_publications"]=stalePublications;
                 view->scene()->clearSelection();
                 for(int i=0;i<20;++i) {
                     panel->forget();
@@ -625,7 +660,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
         {"cases",measurements},{"transport_ab",transportAB},{"close_reopen",closeSamples},
         {"f012_inspection",inspectionMeasurements},{"f012_lifecycle",inspectionLifecycle},
-        {"f013_performance",f013Performance},{"f013_stress",f013Stress},
+        {"f013_performance",f013Performance},{"f013_stress",f013Stress},{"f013_ab",f013AB},
         {"physical_si","NOT_RUN"}};
     QSaveFile proof("qt-f011-qualification.json");
     const auto encoded=QJsonDocument(evidence).toJson(QJsonDocument::Indented);
