@@ -2,6 +2,7 @@
 //! Never use this binary for physical connectivity, geometry display or SI claims.
 mod f009_native_artwork;
 mod f011_artwork_stream;
+mod f012_inspection;
 
 use boardsi_native::{
     canonical_semantics_equal, load, migrate_to_current, recover_owned_staging, save, save_guarded,
@@ -553,6 +554,15 @@ fn run() -> Result<Value, String> {
         return receipt("f011-seed", &path, false);
     }
     match arg_text(&args, 0)?.as_str() {
+        "inspect" if args.len() == 7 => {
+            let path = arg_path(&args, 1)?;
+            let digest = arg_text(&args, 2)?;
+            let request = arg_text(&args, 3)?;
+            let category = arg_text(&args, 4)?;
+            let offset = arg_text(&args, 5)?.parse().map_err(|_| fail("BSI_F012_OFFSET"))?;
+            let limit = arg_text(&args, 6)?.parse().map_err(|_| fail("BSI_F012_LIMIT"))?;
+            f012_inspection::query(&path, &digest, &request, &category, offset, limit)
+        }
         "open" if args.len() == 2 => {
             let path = arg_path(&args, 1)?;
             recover_owned_staging(parent(&path)).map_err(|e| format!("BSI_RECOVERY_IO: {e}"))?;
