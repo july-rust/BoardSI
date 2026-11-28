@@ -3,9 +3,99 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
     fs,
-    process::Command,
+    io::{BufRead, BufReader, Write},
+    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+// Apply the existing independent F012 oracles to the production persistent
+// protocol, not just to the legacy one-shot serialization path. One real
+// child per immutable source-free file is retained across successful pages.
+struct SessionOracle {
+    path: std::path::PathBuf,
+    child: Child,
+    input: ChildStdin,
+    output: BufReader<ChildStdout>,
+    digest: String,
+    sequence: u128,
+}
+impl SessionOracle {
+    const DOCUMENT: &'static str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const SESSION: &'static str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    const GENERATION: &'static str = "cccccccccccccccccccccccccccccccc";
+
+    fn open(path: &std::path::Path) -> Self {
+        let digest = format!("{:x}", Sha256::digest(fs::read(path).unwrap()));
+        let mut child = Command::new(env!("CARGO_BIN_EXE_boardsi-native-file"))
+            .arg("inspect-session")
+            .arg(path)
+            .args([
+                digest.as_str(),
+                Self::DOCUMENT,
+                Self::SESSION,
+                Self::GENERATION,
+            ])
+            .env_remove("BOARDSI_ARTWORK_REQUEST")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let input = child.stdin.take().unwrap();
+        let output = BufReader::new(child.stdout.take().unwrap());
+        let mut this = Self {
+            path: path.to_owned(),
+            child,
+            input,
+            output,
+            digest,
+            sequence: 0,
+        };
+        let ready = this.receive();
+        assert_eq!(ready["action"], "ready");
+        assert_eq!(ready["native_loads"], 1);
+        assert_eq!(ready["sha256"], this.digest);
+        this
+    }
+
+    fn receive(&mut self) -> Value {
+        let mut line = String::new();
+        assert!(self.output.read_line(&mut line).unwrap() > 0);
+        assert!(line.len() < 60_000);
+        serde_json::from_str(&line).unwrap()
+    }
+
+    fn compare(&mut self, legacy: &Value, limit: usize) {
+        self.sequence += 1;
+        let request = format!("{:032x}", self.sequence);
+        let frame = serde_json::json!({
+            "protocol":"BSI_NATIVE_SESSION_V1","session":Self::SESSION,
+            "document":Self::DOCUMENT,"generation":Self::GENERATION,
+            "sha256":self.digest,"request":request,"action":"query",
+            "category":legacy["category"],"offset":legacy["offset"],"limit":limit,
+            "selection":legacy["selection"]
+        });
+        writeln!(self.input, "{frame}").unwrap();
+        self.input.flush().unwrap();
+        let mut actual = self.receive();
+        assert_eq!(actual["session"], Self::SESSION);
+        assert_eq!(actual["document"], Self::DOCUMENT);
+        assert_eq!(actual["generation"], Self::GENERATION);
+        assert_eq!(actual["request"], request);
+        let fields = actual.as_object_mut().unwrap();
+        fields.remove("session");
+        fields.remove("document");
+        fields.remove("generation");
+        actual["request"] = legacy["request"].clone();
+        assert_eq!(actual, *legacy);
+    }
+}
+impl Drop for SessionOracle {
+    fn drop(&mut self) {
+        // Release the Windows read guard even during a failing assertion.
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
 
 #[test]
 fn source_free_snapshot_inspection_is_read_only_and_exact() {
@@ -147,6 +237,7 @@ fn frozen_geometry_and_independent_stackup_oracle() {
             .output()
             .unwrap()
     };
+    let session = std::cell::RefCell::new(None::<SessionOracle>);
     let page = |path: &std::path::Path, category: &str, offset: &str, limit: &str| {
         let result = run(path, category, offset, limit);
         assert!(
@@ -157,6 +248,15 @@ fn frozen_geometry_and_independent_stackup_oracle() {
         let value: Value = serde_json::from_slice(&result.stdout).unwrap();
         assert_eq!(value["physical_si"], "NOT_RUN");
         assert_eq!(value["physical_contact"], "NOT_VERIFIED");
+        let mut persistent = session.borrow_mut();
+        if persistent.as_ref().map(|s| s.path.as_path()) != Some(path) {
+            *persistent = None;
+            *persistent = Some(SessionOracle::open(path));
+        }
+        persistent
+            .as_mut()
+            .unwrap()
+            .compare(&value, limit.parse().unwrap());
         value
     };
     let inspect = |category: &str| page(&path, category, "0", "128");
@@ -324,5 +424,6 @@ fn frozen_geometry_and_independent_stackup_oracle() {
     assert_eq!(f64::from_le_bytes(raw.try_into().unwrap()), 4.4);
     drop(conn);
     assert_eq!(fs::read(&sql_path).unwrap(), before);
+    drop(session);
     fs::remove_dir_all(dir).unwrap();
 }
