@@ -4,7 +4,7 @@
 
 BoardSI aims to make **offline, resource-conscious PCB signal-integrity review** practical: import layout data, inspect copper and stackup, identify signal paths and reference nets, configure ports, and eventually calculate validated RLGC, impedance and S-parameters. The design uses a **format-neutral Canonical Board Model**, a Rust core and a Qt desktop UI. **ODB++ is one supported restricted input format, not the internal data model.**
 
-> **Current status — 2026-11-28 KST: Developer Preview / partial functionality.** Native `.bsi` v1 Reader/Writer and restricted five-format source-free Artwork replay passed F_010. F_011 adds qualified bounded 10,000-primitive Native Qt replay and 100,000-primitive structural-open/NOT_RENDERED stress on four OS; implementation is protected-merged, final administrative acceptance is tracked in [F_011 evidence](docs/validation/f011-native-large-board-artwork-qualification.md). No production CAD converter, complete electrical connectivity analyzer, shipping installer or physically validated PCB SI solver claim. [What is actually verified?](docs/development-checklist.md)
+> **Current status — 2026-11-28 KST: Developer Preview / partial functionality.** Native `.bsi` v1 Reader/Writer and restricted five-format source-free Artwork replay passed F_010. F_011 qualifies bounded 10,000-primitive Native Qt replay and 100,000-primitive structural-open/NOT_RENDERED stress on four OS. F_012 adds source-free read-only Board/Stackup/Material/Object inspection, exact stored geometry/provenance, bounded paginated queries and real Inspector lifecycle qualification on four OS. Its implementation is protected-merged; final administrative acceptance is tracked in [F_012 evidence](docs/validation/f012-native-board-inspection-qualification.md). The measured fresh-worker alternative is not an interactive-latency or persistent-cache claim. No production CAD converter, complete electrical connectivity analyzer, shipping installer or physically validated PCB SI solver claim. [What is actually verified?](docs/development-checklist.md)
 
 [**Documentation hub / 문서 시작**](docs/README.md) · [Developer Quickstart](docs/developer-quickstart.md) · [Specification v1.0](docs/specification/BoardSI_Development_Spec_v1.0.md) · [Development checklist](docs/development-checklist.md) · [Validation](docs/validation/README.md)
 
@@ -13,6 +13,7 @@ BoardSI aims to make **offline, resource-conscious PCB signal-integrity review**
 | Area | Implemented and scope-tested today | Not yet product-qualified |
 | :--- | :--- | :--- |
 | **Import & Artwork** | Restricted PADS V9.4-MILS, bounded ODB++, KiCad 9 straight tracks/normal through vias, IPC-2581C inline Line/Polyline, Gerber X2 circular D03 flashes + decimal metric Excellon drill observations; Native `.bsi` v1 source-free Qt Artwork for supported subsets, bounded 10,000-primitive display | Full CAD dialects/vendor exports, full-board normalization, unrestricted geometry/render capacity, independent vendor equivalence |
+| **Native inspection** | F_012 read-only Main Qt Inspector; source identity, stackup and material evidence, full object identity, stored coordinates/dimensions, paged boundary/provenance details; structural-only inspection when artwork is NOT_RENDERED | Persistent cache / interactive latency, unrestricted geometry/vendor coverage, physical contact or electrical SI |
 | **Copper contact** | Source-local finite-width trace-to-trace and off-centre trace-to-Via conductive annulus / circular, square, rectangular SMD-pad **geometry candidates** ([D_054/D_055 evidence](docs/validation/d054-d055-general-trace-contact-qualification.md)) | Proven whole-board electrical Open/Short, thermal/pour/plating completeness, new-candidate integration into the actual Qt global connectivity graph |
 | **Execution** | Rust Canonical integrity model, isolated Worker IPC, Qt Widgets and optional GPU-first artwork backends; native regression evidence on supported platforms | Complete Import→Port→Solver→Results user journey, resilience/packaging/clean-system redistributable release |
 | **Numerics** | Mathematical **supplied scalar** RLGC→uniform 2-port S; research-only restricted PEC/lossless 2D FEM coupons | Accurate board-geometry→frequency-dependent physical RLGC, multiconductor coupling, 30 GHz PCB validation, final Touchstone workflow |
@@ -45,7 +46,7 @@ The last command reports **local copper-area candidates only**, not electrical n
 | :--- | :--- |
 | `crates/boardsi-import/` | Restricted CAD source parsing, geometry/provenance and local contact candidates |
 | `crates/boardsi-native/` | SQLite v1 / BSIG Native Reader, Writer and compatibility |
-| `apps/boardsi-native-file/` | Native file Worker and bounded source-free Artwork receipts |
+| `apps/boardsi-native-file/` | Native file Worker, bounded source-free Artwork and snapshot-bound inspection receipts |
 | `crates/boardsi-model/` | Shared Canonical Board Model and structural validation |
 | `crates/boardsi-numerics/` | Supplied scalar RLGC and single-ended 2-port mathematics |
 | `crates/boardsi-ipc/` | Versioned local Worker IPC contracts |
