@@ -414,6 +414,16 @@ fn receipt(action: &str, path: &Path, read_only: bool) -> Result<Value, String> 
     if before != after {
         return Err(fail("BSI_SOURCE_CHANGED"));
     }
+    receipt_loaded(action, path, &before, &loaded, read_only)
+}
+
+fn receipt_loaded(
+    action: &str,
+    path: &Path,
+    before: &str,
+    loaded: &boardsi_native::LoadedBoard,
+    read_only: bool,
+) -> Result<Value, String> {
     let b = loaded.model();
     let mut response = json!({
         "protocol":"BSI_NATIVE_FILE_V1",
@@ -919,7 +929,10 @@ fn bound_artwork_receipt(mut value: Value) -> Value {
 
 fn main() -> ExitCode {
     let args: Vec<_> = env::args_os().skip(1).collect();
-    if args.first().and_then(|v| v.to_str()) == Some("inspect-session") {
+    if matches!(
+        args.first().and_then(|v| v.to_str()),
+        Some("inspect-session" | "open-session")
+    ) {
         return match f013_session::run(&args) {
             Ok(()) => ExitCode::SUCCESS,
             Err(code) => {

@@ -383,15 +383,21 @@ fn read_frame(reader: &mut impl BufRead) -> Result<Option<Value>, String> {
 }
 
 pub(super) fn run(args: &[OsString]) -> Result<(), String> {
-    if args.len() != 6 {
+    let open = args.first().and_then(|v| v.to_str()) == Some("open-session");
+    if args.len() != if open { 5 } else { 6 } {
         return Err("BSI_F013_USAGE".into());
     }
     let path = Path::new(&args[1]);
-    let digest = args[2].to_str().ok_or("BSI_F013_DIGEST")?;
-    let document = args[3].to_str().ok_or("BSI_F013_DOCUMENT")?;
-    let session = args[4].to_str().ok_or("BSI_F013_SESSION")?;
-    let generation = args[5].to_str().ok_or("BSI_F013_GENERATION")?;
-    if !token(digest, 64)
+    let first = if open { 2 } else { 3 };
+    let expected = if open {
+        None
+    } else {
+        Some(args[2].to_str().ok_or("BSI_F013_DIGEST")?)
+    };
+    let document = args[first].to_str().ok_or("BSI_F013_DOCUMENT")?;
+    let session = args[first + 1].to_str().ok_or("BSI_F013_SESSION")?;
+    let generation = args[first + 2].to_str().ok_or("BSI_F013_GENERATION")?;
+    if expected.is_some_and(|v| !token(v, 64))
         || !token(document, 32)
         || !token(session, 32)
         || !token(generation, 32)
@@ -399,18 +405,39 @@ pub(super) fn run(args: &[OsString]) -> Result<(), String> {
         return Err("BSI_F013_IDENTITY".into());
     }
     #[cfg(feature = "f0031-qualification")]
-    if std::env::var("BOARDSI_F012_QUAL_MODE").ok().as_deref() == Some("pause-before-inspect") {
-        let marker =
-            std::env::var_os("BOARDSI_F012_QUAL_MARKER").ok_or("BSI_QUAL_MARKER_MISSING")?;
-        fs::write(marker, b"real-native-inspection-worker-paused")
+    {
+        let pause_open = open
+            && std::env::var("BOARDSI_F0031_QUAL_MODE").ok().as_deref()
+                == Some("pause-before-open");
+        let pause_inspect = !open
+            && std::env::var("BOARDSI_F012_QUAL_MODE").ok().as_deref()
+                == Some("pause-before-inspect");
+        if pause_open || pause_inspect {
+            let marker = std::env::var_os(if pause_open {
+                "BOARDSI_F0031_QUAL_MARKER"
+            } else {
+                "BOARDSI_F012_QUAL_MARKER"
+            })
+            .ok_or("BSI_QUAL_MARKER_MISSING")?;
+            fs::write(
+                marker,
+                if pause_open {
+                    &b"real-native-file-worker-paused"[..]
+                } else {
+                    &b"real-native-inspection-worker-paused"[..]
+                },
+            )
             .map_err(|_| "BSI_QUAL_MARKER_WRITE")?;
-        loop {
-            std::thread::park();
+            loop {
+                std::thread::park();
+            }
         }
     }
-    // Windows sharing is mandatory: a held read handle denies ordinary
-    // writers and replacement, including same-size/same-mtime rewrites.
-    // The per-request file ID and change-time tripwire detects path rebinding.
+    if open {
+        boardsi_native::recover_owned_staging(super::parent(path))
+            .map_err(|e| format!("BSI_RECOVERY_IO: {e}"))?;
+    }
+    // A held read handle denies ordinary Windows writers and replacement.
     #[cfg(windows)]
     let _read_guard = {
         use std::os::windows::fs::OpenOptionsExt;
@@ -421,21 +448,41 @@ pub(super) fn run(args: &[OsString]) -> Result<(), String> {
             .map_err(|_| "BSI_F013_FILE_GUARD")?
     };
     let initial = stamp(path)?;
-    if super::file_sha256(path)? != digest {
+    let clock = std::time::Instant::now();
+    let digest = super::file_sha256(path)?;
+    let first_hash_ms = clock.elapsed().as_millis();
+    if expected.is_some_and(|v| v != digest) {
         return Err("BSI_SOURCE_CHANGED".into());
     }
+    let load_start = std::time::Instant::now();
     let loaded = boardsi_native::load(path).map_err(super::native_error)?;
+    let load_ms = load_start.elapsed().as_millis();
+    let index_start = std::time::Instant::now();
     let index = ObjectIndex::build(loaded.model())?;
+    let index_ms = index_start.elapsed().as_millis();
     if super::file_sha256(path)? != digest || stamp(path)? != initial {
         return Err("BSI_SOURCE_CHANGED".into());
     }
+    let integrity_ms = clock.elapsed().as_millis() - load_ms - index_ms;
     let mut input = io::stdin().lock();
     let mut output = io::stdout().lock();
+    let artwork_start = std::time::Instant::now();
+    if open {
+        let artwork_token = super::f011_artwork_stream::request()?
+            .ok_or("BSI_F013_ARTWORK_TOKEN")?;
+        let receipt = super::receipt_loaded("open", path, &digest, &loaded, false)?;
+        super::f011_artwork_stream::write_receipt(receipt, &artwork_token, &mut output)?;
+        if stamp(path)? != initial {
+            return Err("BSI_SOURCE_CHANGED".into());
+        }
+    }
     send(
         &mut output,
         &json!({"protocol":PROTOCOL,"action":"ready","session":session,
             "document":document,"generation":generation,"sha256":digest,
-            "indexed_objects":index.entries.len(),"native_loads":1}),
+            "indexed_objects":index.entries.len(),"native_loads":1,
+            "first_hash_ms":first_hash_ms,"load_ms":load_ms,"index_ms":index_ms,
+            "integrity_ms":integrity_ms,"artwork_ms":artwork_start.elapsed().as_millis()}),
     )?;
     while let Some(frame) = read_frame(&mut input)? {
         if frame["protocol"] != PROTOCOL
@@ -493,7 +540,7 @@ pub(super) fn run(args: &[OsString]) -> Result<(), String> {
         } else {
             super::f012_inspection::query_loaded(
                 &loaded,
-                digest,
+                &digest,
                 request,
                 category,
                 offset,
