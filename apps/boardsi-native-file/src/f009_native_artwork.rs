@@ -87,7 +87,8 @@ pub(crate) fn render(board: &BoardModel) -> Result<(&'static str, Value), &'stat
         return Err("BSI_F009_UNRENDERED_GEOMETRY_KIND");
     }
     if board.traces.len() + board.pads.len() + board.vias.len() == 0
-        || board.traces.len() + board.pads.len() + board.vias.len() > crate::f011_artwork_stream::item_limit()
+        || board.traces.len() + board.pads.len() + board.vias.len()
+            > crate::f011_artwork_stream::item_limit()
     {
         return Err("BSI_F009_ITEM_LIMIT");
     }

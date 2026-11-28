@@ -31,8 +31,10 @@ static qint64 f011WorkerResidentSample(qint64 pid) {
             .match(QString::fromLatin1(status.readAll()));
         if(match.hasMatch())return match.captured(1).toLongLong()*1024;
     }
-#endif
     return -1;
+#else
+    return -1;
+#endif
 }
 
 static bool f011StreamNegativeSelftest() {
@@ -158,15 +160,16 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         const auto before=view->transform().m11();
         const QPoint local(80,80);
         const QPoint global=view->viewport()->mapToGlobal(local);
-        for(int n=0;n<6;++n) {
+        auto *bar=view->horizontalScrollBar();
+        // The viewport aspect ratio is platform-dependent. Establish the
+        // actual scrollable range instead of assuming a fixed zoom factor.
+        for(int n=0;n<40 && (n==0 || bar->maximum()<=bar->minimum()+20);++n) {
             QWheelEvent wheel(QPointF(local),QPointF(global),QPoint(),QPoint(0,120),
                 Qt::NoButton,Qt::NoModifier,Qt::NoScrollPhase,false);
             QCoreApplication::sendEvent(view->viewport(),&wheel);
         }
         const auto zoomed=view->transform().m11();
-        if(!(zoomed>before))return false;
-        auto *bar=view->horizontalScrollBar();
-        if(bar->maximum()<=bar->minimum()+20)return false;
+        if(!(zoomed>before) || bar->maximum()<=bar->minimum()+20)return false;
         bar->setValue(bar->minimum()+(bar->maximum()-bar->minimum())/2);
         const int offset=bar->value();
         QMouseEvent press(QEvent::MouseButtonPress,QPointF(local),QPointF(global),
