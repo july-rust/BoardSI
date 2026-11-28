@@ -99,6 +99,7 @@ class F0031NativePanel final : public QWidget {
     F012Inspector *inspector_=nullptr;
     QPushButton *inspectToggle_=nullptr;
     QMetaObject::Connection inspectorPicking_;
+    bool inspectorSuspended_=false;
     QElapsedTimer phaseClock_;
     qint64 workerMs_=0, sceneMs_=0;
     qsizetype streamBytes_=0;
@@ -110,7 +111,12 @@ class F0031NativePanel final : public QWidget {
     std::function<void()> onChanged_;
     void state(const QString &value) {
         state_->setText(value);
-        if(inspector_)inspector_->suspend(running_);
+        if(inspector_) {
+            const bool resumed=inspectorSuspended_ && !running_;
+            inspectorSuspended_=running_;
+            inspector_->suspend(running_);
+            if(resumed)syncInspectorPicking();
+        }
         if (onChanged_) onChanged_();
     }
     void discardRender() {
@@ -496,13 +502,17 @@ class F0031NativePanel final : public QWidget {
         artworkFit_->setVisible(false);
         publishReceipt(receipt,false);
     }
+    void syncInspectorPicking() {
+        if(running_ || !inspector_ || !inspectToggle_ || !inspectToggle_->isChecked() || loaded_.isEmpty())return;
+        const auto selected=artworkScene_->selectedItems();
+        const auto ref=selected.size()==1 && selected.front()->isVisible()
+            ?selected.front()->data(2).value<QJsonObject>():QJsonObject();
+        inspector_->inspectSelection(ref);
+    }
     void connectInspectorPicking() {
         auto *scene=artworkScene_;
         inspectorPicking_=connect(scene,&QGraphicsScene::selectionChanged,this,[this,scene] {
-            if(scene!=artworkScene_ || running_ || !inspector_ || !inspectToggle_->isChecked())return;
-            const auto selected=scene->selectedItems();
-            const auto ref=selected.size()==1?selected.front()->data(2).value<QJsonObject>():QJsonObject();
-            inspector_->inspectSelection(ref);
+            if(scene==artworkScene_)syncInspectorPicking();
         });
     }
     void fitArtwork() {
@@ -583,6 +593,7 @@ public:
         connect(inspectToggle_,&QPushButton::toggled,inspector_,&QWidget::setVisible);
         connect(inspectToggle_,&QPushButton::toggled,this,[this](bool visible){
             if(!visible)inspector_->cancelSelection();
+            else syncInspectorPicking();
         });
         connect(artworkLayer_,QOverload<int>::of(&QComboBox::currentIndexChanged),
                 this,[this](int index) {
@@ -594,6 +605,7 @@ public:
                     (layer=="*" &&
                      (padLayers.isEmpty() || padLayers.contains(selected))));
             }
+            if(!artworkScene_->selectedItems().isEmpty())syncInspectorPicking();
         });
         renderTimer_.setSingleShot(true);
         connect(&renderTimer_,&QTimer::timeout,this,[this]{renderNext();});

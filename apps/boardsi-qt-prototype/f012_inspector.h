@@ -212,11 +212,17 @@ public:
         controls();
     }
     void suspend(bool suspended) {
+        if(suspended_==suspended)return;
         suspended_=suspended;
-        if(suspended && (valid_ || !pendingSelection_.isEmpty())) {
+        if(suspended) {
+            // Even a completed page is invalid as a selection display once
+            // a Native operation starts; its old scene may stay interactive.
             pendingSelection_=QJsonObject();
-            invalidate();nextOffset_=-1;
-            status_->setText("Inspection cancelled during Native operation");
+            invalidate();nextOffset_=-1;details_->clear();
+            status_->setText("Inspection suspended during Native operation");
+        } else {
+            status_->setText(path_.isEmpty()?"No accepted Native document":
+                             "Select Inspect to query the accepted snapshot");
         }
         controls();
     }
