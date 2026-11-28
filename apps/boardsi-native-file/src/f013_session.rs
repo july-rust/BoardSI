@@ -245,17 +245,102 @@ impl<'a> ObjectIndex<'a> {
     }
 }
 
-// Cheap change detection is a tripwire, not a digest proof. The session serves
-// only the originally digest-validated immutable model, never live disk data.
+// A session serves the originally digest-validated immutable model, never
+// newly read disk data. Detect replacement and changes to that backing file.
+#[cfg(windows)]
+#[derive(PartialEq, Eq)]
+struct WindowsIdentity {
+    volume: u64,
+    file: [u8; 16],
+    change_time: i64,
+}
+
+#[cfg(windows)]
+fn windows_identity(file: &fs::File) -> Result<WindowsIdentity, String> {
+    use std::{ffi::c_void, os::windows::io::AsRawHandle};
+    #[repr(C)]
+    struct BasicInfo {
+        creation: i64,
+        access: i64,
+        write: i64,
+        change: i64,
+        attributes: u32,
+    }
+    #[repr(C)]
+    struct IdInfo {
+        volume: u64,
+        file: [u8; 16],
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetFileInformationByHandleEx(
+            handle: *mut c_void,
+            class: i32,
+            information: *mut c_void,
+            size: u32,
+        ) -> i32;
+    }
+    let mut basic = BasicInfo {
+        creation: 0,
+        access: 0,
+        write: 0,
+        change: 0,
+        attributes: 0,
+    };
+    let mut id = IdInfo {
+        volume: 0,
+        file: [0; 16],
+    };
+    // SAFETY: the handle is owned and valid for the call; both initialized
+    // repr(C) buffers have the documented FILE_BASIC_INFO / FILE_ID_INFO
+    // layout and exact length. FileBasicInfo=0, FileIdInfo=18.
+    let basic_ok = unsafe {
+        GetFileInformationByHandleEx(
+            file.as_raw_handle(),
+            0,
+            (&mut basic as *mut BasicInfo).cast(),
+            std::mem::size_of::<BasicInfo>() as u32,
+        )
+    };
+    let id_ok = unsafe {
+        GetFileInformationByHandleEx(
+            file.as_raw_handle(),
+            18,
+            (&mut id as *mut IdInfo).cast(),
+            std::mem::size_of::<IdInfo>() as u32,
+        )
+    };
+    if basic_ok == 0 || id_ok == 0 {
+        return Err("BSI_F013_FILE_ID_UNAVAILABLE".into());
+    }
+    Ok(WindowsIdentity {
+        volume: id.volume,
+        file: id.file,
+        change_time: basic.change,
+    })
+}
+
 #[derive(PartialEq, Eq)]
 struct FileStamp {
     len: u64,
     modified: SystemTime,
     #[cfg(unix)]
     identity: (u64, u64, i64, i64),
+    #[cfg(windows)]
+    identity: WindowsIdentity,
 }
 fn stamp(path: &Path) -> Result<FileStamp, String> {
-    let meta = fs::metadata(path).map_err(|_| "BSI_SOURCE_MISSING")?;
+    // Do not silently accept a newly introduced untracked SQLite sidecar.
+    for suffix in ["-wal", "-shm"] {
+        let mut sidecar = path.as_os_str().to_os_string();
+        sidecar.push(suffix);
+        match fs::symlink_metadata(std::path::PathBuf::from(sidecar)) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            _ => return Err("BSI_SOURCE_CHANGED".into()),
+        }
+    }
+    let file = fs::File::open(path).map_err(|_| "BSI_SOURCE_MISSING")?;
+    let meta = file.metadata().map_err(|_| "BSI_SOURCE_MISSING")?;
     if !meta.is_file() {
         return Err("BSI_SOURCE_CHANGED".into());
     }
@@ -266,6 +351,8 @@ fn stamp(path: &Path) -> Result<FileStamp, String> {
         modified: meta.modified().map_err(|_| "BSI_SOURCE_CHANGED")?,
         #[cfg(unix)]
         identity: (meta.dev(), meta.ino(), meta.ctime(), meta.ctime_nsec()),
+        #[cfg(windows)]
+        identity: windows_identity(&file)?,
     })
 }
 
@@ -296,13 +383,19 @@ fn read_frame(reader: &mut impl BufRead) -> Result<Option<Value>, String> {
 }
 
 pub(super) fn run(args: &[OsString]) -> Result<(), String> {
-    if args.len() != 4 {
+    if args.len() != 6 {
         return Err("BSI_F013_USAGE".into());
     }
     let path = Path::new(&args[1]);
     let digest = args[2].to_str().ok_or("BSI_F013_DIGEST")?;
-    let session = args[3].to_str().ok_or("BSI_F013_SESSION")?;
-    if !token(digest, 64) || !token(session, 32) {
+    let document = args[3].to_str().ok_or("BSI_F013_DOCUMENT")?;
+    let session = args[4].to_str().ok_or("BSI_F013_SESSION")?;
+    let generation = args[5].to_str().ok_or("BSI_F013_GENERATION")?;
+    if !token(digest, 64)
+        || !token(document, 32)
+        || !token(session, 32)
+        || !token(generation, 32)
+    {
         return Err("BSI_F013_IDENTITY".into());
     }
     #[cfg(feature = "f0031-qualification")]
@@ -315,6 +408,18 @@ pub(super) fn run(args: &[OsString]) -> Result<(), String> {
             std::thread::park();
         }
     }
+    // Windows sharing is mandatory: a held read handle denies ordinary
+    // writers and replacement, including same-size/same-mtime rewrites.
+    // The per-request file ID and change-time tripwire detects path rebinding.
+    #[cfg(windows)]
+    let _read_guard = {
+        use std::os::windows::fs::OpenOptionsExt;
+        fs::OpenOptions::new()
+            .read(true)
+            .share_mode(1) // FILE_SHARE_READ only
+            .open(path)
+            .map_err(|_| "BSI_F013_FILE_GUARD")?
+    };
     let initial = stamp(path)?;
     if super::file_sha256(path)? != digest {
         return Err("BSI_SOURCE_CHANGED".into());
@@ -329,10 +434,15 @@ pub(super) fn run(args: &[OsString]) -> Result<(), String> {
     send(
         &mut output,
         &json!({"protocol":PROTOCOL,"action":"ready","session":session,
-            "sha256":digest,"indexed_objects":index.entries.len(),"native_loads":1}),
+            "document":document,"generation":generation,"sha256":digest,
+            "indexed_objects":index.entries.len(),"native_loads":1}),
     )?;
     while let Some(frame) = read_frame(&mut input)? {
-        if frame["protocol"] != PROTOCOL || frame["session"] != session || frame["sha256"] != digest
+        if frame["protocol"] != PROTOCOL
+            || frame["session"] != session
+            || frame["document"] != document
+            || frame["generation"] != generation
+            || frame["sha256"] != digest
         {
             return Err("BSI_F013_IDENTITY".into());
         }
@@ -395,6 +505,8 @@ pub(super) fn run(args: &[OsString]) -> Result<(), String> {
             return Err("BSI_SOURCE_CHANGED".into());
         }
         result["session"] = json!(session);
+        result["document"] = json!(document);
+        result["generation"] = json!(generation);
         send(&mut output, &result)?;
     }
     Ok(())

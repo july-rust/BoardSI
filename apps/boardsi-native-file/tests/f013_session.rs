@@ -23,13 +23,15 @@ fn persistent_native_session_reuses_snapshot_and_rejects_wrong_identity() {
     let bytes = include_bytes!("../../../schemas/bsi/golden-v1-nine-geometry.bsi");
     fs::write(&native, bytes).unwrap();
     let digest = format!("{:x}", Sha256::digest(bytes));
+    let document = "11111111111111111111111111111111";
     let session = "0123456789abcdef0123456789abcdef";
+    let generation = "22222222222222222222222222222222";
     let request = "fedcba9876543210fedcba9876543210";
     let bin = env!("CARGO_BIN_EXE_boardsi-native-file");
     let mut child = Command::new(bin)
         .arg("inspect-session")
         .arg(&native)
-        .args([digest.as_str(), session])
+        .args([digest.as_str(), document, session, generation])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -46,14 +48,18 @@ fn persistent_native_session_reuses_snapshot_and_rejects_wrong_identity() {
     assert_eq!(ready["action"], "ready");
     assert_eq!(ready["native_loads"], 1);
     assert_eq!(ready["sha256"], digest);
+    assert_eq!(ready["document"], document);
+    assert_eq!(ready["generation"], generation);
     let mut query = json!({"protocol":"BSI_NATIVE_SESSION_V1","session":session,
-        "sha256":digest,"request":request,"action":"query","category":"arcs",
+        "document":document,"generation":generation,"sha256":digest,"request":request,"action":"query","category":"arcs",
         "offset":0,"limit":1});
     for _ in 0..100 {
         writeln!(input, "{query}").unwrap();
         input.flush().unwrap();
         let reply = receive();
         assert_eq!(reply["session"], session);
+        assert_eq!(reply["document"], document);
+        assert_eq!(reply["generation"], generation);
         assert_eq!(reply["request"], request);
         assert_eq!(reply["rows"][0]["centre"]["ticks"], json!(["3000", "3000"]));
         query["id"] = reply["rows"][0]["meta"]["id"].clone();
@@ -86,5 +92,46 @@ fn persistent_native_session_reuses_snapshot_and_rejects_wrong_identity() {
     drop(input);
     assert!(!child.wait().unwrap().success());
     assert_eq!(fs::read(&native).unwrap(), bytes);
+
+    // A separate real session must deny an ordinary writer on Windows,
+    // or reject a same-size/mtime-restored mutation on Unix.
+    let mut changed = Command::new(bin)
+        .arg("inspect-session")
+        .arg(&native)
+        .args([digest.as_str(), document, session, generation])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let changed_in = changed.stdin.take().unwrap();
+    let mut changed_out = BufReader::new(changed.stdout.take().unwrap());
+    let mut line = String::new();
+    assert!(changed_out.read_line(&mut line).unwrap() > 0);
+    let ready: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(ready["action"], "ready");
+    #[cfg(windows)]
+    {
+        assert!(fs::OpenOptions::new().write(true).open(&native).is_err());
+        drop(changed_in);
+        assert!(changed.wait().unwrap().success());
+    }
+    #[cfg(unix)]
+    {
+        use std::io::{Seek, SeekFrom};
+        let original_modified = fs::metadata(&native).unwrap().modified().unwrap();
+        let mut writer = fs::OpenOptions::new().write(true).open(&native).unwrap();
+        writer.seek(SeekFrom::End(-1)).unwrap();
+        writer.write_all(&[bytes[bytes.len() - 1] ^ 1]).unwrap();
+        writer
+            .set_times(fs::FileTimes::new().set_modified(original_modified))
+            .unwrap();
+        drop(writer);
+        let mut changed_in = changed_in;
+        query["session"] = json!(session);
+        writeln!(changed_in, "{query}").unwrap();
+        changed_in.flush().unwrap();
+        drop(changed_in);
+        assert!(!changed.wait().unwrap().success());
+    }
     fs::remove_dir_all(dir).unwrap();
 }

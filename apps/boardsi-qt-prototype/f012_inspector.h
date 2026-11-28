@@ -24,7 +24,7 @@ class F012Inspector final : public QWidget {
     QFileSystemWatcher watcher_;
     bool changed_=false;
     QTimer timeout_;
-    QString binary_, path_, digest_, request_, category_, session_;
+    QString binary_, path_, digest_, request_, category_, session_, document_, generation_;
     bool ready_=false, stopping_=false, restartForFault_=false;
     qsizetype lastBytes_=0;
     QByteArray output_;
@@ -104,15 +104,16 @@ class F012Inspector final : public QWidget {
     }
     void launchSession() {
         ready_=false;session_=QUuid::createUuid().toString(QUuid::Id128);
+        generation_=QUuid::createUuid().toString(QUuid::Id128);
         output_.clear();
         auto env=QProcessEnvironment::systemEnvironment();
         env.remove("BOARDSI_ARTWORK_REQUEST");
         worker_.setProcessEnvironment(env);
-        worker_.start(binary_,{"inspect-session",path_,digest_,session_});
+        worker_.start(binary_,{"inspect-session",path_,digest_,document_,session_,generation_});
     }
     void sendPage() {
         QJsonObject frame{{"protocol","BSI_NATIVE_SESSION_V1"},{"session",session_},
-                          {"sha256",digest_},{"request",request_},{"action","query"},
+                          {"document",document_},{"generation",generation_},{"sha256",digest_},{"request",request_},{"action","query"},
                           {"category",category_},{"offset",offset_},
                           {"limit",selection_.isEmpty()?128:1}};
         if(!selection_.isEmpty()) {
@@ -150,6 +151,7 @@ class F012Inspector final : public QWidget {
         if(!ready_) {
             if(obj.value("protocol")!="BSI_NATIVE_SESSION_V1" ||
                obj.value("action")!="ready" || obj.value("session")!=session_ ||
+               obj.value("document")!=document_ || obj.value("generation")!=generation_ ||
                obj.value("sha256")!=digest_ || obj.value("native_loads").toInt(-1)!=1) {
                 failSession("FAILED / inspection session receipt rejected");return;
             }
@@ -196,6 +198,7 @@ class F012Inspector final : public QWidget {
         const int end=offset_+size;
         if(result.value("protocol")!="BSI_NATIVE_INSPECT_V1" ||
            result.value("session")!=session_ ||
+           result.value("document")!=document_ || result.value("generation")!=generation_ ||
            result.value("request")!=request_ || result.value("sha256")!=digest_ ||
            result.value("category")!=category_ || result.value("offset").toInt(-1)!=offset_ ||
            result.value("physical_si")!="NOT_RUN" || result.value("physical_contact")!="NOT_VERIFIED" ||
@@ -378,6 +381,7 @@ public:
         invalidate();
         if(!watcher_.files().isEmpty())watcher_.removePaths(watcher_.files());
         path_=path;digest_=digest;nextOffset_=-1;lastBytes_=0;
+        document_=QUuid::createUuid().toString(QUuid::Id128);
         changed_=!path_.isEmpty() && !watcher_.addPath(path_);
         clearDetails();
         status_->setText(path.isEmpty()?"No accepted Native document":
