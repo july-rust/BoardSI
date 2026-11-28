@@ -24,6 +24,7 @@
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QPointer>
 #include <QUuid>
 #include "f011_artwork_stream.h"
 #include "f012_inspector.h"
@@ -78,7 +79,13 @@ public:
 };
 
 class F0031NativePanel final : public QWidget {
-    QProcess child_;
+    QProcess *child_=nullptr;
+    QList<QPointer<QProcess>> retiredChildren_;
+    bool persistentOpen_=false, openReadyAccepted_=false, launchPending_=false;
+    quint64 launchGeneration_=0;
+    QByteArray openFrame_;
+    QJsonObject openReady_;
+    QString openDocument_,openSession_,openGeneration_;
     QTimer timeout_, renderTimer_;
     F011ArtworkStream stream_;
     QGraphicsScene *stagedScene_=nullptr;
@@ -110,6 +117,12 @@ class F0031NativePanel final : public QWidget {
     int timeoutMs_=60000;
     std::function<void()> onChanged_;
     void state(const QString &value) {
+        if(persistentOpen_ && !running_ &&
+           (value.startsWith("FAILED") || value.startsWith("CANCELLED"))) {
+            persistentOpen_=false;openReadyAccepted_=false;openFrame_.clear();
+            openReady_=QJsonObject();
+            retireChild();
+        }
         state_->setText(value);
         if(inspector_) {
             const bool resumed=inspectorSuspended_ && !running_;
@@ -135,13 +148,17 @@ class F0031NativePanel final : public QWidget {
         if(stagedScene_) {
             discardRender();timeout_.stop();running_=false;
             state("FAILED / "+value);
+        } else if(launchPending_) {
+            launchPending_=false;++launchGeneration_;
+            timeout_.stop();running_=false;
+            state("FAILED / "+value);
         } else {
-            child_.kill();
+            child_->kill();
         }
     }
     void collect(bool error) {
-        const QByteArray chunk=error ? child_.readAllStandardError()
-                                     : child_.readAllStandardOutput();
+        const QByteArray chunk=error ? child_->readAllStandardError()
+                                     : child_->readAllStandardOutput();
         if(transportFailed_)return;
         if(error) {
             if(chunk.size()>512-errors_.size()) {
@@ -149,13 +166,53 @@ class F0031NativePanel final : public QWidget {
                 return;
             }
             errors_+=chunk;
+        } else if(persistentOpen_) {
+            if(openReadyAccepted_) {
+                if(!chunk.isEmpty())stopWithError("BSI_F013_UNEXPECTED_FRAME");
+                return;
+            }
+            qsizetype offset=0;
+            while(offset<chunk.size()) {
+                const auto newline=chunk.indexOf('\n',offset);
+                const auto size=(newline<0?chunk.size():newline+1)-offset;
+                if(size>=60000-openFrame_.size()) {
+                    stopWithError("BSI_F013_FRAME_LIMIT");return;
+                }
+                openFrame_.append(chunk.constData()+offset,size);offset+=size;
+                if(newline<0)break;
+                if(!stream_.complete()) {
+                    if(!stream_.feed(openFrame_)) {
+                        stopWithError("BSI_F011_STREAM_INVALID");return;
+                    }
+                } else {
+                    QJsonParseError parse;
+                    const auto doc=QJsonDocument::fromJson(openFrame_,&parse);
+                    openReady_=doc.object();
+                    if(parse.error!=QJsonParseError::NoError || !doc.isObject() ||
+                       openReady_.value("protocol")!="BSI_NATIVE_SESSION_V1" ||
+                       openReady_.value("action")!="ready" ||
+                       openReady_.value("document")!=openDocument_ ||
+                       openReady_.value("session")!=openSession_ ||
+                       openReady_.value("generation")!=openGeneration_ ||
+                       openReady_.value("native_loads").toInt(-1)!=1 ||
+                       offset!=chunk.size()) {
+                        stopWithError("BSI_F013_OPEN_SESSION_RECEIPT");return;
+                    }
+                    openReadyAccepted_=true;
+                }
+                openFrame_.clear();
+            }
+            if(openReadyAccepted_) {
+                timeout_.stop();running_=false;
+                acceptReceipt();
+            }
         } else if(!stream_.feed(chunk)) {
             stopWithError("BSI_F011_STREAM_INVALID");
         }
     }
     bool begin(const QString &operation, const QString &target,
                const QStringList &arguments) {
-        if(running_ || !QFileInfo(binary_).isExecutable()) {
+        if(running_ || child_->state()!=QProcess::NotRunning || !QFileInfo(binary_).isExecutable()) {
             state("FAILED / native file worker unavailable or busy");
             return false;
         }
@@ -164,14 +221,38 @@ class F0031NativePanel final : public QWidget {
         stream_.reset(token);
         auto environment=QProcessEnvironment::systemEnvironment();
         environment.insert("BOARDSI_ARTWORK_REQUEST",token);
-        child_.setProcessEnvironment(environment);
+        child_->setProcessEnvironment(environment);
         operation_=operation; target_=target;
+        persistentOpen_=operation=="open";openReadyAccepted_=false;
+        openFrame_.clear();openReady_=QJsonObject();
+        openDocument_=QUuid::createUuid().toString(QUuid::Id128);
+        openSession_=QUuid::createUuid().toString(QUuid::Id128);
+        openGeneration_=QUuid::createUuid().toString(QUuid::Id128);
         workerMs_=0;sceneMs_=0;streamBytes_=0;streamBatches_=0;
         phaseClock_.start();
         timeout_.start(timeoutMs_);
         state("RUNNING / Native "+operation);
-        child_.start(binary_,arguments);
+        launchPending_=true;
+        launchWhenReady(arguments,++launchGeneration_);
         return true;
+    }
+    void launchWhenReady(const QStringList &arguments,quint64 generation) {
+        if(!running_ || !launchPending_ || generation!=launchGeneration_)return;
+        bool retiring=false;
+        for(auto it=retiredChildren_.begin();it!=retiredChildren_.end();) {
+            if(it->isNull() || (*it)->state()==QProcess::NotRunning)it=retiredChildren_.erase(it);
+            else {retiring=true;++it;}
+        }
+        if(inspector_->workerStopping() || retiring) {
+            QTimer::singleShot(5,this,[this,arguments,generation]{
+                launchWhenReady(arguments,generation);
+            });
+            return;
+        }
+        launchPending_=false;
+        if(persistentOpen_)
+            child_->start(binary_,{"open-session",target_,openDocument_,openSession_,openGeneration_});
+        else child_->start(binary_,arguments);
     }
     // Bounded and strictly checked Source-only graphical overview.
     // A view item is never an electrically connected model or Solver claim.
@@ -366,6 +447,10 @@ class F0031NativePanel final : public QWidget {
             return;
         }
         timeout_.stop();
+        if(persistentOpen_ && child_->state()!=QProcess::Running) {
+            discardRender();running_=false;
+            state("FAILED / Native session lost before Artwork publication");return;
+        }
         QObject::disconnect(inspectorPicking_);
         auto *old=artworkScene_;
         artworkScene_=stagedScene_;stagedScene_=nullptr;
@@ -389,6 +474,15 @@ class F0031NativePanel final : public QWidget {
     void completed(int exitCode, QProcess::ExitStatus exitStatus) {
         if(!running_) return;
         timeout_.stop();
+        if(persistentOpen_) {
+            // A retained open worker must not exit before scene publication.
+            errors_+=child_->readAllStandardError().left(256);
+            child_->readAllStandardOutput();
+            discardRender();stream_.reset(QString());running_=false;
+            state(cancelled_?"CANCELLED / Native open":
+                  "FAILED / Native session stopped before publication: "+QString::fromUtf8(errors_).left(256));
+            return;
+        }
         collect(false); collect(true);
         running_=false;
         if(cancelled_) {
@@ -401,12 +495,18 @@ class F0031NativePanel final : public QWidget {
             state("FAILED / "+QString::fromUtf8(errors_).trimmed().left(256));
             return;
         }
+        acceptReceipt();
+    }
+    void acceptReceipt() {
         QJsonObject receipt;
         const bool streamValid=stream_.finish(receipt);
         workerMs_=phaseClock_.elapsed();
         streamBytes_=stream_.bytesReceived();streamBatches_=stream_.batchesReceived();
         stream_.reset(QString());
         if(!streamValid ||
+           (persistentOpen_ && (!openReadyAccepted_ ||
+             openReady_.value("sha256")!=receipt.value("sha256") ||
+             child_->state()!=QProcess::Running)) ||
            receipt.value("protocol").toString()!="BSI_NATIVE_FILE_V1" ||
            receipt.value("action").toString()!=operation_ ||
            receipt.value("path").toString()!=target_ ||
@@ -526,7 +626,15 @@ class F0031NativePanel final : public QWidget {
         const auto artworkReason=receipt.value("artwork_reason").toString();
         loaded_=target_;
         acceptedDigest_=receipt.value("sha256").toString();
-        inspector_->setDocument(loaded_,acceptedDigest_);
+        if(persistentOpen_) {
+            auto *session=child_;
+            QObject::disconnect(session,nullptr,this,nullptr);
+            child_=new QProcess(this);
+            connectChild();
+            persistentOpen_=false;openReadyAccepted_=false;
+            inspector_->adoptSession(session,loaded_,acceptedDigest_,
+                                     openDocument_,openSession_,openGeneration_);
+        } else inspector_->setDocument(loaded_,acceptedDigest_);
         readOnly_=receipt.value("read_only").toBool();
         QStringList counts;
         for(const auto &name:{"layers","nets","sources","traces","arcs","areas","pads","vias","drills"})
@@ -544,6 +652,30 @@ class F0031NativePanel final : public QWidget {
                             "Native geometry is NOT rendered on this preview tab.\n")+
             "Physical connectivity, manufacturing and SI: NOT_VERIFIED / NOT_RUN");
         state("COMPLETED / Native "+operation_);
+    }
+    void retireChild() {
+        auto *old=child_;
+        QObject::disconnect(old,nullptr,this,nullptr);
+        if(old->state()!=QProcess::NotRunning) {
+            retiredChildren_.append(QPointer<QProcess>(old));
+            connect(old,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+                    old,&QObject::deleteLater);
+            old->kill();
+        } else old->deleteLater();
+        child_=new QProcess(this);
+        connectChild();
+    }
+    void connectChild() {
+        connect(child_,&QProcess::readyReadStandardOutput,this,[this] {collect(false);});
+        connect(child_,&QProcess::readyReadStandardError,this,[this] {collect(true);});
+        connect(child_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+                this,[this](int code,QProcess::ExitStatus why){completed(code,why);});
+        connect(child_,&QProcess::errorOccurred,this,[this](QProcess::ProcessError e) {
+            if(running_ && e==QProcess::FailedToStart) {
+                timeout_.stop();running_=false;
+                state("FAILED / native worker could not start");
+            }
+        });
     }
 public:
     explicit F0031NativePanel(const QString &importBinary,
@@ -614,27 +746,20 @@ public:
         connect(&timeout_,&QTimer::timeout,this,[this] {
             if(running_) stopWithError("BSI_WORKER_TIMEOUT");
         });
-        connect(&child_,&QProcess::readyReadStandardOutput,this,[this] {collect(false);});
-        connect(&child_,&QProcess::readyReadStandardError,this,[this] {collect(true);});
-        connect(&child_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
-                this,[this](int code,QProcess::ExitStatus why){completed(code,why);});
-        connect(&child_,&QProcess::errorOccurred,this,[this](QProcess::ProcessError e) {
-            if(running_ && e==QProcess::FailedToStart) {
-                timeout_.stop();running_=false;
-                state("FAILED / native worker could not start");
-            }
-        });
+        child_=new QProcess(this);
+        connectChild();
     }
     ~F0031NativePanel() override {
         QObject::disconnect(inspectorPicking_);
-        QObject::disconnect(&child_,nullptr,this,nullptr);
-        if(child_.state()!=QProcess::NotRunning) child_.kill();
+        QObject::disconnect(child_,nullptr,this,nullptr);
+        if(child_->state()!=QProcess::NotRunning) child_->kill();
     }
 #ifdef BOARDSI_RUNTIME_TEST
     void holdRenderForTest(bool hold) {if(!running_)holdRenderForTest_=hold;}
     qsizetype stagedCountForTest() const {return stagedScene_?renderIndex_:0;}
-    qint64 workerPidForTest() const {return child_.processId();}
+    qint64 workerPidForTest() const {return child_->processId();}
     qint64 workerMsForTest() const {return workerMs_;}
+    QJsonObject openSessionReceiptForTest() const {return openReady_;}
     qint64 sceneMsForTest() const {return sceneMs_;}
     qsizetype streamBytesForTest() const {return streamBytes_;}
     int streamBatchesForTest() const {return streamBatches_;}
@@ -715,11 +840,14 @@ public:
         if(!running_) return;
         cancelled_=true;
         timeout_.stop();
-        if(stagedScene_) {
+        if(launchPending_) {
+            launchPending_=false;++launchGeneration_;running_=false;
+            state("CANCELLED / Native worker launch");
+        } else if(stagedScene_) {
             discardRender();running_=false;
             state("CANCELLED / artwork not published; re-open target to verify");
         } else {
-            child_.kill();
+            child_->kill();
         }
     }
 };

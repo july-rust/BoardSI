@@ -96,11 +96,13 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
     auto *category=panel->findChild<QComboBox *>("f012InspectionCategory");
     auto *query=panel->findChild<QPushButton *>("f012InspectionQuery");
     auto *offset=panel->findChild<QSpinBox *>("f012InspectionOffset");
+    auto *parentIndex=panel->findChild<QSpinBox *>("f012InspectionParent");
     auto *status=panel->findChild<QLabel *>("f012InspectionStatus");
     auto *raw=panel->findChild<QPlainTextEdit *>("f012InspectionDetails");
     auto *inspector=static_cast<F012Inspector *>(category?category->parentWidget():nullptr);
-    if(!toggle || !category || !query || !offset || !status || !raw || !inspector)return 2;
-    QJsonArray measurements,transportAB,closeSamples,inspectionMeasurements;
+    if(!toggle || !category || !query || !offset || !parentIndex || !status || !raw || !inspector)return 2;
+    QJsonArray measurements,transportAB,closeSamples,inspectionMeasurements,f013Performance,f013AB,f013Mixed;
+    QJsonObject f013Stress;
     QJsonObject inspectionLifecycle;
     qint64 workerRss=-1;
     auto finish=[&](qint64 &elapsedMs,qint64 &maxGap) {
@@ -200,7 +202,8 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         return view->transform().m11()<zoomed;
     };
     const QList<QPair<int,bool>> cases={{128,false},{129,false},{1000,false},
-        {10000,false},{10000,true},{10001,false},{100000,false}};
+        {10000,false},{10000,true},{10001,false},{100000,false},
+        {128,true},{129,true},{1000,true},{10001,true},{100000,true}};
     for(const auto &entry:cases) {
         const int count=entry.first;
         const bool mixed=entry.second;
@@ -212,7 +215,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         QStringList arguments={"f011-seed",file,QString::number(count)};
         if(mixed)arguments<<"mixed";
         seed.start(nativeBinary,arguments);
-        if(!seed.waitForStarted(15000) || !seed.waitForFinished(120000) ||
+        if(!seed.waitForStarted(15000) || !seed.waitForFinished(mixed && count==100000?240000:120000) ||
            seed.exitStatus()!=QProcess::NormalExit || seed.exitCode()!=0) {
             qWarning().noquote()<<"F011 fixture seed"<<count<<seed.readAllStandardError();
             return 1;
@@ -222,7 +225,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
            legacy.value("vias").toInt()!=(mixed?count/2:0) ||
            (count>128 && legacy.value("artwork_status").toString()!="NOT_RENDERED"))
             return 1;
-        if(count==128) {
+        if(count==128 && !mixed) {
             // Controlled same-binary, same-file transport A/B: alternate order,
             // three pairs. Legacy and reconstructed framed receipts must agree
             // exactly. This does not claim an old-vs-new GUI speedup.
@@ -262,9 +265,19 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
             }
         }
         qint64 elapsed=0,gap=0;
+        QElapsedTimer coldClock;coldClock.start();
         if(!window.openNativeCandidate(file) || !finish(elapsed,gap) ||
            panel->loadedPath()!=file) {
             qWarning().noquote()<<"F011 open"<<count<<panel->status();return 1;
+        }
+        const auto coldMs=coldClock.elapsed();
+        const auto openSession=panel->openSessionReceiptForTest();
+        const auto initialPid=inspector->inspectionWorkerPidForTest();
+        if(!inspector->inspectionSessionReadyForTest() || initialPid<=0 ||
+           openSession.value("native_loads").toInt(-1)!=1 ||
+           coldMs>(count<=10000?20000:60000)) {
+            qWarning().noquote()<<"F013 cold open"<<count<<coldMs<<initialPid
+                <<QJsonDocument(openSession).toJson(QJsonDocument::Compact);return 1;
         }
         if(count<=10000) {
             if(!inspect(count,mixed))return 1;
@@ -290,8 +303,8 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         measurements.append(measurement);
         qInfo().noquote()<<QJsonDocument(measurement).toJson(QJsonDocument::Compact);
         if(!mixed) {
-            // F012 alternative to a retained model: fresh read-only Worker per
-            // query. Fixed pre-run bounds derived from F011 runner timings:
+            // F013 uses a retained read-only Worker. Preserve F012's historical
+            // cold-query bounds and check that subsequent queries reuse its PID:
             // <=10k: 20 s; larger structural board: 60 s; event gap <=500 ms,
             // reply <60k bytes, sampled Worker RSS <=1 GiB, Qt peak <=1 GiB.
             // Compare initial / near-tail / repeat query on identical bytes.
@@ -311,6 +324,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
             std::sort(expectedIds.begin(),expectedIds.end());
             QJsonArray firstPage;
             int sample=0;
+            qint64 sessionPid=0;
             for(int start:{0,qMax(0,count-1),0}) {
                 offset->setValue(start);
                 if(!query->isEnabled())return 1;
@@ -346,7 +360,10 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
                        end.at(0).toString()!=QString::number(qint64(index%100)*1000000+250000) ||
                        end.at(1)!=ticks.at(1))exactPage=false;
                 }
-                if(sample==0)firstPage=page;
+                if(sample==0) {
+                    firstPage=page;sessionPid=inspector->inspectionWorkerPidForTest();
+                }
+                if(sessionPid<=0 || inspector->inspectionWorkerPidForTest()!=sessionPid)return 1;
                 if(sample==2 && page!=firstPage)exactPage=false;
                 ++sample;
                 if(!query->isEnabled() || !status->text().startsWith("Native snapshot /") ||
@@ -363,9 +380,99 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
                     {"page_ms",elapsedMs},{"max_timer_gap_ms",inspectionGap},
                     {"response_bytes",qint64(bytes)},{"rows",page.size()},
                     {"worker_sampled_peak_rss_bytes",sampledRss},{"qt_peak_or_sampled_rss_bytes",qtRss},
-                    {"mode","fresh-read-only-worker"},{"physical_si","NOT_RUN"}};
+                    {"mode","persistent-read-only-worker"},{"session_pid",sessionPid},{"physical_si","NOT_RUN"}};
                 inspectionMeasurements.append(record);
                 qInfo().noquote()<<QJsonDocument(record).toJson(QJsonDocument::Compact);
+                // Controlled same-run A/B on the original F012 query set.
+                // Fresh is worker-only; warm includes Qt publication.
+                if(count==1000 || count==10000 || count==100000) {
+                    QProcess fresh;
+                    auto environment=QProcessEnvironment::systemEnvironment();
+                    environment.remove("BOARDSI_ARTWORK_REQUEST");
+                    fresh.setProcessEnvironment(environment);
+                    QElapsedTimer freshClock;freshClock.start();
+                    fresh.start(nativeBinary,{"inspect",file,QString::fromLatin1(digest.toHex()),
+                        "0123456789abcdef0123456789abcdef","traces",QString::number(start),"128"});
+                    if(!fresh.waitForStarted(15000) || !fresh.waitForFinished(60000) ||
+                       fresh.exitStatus()!=QProcess::NormalExit || fresh.exitCode()!=0)return 1;
+                    const auto freshMs=freshClock.elapsed();
+                    const auto oldPage=QJsonDocument::fromJson(fresh.readAllStandardOutput()).object()
+                        .value("rows").toArray();
+                    if(oldPage!=page)return 1;
+                    f013AB.append(QJsonObject{{"count",count},{"offset",start},
+                        {"fresh_worker_cli_ms",freshMs},{"persistent_qt_page_ms",elapsedMs},
+                        {"exact_rows_equal",true}});
+                }
+            }
+            if(sessionPid!=initialPid)return 1;
+            if(count==128 || count==1000 || count==10000 || count==100000) {
+                const int repeats=count==128?1000:100;
+                QVector<qint64> times;
+                QJsonArray observations;
+                qint64 maxGap=0,maxWorker=0,maxQt=0,maxBytes=0;
+                for(int i=0;i<repeats;++i) {
+                    const bool detail=i%4==3;
+                    const int object=(i%4==0)?0:(i%4==1)?count/2:(i%4==2)?count-1:(i*7919)%count;
+                    category->setCurrentIndex(category->findData(detail?"trace-points:":"traces"));
+                    parentIndex->setValue(detail?object:0);
+                    offset->setValue(detail?1:object);
+                    if(!query->isEnabled())return 1;
+                    QElapsedTimer timer;timer.start();
+                    QEventLoop loop;QTimer poll;
+                    poll.setTimerType(Qt::PreciseTimer);poll.setInterval(5);
+                    qint64 previous=0,queryGap=0;
+                    QObject::connect(&poll,&QTimer::timeout,&loop,[&]{
+                        const auto now=timer.elapsed();
+                        queryGap=qMax(queryGap,now-previous);previous=now;
+                        if(query->isEnabled() || now>60000)loop.quit();
+                    });
+                    poll.start();query->click();
+                    if(!query->isEnabled())loop.exec();
+                    poll.stop();
+                    const auto ms=timer.elapsed();
+                    const auto page=QJsonDocument::fromJson(raw->toPlainText().toUtf8()).array();
+                    if(!query->isEnabled() || !status->text().startsWith("Native snapshot /") ||
+                       page.isEmpty() || inspector->inspectionWorkerPidForTest()!=initialPid)return 1;
+                    if(detail) {
+                        bool ok=false;
+                        const auto expected=expectedIds.at(object).mid(QString("f011-synthetic-").size()).toInt(&ok);
+                        const auto ticks=page.at(0).toObject().value("ticks").toArray();
+                        if(!ok || page.size()!=1 || ticks.size()!=2 ||
+                           ticks.at(0).toString()!=QString::number(qint64(expected%100)*1000000+250000) ||
+                           ticks.at(1).toString()!=QString::number(qint64(expected/100)*1000000))return 1;
+                    } else {
+                        const auto id=page.at(0).toObject().value("meta").toObject()
+                            .value("id").toObject().value("source_object").toString();
+                        if(id!=expectedIds.at(object))return 1;
+                    }
+                    const auto bytes=inspector->inspectionBytesForTest();
+                    const auto workerSample=f011ResidentSample(initialPid);
+                    const auto qtSample=f011ResidentSample(QCoreApplication::applicationPid());
+                    if(bytes<=0 || bytes>=60000 || workerSample<=0 || qtSample<=0)return 1;
+                    maxGap=qMax(maxGap,queryGap);
+                    maxBytes=qMax(maxBytes,qint64(bytes));
+                    maxWorker=qMax(maxWorker,workerSample);maxQt=qMax(maxQt,qtSample);
+                    times.append(ms);observations.append(ms);
+                }
+                std::sort(times.begin(),times.end());
+                const auto p95=times.at((95*repeats+99)/100-1);
+                const auto maximum=times.last();
+                const qint64 limit=count<=1000?100:count<=10000?250:500;
+                QJsonObject perf{{"count",count},{"samples",repeats},
+                    {"warm_ms",observations},{"median_ms",times.at(repeats/2)},
+                    {"p95_ms",p95},{"maximum_ms",maximum},{"max_timer_gap_ms",maxGap},
+                    {"cold_open_ms",coldMs},{"cold_open_timer_gap_ms",gap},
+                    {"worker_sampled_rss_bytes",maxWorker},{"qt_peak_or_sampled_rss_bytes",maxQt},
+                    {"max_response_bytes",maxBytes},{"session_pid",initialPid},
+                    {"native_loads",openSession.value("native_loads")},
+                    {"load_ms",openSession.value("load_ms")},{"index_ms",openSession.value("index_ms")},
+                    {"integrity_ms",openSession.value("integrity_ms")},{"artwork_ms",openSession.value("artwork_ms")},
+                    {"physical_si","NOT_RUN"}};
+                qInfo().noquote()<<QJsonDocument(perf).toJson(QJsonDocument::Compact);
+                if(p95>limit || (count==100000 && maximum>1000) || maxGap>100 ||
+                   gap>100 || maxWorker>1073741824 || maxQt>1073741824)return 1;
+                f013Performance.append(perf);
+                category->setCurrentIndex(category->findData("traces"));offset->setValue(0);
             }
             if(!snapshot.open(QIODevice::ReadOnly) ||
                QCryptographicHash::hash(snapshot.readAll(),QCryptographicHash::Sha256)!=digest)return 1;
@@ -452,7 +559,182 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
                 snapshot.close();
                 inspectionLifecycle["unchanged_sha"]=true;
                 qInfo().noquote()<<QJsonDocument(inspectionLifecycle).toJson(QJsonDocument::Compact);
+
+                // Burst real Artwork selection transitions, then validate the
+                // final full identity and ensure the worker is still the same.
+                const auto burstPid=inspector->inspectionWorkerPidForTest();
+                QJsonObject lastRef;
+                int stalePublications=0,publications=0;
+                bool burstFinished=false;
+                const auto observed=QObject::connect(raw,&QPlainTextEdit::textChanged,raw,[&]{
+                    const auto rows=QJsonDocument::fromJson(raw->toPlainText().toUtf8()).array();
+                    if(rows.isEmpty())return;
+                    ++publications;
+                    if(!burstFinished || rows.size()!=1 ||
+                       rows.at(0).toObject().value("meta").toObject().value("id")!=lastRef.value("id"))
+                        ++stalePublications;
+                });
+                const auto items=view->scene()->items();
+                for(int i=0;i<100;++i) {
+                    view->scene()->clearSelection();
+                    auto *item=items.at(i%items.size());
+                    item->setSelected(true);
+                    lastRef=item->data(2).value<QJsonObject>();
+                }
+                burstFinished=true;
+                const bool burstReady=until([&]{return query->isEnabled();});
+                QObject::disconnect(observed);
+                if(lastRef.isEmpty() || !burstReady || publications!=1 || stalePublications!=0 ||
+                   inspector->inspectionWorkerPidForTest()!=burstPid)return 1;
+                const auto finalPage=QJsonDocument::fromJson(raw->toPlainText().toUtf8()).array();
+                if(finalPage.size()!=1 ||
+                   finalPage.at(0).toObject().value("meta").toObject().value("id")!=lastRef.value("id"))
+                    return 1;
+                f013Stress["rapid_selections"]=100;
+                f013Stress["burst_publications"]=publications;
+                f013Stress["stale_publications"]=stalePublications;
+                view->scene()->clearSelection();
+                for(int i=0;i<20;++i) {
+                    panel->forget();
+                    if(!until([&]{return inspector->inspectionIdleForTest();}) ||
+                       panel->hasLoaded() || !view->scene()->items().isEmpty())return 1;
+                    elapsed=0;gap=0;
+                    if(!window.openNativeCandidate(file) || !finish(elapsed,gap) ||
+                       !inspector->inspectionSessionReadyForTest() || !panel->hasLoaded())return 1;
+                }
+                f013Stress["close_reopen"]=20;
+                f013Stress["closed_worker_count"]=0;
             }
+            if(toggle->isChecked())toggle->click();
+        }
+        if(mixed) {
+            // The mixed fixture has independent even trace / odd via IDs and
+            // one drill per via. Query every category using the actual main Qt
+            // Inspector, including the large board's NOT_RENDERED path.
+            toggle->click();
+            QStringList traceIds,viaIds,drillIds;
+            for(int i=0;i<count;++i) {
+                const auto id=QString("f011-synthetic-%1").arg(i);
+                if(i%2) {
+                    viaIds<<id;
+                    drillIds<<QString("f011-synthetic-drill-%1").arg(i);
+                } else traceIds<<id;
+            }
+            std::sort(traceIds.begin(),traceIds.end());
+            std::sort(viaIds.begin(),viaIds.end());
+            std::sort(drillIds.begin(),drillIds.end());
+            const auto ask=[&](const QString &kind,int parent,int first,QJsonArray &page,
+                               qint64 &ms,qint64 &queryGap)->bool {
+                const int index=category->findData(kind);
+                if(index<0)return false;
+                category->setCurrentIndex(index);
+                parentIndex->setValue(parent);offset->setValue(first);
+                if(!query->isEnabled())return false;
+                QElapsedTimer timer;timer.start();
+                QEventLoop loop;QTimer poll;poll.setTimerType(Qt::PreciseTimer);poll.setInterval(5);
+                qint64 previous=0;
+                QObject::connect(&poll,&QTimer::timeout,&loop,[&] {
+                    const auto now=timer.elapsed();
+                    queryGap=qMax(queryGap,now-previous);previous=now;
+                    if(query->isEnabled() || now>60000)loop.quit();
+                });
+                poll.start();query->click();
+                if(!query->isEnabled())loop.exec();
+                poll.stop();ms=timer.elapsed();
+                page=QJsonDocument::fromJson(raw->toPlainText().toUtf8()).array();
+                return query->isEnabled() && status->text().startsWith("Native snapshot /") &&
+                    !page.isEmpty() && inspector->inspectionWorkerPidForTest()==initialPid;
+            };
+            QJsonArray page;
+            qint64 ms=0,queryGap=0;
+            if(!ask("nets",0,0,page,ms,queryGap))return 1;
+            int net=-1;
+            for(int i=0;i<page.size();++i)
+                if(page.at(i).toObject().value("name").toString()=="CLK")net=i;
+            if(net<0 || !ask("layers",0,0,page,ms,queryGap))return 1;
+            int front=-1;
+            for(int i=0;i<page.size();++i)
+                if(page.at(i).toObject().value("name").toString()=="F.Cu")front=i;
+            if(front<0)return 1;
+            const int repeats=100;
+            QVector<qint64> times;QJsonArray observations;
+            qint64 maxGap=queryGap,maxWorker=0,maxQt=0,maxBytes=0;
+            for(int i=0;i<repeats;++i) {
+                const int mode=i%6;
+                const int size=mode==0 || mode==3 || mode==5?traceIds.size():
+                    mode==1 || mode==2?viaIds.size():count;
+                const int first=(i/6%3==0)?0:(i/6%3==1)?size/2:size-1;
+                const QString kind=mode==0?"traces":mode==1?"vias":mode==2?"drills":
+                    mode==3?"trace-points:":mode==4?"net-members:":"layer-members:";
+                const int parent=mode==3?first:mode==4?net:mode==5?front:0;
+                queryGap=0;
+                if(!ask(kind,parent,mode==3?1:first,page,ms,queryGap))return 1;
+                const auto row=page.at(0).toObject();
+                const auto idOf=[](const QJsonObject &r) {
+                    return r.value("meta").toObject().value("id").toObject()
+                        .value("source_object").toString();
+                };
+                if(mode==0 || mode==1) {
+                    const auto expected=(mode==0?traceIds:viaIds).at(first);
+                    bool ok=false;
+                    const auto n=expected.mid(QString("f011-synthetic-").size()).toInt(&ok);
+                    const auto ticks=row.value(mode==0?"start":"position").toObject().value("ticks").toArray();
+                    if(!ok || idOf(row)!=expected || ticks.size()!=2 ||
+                        ticks.at(0).toString()!=QString::number(qint64(n%100)*1000000) ||
+                        ticks.at(1).toString()!=QString::number(qint64(n/100)*1000000))return 1;
+                    if(mode==1) {
+                        const auto diameter=row.value("drill_details").toObject().value("diameter_m").toObject();
+                        if(diameter.value("numerator").toString()!="3" ||
+                            diameter.value("denominator").toString()!="10000" ||
+                            row.value("drill").toObject().value("source_object").toString()!=
+                                QString("f011-synthetic-drill-%1").arg(n))return 1;
+                    }
+                } else if(mode==2) {
+                    if(idOf(row)!=drillIds.at(first))return 1;
+                } else if(mode==3) {
+                    bool ok=false;
+                    const auto n=traceIds.at(first).mid(QString("f011-synthetic-").size()).toInt(&ok);
+                    const auto ticks=row.value("ticks").toArray();
+                    if(!ok || page.size()!=1 || ticks.size()!=2 ||
+                        ticks.at(0).toString()!=QString::number(qint64(n%100)*1000000+250000) ||
+                        ticks.at(1).toString()!=QString::number(qint64(n/100)*1000000))return 1;
+                } else {
+                    // Stored Net membership is traces followed by vias; F.Cu
+                    // membership starts with all even traces, before padstack entries.
+                    const bool trace=mode==5 || first<traceIds.size();
+                    const auto expected=trace?traceIds.at(first):viaIds.at(first-traceIds.size());
+                    const auto ref=row.value("reference").toObject();
+                    if(ref.value("id").toObject().value("source_object").toString()!=expected ||
+                       ref.value("category").toString()!=(trace?"traces":"vias") ||
+                       ref.value("index").toInt(-1)!=(trace?first:first-traceIds.size()) ||
+                       row.value("basis").toString()!=(mode==4?"stored_net":"stored_layer") ||
+                       row.value("physical_contact").toString()!="NOT_VERIFIED")return 1;
+                }
+                const auto bytes=inspector->inspectionBytesForTest();
+                const auto workerSample=f011ResidentSample(initialPid);
+                const auto qtSample=f011ResidentSample(QCoreApplication::applicationPid());
+                if(bytes<=0 || bytes>=60000 || workerSample<=0 || qtSample<=0)return 1;
+                maxGap=qMax(maxGap,queryGap);maxBytes=qMax(maxBytes,qint64(bytes));
+                maxWorker=qMax(maxWorker,workerSample);maxQt=qMax(maxQt,qtSample);
+                times.append(ms);observations.append(ms);
+            }
+            std::sort(times.begin(),times.end());
+            const auto p95=times.at((95*repeats+99)/100-1);
+            const auto maximum=times.last();
+            const qint64 limit=count<=1000?100:count<=10000?250:500;
+            const QJsonObject perf{{"count",count},{"mixed",true},{"samples",repeats},
+                {"traces",traceIds.size()},{"vias",viaIds.size()},{"drills",drillIds.size()},
+                {"warm_ms",observations},{"median_ms",times.at(repeats/2)},
+                {"p95_ms",p95},{"maximum_ms",maximum},{"max_timer_gap_ms",maxGap},
+                {"cold_open_ms",coldMs},{"cold_open_timer_gap_ms",gap},
+                {"worker_sampled_rss_bytes",maxWorker},{"qt_peak_or_sampled_rss_bytes",maxQt},
+                {"max_response_bytes",maxBytes},{"session_pid",initialPid},
+                {"native_loads",openSession.value("native_loads")},{"exact_oracle",true},
+                {"physical_si","NOT_RUN"}};
+            qInfo().noquote()<<QJsonDocument(perf).toJson(QJsonDocument::Compact);
+            if(p95>limit || (count==100000 && maximum>1000) || maxGap>100 ||
+                gap>100 || maxWorker>1073741824 || maxQt>1073741824)return 1;
+            f013Mixed.append(perf);
             if(toggle->isChecked())toggle->click();
         }
         if(count==10000) {
@@ -509,6 +791,8 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
         {"cases",measurements},{"transport_ab",transportAB},{"close_reopen",closeSamples},
         {"f012_inspection",inspectionMeasurements},{"f012_lifecycle",inspectionLifecycle},
+        {"f013_performance",f013Performance},{"f013_stress",f013Stress},{"f013_ab",f013AB},
+        {"f013_mixed",f013Mixed},
         {"physical_si","NOT_RUN"}};
     QSaveFile proof("qt-f011-qualification.json");
     const auto encoded=QJsonDocument(evidence).toJson(QJsonDocument::Indented);

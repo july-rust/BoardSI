@@ -13,6 +13,7 @@ def main() -> None:
     expected = [
         (128, False), (129, False), (1000, False),
         (10000, False), (10000, True), (10001, False), (100000, False),
+        (128, True), (129, True), (1000, True), (10001, True), (100000, True),
     ]
     assert [(c["count"], c["mixed"]) for c in cases] == expected, data
     for c in cases:
@@ -39,7 +40,8 @@ def main() -> None:
             (count, offset) for count in counts for offset in (0, count - 1, 0)
         ], records
         for c in records:
-            assert c["mode"] == "fresh-read-only-worker" and c["physical_si"] == "NOT_RUN", c
+            assert c["mode"] == "persistent-read-only-worker" and c["physical_si"] == "NOT_RUN", c
+            assert c["session_pid"] > 0, c
             assert 0 < c["response_bytes"] < 60000 and 1 <= c["rows"] <= 128, c
             assert c["rows"] == 1 if c["offset"] == c["count"] - 1 else True, c
             assert 0 <= c["page_ms"] <= (20000 if c["count"] <= 10000 else 60000), c
@@ -48,11 +50,51 @@ def main() -> None:
             assert -1 <= c["worker_sampled_peak_rss_bytes"] <= 1073741824, c
             if c["count"] >= 10000:
                 assert c["worker_sampled_peak_rss_bytes"] > 0, c
+        for i in range(0, len(records), 3):
+            assert len({c["session_pid"] for c in records[i:i + 3]}) == 1, records
         assert data["f012_lifecycle"] == {
             "cancel": True, "timeout": True, "crash": True,
             "close_reopen": True, "unchanged_sha": True,
         }, data
-        print("F012 bounded fresh-worker query and actual lifecycle measurements verified")
+        print("F013 persistent-worker regression and actual lifecycle measurements verified")
+    performance = data["f013_performance"]
+    assert [(r["count"], r["samples"]) for r in performance] == [
+        (128, 1000), (1000, 100), (10000, 100), (100000, 100),
+    ], performance
+    mixed = data["f013_mixed"]
+    assert [(r["count"], r["samples"]) for r in mixed] == [
+        (n, 100) for n in (10000, 128, 129, 1000, 10001, 100000)
+    ], mixed
+    for r in mixed:
+        assert r["mixed"] is True and r["exact_oracle"] is True, r
+        assert r["traces"] == (r["count"] + 1) // 2, r
+        assert r["vias"] == r["drills"] == r["count"] // 2, r
+    for r in performance + mixed:
+        timings = sorted(r["warm_ms"])
+        n = r["samples"]
+        assert len(timings) == n and all(t >= 0 for t in timings), r
+        assert r["p95_ms"] == timings[(95 * n + 99) // 100 - 1], r
+        assert r["maximum_ms"] == timings[-1], r
+        assert r["p95_ms"] <= (100 if r["count"] <= 1000 else 250 if r["count"] <= 10000 else 500), r
+        assert r["count"] != 100000 or r["maximum_ms"] <= 1000, r
+        assert r["cold_open_ms"] <= (20000 if r["count"] <= 10000 else 60000), r
+        assert r["max_timer_gap_ms"] <= 100 and r["cold_open_timer_gap_ms"] <= 100, r
+        assert 0 < r["worker_sampled_rss_bytes"] <= 1073741824, r
+        assert 0 < r["qt_peak_or_sampled_rss_bytes"] <= 1073741824, r
+        assert 0 < r["max_response_bytes"] < 60000, r
+        assert r["session_pid"] > 0 and r["native_loads"] == 1, r
+        assert r["physical_si"] == "NOT_RUN", r
+    assert data["f013_stress"] == {
+        "rapid_selections": 100, "close_reopen": 20, "closed_worker_count": 0,
+        "burst_publications": 1, "stale_publications": 0,
+    }, data["f013_stress"]
+    ab = data["f013_ab"]
+    assert [(r["count"], r["offset"]) for r in ab] == [
+        (n, offset) for n in (1000, 10000, 100000) for offset in (0, n - 1, 0)
+    ], ab
+    assert all(r["exact_rows_equal"] and r["fresh_worker_cli_ms"] >= 0
+               and r["persistent_qt_page_ms"] >= 0 for r in ab), ab
+    print("F013 exact-head cold/warm and lifecycle receipt verified")
     print("F011 exact-head durable qualification receipt verified")
 
 

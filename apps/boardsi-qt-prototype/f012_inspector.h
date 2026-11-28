@@ -1,6 +1,7 @@
-// F_012 initial read-only inspector; no source file access or electrical claims.
+// F_013 persistent read-only inspector; no source CAD access or electrical claims.
 #pragma once
 #include <QComboBox>
+#include <QFileSystemWatcher>
 #include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -15,13 +16,18 @@
 #include <QSpinBox>
 #include <QTreeWidget>
 #include <QUuid>
+#include <QVariant>
 #include <QVBoxLayout>
 #include <QWidget>
 
 class F012Inspector final : public QWidget {
-    QProcess worker_;
+    QProcess *worker_=nullptr;
+    QFileSystemWatcher watcher_;
+    bool changed_=false;
     QTimer timeout_;
-    QString binary_, path_, digest_, request_, category_;
+    QString binary_, path_, digest_, request_, category_, session_, document_, generation_;
+    bool ready_=false, stopping_=false, restartForFault_=false;
+    qsizetype lastBytes_=0;
     QByteArray output_;
     QJsonObject selection_, pendingSelection_;
     bool completing_=false;
@@ -68,6 +74,8 @@ class F012Inspector final : public QWidget {
             const auto row=rows.at(i).toObject();
             item->setText(0,QString("%1 #%2").arg(category_).arg(offset_+i));
             item->setText(1,row.value("name").toString());
+            if(row.value("reference").isObject())
+                item->setData(0,Qt::UserRole,QVariant::fromValue(row.value("reference").toObject()));
             for(auto it=row.constBegin();it!=row.constEnd();++it)appendField(item,it.key(),it.value());
             if(rows.size()==1)item->setExpanded(true);
         }
@@ -75,8 +83,8 @@ class F012Inspector final : public QWidget {
         details_->setPlainText(QString::fromUtf8(QJsonDocument(rows).toJson(QJsonDocument::Indented)));
     }
     void controls() {
-        const bool busy=worker_.state()!=QProcess::NotRunning || completing_ || !pendingSelection_.isEmpty();
-        const bool available=!path_.isEmpty() && !suspended_ && !busy;
+        const bool busy=stopping_ || completing_ || !pendingSelection_.isEmpty();
+        const bool available=!path_.isEmpty() && !changed_ && !suspended_ && !busy;
         categoryBox_->setEnabled(available);
         const bool nested=categoryBox_->currentData().toString().endsWith(":");
         parentIndex_->setEnabled(available && nested);
@@ -87,20 +95,75 @@ class F012Inspector final : public QWidget {
         cancel_->setEnabled(busy);
     }
     void invalidate() {
-        valid_=false;
-        timeout_.stop();
-        if(worker_.state()!=QProcess::NotRunning)worker_.kill();
+        valid_=false;ready_=false;restartForFault_=false;
+        timeout_.stop();output_.clear();
+        if(worker_->state()!=QProcess::NotRunning) {
+            stopping_=true;worker_->kill();
+        } else {stopping_=false;completing_=false;}
+    }
+    void failSession(const QString &reason) {
+        pendingSelection_=QJsonObject();nextOffset_=-1;clearDetails();
+        status_->setText(reason);invalidate();controls();
+    }
+    void launchSession() {
+        ready_=false;session_=QUuid::createUuid().toString(QUuid::Id128);
+        generation_=QUuid::createUuid().toString(QUuid::Id128);
+        output_.clear();
+        auto env=QProcessEnvironment::systemEnvironment();
+        env.remove("BOARDSI_ARTWORK_REQUEST");
+        worker_->setProcessEnvironment(env);
+        worker_->start(binary_,{"inspect-session",path_,digest_,document_,session_,generation_});
+    }
+    void sendPage() {
+        QJsonObject frame{{"protocol","BSI_NATIVE_SESSION_V1"},{"session",session_},
+                          {"document",document_},{"generation",generation_},{"sha256",digest_},{"request",request_},{"action","query"},
+                          {"category",category_},{"offset",offset_},
+                          {"limit",selection_.isEmpty()?128:1}};
+        if(!selection_.isEmpty()) {
+            frame.insert("selection",selection_);
+            if(selection_.value("id").isObject()) {
+                frame.insert("action","lookup");
+                frame.insert("id",selection_.value("id"));
+            }
+        }
+        auto bytes=QJsonDocument(frame).toJson(QJsonDocument::Compact);
+        bytes.append('\n');
+        if(bytes.size()>20000 || worker_->write(bytes)!=bytes.size())
+            failSession("FAILED / inspection request limit or write");
     }
     void collect() {
-        const auto chunk=worker_.readAllStandardOutput();
-        if(!valid_)return;
-        if(chunk.size()>60000-output_.size()) {
-            status_->setText("FAILED / inspection response limit");
-            invalidate();
-        } else output_+=chunk;
+        const auto chunk=worker_->readAllStandardOutput();
+        if(stopping_)return;
+        if(chunk.size()>=60000-output_.size()) {
+            failSession("FAILED / inspection response limit");return;
+        }
+        output_+=chunk;
+        const auto newline=output_.indexOf('\n');
+        if(newline<0)return;
+        if(newline!=output_.size()-1 || !completing_) {
+            failSession("FAILED / unexpected inspection frame");return;
+        }
+        lastBytes_=output_.size();
+        QJsonParseError error;
+        const auto doc=QJsonDocument::fromJson(output_,&error);
+        output_.clear();
+        if(error.error!=QJsonParseError::NoError || !doc.isObject()) {
+            failSession("FAILED / inspection JSON");return;
+        }
+        const auto obj=doc.object();
+        if(!ready_) {
+            if(obj.value("protocol")!="BSI_NATIVE_SESSION_V1" ||
+               obj.value("action")!="ready" || obj.value("session")!=session_ ||
+               obj.value("document")!=document_ || obj.value("generation")!=generation_ ||
+               obj.value("sha256")!=digest_ || obj.value("native_loads").toInt(-1)!=1) {
+                failSession("FAILED / inspection session receipt rejected");return;
+            }
+            ready_=true;
+            sendPage();
+        } else finishPage(obj);
     }
     void startPage(int offset,const QJsonObject &selection=QJsonObject()) {
-        if(path_.isEmpty() || suspended_ || worker_.state()!=QProcess::NotRunning)return;
+        if(path_.isEmpty() || changed_ || suspended_ || completing_ || stopping_)return;
         output_.clear();
         offset_=offset;
         selection_=selection;
@@ -114,34 +177,30 @@ class F012Inspector final : public QWidget {
         valid_=true;completing_=true;
         clearDetails();
         status_->setText("RUNNING / validating native snapshot");
-        auto env=QProcessEnvironment::systemEnvironment();
-        env.remove("BOARDSI_ARTWORK_REQUEST");
-        worker_.setProcessEnvironment(env);
         timeout_.start(timeoutMs_);
-        QStringList args={"inspect",path_,digest_,request_,category_,
-                          QString::number(offset_),selection.isEmpty()?"128":"1"};
-        if(!selection.isEmpty())
-            args.append(QString::fromUtf8(QJsonDocument(selection).toJson(QJsonDocument::Compact)));
-        worker_.start(binary_,args);
+#ifdef BOARDSI_RUNTIME_TEST
+        // Fault injection starts a fresh instance of the actual session Worker.
+        if(ready_ && qEnvironmentVariable("BOARDSI_F012_QUAL_MODE")=="pause-before-inspect") {
+            restartForFault_=true;stopping_=true;ready_=false;worker_->kill();
+        } else
+#endif
+        if(ready_ && worker_->state()==QProcess::Running)sendPage();
+        else launchSession();
         controls();
     }
-    void finish(int code,QProcess::ExitStatus exit) {
+    void finishPage(const QJsonObject &result) {
         completing_=false;
-        collect();
         timeout_.stop();
         const bool accepted=valid_;
         valid_=false;
-        if(!accepted) {startPendingSelection();controls();return;}
-        QJsonParseError error;
-        const auto doc=QJsonDocument::fromJson(output_,&error);
-        const auto result=doc.object();
         const auto rows=result.value("rows");
         const auto total=result.value("total").toInt(-1);
         const auto next=result.value("next");
         const int size=int(rows.toArray().size());
         const int end=offset_+size;
-        if(code!=0 || exit!=QProcess::NormalExit || error.error!=QJsonParseError::NoError ||
-           !doc.isObject() || result.value("protocol")!="BSI_NATIVE_INSPECT_V1" ||
+        if(result.value("protocol")!="BSI_NATIVE_INSPECT_V1" ||
+           result.value("session")!=session_ ||
+           result.value("document")!=document_ || result.value("generation")!=generation_ ||
            result.value("request")!=request_ || result.value("sha256")!=digest_ ||
            result.value("category")!=category_ || result.value("offset").toInt(-1)!=offset_ ||
            result.value("physical_si")!="NOT_RUN" || result.value("physical_contact")!="NOT_VERIFIED" ||
@@ -150,15 +209,14 @@ class F012Inspector final : public QWidget {
            !rows.isArray() || size>(selection_.isEmpty()?128:1) || total<end ||
            (end<total && (size==0 || next.toInt(-1)!=end)) ||
            (end==total && !next.isNull())) {
-            status_->setText("FAILED / native inspection receipt rejected");
-            controls();return;
+            failSession("FAILED / native inspection receipt rejected");return;
         }
         for(const auto &row:rows.toArray()) {
             if(!row.isObject()) {
-                status_->setText("FAILED / invalid inspection row");
-                controls();return;
+                failSession("FAILED / invalid inspection row");return;
             }
         }
+        if(!accepted) {startPendingSelection();controls();return;}
         nextOffset_=selection_.isEmpty() && end<total?end:-1;
         publishDetails(rows.toArray());
         status_->setText(QString("Native snapshot / %1–%2 of %3 / physical SI NOT_RUN")
@@ -166,8 +224,8 @@ class F012Inspector final : public QWidget {
         controls();
     }
     void startPendingSelection() {
-        if(completing_ || worker_.state()!=QProcess::NotRunning ||
-           pendingSelection_.isEmpty() || suspended_ || path_.isEmpty())return;
+        if(completing_ || stopping_ ||
+           pendingSelection_.isEmpty() || changed_ || suspended_ || path_.isEmpty())return;
         const auto ref=pendingSelection_;
         pendingSelection_=QJsonObject();
         const int boxIndex=categoryBox_->findData(ref.value("category").toString());
@@ -175,6 +233,56 @@ class F012Inspector final : public QWidget {
         if(boxIndex<0 || index<0)return;
         categoryBox_->setCurrentIndex(boxIndex);
         startPage(index,ref);
+    }
+    void connectWorker() {
+        connect(worker_,&QProcess::readyReadStandardOutput,this,[this]{collect();});
+        connect(worker_,&QProcess::readyReadStandardError,this,[this]{
+            // Drain but never display untrusted worker stderr as metadata.
+            worker_->readAllStandardError();
+        });
+        connect(worker_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+                this,[this](int,QProcess::ExitStatus){
+            const bool expected=stopping_;
+            stopping_=false;ready_=false;output_.clear();
+            if(restartForFault_ && valid_) {
+                restartForFault_=false;launchSession();controls();return;
+            }
+            restartForFault_=false;completing_=false;valid_=false;timeout_.stop();
+            if(!expected) {
+                clearDetails();nextOffset_=-1;
+                status_->setText("FAILED / inspection session stopped");
+            }
+            startPendingSelection();controls();
+        });
+        connect(worker_,&QProcess::stateChanged,this,[this](QProcess::ProcessState){controls();});
+        connect(worker_,&QProcess::errorOccurred,this,[this](QProcess::ProcessError why){
+            if(why==QProcess::FailedToStart) {
+                completing_=false;stopping_=false;
+                failSession("FAILED / inspection worker unavailable");
+            }
+        });
+    }
+    void replaceWorker(QProcess *incoming) {
+        auto *old=worker_;
+        if(old) {
+            QObject::disconnect(old,nullptr,this,nullptr);
+            if(old->state()!=QProcess::NotRunning) {
+                connect(old,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+                        old,&QObject::deleteLater);
+                old->kill();
+            } else old->deleteLater();
+        }
+        worker_=incoming;worker_->setParent(this);
+        connectWorker();
+    }
+    void watchAcceptedPath(const QString &path,const QString &digest) {
+        if(!watcher_.files().isEmpty())watcher_.removePaths(watcher_.files());
+        path_=path;digest_=digest;nextOffset_=-1;lastBytes_=0;
+        changed_=!path_.isEmpty() && !watcher_.addPath(path_);
+        clearDetails();
+        status_->setText(path.isEmpty()?"No accepted Native document":
+                         changed_?"FAILED / Native file watch unavailable; reopen to revalidate":
+                         "Select Inspect to query the accepted snapshot");
     }
 public:
     explicit F012Inspector(const QString &binary,QWidget *parent=nullptr)
@@ -191,7 +299,8 @@ public:
                                       "outlines","arc-history:","area-history:","net-history:","frame-history:",
                                       "drill-history:","padstack-history:","component-history:","pin-history:","outline-history:",
                                       "area-segments:","outline-segments:","area-cutouts:","outline-cutouts:",
-                                      "area-cutout-segments::","outline-cutout-segments::","custom-pad-segments::"};
+                                      "area-cutout-segments::","outline-cutout-segments::","custom-pad-segments::",
+                                      "net-members:","layer-members:"};
         for(const auto &category:categories)categoryBox_->addItem(category,category);
         query_=new QPushButton("Inspect / First page",this);
         query_->setObjectName("f012InspectionQuery");
@@ -241,26 +350,22 @@ public:
         connect(parentIndex_,QOverload<int>::of(&QSpinBox::valueChanged),this,resetPage);
         connect(childIndex_,QOverload<int>::of(&QSpinBox::valueChanged),this,resetPage);
         connect(startIndex_,QOverload<int>::of(&QSpinBox::valueChanged),this,resetPage);
+        connect(fields_,&QTreeWidget::itemDoubleClicked,this,[this](QTreeWidgetItem *item,int){
+            const auto ref=item->data(0,Qt::UserRole).value<QJsonObject>();
+            if(!ref.isEmpty())inspectSelection(ref);
+        });
         connect(query_,&QPushButton::clicked,this,[this]{startPage(startIndex_->value());});
         connect(next_,&QPushButton::clicked,this,[this]{if(nextOffset_>=0)startPage(nextOffset_);});
         connect(cancel_,&QPushButton::clicked,this,[this]{
             pendingSelection_=QJsonObject();
             status_->setText("CANCELLED / inspection");invalidate();controls();
         });
-        connect(&worker_,&QProcess::readyReadStandardOutput,this,[this]{collect();});
-        connect(&worker_,&QProcess::readyReadStandardError,this,[this]{
-            // Drain but never display untrusted worker stderr as metadata.
-            worker_.readAllStandardError();
-        });
-        connect(&worker_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
-                this,[this](int code,QProcess::ExitStatus why){finish(code,why);});
-        connect(&worker_,&QProcess::stateChanged,this,[this](QProcess::ProcessState){controls();});
-        connect(&worker_,&QProcess::errorOccurred,this,[this](QProcess::ProcessError why){
-            if(why==QProcess::FailedToStart) {
-                completing_=false;
-                pendingSelection_=QJsonObject();
-                invalidate();status_->setText("FAILED / inspection worker unavailable");controls();
-            }
+        worker_=new QProcess(this);
+        connectWorker();
+        connect(&watcher_,&QFileSystemWatcher::fileChanged,this,[this](const QString &path){
+            if(path!=path_)return;
+            changed_=true;
+            failSession("FAILED / Native file changed; reopen to revalidate");
         });
         timeout_.setSingleShot(true);
         connect(&timeout_,&QTimer::timeout,this,[this]{
@@ -270,18 +375,20 @@ public:
         controls();
     }
     ~F012Inspector() override {
-        QObject::disconnect(&worker_,nullptr,this,nullptr);
+        QObject::disconnect(worker_,nullptr,this,nullptr);
         invalidate();
     }
-    qint64 inspectionWorkerPidForTest() const {return worker_.processId();}
-    qsizetype inspectionBytesForTest() const {return output_.size();}
+    bool workerStopping() const {return stopping_ && worker_->state()!=QProcess::NotRunning;}
+    qint64 inspectionWorkerPidForTest() const {return worker_->processId();}
+    qsizetype inspectionBytesForTest() const {return lastBytes_;}
 #ifdef BOARDSI_RUNTIME_TEST
     void setInspectionTimeoutForTest(int ms) {if(!completing_ && ms>=20 && ms<=60000)timeoutMs_=ms;}
-    void killInspectionWorkerForTest() {if(worker_.state()!=QProcess::NotRunning)worker_.kill();}
-    bool inspectionIdleForTest() const {return !completing_ && worker_.state()==QProcess::NotRunning;}
+    void killInspectionWorkerForTest() {if(worker_->state()!=QProcess::NotRunning)worker_->kill();}
+    bool inspectionIdleForTest() const {return !completing_ && worker_->state()==QProcess::NotRunning;}
+    bool inspectionSessionReadyForTest() const {return ready_ && !changed_ && worker_->state()==QProcess::Running;}
 #endif
     void inspectSelection(const QJsonObject &selection) {
-        if(path_.isEmpty() || suspended_)return;
+        if(path_.isEmpty() || changed_ || suspended_)return;
         // Every selection transition invalidates any superseded selection result,
         // including an empty or multi-selection. Keep at most the newest request.
         pendingSelection_=QJsonObject();
@@ -292,22 +399,34 @@ public:
             pendingSelection_=selection;
         status_->setText(pendingSelection_.isEmpty()?"No single supported object selected":
                          "RUNNING / latest artwork selection");
-        if(completing_ || worker_.state()!=QProcess::NotRunning)invalidate();
+        // Drain the sole in-flight result without publishing it. A superseded
+        // selection never triggers another full Native load in a healthy session.
+        if(completing_)valid_=false;
         startPendingSelection();
         controls();
     }
     void cancelSelection() {
         pendingSelection_=QJsonObject();
         nextOffset_=-1;clearDetails();
-        invalidate();
+        if(completing_)valid_=false;
         status_->setText("Inspection selection cleared");controls();
     }
     void setDocument(const QString &path,const QString &digest) {
         pendingSelection_=QJsonObject();
-        invalidate();path_=path;digest_=digest;nextOffset_=-1;
-        clearDetails();
-        status_->setText(path.isEmpty()?"No accepted Native document":
-                         "Select Inspect to query the accepted snapshot");
+        invalidate();
+        document_=QUuid::createUuid().toString(QUuid::Id128);
+        watchAcceptedPath(path,digest);
+        controls();
+    }
+    void adoptSession(QProcess *incoming,const QString &path,const QString &digest,
+                      const QString &document,const QString &session,const QString &generation) {
+        pendingSelection_=QJsonObject();timeout_.stop();
+        valid_=false;completing_=false;stopping_=false;restartForFault_=false;
+        output_.clear();document_=document;session_=session;generation_=generation;
+        replaceWorker(incoming);
+        ready_=worker_->state()==QProcess::Running;
+        watchAcceptedPath(path,digest);
+        if(changed_)invalidate();
         controls();
     }
     void suspend(bool suspended) {
@@ -321,6 +440,7 @@ public:
             status_->setText("Inspection suspended during Native operation");
         } else {
             status_->setText(path_.isEmpty()?"No accepted Native document":
+                             changed_?"FAILED / Native file changed; reopen to revalidate":
                              "Select Inspect to query the accepted snapshot");
         }
         controls();
