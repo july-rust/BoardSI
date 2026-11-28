@@ -92,7 +92,15 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
     auto *summary=panel->findChild<QPlainTextEdit *>("f0031NativeSummary");
     auto *fit=panel->findChild<QPushButton *>("f011NativeFit");
     if(!view || !filter || !summary || !fit)return 2;
-    QJsonArray measurements,transportAB,closeSamples;
+    auto *toggle=panel->findChild<QPushButton *>("f012InspectorToggle");
+    auto *category=panel->findChild<QComboBox *>("f012InspectionCategory");
+    auto *query=panel->findChild<QPushButton *>("f012InspectionQuery");
+    auto *offset=panel->findChild<QSpinBox *>("f012InspectionOffset");
+    auto *status=panel->findChild<QLabel *>("f012InspectionStatus");
+    auto *raw=panel->findChild<QPlainTextEdit *>("f012InspectionDetails");
+    auto *inspector=static_cast<F012Inspector *>(category?category->parentWidget():nullptr);
+    if(!toggle || !category || !query || !offset || !status || !raw || !inspector)return 2;
+    QJsonArray measurements,transportAB,closeSamples,inspectionMeasurements;
     qint64 workerRss=-1;
     auto finish=[&](qint64 &elapsedMs,qint64 &maxGap) {
         workerRss=-1;
@@ -280,6 +288,60 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
             {"source_absent",true},{"physical_si","NOT_RUN"}};
         measurements.append(measurement);
         qInfo().noquote()<<QJsonDocument(measurement).toJson(QJsonDocument::Compact);
+        if(!mixed) {
+            // F012 alternative to a retained model: fresh read-only Worker per
+            // query. Fixed pre-run bounds derived from F011 runner timings:
+            // <=10k: 20 s; larger structural board: 60 s; event gap <=500 ms,
+            // reply <60k bytes, sampled Worker RSS <=1 GiB, Qt peak <=1 GiB.
+            // Compare initial / near-tail / repeat query on identical bytes.
+            view->scene()->clearSelection();
+            toggle->click();
+            category->setCurrentIndex(category->findData("traces"));
+            QFile snapshot(file);
+            if(!snapshot.open(QIODevice::ReadOnly))return 1;
+            const auto digest=QCryptographicHash::hash(snapshot.readAll(),QCryptographicHash::Sha256);
+            snapshot.close();
+            for(int start:{0,qMax(0,count-1),0}) {
+                offset->setValue(start);
+                if(!query->isEnabled())return 1;
+                QElapsedTimer clock;clock.start();
+                qint64 last=0,inspectionGap=0,sampledRss=-1;
+                QEventLoop loop;
+                QTimer poll;poll.setInterval(10);
+                QObject::connect(&poll,&QTimer::timeout,&loop,[&] {
+                    const auto now=clock.elapsed();
+                    inspectionGap=qMax(inspectionGap,now-last);last=now;
+                    sampledRss=qMax(sampledRss,f011ResidentSample(inspector->inspectionWorkerPidForTest()));
+                    if(query->isEnabled() || now>65000)loop.quit();
+                });
+                query->click();
+                if(!query->isEnabled()) {poll.start();loop.exec();poll.stop();}
+                const auto page=QJsonDocument::fromJson(raw->toPlainText().toUtf8()).array();
+                const auto elapsedMs=clock.elapsed();
+                const auto qtRss=f011ResidentSample(QCoreApplication::applicationPid());
+                const auto bytes=inspector->inspectionBytesForTest();
+                if(!query->isEnabled() || !status->text().startsWith("Native snapshot /") ||
+                   page.isEmpty() || page.size()>128 || (start==count-1 && page.size()!=1) ||
+                   page.first().toObject().value("meta").toObject().value("id").toObject()
+                      .value("source_object").toString()!=QString("f011-synthetic-%1").arg(start) ||
+                   bytes<=0 || bytes>=60000 || elapsedMs>(count<=10000?20000:60000) ||
+                   inspectionGap>500 || sampledRss>1073741824 || qtRss>1073741824) {
+                    qWarning().noquote()<<"F012 bounded query failure"<<count<<start<<status->text()
+                       <<elapsedMs<<inspectionGap<<bytes<<sampledRss<<qtRss;return 1;
+                }
+                const QJsonObject record{{"count",count},{"offset",start},
+                    {"page_ms",elapsedMs},{"max_timer_gap_ms",inspectionGap},
+                    {"response_bytes",qint64(bytes)},{"rows",page.size()},
+                    {"worker_sampled_peak_rss_bytes",sampledRss},{"qt_peak_or_sampled_rss_bytes",qtRss},
+                    {"mode","fresh-read-only-worker"},{"physical_si","NOT_RUN"}};
+                inspectionMeasurements.append(record);
+                qInfo().noquote()<<QJsonDocument(record).toJson(QJsonDocument::Compact);
+            }
+            if(!snapshot.open(QIODevice::ReadOnly) ||
+               QCryptographicHash::hash(snapshot.readAll(),QCryptographicHash::Sha256)!=digest)return 1;
+            snapshot.close();
+            toggle->click();
+        }
         if(count==10000) {
             // Hold the *actual* renderer after its first batch while keeping
             // the prior scene visible, then cancel via the production slot.
@@ -333,6 +395,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         {"host_os",QSysInfo::productType()},
         {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
         {"cases",measurements},{"transport_ab",transportAB},{"close_reopen",closeSamples},
+        {"f012_inspection",inspectionMeasurements},
         {"physical_si","NOT_RUN"}};
     QSaveFile proof("qt-f011-qualification.json");
     const auto encoded=QJsonDocument(evidence).toJson(QJsonDocument::Indented);

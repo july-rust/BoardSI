@@ -1,6 +1,6 @@
 //! F_012 read-only, snapshot-bound Native inspection pages.
 //! The existing Native Reader remains the sole structural authority.
-use boardsi_model::{BoardModel, ObjectId, ObjectMeta, Point, Property, Rational};
+use boardsi_model::{BoardModel, ObjectId, ObjectMeta, PadShape, Point, Property, Rational};
 use serde_json::{json, Value};
 
 fn sha_hex(bytes: &[u8; 32]) -> String {
@@ -48,6 +48,31 @@ fn meta(board: &BoardModel, value: &ObjectMeta) -> Value {
 fn point(board: &BoardModel, value: &Point) -> Value {
     json!({"frame": id(board, &value.frame),
            "ticks": [value.ticks[0].to_string(), value.ticks[1].to_string()]})
+}
+
+fn length_m(board: &BoardModel, points: &[Point]) -> Option<f64> {
+    let mut length = 0.0;
+    for pair in points.windows(2) {
+        let a = board.frames.iter().find(|f| f.meta.id == pair[0].frame)?;
+        let b = board.frames.iter().find(|f| f.meta.id == pair[1].frame)?;
+        let x = a.exact_m(&pair[0]).ok()?;
+        let y = b.exact_m(&pair[1]).ok()?;
+        let dx = y[0].checked_add(x[0].checked_neg().ok()?).ok()?.to_f64().ok()?;
+        let dy = y[1].checked_add(x[1].checked_neg().ok()?).ok()?.to_f64().ok()?;
+        length += dx.hypot(dy);
+    }
+    length.is_finite().then_some(length)
+}
+
+fn pad_shape(shape: &PadShape) -> Value {
+    match shape {
+        PadShape::Circle { diameter_m } => json!({"kind":"Circle","diameter_m":rational(*diameter_m)}),
+        PadShape::Rectangle { size_m } => json!({"kind":"Rectangle","size_m":[rational(size_m[0]),rational(size_m[1])]}),
+        PadShape::Annulus { outer_diameter_m, inner_diameter_m } => json!({"kind":"Annulus","outer_diameter_m":rational(*outer_diameter_m),"inner_diameter_m":rational(*inner_diameter_m)}),
+        PadShape::Thermal { round, centre_size_m, outer_size_m, spoke_width_m, first_spoke_degrees, spoke_count } =>
+            json!({"kind":"Thermal","round":round,"centre_size_m":rational(*centre_size_m),"outer_size_m":rational(*outer_size_m),"spoke_width_m":rational(*spoke_width_m),"first_spoke_degrees":first_spoke_degrees,"spoke_count":spoke_count}),
+        PadShape::Custom(boundary) => json!({"kind":"Custom","segment_count":boundary.segments.len()}),
+    }
 }
 
 fn prop<T>(property: &Property<T>, encode: impl Fn(&T) -> Value) -> Value {
@@ -133,7 +158,52 @@ pub(super) fn query(
             return Err("BSI_F012_SELECTION_INVALID".into());
         }
     }
-    let page = match category {
+    let (section, parent) = if let Some((section, raw)) = category.split_once(':') {
+        let parent = raw.parse::<usize>().map_err(|_| "BSI_F012_PARENT")?;
+        if selection.is_some() {
+            return Err("BSI_F012_SELECTION_INVALID".into());
+        }
+        (section, Some(parent))
+    } else {
+        (category, None)
+    };
+    if parent.is_some() && !matches!(section, "source-files" | "source-conditions" | "trace-points" | "padstack-entries" | "trace-history" | "via-history" | "pad-history" | "layer-history" | "material-history") {
+        return Err("BSI_F012_CATEGORY".into());
+    }
+    let nested = || parent.ok_or("BSI_F012_PARENT");
+    let page = match section {
+        "source-files" => bounded_page(
+            &b.sources.get(nested()?).ok_or("BSI_F012_PARENT")?.id.files,
+            offset, limit,
+            |f| json!({"logical_path":f.logical_path,"stored_sha256":sha_hex(&f.sha256),"source_reopened":false}),
+        ),
+        "source-conditions" => bounded_page(
+            &b.sources.get(nested()?).ok_or("BSI_F012_PARENT")?.id.conditions,
+            offset, limit,
+            |c| json!({"key":c.0,"value":c.1}),
+        ),
+        "trace-points" => bounded_page(
+            &b.traces.get(nested()?).ok_or("BSI_F012_PARENT")?.centreline,
+            offset, limit, |p| point(b,p),
+        ),
+        "padstack-entries" => bounded_page(
+            &b.padstacks.get(nested()?).ok_or("BSI_F012_PARENT")?.entries,
+            offset, limit,
+            |e| json!({"layer":id(b,&e.layer),"role":format!("{:?}",e.role),"shape":pad_shape(&e.shape)}),
+        ),
+        "trace-history" | "via-history" | "pad-history" | "layer-history" | "material-history" => {
+            let index = nested()?;
+            let object = match section {
+                "trace-history" => b.traces.get(index).map(|v| &v.meta),
+                "via-history" => b.vias.get(index).map(|v| &v.meta),
+                "pad-history" => b.pads.get(index).map(|v| &v.meta),
+                "layer-history" => b.stackup.layers.get(index).map(|v| &v.meta),
+                _ => b.materials.get(index).map(|v| &v.meta),
+            }.ok_or("BSI_F012_PARENT")?;
+            bounded_page(&object.provenance.history,offset,limit,|h|
+                json!({"operation":h.operation,"quality":format!("{:?}",h.quality),
+                       "max_error_m":h.max_error_m.map(rational),"note":h.note}))
+        },
         "board" => bounded_page(&[()], offset, limit, |_| {
             json!({"kind": format!("{:?}", b.kind), "schema": 1,
                    "read_only": loaded.is_read_only(),
@@ -151,9 +221,11 @@ pub(super) fn query(
             json!({"format": format!("{:?}", s.id.format),
                    "format_version": s.id.format_version, "importer_version": s.id.importer_version,
                    "producer": s.producer, "producer_version": s.producer_version,
-                   "files": s.id.files.iter().map(|f| json!({"logical_path": f.logical_path,
+                   "file_count": s.id.files.len(), "files_preview_limited": s.id.files.len()>16,
+                   "files": s.id.files.iter().take(16).map(|f| json!({"logical_path": f.logical_path,
                        "stored_sha256": sha_hex(&f.sha256)})).collect::<Vec<_>>(),
-                   "conditions": s.id.conditions, "capability": {
+                   "condition_count": s.id.conditions.len(), "conditions_preview_limited": s.id.conditions.len()>16,
+                   "conditions": s.id.conditions.iter().take(16).collect::<Vec<_>>(), "capability": {
                        "geometry": format!("{:?}", s.capability.geometry),
                        "net": format!("{:?}", s.capability.net),
                        "pin_pad": format!("{:?}", s.capability.pin_pad),
@@ -192,6 +264,8 @@ pub(super) fn query(
             json!({"meta": meta(b, &t.meta), "layer": id(b, &t.layer),
                    "net": t.net.as_ref().map(|v| id(b, v)), "width_m": rational(t.width_m),
                    "point_count": t.centreline.len(),
+                   "geometric_length_m_approx": length_m(b,&t.centreline),
+                   "length_basis":"polyline centreline only; binary64 approximation; not electrical length",
                    "start": t.centreline.first().map(|v| point(b, v)),
                    "end": t.centreline.last().map(|v| point(b, v))})
         }),
@@ -200,6 +274,9 @@ pub(super) fn query(
                    "net": a.net.as_ref().map(|v| id(b, v)), "width_m": rational(a.width_m),
                    "centre": point(b, &a.centre), "start": point(b, &a.start),
                    "end": point(b, &a.end), "clockwise": a.clockwise})
+        }),
+        "padstacks" => bounded_page(&b.padstacks, offset, limit, |p| {
+            json!({"meta":meta(b,&p.meta),"entry_count":p.entries.len()})
         }),
         "pads" => bounded_page(&b.pads, offset, limit, |p| {
             json!({"meta": meta(b, &p.meta), "position": point(b, &p.position),

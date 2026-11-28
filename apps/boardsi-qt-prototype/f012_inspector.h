@@ -12,6 +12,7 @@
 #include <QPushButton>
 #include <QTimer>
 #include <QTabWidget>
+#include <QSpinBox>
 #include <QTreeWidget>
 #include <QUuid>
 #include <QVBoxLayout>
@@ -27,6 +28,7 @@ class F012Inspector final : public QWidget {
     QComboBox *categoryBox_;
     QPlainTextEdit *details_;
     QTreeWidget *fields_;
+    QSpinBox *parentIndex_, *startIndex_;
     QPushButton *query_, *next_, *cancel_;
     QLabel *status_;
     int offset_=0, nextOffset_=-1;
@@ -75,6 +77,9 @@ class F012Inspector final : public QWidget {
         const bool busy=worker_.state()!=QProcess::NotRunning || completing_ || !pendingSelection_.isEmpty();
         const bool available=!path_.isEmpty() && !suspended_ && !busy;
         categoryBox_->setEnabled(available);
+        const bool nested=categoryBox_->currentData().toString().endsWith(":");
+        parentIndex_->setEnabled(available && nested);
+        startIndex_->setEnabled(available);
         query_->setEnabled(available);
         next_->setEnabled(available && nextOffset_>=0);
         cancel_->setEnabled(busy);
@@ -99,6 +104,7 @@ class F012Inspector final : public QWidget {
         selection_=selection;
         nextOffset_=-1;
         category_=categoryBox_->currentData().toString();
+        if(category_.endsWith(":"))category_+=QString::number(parentIndex_->value());
         request_=QUuid::createUuid().toString(QUuid::Id128);
         valid_=true;completing_=true;
         clearDetails();
@@ -174,11 +180,20 @@ public:
         categoryBox_->setObjectName("f012InspectionCategory");
         const QStringList categories={"board","sources","layers","materials","nets","frames",
                                       "traces","arcs","pads","vias","drills","areas",
-                                      "components","pins","drill-observations"};
+                                      "components","pins","drill-observations","padstacks",
+                                      "source-files:","source-conditions:","trace-points:","padstack-entries:",
+                                      "trace-history:","via-history:","pad-history:","layer-history:","material-history:"};
         for(const auto &category:categories)categoryBox_->addItem(category,category);
         query_=new QPushButton("Inspect / First page",this);
         query_->setObjectName("f012InspectionQuery");
         next_=new QPushButton("Next page",this);
+        next_->setObjectName("f012InspectionNext");
+        parentIndex_=new QSpinBox(this);
+        parentIndex_->setObjectName("f012InspectionParent");
+        parentIndex_->setRange(0,1000000);
+        startIndex_=new QSpinBox(this);
+        startIndex_->setObjectName("f012InspectionOffset");
+        startIndex_->setRange(0,1000000);
         cancel_=new QPushButton("Cancel inspection",this);
         status_=new QLabel("No accepted Native document",this);
         status_->setObjectName("f012InspectionStatus");
@@ -196,12 +211,22 @@ public:
         tabs->addTab(details_,"Exact JSON");
         bar->addWidget(categoryBox_);bar->addWidget(query_);
         bar->addWidget(next_);bar->addWidget(cancel_);
-        layout->addLayout(bar);layout->addWidget(status_);layout->addWidget(tabs);
+        auto *indices=new QHBoxLayout;
+        indices->addWidget(new QLabel("Parent index",this));indices->addWidget(parentIndex_);
+        indices->addWidget(new QLabel("Start index",this));indices->addWidget(startIndex_);
+        indices->addStretch();
+        layout->addLayout(bar);layout->addLayout(indices);layout->addWidget(status_);layout->addWidget(tabs);
         connect(categoryBox_,QOverload<int>::of(&QComboBox::currentIndexChanged),this,[this](int) {
+            startIndex_->setValue(0);
             nextOffset_=-1;clearDetails();
             status_->setText("Select Inspect to query the accepted snapshot");controls();
         });
-        connect(query_,&QPushButton::clicked,this,[this]{startPage(0);});
+        const auto resetPage=[this](int) {
+            nextOffset_=-1;clearDetails();controls();
+        };
+        connect(parentIndex_,QOverload<int>::of(&QSpinBox::valueChanged),this,resetPage);
+        connect(startIndex_,QOverload<int>::of(&QSpinBox::valueChanged),this,resetPage);
+        connect(query_,&QPushButton::clicked,this,[this]{startPage(startIndex_->value());});
         connect(next_,&QPushButton::clicked,this,[this]{if(nextOffset_>=0)startPage(nextOffset_);});
         connect(cancel_,&QPushButton::clicked,this,[this]{
             pendingSelection_=QJsonObject();
@@ -233,6 +258,8 @@ public:
         QObject::disconnect(&worker_,nullptr,this,nullptr);
         invalidate();
     }
+    qint64 inspectionWorkerPidForTest() const {return worker_.processId();}
+    qsizetype inspectionBytesForTest() const {return output_.size();}
     void inspectSelection(const QJsonObject &selection) {
         if(path_.isEmpty() || suspended_)return;
         // Every selection transition invalidates any superseded selection result,
