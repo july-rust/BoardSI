@@ -1,6 +1,7 @@
 // F_013 persistent read-only inspector; no source CAD access or electrical claims.
 #pragma once
 #include <QComboBox>
+#include <QFileSystemWatcher>
 #include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -20,6 +21,8 @@
 
 class F012Inspector final : public QWidget {
     QProcess worker_;
+    QFileSystemWatcher watcher_;
+    bool changed_=false;
     QTimer timeout_;
     QString binary_, path_, digest_, request_, category_, session_;
     bool ready_=false, stopping_=false, restartForFault_=false;
@@ -78,7 +81,7 @@ class F012Inspector final : public QWidget {
     }
     void controls() {
         const bool busy=stopping_ || completing_ || !pendingSelection_.isEmpty();
-        const bool available=!path_.isEmpty() && !suspended_ && !busy;
+        const bool available=!path_.isEmpty() && !changed_ && !suspended_ && !busy;
         categoryBox_->setEnabled(available);
         const bool nested=categoryBox_->currentData().toString().endsWith(":");
         parentIndex_->setEnabled(available && nested);
@@ -155,7 +158,7 @@ class F012Inspector final : public QWidget {
         } else finishPage(obj);
     }
     void startPage(int offset,const QJsonObject &selection=QJsonObject()) {
-        if(path_.isEmpty() || suspended_ || completing_ || stopping_)return;
+        if(path_.isEmpty() || changed_ || suspended_ || completing_ || stopping_)return;
         output_.clear();
         offset_=offset;
         selection_=selection;
@@ -216,7 +219,7 @@ class F012Inspector final : public QWidget {
     }
     void startPendingSelection() {
         if(completing_ || stopping_ ||
-           pendingSelection_.isEmpty() || suspended_ || path_.isEmpty())return;
+           pendingSelection_.isEmpty() || changed_ || suspended_ || path_.isEmpty())return;
         const auto ref=pendingSelection_;
         pendingSelection_=QJsonObject();
         const int boxIndex=categoryBox_->findData(ref.value("category").toString());
@@ -240,7 +243,8 @@ public:
                                       "outlines","arc-history:","area-history:","net-history:","frame-history:",
                                       "drill-history:","padstack-history:","component-history:","pin-history:","outline-history:",
                                       "area-segments:","outline-segments:","area-cutouts:","outline-cutouts:",
-                                      "area-cutout-segments::","outline-cutout-segments::","custom-pad-segments::"};
+                                      "area-cutout-segments::","outline-cutout-segments::","custom-pad-segments::",
+                                      "net-members:","layer-members:"};
         for(const auto &category:categories)categoryBox_->addItem(category,category);
         query_=new QPushButton("Inspect / First page",this);
         query_->setObjectName("f012InspectionQuery");
@@ -322,6 +326,11 @@ public:
                 failSession("FAILED / inspection worker unavailable");
             }
         });
+        connect(&watcher_,&QFileSystemWatcher::fileChanged,this,[this](const QString &path){
+            if(path!=path_)return;
+            changed_=true;
+            failSession("FAILED / Native file changed; reopen to revalidate");
+        });
         timeout_.setSingleShot(true);
         connect(&timeout_,&QTimer::timeout,this,[this]{
             pendingSelection_=QJsonObject();
@@ -341,7 +350,7 @@ public:
     bool inspectionIdleForTest() const {return !completing_ && worker_.state()==QProcess::NotRunning;}
 #endif
     void inspectSelection(const QJsonObject &selection) {
-        if(path_.isEmpty() || suspended_)return;
+        if(path_.isEmpty() || changed_ || suspended_)return;
         // Every selection transition invalidates any superseded selection result,
         // including an empty or multi-selection. Keep at most the newest request.
         pendingSelection_=QJsonObject();
@@ -366,9 +375,13 @@ public:
     }
     void setDocument(const QString &path,const QString &digest) {
         pendingSelection_=QJsonObject();
-        invalidate();path_=path;digest_=digest;nextOffset_=-1;lastBytes_=0;
+        invalidate();
+        if(!watcher_.files().isEmpty())watcher_.removePaths(watcher_.files());
+        path_=path;digest_=digest;nextOffset_=-1;lastBytes_=0;
+        changed_=!path_.isEmpty() && !watcher_.addPath(path_);
         clearDetails();
         status_->setText(path.isEmpty()?"No accepted Native document":
+                         changed_?"FAILED / Native file watch unavailable; reopen to revalidate":
                          "Select Inspect to query the accepted snapshot");
         controls();
     }
@@ -383,6 +396,7 @@ public:
             status_->setText("Inspection suspended during Native operation");
         } else {
             status_->setText(path_.isEmpty()?"No accepted Native document":
+                             changed_?"FAILED / Native file changed; reopen to revalidate":
                              "Select Inspect to query the accepted snapshot");
         }
         controls();
