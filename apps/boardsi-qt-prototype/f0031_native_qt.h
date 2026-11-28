@@ -79,7 +79,8 @@ public:
 
 class F0031NativePanel final : public QWidget {
     QProcess *child_=nullptr;
-    bool persistentOpen_=false, openReadyAccepted_=false;
+    bool persistentOpen_=false, openReadyAccepted_=false, launchPending_=false;
+    quint64 launchGeneration_=0;
     QByteArray openFrame_;
     QJsonObject openReady_;
     QString openDocument_,openSession_,openGeneration_;
@@ -118,7 +119,7 @@ class F0031NativePanel final : public QWidget {
            (value.startsWith("FAILED") || value.startsWith("CANCELLED"))) {
             persistentOpen_=false;openReadyAccepted_=false;openFrame_.clear();
             openReady_=QJsonObject();
-            if(child_->state()!=QProcess::NotRunning)child_->kill();
+            retireChild();
         }
         state_->setText(value);
         if(inspector_) {
@@ -144,6 +145,10 @@ class F0031NativePanel final : public QWidget {
         transportFailed_=true;
         if(stagedScene_) {
             discardRender();timeout_.stop();running_=false;
+            state("FAILED / "+value);
+        } else if(launchPending_) {
+            launchPending_=false;++launchGeneration_;
+            timeout_.stop();running_=false;
             state("FAILED / "+value);
         } else {
             child_->kill();
@@ -225,10 +230,22 @@ class F0031NativePanel final : public QWidget {
         phaseClock_.start();
         timeout_.start(timeoutMs_);
         state("RUNNING / Native "+operation);
+        launchPending_=true;
+        launchWhenReady(arguments,++launchGeneration_);
+        return true;
+    }
+    void launchWhenReady(const QStringList &arguments,quint64 generation) {
+        if(!running_ || !launchPending_ || generation!=launchGeneration_)return;
+        if(inspector_->workerStopping()) {
+            QTimer::singleShot(5,this,[this,arguments,generation]{
+                launchWhenReady(arguments,generation);
+            });
+            return;
+        }
+        launchPending_=false;
         if(persistentOpen_)
             child_->start(binary_,{"open-session",target_,openDocument_,openSession_,openGeneration_});
         else child_->start(binary_,arguments);
-        return true;
     }
     // Bounded and strictly checked Source-only graphical overview.
     // A view item is never an electrically connected model or Solver claim.
@@ -423,6 +440,10 @@ class F0031NativePanel final : public QWidget {
             return;
         }
         timeout_.stop();
+        if(persistentOpen_ && child_->state()!=QProcess::Running) {
+            discardRender();running_=false;
+            state("FAILED / Native session lost before Artwork publication");return;
+        }
         QObject::disconnect(inspectorPicking_);
         auto *old=artworkScene_;
         artworkScene_=stagedScene_;stagedScene_=nullptr;
@@ -625,6 +646,17 @@ class F0031NativePanel final : public QWidget {
             "Physical connectivity, manufacturing and SI: NOT_VERIFIED / NOT_RUN");
         state("COMPLETED / Native "+operation_);
     }
+    void retireChild() {
+        auto *old=child_;
+        QObject::disconnect(old,nullptr,this,nullptr);
+        if(old->state()!=QProcess::NotRunning) {
+            connect(old,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+                    old,&QObject::deleteLater);
+            old->kill();
+        } else old->deleteLater();
+        child_=new QProcess(this);
+        connectChild();
+    }
     void connectChild() {
         connect(child_,&QProcess::readyReadStandardOutput,this,[this] {collect(false);});
         connect(child_,&QProcess::readyReadStandardError,this,[this] {collect(true);});
@@ -719,6 +751,7 @@ public:
     qsizetype stagedCountForTest() const {return stagedScene_?renderIndex_:0;}
     qint64 workerPidForTest() const {return child_->processId();}
     qint64 workerMsForTest() const {return workerMs_;}
+    QJsonObject openSessionReceiptForTest() const {return openReady_;}
     qint64 sceneMsForTest() const {return sceneMs_;}
     qsizetype streamBytesForTest() const {return streamBytes_;}
     int streamBatchesForTest() const {return streamBatches_;}
@@ -799,7 +832,10 @@ public:
         if(!running_) return;
         cancelled_=true;
         timeout_.stop();
-        if(stagedScene_) {
+        if(launchPending_) {
+            launchPending_=false;++launchGeneration_;running_=false;
+            state("CANCELLED / Native worker launch");
+        } else if(stagedScene_) {
             discardRender();running_=false;
             state("CANCELLED / artwork not published; re-open target to verify");
         } else {

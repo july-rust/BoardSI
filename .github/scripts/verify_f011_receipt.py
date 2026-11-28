@@ -56,6 +56,29 @@ def main() -> None:
             "close_reopen": True, "unchanged_sha": True,
         }, data
         print("F013 persistent-worker regression and actual lifecycle measurements verified")
+    performance = data["f013_performance"]
+    assert [(r["count"], r["samples"]) for r in performance] == [
+        (128, 1000), (1000, 100), (10000, 100), (100000, 100),
+    ], performance
+    for r in performance:
+        timings = sorted(r["warm_ms"])
+        n = r["samples"]
+        assert len(timings) == n and all(t >= 0 for t in timings), r
+        assert r["p95_ms"] == timings[(95 * n + 99) // 100 - 1], r
+        assert r["maximum_ms"] == timings[-1], r
+        assert r["p95_ms"] <= (100 if r["count"] <= 1000 else 250 if r["count"] <= 10000 else 500), r
+        assert r["count"] != 100000 or r["maximum_ms"] <= 1000, r
+        assert r["cold_open_ms"] <= (20000 if r["count"] <= 10000 else 60000), r
+        assert r["max_timer_gap_ms"] <= 100, r
+        assert 0 < r["worker_sampled_rss_bytes"] <= 1073741824, r
+        assert 0 < r["qt_peak_or_sampled_rss_bytes"] <= 1073741824, r
+        assert 0 < r["max_response_bytes"] < 60000, r
+        assert r["session_pid"] > 0 and r["native_loads"] == 1, r
+        assert r["stale_publications"] == 0 and r["physical_si"] == "NOT_RUN", r
+    assert data["f013_stress"] == {
+        "rapid_selections": 100, "close_reopen": 20, "closed_worker_count": 0,
+    }, data["f013_stress"]
+    print("F013 exact-head cold/warm and lifecycle receipt verified")
     print("F011 exact-head durable qualification receipt verified")
 
 

@@ -73,6 +73,8 @@ class F012Inspector final : public QWidget {
             const auto row=rows.at(i).toObject();
             item->setText(0,QString("%1 #%2").arg(category_).arg(offset_+i));
             item->setText(1,row.value("name").toString());
+            if(row.value("reference").isObject())
+                item->setData(0,Qt::UserRole,row.value("reference").toObject());
             for(auto it=row.constBegin();it!=row.constEnd();++it)appendField(item,it.key(),it.value());
             if(rows.size()==1)item->setExpanded(true);
         }
@@ -190,7 +192,6 @@ class F012Inspector final : public QWidget {
         timeout_.stop();
         const bool accepted=valid_;
         valid_=false;
-        if(!accepted) {startPendingSelection();controls();return;}
         const auto rows=result.value("rows");
         const auto total=result.value("total").toInt(-1);
         const auto next=result.value("next");
@@ -214,6 +215,7 @@ class F012Inspector final : public QWidget {
                 failSession("FAILED / invalid inspection row");return;
             }
         }
+        if(!accepted) {startPendingSelection();controls();return;}
         nextOffset_=selection_.isEmpty() && end<total?end:-1;
         publishDetails(rows.toArray());
         status_->setText(QString("Native snapshot / %1–%2 of %3 / physical SI NOT_RUN")
@@ -347,6 +349,10 @@ public:
         connect(parentIndex_,QOverload<int>::of(&QSpinBox::valueChanged),this,resetPage);
         connect(childIndex_,QOverload<int>::of(&QSpinBox::valueChanged),this,resetPage);
         connect(startIndex_,QOverload<int>::of(&QSpinBox::valueChanged),this,resetPage);
+        connect(fields_,&QTreeWidget::itemDoubleClicked,this,[this](QTreeWidgetItem *item,int){
+            const auto ref=item->data(0,Qt::UserRole).value<QJsonObject>();
+            if(!ref.isEmpty())inspectSelection(ref);
+        });
         connect(query_,&QPushButton::clicked,this,[this]{startPage(startIndex_->value());});
         connect(next_,&QPushButton::clicked,this,[this]{if(nextOffset_>=0)startPage(nextOffset_);});
         connect(cancel_,&QPushButton::clicked,this,[this]{
@@ -371,12 +377,14 @@ public:
         QObject::disconnect(worker_,nullptr,this,nullptr);
         invalidate();
     }
+    bool workerStopping() const {return stopping_ && worker_->state()!=QProcess::NotRunning;}
     qint64 inspectionWorkerPidForTest() const {return worker_->processId();}
     qsizetype inspectionBytesForTest() const {return lastBytes_;}
 #ifdef BOARDSI_RUNTIME_TEST
     void setInspectionTimeoutForTest(int ms) {if(!completing_ && ms>=20 && ms<=60000)timeoutMs_=ms;}
     void killInspectionWorkerForTest() {if(worker_->state()!=QProcess::NotRunning)worker_->kill();}
     bool inspectionIdleForTest() const {return !completing_ && worker_->state()==QProcess::NotRunning;}
+    bool inspectionSessionReadyForTest() const {return ready_ && !changed_ && worker_->state()==QProcess::Running;}
 #endif
     void inspectSelection(const QJsonObject &selection) {
         if(path_.isEmpty() || changed_ || suspended_)return;
