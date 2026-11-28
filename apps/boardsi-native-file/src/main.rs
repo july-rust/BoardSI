@@ -564,10 +564,26 @@ fn run() -> Result<Value, String> {
             let digest = arg_text(&args, 2)?;
             let request = arg_text(&args, 3)?;
             let category = arg_text(&args, 4)?;
-            let offset = arg_text(&args, 5)?.parse().map_err(|_| fail("BSI_F012_OFFSET"))?;
-            let limit = arg_text(&args, 6)?.parse().map_err(|_| fail("BSI_F012_LIMIT"))?;
-            let selection = if args.len() == 8 { Some(arg_text(&args, 7)?) } else { None };
-            f012_inspection::query(&path, &digest, &request, &category, offset, limit, selection.as_deref())
+            let offset = arg_text(&args, 5)?
+                .parse()
+                .map_err(|_| fail("BSI_F012_OFFSET"))?;
+            let limit = arg_text(&args, 6)?
+                .parse()
+                .map_err(|_| fail("BSI_F012_LIMIT"))?;
+            let selection = if args.len() == 8 {
+                Some(arg_text(&args, 7)?)
+            } else {
+                None
+            };
+            f012_inspection::query(
+                &path,
+                &digest,
+                &request,
+                &category,
+                offset,
+                limit,
+                selection.as_deref(),
+            )
         }
         "open" if args.len() == 2 => {
             let path = arg_path(&args, 1)?;

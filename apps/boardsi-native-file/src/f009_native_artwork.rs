@@ -163,7 +163,8 @@ pub(crate) fn render(board: &BoardModel) -> Result<(&'static str, Value), &'stat
             }),
             _ => return Err("BSI_F009_PAD_SHAPE_UNSUPPORTED"),
         };
-        row["inspection_ref"] = crate::f012_inspection::artwork_ref(board, "pads", index, &pad.meta.id);
+        row["inspection_ref"] =
+            crate::f012_inspection::artwork_ref(board, "pads", index, &pad.meta.id);
         items.push(row);
     }
     for (index, via) in board.vias.iter().enumerate() {

@@ -94,8 +94,10 @@ pub(super) fn query(
     limit: usize,
     selection: Option<&str>,
 ) -> Result<Value, String> {
-    if digest.len() != 64 || !digest.bytes().all(|b| b.is_ascii_hexdigit())
-        || request.len() != 32 || !request.bytes().all(|b| b.is_ascii_hexdigit())
+    if digest.len() != 64
+        || !digest.bytes().all(|b| b.is_ascii_hexdigit())
+        || request.len() != 32
+        || !request.bytes().all(|b| b.is_ascii_hexdigit())
         || !(1..=MAX_PAGE).contains(&limit)
     {
         return Err("BSI_F012_QUERY_INVALID".into());
@@ -114,7 +116,8 @@ pub(super) fn query(
         })
         .transpose()?;
     if let Some(reference) = &selection {
-        if reference["category"] != category || reference["index"].as_u64() != Some(offset as u64)
+        if reference["category"] != category
+            || reference["index"].as_u64() != Some(offset as u64)
             || limit != 1
         {
             return Err("BSI_F012_SELECTION_INVALID".into());
@@ -163,9 +166,12 @@ pub(super) fn query(
                    "conductivity_s_per_m": prop(&m.conductivity_s_per_m, |v| json!(v)),
                    "valid_band_hz": prop(&m.valid_band, |v| json!([v.min_hz, v.max_hz]))})
         }),
-        "nets" => bounded_page(&b.nets, offset, limit, |n| {
-            json!({"meta": meta(b, &n.meta), "name": n.name, "role": format!("{:?}", n.role)})
-        }),
+        "nets" => bounded_page(
+            &b.nets,
+            offset,
+            limit,
+            |n| json!({"meta": meta(b, &n.meta), "name": n.name, "role": format!("{:?}", n.role)}),
+        ),
         "frames" => bounded_page(&b.frames, offset, limit, |f| {
             json!({"meta": meta(b, &f.meta), "unit_label": f.unit_label,
                    "metres_per_tick": rational(f.metres_per_tick),
@@ -220,13 +226,18 @@ pub(super) fn query(
                    "net": p.net.as_ref().map(|n| id(b, n))})
         }),
         "drill-observations" => bounded_page(
-            loaded.drill_evidence().map_or(&[][..], |e| e.holes.as_slice()),
-            offset, limit, |h| {
+            loaded
+                .drill_evidence()
+                .map_or(&[][..], |e| e.holes.as_slice()),
+            offset,
+            limit,
+            |h| {
                 json!({"centre_nm": [h.centre_nm[0].to_string(), h.centre_nm[1].to_string()],
                        "diameter_nm": h.diameter_nm.to_string(), "tool_id": h.tool_id,
                        "source_offset": h.source_offset.to_string(),
                        "plating": "UNKNOWN", "layer_span": "UNKNOWN", "alignment": "NOT_VERIFIED"})
-            }),
+            },
+        ),
         _ => return Err("BSI_F012_CATEGORY".into()),
     }?;
     let (total, rows) = page;
@@ -266,10 +277,14 @@ mod tests {
 
     #[test]
     fn exact_rational_strings_and_missing_state() {
-        assert_eq!(rational(Rational::new(9_007_199_254_740_993, 7).unwrap()),
-                   json!({"numerator":"9007199254740993","denominator":"7"}));
-        assert_eq!(prop(&Property::<Rational>::Missing, |v| rational(*v)),
-                   json!({"state":"MISSING"}));
+        assert_eq!(
+            rational(Rational::new(9_007_199_254_740_993, 7).unwrap()),
+            json!({"numerator":"9007199254740993","denominator":"7"})
+        );
+        assert_eq!(
+            prop(&Property::<Rational>::Missing, |v| rational(*v)),
+            json!({"state":"MISSING"})
+        );
     }
 
     #[test]
