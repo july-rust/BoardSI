@@ -586,6 +586,7 @@ public:
         layout->addWidget(artworkView_,3);
         inspectToggle_=new QPushButton("Native Board Inspector",this);
         inspectToggle_->setCheckable(true);
+        inspectToggle_->setObjectName("f012InspectorToggle");
         inspector_=new F012Inspector(binary_,this);
         inspector_->setVisible(false);
         layout->addWidget(inspectToggle_);

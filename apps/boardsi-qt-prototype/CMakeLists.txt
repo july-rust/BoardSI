@@ -126,6 +126,12 @@ if(BUILD_TESTING)
       set_tests_properties(qt-f011-large-native-artwork PROPERTIES
         TIMEOUT 600 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     endif()
+    add_test(NAME qt-f012-cross-format-source-free-inspection
+      COMMAND boardsi-preview-p0 --f012-cross-format-selftest
+        "${BOARDSI_NATIVE_FILE_WORKER}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../crates/boardsi-import/tests/fixtures/pads_via_round_through_v94.asc")
+    set_tests_properties(qt-f012-cross-format-source-free-inspection PROPERTIES
+      TIMEOUT 300 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     add_test(NAME qt-f010-cross-format-source-free-native-artwork
       COMMAND boardsi-preview-p0 --f010-cross-format-selftest
         "${BOARDSI_NATIVE_FILE_WORKER}"

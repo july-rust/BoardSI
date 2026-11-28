@@ -11,6 +11,8 @@
 #include <QProcessEnvironment>
 #include <QPushButton>
 #include <QTimer>
+#include <QTabWidget>
+#include <QTreeWidget>
 #include <QUuid>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -24,10 +26,51 @@ class F012Inspector final : public QWidget {
     bool completing_=false;
     QComboBox *categoryBox_;
     QPlainTextEdit *details_;
+    QTreeWidget *fields_;
     QPushButton *query_, *next_, *cancel_;
     QLabel *status_;
     int offset_=0, nextOffset_=-1;
     bool valid_=false, suspended_=false;
+    void clearDetails() {
+        details_->clear();fields_->clear();
+    }
+    static void appendField(QTreeWidgetItem *parent,const QString &name,const QJsonValue &value) {
+        auto *item=new QTreeWidgetItem(parent);
+        item->setText(0,name);
+        if(value.isObject()) {
+            const auto obj=value.toObject();
+            if(obj.contains("numerator") && obj.contains("denominator") &&
+               obj.value("numerator").isString() && obj.value("denominator").isString())
+                item->setText(1,obj.value("numerator").toString()+" / "+obj.value("denominator").toString());
+            else if(obj.contains("state"))item->setText(1,obj.value("state").toString());
+            for(auto it=obj.constBegin();it!=obj.constEnd();++it)appendField(item,it.key(),it.value());
+        } else if(value.isArray()) {
+            const auto array=value.toArray();
+            item->setText(1,QString("%1 entries").arg(array.size()));
+            for(qsizetype i=0;i<array.size();++i)appendField(item,QString::number(i),array.at(i));
+        } else {
+            const auto text=value.isString()?value.toString():
+                value.isNull()?QString("NOT AVAILABLE"):
+                value.isBool()?(value.toBool()?QString("true"):QString("false")):
+                QString::number(value.toDouble(),'g',17);
+            item->setText(1,text);
+            item->setToolTip(1,text);
+        }
+    }
+    void publishDetails(const QJsonArray &rows) {
+        clearDetails();
+        fields_->setUpdatesEnabled(false);
+        for(qsizetype i=0;i<rows.size();++i) {
+            auto *item=new QTreeWidgetItem(fields_);
+            const auto row=rows.at(i).toObject();
+            item->setText(0,QString("%1 #%2").arg(category_).arg(offset_+i));
+            item->setText(1,row.value("name").toString());
+            for(auto it=row.constBegin();it!=row.constEnd();++it)appendField(item,it.key(),it.value());
+            if(rows.size()==1)item->setExpanded(true);
+        }
+        fields_->setUpdatesEnabled(true);
+        details_->setPlainText(QString::fromUtf8(QJsonDocument(rows).toJson(QJsonDocument::Indented)));
+    }
     void controls() {
         const bool busy=worker_.state()!=QProcess::NotRunning || completing_ || !pendingSelection_.isEmpty();
         const bool available=!path_.isEmpty() && !suspended_ && !busy;
@@ -58,7 +101,7 @@ class F012Inspector final : public QWidget {
         category_=categoryBox_->currentData().toString();
         request_=QUuid::createUuid().toString(QUuid::Id128);
         valid_=true;completing_=true;
-        details_->clear();
+        clearDetails();
         status_->setText("RUNNING / validating native snapshot");
         auto env=QProcessEnvironment::systemEnvironment();
         env.remove("BOARDSI_ARTWORK_REQUEST");
@@ -106,7 +149,7 @@ class F012Inspector final : public QWidget {
             }
         }
         nextOffset_=selection_.isEmpty() && end<total?end:-1;
-        details_->setPlainText(QString::fromUtf8(QJsonDocument(rows.toArray()).toJson(QJsonDocument::Indented)));
+        publishDetails(rows.toArray());
         status_->setText(QString("Native snapshot / %1–%2 of %3 / physical SI NOT_RUN")
                          .arg(size?offset_+1:offset_).arg(end).arg(total));
         controls();
@@ -142,11 +185,20 @@ public:
         details_=new QPlainTextEdit(this);
         details_->setObjectName("f012InspectionDetails");
         details_->setReadOnly(true);
+        fields_=new QTreeWidget(this);
+        fields_->setObjectName("f012InspectionFields");
+        fields_->setColumnCount(2);
+        fields_->setHeaderLabels({"Field / exact unit","Stored value / evidence"});
+        fields_->setUniformRowHeights(true);
+        fields_->setColumnWidth(0,250);
+        auto *tabs=new QTabWidget(this);
+        tabs->addTab(fields_,"Details");
+        tabs->addTab(details_,"Exact JSON");
         bar->addWidget(categoryBox_);bar->addWidget(query_);
         bar->addWidget(next_);bar->addWidget(cancel_);
-        layout->addLayout(bar);layout->addWidget(status_);layout->addWidget(details_);
+        layout->addLayout(bar);layout->addWidget(status_);layout->addWidget(tabs);
         connect(categoryBox_,QOverload<int>::of(&QComboBox::currentIndexChanged),this,[this](int) {
-            nextOffset_=-1;details_->clear();
+            nextOffset_=-1;clearDetails();
             status_->setText("Select Inspect to query the accepted snapshot");controls();
         });
         connect(query_,&QPushButton::clicked,this,[this]{startPage(0);});
@@ -186,7 +238,7 @@ public:
         // Every selection transition invalidates any superseded selection result,
         // including an empty or multi-selection. Keep at most the newest request.
         pendingSelection_=QJsonObject();
-        nextOffset_=-1;details_->clear();
+        nextOffset_=-1;clearDetails();
         const auto category=selection.value("category").toString();
         const int index=selection.value("index").toInt(-1);
         if(index>=0 && categoryBox_->findData(category)>=0)
@@ -199,14 +251,14 @@ public:
     }
     void cancelSelection() {
         pendingSelection_=QJsonObject();
-        nextOffset_=-1;details_->clear();
+        nextOffset_=-1;clearDetails();
         invalidate();
         status_->setText("Inspection selection cleared");controls();
     }
     void setDocument(const QString &path,const QString &digest) {
         pendingSelection_=QJsonObject();
         invalidate();path_=path;digest_=digest;nextOffset_=-1;
-        details_->clear();
+        clearDetails();
         status_->setText(path.isEmpty()?"No accepted Native document":
                          "Select Inspect to query the accepted snapshot");
         controls();
@@ -218,7 +270,7 @@ public:
             // Even a completed page is invalid as a selection display once
             // a Native operation starts; its old scene may stay interactive.
             pendingSelection_=QJsonObject();
-            invalidate();nextOffset_=-1;details_->clear();
+            invalidate();nextOffset_=-1;clearDetails();
             status_->setText("Inspection suspended during Native operation");
         } else {
             status_->setText(path_.isEmpty()?"No accepted Native document":
