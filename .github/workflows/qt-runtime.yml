@@ -30,6 +30,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify actual checkout for F_011
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_SOURCE_SHA"
+          echo "BOARDSI_F011_CHECKOUT_SHA=$actual" >> "$GITHUB_ENV"
       - name: Install Qt build prerequisites
         run: sudo apt-get update && sudo apt-get install -y libgl-dev libopengl-dev libegl1 libxkbcommon-dev libvulkan-dev xvfb libxcb-cursor0 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-icccm4 libxkbcommon-x11-0 libx11-xcb1 libxcb-randr0 libxcb-shape0 libxcb-sync1 libxcb-xfixes0 libxcb-xkb1 libxcb-shm0
       - name: Install fixed Qt SDK and CMake
@@ -70,12 +79,26 @@ jobs:
         run: |
           ulimit -c 0
           export LD_LIBRARY_PATH="$QT_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          export BOARDSI_SOURCE_HEAD_SHA="$BOARDSI_F011_CHECKOUT_SHA"
+          rm -f build-qt/qt-f011-qualification.json
           ctest --test-dir build-qt --output-on-failure
       - name: Print measurement evidence
         if: ${{ always() }}
         run: |
           if test -f build-qt/qt-runtime-results.json; then cat build-qt/qt-runtime-results.json; fi
           if test -f build-qt/Testing/Temporary/LastTest.log; then cat build-qt/Testing/Temporary/LastTest.log; fi
+      - name: Verify F_011 durable qualification receipt
+        run: |
+          cat build-qt/qt-f011-qualification.json
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$BOARDSI_F011_CHECKOUT_SHA"
+          python3 .github/scripts/verify_f011_receipt.py build-qt/qt-f011-qualification.json "$actual"
+      - name: Preserve F_011 Linux qualification receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: f011-native-artwork-linux-x64
+          path: build-qt/qt-f011-qualification.json
+          if-no-files-found: error
       - name: Execute xcb desktop backend with software display
         env:
           BOARDSI_EXPECTED_QT_ARCH: x86_64
@@ -120,6 +143,14 @@ jobs:
           # Test the exact PR source commit; otherwise the F1 SHA/CI proof
           # would describe a synthetic merge-ref instead of its claimed HEAD.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify actual checkout for F_011
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_SOURCE_SHA"
+          echo "BOARDSI_F011_CHECKOUT_SHA=$actual" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -226,6 +257,29 @@ jobs:
           if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
           ./boardsi-preview-p0$suffix --f007-native-ipc-selftest \
             "$GITHUB_WORKSPACE/target/debug/boardsi-native-file$suffix"
+      - name: F_011 large Native artwork and malformed stream qualification
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_FORCE_STDERR_LOGGING: '1'
+        run: |
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$BOARDSI_F011_CHECKOUT_SHA"
+          export BOARDSI_SOURCE_HEAD_SHA="$actual"
+          cd build-qt
+          suffix=''
+          if test '${{ runner.os }}' = Windows; then suffix='.exe'; fi
+          rm -f qt-f011-qualification.json
+          ./boardsi-preview-p0$suffix --f011-large-artwork-selftest \
+            "$GITHUB_WORKSPACE/target/debug/boardsi-native-file$suffix"
+          cat qt-f011-qualification.json
+          python "$GITHUB_WORKSPACE/.github/scripts/verify_f011_receipt.py" qt-f011-qualification.json "$BOARDSI_SOURCE_HEAD_SHA"
+      - name: Preserve F_011 native qualification receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: f011-native-artwork-${{ env.BOARDSI_CI_NAME }}
+          path: build-qt/qt-f011-qualification.json
+          if-no-files-found: error
       - name: F_010 five-format source-free Native artwork switch and Save As
         shell: bash
         env:
@@ -1208,7 +1262,9 @@ jobs:
     if: ${{ !cancelled() && (needs.classify.result != 'success' || needs.classify.outputs.docs_only != 'true') }}
     name: Qt native Windows ARM64
     runs-on: windows-11-arm
-    timeout-minutes: 20
+    # F011 adds an observed multi-minute 100k fixture and lifecycle suite.
+    # Only the aggregate CI job budget grows; runtime/test limits are unchanged.
+    timeout-minutes: 30
     env:
       BOARDSI_CI_NAME: Windows ARM64
       BOARDSI_CI_RUNNER: windows-11-arm

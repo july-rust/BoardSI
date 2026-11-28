@@ -5783,9 +5783,13 @@ static int runF010CrossFormatSelftest(const QString &nativeBinary,const QString 
     return 0;
 }
 
+#include "f011_selftest.h"
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
+    if(args.size()==3 && args.at(1)=="--f011-large-artwork-selftest")
+        return runF011LargeArtworkSelftest(args.at(2));
     if(args.size()==4 && args.at(1)=="--f010-cross-format-selftest")
         return runF010CrossFormatSelftest(args.at(2),args.at(3));
     if(args.size()==3 && args.at(1)=="--f008-native-gerber-drill-selftest")

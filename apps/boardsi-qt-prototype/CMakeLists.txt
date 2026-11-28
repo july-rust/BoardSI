@@ -119,6 +119,13 @@ if(BUILD_TESTING)
   endif()
   set(BOARDSI_NATIVE_FILE_WORKER "" CACHE FILEPATH "F_003_1 Rust Native file worker")
   if(BOARDSI_NATIVE_FILE_WORKER)
+    if(BOARDSI_F0031_QUALIFICATION)
+      add_test(NAME qt-f011-large-native-artwork
+        COMMAND boardsi-preview-p0 --f011-large-artwork-selftest
+          "${BOARDSI_NATIVE_FILE_WORKER}")
+      set_tests_properties(qt-f011-large-native-artwork PROPERTIES
+        TIMEOUT 600 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endif()
     add_test(NAME qt-f010-cross-format-source-free-native-artwork
       COMMAND boardsi-preview-p0 --f010-cross-format-selftest
         "${BOARDSI_NATIVE_FILE_WORKER}"

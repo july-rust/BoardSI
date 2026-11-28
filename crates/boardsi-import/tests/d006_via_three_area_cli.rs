@@ -1,5 +1,6 @@
 //! D_006 end-to-end bounded PADS source test of the independently executed CLI.
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const SOURCE: &str = include_str!("fixtures/d006_via_three_area_v94.asc");
@@ -9,8 +10,23 @@ fn run(source: &str, layer: &str) -> (bool, String) {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let path =
-        std::env::temp_dir().join(format!("boardsi-d006-{}-{unique}.asc", std::process::id()));
+    // A coarse Windows clock can return identical timestamps for parallel
+    // test threads. An exclusive directory and process-local nonce prevent
+    // one test from replacing or deleting another test's source.
+    static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+    let dir = loop {
+        let serial = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
+        let candidate = std::env::temp_dir().join(format!(
+            "boardsi-d006-{}-{unique}-{serial}",
+            std::process::id()
+        ));
+        match std::fs::create_dir(&candidate) {
+            Ok(()) => break candidate,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => panic!("D006 temporary directory: {error}"),
+        }
+    };
+    let path = dir.join("source.asc");
     std::fs::write(&path, source).unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_boardsi-d006-via-three-area"))
         .args([
@@ -30,6 +46,7 @@ fn run(source: &str, layer: &str) -> (bool, String) {
     if let Err(error) = std::fs::remove_file(&path) {
         assert_eq!(error.kind(), std::io::ErrorKind::NotFound, "{error}");
     }
+    std::fs::remove_dir(&dir).unwrap();
     let bytes = if result.status.success() {
         &result.stdout
     } else {
