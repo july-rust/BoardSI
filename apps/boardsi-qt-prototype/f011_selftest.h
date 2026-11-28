@@ -101,6 +101,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
     auto *inspector=static_cast<F012Inspector *>(category?category->parentWidget():nullptr);
     if(!toggle || !category || !query || !offset || !status || !raw || !inspector)return 2;
     QJsonArray measurements,transportAB,closeSamples,inspectionMeasurements;
+    QJsonObject inspectionLifecycle;
     qint64 workerRss=-1;
     auto finish=[&](qint64 &elapsedMs,qint64 &maxGap) {
         workerRss=-1;
@@ -369,7 +370,90 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
             if(!snapshot.open(QIODevice::ReadOnly) ||
                QCryptographicHash::hash(snapshot.readAll(),QCryptographicHash::Sha256)!=digest)return 1;
             snapshot.close();
-            toggle->click();
+            if(count==128) {
+                auto *cancel=panel->findChild<QPushButton *>("f012InspectionCancel");
+                auto *fields=panel->findChild<QTreeWidget *>("f012InspectionFields");
+                if(!cancel || !fields)return 1;
+                const auto baseline=summary->toPlainText();
+                auto *scene=view->scene();
+                const auto until=[&](const std::function<bool()> &condition,int limit=12000) {
+                    if(condition())return true;
+                    QEventLoop loop;QTimer poll;QElapsedTimer elapsed;elapsed.start();
+                    poll.setInterval(10);
+                    QObject::connect(&poll,&QTimer::timeout,&loop,[&]{
+                        if(condition() || elapsed.elapsed()>=limit)loop.quit();
+                    });
+                    poll.start();loop.exec();return condition();
+                };
+                const auto clearFault=[]{
+                    qunsetenv("BOARDSI_F012_QUAL_MODE");qunsetenv("BOARDSI_F012_QUAL_MARKER");
+                };
+                const auto sameDocument=[&]{
+                    return panel->loadedPath()==file && summary->toPlainText()==baseline &&
+                        view->scene()==scene && scene->items().size()==128;
+                };
+                const auto emptyDetails=[&]{return raw->toPlainText().isEmpty() &&
+                    fields->topLevelItemCount()==0;};
+                const auto retry=[&] {
+                    if(!query->isEnabled())return false;
+                    query->click();
+                    return until([&]{return query->isEnabled();}) &&
+                        status->text().startsWith("Native snapshot /") && !emptyDetails() &&
+                        sameDocument();
+                };
+                const auto pause=[&](const QString &tag) {
+                    const auto marker=dir.filePath("f012-"+tag+".signal");
+                    QFile::remove(marker);
+                    qputenv("BOARDSI_F012_QUAL_MODE","pause-before-inspect");
+                    qputenv("BOARDSI_F012_QUAL_MARKER",QFile::encodeName(marker));
+                    query->click();
+                    const bool ok=until([&]{return QFileInfo::exists(marker);},5000) &&
+                        inspector->inspectionWorkerPidForTest()>0 && cancel->isEnabled() &&
+                        emptyDetails();
+                    clearFault();
+                    return ok;
+                };
+                if(!pause("cancel"))return 1;
+                cancel->click();
+                if(!until([&]{return query->isEnabled();}) ||
+                   !status->text().startsWith("CANCELLED") || !emptyDetails() ||
+                   !sameDocument() || !retry())return 1;
+                inspectionLifecycle["cancel"]=true;
+                inspector->setInspectionTimeoutForTest(2500);
+                if(!pause("timeout") || !until([&]{return query->isEnabled();},6000) ||
+                   !status->text().contains("inspection timeout") || !emptyDetails() ||
+                   !sameDocument())return 1;
+                inspector->setInspectionTimeoutForTest(60000);
+                if(!retry())return 1;
+                inspectionLifecycle["timeout"]=true;
+                if(!pause("crash"))return 1;
+                inspector->killInspectionWorkerForTest();
+                if(!until([&]{return query->isEnabled();}) ||
+                   !status->text().startsWith("FAILED") || !emptyDetails() ||
+                   !sameDocument() || !retry())return 1;
+                inspectionLifecycle["crash"]=true;
+                if(!pause("close"))return 1;
+                panel->forget();
+                if(!until([&]{return inspector->inspectionIdleForTest();}) ||
+                   panel->hasLoaded() || query->isEnabled() || !emptyDetails() ||
+                   !view->scene()->items().isEmpty())return 1;
+                if(!window.openNativeCandidate(file) || !finish(elapsed,gap) ||
+                   panel->loadedPath()!=file)return 1;
+                if(!toggle->isChecked())toggle->click();
+                view->scene()->clearSelection();
+                if(!until([&]{return query->isEnabled();}))return 1;
+                category->setCurrentIndex(category->findData("traces"));
+                query->click();
+                if(!until([&]{return query->isEnabled();}) ||
+                   !status->text().startsWith("Native snapshot /") || emptyDetails())return 1;
+                inspectionLifecycle["close_reopen"]=true;
+                if(!snapshot.open(QIODevice::ReadOnly) ||
+                   QCryptographicHash::hash(snapshot.readAll(),QCryptographicHash::Sha256)!=digest)return 1;
+                snapshot.close();
+                inspectionLifecycle["unchanged_sha"]=true;
+                qInfo().noquote()<<QJsonDocument(inspectionLifecycle).toJson(QJsonDocument::Compact);
+            }
+            if(toggle->isChecked())toggle->click();
         }
         if(count==10000) {
             // Hold the *actual* renderer after its first batch while keeping
@@ -424,7 +508,7 @@ static int runF011LargeArtworkSelftest(const QString &nativeBinary) {
         {"host_os",QSysInfo::productType()},
         {"source_sha",qEnvironmentVariable("BOARDSI_SOURCE_HEAD_SHA")},
         {"cases",measurements},{"transport_ab",transportAB},{"close_reopen",closeSamples},
-        {"f012_inspection",inspectionMeasurements},
+        {"f012_inspection",inspectionMeasurements},{"f012_lifecycle",inspectionLifecycle},
         {"physical_si","NOT_RUN"}};
     QSaveFile proof("qt-f011-qualification.json");
     const auto encoded=QJsonDocument(evidence).toJson(QJsonDocument::Indented);

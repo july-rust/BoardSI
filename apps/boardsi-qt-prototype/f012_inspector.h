@@ -32,6 +32,7 @@ class F012Inspector final : public QWidget {
     QPushButton *query_, *next_, *cancel_;
     QLabel *status_;
     int offset_=0, nextOffset_=-1;
+    int timeoutMs_=60000;
     bool valid_=false, suspended_=false;
     void clearDetails() {
         details_->clear();fields_->clear();
@@ -116,7 +117,7 @@ class F012Inspector final : public QWidget {
         auto env=QProcessEnvironment::systemEnvironment();
         env.remove("BOARDSI_ARTWORK_REQUEST");
         worker_.setProcessEnvironment(env);
-        timeout_.start(60000);
+        timeout_.start(timeoutMs_);
         QStringList args={"inspect",path_,digest_,request_,category_,
                           QString::number(offset_),selection.isEmpty()?"128":"1"};
         if(!selection.isEmpty())
@@ -206,6 +207,7 @@ public:
         startIndex_->setObjectName("f012InspectionOffset");
         startIndex_->setRange(0,1000000);
         cancel_=new QPushButton("Cancel inspection",this);
+        cancel_->setObjectName("f012InspectionCancel");
         status_=new QLabel("No accepted Native document",this);
         status_->setObjectName("f012InspectionStatus");
         details_=new QPlainTextEdit(this);
@@ -273,6 +275,11 @@ public:
     }
     qint64 inspectionWorkerPidForTest() const {return worker_.processId();}
     qsizetype inspectionBytesForTest() const {return output_.size();}
+#ifdef BOARDSI_RUNTIME_TEST
+    void setInspectionTimeoutForTest(int ms) {if(!completing_ && ms>=20 && ms<=60000)timeoutMs_=ms;}
+    void killInspectionWorkerForTest() {if(worker_.state()!=QProcess::NotRunning)worker_.kill();}
+    bool inspectionIdleForTest() const {return !completing_ && worker_.state()==QProcess::NotRunning;}
+#endif
     void inspectSelection(const QJsonObject &selection) {
         if(path_.isEmpty() || suspended_)return;
         // Every selection transition invalidates any superseded selection result,

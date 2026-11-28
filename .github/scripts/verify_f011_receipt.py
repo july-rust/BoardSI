@@ -48,7 +48,11 @@ def main() -> None:
             assert -1 <= c["worker_sampled_peak_rss_bytes"] <= 1073741824, c
             if c["count"] >= 10000:
                 assert c["worker_sampled_peak_rss_bytes"] > 0, c
-        print("F012 bounded fresh-worker query measurements verified")
+        assert data["f012_lifecycle"] == {
+            "cancel": True, "timeout": True, "crash": True,
+            "close_reopen": True, "unchanged_sha": True,
+        }, data
+        print("F012 bounded fresh-worker query and actual lifecycle measurements verified")
     print("F011 exact-head durable qualification receipt verified")
 
 

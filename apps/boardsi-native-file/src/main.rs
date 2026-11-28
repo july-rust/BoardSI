@@ -476,6 +476,19 @@ fn run() -> Result<Value, String> {
             std::thread::park();
         }
     }
+    #[cfg(feature = "f0031-qualification")]
+    if args.len() >= 7
+        && arg_text(&args, 0)? == "inspect"
+        && env::var("BOARDSI_F012_QUAL_MODE").ok().as_deref() == Some("pause-before-inspect")
+    {
+        let marker = env::var_os("BOARDSI_F012_QUAL_MARKER")
+            .ok_or_else(|| fail("BSI_QUAL_MARKER_MISSING"))?;
+        fs::write(marker, b"real-native-inspection-worker-paused")
+            .map_err(|_| fail("BSI_QUAL_MARKER_WRITE"))?;
+        loop {
+            std::thread::park();
+        }
+    }
     // CI-only deterministic Native fixture, not a CAD parser expansion or
     // vendor-source claim. The source adapter supplies a small valid template;
     // synthetic copies deliberately exercise the persistence/display path.
