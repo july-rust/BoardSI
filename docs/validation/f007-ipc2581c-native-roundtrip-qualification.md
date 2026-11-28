@@ -1,6 +1,6 @@
 # F_007 — IPC-2581C Source Copper → Native `.bsi` → Main Qt
 
-**Status (2026-11-17 KST): IMPLEMENTATION + PR ACCEPTANCE COMPLETE / post-merge Push CI evidence NOT_OBSERVED.**
+**Status (2026-11-28 KST): IMPLEMENTATION + CURRENT PROTECTED MAIN REQUALIFICATION PASS (supported scope). Original 2026-11-17 post-merge Push CI remains NOT_OBSERVED.**
 The original F_007 implementation was Squash-merged as PR [#666](https://github.com/july-rust/BoardSI/pull/666) after **15/15 PR workflow successes** at exact HEAD `75572a6a509872083cb133499ec9d2bbad1ff146`.
 Merged commit: [`c847132dd1078873c370edc75294ac4d8f51169f`](https://github.com/july-rust/BoardSI/commit/c847132dd1078873c370edc75294ac4d8f51169f).
 `main` source file blob SHA matches the accepted final PR code; GitHub reported `merged=true`.
@@ -28,11 +28,24 @@ Unsupported fabrication Pad, Via, Drill, Arc, Polygon, Location, Xform, negative
 | T09 stale SHA guard, crash, kill, lock/ENOSPC resilience | **PASS (covered cases)** | [F003 resilience](https://github.com/july-rust/BoardSI/actions/runs/43990895133) and native tests |
 | T10 real main Qt Save/Open/Artwork/picking/filters | **PASS** | [Qt actual native four-platform jobs](https://github.com/july-rust/BoardSI/actions/runs/43990894855) |
 | T11 Win x64/ARM64, macOS ARM64, Linux x64 | **PASS** | F004, Qt runtime, [F003 native](https://github.com/july-rust/BoardSI/actions/runs/43990895034) |
-| T12 prior F_001–F_006 and post-merge status | **PR PASS / main SOURCE VERIFIED / Push CI NOT_OBSERVED** | [15/15 PR checks](https://github.com/july-rust/BoardSI/pull/666/checks); merged SHA above |
+| T12 prior F_001–F_006 and post-merge status | **CURRENT MAIN REQUALIFICATION PASS; original Push NOT_OBSERVED** | [15/15 PR checks](https://github.com/july-rust/BoardSI/pull/666/checks); dated follow-up below |
 
 **Independent review receipt:** Codex reviewed PR #666 and opened P1 mandatory RevC Datum plus P2 net PinRef identity and Qt reserved `*` layer findings. All three received substantive source/tests corrections, replies and `is_resolved=true`; final exact-HEAD Codex re-review did not produce a separate review receipt, so no claim is made that it did.
 
-**Critical evidence boundary:** The connected GitHub workflow listing exposes PR-triggered runs, not the exact merged-`main` **Push-triggered** job list. The verified PR check suite and `main` code match prove pre-merge qualification and deployment of the same source code, **not** a separately observed Push CI pass. GitHub Squash merge succeeded; a separate cryptographic `verification.verified` field was also not exposed by the available commit response.
+**Historical evidence boundary (retained):** the original merged commit's exact Actions run and check-run queries returned zero; the verified PR suite and source match do not reconstruct a historical Push CI result. On 2026-11-28 the REST commit verification field for `c847132dd1078873c370edc75294ac4d8f51169f` was observed as `verified=true`, reason `valid`. No historical Push PASS is asserted.
+
+## Dated current-code requalification — 2026-11-28 KST
+
+The protected, cryptographically verified code-main commit [`560f0d47e4482b63b689cc2caf4c88d6a0c16c4a`](https://github.com/july-rust/BoardSI/commit/560f0d47e4482b63b689cc2caf4c88d6a0c16c4a) has **12/12 actual Push workflow successes**. This new qualification is not evidence for the historical SHA.
+
+| Evidence | Actual result |
+| --- | --- |
+| [Native Rust Push](https://github.com/july-rust/BoardSI/actions/runs/46095270687) | F007 round-trip integration tests: 4 per OS, 16/16 PASS |
+| [Main Qt Push](https://github.com/july-rust/BoardSI/actions/runs/46095270665) | Actual IPC-2581C Native Main Qt selftest 4/4 PASS, Linux offscreen |
+| Protected code-main signature | verified=true, reason=valid |
+| Original F007 code-main Push | NOT_OBSERVED; deliberately retained |
+
+Rust job IDs: Linux 140825056012, macOS ARM64 140825056033, Windows ARM64 140825056084, Windows x64 140825056094. Qt job IDs: macOS ARM64 140825094745, Windows x64 140825094760, Windows ARM64 140825094815, Linux x64 140825094786. The four Native cases were nonalphabetical Net PinRef parent identity, reserved display-name valid native structural open, unsupported geometry/no clobber, and exact source save/open oracle with stale guard. The current functional contract is requalified without changing production code, schema, fixtures or the supported IPC subset. No claim of full vendor IPC, physical connectivity, or SI acceptance. The final protected document merge and its own actual Push CI are to be recorded in the document PR closure receipt.
 
 ## Reproduction (Rust 1.75 / actual Qt)
 
